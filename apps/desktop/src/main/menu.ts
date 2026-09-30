@@ -95,6 +95,29 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     }
   }
 
+  /** The focused Browser tab moves through its own history; otherwise the Sim window does. */
+  const traverseHistory = (
+    direction: 'back' | 'forward'
+  ): NonNullable<MenuItemConstructorOptions['click']> => {
+    return (_item, focusedWindow) => {
+      const win = focusedMainOrFallback(focusedWindow)
+      if (!win) return
+      if (deps.handleFocusedResourceShortcut(win, direction)) return
+      const history = win.webContents.navigationHistory
+      if (direction === 'back' ? history.canGoBack() : history.canGoForward()) {
+        if (direction === 'back') history.goBack()
+        else history.goForward()
+      }
+    }
+  }
+
+  const reload: NonNullable<MenuItemConstructorOptions['click']> = (_item, focusedWindow) => {
+    const win = focusedMainOrFallback(focusedWindow)
+    if (!win) return
+    if (deps.handleFocusedResourceShortcut(win, 'reload-or-clear')) return
+    win.webContents.reload()
+  }
+
   const viewSubmenu: MenuItemConstructorOptions[] = [
     /**
      * The command palette is the web app's own `Mod+K` command; claiming the
@@ -120,25 +143,20 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     {
       label: 'Back',
       accelerator: 'CmdOrCtrl+[',
-      click: (_item, focusedWindow) => {
-        const win = focusedMainOrFallback(focusedWindow)
-        if (!win) return
-        const history = win.webContents.navigationHistory
-        if (history.canGoBack()) {
-          history.goBack()
-        }
-      },
+      click: traverseHistory('back'),
+    },
+    {
+      label: 'Forward',
+      accelerator: 'CmdOrCtrl+]',
+      click: traverseHistory('forward'),
     },
     {
       label: 'Reload',
       accelerator: 'CmdOrCtrl+R',
-      click: (_item, focusedWindow) => {
-        const win = focusedMainOrFallback(focusedWindow)
-        if (!win) return
-        if (deps.handleFocusedResourceShortcut(win, 'reload-or-clear')) return
-        win.webContents.reload()
-      },
+      click: reload,
     },
+    /** F5 is the Windows and Linux reload key; hidden so the menu keeps one Reload row. */
+    { label: 'Reload', accelerator: 'F5', visible: false, click: reload },
     /**
      * Hard refresh, cache ignored. A focused Browser tab claims it first
      * (same boundary as Reload/Close Tab); otherwise it reloads the Sim

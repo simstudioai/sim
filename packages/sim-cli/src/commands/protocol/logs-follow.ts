@@ -499,7 +499,7 @@ function inSeconds(ms: number): number {
 export function attachLogsFollow(logs: Command): void {
   logs
     .command('follow')
-    .description('Watch runs as they arrive, printing each new run once')
+    .description('Watch runs live as they arrive, printing each new run once')
     .option('--workflow <id>', 'Only follow runs of this workflow (repeatable)', collect, [])
     .option(
       '--folder <path>',

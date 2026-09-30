@@ -266,6 +266,7 @@ import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
+import { PlanetScaleBlock, PlanetScaleBlockMeta } from '@/blocks/blocks/planetscale'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
@@ -619,6 +620,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   pitchbook: PitchBookBlock,
+  planetscale: PlanetScaleBlock,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
@@ -950,6 +952,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   pitchbook: PitchBookBlockMeta,
+  planetscale: PlanetScaleBlockMeta,
   polymarket: PolymarketBlockMeta,
   postgresql: PostgreSQLBlockMeta,
   posthog: PostHogBlockMeta,

@@ -47,6 +47,8 @@ export interface PanelHost {
   onViewDetached: (view: WebContentsView | null) => void
   /** Invalidates field-anchored UI when the page moves, hides, or detaches. */
   onGeometryChanged?: () => void
+  /** Runs after each layout that leaves the active view attached and visible. */
+  onViewShown?: (view: WebContentsView) => void
 }
 
 let host: PanelHost = {
@@ -549,6 +551,7 @@ export function layout(): void {
       }, 1_000)
     }
   }
+  if (visible) host.onViewShown?.(active.view)
 }
 
 /** Converts the applied native DIP rectangle back into Sim viewport CSS pixels. */

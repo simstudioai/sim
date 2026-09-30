@@ -153,7 +153,7 @@ export const CLI_CONTRACT: CliContract = {
     // fields otherwise render as an unexplained em-dash for exactly the key
     // most people run the CLI with.
     describe:
-      'Show billing status and current-period credit usage (credits and storage require an OAuth login or personal API key)',
+      'Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },
@@ -332,6 +332,7 @@ export const CLI_CONTRACT: CliContract = {
       'This archives the knowledge base and every document in it; restore with `knowledge restore`.',
   },
   deleteKnowledgeDocument: {
+    describe: 'Delete a document from a knowledge base',
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm: 'This deletes the document and its embeddings.',
   },
@@ -376,6 +377,7 @@ export const CLI_CONTRACT: CliContract = {
   // ─── Fields whose type misdescribes their meaning ─────────────────────────
   // `z.string()` that the route splits on commas. No generator can infer this.
   listLogs: {
+    describe: 'List run logs, such as failed or errored runs, by workflow, trigger or time',
     flags: {
       ...LOG_LIST_FILTER_FLAGS,
       // The `workflow` column below reads `workflow.name`, which the API only
@@ -530,6 +532,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   applyWorkflowOperations: {
     command: 'workflows operations apply',
+    describe: 'Edit a workflow’s blocks, connections and settings with a batch of operations',
     confirm:
       'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {
@@ -664,6 +667,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   queryRows: {
     command: 'tables rows query',
+    describe: 'Query rows with a filter and sort',
     flags: {
       predicate: { name: 'filter', json: true, describe: TABLE_READ_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },

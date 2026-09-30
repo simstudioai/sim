@@ -7,9 +7,10 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
 `sim` is the command line for Sim. Sign in once, then run workflows, query tables,
-move files, search knowledge bases, and read run logs from the terminal. Use
-`--output json` for structured results that pipe into `jq`, cron jobs, and CI
-pipelines. See [Output formats](/cli/output) for commands that emit raw content
+move files, search knowledge bases, and read run logs from the terminal. Results
+are JSON by default, so they pipe into `jq`, cron jobs, CI pipelines, and coding
+agents; use `--output table` to read them as tables. Don't know a command? Run
+`sim cli search "<what you want to do>"`. See [Output formats](/cli/output) for commands that emit raw content
 or local configuration.
 
 ## Install

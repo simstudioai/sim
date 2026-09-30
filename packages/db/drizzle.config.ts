@@ -15,9 +15,10 @@ export default {
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
-  /* script_migrations is the one-off-script ledger (script-migrations/index.ts) —
-     deliberately managed outside drizzle. Without this filter, dev's `db:push` sees an
-     unknown table: it prompts "created or renamed?" (no TTY in CI → red) and would DROP
-     the ledger, making every applied one-off script re-run. */
-  tablesFilter: ['!script_migrations'],
+  /** Runner-owned journals and resumable cleanup cursors must survive a development schema push. */
+  tablesFilter: [
+    '!script_migrations',
+    '!search_embedding_cleanup_progress',
+    '!search_embedding_cleanup_targets',
+  ],
 } satisfies Config

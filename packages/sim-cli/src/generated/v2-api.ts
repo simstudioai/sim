@@ -5553,7 +5553,9 @@ export type GetLogParams = {
   runId: string
 }
 
-export type GetLogQuery = Record<string, unknown>
+export type GetLogQuery = {
+  includeWorkflowState?: boolean
+}
 
 type GetLogResponseRef0 = {
   id: string
@@ -6202,6 +6204,10 @@ export type GetSelectorBody = {
     | 'webflow.sites'
     | 'webflow.collections'
     | 'webflow.items'
+    | 'planetscale.databases'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'imap.mailboxes'
@@ -8998,6 +9004,10 @@ export type ListSelectorBody = {
     | 'webflow.sites'
     | 'webflow.collections'
     | 'webflow.items'
+    | 'planetscale.databases'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'imap.mailboxes'
@@ -16559,6 +16569,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Get Log',
+    query: {
+      includeWorkflowState: {
+        kind: 'boolean',
+        describe:
+          'Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.',
+      },
+    },
   },
   getLogStats: {
     method: 'GET',
@@ -16945,6 +16962,10 @@ export const V2_OPERATIONS = {
           'webflow.sites',
           'webflow.collections',
           'webflow.items',
+          'planetscale.databases',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'imap.mailboxes',
@@ -19028,6 +19049,10 @@ export const V2_OPERATIONS = {
           'webflow.sites',
           'webflow.collections',
           'webflow.items',
+          'planetscale.databases',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'imap.mailboxes',

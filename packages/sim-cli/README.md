@@ -166,7 +166,7 @@ is saved with the profile.
 sim profiles
 sim configure --profile work
 sim configure --profile work --set-workspace <workspaceId>
-sim configure --profile work --set-output json
+sim configure --profile work --set-output table
 sim configure --profile local --set-endpoint http://localhost:3000
 sim whoami --profile work
 ```
@@ -197,6 +197,17 @@ sim --help
 sim workflows --help
 sim tables rows query --help
 ```
+
+Or describe the task and let the CLI find the command. Search ranks the commands
+this version ships, locally; your query is never sent anywhere:
+
+```bash
+sim cli search "cancel a running workflow"
+sim --output table cli search list table rows
+```
+
+It returns the five best matches. When a coding agent runs the CLI, root and
+group `--help` open with a note pointing it to `sim cli search`.
 
 The commands you will use most often are:
 
@@ -242,15 +253,19 @@ argument, and flag.
 
 ## JSON input and output
 
-Human-readable tables are the default. Use JSON or YAML when another program
-will consume the result, and `text` for tab-separated shell output:
+JSON is the default, so agents and scripts can parse every result directly.
+Use `table` for aligned human-readable output, YAML if you prefer it, and `text`
+for tab-separated shell output:
 
 ```bash
-sim workflows list --output json
-sim logs list --output json | jq -r '.data[].runId'
+sim workflows list --output table
+sim logs list | jq -r '.data[].runId'
 SIM_OUTPUT=yaml sim tables get <tableId>
-sim configure --set-output json
+sim configure --set-output table
 ```
+
+Scripts that must not depend on a profile's saved format can still pass
+`--output json` explicitly.
 
 Paginated lists return `{ "data": [...], "nextCursor": "..." }` in JSON and YAML.
 `nextCursor` is `null` when no pages remain. Resource lists and directory `ls`

@@ -51,10 +51,13 @@ import {
   useUserProfile,
 } from '@/hooks/queries/user-profile'
 
-const AuthorizedApps = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps').then(
-    (module) => module.AuthorizedApps
-  )
+/** `loading` gives the view its own boundary; the section page has none to suspend into. */
+const AuthorizedApps = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps'
+    ).then((module) => module.AuthorizedApps),
+  { loading: () => null }
 )
 
 const logger = createLogger('General')

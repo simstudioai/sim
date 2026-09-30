@@ -373,6 +373,44 @@ export const selectorManifest = {
     detail: true,
     staleTime: SEARCH_SELECTOR_STALE_TIME,
   }),
+  'planetscale.databases': rawProviderSelector(['serviceTokenId', 'serviceToken', 'organization'], {
+    readiness: { all: ['serviceTokenId', 'serviceToken', 'organization'] },
+    sensitive: ['serviceTokenId', 'serviceToken'],
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'planetscale.branches': rawProviderSelector(
+    ['serviceTokenId', 'serviceToken', 'organization', 'database'],
+    {
+      readiness: { all: ['serviceTokenId', 'serviceToken', 'organization', 'database'] },
+      sensitive: ['serviceTokenId', 'serviceToken'],
+      listMode: 'paginated',
+      search: true,
+      detail: true,
+    }
+  ),
+  'planetscale.backups': rawProviderSelector(
+    ['serviceTokenId', 'serviceToken', 'organization', 'database', 'branch'],
+    {
+      sourceFields: { branch: ['branch', 'parentBranch'] },
+      readiness: { all: ['serviceTokenId', 'serviceToken', 'organization', 'database'] },
+      sensitive: ['serviceTokenId', 'serviceToken'],
+      listMode: 'paginated',
+      search: false,
+      detail: true,
+    }
+  ),
+  'planetscale.deployRequests': rawProviderSelector(
+    ['serviceTokenId', 'serviceToken', 'organization', 'database'],
+    {
+      readiness: { all: ['serviceTokenId', 'serviceToken', 'organization', 'database'] },
+      sensitive: ['serviceTokenId', 'serviceToken'],
+      listMode: 'paginated',
+      search: false,
+      detail: true,
+    }
+  ),
   'cloudwatch.logGroups': rawProviderSelector(
     ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion'],
     {

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { taskContext } from '@trigger.dev/core/v3'
 import { ApiError, runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
@@ -47,6 +48,42 @@ function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
     retryable: true,
     cause: error,
   })
+}
+
+/** Trigger's friendly run ids — the only ids `runs.retrieve` can resolve. */
+const TRIGGER_RUN_ID_PREFIX = 'run_'
+
+type TriggerRun = Awaited<ReturnType<typeof runs.retrieve>>
+
+function isTriggerNotFoundError(error: unknown): boolean {
+  return (
+    (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
+    (isRecordLike(error) && error.status === 404)
+  )
+}
+
+/**
+ * Retrieves a run by its Trigger run id, or null when `jobId` is not one or no
+ * such run exists. A caller-chosen job id (`schedule_…`, `workflow-execution:…`)
+ * can never resolve here, and Trigger takes ~10 s to answer that 404, so it is
+ * not sent at all.
+ */
+async function retrieveRunById(jobId: string): Promise<TriggerRun | null> {
+  if (!jobId.startsWith(TRIGGER_RUN_ID_PREFIX)) return null
+  try {
+    return await runs.retrieve(jobId)
+  } catch (error) {
+    if (isTriggerNotFoundError(error)) return null
+    throw error
+  }
+}
+
+/** Resolves a caller-chosen job id through the `jobId:` tag set at enqueue. */
+async function retrieveRunByJobIdTag(jobId: string): Promise<TriggerRun | null> {
+  for await (const candidate of runs.list({ tag: `jobId:${jobId}`, limit: 1 })) {
+    return runs.retrieve(candidate.id)
+  }
+  return null
 }
 
 function buildExecutionTag(executionId: string): string {
@@ -380,25 +417,10 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
   async getJob(jobId: string): Promise<Job | null> {
     try {
-      let run: Awaited<ReturnType<typeof runs.retrieve>>
-      try {
-        run = await runs.retrieve(jobId)
-      } catch (error) {
-        const isNotFound =
-          (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
-          (error && typeof error === 'object' && 'status' in error && error.status === 404)
-        if (!isNotFound) throw error
-
-        let runId: string | undefined
-        for await (const candidate of runs.list({ tag: `jobId:${jobId}`, limit: 1 })) {
-          runId = candidate.id
-          break
-        }
-        if (!runId) {
-          logger.debug('Job not found in trigger.dev', { jobId })
-          return null
-        }
-        run = await runs.retrieve(runId)
+      const run = (await retrieveRunById(jobId)) ?? (await retrieveRunByJobIdTag(jobId))
+      if (!run) {
+        logger.debug('Job not found in trigger.dev', { jobId })
+        return null
       }
 
       const payload = run.payload as Record<string, unknown>
@@ -428,11 +450,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         metadata,
       }
     } catch (error) {
-      const isNotFound =
-        (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
-        (error && typeof error === 'object' && 'status' in error && error.status === 404)
-
-      if (isNotFound) {
+      if (isTriggerNotFoundError(error)) {
         logger.debug('Job not found in trigger.dev', { jobId })
         return null
       }

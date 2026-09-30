@@ -12,7 +12,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import { deriveFilePreviewSession } from '@/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase'
+import {
+  deriveFilePreviewSession,
+  previewHoldsFinalContent,
+} from '@/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase'
 import {
   buildCompletedPreviewSessions,
   type FilePreviewSessionsState,
@@ -381,7 +384,7 @@ export function useFilePreviewController({
           sessionId: nextSession.id,
           suppressActivation: !shouldActivateOnComplete,
         })
-        if (hasRenderableFilePreviewContent(nextSession)) {
+        if (previewHoldsFinalContent(prevSession, payload)) {
           seedCompletedPreviewContentCache(fileId, nextSession.previewText)
         }
         if (workspaceId) invalidateResourceQueries(queryClient, workspaceId, 'file', fileId)

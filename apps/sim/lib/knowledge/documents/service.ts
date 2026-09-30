@@ -81,6 +81,10 @@ import {
   SYSTEM_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/types'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import {
+  connectorIndexingCondition,
+  requiresConnectorIndexing,
+} from '@/lib/knowledge/connectors/indexing-policy'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
 import {
@@ -229,12 +233,13 @@ class SupersededProcessingOutput extends Error {
   }
 }
 
-/** The document's knowledge base has not been deleted. */
+/** The document's knowledge base is active and its backend still accepts indexed content. */
 function knowledgeBaseIsActive() {
   return sql`EXISTS (
     SELECT 1 FROM ${knowledgeBase}
     WHERE ${knowledgeBase.id} = ${document.knowledgeBaseId}
       AND ${knowledgeBase.deletedAt} IS NULL
+      AND ${connectorIndexingCondition() ?? sql`true`}
   )`
 }
 
@@ -1186,6 +1191,19 @@ export async function processDocumentsWithQueue(
   }
 
   const requested = uniqueDocuments.length
+  const [indexingTarget] = await db
+    .select({ isSearchIndex: knowledgeBase.isSearchIndex })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .limit(1)
+  if (indexingTarget && !requiresConnectorIndexing(indexingTarget.isSearchIndex)) {
+    return {
+      requested,
+      accepted: 0,
+      failed: requested,
+      failedDocumentIds: uniqueDocuments.map((doc) => doc.documentId),
+    }
+  }
   const queuedAt = new Date()
   const documentIds = uniqueDocuments.map((doc) => doc.documentId)
   const {
@@ -1609,6 +1627,7 @@ export async function processDocumentAsync(
 
     const contextRows = await db
       .select({
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         chunkingConfig: knowledgeBase.chunkingConfig,
@@ -1653,6 +1672,37 @@ export async function processDocumentAsync(
       )
       .limit(1)
 
+    if (contextRows[0] && !requiresConnectorIndexing(contextRows[0].isSearchIndex)) {
+      /**
+       * A generation queued before its KB went dormant (e.g. legacy index adoption) gives back its
+       * stamp and charged attempt, as `clearDocumentsQueued` does; the token stays as the owner.
+       */
+      if (attemptContext?.processingQueueToken || attemptContext?.processingQueuedAt) {
+        await db
+          .update(document)
+          .set({
+            processingQueuedAt: null,
+            ...(attemptContext.chargedAtDispatch
+              ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+              : {}),
+          })
+          .where(
+            and(
+              eq(document.id, documentId),
+              eq(document.processingStatus, 'pending'),
+              /**
+               * Only the exact stamp this payload was queued with: a duplicate of an already
+               * withdrawn generation, or a newer stamp under a reused token, is left alone.
+               */
+              attemptContext.processingQueuedAt
+                ? eq(document.processingQueuedAt, attemptContext.processingQueuedAt)
+                : isNotNull(document.processingQueuedAt),
+              ...queueGenerationConditions(attemptContext)
+            )
+          )
+      }
+      return { outcome: 'skipped', reason: 'unavailable' }
+    }
     if (contextRows.length === 0) {
       logger.warn(
         `[${documentId}] Skipping document processing: document or knowledge base ${knowledgeBaseId} no longer exists`
@@ -2421,6 +2471,7 @@ async function resolveDocumentStorageAdmission(
 ): Promise<DocumentStorageAdmission> {
   const [kb] = await db
     .select({
+      isSearchIndex: knowledgeBase.isSearchIndex,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       userId: knowledgeBase.userId,
@@ -2432,6 +2483,9 @@ async function resolveDocumentStorageAdmission(
     throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
 
+  if (!requiresConnectorIndexing(kb.isSearchIndex)) {
+    throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+  }
   if (kb.organizationId)
     throw new OrchestrationError(
       'validation',
@@ -2490,6 +2544,7 @@ export async function createDocumentRecords(
     const kb = await tx
       .select({
         id: knowledgeBase.id,
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
@@ -2500,6 +2555,9 @@ export async function createDocumentRecords(
 
     if (kb.length === 0) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+    if (!requiresConnectorIndexing(kb[0].isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
 
     if (kb[0].workspaceId !== admission.workspaceId) {
@@ -3158,6 +3216,7 @@ export async function createSingleDocument(
     const kb = await tx
       .select({
         id: knowledgeBase.id,
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
@@ -3168,6 +3227,9 @@ export async function createSingleDocument(
 
     if (kb.length === 0) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+    if (!requiresConnectorIndexing(kb[0].isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
 
     if (

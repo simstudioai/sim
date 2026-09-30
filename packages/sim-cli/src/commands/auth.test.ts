@@ -88,12 +88,14 @@ vi.mock('../auth/oauth-flow', () => ({
 vi.mock('../config/index', async () => ({
   ...(await import('../config/profile').then(
     ({
+      DEFAULT_OUTPUT_FORMAT,
       FORBIDDEN_IN_VALUE,
       normalizeWorkspaceId,
       OUTPUT_FORMATS,
       ProfileConfigError,
       validateProfileName,
     }) => ({
+      DEFAULT_OUTPUT_FORMAT,
       FORBIDDEN_IN_VALUE,
       normalizeWorkspaceId,
       OUTPUT_FORMATS,

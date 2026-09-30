@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-28",
+  "updatedAt": "2026-09-29",
   "integrations": [
     {
       "type": "onepassword",
@@ -18026,6 +18026,85 @@
       "tags": ["enrichment", "data-analytics"]
     },
     {
+      "type": "planetscale",
+      "slug": "planetscale",
+      "name": "PlanetScale",
+      "description": "Manage PlanetScale databases, branches, backups, and deploy requests",
+      "longDescription": "Manage PlanetScale databases and branches, create and inspect backups, and create, review, queue, and close Vitess deploy requests. Authenticate with an organization service token. Deploy-request actions require a Vitess database; SQL queries are available through the MySQL and PostgreSQL integrations.",
+      "bgColor": "#111111",
+      "iconName": "PlanetScaleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/planetscale",
+      "operations": [
+        {
+          "name": "List Databases",
+          "description": "List databases"
+        },
+        {
+          "name": "Get Database",
+          "description": "Get a database"
+        },
+        {
+          "name": "List Branches",
+          "description": "List branches"
+        },
+        {
+          "name": "Get Branch",
+          "description": "Get a branch"
+        },
+        {
+          "name": "Create Branch",
+          "description": "Create a branch"
+        },
+        {
+          "name": "Delete Branch",
+          "description": "Delete a branch"
+        },
+        {
+          "name": "List Backups",
+          "description": "List backups"
+        },
+        {
+          "name": "Get Backup",
+          "description": "Get a backup"
+        },
+        {
+          "name": "Create Backup",
+          "description": "Create a backup"
+        },
+        {
+          "name": "List Deploy Requests (Vitess)",
+          "description": "List deploy requests (Vitess only)"
+        },
+        {
+          "name": "Get Deploy Request (Vitess)",
+          "description": "Get a deploy request (Vitess only)"
+        },
+        {
+          "name": "Create Deploy Request (Vitess)",
+          "description": "Create a deploy request (Vitess only)"
+        },
+        {
+          "name": "Review Deploy Request (Vitess)",
+          "description": "Review a deploy request (Vitess only)"
+        },
+        {
+          "name": "Queue Deploy Request (Vitess)",
+          "description": "Queue a deploy request (Vitess only)"
+        },
+        {
+          "name": "Close Deploy Request (Vitess)",
+          "description": "Close a deploy request (Vitess only)"
+        }
+      ],
+      "operationCount": 15,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["cloud", "ci-cd", "automation"]
+    },
+    {
       "type": "polymarket",
       "slug": "polymarket",
       "name": "Polymarket",
@@ -24693,15 +24772,15 @@
         },
         {
           "name": "Resume Subscription",
-          "description": "Resume a subscription that was scheduled for cancellation"
+          "description": "Resume a paused subscription"
         },
         {
           "name": "List Subscriptions",
-          "description": "List all subscriptions"
+          "description": "List one page of subscriptions. Follow starting_after while metadata.has_more is true."
         },
         {
           "name": "Search Subscriptions",
-          "description": "Search for subscriptions using query syntax"
+          "description": "Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue."
         },
         {
           "name": "Create Invoice",

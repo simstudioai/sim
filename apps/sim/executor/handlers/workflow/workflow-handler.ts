@@ -472,11 +472,9 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
       }
 
-      const childSnapshotResult = await snapshotService.createSnapshotWithDeduplication(
-        workflowId,
-        childWorkflow.workflowState
-      )
-      childWorkflowSnapshotId = childSnapshotResult.snapshot.id
+      childWorkflowSnapshotId = (
+        await snapshotService.resolveSnapshot(workflowId, childWorkflow.workflowState)
+      ).id
 
       const childDepth = (ctx.childWorkflowContext?.depth ?? 0) + 1
       const withinSseChildDepth = childDepth <= DEFAULTS.MAX_SSE_CHILD_DEPTH

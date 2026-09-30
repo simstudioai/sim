@@ -250,7 +250,11 @@ function createWebContentsMock() {
 export class WebContentsView {
   webContents = createWebContentsMock()
   setBackgroundColor = vi.fn()
-  setVisible = vi.fn()
+  private visible = true
+  setVisible = vi.fn((visible: boolean) => {
+    this.visible = visible
+  })
+  getVisible = vi.fn(() => this.visible)
   private bounds = { x: 0, y: 0, width: 0, height: 0 }
   setBounds = vi.fn((bounds: { x: number; y: number; width: number; height: number }) => {
     this.bounds = { ...bounds }

@@ -17,6 +17,7 @@ import {
 } from '@/lib/core/config/env-flags'
 import { ConsentProvider } from '@/app/_shell/consent/consent-provider'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
+import { DesktopUpdateNotification } from '@/app/_shell/desktop-update-notification'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const themeCSS = generateThemeCSS()
   const application = (
     <ToastProvider>
+      <DesktopUpdateNotification />
       <PasteAdmissionGuard />
       <PostHogProvider consentRequired={isHosted}>
         <ThemeProvider>
