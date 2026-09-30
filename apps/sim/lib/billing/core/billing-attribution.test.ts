@@ -20,6 +20,7 @@ import {
   checkAccountBillingBlocks,
   checkAttributedBillingBlocks,
   checkAttributedUsageLimits,
+  requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
   requireBillingCallbackAttribution,
   requireBillingRequestIdHeader,
@@ -194,6 +195,38 @@ describe('resolveBillingAttribution', () => {
       },
     })
   })
+})
+
+describe('account billing decision header', () => {
+  const decision = {
+    userId: 'actor',
+    billingEntity: { type: 'user', id: 'actor' },
+    billingPeriod: {
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2026-08-01T00:00:00.000Z',
+      source: 'stripe',
+    },
+  }
+  const header = (value: unknown) =>
+    new Headers({ 'x-sim-billing-account-decision': encodeURIComponent(JSON.stringify(value)) })
+
+  it('restores the admitted payer subscription', () => {
+    expect(
+      requireAccountBillingDecisionHeader(header({ ...decision, payerSubscriptionId: 'sub-1' }))
+    ).toMatchObject({ payerSubscriptionId: 'sub-1' })
+    expect(requireAccountBillingDecisionHeader(header(decision))).not.toHaveProperty(
+      'payerSubscriptionId'
+    )
+  })
+
+  it.each([42, '', ' ', null, { id: 'sub-1' }])(
+    'refuses a payer subscription of %j',
+    (payerSubscriptionId) => {
+      expect(() =>
+        requireAccountBillingDecisionHeader(header({ ...decision, payerSubscriptionId }))
+      ).toThrow('Account billing decision header is malformed')
+    }
+  )
 })
 
 describe('serialized attribution boundaries', () => {

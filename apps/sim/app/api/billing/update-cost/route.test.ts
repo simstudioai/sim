@@ -1112,6 +1112,29 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       expect(res.status).toBe(200)
     })
 
+    it('keeps a payer whose period is not a Stripe period on its frozen period', async () => {
+      mockToBillingContext.mockReturnValue({
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'default',
+        },
+      })
+      mockRecordCumulativeUsage.mockResolvedValue({
+        billed: true,
+        delta: 0.5,
+        total: 0.5,
+        billingPeriod: CURRENT_PERIOD,
+      })
+
+      await POST(attributedCallback())
+
+      expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
+        expect.not.objectContaining({ payerSubscriptionId: expect.anything() })
+      )
+    })
+
     it('keeps reporting-window payers on their frozen period', async () => {
       mockToBillingContext.mockReturnValue({
         billingEntity: { type: 'organization', id: 'org-1' },

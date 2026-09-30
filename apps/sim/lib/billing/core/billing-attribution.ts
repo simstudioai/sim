@@ -101,6 +101,8 @@ export interface AccountBillingDecision {
    * The payer's subscription at admission, so a run that outlives a Stripe period bills its
    * later spend to the period it was spent in, as an attributed run's `payerSubscription` does.
    * Absent for a payer without a subscription, and in decisions minted before it existed.
+   * If that subscription is replaced mid-run, spend stays in its period while the mid-run
+   * verdict judges the payer's current one, so the limit can only be under-enforced.
    */
   readonly payerSubscriptionId?: string
 }
