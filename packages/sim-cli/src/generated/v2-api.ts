@@ -6205,6 +6205,10 @@ export type GetSelectorBody = {
     | 'webflow.sites'
     | 'webflow.collections'
     | 'webflow.items'
+    | 'planetscale.databases'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'imap.mailboxes'
@@ -9001,6 +9005,10 @@ export type ListSelectorBody = {
     | 'webflow.sites'
     | 'webflow.collections'
     | 'webflow.items'
+    | 'planetscale.databases'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'imap.mailboxes'
@@ -16955,6 +16963,10 @@ export const V2_OPERATIONS = {
           'webflow.sites',
           'webflow.collections',
           'webflow.items',
+          'planetscale.databases',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'imap.mailboxes',
@@ -19038,6 +19050,10 @@ export const V2_OPERATIONS = {
           'webflow.sites',
           'webflow.collections',
           'webflow.items',
+          'planetscale.databases',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'imap.mailboxes',

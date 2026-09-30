@@ -230,11 +230,13 @@ const adapters: Record<string, SettingAdapter> = {
   'organization/members': { get: readSettingsRoster },
   'organization/whitelabeling': {
     schema: updateOrganizationWhitelabelBodySchema.strict(),
-    get: (context) =>
-      getOrganizationWhitelabel.execute({
-        principal: context.principal,
-        input: organizationInput(context),
-      }),
+    get: async (context) =>
+      (
+        await getOrganizationWhitelabel.execute({
+          principal: context.principal,
+          input: organizationInput(context),
+        })
+      ).settings,
     update: async (context, changes) =>
       (
         await updateOrganizationWhitelabel.execute({

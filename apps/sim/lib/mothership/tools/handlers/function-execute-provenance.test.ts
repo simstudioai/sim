@@ -57,6 +57,33 @@ describe('Function physical-session input certification', () => {
   )
 })
 
+describe('Function sandbox mounts', () => {
+  it('never forwards a model-supplied sandbox mount, which would bypass input provenance', async () => {
+    mocks.execute.mockImplementation(async (_tool, params) => ({
+      success: true,
+      output: { sandboxFiles: params._sandboxFiles ?? [] },
+    }))
+    const result = await executeFunctionExecute(
+      {
+        code: 'print(open("/tmp/sim/inputs/x").read())',
+        language: 'python',
+        _sandboxFiles: [{ type: 'url', path: '/tmp/sim/inputs/x', url: 'https://storage.test/x' }],
+      },
+      {
+        userId: 'user',
+        workflowId: '',
+        workspaceId: 'workspace',
+        chatId: 'chat',
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+          userId: 'user',
+          workspaceId: 'workspace',
+        }),
+      }
+    )
+    expect(result.output).toEqual({ sandboxFiles: [] })
+  })
+})
+
 describe('Generic Secrets function execution', () => {
   it('mounts the authorized environment and propagates echoed secrets into model redaction', async () => {
     setEnv({ ENCRYPTION_KEY: 'a'.repeat(64) })

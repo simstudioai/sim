@@ -53,6 +53,7 @@ import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-ret
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
+import { replayRefusal } from '@/lib/mothership/request/session/replay-budget'
 import {
   getToolCallTerminalData,
   requireToolCallStateResult,
@@ -534,16 +535,21 @@ export async function runCopilotLifecycle(
       // the work the user watched succeed.
       const backendFinishedTurn =
         context.completionStatus === MothershipStreamV1CompletionStatus.complete
+      // A refused replay write aborts the turn to stop it, but the turn failed; it
+      // was not stopped by the user.
+      const refusal = replayRefusal(lifecycleOptions.abortSignal?.reason)
       // Consult the lifecycle signal as well as the flag. `context.wasAborted` is
       // only reached from a fanout leg through the (deliberately asymmetric) merge
       // in `mergeResumeLegOutputs`, so a Stop landing mid-fanout could otherwise
       // classify the turn as a success. Mirrors the check already used below on
       // the throw path.
       const turnWasAborted =
-        context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
-        context.wasAborted ||
-        (lifecycleOptions.abortSignal?.aborted ?? false)
+        !refusal &&
+        (context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
+          context.wasAborted ||
+          (lifecycleOptions.abortSignal?.aborted ?? false))
       const succeeded =
+        !refusal &&
         !turnWasAborted &&
         (backendFinishedTurn || (!context.completionStatus && context.errors.length === 0))
 
@@ -564,6 +570,7 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
+        ...(refusal ? { error: refusal.userMessage, errorCode: refusal.code } : {}),
         errors: !succeeded && context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -586,6 +593,7 @@ export async function runCopilotLifecycle(
       // explained, not just reduced to a message string.
       logger.error('Copilot orchestration failed', {
         error: err.message,
+        ...causeForLog(err),
         name: err.name,
         ...(error instanceof CopilotBackendError
           ? { backendStatus: error.status, backendBody: error.body?.slice(0, 2000) }
@@ -601,7 +609,8 @@ export async function runCopilotLifecycle(
       // partial content can be appended.
       // Return `cancelled: true` so upstream classification stays
       // consistent with the success-path cancel result.
-      const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
+      const refusal = replayRefusal(lifecycleOptions.abortSignal?.reason)
+      const wasCancelled = !refusal && (lifecycleOptions.abortSignal?.aborted ?? false)
       // Preserve whatever streamed before the throw for both terminals. A thrown
       // backend error (as opposed to an `error` SSE event that lets the loop finish
       // normally) must still carry the partial assistant turn so onError can
@@ -616,7 +625,8 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
-        error: err.message,
+        error: refusal?.userMessage ?? err.message,
+        ...(refusal ? { errorCode: refusal.code } : {}),
         errors: context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -836,6 +846,14 @@ async function runResumeLegWithRetry(
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
   const retry = new StreamRetryWindow(options.timeout)
+  /** A leg that streams again has recovered; a later outage gets its own budget. */
+  const legOptions: CopilotLifecycleOptions = {
+    ...options,
+    onEvent: async (event) => {
+      retry.recovered()
+      await options.onEvent?.(event)
+    },
+  }
   for (;;) {
     options.abortSignal?.throwIfAborted()
     const errorsBeforeAttempt = leg.errors.length
@@ -850,7 +868,7 @@ async function runResumeLegWithRetry(
         },
         leg,
         execContext,
-        { ...options, timeout: retry.remainingMs() }
+        { ...legOptions, timeout: retry.remainingMs() }
       )
       return
     } catch (error) {
@@ -858,9 +876,10 @@ async function runResumeLegWithRetry(
       if (backoff !== null) {
         leg.errors.length = errorsBeforeAttempt
         logger.warn('Child resume leg failed, retrying', {
-          attempt: retry.attempt + 1,
+          attempt: retry.attempts + 1,
           backoffMs: backoff,
           error: toError(error).message,
+          ...causeForLog(error),
         })
         await interruptibleSleep(backoff, options.abortSignal)
         continue
@@ -1128,6 +1147,7 @@ async function runCheckpointLoop(
          has an HTTP buffer worth a per-event macrotask flush. */
       flushAfterEvent: options.flushAfterEvent ?? Boolean(callerOnEvent),
       onEvent: async (event: StreamEvent) => {
+        retry?.recovered()
         if (
           event.type === MothershipStreamV1EventType.run &&
           event.payload.kind === MothershipStreamV1RunKind.checkpoint_pause &&
@@ -1153,7 +1173,7 @@ async function runCheckpointLoop(
       {
         route,
         isResume,
-        ...(isResume ? { attempt: retry.attempt } : {}),
+        ...(isResume ? { attempt: retry.attempts } : {}),
       }
     )
     context.trace.setActiveSpan(streamSpan)
@@ -1161,7 +1181,7 @@ async function runCheckpointLoop(
     logger.info('Starting stream loop', {
       route,
       isResume,
-      resumeAttempt: retry.attempt,
+      resumeAttempt: retry.attempts,
       pendingToolPromises: context.pendingToolPromises.size,
       toolCallCount: context.toolCalls.size,
       hasCheckpoint: !!context.awaitingAsyncContinuation,
@@ -1219,9 +1239,10 @@ async function runCheckpointLoop(
         logger.warn(
           isResume ? 'Resume stream failed, retrying' : 'Initial stream failed, retrying',
           {
-            attempt: (retry?.attempt ?? 0) + 1,
+            attempt: (retry?.attempts ?? 0) + 1,
             backoffMs: backoff,
             error: toError(streamError).message,
+            ...causeForLog(streamError),
           }
         )
         await interruptibleSleep(backoff, options.abortSignal)
@@ -1658,6 +1679,12 @@ async function withEnterpriseByokKey(
     ...(byokApiKey && !(await isMothershipModelSelectorEnabled()) ? ['modelSelection'] : []),
   ])
   return byokApiKey ? { ...refreshed, byokApiKey } : refreshed
+}
+
+/** The underlying failure behind a generic user-facing error, for logs. */
+function causeForLog(error: unknown): { cause?: string } {
+  const cause = error instanceof Error ? error.cause : undefined
+  return cause === undefined ? {} : { cause: getErrorMessage(cause) }
 }
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {

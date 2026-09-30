@@ -265,6 +265,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/pipedrive-service-account.mdx',
   'integrations/pipedrive.mdx',
   'integrations/pitchbook.mdx',
+  'integrations/planetscale.mdx',
   'integrations/polymarket.mdx',
   'integrations/postgresql.mdx',
   'integrations/posthog.mdx',

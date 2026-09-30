@@ -80,6 +80,7 @@ vi.mock('@/lib/mothership/tools/server/files/file-preview', async () => {
 
 import {
   buildPreviewContentUpdate,
+  CopilotBackendError,
   decodeJsonStringPrefix,
   extractEditContent,
   runStreamLoop,
@@ -148,6 +149,7 @@ function createStreamingContext(): StreamingContext {
     wasAborted: false,
     errors: [],
     activeFileIntents: new Map(),
+    filePreviewBudget: { contentBytes: 0 },
     trace: new TraceCollector(),
     toolPermissions: {
       enabled: false,
@@ -249,6 +251,77 @@ describe('copilot go stream helpers', () => {
     })
     expect(context.streamComplete).toBe(true)
   })
+
+  it.each([
+    [
+      'an HTML gateway page',
+      502,
+      'text/html',
+      '<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>',
+      'The agent service is temporarily unavailable. Please try again.',
+    ],
+    [
+      "the worker's internal error",
+      500,
+      'application/json',
+      '{"error":"Internal error"}',
+      'The agent service is temporarily unavailable. Please try again.',
+    ],
+    ['a rate limit', 429, 'application/json', '{"error":"Too many requests"}', 'Too many requests'],
+    [
+      'an enterprise-only request',
+      403,
+      'application/json',
+      '{"error":"Enterprise BYOK required"}',
+      'Enterprise BYOK required',
+    ],
+    [
+      'a model selection problem',
+      400,
+      'application/json',
+      '{"error":"This workspace uses an Anthropic API key. Select Opus 5.5 to continue."}',
+      'This workspace uses an Anthropic API key. Select Opus 5.5 to continue.',
+    ],
+    [
+      'protocol skew',
+      426,
+      'application/json',
+      '{"error":"protocol_version_mismatch","expected":3,"got":2,"message":"This Sim build speaks a different mothership protocol version. Update the older side."}',
+      'This Sim build speaks a different mothership protocol version. Update the older side.',
+    ],
+    [
+      'an internal validation detail',
+      400,
+      'application/json',
+      '{"error":"Bad Request","message":"userId required for internal API key"}',
+      'The agent service could not process this request.',
+    ],
+    [
+      'a plain-text request rejection',
+      400,
+      'text/plain',
+      'Invalid request body',
+      'The agent service could not process this request.',
+    ],
+  ])(
+    'tells the user about %s without the raw body',
+    async (_label, status, contentType, body, userMessage) => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(body, { status, headers: { 'Content-Type': contentType } })
+      )
+
+      const error = await runStreamLoop(
+        'https://example.com/api/mothership',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 1000 }
+      ).catch((thrown: unknown) => thrown)
+
+      expect(error).toBeInstanceOf(CopilotBackendError)
+      expect(error).toMatchObject({ message: userMessage, status, body })
+    }
+  )
 
   it('terminates the stream on an exhausted identity budget before forwarding later events', async () => {
     const identity = createProviderToolCallIdentity('exhausted-identity-run')
@@ -712,8 +785,89 @@ describe('copilot go stream helpers', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('does not retry network errors because Go may already be executing the request', async () => {
-    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'))
+  it('reports a stream cut mid-body without the raw socket error', async () => {
+    const socketError = Object.assign(
+      new Error(
+        'The socket connection was closed unexpectedly. For more information, pass `verbose: true`'
+      ),
+      { code: 'ECONNRESET' }
+    )
+    const first = createEvent({
+      streamId: 'cut-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-cut',
+      type: 'text',
+      payload: { channel: 'assistant', text: 'partial' },
+    })
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`))
+          },
+          pull(controller) {
+            controller.error(socketError)
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    )
+
+    await expect(
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        {
+          timeout: 1000,
+          flushAfterEvent: false,
+        }
+      )
+    ).rejects.toMatchObject({
+      name: 'WorkerStreamInterruptedError',
+      message: 'The agent service is temporarily unavailable. Please try again.',
+      cause: socketError,
+    })
+  })
+
+  it('keeps the timeout error when the body read fails after the request timed out', async () => {
+    const first = createEvent({
+      streamId: 'timed-out-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-timed-out',
+      type: 'text',
+      payload: { channel: 'assistant', text: 'partial' },
+    })
+    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
+      const signal = init?.signal
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`))
+            signal?.addEventListener('abort', () => controller.error(signal.reason))
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    })
+
+    await expect(
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 20, flushAfterEvent: false }
+      )
+    ).rejects.toMatchObject({ name: 'TimeoutError' })
+  })
+
+  it('reports a worker it could not reach without the raw network error', async () => {
+    const networkError = new TypeError('fetch failed')
+    vi.mocked(fetch).mockRejectedValueOnce(networkError)
 
     const context = createStreamingContext()
     const execContext: ExecutionContext = {
@@ -725,7 +879,11 @@ describe('copilot go stream helpers', () => {
       runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
         timeout: 1000,
       })
-    ).rejects.toThrow('fetch failed')
+    ).rejects.toMatchObject({
+      name: 'WorkerUnreachableError',
+      message: 'The agent service is temporarily unavailable. Please try again.',
+      cause: networkError,
+    })
 
     expect(fetch).toHaveBeenCalledTimes(1)
   })

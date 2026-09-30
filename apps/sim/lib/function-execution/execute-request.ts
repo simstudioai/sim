@@ -2385,7 +2385,7 @@ export async function executeFunctionRequest(
     // would leave `{{OTHER_SECRET}}` resolving, which is a hole, not a scope.
     const envVars = scopeEnvironmentVariables(rawEnvVars, secretScope, mountedSecrets)
     const admittedChatOwner = activeSandboxChatOwner()
-    const mothershipSession =
+    const admittedSession =
       usesMothershipSandbox &&
       !selectedSandboxId &&
       sandboxSessionKey &&
@@ -2716,6 +2716,10 @@ export async function executeFunctionRequest(
       )
     }
     const { sandboxFiles: userFileMounts, manifest: mountManifest } = resolvedMounts
+    const mothershipSession =
+      admittedSession && resolvedMounts.unprovenancedMountCount > 0
+        ? { ...admittedSession, unprovenancedInputs: true }
+        : admittedSession
     const sandboxFiles = mergeSandboxFileMounts(_sandboxFiles, userFileMounts)
 
     // Every `<block.file.path>` marker becomes the path its file was mounted at,

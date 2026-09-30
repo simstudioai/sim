@@ -45,9 +45,10 @@ import {
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
-import type {
-  PersistedFileAttachment,
-  PersistedMessage,
+import {
+  isUnsettledToolState,
+  type PersistedFileAttachment,
+  type PersistedMessage,
 } from '@/lib/mothership/chat/persisted-message'
 import {
   type RevealedSimKeysByMessage,
@@ -82,8 +83,8 @@ import {
 } from '@/lib/mothership/tools/client/run-tool-execution'
 import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-context'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
-import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
@@ -3227,8 +3228,7 @@ export function useChat(
       const isError = !!options?.error
       if (isError) {
         const blocks = streamingBlocksRef.current
-        if (blocks.some((block) => block.toolCall?.status === 'executing')) {
-          finalizeResidualToolCalls(blocks, 'error')
+        if (finalizeResidualToolCalls(blocks, 'error')) {
           const assistantId =
             activeTurnRef.current?.assistantMessageId ??
             (streamIdRef.current ? getLiveAssistantMessageId(streamIdRef.current) : undefined)
@@ -4370,11 +4370,11 @@ export function useChat(
         } else {
           setPendingMessages((prev) =>
             prev.map((msg) => {
-              const hasExecutingTool = msg.contentBlocks?.some(
-                (block) => block.toolCall?.status === 'executing'
+              const hasUnsettledTool = msg.contentBlocks?.some((block) =>
+                isUnsettledToolState(block.toolCall?.status)
               )
               const hasOpenBlock = msg.contentBlocks?.some((block) => block.endedAt === undefined)
-              if (!hasExecutingTool && !hasOpenBlock) {
+              if (!hasUnsettledTool && !hasOpenBlock) {
                 return msg
               }
               const updatedBlocks: ContentBlock[] = (msg.contentBlocks ?? []).map((block) => ({

@@ -2012,6 +2012,22 @@ export function reloadPage(contents: WebContents): void {
   contents.reload()
 }
 
+/**
+ * Reloads past the HTTP cache, the browser's Shift-reload. A failed or hung
+ * page takes the plain reload's recovery instead: a load error retries the
+ * URL that failed, which need not be the committed page, and a hung renderer
+ * must be restarted, since reloading it in place waits on the hung page.
+ */
+function hardReloadPage(contents: WebContents): void {
+  const issue = tabForContents(contents)?.pageIssue
+  if (issue?.kind === 'load-error' || issue?.kind === 'unresponsive') {
+    reloadPage(contents)
+    return
+  }
+  prepareExplicitNavigation(contents)
+  contents.reloadIgnoringCache()
+}
+
 /** Hands one page selection to the exact app window and chat hosting its tab. */
 function addPageSelectionToChat(contents: WebContents, text: string): void {
   if (!text.trim() || getBrowserScopeId() !== getActiveBrowserScopeId()) return
@@ -2494,8 +2510,7 @@ function initializeTabView(
         return
       }
       if (shortcut === 'hard-reload') {
-        prepareExplicitNavigation(contents)
-        contents.reloadIgnoringCache()
+        hardReloadPage(contents)
         return
       }
 
@@ -3512,8 +3527,7 @@ export function handleFocusedShortcut(
       reloadPage(shortcutTab.view.webContents)
       return true
     case 'hard-reload':
-      prepareExplicitNavigation(shortcutTab.view.webContents)
-      shortcutTab.view.webContents.reloadIgnoringCache()
+      hardReloadPage(shortcutTab.view.webContents)
       return true
     case 'back':
       goBack(shortcutTab.view.webContents)

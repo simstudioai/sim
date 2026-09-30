@@ -8,6 +8,7 @@ import { defineOrganizationOperation } from '@/lib/core/application/organization
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
+import { settleStoppedRunWithoutController } from '@/lib/mothership/async-runs/orphaned-runs'
 import {
   areStreamToolExecutionsSettled,
   getLatestRunForStream,
@@ -208,8 +209,15 @@ export const abortRun = defineAuthorizedChatUseCase({
     if (!settled) {
       await releasePendingChatStream(chatId, streamId)
       logger.warn('Stopped stream did not settle; released its chat lock', { chatId, streamId })
-      return { aborted: true, settled: false, forceReleased: true }
     }
+    /** A run with no controller left, or none to begin with, has nothing else to settle it. */
+    await settleStoppedRunWithoutController(run.id).catch((error) => {
+      logger.warn('Stopped run without a controller could not be settled', {
+        streamId,
+        error: getErrorMessage(error),
+      })
+    })
+    if (!settled) return { aborted: true, settled: false, forceReleased: true }
     const toolsSettled = await areStreamToolExecutionsSettled(streamId, userId).catch((error) => {
       logger.warn('Stopped stream tool settlement could not be verified', {
         streamId,

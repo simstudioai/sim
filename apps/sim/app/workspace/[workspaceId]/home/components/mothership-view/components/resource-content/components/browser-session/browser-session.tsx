@@ -1157,7 +1157,7 @@ export function BrowserSession({
                   onKeyDown={(event) => {
                     event.stopPropagation()
                     // Keys during an IME composition edit the composed text, not the URL.
-                    if (event.nativeEvent.isComposing) return
+                    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
                     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                       // Never move a highlight through a list that is not on screen.
                       if (!suggestionsOpen) return

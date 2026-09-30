@@ -218,6 +218,9 @@ For **each tool** in `tools.access`:
   - True/false → `switch` (a Yes/No `dropdown` only when the tool needs a third "unset" state)
   - Credentials → `oauth-input` with correct `serviceId`
 - [ ] Dropdown `value: () => 'default'` is set for dropdowns with a sensible default
+- [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder` — including
+      password fields (`Enter your API key`). Formatted values show the shape
+      (`2023-01-01T00:00:00Z`); optional fields with a server default name it. See add-integration → Step 3
 
 ### Advanced Mode
 - [ ] Optional, rarely-used fields are set to `mode: 'advanced'`:
@@ -450,6 +453,10 @@ upstream PR that skipped regeneration), and investigate anything that looks like
 page losing a section usually means its source block moved or a generator input broke, not that the
 hunk should be reverted.
 
+The integration's page must carry a `{/* MANUAL-CONTENT-START:intro */}` section directly under
+`<BlockInfoCard />`. If it is missing, write one using the template in add-integration → Step 8, and
+check an existing intro against what the block actually ships (no removed or unshipped operations).
+
 If an icon changed, `apps/sim/components/icons.tsx` is the source of truth and `apps/docs/components/icons.tsx` is its generated mirror — they must end up byte-identical for that component.
 
 ### Validation Output
@@ -473,6 +480,7 @@ After fixing, confirm:
 - [ ] Validated every tool's ID, params, request, response, outputs, and types against API docs
 - [ ] Validated block ↔ tool alignment (every tool param has a subBlock, every condition is correct)
 - [ ] Validated advanced mode on optional/rarely-used fields
+- [ ] Validated every text-entry and selector subBlock has a `placeholder`
 - [ ] Validated wandConfig on timestamps and complex inputs
 - [ ] Validated tools.config mapping, tool selector, and type coercions
 - [ ] Validated block outputs match what tools return, with typed JSON where possible
@@ -496,6 +504,7 @@ After fixing, confirm:
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes
 - [ ] Ran `bun run scripts/generate-docs.ts` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
+- [ ] Validated the docs page has an accurate `MANUAL-CONTENT-START:intro` section
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean
 - [ ] Verified added tests fail without their fix

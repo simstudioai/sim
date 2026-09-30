@@ -220,6 +220,12 @@ export interface ForkSyncController {
   mcpReauthCount: number
   inlineSecretCount: number
   dirty: boolean
+  /**
+   * Whether a direction switch would discard anything chosen this session: unsaved mapping edits,
+   * a copy selection that differs from the default, accepted dropped references, or trigger URL
+   * choices. Broader than {@link dirty}, which only tracks what Save persists.
+   */
+  hasSessionChoices: boolean
   saving: boolean
   save: () => void
   discard: () => void
@@ -769,6 +775,23 @@ export function useForkSync(params: {
 
   const dirty = targetsDirty || reconfigDirty
 
+  // Compared over the visible candidates only - the ones a sync would send - so keys left behind
+  // by a completed copy never read as a change. A candidate defaults to selected when referenced.
+  const copySelectionChanged = useMemo(
+    () =>
+      copyDefaulted &&
+      visibleCopyables.some(
+        (candidate) => copySelected.has(forkRefKey(candidate)) !== candidate.referenced
+      ),
+    [copyDefaulted, visibleCopyables, copySelected]
+  )
+
+  const hasSessionChoices =
+    dirty ||
+    copySelectionChanged ||
+    droppedRefs.size > 0 ||
+    Object.keys(triggerAdoptions).length > 0
+
   const save = () => {
     if (!otherWorkspaceId || !dirty || updateMapping.isPending) return
     const submittedTargets = targets
@@ -867,6 +890,8 @@ export function useForkSync(params: {
     setSubmitting(true)
     const submittedTargets = targets
     const submittedReconfig = reconfig
+    const submittedDroppedRefs = droppedRefs
+    const submittedTriggerAdoptions = triggerAdoptions
     // Capture every payload from the state at confirm time, before any await - the page's
     // controls stay mounted during the run (unlike the old modal, which blocked its UI), so a
     // mid-flight edit must not leak into the promote body.
@@ -962,10 +987,13 @@ export function useForkSync(params: {
       }
 
       // The run committed the in-session choices: the mapping entries and dependent values are
-      // stored. Drop only the exact snapshots it submitted; edits made while the request was in
-      // flight were not committed by this run and must remain available for the next Save/Sync.
+      // stored, and the accepted drops and trigger choices are applied. Drop only the exact
+      // snapshots it submitted; edits made while the request was in flight were not committed by
+      // this run and must remain available for the next Save/Sync.
       setTargets((current) => (current === submittedTargets ? {} : current))
       setReconfig((current) => (current === submittedReconfig ? {} : current))
+      setDroppedRefs((current) => (current === submittedDroppedRefs ? new Set() : current))
+      setTriggerAdoptions((current) => (current === submittedTriggerAdoptions ? {} : current))
 
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
@@ -1059,6 +1087,7 @@ export function useForkSync(params: {
     mcpReauthCount: diff.data?.mcpReauthServerIds.length ?? 0,
     inlineSecretCount: diff.data?.inlineSecretSources.length ?? 0,
     dirty,
+    hasSessionChoices,
     saving: updateMapping.isPending,
     save,
     discard,

@@ -182,9 +182,13 @@ export async function getPresignedUrlWithConfig(
 
 /**
  * Generates a create-only signed single-object PUT for a caller-selected final key.
- * The AWS presigner hoists `x-amz-meta-*` values into the signed query string,
- * so only ordinary transfer headers are returned. Repeating that metadata as
- * request headers makes S3 reject the otherwise-valid signature.
+ *
+ * By default the AWS presigner hoists `x-amz-meta-*` into the signed query string.
+ * AWS S3 stores that as object metadata, but many S3-compatible stores (e.g.
+ * OVHcloud) ignore it, so with a custom `S3_CONFIG.endpoint` the metadata is
+ * signed as headers instead and returned for the uploader to send verbatim. AWS
+ * keeps the query-string form so existing bucket CORS rules stay valid. A value
+ * must never be both hoisted and sent as a header: S3 rejects the unsigned copy.
  */
 export async function getS3PresignedUploadUrl(params: {
   key: string
@@ -203,12 +207,21 @@ export async function getS3PresignedUploadUrl(params: {
     IfNoneMatch: '*',
     Metadata: metadata,
   })
-  const url = await getSignedUrl(getS3Client(), command, { expiresIn: params.expiresIn })
+  const metadataHeaders: Record<string, string> = S3_CONFIG.endpoint
+    ? Object.fromEntries(
+        Object.entries(metadata).map(([key, value]) => [`x-amz-meta-${key.toLowerCase()}`, value])
+      )
+    : {}
+  const url = await getSignedUrl(getS3Client(), command, {
+    expiresIn: params.expiresIn,
+    unhoistableHeaders: new Set(Object.keys(metadataHeaders)),
+  })
   return {
     url,
     headers: {
       'Content-Type': params.contentType,
       'If-None-Match': '*',
+      ...metadataHeaders,
     },
   }
 }

@@ -13,12 +13,14 @@ const {
   mockPrefetchWorkspaceHostContext,
   mockPrefetchWorkspaceSidebar,
   mockPrefetchWorkspaceAccess,
+  mockPrefetchWorkspaceForkAvailability,
 } = vi.hoisted(() => ({
   mockBrandingProvider: vi.fn(({ children }: { children: ReactNode }) => children),
   mockGetOrgWhitelabelSettings: vi.fn(),
   mockPrefetchWorkspaceHostContext: vi.fn(),
   mockPrefetchWorkspaceSidebar: vi.fn(),
   mockPrefetchWorkspaceAccess: vi.fn(),
+  mockPrefetchWorkspaceForkAvailability: vi.fn(),
 }))
 
 vi.mock('@sim/emcn', () => emcnMock)
@@ -38,6 +40,7 @@ vi.mock('@/app/_shell/providers/get-query-client', () => ({
 vi.mock('@/app/workspace/[workspaceId]/prefetch', () => ({
   prefetchWorkspaceHostContext: mockPrefetchWorkspaceHostContext,
   prefetchWorkspaceSidebar: mockPrefetchWorkspaceSidebar,
+  prefetchWorkspaceForkAvailability: mockPrefetchWorkspaceForkAvailability,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/prefetch-access', () => ({
@@ -149,6 +152,7 @@ describe('WorkspaceLayout host context', () => {
     mockPrefetchWorkspaceHostContext.mockResolvedValue(HOST_CONTEXT)
     mockPrefetchWorkspaceSidebar.mockResolvedValue(undefined)
     mockPrefetchWorkspaceAccess.mockResolvedValue(undefined)
+    mockPrefetchWorkspaceForkAvailability.mockResolvedValue(undefined)
     mockGetOrgWhitelabelSettings.mockResolvedValue({ brandName: 'Host B' })
   })
 
