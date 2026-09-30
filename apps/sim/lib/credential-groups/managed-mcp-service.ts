@@ -28,7 +28,7 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
-import { getSharedHubSpotMcpClient } from '@/lib/mcp/oauth/shared-clients'
+import { getSharedHubSpotMcpClient, getSharedZoomMcpClient } from '@/lib/mcp/oauth/shared-clients'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 
 export class ManagedMcpConnectorError extends Error {
@@ -147,6 +147,11 @@ export async function validateManagedMcpConnectorInput(
   if (input.connectorId === 'hubspot' && !getSharedHubSpotMcpClient())
     throw new ManagedMcpConnectorError(
       'HubSpot sign-in is not configured. Ask your Sim administrator to configure the HubSpot MCP OAuth client.',
+      'validation'
+    )
+  if (input.connectorId === 'zoom' && !getSharedZoomMcpClient())
+    throw new ManagedMcpConnectorError(
+      'Zoom sign-in is not configured. Ask your Sim administrator to configure the Zoom MCP OAuth client.',
       'validation'
     )
   const url = resolveManagedMcpConnectorUrl(

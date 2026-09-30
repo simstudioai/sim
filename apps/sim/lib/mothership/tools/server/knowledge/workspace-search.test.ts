@@ -109,6 +109,21 @@ describe('Assistant retrieval tools', () => {
       expect(result).not.toHaveProperty('data')
     }
   )
+  it.each([
+    { provider: 'slack', kind: 'meeting' },
+    { provider: 'google_drive', kind: 'transcript' },
+  ])('rejects $provider searches with an unsupported $kind selector', async (selection) => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    const result = await searchWorkspaceServerTool.execute(
+      { query: 'release', nativeQueries: [{ ...selection, query: 'release' }] },
+      { ...context, assistantSearch: undefined }
+    )
+    expect(result).toMatchObject({
+      success: false,
+      message: `${selection.provider} does not support kind selection.`,
+    })
+    expect(result).not.toHaveProperty('data')
+  })
   it('returns a safe permanent configuration failure instead of empty results or opaque error', async () => {
     mocks.search.mockRejectedValue(new EmbeddingConfigurationError())
     const result = await searchWorkspaceServerTool.execute({ query: 'policy' }, context)

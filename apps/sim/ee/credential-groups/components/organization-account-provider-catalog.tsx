@@ -70,8 +70,8 @@ export function OrganizationAccountProviderCatalog({
       )
       .map((connectorId) => ({
         name:
-          connectorId === 'hubspot'
-            ? 'HubSpot (member access)'
+          connectorId === 'hubspot' || connectorId === 'zoom'
+            ? `${MANAGED_MCP_CONNECTORS[connectorId].name} (member access)`
             : MANAGED_MCP_CONNECTORS[connectorId].name,
         icon: getManagedMcpConnectorIcon(connectorId),
         choice: { kind: 'mcp', connectorId } as const,

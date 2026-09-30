@@ -6,12 +6,13 @@ export const MANAGED_MCP_CONNECTOR_IDS = [
   'notion',
   'hubspot',
   'lucid',
+  'zoom',
 ] as const
 
 export type ManagedMcpConnectorId = (typeof MANAGED_MCP_CONNECTOR_IDS)[number]
 
 interface FixedManagedMcpConnector {
-  id: Exclude<ManagedMcpConnectorId, 'databricks' | 'hubspot'>
+  id: Exclude<ManagedMcpConnectorId, 'databricks' | 'hubspot' | 'zoom'>
   name: string
   description: string
   url: string
@@ -25,8 +26,8 @@ interface DatabricksManagedMcpConnector {
   oauthClientRegistration: 'preregistered'
 }
 
-interface HubSpotManagedMcpConnector {
-  id: 'hubspot'
+interface FixedPreregisteredManagedMcpConnector {
+  id: 'hubspot' | 'zoom'
   name: string
   description: string
   url: string
@@ -36,9 +37,16 @@ interface HubSpotManagedMcpConnector {
 export type ManagedMcpConnector =
   | FixedManagedMcpConnector
   | DatabricksManagedMcpConnector
-  | HubSpotManagedMcpConnector
+  | FixedPreregisteredManagedMcpConnector
 
 export const MANAGED_MCP_CONNECTORS = {
+  zoom: {
+    id: 'zoom',
+    name: 'Zoom',
+    description: 'Search past meetings, transcripts and notes using your Zoom account',
+    url: 'https://mcp.zoom.us/mcp/meeting/streamable',
+    oauthClientRegistration: 'preregistered',
+  },
   lucid: {
     id: 'lucid',
     name: 'Lucid',
