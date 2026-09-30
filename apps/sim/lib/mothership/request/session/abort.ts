@@ -397,7 +397,14 @@ export function startAbortPoller(
           })
           return
         }
-        await refreshBufferTtl(streamId)
+        await refreshBufferTtl(streamId).catch((error) => {
+          logger.warn('Failed to refresh stream buffer TTL', {
+            chatId,
+            streamId,
+            ...(requestId ? { requestId } : {}),
+            error: toError(error).message,
+          })
+        })
       } catch (error) {
         logger.warn('Failed to extend chat stream lock TTL', {
           chatId,

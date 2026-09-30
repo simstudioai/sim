@@ -383,17 +383,20 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
     expect(await response.json()).toMatchObject({ success: true, events: [], status: 'active' })
   })
 
-  it('keeps the replay_gap terminal when the worker has no such run', async () => {
-    const { streamId } = await liveRunWithTrimmedRing()
-    worker.reply.status = 404
+  it.each([404, 401, 403])(
+    'keeps the replay_gap terminal when the worker will not replay the run (%i)',
+    async (status) => {
+      const { streamId } = await liveRunWithTrimmedRing()
+      worker.reply.status = status
 
-    const frames = dataFrames(await (await reconnect(streamId, '2')).text())
+      const frames = dataFrames(await (await reconnect(streamId, '2')).text())
 
-    expect(frames.map((frame) => [frame.type, frame.payload.code ?? frame.payload.status])).toEqual(
-      [
+      expect(
+        frames.map((frame) => [frame.type, frame.payload.code ?? frame.payload.status])
+      ).toEqual([
         ['error', 'replay_gap'],
         ['complete', 'error'],
-      ]
-    )
-  })
+      ])
+    }
+  )
 })

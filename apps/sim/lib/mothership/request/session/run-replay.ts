@@ -20,6 +20,8 @@ import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 const logger = createLogger('RunReplay')
 
 const REPLAY_PATH = '/api/streams/replay'
+/** Answers that no retry changes, so the reader falls back to `replay_gap`. */
+const REPLAY_REFUSED_STATUSES: ReadonlySet<number> = new Set([401, 403, 404])
 /** A reader's replay response stays open at least this long unless the run ended. */
 const REPLAY_MIN_RESPONSE_MS = 10_000
 const REPLAY_HOLD_POLL_MS = 1_000
@@ -39,7 +41,8 @@ export class RunReplayUnavailableError extends Error {
 /**
  * Opens the worker's read-only replay of a run from its durable log, for a reader the
  * replay ring can no longer serve. No receipt is sent: the reader starts from an empty
- * response. Returns `null` when the worker knows no such run for this chat and user.
+ * response. Returns `null` when the worker will not replay it: it knows no such run for
+ * this chat and user, or this deployment's key may not call the replay at all.
  */
 export async function openRunReplay(params: {
   streamId: string
@@ -64,7 +67,7 @@ export async function openRunReplay(params: {
     if (signal.aborted) throw error
     throw new RunReplayUnavailableError('The run replay could not be reached', { cause: error })
   }
-  if (response.status === 404) {
+  if (REPLAY_REFUSED_STATUSES.has(response.status)) {
     await response.body?.cancel().catch(() => {})
     return null
   }
