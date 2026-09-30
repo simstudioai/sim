@@ -440,6 +440,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'search/hubspot.mdx',
   'search/jira.mdx',
   'search/linear.mdx',
+  'search/lucid.mdx',
   'search/mcp.mdx',
   'search/notion.mdx',
   'search/slack.mdx',

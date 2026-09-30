@@ -9,7 +9,8 @@ vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
 }))
 
 import { NativeSearchError } from '@/lib/sim-search/live/http'
-import { createManagedSearchMcpClient, managedMcpPayload } from '@/lib/sim-search/live/managed-mcp'
+import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
+import { managedMcpPayload } from '@/lib/sim-search/live/managed-mcp-payload'
 
 /** Failure modes: a write tool escapes the allowlist; replaced grants stay usable; payloads exhaust memory; schema drift changes tool meaning. */
 describe('managed search MCP read boundary', () => {

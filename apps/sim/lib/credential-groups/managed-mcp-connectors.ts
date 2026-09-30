@@ -5,6 +5,7 @@ export const MANAGED_MCP_CONNECTOR_IDS = [
   'coda',
   'notion',
   'hubspot',
+  'lucid',
 ] as const
 
 export type ManagedMcpConnectorId = (typeof MANAGED_MCP_CONNECTOR_IDS)[number]
@@ -38,6 +39,13 @@ export type ManagedMcpConnector =
   | HubSpotManagedMcpConnector
 
 export const MANAGED_MCP_CONNECTORS = {
+  lucid: {
+    id: 'lucid',
+    name: 'Lucid',
+    description: 'Search Lucidchart diagrams and Lucidspark boards using your Lucid account',
+    url: 'https://mcp.lucid.app/mcp/readonly',
+    oauthClientRegistration: 'dynamic',
+  },
   hubspot: {
     id: 'hubspot',
     name: 'HubSpot',

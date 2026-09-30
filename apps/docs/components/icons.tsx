@@ -1,6 +1,22 @@
 import type { SVGProps } from 'react'
 import { useId } from 'react'
 
+interface LucidIconProps extends SVGProps<SVGSVGElement> {}
+
+export function LucidIcon(props: LucidIconProps) {
+  return (
+    <svg
+      {...props}
+      viewBox='-22 0 144 144.5'
+      fill='currentColor'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path d='M50 0L0 28.9V144.5L50 115.6V0Z' />
+      <path d='M100 142.7V86.7L50 115.6V142.7H100Z' />
+    </svg>
+  )
+}
+
 export function EnrichmentIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
