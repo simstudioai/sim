@@ -891,7 +891,9 @@ async function executeInSandboxWithinBudget(
       await recordSessionFileInput(
         req.session.key,
         { providerId: created.providerId, sandboxId },
-        sandboxSessionInputsSafe() && !Object.keys(selected?.envs ?? {}).length
+        sandboxSessionInputsSafe() &&
+          !req.session.unprovenancedInputs &&
+          !Object.keys(selected?.envs ?? {}).length
       )
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {
@@ -1078,7 +1080,9 @@ async function executeShellInSandboxWithinBudget(
       await recordSessionFileInput(
         req.session.key,
         { providerId: created.providerId, sandboxId },
-        sandboxSessionInputsSafe() && !Object.keys(selected?.envs ?? {}).length
+        sandboxSessionInputsSafe() &&
+          !req.session.unprovenancedInputs &&
+          !Object.keys(selected?.envs ?? {}).length
       )
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {

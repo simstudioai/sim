@@ -277,7 +277,18 @@ export async function resolveUserFileMounts(args: {
   manifest: SandboxMountManifestEntry[]
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
   renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  /**
+   * Mounts whose own bytes have no provenance source (no principal to bind one, or a key with no
+   * canonical metadata record). Workflow runs keep their legacy absence policy; a persistent
+   * workbench must not certify a machine that received one.
+   *
+   * Storage contexts other than workspace and execution (chat, copilot, knowledge-base, logs, and
+   * the other public contexts) never have a source, so they always count here and taint a
+   * workbench. That is conservative by design.
+   */
+  unprovenancedMountCount: number
 }> {
+  let unprovenancedMountCount = 0
   const sandboxFiles: SandboxFile[] = []
   const manifest: SandboxMountManifestEntry[] = []
   const budget = createSandboxMountBudget()
@@ -297,14 +308,16 @@ export async function resolveUserFileMounts(args: {
   for (const { userFile, mountPath } of args.planned) {
     const storageContext = resolveTrustedFileContext(userFile.key, userFile.context)
     await assertUserFileContentAccess(userFile, args.context)
-    if (args.context.principal && args.context.workspaceId) {
-      const source = await resolveStoredFileProvenanceSource(userFile, {
-        ...args.context,
-        principal: args.context.principal,
-        workspaceId: args.context.workspaceId,
-      })
-      if (source) addContributor(source.identity)
-    }
+    const source =
+      args.context.principal && args.context.workspaceId
+        ? await resolveStoredFileProvenanceSource(userFile, {
+            ...args.context,
+            principal: args.context.principal,
+            workspaceId: args.context.workspaceId,
+          })
+        : undefined
+    if (source) addContributor(source.identity)
+    else unprovenancedMountCount += 1
 
     await pushSandboxFileMount(
       sandboxFiles,
@@ -361,6 +374,7 @@ export async function resolveUserFileMounts(args: {
   return {
     sandboxFiles,
     manifest,
+    unprovenancedMountCount,
     ...(contributingFiles.size > 0 ? { contributingFiles: [...contributingFiles.values()] } : {}),
     ...(renderedContributingFiles.size > 0
       ? { renderedContributingFiles: [...renderedContributingFiles.values()] }
