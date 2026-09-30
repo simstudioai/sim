@@ -15,4 +15,16 @@ describe('finalizeResidualToolCalls', () => {
       expect(blocks[0].toolCall?.status).toBe('cancelled')
     }
   )
+
+  it('reports whether any tool row was left to settle', () => {
+    const open: ContentBlock[] = [
+      { type: 'tool_call', toolCall: { id: 'call-1', name: 'read', status: 'awaiting_approval' } },
+    ]
+    const settled: ContentBlock[] = [
+      { type: 'tool_call', toolCall: { id: 'call-2', name: 'read', status: 'success' } },
+    ]
+
+    expect(finalizeResidualToolCalls(open, 'error')).toBe(true)
+    expect(finalizeResidualToolCalls(settled, 'error')).toBe(false)
+  })
 })

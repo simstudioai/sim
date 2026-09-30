@@ -69,17 +69,17 @@ export function asPayloadRecord(value: unknown): StreamPayload | undefined {
 }
 
 /**
- * Settles any tool row still `executing` at a turn terminal by propagating the
- * turn's outcome — the deterministic replacement for the old `interrupted`
- * invention. A clean `complete` means the turn succeeded, so a straggler is
- * settled `success` (with explicit tool/span terminals from the backend there
- * are normally none); a stop settles `cancelled`; an error settles `error`.
+ * Settles every unfinished tool row (running, pending, or awaiting approval) at
+ * a turn terminal by propagating the turn's outcome: a clean `complete` settles
+ * a straggler `success`, a stop `cancelled`, an error `error`. Also closes any
+ * open subagent lane. Returns whether any tool row was settled.
  */
 export function finalizeResidualToolCalls(
   blocks: ContentBlock[],
   turnTerminal: 'complete' | 'cancelled' | 'error'
-): void {
+): boolean {
   const endedAt = Date.now()
+  let settled = false
   const propagated =
     turnTerminal === 'cancelled'
       ? ToolCallStatus.cancelled
@@ -98,6 +98,7 @@ export function finalizeResidualToolCalls(
     }
     const tc = block.toolCall
     if (!tc || !isUnsettledToolState(tc.status)) continue
+    settled = true
     tc.status = propagated
     if (propagated === ToolCallStatus.cancelled) {
       tc.displayTitle = 'Stopped by user'
@@ -106,6 +107,7 @@ export function finalizeResidualToolCalls(
       block.endedAt = endedAt
     }
   }
+  return settled
 }
 
 function stringParam(value: unknown): string | undefined {

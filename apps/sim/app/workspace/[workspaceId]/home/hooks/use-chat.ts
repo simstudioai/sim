@@ -3228,8 +3228,7 @@ export function useChat(
       const isError = !!options?.error
       if (isError) {
         const blocks = streamingBlocksRef.current
-        if (blocks.some((block) => block.toolCall?.status === 'executing')) {
-          finalizeResidualToolCalls(blocks, 'error')
+        if (finalizeResidualToolCalls(blocks, 'error')) {
           const assistantId =
             activeTurnRef.current?.assistantMessageId ??
             (streamIdRef.current ? getLiveAssistantMessageId(streamIdRef.current) : undefined)

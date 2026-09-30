@@ -784,3 +784,21 @@ describe('buildPersistedAssistantMessage on an errored turn', () => {
     }
   )
 })
+
+describe('buildPersistedAssistantMessage on a completed turn', () => {
+  it.each(['pending', 'executing'] as const)(
+    'settles a %s tool row the way the live view settled it',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: true,
+        content: 'Done.',
+        toolCalls: [],
+        contentBlocks: [
+          { type: 'tool_call', timestamp: 1, toolCall: { id: 'call-1', name: 'read', status } },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall?.state).toBe('success')
+    }
+  )
+})

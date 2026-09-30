@@ -355,6 +355,10 @@ export function buildPersistedAssistantMessage(
     return normalized
   }
 
+  // A completed turn settles its stragglers as the live view did at `complete`.
+  if (result.success && message.contentBlocks) {
+    message.contentBlocks = settleUnfinishedToolCalls(message.contentBlocks, 'success')
+  }
   return message
 }
 
@@ -372,7 +376,7 @@ export function isUnsettledToolState(state: string | undefined): boolean {
 /** Settles every unfinished tool row at a turn terminal so none reloads as a spinner. */
 function settleUnfinishedToolCalls(
   blocks: PersistedContentBlock[],
-  state: 'cancelled' | 'error',
+  state: 'success' | 'cancelled' | 'error',
   display?: { title: string }
 ): PersistedContentBlock[] {
   return blocks.map((block) =>
