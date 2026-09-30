@@ -127,6 +127,8 @@ export function lineageEdges(columns: readonly EnvironmentColumn[]): LineageEdge
 
 /** One environment's side of a resource row. */
 export interface MappingCell {
+  /** The resource's id in this environment; null while the child side has no target yet. */
+  id: string | null
   label: string
   /** Null on the origin side, where there is nothing to map. */
   status: MappingStatus | null
@@ -177,6 +179,7 @@ export function buildMappingRows(edgeMappings: readonly EdgeMapping[]): MappingR
           label: entry.sourceLabel,
           cells: {
             [edge.parentId]: {
+              id: entry.sourceId,
               label: entry.sourceLabel,
               status: entry.sourceDeleted ? 'source-deleted' : null,
             },
@@ -186,6 +189,7 @@ export function buildMappingRows(edgeMappings: readonly EdgeMapping[]): MappingR
         byResource.set(sourceKey, row)
       }
       row.cells[edge.childId] = {
+        id: entry.targetId,
         label: targetLabel(entry),
         status: entryStatus(entry),
         entry,
@@ -197,6 +201,22 @@ export function buildMappingRows(edgeMappings: readonly EdgeMapping[]): MappingR
     }
   }
   return rows.sort((a, b) => a.label.localeCompare(b.label))
+}
+
+/**
+ * The resource's id in the youngest environment that has it, so a row's icon follows the leaf
+ * credential (one Atlassian token serves Jira and Confluence; the fork's own pick decides).
+ */
+export function leafResourceId(
+  row: MappingRow,
+  columns: readonly EnvironmentColumn[]
+): { environmentId: string; id: string } | null {
+  for (let index = columns.length - 1; index >= 0; index -= 1) {
+    const column = columns[index]
+    const id = row.cells[column.id]?.id
+    if (id) return { environmentId: column.id, id }
+  }
+  return null
 }
 
 /** One environment's side of a workflow row. */

@@ -126,6 +126,7 @@ export function EnvironmentsTab({ project }: EnvironmentsTabProps) {
               columns={columns}
               rows={rows.filter((row) => row.kind === tab.id)}
               canEdit={canManage}
+              credentialsByEnv={data.credentialsByEnv}
               empty={`No ${tab.label} referenced by deployed workflows.`}
             />
           )}

@@ -5,7 +5,6 @@ import {
   Avatar,
   Chip,
   ChipLink,
-  ChipTag,
   chipVariants,
   cn,
   OverflowText,
@@ -16,12 +15,12 @@ import {
 import {
   ChevronDown,
   ChevronLeft,
-  Home,
   Integration,
   PanelLeft,
   Plus,
   Search,
   Settings,
+  SquarePen,
 } from '@sim/emcn/icons'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import Link from 'next/link'
@@ -30,6 +29,7 @@ import { useQueryStates } from 'nuqs'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { useActiveOrganization, useSession } from '@/lib/auth/auth-client'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
+import { ProjectRow } from '@/app/playground/org/components/project-row'
 import { type Project, useProjects } from '@/app/playground/org/lib/project'
 import { type ProjectChat, useProjectSources } from '@/app/playground/org/lib/project-sources'
 import {
@@ -48,6 +48,7 @@ import {
   SETTINGS_GROUPS,
   SETTINGS_NAV,
 } from '@/app/playground/org/lib/settings-nav'
+import { type ProjectDragProps, useProjectOrder } from '@/app/playground/org/lib/use-project-order'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
   isNavItemActive,
@@ -73,7 +74,7 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 const CHAT_PREVIEW = 3
 
 const NAV_ITEMS: SidebarNavItemData[] = [
-  { id: 'home', label: 'New chat', icon: Home, href: PROTO_BASE },
+  { id: 'home', label: 'New chat', icon: SquarePen, href: PROTO_BASE },
   { id: 'search', label: 'Search', icon: Search, href: protoRoutes.search },
   { id: 'connectors', label: 'Connectors', icon: Integration, href: protoRoutes.connectors },
 ]
@@ -119,6 +120,7 @@ export function ProtoSidebar() {
   const pathname = usePathname()
   const [{ chat: openChat }] = useQueryStates(protoParsers)
   const { projects, roots } = useProjects()
+  const { projects: orderedProjects, dragProps, isAnyDragActive } = useProjectOrder(roots)
   const { data: organization } = useActiveOrganization()
   const { data: session } = useSession()
   /** Only a mock project has a full view here; a real project's Build is its workspace pages. */
@@ -247,13 +249,15 @@ export function ProtoSidebar() {
                   }
                 >
                   <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                    {roots.map((project) => (
+                    {orderedProjects.map((project) => (
                       <ProjectTree
                         key={project.id}
                         project={project}
                         pathname={pathname}
                         openChat={openChat}
                         railCollapsed={isCollapsed}
+                        drag={dragProps(project)}
+                        isAnyDragActive={isAnyDragActive}
                       />
                     ))}
                   </div>
@@ -333,6 +337,8 @@ interface ProjectTreeProps {
   pathname: string | null
   openChat: string
   railCollapsed: boolean
+  drag: ProjectDragProps
+  isAnyDragActive: boolean
 }
 
 /** Which of the project's environments the path is in, if any. */
@@ -346,10 +352,17 @@ function activeEnvironmentId(project: Project, pathname: string | null): string 
 
 /**
  * A project row with its chats listed underneath, like Codex's project → threads.
- * Hovering the row reveals + for a new chat in that project. A project spans every
- * environment in its fork lineage; the chats shown belong to the environment you are in.
+ * A project spans every environment in its fork lineage; the chats shown belong to the
+ * environment you are in. The row itself carries the workspace sidebar's ergonomics.
  */
-function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTreeProps) {
+function ProjectTree({
+  project,
+  pathname,
+  openChat,
+  railCollapsed,
+  drag,
+  isAnyDragActive,
+}: ProjectTreeProps) {
   const [showAll, setShowAll] = useState(false)
   const activeId = activeEnvironmentId(project, pathname)
   const inProject = activeId !== null
@@ -367,46 +380,18 @@ function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTree
 
   return (
     <div className='flex flex-col gap-[1px]'>
-      <SidebarTooltip label={project.name} enabled={railCollapsed}>
-        <div
-          className={cn(
-            chipVariants({ active: inProject, fullWidth: true }),
-            SIDEBAR_RAIL_CHIP_CLASS,
-            'group/project'
-          )}
-        >
-          <Link
-            href={protoRoutes.workspace(project.id)}
-            onClick={() => setOverride(inProject ? !expanded : true)}
-            aria-expanded={chats.length > 0 ? expanded : undefined}
-            className='flex min-w-0 flex-1 items-center gap-2'
-          >
-            <IdentityTile initial={project.name[0]} />
-            <OverflowText
-              label={project.name}
-              className='sidebar-collapse-hide flex-1 text-[var(--text-body)]'
-              focusTarget='nearest-interactive'
-            />
-          </Link>
-          {!railCollapsed && (
-            <>
-              {needsYou > 0 && (
-                <ChipTag variant='gray' className='group-hover/project:hidden'>
-                  {needsYou}
-                </ChipTag>
-              )}
-              <Link
-                href={panelHref('new')}
-                aria-label={`New chat in ${project.name}`}
-                title={`New chat in ${project.name}`}
-                className='hidden size-[18px] shrink-0 items-center justify-center rounded-[4px] hover-hover:bg-[var(--surface-active)] group-hover/project:flex'
-              >
-                <Plus className='size-[12px] text-[var(--text-icon)]' />
-              </Link>
-            </>
-          )}
-        </div>
-      </SidebarTooltip>
+      <ProjectRow
+        project={project}
+        href={protoRoutes.workspace(project.id)}
+        newChatHref={panelHref('new')}
+        active={inProject}
+        expanded={chats.length > 0 ? expanded : undefined}
+        needsYou={needsYou}
+        railCollapsed={railCollapsed}
+        drag={drag}
+        isAnyDragActive={isAnyDragActive}
+        onToggleExpand={() => setOverride(inProject ? !expanded : true)}
+      />
       {!railCollapsed && expanded && chats.length > 0 && (
         <div className='flex flex-col gap-[1px] pl-[22px]'>
           {visible.map((chat) => (

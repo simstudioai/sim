@@ -3,6 +3,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { type QueryFunctionContext, useQueries } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
+import type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
 import {
   type GetForkLineageResponse,
   getForkDiffContract,
@@ -23,6 +24,7 @@ import {
   WORKSPACE_FORK_LINEAGE_STALE_TIME,
   WORKSPACE_FORK_MAPPING_STALE_TIME,
 } from '@/ee/workspace-forking/hooks/workspace-fork'
+import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch-workspace-credentials'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 
 /** A mapping or diff request for one edge that failed, phrased for the grid. */
@@ -87,6 +89,12 @@ export function useEnvironmentMappings({
       enabled: forksEnabled,
     })),
   })
+  const credentialLists = useQueries({
+    queries: columns.map((column) => ({
+      ...workspaceCredentialListQueryOptions(column.id),
+      enabled: forksEnabled,
+    })),
+  })
   const workflowLists = useQueries({
     queries: columns.map((column) => ({
       ...getWorkflowListQueryOptions(column.id),
@@ -97,6 +105,14 @@ export function useEnvironmentMappings({
   /** A handful of edges and rows, so deriving them each render is cheaper than memoizing. */
   const lineageByEnv = new Map<string, GetForkLineageResponse | undefined>()
   columns.forEach((column, index) => lineageByEnv.set(column.id, lineages[index]?.data))
+
+  /** Credentials by environment, so a credential row can show its provider's mark. */
+  const credentialsByEnv = new Map<string, Map<string, WorkspaceCredential>>()
+  columns.forEach((column, index) => {
+    const byId = new Map<string, WorkspaceCredential>()
+    for (const credential of credentialLists[index]?.data ?? []) byId.set(credential.id, credential)
+    credentialsByEnv.set(column.id, byId)
+  })
 
   const deployedByEnv = new Map<string, Map<string, boolean>>()
   columns.forEach((column, index) => {
@@ -127,5 +143,5 @@ export function useEnvironmentMappings({
     forksEnabled &&
     (mappings.some((query) => query.isPending) || diffs.some((query) => query.isPending))
 
-  return { rows, workflowRows, lineageByEnv, errors, isPending }
+  return { rows, workflowRows, lineageByEnv, credentialsByEnv, errors, isPending }
 }

@@ -3,9 +3,12 @@
 import type { ReactNode } from 'react'
 import { Badge, ChipCombobox, OverflowText, Skeleton, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
+import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import {
   type EnvironmentColumn,
   isCopyableKind,
+  leafResourceId,
   MAPPING_STATUS,
   type MappingCell,
   type MappingRow,
@@ -13,6 +16,7 @@ import {
   type WorkflowCell,
   type WorkflowRow,
 } from '@/app/playground/org/components/environments/mapping-model'
+import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useUpdateForkMapping } from '@/ee/workspace-forking/hooks/workspace-fork'
 
 /** Option that clears the target so a sync copies the resource instead; handled via onSelect, never sent. */
@@ -167,13 +171,34 @@ interface MappingGridProps {
   /** Admin with forking available: child cells become candidate pickers. */
   canEdit: boolean
   empty: string
+  /** Credentials by environment id, for the provider mark on credential rows. */
+  credentialsByEnv?: ReadonlyMap<string, ReadonlyMap<string, WorkspaceCredential>>
+}
+
+interface ResourceLabelProps {
+  row: MappingRow
+  columns: readonly EnvironmentColumn[]
+  credentialsByEnv?: ReadonlyMap<string, ReadonlyMap<string, WorkspaceCredential>>
+}
+
+/** The resource's name, led by its provider's mark for a credential the lineage still holds. */
+function ResourceLabel({ row, columns, credentialsByEnv }: ResourceLabelProps) {
+  const leaf = row.kind === 'credential' ? leafResourceId(row, columns) : null
+  const credential = leaf ? credentialsByEnv?.get(leaf.environmentId)?.get(leaf.id) : undefined
+  const display = credential ? resolveCredentialDisplay(credential) : null
+  return (
+    <div className='flex min-w-0 items-center gap-2'>
+      {display?.icon ? <IntegrationTile blockType={display.blockType} icon={display.icon} /> : null}
+      <OverflowText label={row.label} className='text-[var(--text-body)]' />
+    </div>
+  )
 }
 
 /**
  * One row per resource, one cell per environment. A child cell's picker saves through the
  * edge's mapping route at once, so the forks settings page of that fork shows the same target.
  */
-export function MappingGrid({ columns, rows, canEdit, empty }: MappingGridProps) {
+export function MappingGrid({ columns, rows, canEdit, credentialsByEnv, empty }: MappingGridProps) {
   const updateMapping = useUpdateForkMapping()
   const pendingKey =
     updateMapping.isPending && updateMapping.variables
@@ -208,7 +233,7 @@ export function MappingGrid({ columns, rows, canEdit, empty }: MappingGridProps)
         rows.map((row) => (
           <tr key={row.key} className='border-[var(--border)] border-b align-top last:border-b-0'>
             <td className='px-3 py-2'>
-              <OverflowText label={row.label} className='text-[var(--text-body)]' />
+              <ResourceLabel row={row} columns={columns} credentialsByEnv={credentialsByEnv} />
             </td>
             {columns.map((column) => {
               const cell = row.cells[column.id]

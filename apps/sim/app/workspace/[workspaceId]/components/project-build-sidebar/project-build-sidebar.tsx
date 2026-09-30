@@ -9,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   OverflowText,
   scrollFadeAttributes,
@@ -20,10 +21,11 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
-  Home,
   PanelLeft,
+  Plus,
   Search,
   Server,
+  SquarePen,
 } from '@sim/emcn/icons'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -212,7 +214,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
     (): SidebarNavItemData => ({
       id: 'new-chat',
       label: 'New chat',
-      icon: Home,
+      icon: SquarePen,
       href: `/workspace/${workspaceId}/home`,
       restricted: permissionConfig.hideCopilot,
     }),
@@ -280,16 +282,12 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
     captureEvent(posthog, 'slack_community_opened', { source: 'help_menu' })
   }
 
-  const hasEnvironmentChoice = project.environments.length > 1
-
   const environmentChip = (
     <Chip
       fullWidth
       leftIcon={Server}
-      rightIcon={hasEnvironmentChoice && !isCollapsed ? ChevronDown : undefined}
-      aria-label={
-        hasEnvironmentChoice ? 'Switch environment' : `Environment: ${project.environment}`
-      }
+      rightIcon={isCollapsed ? undefined : ChevronDown}
+      aria-label='Switch environment'
       className={SIDEBAR_RAIL_CHIP_CLASS}
     >
       <span className='sidebar-collapse-hide'>{project.environment}</span>
@@ -405,29 +403,32 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
                     label={`Environment: ${project.environment}`}
                     enabled={showCollapsedTooltips}
                   >
-                    {hasEnvironmentChoice ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>{environmentChip}</DropdownMenuTrigger>
-                        <DropdownMenuContent align='start' sideOffset={4} className='min-w-[180px]'>
-                          {project.environments.map((environment) => {
-                            const isCurrent = environment.workspaceId === workspaceId
-                            return (
-                              <DropdownMenuItem
-                                key={environment.workspaceId}
-                                onSelect={() => handleSwitchEnvironment(environment.workspaceId)}
-                                aria-current={isCurrent ? 'true' : undefined}
-                              >
-                                <Server />
-                                {environment.label}
-                                {isCurrent && <Check className='ml-auto size-[14px]' />}
-                              </DropdownMenuItem>
-                            )
-                          })}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
-                      environmentChip
-                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>{environmentChip}</DropdownMenuTrigger>
+                      <DropdownMenuContent align='start' sideOffset={4} className='min-w-[180px]'>
+                        {project.environments.map((environment) => {
+                          const isCurrent = environment.workspaceId === workspaceId
+                          return (
+                            <DropdownMenuItem
+                              key={environment.workspaceId}
+                              onSelect={() => handleSwitchEnvironment(environment.workspaceId)}
+                              aria-current={isCurrent ? 'true' : undefined}
+                            >
+                              <Server />
+                              {environment.label}
+                              {isCurrent && <Check className='ml-auto size-[14px]' />}
+                            </DropdownMenuItem>
+                          )
+                        })}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={() => router.push(projectHomeHref(workspaceId, 'environments'))}
+                        >
+                          <Plus />
+                          Manage environments
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </SidebarTooltip>
                 </div>
 

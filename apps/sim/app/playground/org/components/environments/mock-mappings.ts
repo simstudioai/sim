@@ -27,9 +27,9 @@ function row(
   statuses: MockStatuses = ['mapped', 'mapped']
 ): MappingRow {
   const [prod, staging, sandbox] = labels
-  const cells: MappingRow['cells'] = { [PROD]: { label: prod, status: null } }
-  if (staging !== null) cells[STAGING] = { label: staging, status: statuses[0] }
-  if (sandbox !== null) cells[SANDBOX] = { label: sandbox, status: statuses[1] }
+  const cells: MappingRow['cells'] = { [PROD]: { id: prod, label: prod, status: null } }
+  if (staging !== null) cells[STAGING] = { id: staging, label: staging, status: statuses[0] }
+  if (sandbox !== null) cells[SANDBOX] = { id: sandbox, label: sandbox, status: statuses[1] }
   return { key: `${kind}:${prod}`, kind, label: prod, cells }
 }
 
