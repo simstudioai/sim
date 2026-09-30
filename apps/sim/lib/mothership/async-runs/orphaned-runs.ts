@@ -18,16 +18,24 @@ import {
   isNotNull,
   isNull,
   lt,
+  lte,
   notInArray,
   or,
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
-import { getChatStreamLockOwners } from '@/lib/mothership/request/session/abort'
+import {
+  acquirePendingChatStream,
+  getChatStreamLockOwners,
+  getLocalChatStreamLease,
+  releasePendingChatStream,
+} from '@/lib/mothership/request/session/abort'
 import { findStreamsWithReplay } from '@/lib/mothership/request/session/buffer'
+import type { ChatStreamLease } from '@/lib/mothership/request/session/controller-lease'
 
 const logger = createLogger('OrphanedCopilotRuns')
 
@@ -65,7 +73,16 @@ export const ORPHANED_RUN_ERROR = 'This response was interrupted before it finis
 export const LEGACY_RUN_ERROR = 'Run was never finalized (pre-lease run).'
 
 const SWEEP_BATCH_SIZE = 500
-const SWEEP_MAX_ROWS_PER_RUN = 5_000
+/** Settles at most about this many runs per sweep, to bound its synchronous commits. */
+const SWEEP_MAX_SETTLED_PER_RUN = 5_000
+/** Examines at most this many candidates per sweep; the next sweep resumes after them. */
+const SWEEP_MAX_EXAMINED_PER_RUN = 10_000
+/**
+ * Where the last sweep stopped, so runs that cannot be settled yet (their chat is locked
+ * or their replay is live) never starve the runs after them. It wraps to the start.
+ */
+const SWEEP_CURSOR_KEY = 'copilot:orphaned-runs:sweep-cursor'
+const SWEEP_CURSOR_TTL_SECONDS = 7 * 24 * 60 * 60
 /** Spaces full batches so a backlog drains without a sustained burst of synchronous commits. */
 const SWEEP_BATCH_PAUSE_MS = 200
 
@@ -134,8 +151,8 @@ async function settleRuns(
   tx: DbTransaction,
   runs: UnownedRun[],
   guard: SQL | undefined
-): Promise<UnownedRun[]> {
-  if (runs.length === 0) return []
+): Promise<{ settled: UnownedRun[]; released: UnownedRun[] }> {
+  if (runs.length === 0) return { settled: [], released: [] }
   const chatIds = [...new Set(runs.map((run) => run.chatId))]
   await tx
     .select({ id: copilotChats.id })
@@ -183,19 +200,21 @@ async function settleRuns(
     })
   }
 
-  if (settled.length > 0) {
-    const markers = settled.map((run) => sql`(${run.chatId}::uuid, ${run.streamId}::text)`)
-    await tx
-      .update(copilotChats)
-      .set({ conversationId: null })
-      .where(
-        sql`(${copilotChats.id}, ${copilotChats.conversationId}) IN (${sql.join(markers, sql`, `)})`
-      )
-  }
-  return settled
+  if (settled.length === 0) return { settled, released: [] }
+  const markers = settled.map((run) => sql`(${run.chatId}::uuid, ${run.streamId}::text)`)
+  const cleared = await tx
+    .update(copilotChats)
+    .set({ conversationId: null })
+    .where(
+      sql`(${copilotChats.id}, ${copilotChats.conversationId}) IN (${sql.join(markers, sql`, `)})`
+    )
+    .returning({ id: copilotChats.id })
+  const releasedChats = new Set(cleared.map((chat) => chat.id))
+  return { settled, released: settled.filter((run) => releasedChats.has(run.chatId)) }
 }
 
-function announceSettled(runs: UnownedRun[]): void {
+/** Tells open clients a chat is no longer busy, for every chat whose marker was released. */
+function announceReleased(runs: UnownedRun[]): void {
   for (const run of runs) {
     try {
       publishChatStatusChanged(run, {
@@ -250,18 +269,90 @@ async function withoutOwners(candidates: UnownedRun[]): Promise<UnownedRun[]> {
   }
 }
 
+interface ChatLockFence {
+  run: UnownedRun
+  lease: ChatStreamLease
+}
+
+/**
+ * Takes each unowned leased run's chat lock under the run's own stream, as a reconnect
+ * would, so no controller can take over between the ownership check and the settle.
+ * A reconnect that meets the fence retries; runs whose lock is taken are skipped.
+ */
+async function fenceChatLocks(runs: UnownedRun[]): Promise<ChatLockFence[]> {
+  const fenced = await Promise.all(
+    runs.map(async (run) => {
+      if (!(await acquirePendingChatStream(run.chatId, run.streamId, 0))) return null
+      const lease = getLocalChatStreamLease(run.chatId, run.streamId)
+      return lease ? { run, lease } : null
+    })
+  )
+  return fenced.filter((fence): fence is ChatLockFence => fence !== null)
+}
+
+async function releaseChatLocks(fences: ChatLockFence[]): Promise<void> {
+  await Promise.all(
+    fences.map(({ run, lease }) => releasePendingChatStream(run.chatId, run.streamId, lease))
+  )
+}
+
+async function readSweepCursor(): Promise<string | undefined> {
+  try {
+    return (await getRedisClient()?.get(SWEEP_CURSOR_KEY)) ?? undefined
+  } catch (error) {
+    logger.warn('Orphaned-run sweep cursor is unreadable; starting from the first run', {
+      error: getErrorMessage(error),
+    })
+    return undefined
+  }
+}
+
+async function writeSweepCursor(cursor: string | undefined): Promise<void> {
+  try {
+    const redis = getRedisClient()
+    if (!redis) return
+    if (cursor) await redis.set(SWEEP_CURSOR_KEY, cursor, 'EX', SWEEP_CURSOR_TTL_SECONDS)
+    else await redis.del(SWEEP_CURSOR_KEY)
+  } catch (error) {
+    logger.warn('Orphaned-run sweep cursor could not be saved', { error: getErrorMessage(error) })
+  }
+}
+
+/** Settles one examined batch, fencing leased runs on their chat locks while it commits. */
+async function settleBatch(candidates: UnownedRun[]): Promise<UnownedRun[]> {
+  const unowned = await withoutOwners(candidates)
+  const fences = await fenceChatLocks(unowned.filter((run) => run.controllerToken !== null))
+  try {
+    const eligible = unowned
+      .filter((run) => run.controllerToken === null)
+      .concat(fences.map(({ run }) => run))
+    const { settled, released } = await db.transaction((tx) => settleRuns(tx, eligible, orphanIdle))
+    announceReleased(released)
+    return settled
+  } finally {
+    await releaseChatLocks(fences)
+  }
+}
+
 /**
  * Settles runs that no controller will ever finish: a leased run whose stream holds no
  * chat lock and has no replay buffer left, idle past the recovery window, and a legacy
- * run from before the current protocol. A failed batch is logged and skipped.
+ * run from before the current protocol. Each sweep resumes where the last one stopped
+ * and wraps to the first run, so no run is starved by the ones before it. A failed
+ * batch is logged and skipped.
  */
 export async function sweepOrphanedRuns(): Promise<{ settledRunIds: string[] }> {
   const settledRunIds: string[] = []
-  let cursor: string | undefined
-  let considered = 0
+  const start = await readSweepCursor()
+  let cursor = start
+  let wrapped = start === undefined
+  let examined = 0
 
-  while (considered < SWEEP_MAX_ROWS_PER_RUN) {
-    const limit = Math.min(SWEEP_BATCH_SIZE, SWEEP_MAX_ROWS_PER_RUN - considered)
+  while (
+    examined < SWEEP_MAX_EXAMINED_PER_RUN &&
+    settledRunIds.length < SWEEP_MAX_SETTLED_PER_RUN
+  ) {
+    const limit = Math.min(SWEEP_BATCH_SIZE, SWEEP_MAX_EXAMINED_PER_RUN - examined)
     const candidates: UnownedRun[] = await db
       .select(unownedRunColumns)
       .from(copilotRuns)
@@ -269,30 +360,35 @@ export async function sweepOrphanedRuns(): Promise<{ settledRunIds: string[] }> 
         and(
           inArray(copilotRuns.status, UNFINISHED_RUN_STATUSES),
           orphanIdle,
-          cursor ? gt(copilotRuns.id, cursor) : undefined
+          cursor ? gt(copilotRuns.id, cursor) : undefined,
+          wrapped && start ? lte(copilotRuns.id, start) : undefined
         )
       )
       .orderBy(asc(copilotRuns.id))
       .limit(limit)
-    if (candidates.length === 0) break
-    considered += candidates.length
-    cursor = candidates[candidates.length - 1].id
-
-    try {
-      const unowned = await withoutOwners(candidates)
-      const settled = await db.transaction((tx) => settleRuns(tx, unowned, orphanIdle))
-      announceSettled(settled.filter((run) => run.controllerToken !== null))
-      settledRunIds.push(...settled.map((run) => run.id))
-    } catch (error) {
-      logger.warn('A batch of orphaned runs could not be settled; a later sweep retries it', {
-        count: candidates.length,
-        error: getErrorMessage(error),
-      })
+    examined += candidates.length
+    if (candidates.length > 0) {
+      cursor = candidates[candidates.length - 1].id
+      try {
+        settledRunIds.push(...(await settleBatch(candidates)).map((run) => run.id))
+      } catch (error) {
+        logger.warn('A batch of orphaned runs could not be settled; a later sweep retries it', {
+          count: candidates.length,
+          error: getErrorMessage(error),
+        })
+      }
     }
-    if (candidates.length < limit) break
+    if (candidates.length < limit) {
+      /** The end of the table: wrap once to cover the runs before the starting point. */
+      cursor = undefined
+      if (wrapped) break
+      wrapped = true
+      continue
+    }
     await sleep(SWEEP_BATCH_PAUSE_MS)
   }
 
+  await writeSweepCursor(cursor)
   if (settledRunIds.length > 0) {
     logger.info('Settled runs no controller owned', { count: settledRunIds.length })
   }
@@ -312,7 +408,7 @@ export async function settleStoppedRunWithoutController(runId: string): Promise<
     .limit(1)
   if (!run?.controllerToken) return false
   if ((await findStreamsHoldingChatLock([run])).has(run.streamId)) return false
-  const settled = await db.transaction((tx) => settleRuns(tx, [run], stopRequested))
-  announceSettled(settled)
+  const { settled, released } = await db.transaction((tx) => settleRuns(tx, [run], stopRequested))
+  announceReleased(released)
   return settled.length > 0
 }

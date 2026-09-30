@@ -49,9 +49,18 @@ import {
   sweepOrphanedRuns,
 } from '@/lib/mothership/async-runs/orphaned-runs'
 import { requestRunStop, updateRunStatus } from '@/lib/mothership/async-runs/repository'
+import { chatPubSub } from '@/lib/mothership/chat-status'
 import { abortRun } from '@/lib/mothership/request/application/controls'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
-import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
+import {
+  acquirePendingChatStream,
+  getLocalChatStreamLease,
+  releasePendingChatStream,
+} from '@/lib/mothership/request/session/abort'
+import {
+  assertChatStreamLease,
+  chatStreamLockKey,
+} from '@/lib/mothership/request/session/controller-lease'
 
 function redis() {
   const client = getRedisClient()
@@ -60,6 +69,7 @@ function redis() {
 }
 
 afterAll(async () => {
+  chatPubSub?.dispose()
   await closeRedisConnection()
   await new Promise<void>((resolve) => worker.server.close(() => resolve()))
   for (const [key, value] of Object.entries(inheritedEnv)) {
@@ -121,11 +131,12 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       superseded?: boolean
       /** Admitted by code predating the current tool-execution protocol. */
       legacy?: boolean
+      id?: string
     } = {}
   ) {
     const chatId = generateId()
     const streamId = generateId()
-    const runId = generateId()
+    const runId = options.id ?? generateId()
     chatIds.push(chatId)
     const controllerToken =
       options.controllerToken === undefined
@@ -413,4 +424,131 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       expect((await stored(orphan.runId)).status).toBe(stopped ? 'cancelled' : 'active')
     }
   })
+
+  it('never takes a run from a reconnect that locked its chat while the sweep was settling', async () => {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const orphans = await Promise.all(
+        Array.from({ length: 20 }, () => admittedRun({ idleMinutes: 90 }))
+      )
+
+      /**
+       * Each reconnect locks the chat, proves its lease, then claims the run, as recovery
+       * does. A run still unfinished once its reconnect holds the lock belongs to it.
+       */
+      const reconnect = async (orphan: (typeof orphans)[number]) => {
+        await sleep(randomInt(0, 40))
+        if (!(await acquirePendingChatStream(orphan.chatId, orphan.streamId, 0))) {
+          return { owned: false, claimed: false }
+        }
+        const lease = getLocalChatStreamLease(orphan.chatId, orphan.streamId)!
+        try {
+          await assertChatStreamLease(lease)
+          const owned = (await stored(orphan.runId)).status === 'active'
+          await sleep(randomInt(0, 10))
+          const claimed = await claimRunController({
+            runId: orphan.runId,
+            chatId: orphan.chatId,
+            previousToken: orphan.controllerToken!,
+            token: lease.value,
+          })
+          return { owned, claimed }
+        } finally {
+          await releasePendingChatStream(orphan.chatId, orphan.streamId, lease)
+        }
+      }
+      const [sweep, ...reconnects] = await Promise.all([
+        sweepOrphanedRuns(),
+        ...orphans.map(reconnect),
+      ])
+
+      orphans.forEach((orphan, index) => {
+        const swept = sweep.settledRunIds.includes(orphan.runId)
+        if (reconnects[index].owned) expect(reconnects[index].claimed).toBe(true)
+        expect(reconnects[index].claimed !== swept).toBe(true)
+      })
+    }
+  })
+
+  it('announces every settled run whose chat it released, legacy runs included', async () => {
+    const legacy = await admittedRun({
+      idleMinutes: 25 * 60,
+      controllerToken: null,
+      legacy: true,
+    })
+    const announced: string[] = []
+    const unsubscribe = chatPubSub!.onStatusChanged((event) => {
+      if (event.type === 'completed') announced.push(event.chatId)
+    })
+
+    try {
+      const { settledRunIds } = await sweepOrphanedRuns()
+      expect(settledRunIds).toContain(legacy.runId)
+      for (let wait = 0; wait < 50 && !announced.includes(legacy.chatId); wait++) await sleep(20)
+      expect(announced).toContain(legacy.chatId)
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it('reaches an orphan behind more unsettleable runs than one sweep examines', async () => {
+    /** Runs whose replay is still live, all sorting before the orphan. */
+    const blockers = Array.from({ length: 10_500 }, (_, index) => ({
+      runId: `00000000-0000-4000-8000-${index.toString(16).padStart(12, '0')}`,
+      chatId: generateId(),
+      streamId: generateId(),
+    }))
+    const orphan = await admittedRun({
+      idleMinutes: 90,
+      id: 'ffffffff-ffff-4fff-bfff-ffffffffffff',
+    })
+    const blockerChatIds = blockers.map((blocker) => blocker.chatId)
+    try {
+      for (let start = 0; start < blockers.length; start += 1000) {
+        const page = blockers.slice(start, start + 1000)
+        await db.insert(copilotChats).values(
+          page.map((blocker) => ({
+            id: blocker.chatId,
+            userId,
+            workspaceId,
+            type: 'mothership' as const,
+          }))
+        )
+        await db.insert(copilotRuns).values(
+          page.map((blocker) => ({
+            id: blocker.runId,
+            executionId: generateId(),
+            chatId: blocker.chatId,
+            userId,
+            workspaceId,
+            streamId: blocker.streamId,
+            toolExecutionVersion: 2,
+            status: 'active' as const,
+            requestContext: { controllerToken: `${blocker.streamId}\n${generateId()}` },
+            startedAt: sql`now() - interval '2 hours'`,
+            updatedAt: sql`now() - interval '2 hours'`,
+          }))
+        )
+        const pipeline = redis().pipeline()
+        for (const blocker of page) {
+          pipeline.set(`mothership_stream:${blocker.streamId}:seq`, '1', 'EX', 600)
+        }
+        await pipeline.exec()
+      }
+
+      const first = await sweepOrphanedRuns()
+      const second = first.settledRunIds.includes(orphan.runId) ? first : await sweepOrphanedRuns()
+
+      expect(second.settledRunIds).toContain(orphan.runId)
+      expect((await stored(orphan.runId)).status).toBe('error')
+    } finally {
+      for (let start = 0; start < blockerChatIds.length; start += 1000) {
+        await db
+          .delete(copilotChats)
+          .where(inArray(copilotChats.id, blockerChatIds.slice(start, start + 1000)))
+      }
+      const pipeline = redis().pipeline()
+      for (const blocker of blockers) pipeline.del(`mothership_stream:${blocker.streamId}:seq`)
+      await pipeline.exec()
+    }
+  }, 120_000)
 })
