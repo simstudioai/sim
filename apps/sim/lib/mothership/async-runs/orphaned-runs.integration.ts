@@ -44,6 +44,7 @@ import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import type { DbTransaction } from '@/lib/db/types'
 import {
   LEGACY_RUN_ERROR,
   ORPHANED_RUN_ERROR,
@@ -221,6 +222,33 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     return waiter!
   }
 
+  /**
+   * Runs `lock` in a transaction held open until `run` settles, then commits it, so a
+   * failed step never leaves the rows locked behind the test. `run` returns the work
+   * queued behind the lock wrapped, never as a bare promise it would wait on.
+   */
+  async function whileHolding<T>(
+    lock: (tx: DbTransaction) => Promise<unknown>,
+    run: (holder: number) => Promise<T>
+  ): Promise<T> {
+    const locked = createDeferred<number>()
+    const release = createDeferred<void>()
+    const holding = db.transaction(async (tx) => {
+      await lock(tx)
+      const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      locked.resolve(backend.pid)
+      await release.promise
+    })
+    holding.catch(locked.reject)
+    const holder = await locked.promise
+    try {
+      return await run(holder)
+    } finally {
+      release.resolve()
+      await holding
+    }
+  }
+
   async function stored(runId: string) {
     const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     const [chat] = await db
@@ -269,29 +297,56 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   it('never settles a run whose Sim tool was admitted while the sweep waited to settle it', async () => {
     const orphan = await admittedRun({ idleMinutes: 90, status: 'paused_waiting_for_tool' })
     const tool = await dispatchedTool(orphan.runId)
-    const locked = createDeferred<number>()
-    const release = createDeferred<void>()
     /** Holds the run row so the tool's admission and then the sweep queue behind it, in that order. */
-    const holding = db.transaction(async (tx) => {
-      await tx
-        .select({ id: copilotRuns.id })
-        .from(copilotRuns)
-        .where(eq(copilotRuns.id, orphan.runId))
-        .for('update')
-      const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-      locked.resolve(backend.pid)
-      await release.promise
-    })
-    const holder = await locked.promise
-
-    const claim = claimSimToolExecution(tool)
-    const claimant = await lockWaiterBehind(holder)
-    const sweep = sweepOrphanedRuns()
-    await lockWaiterBehind(holder, claimant)
-    release.resolve()
-    await holding
+    const { claim, sweep } = await whileHolding(
+      (tx) =>
+        tx
+          .select({ id: copilotRuns.id })
+          .from(copilotRuns)
+          .where(eq(copilotRuns.id, orphan.runId))
+          .for('update'),
+      async (holder) => {
+        const claim = claimSimToolExecution(tool)
+        const claimant = await lockWaiterBehind(holder)
+        const sweep = sweepOrphanedRuns()
+        await lockWaiterBehind(holder, claimant)
+        return { claim, sweep }
+      }
+    )
 
     expect(await claim).toEqual({ outcome: 'claimed' })
+    expect((await sweep).settledRunIds).not.toContain(orphan.runId)
+    const run = await stored(orphan.runId)
+    expect(run.status).toBe('paused_waiting_for_tool')
+    expect(run.toolAdmissionClosedAt).toBeNull()
+  })
+
+  it('never settles a run whose Sim tool lease a heartbeat renewed as the sweep settled it', async () => {
+    const orphan = await admittedRun({ idleMinutes: 90, status: 'paused_waiting_for_tool' })
+    const tool = await dispatchedTool(orphan.runId)
+    expect(await claimSimToolExecution(tool)).toEqual({ outcome: 'claimed' })
+    await db
+      .update(copilotAsyncToolCalls)
+      .set({ executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` })
+      .where(eq(copilotAsyncToolCalls.toolCallId, tool.toolCallId))
+
+    /**
+     * A heartbeat that passed its expiry check just before the lease ran out, and has
+     * not committed yet: the sweep sees the old, expired lease until it does.
+     */
+    const { sweep } = await whileHolding(
+      (tx) =>
+        tx
+          .update(copilotAsyncToolCalls)
+          .set({ executionLeaseExpiresAt: sql`clock_timestamp() + interval '1 minute'` })
+          .where(eq(copilotAsyncToolCalls.toolCallId, tool.toolCallId)),
+      async (holder) => {
+        const sweep = sweepOrphanedRuns()
+        await lockWaiterBehind(holder)
+        return { sweep }
+      }
+    )
+
     expect((await sweep).settledRunIds).not.toContain(orphan.runId)
     const run = await stored(orphan.runId)
     expect(run.status).toBe('paused_waiting_for_tool')

@@ -162,8 +162,11 @@ function terminalValues(reason: 'orphaned' | 'legacy') {
  * never wait on each other in opposite orders. The run rows are locked next, before the
  * guarded update takes its snapshot: a tool's admission locks its run row, so the update
  * then sees any execution lease an admission committed, and a later admission sees the
- * run settled. A legacy run keeps its last write as its completion and retention time.
- * The chat marker is released without touching the chat's ordering timestamp.
+ * run settled. Their unsettled tool executions are locked last: a lease heartbeat
+ * writes only the tool row, so one already past its expiry check commits before the
+ * update reads the lease, and a later one finds the lease expired. A legacy run keeps
+ * its last write as its completion and retention time. The chat marker is released
+ * without touching the chat's ordering timestamp.
  */
 async function settleRuns(
   tx: DbTransaction,
@@ -178,16 +181,25 @@ async function settleRuns(
     .where(inArray(copilotChats.id, chatIds))
     .orderBy(asc(copilotChats.id))
     .for('update')
+  const runIds = runs.map((run) => run.id)
   await tx
     .select({ id: copilotRuns.id })
     .from(copilotRuns)
+    .where(inArray(copilotRuns.id, runIds))
+    .orderBy(asc(copilotRuns.id))
+    .for('update')
+  await tx
+    .select({ id: copilotAsyncToolCalls.id })
+    .from(copilotAsyncToolCalls)
     .where(
-      inArray(
-        copilotRuns.id,
-        runs.map((run) => run.id)
+      and(
+        inArray(copilotAsyncToolCalls.runId, runIds),
+        isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt)
       )
     )
-    .orderBy(asc(copilotRuns.id))
+    .orderBy(asc(copilotAsyncToolCalls.id))
     .for('update')
 
   const settled: UnownedRun[] = []
