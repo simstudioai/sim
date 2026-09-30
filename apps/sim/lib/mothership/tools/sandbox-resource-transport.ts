@@ -14,6 +14,7 @@ import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -138,8 +139,8 @@ async function proxyAuthorizedSandboxRequest(
           encodeURIComponent(matched.params[key] ?? '')
         ) === path
     )
-  const recordInput = (safe: boolean) =>
-    recordExistingSessionFileInput(chatSandboxSessionKey(scope.chatId), safe)
+  const recordInput = (provenance: boolean | DurableSecretProvenance) =>
+    recordExistingSessionFileInput(chatSandboxSessionKey(scope.chatId), provenance)
   const fileRead =
     method === 'GET' &&
     [v2DownloadFileContract, v2ReadFileTextContract].some(
@@ -153,7 +154,7 @@ async function proxyAuthorizedSandboxRequest(
     if (!publicCatalog && !fileRead && !blockCatalog) await recordInput(false)
     let observed = false
     const result = await observeWorkspaceFileDelivery(async (provenance) => {
-      await recordInput(provenance?.status === 'exact' && provenance.entries.length === 0)
+      await recordInput(provenance?.status === 'exact' ? provenance : false)
       observed = true
     }, dispatch)
     try {

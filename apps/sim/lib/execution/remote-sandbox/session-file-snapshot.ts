@@ -102,7 +102,12 @@ export async function openSessionFileSnapshot(
         accessSignal.throwIfAborted()
         if (copied.timedOut) throw new Error('Workbench upload snapshot timed out')
         if (copied.exitCode !== 0) {
-          throw new Error(copied.stderr.trim() || 'Could not prepare the workbench upload file')
+          const reason = [
+            'Scratch file resolves outside the permitted sandbox directories',
+            'Upload source must be a regular file',
+            'Upload source exceeds the workspace file size limit',
+          ].find((message) => copied.stderr.trim().split('\n').at(-1)?.includes(message))
+          throw new Error(reason ?? 'Could not prepare the workbench upload file')
         }
         const size = await sandbox.getFileSize(staged)
         accessSignal.throwIfAborted()

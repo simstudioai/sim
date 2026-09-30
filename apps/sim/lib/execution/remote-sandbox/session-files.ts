@@ -2,6 +2,7 @@ import { posix } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { prepareSandboxSessionAccess } from '@/lib/execution/remote-sandbox/execution-observer'
 import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
@@ -10,7 +11,10 @@ import {
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
 import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
-import { recordSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
+import {
+  readSessionSecretProvenance,
+  recordSessionFileInput,
+} from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import type { SandboxHandle } from '@/lib/execution/remote-sandbox/types'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -39,7 +43,7 @@ export function resolveSessionPath(path: string): string {
 }
 
 export type SessionFileRead =
-  | { outcome: 'read'; content: string }
+  | { outcome: 'read'; content: string; secretProvenance?: DurableSecretProvenance }
   | { outcome: 'no-session' }
   | { outcome: 'no-file'; detail: string }
   | { outcome: 'error'; detail: string }
@@ -68,9 +72,13 @@ export async function readSessionSandboxFile(
           encoding,
           signal,
         })
-        return { outcome: 'read', content: file.content }
+        const secretProvenance = await readSessionSecretProvenance(sessionKey, {
+          providerId: provider.id,
+          sandboxId: sandbox.sandboxId,
+        })
+        return { outcome: 'read', content: file.content, secretProvenance }
       } catch (error) {
-        return { outcome: 'no-file', detail: getErrorMessage(error) }
+        return { outcome: 'no-file', detail: 'Workbench file could not be read safely' }
       }
     })
   } catch (error) {

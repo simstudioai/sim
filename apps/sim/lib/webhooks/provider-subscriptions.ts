@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
@@ -9,8 +9,39 @@ import {
   resolveWebhookRecordProviderConfig,
 } from '@/lib/webhooks/env-resolver'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
+import {
+  createResolvedSecretMatcher,
+  projectResolvedSecretContent,
+} from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WebhookProviderSubscriptions')
+
+/** Resolving credentials must not make a provider's exception a durable plaintext export. */
+function projectProviderFailure(error: unknown, secrets: ReadonlyMap<string, string>): Error {
+  let message = 'Webhook provider request failed'
+  try {
+    const matcher = createResolvedSecretMatcher(
+      [...secrets].map(([name, plaintext]) => ({
+        plaintext,
+        replacement: `{{${name}}}`,
+      }))
+    )
+    const projection = matcher
+      ? projectResolvedSecretContent(getErrorMessage(error), matcher)
+      : { safe: true, value: getErrorMessage(error) }
+    if (projection.safe && typeof projection.value === 'string') message = projection.value
+  } catch {
+    /** Uninspectable diagnostics retain no provider-controlled content. */
+  }
+  const projected =
+    error instanceof WebhookDeploymentConfigurationError
+      ? new WebhookDeploymentConfigurationError(message)
+      : new Error(message)
+  if (error instanceof Error && 'status' in error && typeof error.status === 'number')
+    Object.assign(projected, { status: error.status })
+  return projected
+}
 
 type ExternalSubscriptionResult = {
   updatedProviderConfig: Record<string, unknown>
@@ -141,10 +172,12 @@ export async function createExternalWebhookSubscription(
 
   const workspaceId = typeof workflow.workspaceId === 'string' ? workflow.workspaceId : undefined
 
+  const secrets = new Map<string, string>()
   const resolvedProviderConfig = await resolveWebhookProviderConfig(
     providerConfig,
     userId,
-    workspaceId
+    workspaceId,
+    { onResolved: (name, value) => secrets.set(name, value) }
   )
 
   /**
@@ -161,6 +194,8 @@ export async function createExternalWebhookSubscription(
       requestId,
       request,
     })
+  }).catch((error: unknown) => {
+    throw projectProviderFailure(error, secrets)
   })
 
   if (!result) {
@@ -201,6 +236,7 @@ export async function cleanupExternalWebhook(
     return
   }
 
+  const secrets = new Map<string, string>()
   try {
     if (typeof workflow.userId !== 'string') {
       throw new Error('Cannot resolve webhook credentials without a workflow owner')
@@ -212,7 +248,7 @@ export async function cleanupExternalWebhook(
       webhook,
       workflow.userId,
       workspaceId,
-      { envVars }
+      { envVars, onResolved: (name, value) => secrets.set(name, value) }
     )
 
     /** Workspace archival precedes provider cleanup; routing still uses its canonical owner. */
@@ -228,13 +264,14 @@ export async function cleanupExternalWebhook(
       { includeArchived: true }
     )
   } catch (error) {
+    const projected = projectProviderFailure(error, secrets)
     logger.warn(`[${requestId}] Error cleaning up external webhook (non-fatal)`, {
       provider,
       webhookId: webhook.id,
-      error: toError(error).message,
+      error: projected.message,
     })
     if (options.throwOnError) {
-      throw error
+      throw projected
     }
   }
 }

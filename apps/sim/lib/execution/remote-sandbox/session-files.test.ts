@@ -112,6 +112,7 @@ describe('workbench file cancellation', () => {
     expect(await readSessionSandboxFile('chat', 'input.csv')).toEqual({
       outcome: 'read',
       content: 'data',
+      secretProvenance: { status: 'exact', entries: [] },
     })
     expect(read).toHaveBeenLastCalledWith(
       '/home/user/input.csv',
@@ -444,4 +445,5 @@ describe('workbench file cancellation', () => {
 vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
   initializeSessionFileProvenance: vi.fn(),
   recordSessionFileInput: vi.fn(),
+  readSessionSecretProvenance: vi.fn(async () => ({ status: 'exact', entries: [] })),
 }))
