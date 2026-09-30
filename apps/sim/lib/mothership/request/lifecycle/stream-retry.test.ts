@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CopilotBackendError,
   StreamEndedWithoutTerminalError,
+  WorkerStreamInterruptedError,
   WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
@@ -149,5 +150,17 @@ describe('stream recovery budget', () => {
     expect(retry.nextDelay(new CopilotBackendError('Forbidden', { status: 403 }))).toBeNull()
     expect(retry.nextDelay(new Error('Invalid operation'))).toBeNull()
     expect(retry.attempt).toBe(0)
+  })
+
+  it('gives a stream cut mid-body the reachable budget, not the unreachable window', () => {
+    vi.useFakeTimers()
+    const error = new WorkerStreamInterruptedError(new Error('socket closed'))
+    const retry = new StreamRetryWindow()
+    for (let index = 0; index < 3; index++) {
+      const delay = retry.nextDelay(error)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
+    }
+    expect(retry.nextDelay(error)).toBeNull()
   })
 })

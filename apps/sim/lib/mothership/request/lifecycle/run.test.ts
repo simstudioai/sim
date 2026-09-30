@@ -128,9 +128,17 @@ vi.mock('@/lib/mothership/request/go/stream', () => {
     }
   }
 
+  class WorkerStreamInterruptedError extends Error {
+    constructor(cause: unknown) {
+      super('The agent service is temporarily unavailable. Please try again.', { cause })
+      this.name = 'WorkerStreamInterruptedError'
+    }
+  }
+
   return {
     BillingLimitError,
     CopilotBackendError,
+    WorkerStreamInterruptedError,
     WorkerUnreachableError,
     STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
     StreamEndedWithoutTerminalError,

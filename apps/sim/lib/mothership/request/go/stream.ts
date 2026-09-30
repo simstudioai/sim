@@ -82,6 +82,18 @@ export class WorkerUnreachableError extends Error {
 }
 
 /**
+ * The worker's response body failed mid-stream (the connection was reset or
+ * closed). The worker answered, so a retry reattaches under the short budget.
+ * The read error stays on `cause` for logs.
+ */
+export class WorkerStreamInterruptedError extends Error {
+  constructor(cause: unknown) {
+    super(BACKEND_UNAVAILABLE_MESSAGE, { cause })
+    this.name = 'WorkerStreamInterruptedError'
+  }
+}
+
+/**
  * A worker rejection message the user can act on: short, one line, plain text,
  * and free of identifiers (`userId`, `protocol_version_mismatch`) that only mean
  * something to the code that raised them.
@@ -293,7 +305,13 @@ export async function runStreamLoop(
   const rawReader = response.body.getReader()
   const reader: ReadableStreamDefaultReader<Uint8Array> = {
     async read() {
-      const result = await rawReader.read()
+      let result: ReadableStreamReadResult<Uint8Array>
+      try {
+        result = await rawReader.read()
+      } catch (error) {
+        if (requestSignal.aborted) throw error
+        throw new WorkerStreamInterruptedError(error)
+      }
       if (!result.done && result.value) {
         const now = performance.now()
         const gap = now - counters.lastChunkMs

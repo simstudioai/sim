@@ -16,6 +16,7 @@ import {
   STREAM_EVENT_COMPACTION_THRESHOLD_BYTES,
   STREAM_EVENT_MAX_PAYLOAD_BYTES,
   STREAM_STRING_PREVIEW_UNITS,
+  serializedBytes,
 } from '@/lib/mothership/request/session/replay-compaction'
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
 
@@ -342,5 +343,130 @@ describe('compactStreamEvent', () => {
     }
 
     expect(compactStreamEvent(event)).toBe(event)
+  })
+
+  it('omits only the smallest sufficient bulk when no single child dominates, keeping its siblings', () => {
+    const manyKeys = (prefix: string) =>
+      Object.fromEntries(
+        Array.from({ length: 2_300 }, (_, index) => [`${prefix}-${index}`, 'v'.repeat(300)])
+      )
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_tables_rows_query',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: true,
+        output: { fileId: 'file-1', rows: manyKeys('r'), cols: manyKeys('c') },
+      },
+    }
+
+    const compacted = payloadOf(compactStreamEvent(event))
+    const output = toRecord(compacted.output)
+
+    expect(Buffer.byteLength(JSON.stringify(compacted))).toBeLessThanOrEqual(
+      STREAM_EVENT_MAX_PAYLOAD_BYTES
+    )
+    expect(output.fileId).toBe('file-1')
+    expect([output.rows, output.cols].filter((value) => typeof value === 'string')).toHaveLength(1)
+  })
+
+  it('omits the smaller of two bulks when either alone would make the event fit', () => {
+    const manyKeys = (prefix: string, count: number) =>
+      Object.fromEntries(
+        Array.from({ length: count }, (_, index) => [`${prefix}-${index}`, 'v'.repeat(300)])
+      )
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_tables_rows_query',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: true,
+        output: { fileId: 'file-1', rows: manyKeys('r', 3_000), cols: manyKeys('c', 1_900) },
+      },
+    }
+
+    const output = toRecord(payloadOf(compactStreamEvent(event)).output)
+
+    expect(output.fileId).toBe('file-1')
+    expect(Object.keys(toRecord(output.rows))).toHaveLength(3_000)
+    expect(output.cols).toMatch(/^…\[omitted, [\d.]+ KB total\]$/)
+  })
+
+  it('omits a sufficient bulk whole when its own large parts cannot cover the overage', () => {
+    const manyKeys = (prefix: string, count: number) =>
+      Object.fromEntries(
+        Array.from({ length: count }, (_, index) => [`${prefix}-${index}`, 'v'.repeat(3_000)])
+      )
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_workflows_state_get',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: true,
+        output: { workflowId: 'wf-1', state: { nested: manyKeys('n', 35), ...manyKeys('k', 400) } },
+      },
+    }
+
+    const compacted = payloadOf(compactStreamEvent(event))
+    const output = toRecord(compacted.output)
+
+    expect(Buffer.byteLength(JSON.stringify(compacted))).toBeLessThanOrEqual(
+      STREAM_EVENT_MAX_PAYLOAD_BYTES
+    )
+    expect(output.workflowId).toBe('wf-1')
+    expect(output.state).toMatch(/^…\[omitted, [\d.]+ MB total\]$/)
+  })
+
+  it('bounds a balanced 16 MB tree in one pass', () => {
+    const tree = (depth: number, leaf: number): unknown =>
+      depth === 0
+        ? 'x'.repeat(leaf)
+        : { l: tree(depth - 1, leaf + 100), r: tree(depth - 1, Math.max(leaf - 100, 1)) }
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_blocks_get',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: true,
+        output: tree(12, 3_900),
+      },
+    }
+
+    const started = performance.now()
+    const compacted = compactStreamEvent(event)
+    const elapsedMs = performance.now() - started
+
+    expect(Buffer.byteLength(JSON.stringify(compacted.payload))).toBeLessThanOrEqual(
+      STREAM_EVENT_MAX_PAYLOAD_BYTES
+    )
+    expect(elapsedMs).toBeLessThan(2_000)
+  })
+
+  it('measures serialized size exactly without serializing', () => {
+    const values: unknown[] = [
+      { a: 'é😀"\\\n', b: [1, null, true, { c: 'd' }], e: undefined, f: -1.5e-7 },
+      [undefined, 'x', { 'kéy "q"': 0 }],
+      'plain',
+      42,
+      null,
+      {},
+      [],
+    ]
+
+    for (const value of values) {
+      expect(serializedBytes(value)).toBe(Buffer.byteLength(JSON.stringify(value)))
+    }
   })
 })

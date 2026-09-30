@@ -785,6 +785,53 @@ describe('copilot go stream helpers', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
+  it('reports a stream cut mid-body without the raw socket error', async () => {
+    const socketError = Object.assign(
+      new Error(
+        'The socket connection was closed unexpectedly. For more information, pass `verbose: true`'
+      ),
+      { code: 'ECONNRESET' }
+    )
+    const first = createEvent({
+      streamId: 'cut-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-cut',
+      type: 'text',
+      payload: { channel: 'assistant', text: 'partial' },
+    })
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`))
+          },
+          pull(controller) {
+            controller.error(socketError)
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    )
+
+    await expect(
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        {
+          timeout: 1000,
+          flushAfterEvent: false,
+        }
+      )
+    ).rejects.toMatchObject({
+      name: 'WorkerStreamInterruptedError',
+      message: 'The agent service is temporarily unavailable. Please try again.',
+      cause: socketError,
+    })
+  })
+
   it('reports a worker it could not reach without the raw network error', async () => {
     const networkError = new TypeError('fetch failed')
     vi.mocked(fetch).mockRejectedValueOnce(networkError)

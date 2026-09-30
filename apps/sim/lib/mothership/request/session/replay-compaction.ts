@@ -111,56 +111,111 @@ function mapLeaves(
 /** A field must be at least this large to be omitted as a last resort. */
 const OMITTABLE_FIELD_MIN_BYTES = 64 * 1024
 
-type Child = { key: string | number; value: unknown; bytes: number }
+/**
+ * The exact UTF-8 size of `JSON.stringify(value)`, computed bottom-up without
+ * building the string. `sizes` memoizes containers so a caller can ask about
+ * every node of one tree in a single linear pass.
+ */
+export function serializedBytes(value: unknown, sizes = new WeakMap<object, number>()): number {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    typeof (value as { toJSON?: unknown }).toJSON === 'function'
+  ) {
+    return Buffer.byteLength(JSON.stringify(value) ?? 'null', 'utf8')
+  }
+  const cached = sizes.get(value)
+  if (cached !== undefined) return cached
+  let bytes = 2
+  let members = 0
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      bytes += isSkippedByJson(item) ? 4 : serializedBytes(item, sizes)
+      members++
+    }
+  } else {
+    for (const [key, field] of Object.entries(value)) {
+      if (isSkippedByJson(field)) continue
+      bytes += Buffer.byteLength(JSON.stringify(key), 'utf8') + 1 + serializedBytes(field, sizes)
+      members++
+    }
+  }
+  bytes += Math.max(members - 1, 0)
+  sizes.set(value, bytes)
+  return bytes
+}
 
-/** The largest child of an object or array, by serialized size. */
-function largestChild(value: unknown, skipKeys: ReadonlySet<string>): Child | undefined {
+/** Values JSON leaves out of an object, or writes as `null` in an array. */
+function isSkippedByJson(value: unknown): boolean {
+  return value === undefined || typeof value === 'function' || typeof value === 'symbol'
+}
+
+function omissionNote(bytes: number): string {
+  return `…[omitted, ${formatFileSize(bytes)} total]`
+}
+
+type Sized = { key: string | number; value: unknown; bytes: number }
+
+/**
+ * Removes at least `need` serialized bytes from `value`, replacing as little as
+ * possible with size notes. Among the children larger than the omission floor,
+ * it recurses into the smallest one that alone covers what is still needed, so
+ * that subtree's siblings survive; failing that it replaces the largest whole
+ * and looks again. A nested node whose large parts cannot cover the need, or
+ * that has none, is replaced whole; the payload itself (`top`) never is. One
+ * pass over sizes that are each computed once.
+ */
+function shed(
+  value: unknown,
+  need: number,
+  sizes: WeakMap<object, number>,
+  skipKeys: ReadonlySet<string>,
+  top = false
+): unknown {
+  const bytes = serializedBytes(value, sizes)
+  const isContainer = Array.isArray(value) || isRecordLike(value)
+  if (!top && (!isContainer || bytes <= OMITTABLE_FIELD_MIN_BYTES)) return omissionNote(bytes)
   const entries: Array<[string | number, unknown]> = Array.isArray(value)
     ? value.map((item, index) => [index, item])
     : isRecordLike(value)
       ? Object.entries(value).filter(([key]) => !skipKeys.has(key))
       : []
-  let largest: Child | undefined
-  for (const [key, child] of entries) {
-    const bytes = Buffer.byteLength(JSON.stringify(child) ?? '', 'utf8')
-    if (!largest || bytes > largest.bytes) largest = { key, value: child, bytes }
-  }
-  return largest
-}
+  // Identity fields are never this large, so only bulk is ever replaced.
+  const children: Sized[] = entries
+    .map(([key, child]) => ({ key, value: child, bytes: serializedBytes(child, sizes) }))
+    .filter((child) => child.bytes > OMITTABLE_FIELD_MIN_BYTES)
+    .sort((left, right) => right.bytes - left.bytes)
+  if (children.length === 0) return top ? value : omissionNote(bytes)
 
-/** Copies `value` along `path`, replacing the value at its end. */
-function replaceAt(value: unknown, path: Array<string | number>, replacement: unknown): unknown {
-  if (path.length === 0) return replacement
-  const [key, ...rest] = path
+  const gain = (child: Sized) =>
+    child.bytes - Buffer.byteLength(JSON.stringify(omissionNote(child.bytes)), 'utf8')
+  const replacements = new Map<string | number, unknown>()
+  let remaining = need
+  for (let index = 0; index < children.length && remaining > 0; index++) {
+    let sufficient: Sized | undefined
+    for (let candidate = children.length - 1; candidate >= index; candidate--) {
+      if (gain(children[candidate]) >= remaining) {
+        sufficient = children[candidate]
+        break
+      }
+    }
+    if (sufficient) {
+      replacements.set(sufficient.key, shed(sufficient.value, remaining, sizes, NO_KEYS))
+      remaining = 0
+    } else {
+      replacements.set(children[index].key, omissionNote(children[index].bytes))
+      remaining -= gain(children[index])
+    }
+  }
+  // A caller picks a nested node because replacing it whole covers the need.
+  if (remaining > 0 && !top) return omissionNote(bytes)
+
   if (Array.isArray(value)) {
-    const copy = [...value]
-    copy[Number(key)] = replaceAt(copy[Number(key)], rest, replacement)
-    return copy
+    return value.map((item, index) => (replacements.has(index) ? replacements.get(index) : item))
   }
   const copy = { ...toRecordOrNull(value) }
-  copy[String(key)] = replaceAt(copy[String(key)], rest, replacement)
+  for (const [key, replacement] of replacements) copy[String(key)] = replacement
   return copy
-}
-
-/**
- * The last resort for an event whose many short values no cut could bound,
- * such as an object with thousands of keys. Walks down from the largest field
- * while one child holds most of its parent's bytes, and replaces only that
- * dominating node with a note of its size, so the small siblings the UI reads
- * (ids, resources, status) stay intact.
- */
-function omitDominantBulk(payload: Record<string, unknown>, skipKeys: ReadonlySet<string>) {
-  let node = largestChild(payload, skipKeys)
-  // Identity fields are never this large, so only bulk is ever replaced.
-  if (!node || node.bytes <= OMITTABLE_FIELD_MIN_BYTES) return payload
-  const path = [node.key]
-  for (;;) {
-    const child = largestChild(node.value, NO_KEYS)
-    if (!child || child.bytes * 2 <= node.bytes || child.bytes <= OMITTABLE_FIELD_MIN_BYTES) break
-    path.push(child.key)
-    node = child
-  }
-  return replaceAt(payload, path, `…[omitted, ${formatFileSize(node.bytes)} total]`)
 }
 
 /**
@@ -168,8 +223,8 @@ function omitDominantBulk(payload: Record<string, unknown>, skipKeys: ReadonlySe
  * only to the copy the writer delivers and persists; the caller keeps the full
  * event for dispatch. Long strings are cut to their head in place, so every
  * object keeps its shape; if that is not enough, long arrays keep their head,
- * and past one replay write each dominating bulk is replaced by a size note
- * until the event fits.
+ * and past one replay write the smallest sufficient bulk is replaced by a size
+ * note, keeping the fields beside it.
  * Assistant text, file previews, and the arguments of calls the browser
  * executes are never cut; an event
  * still too large is refused by the buffer, which ends the turn with an error.
@@ -188,15 +243,13 @@ export function compactStreamEvent(event: StreamEvent): StreamEvent {
       ? ARGUMENTS_KEY
       : NO_KEYS
   let compacted = truncateStrings(payload, skipKeys)
-  if (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) {
+  if (serializedBytes(compacted) > STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) {
     compacted = trimArrays(compacted, skipKeys)
   }
-  // Each pass replaces at least OMITTABLE_FIELD_MIN_BYTES, and stops when nothing is left to omit.
-  while (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_MAX_PAYLOAD_BYTES) {
-    const record = toRecordOrNull(compacted) ?? {}
-    const omitted = omitDominantBulk(record, skipKeys)
-    if (omitted === record) break
-    compacted = omitted
+  const sizes = new WeakMap<object, number>()
+  const bytes = serializedBytes(compacted, sizes)
+  if (bytes > STREAM_EVENT_MAX_PAYLOAD_BYTES) {
+    compacted = shed(compacted, bytes - STREAM_EVENT_MAX_PAYLOAD_BYTES, sizes, skipKeys, true)
   }
   return compacted === payload ? event : ({ ...event, payload: compacted } as StreamEvent)
 }

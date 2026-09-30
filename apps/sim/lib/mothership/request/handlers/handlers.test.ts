@@ -215,6 +215,29 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.subAgentTraceSpans?.size).toBe(0)
   })
 
+  it('counts the preview content already in the replay toward the restored turn budget', async () => {
+    const preview = (content: string): StreamEvent => ({
+      type: 'tool',
+      payload: {
+        toolCallId: 'file-edit',
+        toolName: 'prepare_file_edit',
+        previewPhase: 'file_preview_content',
+        content,
+        contentMode: 'delta',
+        previewVersion: 1,
+        fileName: 'notes.md',
+      },
+    })
+
+    await restoreStreamingContext(
+      [preview('é'.repeat(1_000)), preview('x'.repeat(500))],
+      context,
+      execContext
+    )
+
+    expect(context.filePreviewBudget.contentBytes).toBe(2_500)
+  })
+
   it('restores a delivered prefix without executing its tools or consuming the next handoff', async () => {
     const call: StreamEvent = {
       type: 'tool',

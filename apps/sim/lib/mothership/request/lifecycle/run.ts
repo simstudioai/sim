@@ -593,6 +593,7 @@ export async function runCopilotLifecycle(
       // explained, not just reduced to a message string.
       logger.error('Copilot orchestration failed', {
         error: err.message,
+        ...causeForLog(err),
         name: err.name,
         ...(error instanceof CopilotBackendError
           ? { backendStatus: error.status, backendBody: error.body?.slice(0, 2000) }
@@ -878,6 +879,7 @@ async function runResumeLegWithRetry(
           attempt: retry.attempts + 1,
           backoffMs: backoff,
           error: toError(error).message,
+          ...causeForLog(error),
         })
         await interruptibleSleep(backoff, options.abortSignal)
         continue
@@ -1240,6 +1242,7 @@ async function runCheckpointLoop(
             attempt: (retry?.attempts ?? 0) + 1,
             backoffMs: backoff,
             error: toError(streamError).message,
+            ...causeForLog(streamError),
           }
         )
         await interruptibleSleep(backoff, options.abortSignal)
@@ -1676,6 +1679,12 @@ async function withEnterpriseByokKey(
     ...(byokApiKey && !(await isMothershipModelSelectorEnabled()) ? ['modelSelection'] : []),
   ])
   return byokApiKey ? { ...refreshed, byokApiKey } : refreshed
+}
+
+/** The underlying failure behind a generic user-facing error, for logs. */
+function causeForLog(error: unknown): { cause?: string } {
+  const cause = error instanceof Error ? error.cause : undefined
+  return cause === undefined ? {} : { cause: getErrorMessage(cause) }
 }
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {

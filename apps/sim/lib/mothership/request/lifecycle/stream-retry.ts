@@ -4,6 +4,7 @@ import { StreamContinuityError } from '@/lib/mothership/request/go/parser'
 import {
   CopilotBackendError,
   StreamEndedWithoutTerminalError,
+  WorkerStreamInterruptedError,
   WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 
@@ -108,7 +109,11 @@ function isJson(body: string | undefined): boolean {
 /** Initial sends and resumes both replay one durable identity after an ambiguous response. */
 function isRetryableStreamError(error: unknown): boolean {
   if (error instanceof Error && error.name === 'AbortError') return false
-  if (error instanceof StreamEndedWithoutTerminalError || error instanceof StreamContinuityError) {
+  if (
+    error instanceof StreamEndedWithoutTerminalError ||
+    error instanceof StreamContinuityError ||
+    error instanceof WorkerStreamInterruptedError
+  ) {
     return true
   }
   if (error instanceof CopilotBackendError) {
