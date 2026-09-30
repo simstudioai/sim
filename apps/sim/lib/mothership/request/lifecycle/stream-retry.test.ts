@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  BillingLimitError,
   CopilotBackendError,
   StreamEndedWithoutTerminalError,
   WorkerStreamInterruptedError,
@@ -142,6 +143,7 @@ describe('stream recovery budget', () => {
     expect(retry.nextDelay(new DOMException('Stopped', 'AbortError'))).toBeNull()
     expect(retry.nextDelay(new CopilotBackendError('Forbidden', { status: 403 }))).toBeNull()
     expect(retry.nextDelay(new Error('Invalid operation'))).toBeNull()
+    expect(retry.nextDelay(new BillingLimitError('user-1'))).toBeNull()
     expect(retry.attempt).toBe(0)
   })
 
