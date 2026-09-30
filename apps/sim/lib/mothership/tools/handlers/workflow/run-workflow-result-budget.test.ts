@@ -450,4 +450,34 @@ describe('run_workflow model-facing result budget', () => {
     expect(output.output).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
     expect(output.outputFrom).toEqual({ blockId: 'query', blockName: 'Query' })
   })
+
+  /**
+   * The bound only handles size. An output JSON cannot encode cannot be checked, so the run is still
+   * refused rather than the value being hidden behind a pointer.
+   */
+  it('still refuses a run with an unencodable block output while bounding bulky ones', async () => {
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [
+        {
+          blockId: 'big',
+          blockName: 'Big',
+          success: true,
+          output: { rows: tableRows(4_800, 3_200_000) },
+        },
+        { blockId: 'odd', blockName: 'Odd', success: true, output: { count: 1n } },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflowUntilBlock(
+      { workflowId: 'wf-1', stopAfterBlockId: 'odd' },
+      context
+    )
+    const presented = settled.output as { output: unknown; logs: Array<{ output: unknown }> }
+    expect(presented.output).toEqual({ count: 1n })
+    expect(presented.logs[1]?.output).toEqual({ count: 1n })
+    expect(inspectToolResultForCopilot(settled, registry, 'run_workflow').safe).toBe(false)
+  })
 })

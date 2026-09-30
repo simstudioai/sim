@@ -122,12 +122,14 @@ interface BlockOutputSize {
 
 /**
  * Sizes one block output for the budgets. An output past a projection limit (values, bytes, or
- * depth) or one JSON cannot encode would be refused whatever else the result holds, so it is
- * sized past every budget and is always the first to be replaced.
+ * depth) would be refused whatever else the result holds, so it is sized past every budget and is
+ * always the first to be replaced. One JSON cannot encode is not a size problem: it returns
+ * undefined and is left for the projection to refuse, as it always has been.
  */
-function sizeBlockOutput(output: unknown): BlockOutputSize {
+function sizeBlockOutput(output: unknown): BlockOutputSize | undefined {
   const measure = measureModelContent(output)
-  if (!measure || measure.exceeded) {
+  if (!measure) return undefined
+  if (measure.exceeded) {
     return {
       values: MAX_CONTENT_NODES + 1,
       bytes: MAX_MODEL_CONTENT_BYTES + 1,
@@ -158,6 +160,7 @@ function compactBlockLogOutputs(logs: unknown, executionId: string | undefined):
   for (const [index, entry] of logs.entries()) {
     if (!isPlainRecord(entry) || entry.output === undefined) continue
     const size = sizeBlockOutput(entry.output)
+    if (!size) continue
     measured.push({ index, entry, ...size })
     values += size.values
     bytes += size.bytes
@@ -195,5 +198,6 @@ export function boundRunResultForModel(
   )
   // A result JSON cannot encode is refused whatever its size, so only one past a cap is bounded.
   if (!whole?.exceeded) return data
-  return { ...data, output: blockOutputPointer(sizeBlockOutput(data.output).label, executionId) }
+  const size = sizeBlockOutput(data.output)
+  return size ? { ...data, output: blockOutputPointer(size.label, executionId) } : data
 }
