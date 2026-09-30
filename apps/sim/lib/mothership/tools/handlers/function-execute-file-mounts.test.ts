@@ -250,7 +250,17 @@ describe('Mothership file mounts bind content and classification to the same rec
           safe: true,
           provenance: {
             status: 'exact',
-            entries: kind === 'secret' ? [expect.objectContaining({})] : [],
+            // A mounted file's secret crosses anonymously: its ciphertext binds it, not a name.
+            entries:
+              kind === 'secret'
+                ? [
+                    {
+                      encryptedValue: 'fixture-ciphertext',
+                      sourceUserId: 'reader',
+                      sourceWorkspaceId: 'workspace',
+                    },
+                  ]
+                : [],
           },
         })
       }

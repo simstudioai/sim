@@ -25,6 +25,8 @@ export {
 
 /** Values one model-content projection will walk before refusing the whole payload. */
 export const MAX_CONTENT_NODES = 100_000
+/** Encoded bytes a model-content projection accepts by default before refusing the payload. */
+export const MAX_MODEL_CONTENT_BYTES = MAX_INLINE_MATERIALIZATION_BYTES
 const MAX_CONTENT_DEPTH = 100
 const INTERNAL_DIAGNOSTIC_IDENTIFIER_PATTERN =
   /__var_[A-Za-z0-9_]+|__sim_code_\d+_(?:binding|input|runtime)_\d+[A-Za-z0-9_]*|__sim_placeholder_[a-f0-9]{64}__|__sim_runtime_[A-Za-z0-9_]+_\d+[A-Za-z0-9_]*|__SIM_RUNTIME_PAYLOAD_PATH/g
@@ -352,10 +354,39 @@ function projectContent(
 export function projectResolvedSecretContent(
   value: unknown,
   matcher: ResolvedSecretMatcher,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  maxBytes = MAX_MODEL_CONTENT_BYTES,
   options: ResolvedSecretContentProjectionOptions = {}
 ): ResolvedSecretContentProjection {
   return projectContent(value, matcher, maxBytes, options)
+}
+
+/** Size of a value as the model-content projection sees it, for budgeting and diagnostics. */
+export interface ModelContentMeasure {
+  /** Values walked, stopping at `MAX_CONTENT_NODES + 1`: past the cap the exact count is moot. */
+  values: number
+  /** Encoded bytes; absent when counting stopped at the value cap. */
+  bytes?: number
+}
+
+class ModelContentMeasureLimit extends Error {}
+
+/**
+ * Measures a value in the units the projection caps, without walking past the value cap: a
+ * payload that is already over it is reported as over rather than serialized in full. Returns
+ * undefined for a value JSON cannot encode (a BigInt, a cycle), which the projection refuses too.
+ */
+export function measureModelContent(value: unknown): ModelContentMeasure | undefined {
+  let values = 0
+  try {
+    const encoded = JSON.stringify(value, (_key, item: unknown) => {
+      values += 1
+      if (values > MAX_CONTENT_NODES) throw new ModelContentMeasureLimit()
+      return item
+    })
+    return { values, bytes: encoded === undefined ? 0 : Buffer.byteLength(encoded, 'utf8') }
+  } catch (error) {
+    return error instanceof ModelContentMeasureLimit ? { values } : undefined
+  }
 }
 
 /** Returns the registry-revision-cached matcher used for all model-visible projection. */
@@ -397,7 +428,7 @@ export function getResolvedSecretModelMatcher(
 export function projectResolvedSecretModelContent(
   value: unknown,
   registry: ResolvedSecretTraceRegistry | undefined,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  maxBytes = MAX_MODEL_CONTENT_BYTES,
   options: ResolvedSecretContentProjectionOptions = {}
 ): ResolvedSecretContentProjection {
   const snapshot = getResolvedSecretModelMatcher(registry)
@@ -420,7 +451,7 @@ export function projectResolvedSecretModelContent(
 export function projectResolvedSecretModelJsonContent(
   value: unknown,
   registry: ResolvedSecretTraceRegistry | undefined,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  maxBytes = MAX_MODEL_CONTENT_BYTES,
   options: ResolvedSecretContentProjectionOptions = {}
 ): ResolvedSecretContentProjection {
   const snapshot = getResolvedSecretModelMatcher(registry)
@@ -456,7 +487,7 @@ export function projectResolvedSecretModelJsonContent(
 export function projectResolvedSecretDiagnosticContent(
   value: unknown,
   registry: ResolvedSecretTraceRegistry | undefined,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
+  maxBytes = MAX_MODEL_CONTENT_BYTES
 ): ResolvedSecretContentProjection {
   return projectResolvedSecretModelContent(value, registry, maxBytes, {
     sanitizeInternalIdentifiers: true,
@@ -510,7 +541,7 @@ export function isResolvedSecretModelContentUnchanged(
   if (!snapshot.complete) return false
   if (!snapshot.matcher) return true
 
-  const projection = projectContent(value, snapshot.matcher, MAX_INLINE_MATERIALIZATION_BYTES, {
+  const projection = projectContent(value, snapshot.matcher, MAX_MODEL_CONTENT_BYTES, {
     projectPrimitiveLiterals: true,
     rejectResolvedSecretLiterals: true,
   })
@@ -524,7 +555,7 @@ export function isResolvedSecretModelContentUnchanged(
 export function projectResolvedSecretModelJsonStrings(
   values: readonly (string | undefined)[],
   registry: ResolvedSecretTraceRegistry | undefined,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
+  maxBytes = MAX_MODEL_CONTENT_BYTES
 ): ResolvedSecretContentProjection {
   const snapshot = getResolvedSecretModelMatcher(registry)
   if (!snapshot.complete) return { safe: false }

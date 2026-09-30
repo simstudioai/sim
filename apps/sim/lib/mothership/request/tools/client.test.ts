@@ -202,6 +202,51 @@ describe('workflow client tool completion', () => {
     )
   })
 
+  /**
+   * A browser-run workflow reaches the model through this restoration, not the server handler, so
+   * it needs the same block-log budget: a synthetic run whose block outputs exceed the projection's
+   * traversal cap would otherwise be withheld whole once a secret is active.
+   */
+  it('bounds bulky block-log outputs so a large browser run still projects', async () => {
+    const rows = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `row_${index}`,
+        data: { a: 'x', b: 'y', c: 'z', d: 'w' },
+      }))
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      blockLogs: [
+        { blockId: 'small', blockName: 'Small', output: { count: 1 } },
+        ...Array.from({ length: 4 }, (_, index) => ({
+          blockId: `query-${index}`,
+          blockName: `Query ${index}`,
+          output: { rows: rows(5_000) },
+        })),
+      ],
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+    })
+
+    const data = completion?.data as Record<string, unknown>
+    expect(data.output).toEqual({ value: 'child read {{PARENT_SECRET}} from execution-1' })
+    const logs = data.logs as Array<Record<string, unknown>>
+    expect(logs[0]?.output).toEqual({ count: 1 })
+    expect(logs.some((log) => typeof log.output === 'string')).toBe(true)
+    for (const log of logs.filter((entry) => typeof entry.output === 'string')) {
+      expect(log.output).toContain('logs get execution-1 --trace')
+    }
+    expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
+  })
+
   it('preserves the server-confirmed status while omitting unavailable execution content', async () => {
     const registry = createParentRegistry()
     waitForToolConfirmation.mockResolvedValue({

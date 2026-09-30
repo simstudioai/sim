@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
 import { executeCopilotApiKeyUseCase } from '@/lib/mothership/application/execute-api-key-use-case'
 import {
@@ -30,7 +29,11 @@ import type {
   VariableOperation,
 } from '@/lib/mothership/tools/handlers/param-types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
-import { presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
+import {
+  compactBlockLogInputs,
+  compactBlockLogOutputs,
+  presentWorkflowLogs,
+} from '@/lib/mothership/tools/workflow-output'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
@@ -48,100 +51,9 @@ import {
 } from '@/lib/workflows/application/update-workflow-content'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
-import { MAX_CONTENT_NODES } from '@/executor/utils/resolved-secret-content-projection'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowMutations')
-
-/** Above this a Function block's `input.code` is echoed upstream JSON, not code worth reading. */
-const LOG_CODE_INPUT_MAX_CHARS = 240
-/** Any other echoed input string over this is data the caller already has, or can fetch. */
-const LOG_INPUT_STRING_MAX_CHARS = 2_000
-const LOG_INPUT_KEEP_CHARS = 200
-
-/**
- * Compacts the block inputs echoed back in `logs`. A Function block's `input.code` embeds the
- * fully serialized upstream rows, so a seven-block run repeated the same rows several times
- * across ~14k chars of tool result. Outputs are bounded separately by {@link compactBlockLogOutputs},
- * and the full input stays one `logs get <executionId> --trace` away.
- */
-function compactBlockLogInputs(logs: unknown, executionId: string | undefined): unknown {
-  if (!Array.isArray(logs)) return logs
-  const reference = executionId ?? '<executionId>'
-  return logs.map((entry) => {
-    if (!isPlainRecord(entry) || !isPlainRecord(entry.input)) return entry
-    const input: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(entry.input)) {
-      const limit = key === 'code' ? LOG_CODE_INPUT_MAX_CHARS : LOG_INPUT_STRING_MAX_CHARS
-      input[key] =
-        typeof value === 'string' && value.length > limit
-          ? `${value.slice(0, LOG_INPUT_KEEP_CHARS)} …[${value.length} chars, see logs get ${reference} --trace]`
-          : value
-    }
-    return { ...entry, input }
-  })
-}
-
-/**
- * Budgets for the block outputs echoed back in `logs`, a quarter of each cap the model-facing
- * projection enforces on the whole result. Reaching either cap withholds everything, including
- * the final output and error the run was for; those stay intact here and share the remaining
- * three quarters with the rest of the envelope. The value budget matters first: row-shaped
- * outputs reach the projection's traversal cap long before its byte cap.
- */
-const LOG_OUTPUT_VALUE_BUDGET = Math.floor(MAX_CONTENT_NODES / 4)
-const LOG_OUTPUT_BYTE_BUDGET = Math.floor(MAX_INLINE_MATERIALIZATION_BYTES / 4)
-
-/** Counts values the way the projection walks them, and the bytes they encode to. */
-function measureLogOutput(value: unknown): { values: number; bytes: number } {
-  let values = 0
-  const encoded = JSON.stringify(value, (_key, item) => {
-    values += 1
-    return item
-  })
-  return { values, bytes: encoded === undefined ? 0 : Buffer.byteLength(encoded, 'utf8') }
-}
-
-/**
- * Replaces the bulkiest block outputs in `logs` with a pointer once they exceed the budgets
- * above, largest first, so the rest of the run still reaches the model. The full outputs stay in
- * the run's archived trace, one `logs get <executionId> --trace` away, matching how
- * {@link compactBlockLogInputs} treats oversized inputs.
- */
-function compactBlockLogOutputs(logs: unknown, executionId: string | undefined): unknown {
-  if (!Array.isArray(logs)) return logs
-  const reference = executionId ?? '<executionId>'
-  const sizes = logs.map((entry) =>
-    isPlainRecord(entry) && entry.output !== undefined ? measureLogOutput(entry.output) : undefined
-  )
-  let values = 0
-  let bytes = 0
-  for (const size of sizes) {
-    values += size?.values ?? 0
-    bytes += size?.bytes ?? 0
-  }
-  if (values <= LOG_OUTPUT_VALUE_BUDGET && bytes <= LOG_OUTPUT_BYTE_BUDGET) return logs
-
-  const compacted = [...logs]
-  const bulkiestFirst = sizes
-    .map((size, index) => ({ size, index }))
-    .filter((entry): entry is { size: { values: number; bytes: number }; index: number } =>
-      Boolean(entry.size)
-    )
-    .sort(
-      (left, right) => right.size.values - left.size.values || right.size.bytes - left.size.bytes
-    )
-  for (const { size, index } of bulkiestFirst) {
-    if (values <= LOG_OUTPUT_VALUE_BUDGET && bytes <= LOG_OUTPUT_BYTE_BUDGET) break
-    compacted[index] = {
-      ...(logs[index] as Record<string, unknown>),
-      output: `…[output omitted: ${size.values} values, ${size.bytes} bytes; see logs get ${reference} --trace]`,
-    }
-    values -= size.values
-    bytes -= size.bytes
-  }
-  return compacted
-}
 
 function stripBinaryFields(value: unknown): unknown {
   if (value === null || value === undefined) return value

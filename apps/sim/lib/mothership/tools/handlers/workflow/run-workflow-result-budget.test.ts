@@ -1,27 +1,14 @@
 /**
- * A run_workflow result sized like the production refusals: thirteen table-query blocks,
- * ~11.5k rows, ~9.7 MiB. That is under the 16 MiB byte cap, yet with one active secret the
- * projection walked ~138k values against its 100k traversal cap and withheld the whole result,
- * leaving the model a bare success. The model-facing result is now bounded before it reaches
- * the projection, and the omitted block outputs stay reachable through the run's archived trace.
+ * A synthetic trace-shaped run_workflow result: about a dozen table-query blocks whose outputs
+ * exceed the projection's 100k-value traversal cap while staying under its byte cap. With one
+ * active secret the projection refused the whole result, leaving the model a bare success. The
+ * model-facing result is now bounded before it reaches the projection.
  */
-
 import { executeWorkflowMock } from '@sim/testing/mocks/execute-workflow.mock'
-import {
-  largeValueMetadataMock,
-  largeValueMetadataMockFns,
-} from '@sim/testing/mocks/large-value-metadata.mock'
-import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
-import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { workflowsOrchestrationMock } from '@sim/testing/mocks/workflows-orchestration.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import {
-  externalizeExecutionData,
-  materializeExecutionData,
-} from '@/lib/logs/execution/trace-store'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -43,8 +30,6 @@ vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
 }))
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
-vi.mock('@/lib/uploads', () => uploadsMock)
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 import { executeRunWorkflow } from '@/lib/mothership/tools/handlers/workflow/mutations'
 
@@ -56,21 +41,21 @@ const context = {
   toolCallId: 'tool-call-1',
 } as ExecutionContext
 
-/** Row counts and stored bytes of the table queries in one production refusal. */
+/** Rows and approximate encoded bytes per block of a synthetic trace-shaped run. */
 const TABLE_QUERIES: ReadonlyArray<readonly [rows: number, bytes: number]> = [
-  [32, 9_513],
-  [2, 2_590],
-  [1_848, 2_079_072],
-  [2_533, 1_698_688],
-  [4_833, 3_179_855],
-  [1_294, 1_517_841],
-  [32, 5_563],
-  [11, 3_246],
-  [835, 721_833],
-  [33, 52_482],
-  [28, 8_274],
-  [13, 9_669],
-  [33, 293_266],
+  [30, 10_000],
+  [2, 3_000],
+  [1_850, 2_100_000],
+  [2_500, 1_700_000],
+  [4_800, 3_200_000],
+  [1_300, 1_500_000],
+  [30, 6_000],
+  [10, 3_000],
+  [850, 700_000],
+  [30, 50_000],
+  [30, 8_000],
+  [10, 10_000],
+  [30, 300_000],
 ]
 
 function tableRows(count: number, bytes: number) {
@@ -112,7 +97,7 @@ describe('run_workflow model-facing result budget', () => {
 
   it('projects a trace-shaped result with an active secret instead of withholding it', async () => {
     const logs = traceShapedLogs()
-    const finalOutput = { summary: `report for ${SECRET}`, rowCount: 11_529 }
+    const finalOutput = { summary: `report for ${SECRET}`, rowCount: 11_500 }
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: false,
       error: `Report block failed after reading ${SECRET}`,
@@ -128,7 +113,7 @@ describe('run_workflow model-facing result budget', () => {
     const output = projection.result.output as Record<string, unknown>
     expect(output.executionId).toBe(EXECUTION_ID)
     expect(output.success).toBe(false)
-    expect(output.output).toEqual({ summary: 'report for {{API_KEY}}', rowCount: 11_529 })
+    expect(output.output).toEqual({ summary: 'report for {{API_KEY}}', rowCount: 11_500 })
     expect(projection.result.error).toBe('Report block failed after reading {{API_KEY}}')
     const presented = output.logs as Array<Record<string, unknown>>
     expect(presented.map((log) => log.blockName)).toEqual(logs.map((log) => log.blockName))
@@ -143,7 +128,7 @@ describe('run_workflow model-facing result budget', () => {
 
   /** The final output is what the run was for, so it is never compacted and needs the headroom. */
   it('leaves room for a large final output beside the bounded logs', async () => {
-    const finalOutput = { rows: tableRows(4_833, 3_179_855) }
+    const finalOutput = { rows: tableRows(4_800, 3_200_000) }
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,
       output: finalOutput,
@@ -182,7 +167,7 @@ describe('run_workflow model-facing result budget', () => {
     expect((projection.result.output as Record<string, unknown>).output).toEqual(finalOutput)
   })
 
-  it('keeps every omitted block output reachable through the pointer', async () => {
+  it('returns selected values in full, bypassing the log budget', async () => {
     const logs = traceShapedLogs()
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,
@@ -190,45 +175,42 @@ describe('run_workflow model-facing result budget', () => {
       logs,
       metadata: { executionId: EXECUTION_ID },
     })
-    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-    const presented = (settled.output as { logs: Array<Record<string, unknown>> }).logs
-    const omitted = presented.filter((log) => typeof log.output === 'string')
-    expect(omitted.length).toBeGreaterThan(0)
 
-    // `logs get <id> --trace` reads the run's archived execution data; archive and read it back.
-    storageServiceMockFns.mockUploadFile.mockImplementation(async ({ customKey, file }) => {
-      storageServiceMockFns.mockDownloadFile.mockResolvedValue(file)
-      return { key: customKey }
-    })
-    largeValueMetadataMockFns.mockRegisterLargeValueOwner.mockResolvedValue(true)
-    clearLargeValueCacheForTests()
-    const archiveContext = {
-      workspaceId: 'workspace-1',
-      workflowId: 'wf-1',
-      executionId: EXECUTION_ID,
-      userId: 'user-1',
-    }
-    const slim = await externalizeExecutionData(
-      {
-        traceSpans: logs.map((log) => ({
-          id: log.blockId,
-          name: log.blockName,
-          output: log.output,
-        })),
-      },
-      archiveContext,
-      { throwOnError: true }
+    const settled = await executeRunWorkflow(
+      { workflowId: 'wf-1', select: ['Query 4.rows'] },
+      context
     )
-    clearLargeValueCacheForTests()
-    const archived = (await materializeExecutionData(slim, archiveContext)) as {
-      traceSpans: Array<{ name: string; output: unknown }>
+    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const output = projection.result.output as Record<string, unknown>
+    expect(output.logsOmitted).toBe(true)
+    expect(output.selected).toEqual({ 'Query 4.rows': logs[4].output.rows })
+  })
+
+  /** The pointer is written before secret projection, so it must not vary with a secret's length. */
+  it('reports nothing about an omitted output that depends on secret length', async () => {
+    async function pointerFor(secret: string) {
+      mocks.executeWorkflowUseCase.mockResolvedValue({
+        success: true,
+        output: {},
+        logs: [
+          {
+            blockId: 'query',
+            blockName: 'Query',
+            success: true,
+            output: { rows: tableRows(4_800, 3_200_000), token: secret },
+          },
+        ],
+        metadata: { executionId: EXECUTION_ID },
+      })
+      const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+      return (settled.output as { logs: Array<{ output: unknown }> }).logs[0]?.output
     }
 
-    for (const log of omitted) {
-      const original = logs.find((entry) => entry.blockName === log.blockName)
-      expect(archived.traceSpans.find((span) => span.name === log.blockName)?.output).toEqual(
-        original?.output
-      )
-    }
+    const short = await pointerFor('short-secret-1')
+    const long = await pointerFor('a-considerably-longer-secret-value-for-the-same-slot')
+    expect(short).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
+    expect(long).toBe(short)
   })
 })

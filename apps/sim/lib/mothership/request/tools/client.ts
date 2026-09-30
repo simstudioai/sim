@@ -15,7 +15,7 @@ import {
   unsealClientToolContext,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
-import { presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
+import { compactBlockLogOutputs, presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
@@ -376,7 +376,10 @@ export async function waitForWorkflowToolCompletion({
     ...(Object.hasOwn(trustedExecution, 'finalOutput')
       ? { output: trustedExecution.finalOutput }
       : {}),
-    logs: trustedExecution.blockLogs,
+    // `select` reads full values from these logs; only logs echoed whole are bounded.
+    logs: select?.length
+      ? trustedExecution.blockLogs
+      : compactBlockLogOutputs(trustedExecution.blockLogs, executionId),
     ...(trustedExecution.error !== undefined ? { error: trustedExecution.error } : {}),
     ...(status === MothershipStreamV1ToolOutcome.cancelled
       ? { reason: 'user_cancelled', cancelledByUser: true }
