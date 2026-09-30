@@ -36,7 +36,6 @@ export function ProtoPage({ slug }: { slug?: string[] }) {
           <WorkspaceView
             workspace={workspace}
             section={route.section}
-            full={route.full}
             settingsSection={route.settingsSection}
           />
         </ProjectShell>

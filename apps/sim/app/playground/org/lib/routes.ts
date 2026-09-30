@@ -29,31 +29,20 @@ export const WORKSPACE_SECTIONS = [
 
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]['id']
 
-/** What the main project view shows as chips; everything else lives in the full view. */
-export const MAIN_SECTION_IDS: readonly WorkspaceSection[] = ['dashboard', 'changelog', 'issues']
-export const MAIN_SECTIONS = WORKSPACE_SECTIONS.filter((s) => MAIN_SECTION_IDS.includes(s.id))
-
-function isMainSection(section: WorkspaceSection): boolean {
-  return MAIN_SECTION_IDS.includes(section)
-}
-
 export const protoRoutes = {
   home: PROTO_BASE,
   search: `${PROTO_BASE}/search`,
   connectors: `${PROTO_BASE}/connectors`,
   /** Every chat opens on its own page with the resource panel beside it; the page 404s an unknown id. */
   chat: (chatId: string) => `${PROTO_BASE}/chat/${chatId}`,
-  /** Main project view for dashboard/changelog/issues; any other section opens the full view. */
+  /** The project page: every section is a tab. */
   workspace: (workspaceId: string, section: WorkspaceSection = 'dashboard') =>
-    isMainSection(section)
-      ? `${PROTO_BASE}/p/${workspaceId}/${section}`
-      : `${PROTO_BASE}/p/${workspaceId}/build/${section}`,
-  /** Settings replace the project sidebar with the settings list. */
+    section === 'settings'
+      ? protoRoutes.settings(workspaceId)
+      : `${PROTO_BASE}/p/${workspaceId}/${section}`,
+  /** Settings replace the org sidebar with the settings list. */
   settings: (workspaceId: string, section: string = DEFAULT_SETTINGS_SECTION) =>
-    `${PROTO_BASE}/p/${workspaceId}/build/settings/${section}`,
-  /** Full view: the sidebar becomes this project's navigation. */
-  full: (workspaceId: string, section: WorkspaceSection = 'dashboard') =>
-    `${PROTO_BASE}/p/${workspaceId}/build/${section}`,
+    `${PROTO_BASE}/p/${workspaceId}/settings/${section}`,
   issue: (workspaceId: string, key: string) => `${PROTO_BASE}/p/${workspaceId}/issue/${key}`,
 }
 
@@ -62,13 +51,7 @@ export type ProtoRoute =
   | { kind: 'search' }
   | { kind: 'connectors' }
   | { kind: 'chat'; chatId: string }
-  | {
-      kind: 'workspace'
-      workspaceId: string
-      section: WorkspaceSection
-      full: boolean
-      settingsSection?: string
-    }
+  | { kind: 'workspace'; workspaceId: string; section: WorkspaceSection; settingsSection?: string }
   | { kind: 'issue'; workspaceId: string; issueKey: string }
 
 export function parseProtoRoute(slug: string[] | undefined): ProtoRoute | null {
@@ -78,32 +61,20 @@ export function parseProtoRoute(slug: string[] | undefined): ProtoRoute | null {
   if (head === 'connectors' && !a) return { kind: 'connectors' }
   if (head === 'chat' && a && !b) return { kind: 'chat', chatId: a }
   if (head === 'p' && a) {
-    if (b === 'issue' && c) return { kind: 'issue', workspaceId: a, issueKey: c }
-    if (b === 'build' && c === 'settings') {
-      const settingsSection = d ?? DEFAULT_SETTINGS_SECTION
+    if (b === 'issue' && c && !d) return { kind: 'issue', workspaceId: a, issueKey: c }
+    if (b === 'settings' && !d) {
+      const settingsSection = c ?? DEFAULT_SETTINGS_SECTION
       if (!SETTINGS_NAV.some((item) => item.id === settingsSection)) return null
-      return { kind: 'workspace', workspaceId: a, section: 'settings', full: true, settingsSection }
-    }
-    if (b === 'build') {
-      const section = WORKSPACE_SECTIONS.find((s) => s.id === (c ?? 'dashboard'))
-      if (section) return { kind: 'workspace', workspaceId: a, section: section.id, full: true }
-      return null
+      return { kind: 'workspace', workspaceId: a, section: 'settings', settingsSection }
     }
     const section = WORKSPACE_SECTIONS.find((s) => s.id === (b ?? 'dashboard'))
-    if (section && isMainSection(section.id) && !c)
-      return { kind: 'workspace', workspaceId: a, section: section.id, full: false }
+    if (section && !c) return { kind: 'workspace', workspaceId: a, section: section.id }
   }
   return null
 }
 
-/** The project whose full view is open, read from the path; null in the org view. */
-export function fullViewProject(pathname: string | null): string | null {
-  const match = pathname?.match(/\/p\/([^/]+)\/build(?:\/|$)/)
-  return match ? match[1] : null
-}
-
 /** The project whose settings are open, read from the path; null elsewhere. */
 export function settingsProject(pathname: string | null): string | null {
-  const match = pathname?.match(/\/p\/([^/]+)\/build\/settings(?:\/|$)/)
+  const match = pathname?.match(/\/p\/([^/]+)\/settings(?:\/|$)/)
   return match ? match[1] : null
 }
