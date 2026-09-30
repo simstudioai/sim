@@ -144,6 +144,7 @@ describe('no-install hint', () => {
     const lines = noInstallHint({ dockerReachable: true, cwd: '/home/dev' })
     expect(lines[0]).toContain('/home/dev')
     expect(lines[1]).toContain('--dir')
-    expect(lines[2]).toContain('npx sim-setup')
+    expect(lines[2]).toContain('kubectl')
+    expect(lines[3]).toContain('npx sim-setup')
   })
 })

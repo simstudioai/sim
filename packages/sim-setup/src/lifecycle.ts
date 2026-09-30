@@ -370,12 +370,13 @@ export function noInstallHint(options: { dockerReachable: boolean; cwd: string }
   if (!options.dockerReachable) {
     return [
       'Docker is not reachable, so a Compose install cannot be detected.',
-      'Start Docker Desktop (or OrbStack), then re-run this command.',
+      'Start Docker (Docker Desktop or OrbStack, or the docker service on Linux), then re-run this command.',
     ]
   }
   return [
     `No Sim install found from ${options.cwd}.`,
-    `Already set up? Run this from the folder that contains your sim/ directory, or pass ${theme.command('--dir <path-to-sim>')}.`,
+    `Docker Compose install? Run this from the folder that contains your sim/ directory, or pass ${theme.command('--dir <path-to-sim>')}.`,
+    'Kubernetes install? Check that your current kubectl context is the one Sim was installed in.',
     `New here? Run ${theme.command('npx sim-setup')}.`,
   ]
 }
