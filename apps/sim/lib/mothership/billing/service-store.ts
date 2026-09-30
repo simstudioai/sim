@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotServiceUsage } from '@sim/db/schema'
-import { and, eq, isNotNull, isNull, lte, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, lt, lte, sql } from 'drizzle-orm'
+import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 import type { ServiceUsageReceipt } from '@/lib/mothership/generated/billing'
 
 export async function saveServiceUsage(
@@ -59,13 +60,43 @@ export async function beginServiceMeter(input: {
     .values({ ...input, service: '_tool_execution', costUsd: null })
 }
 
-export async function serviceMeteringHealth() {
-  const [health] = await db
-    .select({
-      pending: sql<number>`count(*) FILTER (WHERE delivered_at IS NULL AND cost_usd IS NOT NULL)::int`,
-      unknown: sql<number>`count(*) FILTER (WHERE delivered_at IS NULL AND cost_usd IS NULL AND created_at < now() - interval '5 minutes')::int`,
-      oldest: sql<Date | null>`min(created_at) FILTER (WHERE delivered_at IS NULL)`,
-    })
+/**
+ * An open meter this old outlived the longest tool watchdog and its cleanup, so the process
+ * that owned it ended mid-execution and nothing will close it.
+ */
+const ABANDONED_METER_AGE_MS = 2 * TOOL_WATCHDOG_LONG_RUNNING_MS
+
+/**
+ * Ends the tool meters that can no longer resolve and returns each one exactly once, so the
+ * caller reports it once. Closing a meter only ends its audit record: known spend was saved
+ * as separate receipts, and a meter is never delivered. A pricing failure keeps its error;
+ * otherwise the row records that the tool never finished.
+ */
+export async function closeAbandonedServiceMeters(limit = 100) {
+  const abandoned = db
+    .select({ id: copilotServiceUsage.id })
     .from(copilotServiceUsage)
-  return health
+    .where(
+      and(
+        isNull(copilotServiceUsage.costUsd),
+        isNull(copilotServiceUsage.deliveredAt),
+        lt(copilotServiceUsage.createdAt, new Date(Date.now() - ABANDONED_METER_AGE_MS))
+      )
+    )
+    .limit(limit)
+    .for('update', { skipLocked: true })
+  return db
+    .update(copilotServiceUsage)
+    .set({
+      deliveredAt: new Date(),
+      lastError: sql`coalesce(${copilotServiceUsage.lastError}, 'Tool execution never finished')`,
+    })
+    .where(inArray(copilotServiceUsage.id, abandoned))
+    .returning({
+      id: copilotServiceUsage.id,
+      streamId: copilotServiceUsage.streamId,
+      toolCallId: copilotServiceUsage.toolCallId,
+      createdAt: copilotServiceUsage.createdAt,
+      lastError: copilotServiceUsage.lastError,
+    })
 }
