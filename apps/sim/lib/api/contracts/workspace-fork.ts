@@ -324,14 +324,14 @@ export const forkWorkflowChangeSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('update'),
     ...forkWorkflowChangeNames,
-    /** The deployed source workflow this sync copies. */
-    sourceWorkflowId: workflowIdSchema,
+    /** The deployed source workflow this sync copies; optional so a new client tolerates an old server during rollout. */
+    sourceWorkflowId: workflowIdSchema.optional(),
   }),
   z.object({
     action: z.literal('create'),
     ...forkWorkflowChangeNames,
-    /** The deployed source workflow this sync copies. */
-    sourceWorkflowId: workflowIdSchema,
+    /** The deployed source workflow this sync copies; optional so a new client tolerates an old server during rollout. */
+    sourceWorkflowId: workflowIdSchema.optional(),
   }),
   z.object({ action: z.literal('archive'), ...forkWorkflowChangeNames }),
 ])

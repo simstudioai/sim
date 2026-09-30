@@ -10,11 +10,11 @@ import {
 } from '@/ee/workspace-forking/application/authorized-fork-use-case'
 import { forkOperations } from '@/ee/workspace-forking/application/operations'
 import {
-  loadSourceDeployedStates,
+  loadSourceDeployedWorkflow,
   loadTargetDraftState,
 } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
-import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+import { resolveForkPlanItem } from '@/ee/workspace-forking/lib/promote/promote-plan'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { remapWorkflowStateBlockIds } from '@/ee/workspace-forking/lib/remap/remap-state-block-ids'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -61,15 +61,11 @@ function alignVariableIds(after: WorkflowState, before: WorkflowState | null): W
   for (const [id, block] of Object.entries(after.blocks)) {
     try {
       // double-cast-allowed: SubBlockRecord is the persistence view of the same sub-block map
-      const remapped = remapVariableIdsInSubBlocks(
-        (block.subBlocks ?? {}) as unknown as SubBlockRecord,
-        idMap
-      )
+      const sourceSubBlocks = (block.subBlocks ?? {}) as unknown as SubBlockRecord
+      const remapped = remapVariableIdsInSubBlocks(sourceSubBlocks, idMap)
       // double-cast-allowed: back from the persistence view to the canvas state's sub-block map
-      blocks[id] = {
-        ...block,
-        subBlocks: remapped as unknown as WorkflowState['blocks'][string]['subBlocks'],
-      }
+      const subBlocks = remapped as unknown as WorkflowState['blocks'][string]['subBlocks']
+      blocks[id] = { ...block, subBlocks }
     } catch {
       /* An assignments value the remap cannot parse is shown as stored. */
       blocks[id] = block
@@ -89,8 +85,10 @@ interface SyncWorkflowDiffInput {
  * Block-level preview of ONE workflow in a sync: the target as its editor
  * holds it (`before`: the draft the sync overwrites, null when the sync would
  * create the workflow) and the source's deployment re-keyed to the target's
- * block ids (`after`). The plan and the block-id pairing are resolved exactly
- * as the promote would resolve them.
+ * block ids (`after`). The plan item and the block-id pairing are resolved
+ * exactly as the promote would resolve them, reading only this workflow's
+ * state, identity mapping and block pairs, so a preview costs the same in a
+ * workspace of five workflows as in one of five hundred.
  *
  * Both states carry their raw sub-block values, on par with the deployment
  * version route the same session UI already reads; the caller holds admin on
@@ -115,40 +113,42 @@ export const getWorkspaceSyncWorkflowDiff = defineForkUseCase({
     const sourceWorkspaceId = direction === 'push' ? id : input.otherWorkspaceId
     const targetWorkspaceId = direction === 'push' ? input.otherWorkspaceId : id
 
-    const [{ deployedWorkflows, sourceStates }, blockMap] = await Promise.all([
-      loadSourceDeployedStates(sourceWorkspaceId),
-      loadForkBlockMap(db, edge.childWorkspaceId),
-    ])
-    const plan = await computeForkPromotePlan({
-      executor: db,
-      edge,
-      sourceWorkspaceId,
-      targetWorkspaceId,
-      direction,
-      deployedSourceWorkflows: deployedWorkflows,
-      sourceStates,
-    })
-
-    const item = plan.items.find((candidate) => candidate.sourceWorkflowId === sourceWorkflowId)
-    const sourceState = sourceStates.get(sourceWorkflowId)
-    if (!item || !sourceState) {
+    const source = await loadSourceDeployedWorkflow(sourceWorkspaceId, sourceWorkflowId)
+    const item = source
+      ? await resolveForkPlanItem({
+          executor: db,
+          edge,
+          sourceWorkspaceId,
+          targetWorkspaceId,
+          source: source.summary,
+        })
+      : null
+    if (!source || !item) {
       throw new OrchestrationError('not_found', 'That workflow is not part of this sync')
     }
 
+    /*
+     * A create has no target yet and its plan id is provisional, so there is no
+     * `before`, no recorded block pairs (every id derives) and no id to report.
+     */
     const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
+    const [blockMap, before] =
+      item.mode === 'replace'
+        ? await Promise.all([
+            loadForkBlockMap(db, edge.childWorkspaceId, {
+              side: sourceIsParent ? 'child' : 'parent',
+              workflowId: item.targetWorkflowId,
+            }),
+            loadTargetDraftState(item.targetWorkflowId, targetWorkspaceId),
+          ])
+        : [{ parentToChild: new Map(), childToParent: new Map() }, null]
+    if (item.mode === 'replace' && !before) {
+      throw new OrchestrationError('not_found', 'The target workflow could not be loaded')
+    }
     const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
-    const after = remapWorkflowStateBlockIds(sourceState, (blockId) =>
+    const after = remapWorkflowStateBlockIds(source.state, (blockId) =>
       resolveBlockId(item.targetWorkflowId, blockId)
     )
-
-    /* A create has no target yet, and its plan id is provisional, so neither is reported. */
-    let before: WorkflowState | null = null
-    if (item.mode === 'replace') {
-      before = await loadTargetDraftState(item.targetWorkflowId, targetWorkspaceId)
-      if (!before) {
-        throw new OrchestrationError('not_found', 'The target workflow could not be loaded')
-      }
-    }
 
     const sourceName = item.sourceMeta.name
     const targetName = item.targetName ?? sourceName

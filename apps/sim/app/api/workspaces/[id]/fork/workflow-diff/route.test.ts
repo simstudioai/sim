@@ -17,10 +17,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
-  loadSourceDeployedStates: vi.fn(),
+  loadSourceDeployedWorkflow: vi.fn(),
   loadTargetDraftState: vi.fn(),
   loadForkBlockMap: vi.fn(),
-  computeForkPromotePlan: vi.fn(),
+  resolveForkPlanItem: vi.fn(),
 }))
 
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
@@ -28,14 +28,14 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
-  loadSourceDeployedStates: mocks.loadSourceDeployedStates,
+  loadSourceDeployedWorkflow: mocks.loadSourceDeployedWorkflow,
   loadTargetDraftState: mocks.loadTargetDraftState,
 }))
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   loadForkBlockMap: mocks.loadForkBlockMap,
 }))
 vi.mock('@/ee/workspace-forking/lib/promote/promote-plan', () => ({
-  computeForkPromotePlan: mocks.computeForkPromotePlan,
+  resolveForkPlanItem: mocks.resolveForkPlanItem,
 }))
 
 import { GET } from '@/app/api/workspaces/[id]/fork/workflow-diff/route'
@@ -70,20 +70,15 @@ describe('fork workflow-diff route', () => {
       childWorkspaceId: 'child',
     })
     mocks.loadForkBlockMap.mockResolvedValue({ parentToChild: new Map(), childToParent: new Map() })
-    mocks.loadSourceDeployedStates.mockResolvedValue({
-      deployedWorkflows: [{ id: 'wf-src' }],
-      sourceStates: new Map([['wf-src', emptyState]]),
-    })
-    mocks.computeForkPromotePlan.mockResolvedValue({
-      items: [
-        {
-          sourceWorkflowId: 'wf-src',
-          targetWorkflowId: 'wf-tgt',
-          mode: 'create',
-          sourceMeta: { name: 'Ask Biz' },
-        },
-      ],
-      archivedTargets: [],
+    mocks.loadSourceDeployedWorkflow.mockImplementation(async (_ws: string, id: string) =>
+      id === 'wf-src' ? { summary: { id, name: 'Ask Biz' }, state: emptyState } : null
+    )
+    mocks.resolveForkPlanItem.mockResolvedValue({
+      sourceWorkflowId: 'wf-src',
+      targetWorkflowId: 'wf-tgt',
+      targetName: null,
+      mode: 'create',
+      sourceMeta: { name: 'Ask Biz' },
     })
   })
 
@@ -98,7 +93,7 @@ describe('fork workflow-diff route', () => {
     )
 
     expect(response.status).toBe(403)
-    expect(mocks.loadSourceDeployedStates).not.toHaveBeenCalled()
+    expect(mocks.loadSourceDeployedWorkflow).not.toHaveBeenCalled()
   })
 
   it('rejects a request without the source workflow id', async () => {
@@ -108,7 +103,7 @@ describe('fork workflow-diff route', () => {
     )
 
     expect(response.status).toBe(400)
-    expect(mocks.loadSourceDeployedStates).not.toHaveBeenCalled()
+    expect(mocks.loadSourceDeployedWorkflow).not.toHaveBeenCalled()
   })
 
   it('rejects workspaces that are not a direct fork edge without reading state', async () => {
@@ -120,7 +115,7 @@ describe('fork workflow-diff route', () => {
     )
 
     expect(response.status).toBe(400)
-    expect(mocks.loadSourceDeployedStates).not.toHaveBeenCalled()
+    expect(mocks.loadSourceDeployedWorkflow).not.toHaveBeenCalled()
   })
 
   it('maps a workflow outside the sync plan to 404', async () => {
@@ -145,6 +140,48 @@ describe('fork workflow-diff route', () => {
       after: emptyState,
       beforeLabel: 'Ask Biz (current)',
       afterLabel: 'Ask Biz (deployed)',
+    })
+  })
+  it('maps a workflow whose target is excluded from sync to 404', async () => {
+    mocks.resolveForkPlanItem.mockResolvedValue(null)
+
+    const response = await GET(
+      request({ otherWorkspaceId: 'parent', direction: 'push', sourceWorkflowId: 'wf-src' }),
+      routeContext
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('reads the target draft and only its block pairs when the sync replaces a workflow', async () => {
+    const targetState = {
+      ...emptyState,
+      blocks: {},
+    }
+    mocks.resolveForkPlanItem.mockResolvedValue({
+      sourceWorkflowId: 'wf-src',
+      targetWorkflowId: 'wf-tgt',
+      targetName: 'Ask Biz prod',
+      mode: 'replace',
+      sourceMeta: { name: 'Ask Biz' },
+    })
+    mocks.loadTargetDraftState.mockResolvedValue(targetState)
+
+    const response = await GET(
+      request({ otherWorkspaceId: 'parent', direction: 'push', sourceWorkflowId: 'wf-src' }),
+      routeContext
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.loadTargetDraftState).toHaveBeenCalledWith('wf-tgt', 'parent')
+    expect(mocks.loadForkBlockMap).toHaveBeenCalledWith(expect.anything(), 'child', {
+      side: 'parent',
+      workflowId: 'wf-tgt',
+    })
+    await expect(response.json()).resolves.toMatchObject({
+      targetWorkflowId: 'wf-tgt',
+      before: targetState,
+      beforeLabel: 'Ask Biz prod (current)',
     })
   })
 })

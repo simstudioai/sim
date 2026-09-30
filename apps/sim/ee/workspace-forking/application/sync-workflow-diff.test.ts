@@ -17,10 +17,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const mocks = vi.hoisted(() => ({
-  loadSourceDeployedStates: vi.fn(),
+  loadSourceDeployedWorkflow: vi.fn(),
   loadTargetDraftState: vi.fn(),
   loadForkBlockMap: vi.fn(),
-  computeForkPromotePlan: vi.fn(),
+  resolveForkPlanItem: vi.fn(),
 }))
 
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
@@ -28,14 +28,14 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
-  loadSourceDeployedStates: mocks.loadSourceDeployedStates,
+  loadSourceDeployedWorkflow: mocks.loadSourceDeployedWorkflow,
   loadTargetDraftState: mocks.loadTargetDraftState,
 }))
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   loadForkBlockMap: mocks.loadForkBlockMap,
 }))
 vi.mock('@/ee/workspace-forking/lib/promote/promote-plan', () => ({
-  computeForkPromotePlan: mocks.computeForkPromotePlan,
+  resolveForkPlanItem: mocks.resolveForkPlanItem,
 }))
 
 import { getWorkspaceSyncWorkflowDiff } from '@/ee/workspace-forking/application/sync-workflow-diff'
@@ -79,6 +79,13 @@ function planItem(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** The source loader, answering for `wf-src` only, as the real one answers for sync sources only. */
+function sourceIs(sourceState: WorkflowState | null) {
+  mocks.loadSourceDeployedWorkflow.mockImplementation(async (_workspaceId: string, id: string) =>
+    id === 'wf-src' && sourceState ? { summary: { id, name: 'Ask Biz' }, state: sourceState } : null
+  )
+}
+
 function run(
   input: Partial<{
     workspaceId: string
@@ -114,13 +121,8 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
       parentToChild: new Map(),
       childToParent: new Map([['b1', { targetBlockId: 'mapped-b1', targetWorkflowId: 'wf-tgt' }]]),
     })
-    mocks.loadSourceDeployedStates.mockResolvedValue({
-      deployedWorkflows: [{ id: 'wf-src' }],
-      sourceStates: new Map([
-        ['wf-src', state({ b1: {}, b2: {} }, [{ id: 'e', source: 'b1', target: 'b2' }])],
-      ]),
-    })
-    mocks.computeForkPromotePlan.mockResolvedValue({ items: [planItem()], archivedTargets: [] })
+    sourceIs(state({ b1: {}, b2: {} }, [{ id: 'e', source: 'b1', target: 'b2' }]))
+    mocks.resolveForkPlanItem.mockResolvedValue(planItem())
     mocks.loadTargetDraftState.mockResolvedValue(state({ 'mapped-b1': {} }))
   })
 
@@ -141,6 +143,10 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
     })
     expect(result.before).toEqual(state({ 'mapped-b1': {} }))
     expect(mocks.loadTargetDraftState).toHaveBeenCalledWith('wf-tgt', 'parent')
+    expect(mocks.loadForkBlockMap).toHaveBeenCalledWith(expect.anything(), 'child', {
+      side: 'parent',
+      workflowId: 'wf-tgt',
+    })
   })
 
   it('re-keys source variables and their assignments to the target ids by unique name', async () => {
@@ -163,10 +169,7 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
       'v-tgt': { id: 'v-tgt', name: 'region', type: 'string', value: 'us' },
       'v-tgt-dup': { id: 'v-tgt-dup', name: 'dup', type: 'string', value: '9' },
     }
-    mocks.loadSourceDeployedStates.mockResolvedValue({
-      deployedWorkflows: [{ id: 'wf-src' }],
-      sourceStates: new Map([['wf-src', source]]),
-    })
+    sourceIs(source)
     mocks.loadTargetDraftState.mockResolvedValue(target)
 
     const result = await run()
@@ -185,10 +188,7 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
   })
 
   it('reports null before for a workflow the sync would create, without reading the target', async () => {
-    mocks.computeForkPromotePlan.mockResolvedValue({
-      items: [planItem({ mode: 'create', targetName: undefined })],
-      archivedTargets: [],
-    })
+    mocks.resolveForkPlanItem.mockResolvedValue(planItem({ mode: 'create', targetName: null }))
 
     const result = await run()
 
@@ -196,6 +196,7 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
     expect(result.targetWorkflowId).toBeNull()
     expect(result.beforeLabel).toBe('Ask Biz (current)')
     expect(mocks.loadTargetDraftState).not.toHaveBeenCalled()
+    expect(mocks.loadForkBlockMap).not.toHaveBeenCalled()
   })
 
   it('fails instead of guessing when a replaced target cannot be loaded', async () => {
@@ -204,18 +205,16 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
     await expect(run()).rejects.toMatchObject({ code: 'not_found' })
   })
 
-  it('rejects a workflow that is not in the sync plan before reading any target state', async () => {
+  it('rejects a workflow that is not a sync source before planning or reading the target', async () => {
     await expect(run({ sourceWorkflowId: 'foreign' })).rejects.toMatchObject({
       code: 'not_found',
     })
+    expect(mocks.resolveForkPlanItem).not.toHaveBeenCalled()
     expect(mocks.loadTargetDraftState).not.toHaveBeenCalled()
   })
 
-  it('rejects a planned workflow whose deployed state did not load', async () => {
-    mocks.loadSourceDeployedStates.mockResolvedValue({
-      deployedWorkflows: [{ id: 'wf-src' }],
-      sourceStates: new Map(),
-    })
+  it('rejects a source whose target is excluded from sync, as the promote skips it', async () => {
+    mocks.resolveForkPlanItem.mockResolvedValue(null)
 
     await expect(run()).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.loadTargetDraftState).not.toHaveBeenCalled()
@@ -225,21 +224,20 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
     workspaceForkingLineageMockFns.mockResolveForkEdge.mockResolvedValue(null)
 
     await expect(run()).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.loadSourceDeployedStates).not.toHaveBeenCalled()
+    expect(mocks.loadSourceDeployedWorkflow).not.toHaveBeenCalled()
   })
 
   it('reads the other side as the source on a pull and pairs through the child block map', async () => {
     await run({ workspaceId: 'parent', otherWorkspaceId: 'child', direction: 'pull' })
 
-    expect(mocks.loadSourceDeployedStates).toHaveBeenCalledWith('child')
-    expect(mocks.computeForkPromotePlan).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceWorkspaceId: 'child',
-        targetWorkspaceId: 'parent',
-        direction: 'pull',
-      })
+    expect(mocks.loadSourceDeployedWorkflow).toHaveBeenCalledWith('child', 'wf-src')
+    expect(mocks.resolveForkPlanItem).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceWorkspaceId: 'child', targetWorkspaceId: 'parent' })
     )
-    expect(mocks.loadForkBlockMap).toHaveBeenCalledWith(expect.anything(), 'child')
+    expect(mocks.loadForkBlockMap).toHaveBeenCalledWith(expect.anything(), 'child', {
+      side: 'parent',
+      workflowId: 'wf-tgt',
+    })
   })
 
   it('refuses when the caller is not an admin on the other side', async () => {
@@ -252,6 +250,6 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
     )
 
     await expect(run()).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadSourceDeployedStates).not.toHaveBeenCalled()
+    expect(mocks.loadSourceDeployedWorkflow).not.toHaveBeenCalled()
   })
 })

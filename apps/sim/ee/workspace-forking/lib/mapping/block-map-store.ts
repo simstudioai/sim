@@ -20,7 +20,13 @@ export interface ForkBlockPair {
  */
 export async function loadForkBlockMap(
   executor: DbOrTx,
-  childWorkspaceId: string
+  childWorkspaceId: string,
+  /**
+   * Keep only the pairs whose workflow on one side is this one. The resolver
+   * reuses a pair only for its own target workflow, so a caller resolving one
+   * workflow loses nothing by scoping the read to that workflow's pairs.
+   */
+  scope?: { side: 'parent' | 'child'; workflowId: string }
 ): Promise<ForkBlockMap> {
   const rows = await executor
     .select({
@@ -30,7 +36,18 @@ export async function loadForkBlockMap(
       childBlockId: workspaceForkBlockMap.childBlockId,
     })
     .from(workspaceForkBlockMap)
-    .where(eq(workspaceForkBlockMap.childWorkspaceId, childWorkspaceId))
+    .where(
+      and(
+        eq(workspaceForkBlockMap.childWorkspaceId, childWorkspaceId),
+        scope &&
+          eq(
+            scope.side === 'parent'
+              ? workspaceForkBlockMap.parentWorkflowId
+              : workspaceForkBlockMap.childWorkflowId,
+            scope.workflowId
+          )
+      )
+    )
   const parentToChild = new Map<string, { targetBlockId: string; targetWorkflowId: string }>()
   const childToParent = new Map<string, { targetBlockId: string; targetWorkflowId: string }>()
   for (const row of rows) {

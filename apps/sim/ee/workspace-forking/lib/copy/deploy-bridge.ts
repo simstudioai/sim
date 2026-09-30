@@ -56,35 +56,82 @@ export async function listDeployedWorkflows(
   workspaceId: string
 ): Promise<DeployedWorkflowSummary[]> {
   return executor
-    .select({
-      id: workflow.id,
-      name: workflow.name,
-      description: workflow.description,
-      folderId: workflow.folderId,
-      sortOrder: workflow.sortOrder,
-      isPublicApi: workflow.isPublicApi,
-    })
+    .select(DEPLOYED_WORKFLOW_SUMMARY)
     .from(workflow)
+    .where(syncableSourcePredicate(workspaceId))
+    .limit(MAX_FORK_DEPLOYED_WORKFLOWS + 1)
+}
+
+const DEPLOYED_WORKFLOW_SUMMARY = {
+  id: workflow.id,
+  name: workflow.name,
+  description: workflow.description,
+  folderId: workflow.folderId,
+  sortOrder: workflow.sortOrder,
+  isPublicApi: workflow.isPublicApi,
+}
+
+/** The one definition of a workflow that takes part in a sync as a source; see {@link listDeployedWorkflows}. */
+function syncableSourcePredicate(workspaceId: string) {
+  return and(
+    eq(workflow.workspaceId, workspaceId),
+    eq(workflow.isDeployed, true),
+    eq(workflow.forkSyncExcluded, false),
+    isNull(workflow.archivedAt),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflow.id),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+    )
+  )
+}
+
+/**
+ * One source workflow's summary and active deployed state, admitted by the
+ * same predicate and materialized the same way as {@link loadSourceDeployedStates},
+ * without reading the rest of the workspace. Null when the workflow is not a
+ * sync source in `sourceWorkspaceId` (not there, not deployed, excluded, or
+ * archived).
+ */
+export async function loadSourceDeployedWorkflow(
+  sourceWorkspaceId: string,
+  workflowId: string
+): Promise<{ summary: DeployedWorkflowSummary; state: WorkflowState } | null> {
+  const [summary] = await db
+    .select(DEPLOYED_WORKFLOW_SUMMARY)
+    .from(workflow)
+    .where(and(eq(workflow.id, workflowId), syncableSourcePredicate(sourceWorkspaceId)))
+    .limit(1)
+  if (!summary) return null
+  const [version] = await db
+    .select({
+      id: workflowDeploymentVersion.id,
+      bytes: sql<number>`octet_length(${workflowDeploymentVersion.state}::text)`,
+      digest: sql<string>`md5(${workflowDeploymentVersion.state}::text)`,
+    })
+    .from(workflowDeploymentVersion)
     .where(
       and(
-        eq(workflow.workspaceId, workspaceId),
-        eq(workflow.isDeployed, true),
-        eq(workflow.forkSyncExcluded, false),
-        isNull(workflow.archivedAt),
-        exists(
-          db
-            .select({ one: sql`1` })
-            .from(workflowDeploymentVersion)
-            .where(
-              and(
-                eq(workflowDeploymentVersion.workflowId, workflow.id),
-                eq(workflowDeploymentVersion.isActive, true)
-              )
-            )
-        )
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, true)
       )
     )
-    .limit(MAX_FORK_DEPLOYED_WORKFLOWS + 1)
+    .limit(1)
+  if (!version) return null
+  if (Number(version.bytes) > MAX_FORK_STATE_BYTES) {
+    throw new ForkError(
+      `The deployed workflow state exceeds the ${MAX_FORK_STATE_BYTES} byte fork/sync limit`,
+      413
+    )
+  }
+  const state = await readAdmittedSourceState(workflowId, sourceWorkspaceId, version)
+  return { summary, state }
 }
 
 /**

@@ -152,4 +152,12 @@ describe('buildDiffRows', () => {
       { type: 'oversized', oldLines: MAX_DIFF_LINES, newLines: MAX_DIFF_LINES + 1 },
     ])
   })
+  it('gives up on word marks for a heavily rewritten pair instead of diffing it word by word', () => {
+    const before = Array.from({ length: 150 }, (_, i) => `alpha${i}`).join(' ')
+    const after = Array.from({ length: 150 }, (_, i) => `beta${i}`).join(' ')
+    const lines = markWordChanges(toLines(before, after))
+
+    expect(lines.map((line) => line.kind)).toEqual(['removed', 'added'])
+    expect(lines.every((line) => line.parts === undefined)).toBe(true)
+  })
 })

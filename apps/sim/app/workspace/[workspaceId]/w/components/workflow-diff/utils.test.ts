@@ -158,8 +158,13 @@ describe('describeListItems', () => {
     expect(describeListItems('other', 'tags', ['a', 42, { title: 'T', extra: 1 }, {}])).toEqual([
       { key: 'a', label: 'a', text: '' },
       { key: '42', label: '42', text: '' },
-      { key: 'T', label: 'T', text: JSON.stringify({ extra: 1 }, null, 2) },
-      { key: 'Item 4', label: 'Item 4', text: '' },
+      {
+        key: 'T',
+        label: 'T',
+        text: JSON.stringify({ extra: 1 }, null, 2),
+        signature: JSON.stringify({ extra: 1 }),
+      },
+      { key: 'Item 4', label: 'Item 4', text: '', signature: '' },
     ])
   })
 
@@ -180,14 +185,28 @@ describe('describeListItems', () => {
       key: 'search_docs',
       label: 'search_docs',
       text: JSON.stringify({ server: 's1', params: { query: 'x', apiToken: '•••' } }, null, 2),
+      signature: JSON.stringify({ server: 's1', params: { query: 'x', apiToken: 'sk-1' } }),
     })
     /* A custom tool's schema is its implementation, so it stays in the comparable body. */
-    expect(items[1]).toEqual({
+    expect(items[1]).toMatchObject({
       key: 'lookup',
       label: 'lookup',
       text: JSON.stringify({ schema: { function: { name: 'lookup' } } }, null, 2),
     })
-    expect(items[2]).toEqual({ key: 'slack_send', label: 'Slack', text: '' })
+    expect(items[2]).toMatchObject({ key: 'slack_send', label: 'Slack', text: '' })
+  })
+
+  it('reports a change to a secret alone without showing either value', () => {
+    declareSubBlocks({ agent: [{ id: 'tools', type: 'tool-input' }] })
+    const tool = (apiKey: string) => ({ type: 'http', toolId: 'http_call', params: { apiKey } })
+
+    const [before] = describeListItems('agent', 'tools', [tool('old')])
+    const [after] = describeListItems('agent', 'tools', [tool('new')])
+
+    expect(before.text).toBe(after.text)
+    expect(pairListItems([before], [after], false)).toEqual([
+      expect.objectContaining({ kind: 'changed', secretChanged: true }),
+    ])
   })
 
   it('keeps what a tool may do in its body so a permission change is not an order change', () => {
@@ -239,6 +258,29 @@ describe('pairListItems', () => {
 })
 
 describe('maskSecretsDeep', () => {
+  it("masks a block tool's params that its block marks as password fields, whatever their name", () => {
+    declareSubBlocks({
+      agent: [{ id: 'tools', type: 'tool-input' }],
+      athena: [
+        { id: 'awsAccessKeyId', type: 'short-input', password: true },
+        { id: 'awsSecretAccessKey', type: 'short-input', password: true },
+        { id: 'region', type: 'short-input' },
+      ],
+    })
+    const [tool] = describeListItems('agent', 'tools', [
+      {
+        type: 'athena',
+        title: 'Athena',
+        params: { awsAccessKeyId: 'AKIAEXAMPLE', awsSecretAccessKey: 'shh', region: 'us-east-1' },
+      },
+    ])
+
+    expect(tool.text).not.toContain('AKIAEXAMPLE')
+    expect(tool.text).not.toContain('shh')
+    expect(tool.text).toContain('us-east-1')
+    expect(tool.signature).toContain('AKIAEXAMPLE')
+  })
+
   it('masks keys that end in a secret noun and leaves ids, counts and limits readable', () => {
     expect(
       maskSecretsDeep({
@@ -297,6 +339,15 @@ describe('maskSecretsDeep', () => {
       JSON.stringify({ password: '•••', name: 'n' }, null, 2)
     )
   })
+
+  it('masks inside a JSON-encoded string the way tool params are stored', () => {
+    const encoded = JSON.stringify({ Authorization: 'Bearer x', Accept: 'json' })
+    expect(maskSecretsDeep({ headers: encoded })).toEqual({
+      headers: JSON.stringify({ Authorization: '•••', Accept: 'json' }),
+    })
+    expect(maskSecretsDeep('plain text')).toBe('plain text')
+    expect(maskSecretsDeep('{not json')).toBe('{not json')
+  })
 })
 
 describe('value readers and labels', () => {
@@ -330,6 +381,10 @@ describe('value readers and labels', () => {
     expect(formatScalar('agent', 'mode', 'fast')).toBe('Fast')
     expect(formatScalar('agent', 'model', 'unknown')).toBe('unknown')
     expect(formatScalar('agent', 'temp', 0.5)).toBe('0.5')
+    /* A comparison never truncates a string, and never prints a nested secret. */
+    const long = 'x'.repeat(58)
+    expect(formatScalar('agent', 'temp', long)).toBe(long)
+    expect(formatScalar('agent', 'temp', { apiKey: 'k' })).toBe('{"apiKey":"•••"}')
   })
 })
 
