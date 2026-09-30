@@ -6,6 +6,7 @@ import {
 } from '@sim/testing/mocks/billing-usage-gate-cache.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAttributedBillingRequestEnvelope } from '@/lib/billing/core/billing-attribution'
+import { resetMidRunPeriodCache } from '@/lib/billing/core/mid-run-usage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { BillingLimitError } from '@/lib/mothership/request/go/stream'
 import { authorizeLifecycleContinuation, restoreBillingAdmission } from './admission'
@@ -39,6 +40,16 @@ beforeEach(() => {
   setEnvFlags({ isHosted: true })
   mocks.standing.mockResolvedValue({ blocked: false })
   mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: false })
+  mockGetOrganizationSubscription.mockResolvedValue({
+    id: 'sub-org',
+    referenceId: 'original-org',
+    plan: 'team',
+    status: 'active',
+    seats: 4,
+    periodStart: new Date(attribution.billingPeriod.start),
+    periodEnd: new Date(attribution.billingPeriod.end),
+  })
+  resetMidRunPeriodCache()
 })
 afterEach(resetEnvFlagsMock)
 
@@ -88,7 +99,6 @@ describe('continuation admission', () => {
 
     await expect(refusal).rejects.toBeInstanceOf(BillingLimitError)
     await expect(refusal).rejects.toMatchObject({ userId: 'actor' })
-    expect(mockCheckExecutionUsageLimits).toHaveBeenCalledWith(attribution)
   })
   it('keeps a blocked account a forbidden refusal without reading spend', async () => {
     mocks.standing.mockResolvedValue({ blocked: true })
@@ -147,6 +157,7 @@ describe('continuation admission', () => {
       authorizeLifecycleContinuation({ ...context, billingAttribution: ended })
     ).rejects.toBeInstanceOf(BillingLimitError)
 
+    resetMidRunPeriodCache()
     mockGetOrganizationSubscription.mockRejectedValue(new Error('subscription read failed'))
     await expect(
       authorizeLifecycleContinuation({ ...context, billingAttribution: ended })

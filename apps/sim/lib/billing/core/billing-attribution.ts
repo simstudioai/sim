@@ -10,6 +10,7 @@ import {
   checkUsageStatus,
 } from '@/lib/billing/calculations/usage-monitor'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
+import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
@@ -970,8 +971,9 @@ export async function checkAttributedUsageLimits(
   if (payerUsage.isExceeded) {
     const formattedUsage = payerUsage.currentUsage.toFixed(2)
     const formattedLimit = payerUsage.limit.toFixed(2)
-    const message =
-      validatedAttribution.billingEntity.type === 'organization'
+    const message = payerUsage.unavailable
+      ? USAGE_UNAVAILABLE_MESSAGE
+      : validatedAttribution.billingEntity.type === 'organization'
         ? `Organization usage limit exceeded: $${formattedUsage} pooled of $${formattedLimit} organization limit. Ask a team admin to raise the organization usage limit to continue.`
         : `Usage limit exceeded: $${formattedUsage} used of $${formattedLimit} limit. Please upgrade your plan or raise your usage limit to continue.`
 

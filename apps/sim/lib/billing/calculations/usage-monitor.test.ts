@@ -213,6 +213,23 @@ describe('checkServerSideUsageLimits', () => {
     mockGetBillingPeriodUsageCost.mockResolvedValue(125)
   })
 
+  it('does not describe an unreadable ledger as a spent limit', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ blocked: false }])
+    mockGetBillingPeriodUsageCost.mockRejectedValueOnce(new Error('canceling statement'))
+
+    const result = await checkServerSideUsageLimits('user-1', {
+      referenceId: 'user-1',
+      plan: 'free',
+      status: 'active',
+      seats: 1,
+      periodStart: new Date('2026-06-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-07-01T00:00:00.000Z'),
+    })
+
+    expect(result).toMatchObject({ isExceeded: true, reason: 'usage_unavailable' })
+    expect(result.message ?? '').not.toMatch(/\$/)
+  })
+
   it('keeps blocked accounts blocked while reporting their real ledger usage', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ blocked: true, blockedReason: 'payment_failed' }])
     const subscription = {

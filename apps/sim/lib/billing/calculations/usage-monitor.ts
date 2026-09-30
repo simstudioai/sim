@@ -3,6 +3,7 @@ import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
+import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
@@ -366,7 +367,11 @@ export async function checkServerSideUsageLimits(
       isExceeded: usageData.isExceeded,
       currentUsage: usageData.currentUsage,
       limit: usageData.limit,
-      message: usageData.isExceeded ? exceededMessage : undefined,
+      message: usageData.unavailable
+        ? USAGE_UNAVAILABLE_MESSAGE
+        : usageData.isExceeded
+          ? exceededMessage
+          : undefined,
       ...(usageData.unavailable ? { reason: 'usage_unavailable' as const } : {}),
     }
   } catch (error) {

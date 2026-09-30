@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import {
   type AccountBillingDecision,
   type BillingAttributionSnapshot,
@@ -68,7 +69,6 @@ const logger = createLogger('CopilotApiKeysValidate')
 
 const CONTINUATION_BLOCKED_MESSAGE = 'Continuation billing account is blocked'
 const BILLING_BLOCKED_MESSAGE = 'Billing account is blocked'
-const USAGE_UNAVAILABLE_MESSAGE = 'Usage could not be verified. Please try again.'
 
 function invalidBillingProtocolResponse(): NextResponse {
   return NextResponse.json({ error: 'Invalid billing attribution protocol' }, { status: 400 })
@@ -269,10 +269,7 @@ async function admissionRefusal(
     return { code: COPILOT_BILLING_BLOCKED_CODE, error: usage.message ?? BILLING_BLOCKED_MESSAGE }
   }
   if (usage.reason === 'usage_unavailable') {
-    return {
-      code: COPILOT_USAGE_UNAVAILABLE_CODE,
-      error: usage.message ?? USAGE_UNAVAILABLE_MESSAGE,
-    }
+    return { code: COPILOT_USAGE_UNAVAILABLE_CODE, error: USAGE_UNAVAILABLE_MESSAGE }
   }
   const usageUpgrade = await resolveUsageUpgradePayload(
     userId,

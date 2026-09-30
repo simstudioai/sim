@@ -449,10 +449,9 @@ describe('checkAttributedUsageLimits', () => {
       scope: 'user',
       unavailable: true,
     })
-    await expect(checkAttributedUsageLimits(attribution)).resolves.toMatchObject({
-      isExceeded: true,
-      reason: 'usage_unavailable',
-    })
+    const unavailable = await checkAttributedUsageLimits(attribution)
+    expect(unavailable).toMatchObject({ isExceeded: true, reason: 'usage_unavailable' })
+    expect(unavailable.message ?? '').not.toMatch(/\$/)
   })
 
   it('returns payer exhaustion before checking the actor member cap', async () => {

@@ -509,7 +509,13 @@ export async function runCopilotLifecycle(
         // The worker terminal was already delivered before the relay died.
         // Rebuild persistence from that receipt without charging its usage twice.
       } else if (admission.isExceeded) {
-        await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
+        await handleBillingLimitResponse(
+          execContext.userId,
+          context,
+          execContext,
+          lifecycleOptions,
+          'scope' in admission ? admission.scope : undefined
+        )
       } else {
         if (!isContinuation && hostedBillingRequest)
           await lifecycleOptions.onBillingAdmission?.(hostedBillingRequest)

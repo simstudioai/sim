@@ -2373,7 +2373,12 @@ describe('runCopilotLifecycle', () => {
       }
     )
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledOnce()
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(attribution)
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billedAccountUserId: 'original-owner',
+        billingEntity: attribution.billingEntity,
+      })
+    )
     expect(onBillingAdmission).not.toHaveBeenCalled()
     expect(continuationAuth).toHaveBeenCalled()
     expect(mockRunStreamLoop).toHaveBeenCalledOnce()
@@ -2404,7 +2409,7 @@ describe('runCopilotLifecycle', () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       message: 'limit reached',
-      scope: 'payer',
+      scope: 'member',
     })
 
     const result = await runCopilotLifecycle(
@@ -2422,6 +2427,7 @@ describe('runCopilotLifecycle', () => {
 
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(billingAttribution)
     expect(handleBillingLimitResponse).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(handleBillingLimitResponse).mock.calls[0][4]).toBe('member')
     expect(mockRunStreamLoop).not.toHaveBeenCalled()
     expect(result.cancelled).not.toBe(true)
   })

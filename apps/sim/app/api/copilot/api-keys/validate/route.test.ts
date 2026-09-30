@@ -6,6 +6,7 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
 import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import {
   billingSubscriptionMock,
@@ -118,6 +119,8 @@ vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMoc
 
 vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
@@ -138,6 +141,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
+import { resetMidRunPeriodCache } from '@/lib/billing/core/mid-run-usage'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
 
@@ -147,6 +151,7 @@ const { mockAuthorizeOrganizationChatDelegation: mockAuthorizeOrganizationChat }
   mothershipOrganizationChatsMockFns
 const { mockDeriveBillingContext } = billingUsageLogMockFns
 const { mockGetHighestPrioritySubscription } = billingPlanMockFns
+const { mockGetOrganizationSubscription } = billingCoreMockFns
 const { mockCheckServerSideUsageLimits, mockCheckUsageStatus } = billingUsageMonitorMockFns
 
 const mockIsEnterprisePlan = billingSubscriptionMockFns.mockIsEnterprisePlan
@@ -510,7 +515,16 @@ describe('validation lifecycle purposes', () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 1, limit: 10 })
     mockIsEnterprisePlan.mockResolvedValue(false)
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-org-1',
+      referenceId: 'org-1',
+      plan: 'enterprise',
+      status: 'active',
+      periodStart: new Date(ATTRIBUTION.billingPeriod.start),
+      periodEnd: new Date(ATTRIBUTION.billingPeriod.end),
+    })
     resetUsageGateCache()
+    resetMidRunPeriodCache()
   })
 
   it('defaults older callers to full admission and rejects unknown purposes', () => {
@@ -531,7 +545,6 @@ describe('validation lifecycle purposes', () => {
     expect(mockAuthorizeCallback.mock.invocationCallOrder[0]).toBeLessThan(
       mockCheckContinuationBilling.mock.invocationCallOrder[0]
     )
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
     expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
@@ -727,6 +740,60 @@ describe('validation lifecycle purposes', () => {
     expect((await POST(request(body, attributedHeaders))).status).toBe(402)
     expect((await POST(request(body, attributedHeaders))).status).toBe(402)
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(3)
+  })
+
+  it('refuses a new turn whose usage cannot be read with neutral copy', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+      message: 'Usage limit exceeded: $0.00 used of $0.00 limit.',
+      scope: 'payer',
+    })
+    const refused = await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))
+    expect(refused.status).toBe(402)
+    const refusal = await refused.json()
+    expect(refusal.code).toBe('USAGE_UNAVAILABLE')
+    expect(refusal.error).not.toMatch(/\$/)
+  })
+
+  it('checks the payer saved at admission for a direct-v1 run whose actor changed orgs', async () => {
+    const endedDecision = {
+      ...ACCOUNT_BILLING_DECISION,
+      billingPeriod: { start: '2026-06-01T00:00:00.000Z', end: '2026-07-01T00:00:00.000Z' },
+    }
+    mockGetHighestPrioritySubscription.mockResolvedValue({
+      id: 'sub-new-org',
+      referenceId: 'new-org',
+      plan: 'team',
+      status: 'active',
+      periodStart: new Date('2026-07-01T00:00:00.000Z'),
+      periodEnd: new Date('2099-01-01T00:00:00.000Z'),
+    })
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-account-org',
+      referenceId: 'account-org',
+      plan: 'team',
+      status: 'active',
+      periodStart: new Date('2026-07-01T00:00:00.000Z'),
+      periodEnd: new Date('2099-01-01T00:00:00.000Z'),
+    })
+    mockCheckUsageStatus.mockImplementation(
+      async (
+        _userId: string,
+        _subscription: unknown,
+        context?: { billingEntity: { id: string } }
+      ) => ({
+        isExceeded: context?.billingEntity.id === 'account-org',
+        currentUsage: 12,
+        limit: 10,
+      })
+    )
+
+    const response = await POST(
+      request(body, { ...directHeaders, 'x-sim-billing-account-decision': encode(endedDecision) })
+    )
+
+    expect(response.status).toBe(402)
   })
 
   it('refuses a blocked new turn with the blocked body the contract declares', async () => {

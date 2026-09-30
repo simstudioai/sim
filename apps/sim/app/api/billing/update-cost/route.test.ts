@@ -49,6 +49,7 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
 }))
 
 import { billingUpdateCostResponseSchema } from '@/lib/api/contracts/subscription'
+import { resetMidRunPeriodCache } from '@/lib/billing/core/mid-run-usage'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import {
   BillingCallbackBody,
@@ -896,11 +897,13 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
 
   beforeEach(() => {
     resetUsageGateCache()
+    resetMidRunPeriodCache()
     setEnvFlags({ isBillingEnabled: true, isHosted: true })
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
     mockCheckAndBillPayerOverageThreshold.mockResolvedValue(undefined)
     mockRequireBillingAttributionHeader.mockReturnValue(CURRENT_ATTRIBUTION)
+    mockRefreshAttributionPeriod.mockImplementation(async (attribution: unknown) => attribution)
     mockToBillingContext.mockReturnValue({
       billingEntity: { type: 'organization', id: 'org-1' },
       billingPeriod: {
@@ -1093,6 +1096,22 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
     mockRefreshAttributionPeriod.mockResolvedValue(CURRENT_ATTRIBUTION)
     refuseOnlyCurrentPeriod()
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body.usageExceeded).toBe(true)
+  })
+
+  it('judges a run whose payer period moved early against the moved period', async () => {
+    const moved = {
+      ...CURRENT_ATTRIBUTION,
+      billingPeriod: { start: '2026-07-15T00:00:00.000Z', end: '2099-02-01T00:00:00.000Z' },
+    }
+    mockRefreshAttributionPeriod.mockResolvedValue(moved)
+    mockCheckAttributedUsageLimits.mockImplementation(async (attribution: typeof moved) => ({
+      isExceeded: attribution.billingPeriod.start === moved.billingPeriod.start,
+      scope: 'payer',
+    }))
 
     const body = await (await POST(attributedCallback())).json()
 
