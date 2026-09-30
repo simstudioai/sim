@@ -15,24 +15,26 @@ function presentWorkflowLogs(logs: unknown, select?: string[]): Record<string, u
 }
 
 /**
- * The model-facing log fields for one run, built from raw logs before secret projection so both the
- * server handler and browser-run restoration present the same shape: a `select` resolves against
- * the full logs and replaces them, otherwise the echoed logs have their inputs truncated. Their
- * outputs are bounded only when `registry` makes the projection walk the result, since only then
- * can its value or depth cap withhold the whole run; otherwise they cross in full.
+ * The model-facing log fields for one run, built from raw logs before secret projection. A `select`
+ * resolves against the full logs and replaces them. Otherwise, when `registry` makes the projection
+ * walk the result, long echoed inputs get a marker that keeps nothing of the raw input. Without an
+ * active secret the logs cross as they always have: the server handler previews long inputs
+ * (`previewLongInputs`) and the browser-run path leaves them untouched. Outputs are bounded by
+ * {@link boundRunResultForModel}, only when the whole result would pass a projection cap.
  */
 export function presentWorkflowLogsForModel(
   logs: unknown,
   executionId: string | undefined,
   registry: ResolvedSecretTraceRegistry | undefined,
-  select?: string[]
+  select?: string[],
+  { previewLongInputs = false }: { previewLongInputs?: boolean } = {}
 ): Record<string, unknown> {
   if (select?.length) return presentWorkflowLogs(logs, select)
-  const compacted = compactBlockLogInputs(logs, executionId)
+  if (copilotProjectionWalksContent(registry)) {
+    return presentWorkflowLogs(compactBlockLogInputs(logs, executionId, omittedInputMarker))
+  }
   return presentWorkflowLogs(
-    copilotProjectionWalksContent(registry)
-      ? compactBlockLogOutputs(compacted, executionId)
-      : compacted
+    previewLongInputs ? compactBlockLogInputs(logs, executionId, previewedInputMarker) : logs
   )
 }
 
@@ -78,15 +80,32 @@ function selectFromLogs(selectors: string[], logs: unknown[]): Record<string, un
 const LOG_CODE_INPUT_MAX_CHARS = 240
 /** Any other echoed input string over this is data the caller already has, or can fetch. */
 const LOG_INPUT_STRING_MAX_CHARS = 2_000
+const LOG_INPUT_KEEP_CHARS = 200
+
+type InputMarker = (value: string, reference: string) => string
+
+/**
+ * The marker for a call walked against active secrets. It is written before secret projection, so
+ * it keeps nothing of the raw input: a kept prefix could cut through a secret and leave a fragment
+ * no whole-literal redaction matches, and a length would disclose the length of any secret in it.
+ */
+const omittedInputMarker: InputMarker = (_value, reference) =>
+  `…[input omitted; inspect with logs get ${reference} --trace]`
+
+/** The server handler's marker when no secret is active: a short preview and the full length. */
+const previewedInputMarker: InputMarker = (value, reference) =>
+  `${value.slice(0, LOG_INPUT_KEEP_CHARS)} …[${value.length} chars, see logs get ${reference} --trace]`
 
 /**
  * Compacts the block inputs echoed back in `logs`. A Function block's `input.code` embeds the
  * fully serialized upstream rows, so a seven-block run repeated the same rows several times
- * across ~14k chars of tool result. The marker is written before secret projection, so it keeps
- * nothing of the raw input: a kept prefix could cut through a secret and leave a fragment no
- * whole-literal redaction matches, and a length would disclose the length of any secret in it.
+ * across ~14k chars of tool result. The full input stays one `logs get <executionId> --trace` away.
  */
-function compactBlockLogInputs(logs: unknown, executionId: string | undefined): unknown {
+function compactBlockLogInputs(
+  logs: unknown,
+  executionId: string | undefined,
+  marker: InputMarker
+): unknown {
   if (!Array.isArray(logs)) return logs
   const reference = executionId ?? '<executionId>'
   return logs.map((entry) => {
@@ -95,20 +114,17 @@ function compactBlockLogInputs(logs: unknown, executionId: string | undefined): 
     for (const [key, value] of Object.entries(entry.input)) {
       const limit = key === 'code' ? LOG_CODE_INPUT_MAX_CHARS : LOG_INPUT_STRING_MAX_CHARS
       input[key] =
-        typeof value === 'string' && value.length > limit
-          ? `…[input omitted; inspect with logs get ${reference} --trace]`
-          : value
+        typeof value === 'string' && value.length > limit ? marker(value, reference) : value
     }
     return { ...entry, input }
   })
 }
 
 /**
- * Budgets for block outputs echoed to the model, a quarter of each cap the model-facing projection
- * enforces on the whole result. Reaching either cap withholds everything, including the final
- * output and error the run was for, so those keep the rest (see {@link boundRunResultForModel}). The value budget
- * usually binds first: row-shaped outputs reach the projection's traversal cap long before its
- * byte cap.
+ * Budgets for block outputs echoed to the model once a whole result would pass a projection cap:
+ * a quarter of each cap, so the final output and error the run was for keep the rest. The value
+ * budget usually binds first: row-shaped outputs reach the projection's traversal cap long before
+ * its byte cap.
  */
 const BLOCK_OUTPUT_VALUE_BUDGET = Math.floor(MAX_CONTENT_NODES / 4)
 const BLOCK_OUTPUT_BYTE_BUDGET = Math.floor(MAX_MODEL_CONTENT_BYTES / 4)
@@ -180,11 +196,11 @@ function compactBlockLogOutputs(logs: unknown, executionId: string | undefined):
 
 /**
  * Bounds a run's whole model-facing result before secret projection. When `registry` makes the
- * projection walk the result, one past any of its caps is withheld entirely, so the final output
- * (the only part not already bounded) is replaced with a pointer instead. The result is measured
- * whole, envelope and error included, so the final output gets exactly the room the bounded logs
- * leave. A block output that run_block or run_workflow_until_block lifted into `output` is the
- * run's final output here too.
+ * projection walk the result, one past any of its caps is withheld entirely. So a result that
+ * would pass a cap first has its bulkiest block-log outputs replaced with pointers, down to their
+ * budget, and if it still would, its final output too. The result is measured whole, envelope and
+ * error included, and a result that fits is returned untouched. A block output that run_block or
+ * run_workflow_until_block lifted into `output` is the run's final output here too.
  */
 export function boundRunResultForModel(
   data: Record<string, unknown>,
@@ -192,12 +208,19 @@ export function boundRunResultForModel(
   executionId: string | undefined,
   registry: ResolvedSecretTraceRegistry | undefined
 ): Record<string, unknown> {
-  if (!Object.hasOwn(data, 'output') || !copilotProjectionWalksContent(registry)) return data
-  const whole = measureModelContent(
-    error === undefined ? { output: data } : { output: data, error }
-  )
+  if (!copilotProjectionWalksContent(registry)) return data
   // A result JSON cannot encode is refused whatever its size, so only one past a cap is bounded.
-  if (!whole?.exceeded) return data
-  const size = sizeBlockOutput(data.output)
-  return size ? { ...data, output: blockOutputPointer(size.label, executionId) } : data
+  const passesCap = (candidate: Record<string, unknown>): boolean =>
+    measureModelContent(error === undefined ? { output: candidate } : { output: candidate, error })
+      ?.exceeded === true
+  if (!passesCap(data)) return data
+
+  const logsBounded = Array.isArray(data.logs)
+    ? { ...data, logs: compactBlockLogOutputs(data.logs, executionId) }
+    : data
+  if (!passesCap(logsBounded) || !Object.hasOwn(logsBounded, 'output')) return logsBounded
+  const size = sizeBlockOutput(logsBounded.output)
+  return size
+    ? { ...logsBounded, output: blockOutputPointer(size.label, executionId) }
+    : logsBounded
 }

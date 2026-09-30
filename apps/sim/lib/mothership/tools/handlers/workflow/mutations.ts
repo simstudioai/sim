@@ -162,7 +162,9 @@ function buildExecutionOutput(
         ...extra,
         output: lifted ? lifted.output : output,
         ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
-        ...presentWorkflowLogsForModel(logs, executionId, registry, select),
+        ...presentWorkflowLogsForModel(logs, executionId, registry, select, {
+          previewLongInputs: true,
+        }),
       },
       error,
       executionId,

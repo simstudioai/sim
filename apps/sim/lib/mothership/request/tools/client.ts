@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isPlainRecord } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord } from '@sim/utils/object'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncTerminalCompletionSnapshot,
@@ -405,8 +405,11 @@ export async function waitForWorkflowToolCompletion({
   )
   const projected = projection.result
   const projectedData = isPlainRecord(projected.output) ? projected.output : {}
+  // Log fields go last, where they have always been, ahead of the structural fields.
+  const { logs, selected, logsOmitted, ...projectedFields } = projectedData
   const data = {
-    ...projectedData,
+    ...projectedFields,
+    ...filterUndefined({ logs, selected, logsOmitted }),
     ...createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
   }
   const message =

@@ -247,6 +247,44 @@ describe('workflow client tool completion', () => {
     expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
   })
 
+  /** Without an active secret a browser run's logs cross untouched, as they always have. */
+  it('leaves a browser run without an active secret untouched', async () => {
+    const blockLogs = [
+      {
+        blockId: 'fn',
+        blockName: 'Function',
+        input: { code: 'x'.repeat(3_000) },
+        output: { ok: 1 },
+      },
+    ]
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      finalOutput: { value: 'plain' },
+      blockLogs,
+      provenance: { version: 1 as const, complete: true, entries: [], scope: TRACE_SCOPE },
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: new ResolvedSecretTraceRegistry([], TRACE_SCOPE),
+    })
+
+    expect(Object.keys(completion?.data as object)).toEqual([
+      'success',
+      'workflowId',
+      'executionId',
+      'output',
+      'logs',
+    ])
+    expect((completion?.data as Record<string, unknown>).logs).toEqual(blockLogs)
+  })
+
   /** Parity with the server path: a final output that would push the result past a cap is replaced. */
   it('replaces an oversized final output so a browser run still projects', async () => {
     const rows = Array.from({ length: 20_000 }, (_, index) => ({

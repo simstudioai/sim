@@ -371,8 +371,12 @@ describe('run_workflow model-facing result budget', () => {
     expect((output.logs as Array<Record<string, unknown>>)[1]?.output).toEqual({ rows })
   })
 
-  /** A lifted output is the run's final output, so it keeps the final output's larger share. */
-  it('returns a lifted output within the final share in full while a secret is active', async () => {
+  /**
+   * Nothing is bounded while the whole result fits the projection's caps, so a result that crossed
+   * in full before still does: a lifted output and its log copy of about 27.5k values each, or one
+   * 4.5 MB block output.
+   */
+  it('returns a result that fits the caps in full while a secret is active', async () => {
     const rows = wideRows()
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,
@@ -380,20 +384,66 @@ describe('run_workflow model-facing result budget', () => {
       logs: [{ blockId: 'query', blockName: 'Query', success: true, output: { rows } }],
       metadata: { executionId: EXECUTION_ID },
     })
-
-    const settled = await executeRunWorkflowUntilBlock(
-      { workflowId: 'wf-1', stopAfterBlockId: 'query' },
-      context
+    const lifted = inspectToolResultForCopilot(
+      await executeRunWorkflowUntilBlock(
+        { workflowId: 'wf-1', stopAfterBlockId: 'query' },
+        context
+      ),
+      registry,
+      'run_workflow'
     )
-    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
+    expect(lifted.safe).toBe(true)
+    const liftedOutput = lifted.result.output as Record<string, unknown>
+    expect(liftedOutput.output).toEqual({ rows })
+    expect((liftedOutput.logs as Array<Record<string, unknown>>)[0]?.output).toEqual({ rows })
 
-    expect(projection.safe).toBe(true)
-    const output = projection.result.output as Record<string, unknown>
-    expect(output.output).toEqual({ rows })
-    // Its log copy is still bounded, so the two together stay under the projection's caps.
-    expect((output.logs as Array<Record<string, unknown>>)[0]?.output).toEqual(
-      expect.stringContaining(`logs get ${EXECUTION_ID} --trace`)
+    const text = { text: 'y'.repeat(4_500_000) }
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { done: true },
+      logs: [{ blockId: 'big', blockName: 'Big', success: true, output: text }],
+      metadata: { executionId: EXECUTION_ID },
+    })
+    const wide = inspectToolResultForCopilot(
+      await executeRunWorkflow({ workflowId: 'wf-1' }, context),
+      registry,
+      'run_workflow'
     )
+    expect(wide.safe).toBe(true)
+    expect((wide.result.output as { logs: Array<{ output: unknown }> }).logs[0]?.output).toEqual(
+      text
+    )
+  })
+
+  /**
+   * Without an active secret echoed inputs keep the server's preview marker and the browser path's
+   * untouched logs; only a walked call gets the marker that keeps nothing of the input.
+   */
+  it('previews a long input on the server path when no secret is active', async () => {
+    const code = `${'a'.repeat(300)}${'b'.repeat(3_000)}`
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { done: true },
+      logs: [
+        {
+          blockId: 'fn',
+          blockName: 'Function',
+          success: true,
+          input: { code },
+          output: { ok: true },
+        },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflow(
+      { workflowId: 'wf-1' },
+      callContext(secretRegistry({ active: false }))
+    )
+
+    expect(
+      (settled.output as { logs: Array<{ input: { code: string } }> }).logs[0]?.input.code
+    ).toBe(`${'a'.repeat(200)} …[${code.length} chars, see logs get ${EXECUTION_ID} --trace]`)
   })
 
   /** A Response block's output is the final output too, so it is replaced rather than voiding the run. */
