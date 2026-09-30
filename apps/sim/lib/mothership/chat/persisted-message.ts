@@ -359,12 +359,17 @@ export function buildPersistedAssistantMessage(
     return normalized
   }
 
-  // A completed turn settles its stragglers as the live view did at `complete`.
-  if (result.success && message.contentBlocks) {
-    message.contentBlocks = settleUnfinishedToolCalls(message.contentBlocks, 'success')
+  // A finished turn settles its stragglers as the live view did at its terminal;
+  // background and API callers persist a stopped turn without withStoppedContentBlock.
+  if (message.contentBlocks) {
+    message.contentBlocks = result.success
+      ? settleUnfinishedToolCalls(message.contentBlocks, 'success')
+      : settleUnfinishedToolCalls(message.contentBlocks, 'cancelled', STOPPED_TOOL_DISPLAY)
   }
   return message
 }
+
+const STOPPED_TOOL_DISPLAY = { title: 'Stopped by user' } as const
 
 const UNSETTLED_TOOL_STATES: ReadonlySet<LocalToolCallStatus> = new Set<LocalToolCallStatus>([
   'pending',
@@ -392,9 +397,11 @@ function settleUnfinishedToolCalls(
 }
 
 export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
-  const contentBlocks = settleUnfinishedToolCalls(message.contentBlocks ?? [], 'cancelled', {
-    title: 'Stopped by user',
-  })
+  const contentBlocks = settleUnfinishedToolCalls(
+    message.contentBlocks ?? [],
+    'cancelled',
+    STOPPED_TOOL_DISPLAY
+  )
   const hasAssistantText = contentBlocks.some(
     (block) =>
       block.type === MothershipStreamV1EventType.text &&

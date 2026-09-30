@@ -225,14 +225,21 @@ function shed(
  * event for dispatch. Long strings are cut to their head in place, so every
  * object keeps its shape; if that is not enough, long arrays keep their head,
  * and past one replay write the smallest sufficient bulk is replaced by a size
- * note, keeping the fields beside it. Assistant text, file previews, and the
- * arguments of calls the browser executes are never cut; an event still too
- * large is refused by the buffer, which ends the turn with an error.
+ * note, keeping the fields beside it. Assistant text, the arguments of calls the
+ * browser executes, and preview content and completions are never cut: the
+ * client applies preview content as exact deltas, and the preview adapter
+ * bounds both itself. An event still too large is refused by the buffer, which
+ * ends the turn with an error.
  */
 export function compactStreamEvent(event: StreamEvent): StreamEvent {
   const payload = toRecordOrNull(event.payload)
   // Text length is part of the receipt the worker and a replacement check.
-  if (!payload || event.type === MothershipStreamV1EventType.text || 'previewPhase' in payload) {
+  if (
+    !payload ||
+    event.type === MothershipStreamV1EventType.text ||
+    payload.previewPhase === 'file_preview_content' ||
+    payload.previewPhase === 'file_preview_complete'
+  ) {
     return event
   }
   if (estimateBytes(payload) <= STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) return event

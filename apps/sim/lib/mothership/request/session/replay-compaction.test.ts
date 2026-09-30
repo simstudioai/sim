@@ -147,7 +147,7 @@ describe('compactStreamEvent', () => {
     expect(args.stdin).toBe(`${'x'.repeat(STREAM_STRING_PREVIEW_UNITS)}…[truncated, 1 MB total]`)
   })
 
-  it('never compacts a file preview', () => {
+  it('never compacts preview content, which the client applies as exact deltas', () => {
     const preview: StreamEvent = {
       type: 'tool',
       payload: {
@@ -162,6 +162,27 @@ describe('compactStreamEvent', () => {
     }
 
     expect(compactStreamEvent(preview)).toBe(preview)
+  })
+
+  it('bounds a preview edit whose model-written search text is past one replay write', () => {
+    const meta: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'prepare_file_edit',
+        previewPhase: 'file_preview_edit_meta',
+        edit: { strategy: 'search_replace', search: 's'.repeat(2 * MB), replaceAll: false },
+      },
+    }
+
+    const payload = payloadOf(compactStreamEvent(meta))
+    const edit = toRecord(payload.edit)
+
+    expect(serializedBytes(payload)).toBeLessThanOrEqual(STREAM_EVENT_MAX_PAYLOAD_BYTES)
+    expect(payload.previewPhase).toBe('file_preview_edit_meta')
+    expect(edit.strategy).toBe('search_replace')
+    expect(edit.replaceAll).toBe(false)
+    expect(edit.search).toBe(`${'s'.repeat(STREAM_STRING_PREVIEW_UNITS)}…[truncated, 2 MB total]`)
   })
 
   it('compacts a copy and leaves the caller’s event whole for dispatch', () => {

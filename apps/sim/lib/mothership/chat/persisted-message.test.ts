@@ -802,3 +802,25 @@ describe('buildPersistedAssistantMessage on a completed turn', () => {
     }
   )
 })
+
+describe('buildPersistedAssistantMessage on a cancelled turn', () => {
+  it.each(['pending', 'executing', 'awaiting_approval'] as const)(
+    'settles a %s tool row as stopped for a caller that persists the result directly',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: false,
+        cancelled: true,
+        content: 'Partial answer',
+        toolCalls: [],
+        contentBlocks: [
+          { type: 'tool_call', timestamp: 1, toolCall: { id: 'call-1', name: 'read', status } },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall).toMatchObject({
+        state: 'cancelled',
+        display: { title: 'Stopped by user' },
+      })
+    }
+  )
+})
