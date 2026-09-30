@@ -1143,6 +1143,30 @@ describe('copilot go stream helpers', () => {
       expect(state.error).toBeInstanceOf(WorkerStreamInterruptedError)
     })
 
+    it('fails a worker whose error body stalls instead of waiting on it forever', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(new ReadableStream<Uint8Array>(), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          createStreamingContext(),
+          turnScopedExecContext(),
+          {}
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toMatchObject({ name: 'CopilotBackendError', status: 503 })
+    })
+
     it('fails a worker that never answers as unreachable before an intermediary drops it', async () => {
       vi.useFakeTimers()
       vi.mocked(fetch).mockImplementationOnce(

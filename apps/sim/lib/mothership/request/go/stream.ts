@@ -256,7 +256,12 @@ export async function runStreamLoop(
 
   if (!response.ok) {
     context.trace.endSpan(fetchSpan, 'error')
-    const errorText = await response.text().catch(() => '')
+    // An error body is bounded by the same silence as the leg; a stalled one reads as empty.
+    armIdleTimeout()
+    const errorText = await new Promise<string>((resolve) => {
+      idle.signal.addEventListener('abort', () => resolve(''), { once: true })
+      response.text().then(resolve, () => resolve(''))
+    }).finally(() => clearTimeout(idleTimer))
 
     if (response.status === 402) {
       throw new BillingLimitError(execContext.userId)

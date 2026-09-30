@@ -20,10 +20,11 @@ const GATEWAY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504])
  */
 const WORKER_REPLACEMENT_WINDOW_MS = 120_000
 /**
- * A leg that has delivered events for this long since it last re-attached has
- * proven healthy, so a later interruption, possibly hours on, gets the reachable
- * budget afresh. Events alone never replenish it: a leg that fails again sooner
- * keeps spending the same three retries, so a deterministic failure stays bounded.
+ * A leg whose delivered events span this long since it last re-attached has proven
+ * healthy, so a later interruption, possibly hours on, gets the reachable budget
+ * afresh. The span runs from its first event to its latest, so a leg that delivered
+ * one event and then only kept alive has made no progress, and a leg that fails again
+ * sooner keeps spending the same three retries: a deterministic failure stays bounded.
  */
 const HEALTHY_STREAM_REPLENISH_MS = 5 * 60_000
 
@@ -39,6 +40,7 @@ export class StreamRetryWindow {
   private readonly deadline?: number
   private firstFailureAt?: number
   private streamingSince?: number
+  private lastEventAt?: number
   private firstUnreachableAt?: number
   private unreachableAttempt = 0
   private attempt = 0
@@ -64,7 +66,8 @@ export class StreamRetryWindow {
   /** The worker delivered an event, so a later loss of it starts a fresh unreachable window. */
   recovered(): void {
     this.resetUnreachable()
-    this.streamingSince ??= Date.now()
+    this.lastEventAt = Date.now()
+    this.streamingSince ??= this.lastEventAt
   }
 
   nextDelay(error: unknown, signal?: AbortSignal): number | null {
@@ -96,7 +99,8 @@ export class StreamRetryWindow {
   private replenishAfterHealthyStreaming(): void {
     if (
       this.streamingSince !== undefined &&
-      Date.now() - this.streamingSince >= HEALTHY_STREAM_REPLENISH_MS
+      this.lastEventAt !== undefined &&
+      this.lastEventAt - this.streamingSince >= HEALTHY_STREAM_REPLENISH_MS
     ) {
       this.attempt = 0
       this.firstFailureAt = undefined
