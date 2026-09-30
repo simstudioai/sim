@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { type QueryKey, useQueryClient } from '@tanstack/react-query'
+import { type QueryKey, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { DesktopSourceRequest } from '@/lib/api/contracts/desktop-source-connect'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -14,6 +15,8 @@ import {
   credentialGroupOAuthCompletionChannel,
   isCredentialGroupOAuthFailure,
 } from '@/lib/credential-groups/oauth-completion'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
 import {
   useConnectSimSearchConnector,
@@ -96,6 +99,19 @@ export function useMemberEnrollment({
     >()
   )
   const queryClient = useQueryClient()
+  const nativeAbort = useRef<AbortController | null>(null)
+  useEffect(() => () => nativeAbort.current?.abort(), [])
+  const nativeConnection = useMutation({
+    mutationFn: async (request: DesktopSourceRequest) => {
+      nativeAbort.current?.abort()
+      const controller = new AbortController()
+      nativeAbort.current = controller
+      return connectDesktopSource(request, controller.signal)
+    },
+    onSettled: () => refreshMemberships(),
+    onError: (error) => onConnectionError?.(error.message),
+    onSuccess: () => setSetupConnector(null),
+  })
   const enrollment = useStartConnectorMemberEnrollment()
   const sourceConnection = useConnectSimSearchConnector()
   const [awaitingSince, setAwaitingSince] = useState<ReadonlyMap<string, AwaitingEnrollment>>(
@@ -265,7 +281,15 @@ export function useMemberEnrollment({
     })
   }
 
-  const connect = (knowledgeBaseId: string, connectorId: string) =>
+  const connect = (knowledgeBaseId: string, connectorId: string) => {
+    if (isDesktopApp()) {
+      nativeConnection.mutate({
+        kind: 'member-enrollment',
+        params: { id: knowledgeBaseId, connectorId },
+        completionId: generateId(),
+      })
+      return
+    }
     openEnrollment(`connector:${connectorId}`, ({ onSuccess, onError, oauthCompletionId }) => {
       enrollment.mutate(
         { knowledgeBaseId, connectorId, ...(oauthCompletionId ? { oauthCompletionId } : {}) },
@@ -279,6 +303,7 @@ export function useMemberEnrollment({
         }
       )
     })
+  }
 
   /**
    * Connects a Sim Search source: its per-member connector exists afterwards,
@@ -292,6 +317,14 @@ export function useMemberEnrollment({
   ) => {
     const scope =
       typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
+    if (isDesktopApp()) {
+      nativeConnection.mutate({
+        kind: 'search-source',
+        body: { ...resourceScopeFields(scope), connectorType, sourceConfig },
+        completionId: generateId(),
+      })
+      return
+    }
     const configKey = JSON.stringify(
       Object.entries(sourceConfig ?? {}).sort(([left], [right]) => left.localeCompare(right))
     )
@@ -335,9 +368,12 @@ export function useMemberEnrollment({
   }
 
   const isAwaiting = (connectorId: string) =>
-    awaitingSince.has(connectorId) &&
-    (Boolean(awaitingSince.get(connectorId)?.oauthCompletionId) ||
-      !connectedConnectorIds.has(connectorId))
+    (nativeConnection.isPending &&
+      nativeConnection.variables?.kind === 'member-enrollment' &&
+      nativeConnection.variables.params.connectorId === connectorId) ||
+    (awaitingSince.has(connectorId) &&
+      (Boolean(awaitingSince.get(connectorId)?.oauthCompletionId) ||
+        !connectedConnectorIds.has(connectorId)))
 
   /**
    * Whether a Sim Search source is awaited by the connect that created its
@@ -345,6 +381,9 @@ export function useMemberEnrollment({
    * the source cannot be looked up by connector id yet.
    */
   const isAwaitingSource = (connectorType: string) =>
+    (nativeConnection.isPending &&
+      nativeConnection.variables?.kind === 'search-source' &&
+      nativeConnection.variables.body.connectorType === connectorType) ||
     [...awaitingSince].some(
       ([id, awaiting]) =>
         awaiting.connectorType === connectorType &&
@@ -359,10 +398,16 @@ export function useMemberEnrollment({
     connectSource,
     connectSearchSource,
     setupConnector,
-    closeSetup: () => setSetupConnector(null),
+    closeSetup: () => {
+      nativeAbort.current?.abort()
+      nativeAbort.current = null
+      setSetupConnector(null)
+    },
     isAwaiting,
     isAwaitingSource,
-    isPending: enrollment.isPending || sourceConnection.isPending,
-    error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (oauthError ?? latest.error?.message ?? null),
+    isPending: nativeConnection.isPending || enrollment.isPending || sourceConnection.isPending,
+    error: popupBlocked
+      ? POPUP_BLOCKED_MESSAGE
+      : (nativeConnection.error?.message ?? oauthError ?? latest.error?.message ?? null),
   }
 }

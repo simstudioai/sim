@@ -510,6 +510,7 @@ export function useDesktopOAuthConnectListener() {
     if (!bridge?.onOAuthConnectComplete) return
 
     return bridge.onOAuthConnectComplete((result) => {
+      if (result.sourceRequestId) return
       void queryClient.invalidateQueries({
         queryKey: oauthConnectionsKeys.connections(),
       })

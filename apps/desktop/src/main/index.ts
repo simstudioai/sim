@@ -830,6 +830,8 @@ function main(): void {
         },
       },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
+      prepareSourceConnect: () => handoff.prepareSourceConnect(),
+      cancelSourceConnect: (requestId) => handoff.cancelSourceConnect(requestId),
       updates: {
         getState: () => updater?.getState() ?? { status: 'idle' },
         check: () => updater?.check(),

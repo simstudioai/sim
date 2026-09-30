@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ChipLink,
   ChipModal,
@@ -12,6 +12,7 @@ import {
 } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
+import { isDesktopApp } from '@/lib/desktop'
 import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
@@ -40,6 +41,12 @@ export function SlackSearchSetupWizard({
   initialName,
   onClose,
 }: SlackSearchSetupWizardProps) {
+  const nativeAbort = useRef<AbortController | null>(null)
+  useEffect(() => () => nativeAbort.current?.abort(), [])
+  const close = () => {
+    nativeAbort.current?.abort()
+    onClose()
+  }
   const name = initialName ?? SLACK_SEARCH_DEFAULT_NAME
   const description = SLACK_SEARCH_DEFAULT_DESCRIPTION
   const prepare = useSlackSearchManifest(organizationId, name)
@@ -62,10 +69,22 @@ export function SlackSearchSetupWizard({
       )
 
   function installShared() {
+    const controller = new AbortController()
+    nativeAbort.current = controller
     oauth.mutate(
-      { organizationId, installationId, name, description, mode: 'shared' },
       {
-        onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
+        organizationId,
+        installationId,
+        name,
+        description,
+        mode: 'shared',
+        signal: controller.signal,
+      },
+      {
+        onSuccess: (result) => {
+          if (result) window.location.assign(result.authorizationUrl)
+          else onClose()
+        },
       }
     )
   }
@@ -99,11 +118,11 @@ export function SlackSearchSetupWizard({
       <ChipModal
         open
         onOpenChange={(open) => {
-          if (!open) onClose()
+          if (!open) close()
         }}
         srTitle='Sim Search in Slack'
       >
-        <ChipModalHeader icon={SlackIcon} onClose={onClose}>
+        <ChipModalHeader icon={SlackIcon} onClose={close}>
           Sim Search in Slack
         </ChipModalHeader>
         <ChipModalBody>
@@ -116,7 +135,7 @@ export function SlackSearchSetupWizard({
           )}
         </ChipModalBody>
         <ChipModalFooter
-          onCancel={onClose}
+          onCancel={close}
           defaultAction='dismiss'
           secondaryActions={
             prepare.error
@@ -137,14 +156,14 @@ export function SlackSearchSetupWizard({
     return (
       <ChipModal
         open
-        dismissDisabled={busy}
+        dismissDisabled={busy && !isDesktopApp()}
         onOpenChange={(open) => {
-          if (!open) onClose()
+          if (!open) close()
         }}
         srTitle='Install the Sim Search app'
         size='sm'
       >
-        <ChipModalHeader icon={SlackIcon} onClose={onClose}>
+        <ChipModalHeader icon={SlackIcon} onClose={close}>
           Install the Sim Search app
         </ChipModalHeader>
         <ChipModalBody>
@@ -160,7 +179,7 @@ export function SlackSearchSetupWizard({
           </ChipModalError>
         </ChipModalBody>
         <ChipModalFooter
-          onCancel={onClose}
+          onCancel={close}
           secondaryActions={
             prepare.error || !prepare.data.sharedAppId
               ? [
@@ -193,14 +212,14 @@ export function SlackSearchSetupWizard({
   return (
     <ChipModal
       open
-      dismissDisabled={busy}
+      dismissDisabled={busy && !isDesktopApp()}
       onOpenChange={(open) => {
-        if (!open) onClose()
+        if (!open) close()
       }}
       srTitle={title}
       size='md'
     >
-      <ChipModalHeader icon={SlackIcon} onClose={onClose}>
+      <ChipModalHeader icon={SlackIcon} onClose={close}>
         {title}
       </ChipModalHeader>
       <ChipModalBody>
@@ -294,7 +313,7 @@ export function SlackSearchSetupWizard({
         <ChipModalError>{error?.message}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
-        onCancel={onClose}
+        onCancel={close}
         secondaryActions={
           prepare.error
             ? [

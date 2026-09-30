@@ -12,12 +12,12 @@ import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { completeSlackSearchSetup } from '@/lib/knowledge/application/slack-search/setup'
-import { organizationRoutes } from '@/lib/navigation/paths'
 import { slackSearchInstallPath } from '@/lib/slack-search/install-link'
 import { authenticateSlackPublicInstallation } from '@/lib/slack-search/public-install-auth'
 
 /** OAuth is a redirect protocol; protected configuration remains in the application use case. */
 export const GET = withRouteHandler(async (request) => {
+  let callbackState: string | undefined
   try {
     const limited = await enforceIpRateLimit('slack-search-oauth-callback', request)
     if (limited) return limited
@@ -31,6 +31,7 @@ export const GET = withRouteHandler(async (request) => {
     )
     if (!parsed.success) return parsed.response
     const { state, code, error } = parsed.data.query
+    callbackState = state
     if (!state) {
       if (error || !code)
         throw new OrchestrationError(
@@ -53,13 +54,24 @@ export const GET = withRouteHandler(async (request) => {
       input: { state, code, error },
       request,
     })
-    const url = new URL(
-      organizationRoutes(result.organizationId).settingsSection('search-slack'),
-      getBaseUrl()
-    )
-    url.searchParams.set('slackSetup', 'complete')
-    return NextResponse.redirect(url, 303)
+    const url = new URL('/credential-groups/slack-complete', getBaseUrl())
+    url.searchParams.set('state', state)
+    url.searchParams.set('ok', 'true')
+    url.searchParams.set('organizationId', result.organizationId)
+    return NextResponse.redirect(url, {
+      status: 303,
+      headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
+    })
   } catch (error) {
+    if (callbackState) {
+      const url = new URL('/credential-groups/slack-complete', getBaseUrl())
+      url.searchParams.set('state', callbackState)
+      url.searchParams.set('ok', 'false')
+      return NextResponse.redirect(url, {
+        status: 303,
+        headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
+      })
+    }
     if (error instanceof InternalUnauthenticatedError)
       return NextResponse.json(
         { error: 'Sign in to Sim and restart Slack setup.' },
