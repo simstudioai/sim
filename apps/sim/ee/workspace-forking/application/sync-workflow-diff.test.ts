@@ -73,8 +73,8 @@ function planItem(overrides: Record<string, unknown> = {}) {
     sourceWorkflowId: 'wf-src',
     targetWorkflowId: 'wf-tgt',
     mode: 'replace',
-    sourceMeta: { name: 'Ask Biz' },
-    targetName: 'Ask Biz (prod)',
+    sourceMeta: { name: 'Support Agent' },
+    targetName: 'Support Agent (prod)',
     ...overrides,
   }
 }
@@ -82,7 +82,9 @@ function planItem(overrides: Record<string, unknown> = {}) {
 /** The source loader, answering for `wf-src` only, as the real one answers for sync sources only. */
 function sourceIs(sourceState: WorkflowState | null) {
   mocks.loadSourceDeployedWorkflow.mockImplementation(async (_workspaceId: string, id: string) =>
-    id === 'wf-src' && sourceState ? { summary: { id, name: 'Ask Biz' }, state: sourceState } : null
+    id === 'wf-src' && sourceState
+      ? { summary: { id, name: 'Support Agent' }, state: sourceState }
+      : null
   )
 }
 
@@ -138,8 +140,8 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
     })
     expect(result).toMatchObject({
       targetWorkflowId: 'wf-tgt',
-      beforeLabel: 'Ask Biz (prod) (current)',
-      afterLabel: 'Ask Biz (deployed)',
+      beforeLabel: 'Support Agent (prod) (current)',
+      afterLabel: 'Support Agent (deployed)',
     })
     expect(result.before).toEqual(state({ 'mapped-b1': {} }))
     expect(mocks.loadTargetDraftState).toHaveBeenCalledWith('wf-tgt', 'parent')
@@ -194,7 +196,7 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
 
     expect(result.before).toBeNull()
     expect(result.targetWorkflowId).toBeNull()
-    expect(result.beforeLabel).toBe('Ask Biz (current)')
+    expect(result.beforeLabel).toBe('Support Agent (current)')
     expect(mocks.loadTargetDraftState).not.toHaveBeenCalled()
     expect(mocks.loadForkBlockMap).not.toHaveBeenCalled()
   })
