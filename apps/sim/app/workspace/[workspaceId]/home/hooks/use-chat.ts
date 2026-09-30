@@ -54,7 +54,11 @@ import {
   type RevealedSimKeysByMessage,
   restoreRevealedSimKeysForMessage,
 } from '@/lib/mothership/chat/sim-key-redaction'
-import { MOTHERSHIP_CHAT_API_PATH, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+import {
+  MOTHERSHIP_CHAT_API_PATH,
+  MOTHERSHIP_CHAT_ID_HEADER,
+  MOTHERSHIP_STREAM_REPLAY_HEADER,
+} from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
@@ -2576,6 +2580,14 @@ export function useChat(
 
           if (isStaleReconnect()) {
             return { error: false, aborted: true }
+          }
+
+          /* The ring could not serve this cursor, so the turn is re-sent from the
+             worker's log with cursors restarting at 1: rebuild it from empty. */
+          if (sseRes.headers.get(MOTHERSHIP_STREAM_REPLAY_HEADER) === 'log') {
+            const reset = applyReconnectReplaySelection(streamId, '0')
+            latestCursor = reset.afterCursor
+            preserveNextReplayState = reset.preserveExistingState
           }
 
           setTransportStreaming()

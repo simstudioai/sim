@@ -68,7 +68,19 @@ export {
   FILE_PREVIEW_SESSION_SCHEMA_VERSION,
   isFilePreviewSession,
 } from './file-preview-session-contract'
-export { checkForReplayGap, type ReplayGapResult } from './recovery'
+export {
+  checkForReplayGap,
+  findReplayGap,
+  type ReplayGap,
+  type ReplayGapResult,
+  replayGapTerminal,
+} from './recovery'
+export {
+  openRunReplay,
+  type RunReplayEnd,
+  RunReplayUnavailableError,
+  readRunReplay,
+} from './run-replay'
 export { encodeSSEEnvelope, SSE_RESPONSE_HEADERS } from './sse'
 export type { StreamBatchEvent } from './types'
 export { StreamWriter, type StreamWriterOptions } from './writer'

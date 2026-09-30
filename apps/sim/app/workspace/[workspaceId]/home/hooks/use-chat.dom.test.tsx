@@ -73,6 +73,7 @@ import {
   seedDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
@@ -1152,6 +1153,69 @@ describe('useChat remount send recovery', () => {
       expect(seconds).toBeLessThan(60)
       expect([...errors]).toEqual([])
       expect(getResult().isSending).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rebuilds the turn from an empty response when a reconnect is re-synced from the log', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      let tails = 0
+      const history: MothershipChatHistory = {
+        id: 'chat-log-resync',
+        mode: 'agent',
+        title: 'Log re-sync',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      }
+      mockRequestJson.mockImplementation(() =>
+        Promise.resolve({
+          chat: { ...history, activeStreamId: state.postBodies[0]?.userMessageId ?? null },
+        })
+      )
+      state.postBehavior = 'accept'
+      const frame = (streamId: string, seq: number, text: string) =>
+        `data: ${JSON.stringify({
+          v: 1,
+          seq,
+          ts: new Date().toISOString(),
+          type: 'text',
+          stream: { streamId, cursor: String(seq) },
+          payload: { channel: 'assistant', text },
+        } satisfies MothershipStreamV1EventEnvelope)}\n\n`
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (!url.includes('/api/mothership/chat/stream')) return fetchStub(input, init)
+        if (url.includes('batch=true')) {
+          return Response.json({ success: true, events: [], status: 'streaming' })
+        }
+        tails++
+        const streamId = state.postBodies[0]?.userMessageId ?? ''
+        if (tails === 1) {
+          return new Response([1, 2, 3].map((seq) => frame(streamId, seq, 'stale ')).join(''), {
+            headers: { 'Content-Type': 'text/event-stream' },
+          })
+        }
+        return new Response(frame(streamId, 1, 'Full response.'), {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            [MOTHERSHIP_STREAM_REPLAY_HEADER]: 'log',
+          },
+        })
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        void getResult().sendMessage('Pick up where it left off')
+      })
+      for (let second = 0; second < 10 && tails < 3; second++) {
+        await act(async () => vi.advanceTimersByTimeAsync(1_000))
+      }
+
+      const answer = getResult().messages.find((message) => message.role === 'assistant')
+      expect(tails).toBeGreaterThanOrEqual(3)
+      expect(answer?.content).toBe('Full response.')
     } finally {
       vi.useRealTimers()
     }

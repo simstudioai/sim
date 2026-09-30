@@ -16,13 +16,14 @@ import { CopilotResumeOutcome } from '@/lib/mothership/generated/trace-attribute
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 
-const { getLatestRunForStream, readEvents, readFilePreviewSessions, checkForReplayGap } =
-  vi.hoisted(() => ({
+const { getLatestRunForStream, readEvents, readFilePreviewSessions, findReplayGap } = vi.hoisted(
+  () => ({
     getLatestRunForStream: vi.fn(),
     readEvents: vi.fn(),
     readFilePreviewSessions: vi.fn(),
-    checkForReplayGap: vi.fn(),
-  }))
+    findReplayGap: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/mothership/request/application/recover-stream', () => ({
   readChatStream: { execute: getLatestRunForStream },
@@ -33,7 +34,9 @@ vi.mock('@/lib/mothership/request/session', () => ({
     status === 'complete' || status === 'error' || status === 'cancelled',
   readEvents,
   readFilePreviewSessions,
-  checkForReplayGap,
+  findReplayGap,
+  getLatestSeq: async () => null,
+  replayGapTerminal: async () => ({ gapDetected: true, envelopes: [] }),
   createEvent: (event: Record<string, unknown>) => ({
     stream: {
       streamId: event.streamId,
@@ -82,7 +85,7 @@ describe('copilot chat stream replay route', () => {
     })
     readEvents.mockResolvedValue([])
     readFilePreviewSessions.mockResolvedValue([])
-    checkForReplayGap.mockResolvedValue(null)
+    findReplayGap.mockResolvedValue(null)
   })
 
   it('refuses replay after organization membership is removed', async () => {

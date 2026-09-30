@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/server/routes'
 import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -24,15 +25,21 @@ import {
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
+import { FatalSseEventError } from '@/lib/mothership/request/go/parser'
 import { contextFromRequestHeaders } from '@/lib/mothership/request/go/propagation'
 import { getCopilotTracer, markSpanForError } from '@/lib/mothership/request/otel'
 import {
-  checkForReplayGap,
   createEvent,
   encodeSSEEnvelope,
+  findReplayGap,
+  getLatestSeq,
   isTerminalStreamStatus,
+  openRunReplay,
+  RunReplayUnavailableError,
   readEvents,
   readFilePreviewSessions,
+  readRunReplay,
+  replayGapTerminal,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/mothership/request/session'
 import { toReplayEnvelope, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
@@ -229,7 +236,8 @@ async function handleResumeRequestBody({
 
   if (batchMode) {
     const afterSeq = afterCursor || '0'
-    const [events, previewSessions] = await Promise.all([
+    const [gap, events, previewSessions] = await Promise.all([
+      findReplayGap(streamId, afterSeq, extractRunRequestId(run)),
       readEvents(streamId, afterSeq),
       readFilePreviewSessions(streamId).catch((error) => {
         logger.warn('Failed to read preview sessions for stream batch', {
@@ -239,7 +247,8 @@ async function handleResumeRequestBody({
         return []
       }),
     ])
-    const batchEvents = events.map(toStreamBatchEvent)
+    /* The ring cannot serve this reader; the live tail re-syncs it from the worker log. */
+    const batchEvents = gap ? [] : events.map(toStreamBatchEvent)
     logger.info('[Resume] Batch response', {
       streamId,
       afterCursor: afterSeq,
@@ -265,6 +274,37 @@ async function handleResumeRequestBody({
   const startTime = Date.now()
   let totalEventsFlushed = 0
   let pollIterations = 0
+
+  /**
+   * A reader the ring cannot serve is re-synced from the worker's durable log for the
+   * rest of this response, never handed back to the ring: the log and the ring have
+   * no shared position to join on. The header tells the client to rebuild the turn
+   * from an empty response, since the replay's cursors restart at 1.
+   */
+  const gap = await findReplayGap(streamId, afterCursor || '0', extractRunRequestId(run))
+  let replayBody: ReadableStream<Uint8Array> | null = null
+  /** Releases the worker's replay once this response ends; the request signal may never fire. */
+  const replayAbort = new AbortController()
+  const replaySignal = AbortSignal.any([request.signal, replayAbort.signal])
+  if (gap && run.chatId) {
+    try {
+      replayBody = await openRunReplay({
+        streamId,
+        chatId: run.chatId,
+        userId: principal.userId,
+        signal: replaySignal,
+      })
+    } catch (error) {
+      if (!(error instanceof RunReplayUnavailableError)) throw error
+      logger.warn('Run replay unavailable; the client will retry', {
+        streamId,
+        error: getErrorMessage(error),
+      })
+      markSpanForError(rootSpan, error)
+      rootSpan.end()
+      return NextResponse.json({ error: 'Stream replay is unavailable' }, { status: 503 })
+    }
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -380,12 +420,62 @@ async function handleResumeRequestBody({
       }
     }
 
+    /**
+     * Forwards the worker's replay under this response's own cursors, starting at 1.
+     * A parked run holds the response open until it resumes, so the client does not
+     * replay the whole log again for every poll; any other end short of the terminal
+     * (the worker's cap, a stalled run, a cut connection) ends it without one and the
+     * client re-attaches, reaching recovery through the reconnect route.
+     */
+    const streamRunReplay = async (body: ReadableStream<Uint8Array>) => {
+      let seq = 0
+      const keepalive = setInterval(() => {
+        if (Date.now() - lastWriteTime < REPLAY_KEEPALIVE_INTERVAL_MS) return
+        if (!enqueueComment('keepalive')) replayAbort.abort()
+      }, REPLAY_KEEPALIVE_INTERVAL_MS)
+      try {
+        const end = await readRunReplay(body, replaySignal, (event) => {
+          seq += 1
+          const envelope = toReplayEnvelope({
+            ...event,
+            seq,
+            stream: { ...event.stream, streamId, cursor: String(seq) },
+          })
+          if (!enqueueEvent(envelope)) return false
+          totalEventsFlushed += 1
+          cursor = String(seq)
+          if (envelope.type === MothershipStreamV1EventType.complete) sawTerminalEvent = true
+          return true
+        }).catch((error: unknown) => {
+          if (error instanceof FatalSseEventError) throw error
+          logger.warn('Run replay connection ended early', {
+            streamId,
+            error: getErrorMessage(error),
+          })
+          return 'closed' as const
+        })
+        logger.info('[Resume] Run replay ended', { streamId, end, eventCount: seq })
+        while (end === 'parked' && !controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
+          const current = await readRun().catch(() => null)
+          if (current?.status !== 'paused_waiting_for_tool') break
+          await sleep(POLL_INTERVAL_MAX_MS)
+        }
+      } finally {
+        clearInterval(keepalive)
+        replayAbort.abort()
+      }
+    }
+
     try {
       enqueueComment('accepted')
 
-      const gap = await checkForReplayGap(streamId, afterCursor, currentRequestId)
+      if (replayBody) {
+        await streamRunReplay(replayBody)
+        return
+      }
       if (gap) {
-        for (const envelope of gap.envelopes) {
+        const terminal = await replayGapTerminal(streamId, gap, currentRequestId)
+        for (const envelope of terminal.envelopes) {
           if (!enqueueEvent(envelope)) {
             break
           }
@@ -427,6 +517,16 @@ async function handleResumeRequestBody({
            at 4 Hz for up to an hour. Any flushed event snaps back to full rate. */
         pollDelayMs =
           flushed > 0 ? POLL_INTERVAL_MS : Math.min(pollDelayMs * 2, POLL_INTERVAL_MAX_MS)
+
+        /* A ring whose numbering restarted after it expired never passes this cursor
+           again; end without a terminal so the client re-attaches and is re-synced. */
+        if (flushed === 0 && !sawTerminalEvent) {
+          const latestSeq = await getLatestSeq(streamId)
+          if (latestSeq !== null && Number(cursor) > latestSeq) {
+            logger.warn('Replay ring restarted under a live tail', { streamId, cursor, latestSeq })
+            break
+          }
+        }
 
         if (controllerClosed) {
           break
@@ -488,5 +588,9 @@ async function handleResumeRequestBody({
     }
   }
 
-  return new Response(stream, { headers: SSE_RESPONSE_HEADERS })
+  return new Response(stream, {
+    headers: replayBody
+      ? { ...SSE_RESPONSE_HEADERS, [MOTHERSHIP_STREAM_REPLAY_HEADER]: 'log' }
+      : SSE_RESPONSE_HEADERS,
+  })
 }
