@@ -1,11 +1,12 @@
 'use client'
 
 import { type ReactNode, useMemo, useState } from 'react'
-import { ChipLink, ChipTag } from '@sim/emcn'
+import { Chip, ChipLink, ChipTag } from '@sim/emcn'
 import { Database, Files, Integration, Library, Plus, Table, Workflow } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/file'
-import type { Project } from '@/app/playground/org/lib/project'
+import { RESOURCES } from '@/app/playground/org/lib/mock-data'
+import { type Project, realWorkspaceId } from '@/app/playground/org/lib/project'
 import { workspaceRoutes } from '@/app/playground/org/lib/routes'
 import {
   type ProjectResources,
@@ -181,16 +182,30 @@ export function ResourceSection({ project, section }: ResourceSectionProps) {
   const config = CONFIG[section]
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const resources = useProjectResources(project.id)
-  const logs = useLogsList(project.id, LOG_FILTERS, { enabled: section === 'logs' })
+  const workspaceId = realWorkspaceId(project)
+  const resources = useProjectResources(workspaceId)
+  const logs = useLogsList(workspaceId || undefined, LOG_FILTERS, {
+    enabled: section === 'logs' && Boolean(workspaceId),
+  })
   const credentials = useWorkspaceCredentials({
-    workspaceId: project.id,
+    workspaceId: workspaceId || undefined,
     type: 'oauth',
-    enabled: section === 'credentials',
+    enabled: section === 'credentials' && Boolean(workspaceId),
   })
   const Icon = config.icon
 
   const items = useMemo<SectionItem[]>(() => {
+    /** A mock project keeps the prototype's static rows; they open nothing. */
+    if (project.isMock)
+      return RESOURCES[section].map((item) => ({
+        id: item.id,
+        name: item.name,
+        meta: item.meta,
+        flagged: /expired|error|failing/i.test(item.meta),
+        owner: item.owner,
+        updated: item.updated,
+        href: '',
+      }))
     if (section === 'logs')
       return (logs.data?.pages.flatMap((page) => page.logs) ?? []).map((log) => {
         const status = capitalize(log.status ?? log.level)
@@ -215,7 +230,7 @@ export function ResourceSection({ project, section }: ResourceSectionProps) {
         href: workspaceRoutes.credential(project.id, credential.id),
       }))
     return resourceItems(section, project.id, resources)
-  }, [section, project.id, resources, logs.data, credentials.data])
+  }, [section, project.id, project.isMock, resources, logs.data, credentials.data])
 
   const hrefById = useMemo(() => new Map(items.map((item) => [item.id, item.href])), [items])
   const rows: ResourceRow[] = items
@@ -232,8 +247,9 @@ export function ResourceSection({ project, section }: ResourceSectionProps) {
       },
     }))
 
-  const pending =
-    section === 'logs'
+  const pending = project.isMock
+    ? false
+    : section === 'logs'
       ? logs.isPending
       : section === 'credentials'
         ? credentials.isPending
@@ -243,11 +259,15 @@ export function ResourceSection({ project, section }: ResourceSectionProps) {
     <Resource>
       <Resource.Options
         trailing={
-          config.create ? (
+          !config.create ? undefined : project.isMock ? (
+            <Chip variant='primary' leftIcon={Plus}>
+              {config.create}
+            </Chip>
+          ) : (
             <ChipLink href={config.createHref(project.id)} variant='primary' leftIcon={Plus}>
               {config.create}
             </ChipLink>
-          ) : undefined
+          )
         }
         search={{
           value: search,

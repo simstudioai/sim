@@ -72,7 +72,9 @@ export function NewChatHome() {
             onSubmit={(text) => {
               const message = text.trim()
               if (!message) return
-              if (selected) {
+              if (selected?.isMock) {
+                router.push(`${protoRoutes.workspace(selected.id)}?chat=new`)
+              } else if (selected) {
                 router.push(
                   `${protoRoutes.workspace(selected.id)}?chat=new&q=${encodeURIComponent(message)}`
                 )

@@ -8,6 +8,7 @@ import { AgentRun } from '@/app/playground/org/components/agent-run'
 import { ChatThread } from '@/app/playground/org/components/chat-thread'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
 import { LiveChat } from '@/app/playground/org/components/live-chat'
+import { MockComposer } from '@/app/playground/org/components/mock-composer'
 import { DRAFTS } from '@/app/playground/org/lib/changelog-data'
 import { CHATS, type Chat } from '@/app/playground/org/lib/mock-data'
 import type { Project } from '@/app/playground/org/lib/project'
@@ -82,7 +83,7 @@ function SideChat({
   onInitialMessageSent,
   onClose,
 }: SideChatProps) {
-  const { data: chats } = useMothershipChats(project.id)
+  const { data: chats } = useMothershipChats(project.isMock ? undefined : project.id)
   const realChat = chats?.find((chat) => chat.id === chatId)
   /** Chats from the overlay pack (changelog and issue stories) keep their canned threads. */
   const mockChat: Chat | undefined = CHATS.find(
@@ -119,6 +120,10 @@ function SideChat({
         </div>
       ) : mockChat ? (
         <ChatThread placeholder={`Ask Sim about ${project.name}…`} />
+      ) : project.isMock ? (
+        <div className='flex min-h-0 flex-1 flex-col justify-end px-3 pb-3'>
+          <MockComposer placeholder={`Ask Sim about ${project.name}…`} />
+        </div>
       ) : (
         <LiveChat
           owner={project.id}

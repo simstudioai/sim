@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/file'
-import type { Project } from '@/app/playground/org/lib/project'
+import { type Project, realWorkspaceId } from '@/app/playground/org/lib/project'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -10,12 +10,17 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 /** Every resource list a project page reads, from the workspace's own React Query hooks. */
 export function useProjectResources(workspaceId: string) {
-  const workflows = useWorkflows(workspaceId)
-  const folders = useFolderMap(workspaceId)
-  const tables = useTablesList(workspaceId)
-  const knowledgeBases = useKnowledgeBasesQuery(workspaceId, { includeCounts: true })
-  const files = useWorkspaceFiles(workspaceId)
-  const members = useWorkspaceMembersQuery(workspaceId)
+  /** Empty for a mock project: every query stays off and the lists read as empty. */
+  const enabled = Boolean(workspaceId)
+  const workflows = useWorkflows(workspaceId || undefined, { enabled })
+  const folders = useFolderMap(workspaceId || undefined)
+  const tables = useTablesList(workspaceId || undefined, 'active', { enabled })
+  const knowledgeBases = useKnowledgeBasesQuery(workspaceId || undefined, {
+    includeCounts: true,
+    enabled,
+  })
+  const files = useWorkspaceFiles(workspaceId, 'active', { enabled })
+  const members = useWorkspaceMembersQuery(workspaceId || undefined)
 
   const memberNames = useMemo(() => {
     const names = new Map<string, string>()
@@ -40,8 +45,9 @@ export function useProjectResources(workspaceId: string) {
     dashboardFiles: fileLists.dashboardFiles,
     memberNames,
     isPending:
-      workflows.isPending || tables.isPending || knowledgeBases.isPending || files.isPending,
-    filesPending: files.isPending,
+      enabled &&
+      (workflows.isPending || tables.isPending || knowledgeBases.isPending || files.isPending),
+    filesPending: enabled && files.isPending,
   }
 }
 
@@ -53,7 +59,9 @@ function plural(count: number, noun: string): string {
 
 /** The pack's purpose line when the pack was chosen for this project; otherwise what the workspace holds. */
 export function useProjectDescription(project: Project): string {
-  const { workflows, tables, knowledgeBases, files, isPending } = useProjectResources(project.id)
+  const { workflows, tables, knowledgeBases, files, isPending } = useProjectResources(
+    realWorkspaceId(project)
+  )
   if (project.overlayMatched) return project.mock.description
   if (isPending) return ''
   return [

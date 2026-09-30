@@ -35,6 +35,8 @@ export function ProjectSettings({ project, sectionId }: ProjectSettingsProps) {
         </header>
         {active.group === 'project' ? (
           <ProjectGeneral project={project} />
+        ) : project.isMock ? (
+          <span className='text-[var(--text-muted)] text-small'>Nothing here yet.</span>
         ) : (
           <ChipLink
             href={workspaceRoutes.settings(project.id, active.id as WorkspaceSettingsSection)}

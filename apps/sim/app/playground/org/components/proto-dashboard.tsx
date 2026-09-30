@@ -15,7 +15,7 @@ import { DashboardFile } from '@/app/playground/org/components/dashboard-file'
 import { RunsDashboard } from '@/app/playground/org/components/runs-dashboard'
 import { MOCK_DASHBOARDS } from '@/app/playground/org/lib/dashboards'
 import { mockTableAnalytics } from '@/app/playground/org/lib/mock-analytics'
-import type { Project } from '@/app/playground/org/lib/project'
+import { type Project, realWorkspaceId } from '@/app/playground/org/lib/project'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
 import { useProjectResources } from '@/app/playground/org/lib/use-project-resources'
 import { TableAnalyticsSourceContext } from '@/hooks/queries/table-analytics'
@@ -35,22 +35,31 @@ interface DashboardOption {
  */
 export function ProtoDashboard({ project }: { project: Project }) {
   const [{ dashboard: selected }, setParams] = useQueryStates(protoParsers)
-  const { dashboardFiles, filesPending } = useProjectResources(project.id)
+  const { dashboardFiles, filesPending } = useProjectResources(realWorkspaceId(project))
 
   if (filesPending)
     return <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>Loading…</p>
 
-  const options: DashboardOption[] = [
-    ...dashboardFiles.map((file) => ({ id: file.id, title: file.name, kind: 'file' as const })),
-    { id: RUNS_ID, title: 'Runs', kind: 'runs' },
-    ...(dashboardFiles.length
-      ? []
-      : project.mock.dashboards.map((id) => ({
-          id,
-          title: `${MOCK_DASHBOARDS[id]?.title ?? id} (sample)`,
-          kind: 'sample' as const,
-        }))),
-  ]
+  const samples = (suffix: string): DashboardOption[] =>
+    project.mock.dashboards.map((id) => ({
+      id,
+      title: `${MOCK_DASHBOARDS[id]?.title ?? id}${suffix}`,
+      kind: 'sample' as const,
+    }))
+  /** A mock project has only its pack's dashboards; a real one leads with its own files and runs. */
+  const options: DashboardOption[] = project.isMock
+    ? samples('')
+    : [
+        ...dashboardFiles.map((file) => ({ id: file.id, title: file.name, kind: 'file' as const })),
+        { id: RUNS_ID, title: 'Runs', kind: 'runs' },
+        ...(dashboardFiles.length ? [] : samples(' (sample)')),
+      ]
+  if (!options.length)
+    return (
+      <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>
+        No dashboards yet. Ask Sim to build one from this project’s tables.
+      </p>
+    )
   const current = options.find((option) => option.id === selected) ?? options[0]
 
   const title = (
@@ -93,7 +102,7 @@ interface DashboardBodyProps {
 }
 
 function DashboardBody({ project, option, title }: DashboardBodyProps) {
-  const { dashboardFiles } = useProjectResources(project.id)
+  const { dashboardFiles } = useProjectResources(realWorkspaceId(project))
   if (option.kind === 'runs') return <RunsDashboard key={RUNS_ID} project={project} title={title} />
   if (option.kind === 'file') {
     const file = dashboardFiles.find((candidate) => candidate.id === option.id)

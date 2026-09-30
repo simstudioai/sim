@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { MOCK_PROJECT_IDS } from '@/app/playground/org/lib/project'
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
 /**
@@ -13,6 +14,7 @@ export default async function ProjectLayout({
   params: Promise<{ workspaceId: string }>
 }) {
   const { workspaceId } = await params
+  if (MOCK_PROJECT_IDS.has(workspaceId)) return children
   return (
     <WorkspacePermissionsProvider workspaceId={workspaceId}>
       {children}

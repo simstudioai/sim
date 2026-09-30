@@ -31,6 +31,8 @@ import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import type { WorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useActiveOrganization, useSession } from '@/lib/auth/auth-client'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
+import { DRAFTS } from '@/app/playground/org/lib/changelog-data'
+import { CHATS } from '@/app/playground/org/lib/mock-data'
 import { type Project, useProjects } from '@/app/playground/org/lib/project'
 import {
   fullViewProject,
@@ -82,6 +84,34 @@ const NAV_ITEMS: SidebarNavItemData[] = [
 function compactAge(date: Date): string {
   const relative = formatRelativeTime(date.toISOString())
   return relative === 'just now' ? 'now' : relative.replace(' ago', '')
+}
+
+/** One shape for a row, whether the chat is a real Sim chat or one from a pack. */
+interface ChatItem {
+  id: string
+  name: string
+  age: string
+  running: boolean
+}
+
+const RUNNING_MOCK_CHAT_IDS = new Set(
+  DRAFTS.flatMap((draft) => draft.running.map((w) => w.chat.id))
+)
+
+function toChatItems(project: Project, real: MothershipChatMetadata[] | undefined): ChatItem[] {
+  if (project.isMock)
+    return CHATS.filter((chat) => chat.workspaceId === project.mock.id).map((chat) => ({
+      id: chat.id,
+      name: chat.title,
+      age: chat.age,
+      running: RUNNING_MOCK_CHAT_IDS.has(chat.id),
+    }))
+  return (real ?? []).map((chat) => ({
+    id: chat.id,
+    name: chat.name,
+    age: compactAge(chat.updatedAt),
+    running: chat.isActive,
+  }))
 }
 
 /** Org rail: Home / Search / Connectors, then the real workspaces as projects (each with its chats). */
@@ -282,7 +312,12 @@ function OrgChats({ organizationId, pathname, railCollapsed }: OrgChatsProps) {
         {chats.map((chat) => (
           <ChatRow
             key={chat.id}
-            chat={chat}
+            chat={{
+              id: chat.id,
+              name: chat.name,
+              age: compactAge(chat.updatedAt),
+              running: chat.isActive,
+            }}
             href={protoRoutes.chat(null, chat.id)}
             active={pathname === protoRoutes.chat(null, chat.id)}
           />
@@ -310,7 +345,8 @@ function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTree
   /** null follows navigation (open while you're in the project); a click pins it open or shut. */
   const [override, setOverride] = useState<boolean | null>(null)
   const expanded = override ?? inProject
-  const { data: chats = [] } = useMothershipChats(project.id)
+  const { data: realChats } = useMothershipChats(project.isMock ? undefined : project.id)
+  const chats = toChatItems(project, realChats)
   const visible = showAll ? chats : chats.slice(0, CHAT_PREVIEW)
   const panelHref = (chatId: string) =>
     `${inProject && pathname ? pathname : protoRoutes.workspace(project.id)}?chat=${chatId}`
@@ -386,7 +422,7 @@ function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTree
 }
 
 interface ChatRowProps {
-  chat: MothershipChatMetadata
+  chat: ChatItem
   href: string
   active: boolean
 }
@@ -400,12 +436,10 @@ function ChatRow({ chat, href, active }: ChatRowProps) {
         className='sidebar-collapse-hide flex-1 text-[var(--text-body)] text-small'
         focusTarget='nearest-interactive'
       />
-      {chat.isActive ? (
+      {chat.running ? (
         <RunningDot />
       ) : (
-        <span className='shrink-0 text-[var(--text-muted)] text-caption'>
-          {compactAge(chat.updatedAt)}
-        </span>
+        <span className='shrink-0 text-[var(--text-muted)] text-caption'>{chat.age}</span>
       )}
     </Link>
   )
@@ -437,7 +471,8 @@ interface FullViewSectionsProps {
 
 /** Full view: the project's build sections, then its chats, in place of Projects and Recent chats. */
 function FullViewSections({ project, pathname, openChat, railCollapsed }: FullViewSectionsProps) {
-  const { data: chats = [] } = useMothershipChats(project.id)
+  const { data: realChats } = useMothershipChats(project.isMock ? undefined : project.id)
+  const chats = toChatItems(project, realChats)
   return (
     <>
       <SidebarSection title='Build' railCollapsed={railCollapsed}>

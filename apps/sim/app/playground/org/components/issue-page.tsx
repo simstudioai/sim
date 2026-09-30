@@ -40,7 +40,7 @@ import {
   STATUS_ORDER,
   ticketUrl,
 } from '@/app/playground/org/lib/mock-data'
-import type { Project } from '@/app/playground/org/lib/project'
+import { type Project, realWorkspaceId } from '@/app/playground/org/lib/project'
 import { protoRoutes, workspaceRoutes } from '@/app/playground/org/lib/routes'
 import { useProjectResources } from '@/app/playground/org/lib/use-project-resources'
 
@@ -59,7 +59,7 @@ interface IssuePageProps {
 
 /** Full-page issue, Linear-style: content column plus a properties column. */
 export function IssuePage({ project, issue }: IssuePageProps) {
-  const resolveHref = useResourceHrefs(project.id)
+  const resolveHref = useResourceHrefs(realWorkspaceId(project))
   const [status, setStatus] = useState(issue.status)
   const [priority, setPriority] = useState(issue.priority)
   const [activity, setActivity] = useState(issue.activity)
