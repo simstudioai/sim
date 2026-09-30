@@ -6,12 +6,14 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
   requireBillingCallbackAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   authorizeCopilotChatCallback,
   checkCopilotContinuationBilling,
 } from '@/lib/mothership/application/authorize-chat-callback'
+import { BillingLimitError } from '@/lib/mothership/request/go/stream'
 import { BillingAdmissionSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 
@@ -35,7 +37,13 @@ export function restoreBillingAdmission(
   return { attribution, envelope }
 }
 
-/** Every resumed model leg rechecks authority and account standing without reading spend. */
+/**
+ * Every resumed model leg rechecks authority, account standing, and the original payer's spend.
+ * Spend is read through the execution usage gate, so a run under its limit pays no ledger read on
+ * most legs while an over-limit payer is re-read and refused. A spent limit is a
+ * {@link BillingLimitError}, which the lifecycle turns into the same upgrade card as a refused
+ * dispatch; a blocked account is refused as blocked; a usage read that fails lets the leg run.
+ */
 export async function authorizeLifecycleContinuation(
   context: Pick<
     ExecutionContext,
@@ -72,5 +80,9 @@ export async function authorizeLifecycleContinuation(
     })
     if (standing.blocked)
       throw new OrchestrationError('forbidden', 'Continuation billing account is blocked')
+    const usage = await readMidRunUsageVerdict(context.billingAttribution)
+    if (usage.status === 'blocked')
+      throw new OrchestrationError('forbidden', 'Continuation billing account is blocked')
+    if (usage.status === 'exceeded') throw new BillingLimitError(context.userId, usage.scope)
   }
 }

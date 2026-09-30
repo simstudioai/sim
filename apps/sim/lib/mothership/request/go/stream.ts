@@ -126,7 +126,11 @@ function backendErrorMessage(status: number, body: string): string {
 }
 
 export class BillingLimitError extends Error {
-  constructor(public readonly userId: string) {
+  /** `member` when the actor hit the cap their organization set, so the card names who can raise it. */
+  constructor(
+    public readonly userId: string,
+    public readonly scope?: 'actor' | 'payer' | 'member'
+  ) {
     super('Usage limit reached')
     this.name = 'BillingLimitError'
   }

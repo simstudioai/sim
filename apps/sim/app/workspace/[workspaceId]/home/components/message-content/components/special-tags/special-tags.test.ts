@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
  */
 vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
+import { formatUsageUpgradeTag } from '@/lib/billing/usage-upgrade'
 import type {
   ContentSegment,
   CredentialItemData,
@@ -873,5 +874,23 @@ describe('source tag', () => {
 
       expect(segments.some((segment) => segment.type === 'source')).toBe(false)
     }
+  })
+})
+
+describe('usage card written to a worker log', () => {
+  it('renders the card Sim hands the worker when the text is replayed after a reload', () => {
+    const usageUpgrade = {
+      reason: 'usage_limit',
+      action: 'increase_limit',
+      message: "You've reached your usage limit for this billing period.",
+    } as const
+    const replayed = `Finished the first report.${formatUsageUpgradeTag(usageUpgrade)}`
+
+    const { segments } = parseSpecialTags(replayed, false)
+
+    expect(segments).toEqual([
+      { type: 'text', content: 'Finished the first report.' },
+      { type: 'usage_upgrade', data: usageUpgrade },
+    ])
   })
 })

@@ -3,6 +3,7 @@ import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-message
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { usageUpgradePayloadSchema } from '@/lib/api/contracts/subscription'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
@@ -272,6 +273,38 @@ export const validateCopilotApiKeyResponseSchema = z.object({
 })
 export type ValidateCopilotApiKeyResponse = z.output<typeof validateCopilotApiKeyResponseSchema>
 
+export const COPILOT_USAGE_LIMIT_EXCEEDED_CODE = 'USAGE_LIMIT_EXCEEDED'
+export const COPILOT_BILLING_BLOCKED_CODE = 'BILLING_BLOCKED'
+
+/**
+ * A continuation refused because the run's original payer is over its usage limit. A worker
+ * polling continuation validation mid-run writes `usageUpgrade` as a `<usage_upgrade>` tag into
+ * its log and pauses the run for the limit.
+ */
+export const validateCopilotApiKeyUsageExceededSchema = z.object({
+  code: z.literal(COPILOT_USAGE_LIMIT_EXCEEDED_CODE),
+  error: z.string(),
+  usageUpgrade: usageUpgradePayloadSchema,
+})
+export type ValidateCopilotApiKeyUsageExceeded = z.output<
+  typeof validateCopilotApiKeyUsageExceededSchema
+>
+
+/** A continuation refused because the actor or payer account is blocked (payment, dispute). */
+export const validateCopilotApiKeyBillingBlockedSchema = z.object({
+  code: z.literal(COPILOT_BILLING_BLOCKED_CODE),
+  error: z.string(),
+})
+export type ValidateCopilotApiKeyBillingBlocked = z.output<
+  typeof validateCopilotApiKeyBillingBlockedSchema
+>
+
+/** A continuation 402 carries one of these bodies; a new turn's 402 is empty. */
+export const validateCopilotApiKeyRefusalSchema = z.union([
+  validateCopilotApiKeyUsageExceededSchema,
+  validateCopilotApiKeyBillingBlockedSchema,
+])
+
 export const listCopilotApiKeysContract = defineRouteContract({
   method: 'GET',
   path: '/api/copilot/api-keys',
@@ -394,7 +427,15 @@ export const validateCopilotApiKeyContract = defineRouteContract({
   path: '/api/copilot/api-keys/validate',
   headers: validateCopilotApiKeyHeadersSchema,
   body: validateCopilotApiKeyBodySchema,
-  response: { mode: 'json', schema: validateCopilotApiKeyResponseSchema },
+  response: {
+    mode: 'json',
+    schema: validateCopilotApiKeyResponseSchema,
+    status: [200, 402],
+    statusSchemas: {
+      200: validateCopilotApiKeyResponseSchema,
+      402: validateCopilotApiKeyRefusalSchema,
+    },
+  },
   error: validateCopilotApiKeyErrorSchema,
 })
 

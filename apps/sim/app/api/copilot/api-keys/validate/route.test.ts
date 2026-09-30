@@ -6,6 +6,7 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
 import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import {
   billingSubscriptionMock,
@@ -63,7 +64,7 @@ const ATTRIBUTION = {
   billingEntity: { type: 'organization' as const, id: 'org-1' },
   billingPeriod: {
     start: '2026-07-01T00:00:00.000Z',
-    end: '2026-08-01T00:00:00.000Z',
+    end: '2099-01-01T00:00:00.000Z',
     source: 'reporting' as const,
   },
   payerSubscription: null,
@@ -75,7 +76,7 @@ const ACCOUNT_BILLING_DECISION = {
   billingEntity: { type: 'organization' as const, id: 'account-org' },
   billingPeriod: {
     start: '2026-07-01T00:00:00.000Z',
-    end: '2026-08-01T00:00:00.000Z',
+    end: '2099-01-01T00:00:00.000Z',
     source: 'reporting' as const,
   },
 }
@@ -118,6 +119,8 @@ vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMoc
 
 vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
@@ -138,6 +141,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
+import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
+import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
 
 const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
@@ -146,7 +151,13 @@ const { mockAuthorizeOrganizationChatDelegation: mockAuthorizeOrganizationChat }
   mothershipOrganizationChatsMockFns
 const { mockDeriveBillingContext } = billingUsageLogMockFns
 const { mockGetHighestPrioritySubscription } = billingPlanMockFns
-const { mockCheckServerSideUsageLimits } = billingUsageMonitorMockFns
+const { mockGetOrganizationSubscription } = billingCoreMockFns
+const {
+  mockCheckBillingBlocked,
+  mockCheckBillingEntityBlocked,
+  mockCheckServerSideUsageLimits,
+  mockCheckUsageStatus,
+} = billingUsageMonitorMockFns
 
 const mockIsEnterprisePlan = billingSubscriptionMockFns.mockIsEnterprisePlan
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
@@ -389,6 +400,9 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
   })
 
   it('admits a direct-v1 key without Redis while ignoring a local workspace ID', async () => {
+    mockSerializeAccountBillingDecisionHeader.mockImplementation((decision: object) =>
+      encodeURIComponent(JSON.stringify(decision))
+    )
     mockGetUserEntityPermissions.mockResolvedValueOnce(null)
     mockGetWorkspaceBillingSettings.mockResolvedValueOnce({
       billedAccountUserId: 'different-owner',
@@ -415,8 +429,9 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
     expect(mockGetWorkspaceBillingSettings).not.toHaveBeenCalled()
-    expect(mockSerializeAccountBillingDecisionHeader).toHaveBeenCalledWith(ACCOUNT_BILLING_DECISION)
-    expect(res.headers.get('x-sim-billing-account-decision')).toBe('serialized-account-decision')
+    expect(
+      JSON.parse(decodeURIComponent(res.headers.get('x-sim-billing-account-decision') ?? ''))
+    ).toEqual({ ...ACCOUNT_BILLING_DECISION, payerSubscriptionId: ACCOUNT_SUBSCRIPTION.id })
   })
 
   it('fails direct-v1 admission closed when its payer cannot be resolved', async () => {
@@ -506,7 +521,21 @@ describe('validation lifecycle purposes', () => {
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockAuthorizeCallback.mockReset().mockResolvedValue(undefined)
     mockCheckContinuationBilling.mockReset().mockResolvedValue({ blocked: false })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 1, limit: 10 })
+    mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
+    mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: false })
     mockIsEnterprisePlan.mockResolvedValue(false)
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-org-1',
+      referenceId: 'org-1',
+      plan: 'enterprise',
+      status: 'active',
+      periodStart: new Date(ATTRIBUTION.billingPeriod.start),
+      periodEnd: new Date(ATTRIBUTION.billingPeriod.end),
+    })
+    resetUsageGateCache()
+    resetMidRunUsageCaches()
   })
 
   it('defaults older callers to full admission and rejects unknown purposes', () => {
@@ -516,7 +545,7 @@ describe('validation lifecycle purposes', () => {
     ).toBe(false)
   })
 
-  it('checks original payer and current scope without repeating spend admission', async () => {
+  it('checks original payer, current scope, and the original payer spend', async () => {
     const response = await POST(request(body, attributedHeaders))
     expect(response.status).toBe(200)
     expect(mockAuthorizeCallback).toHaveBeenCalledWith({ ...body, delegationId: requestId })
@@ -527,7 +556,6 @@ describe('validation lifecycle purposes', () => {
     expect(mockAuthorizeCallback.mock.invocationCallOrder[0]).toBeLessThan(
       mockCheckContinuationBilling.mock.invocationCallOrder[0]
     )
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
     expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
@@ -551,6 +579,23 @@ describe('validation lifecycle purposes', () => {
     expect(mockDeriveBillingContext).not.toHaveBeenCalled()
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
     expect(response.headers.get('x-sim-billing-account-decision')).toBeNull()
+  })
+
+  it('refuses a direct-v1 continuation whose account is over its usage limit', async () => {
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
+
+    const response = await POST(request(body, directHeaders))
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'USAGE_LIMIT_EXCEEDED',
+      usageUpgrade: { reason: 'usage_limit' },
+    })
+  })
+
+  it('admits a direct-v1 continuation whose usage cannot be read', async () => {
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, unavailable: true })
+    expect((await POST(request(body, directHeaders))).status).toBe(200)
   })
 
   it.each([
@@ -638,9 +683,184 @@ describe('validation lifecycle purposes', () => {
   })
 
   it.each(['actor', 'payer'])('refuses a newly blocked %s on continuation', async (scope) => {
-    mockCheckContinuationBilling.mockResolvedValueOnce({ blocked: true, scope })
-    expect((await POST(request(body, attributedHeaders))).status).toBe(402)
+    mockCheckContinuationBilling.mockResolvedValueOnce({
+      blocked: true,
+      scope,
+      message: 'Billing account frozen.',
+    })
+    const response = await POST(request(body, attributedHeaders))
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      code: 'BILLING_BLOCKED',
+      error: 'Billing account frozen.',
+    })
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('refuses a payer the usage gate finds blocked as blocked, without the usage card', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'billing_blocked',
+      message: 'Organization billing issue.',
+      scope: 'payer',
+    })
+    const response = await POST(request(body, attributedHeaders))
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      code: 'BILLING_BLOCKED',
+      error: 'Organization billing issue.',
+    })
+  })
+
+  it('admits a polled continuation whose spend cannot be read', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+    })
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out'))
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+  })
+
+  it('refuses a continuation over its usage limit with the card the worker writes', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    const response = await POST(request(body, attributedHeaders))
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      code: 'USAGE_LIMIT_EXCEEDED',
+      error: expect.stringContaining('usage limit'),
+      usageUpgrade: {
+        reason: 'usage_limit',
+        action: 'upgrade_plan',
+        message: expect.stringContaining('usage limit'),
+      },
+    })
+  })
+
+  it('answers a polled re-check from the cached admission and always re-reads a refusal', async () => {
+    for (let call = 0; call < 2; call++) queueTableRows(schemaMock.user, [{ id: 'user-1' }])
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+    for (let poll = 0; poll < 2; poll++) {
+      expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    }
+
+    resetUsageGateCache()
+    expect((await POST(request(body, attributedHeaders))).status).toBe(402)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+  })
+
+  it('checks the payer saved at admission for a direct-v1 run whose actor changed orgs', async () => {
+    const endedDecision = {
+      ...ACCOUNT_BILLING_DECISION,
+      billingPeriod: { start: '2026-06-01T00:00:00.000Z', end: '2026-07-01T00:00:00.000Z' },
+    }
+    mockGetHighestPrioritySubscription.mockResolvedValue({
+      id: 'sub-new-org',
+      referenceId: 'new-org',
+      plan: 'team',
+      status: 'active',
+      periodStart: new Date('2026-07-01T00:00:00.000Z'),
+      periodEnd: new Date('2099-01-01T00:00:00.000Z'),
+    })
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-account-org',
+      referenceId: 'account-org',
+      plan: 'team',
+      status: 'active',
+      periodStart: new Date('2026-07-01T00:00:00.000Z'),
+      periodEnd: new Date('2099-01-01T00:00:00.000Z'),
+    })
+    mockCheckUsageStatus.mockImplementation(
+      async (
+        _userId: string,
+        _subscription: unknown,
+        context?: { billingEntity: { id: string } }
+      ) => ({
+        isExceeded: context?.billingEntity.id === 'account-org',
+        currentUsage: 12,
+        limit: 10,
+      })
+    )
+
+    const response = await POST(
+      request(body, { ...directHeaders, 'x-sim-billing-account-decision': encode(endedDecision) })
+    )
+
+    expect(response.status).toBe(402)
+  })
+
+  it('answers repeated direct-v1 continuations from the cached admission and re-reads a refusal', async () => {
+    for (let call = 0; call < 2; call++) queueTableRows(schemaMock.user, [{ id: 'user-1' }])
+    expect((await POST(request(body, directHeaders))).status).toBe(200)
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
+    for (let leg = 0; leg < 2; leg++) {
+      expect((await POST(request(body, directHeaders))).status).toBe(200)
+    }
+
+    resetMidRunUsageCaches()
+    expect((await POST(request(body, directHeaders))).status).toBe(402)
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 1, limit: 10 })
+    expect((await POST(request(body, directHeaders))).status).toBe(200)
+  })
+
+  it('never reads the usage gate for an attributed continuation when billing is off', async () => {
+    setEnvFlags({ isHosted: false, isBillingEnabled: false })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+  })
+
+  it('never reads the ledger for a direct-v1 continuation when billing is off', async () => {
+    setEnvFlags({ isHosted: false, isBillingEnabled: false })
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
+
+    expect((await POST(request(body, directHeaders))).status).toBe(200)
+  })
+
+  it('judges a direct-v1 reporting-window run against its admitted window after it ends', async () => {
+    const admittedWindow = {
+      ...ACCOUNT_BILLING_DECISION,
+      billingPeriod: {
+        start: '2026-06-01T00:00:00.000Z',
+        end: '2026-07-01T00:00:00.000Z',
+        source: 'reporting' as const,
+      },
+    }
+    mockCheckUsageStatus.mockImplementation(
+      async (
+        _userId: string,
+        _subscription: unknown,
+        context?: { billingPeriod: { start: Date } }
+      ) => ({
+        isExceeded:
+          context?.billingPeriod.start.toISOString() === admittedWindow.billingPeriod.start,
+        currentUsage: 12,
+        limit: 10,
+      })
+    )
+
+    const response = await POST(
+      request(body, { ...directHeaders, 'x-sim-billing-account-decision': encode(admittedWindow) })
+    )
+
+    expect(response.status).toBe(402)
+  })
+
+  it('judges a direct-v1 organization payer without a subscription as that organization', async () => {
+    mockGetOrganizationSubscription.mockResolvedValue(null)
+    mockCheckUsageStatus.mockImplementation(
+      async (_userId: string, subscription: { referenceId?: string } | null) => ({
+        isExceeded: subscription?.referenceId === 'account-org',
+        currentUsage: 12,
+        limit: 10,
+      })
+    )
+
+    expect((await POST(request(body, directHeaders))).status).toBe(402)
   })
 
   it('allows cancellation without billing material or spending/standing/plan checks', async () => {
@@ -752,7 +972,6 @@ describe('validation lifecycle purposes', () => {
     expect((await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))).status).toBe(
       402
     )
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(1)
     expect((await POST(request({ ...body, purpose: 'new-turn' }, directHeaders))).status).toBe(400)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })

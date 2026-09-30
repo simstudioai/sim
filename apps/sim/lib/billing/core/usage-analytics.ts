@@ -513,6 +513,10 @@ export function usageBucketTimestamps(
  * cost in place for as long as its stream runs — which {@link STREAM_TIMEOUT_MS}
  * caps — plus the retry flushes that follow it. Past the cap and this margin a day or
  * hour can no longer change and is treated as settled.
+ *
+ * Without a run deadline a Chat turn can top up its row for longer than that, so a
+ * settled hour's cached aggregate can under-report that turn's later spend. This is
+ * display only: invoices, threshold billing, and the usage gate read live ledger sums.
  */
 export const USAGE_SETTLE_MS = STREAM_TIMEOUT_MS + 2 * 60 * 60 * 1000
 

@@ -509,7 +509,13 @@ export async function runCopilotLifecycle(
         // The worker terminal was already delivered before the relay died.
         // Rebuild persistence from that receipt without charging its usage twice.
       } else if (admission.isExceeded) {
-        await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
+        await handleBillingLimitResponse(
+          execContext.userId,
+          context,
+          execContext,
+          lifecycleOptions,
+          'scope' in admission ? admission.scope : undefined
+        )
       } else {
         if (!isContinuation && hostedBillingRequest)
           await lifecycleOptions.onBillingAdmission?.(hostedBillingRequest)
@@ -518,14 +524,29 @@ export async function runCopilotLifecycle(
           requestPayload,
           lifecycleOptions.workspaceId
         )
-        await runCheckpointLoop(
-          modelSafeRequestPayload,
-          context,
-          execContext,
-          lifecycleOptions,
-          goRoute,
-          hostedBillingRequest
-        )
+        try {
+          await runCheckpointLoop(
+            modelSafeRequestPayload,
+            context,
+            execContext,
+            lifecycleOptions,
+            goRoute,
+            hostedBillingRequest
+          )
+        } catch (error) {
+          // A continuation refused on spend, or a worker 402 on any leg, ends the turn with the
+          // same card as a refused dispatch and stops the worker run.
+          if (!(error instanceof BillingLimitError)) throw error
+          context.awaitingAsyncContinuation = undefined
+          await handleBillingLimitResponse(
+            error.userId,
+            context,
+            execContext,
+            lifecycleOptions,
+            error.scope
+          )
+          await stopWorkerRunAfterUsageRefusal(context.messageId, execContext)
+        }
       }
 
       // The backend's terminal `complete` is the turn's verdict. A failure it
@@ -1228,10 +1249,6 @@ async function runCheckpointLoop(
     } catch (streamError) {
       context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
       context.trace.setActiveSpan(undefined)
-      if (streamError instanceof BillingLimitError) {
-        await handleBillingLimitResponse(streamError.userId, context, execContext, options)
-        break
-      }
       const backoff = retry?.nextDelay(streamError, options.abortSignal) ?? null
       if (backoff !== null) {
         /** A recovered connection must not finalize with an earlier transport failure. */
@@ -1689,6 +1706,32 @@ function causeForLog(error: unknown): { cause?: string } {
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
   return !!(options.abortSignal?.aborted || context.wasAborted)
+}
+
+/**
+ * A refused continuation leaves the worker run parked on its checkpoint, and a parked run holds
+ * the chat: the next message would be refused as busy until the sweeper expires it. Stopping it
+ * frees the chat, so the message sent after an upgrade continues the conversation.
+ */
+async function stopWorkerRunAfterUsageRefusal(
+  streamId: string,
+  execContext: Pick<ExecutionContext, 'userId' | 'chatId'>
+): Promise<void> {
+  try {
+    const { requestExplicitStreamAbort } = await import(
+      '@/lib/mothership/request/session/explicit-abort'
+    )
+    await requestExplicitStreamAbort({
+      streamId,
+      userId: execContext.userId,
+      chatId: execContext.chatId,
+    })
+  } catch (error) {
+    logger.warn('Worker stop after a usage-limit refusal was not delivered', {
+      streamId,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 function cancelPendingTools(context: StreamingContext): void {
