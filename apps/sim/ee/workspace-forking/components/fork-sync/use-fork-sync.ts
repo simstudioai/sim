@@ -775,13 +775,16 @@ export function useForkSync(params: {
 
   const dirty = targetsDirty || reconfigDirty
 
-  const copySelectionChanged = useMemo(() => {
-    if (!copyDefaulted) return false
-    const defaults = forkDefaultCopySelection(copyableUnmapped)
-    if (defaults.size !== copySelected.size) return true
-    for (const key of copySelected) if (!defaults.has(key)) return true
-    return false
-  }, [copyDefaulted, copyableUnmapped, copySelected])
+  // Compared over the visible candidates only - the ones a sync would send - so keys left behind
+  // by a completed copy never read as a change. A candidate defaults to selected when referenced.
+  const copySelectionChanged = useMemo(
+    () =>
+      copyDefaulted &&
+      visibleCopyables.some(
+        (candidate) => copySelected.has(forkRefKey(candidate)) !== candidate.referenced
+      ),
+    [copyDefaulted, visibleCopyables, copySelected]
+  )
 
   const hasSessionChoices =
     dirty ||
@@ -887,6 +890,8 @@ export function useForkSync(params: {
     setSubmitting(true)
     const submittedTargets = targets
     const submittedReconfig = reconfig
+    const submittedDroppedRefs = droppedRefs
+    const submittedTriggerAdoptions = triggerAdoptions
     // Capture every payload from the state at confirm time, before any await - the page's
     // controls stay mounted during the run (unlike the old modal, which blocked its UI), so a
     // mid-flight edit must not leak into the promote body.
@@ -982,10 +987,13 @@ export function useForkSync(params: {
       }
 
       // The run committed the in-session choices: the mapping entries and dependent values are
-      // stored. Drop only the exact snapshots it submitted; edits made while the request was in
-      // flight were not committed by this run and must remain available for the next Save/Sync.
+      // stored, and the accepted drops and trigger choices are applied. Drop only the exact
+      // snapshots it submitted; edits made while the request was in flight were not committed by
+      // this run and must remain available for the next Save/Sync.
       setTargets((current) => (current === submittedTargets ? {} : current))
       setReconfig((current) => (current === submittedReconfig ? {} : current))
+      setDroppedRefs((current) => (current === submittedDroppedRefs ? new Set() : current))
+      setTriggerAdoptions((current) => (current === submittedTriggerAdoptions ? {} : current))
 
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
