@@ -63,7 +63,7 @@ const ATTRIBUTION = {
   billingEntity: { type: 'organization' as const, id: 'org-1' },
   billingPeriod: {
     start: '2026-07-01T00:00:00.000Z',
-    end: '2026-08-01T00:00:00.000Z',
+    end: '2099-01-01T00:00:00.000Z',
     source: 'reporting' as const,
   },
   payerSubscription: null,

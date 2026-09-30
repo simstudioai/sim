@@ -314,36 +314,50 @@ describe('Cumulative billing with PostgreSQL', () => {
   )
 
   describe('a request that outlives its billing period', () => {
+    // Past periods: the old period's row is written under the subscription lock only once
+    // that period has ended.
     const periods = [
-      new Date('2026-09-01T00:00:00.000Z'),
-      new Date('2026-10-01T00:00:00.000Z'),
-      new Date('2026-11-01T00:00:00.000Z'),
-      new Date('2026-12-01T00:00:00.000Z'),
+      new Date('2025-09-01T00:00:00.000Z'),
+      new Date('2025-10-01T00:00:00.000Z'),
+      new Date('2025-11-01T00:00:00.000Z'),
+      new Date('2025-12-01T00:00:00.000Z'),
     ]
     const payer = { type: 'organization', id: 'payer' } as const
 
-    async function setSubscriptionPeriod(index: number) {
+    async function setSubscriptionWindow(start: Date, end: Date) {
       await connection`
         insert into subscription (id, period_start, period_end)
-        values ('sub-1', ${periods[index].toISOString()}::timestamptz at time zone 'UTC', ${periods[index + 1].toISOString()}::timestamptz at time zone 'UTC')
+        values ('sub-1', ${start.toISOString()}::timestamptz at time zone 'UTC', ${end.toISOString()}::timestamptz at time zone 'UTC')
         on conflict (id) do update
           set period_start = excluded.period_start, period_end = excluded.period_end
       `
     }
 
-    function charge(cost: number) {
-      return recordCumulativeUsage({ ...usage(cost), payerSubscriptionId: 'sub-1' })
+    async function setSubscriptionPeriod(index: number) {
+      await setSubscriptionWindow(periods[index], periods[index + 1])
+    }
+
+    function charge(cost: number, frozen = { start: periods[0], end: periods[1] }) {
+      return recordCumulativeUsage({
+        ...usage(cost),
+        billingPeriod: frozen,
+        payerSubscriptionId: 'sub-1',
+      })
     }
 
     /** What the cycle close invoices for one period: the ledger rows stamped with it. */
-    async function stampedTotal(index: number) {
+    async function stampedWindowTotal(from: Date, to: Date) {
       const byUser = await getStampedPeriodRangeUsageCostByUser(
         payer,
-        { from: periods[index], to: periods[index + 1] },
+        { from, to },
         undefined,
         database
       )
       return [...byUser.values()].reduce((total, cost) => total + cost, 0)
+    }
+
+    function stampedTotal(index: number) {
+      return stampedWindowTotal(periods[index], periods[index + 1])
     }
 
     it('invoices a charge that spans a period close exactly once in total', async () => {
@@ -409,6 +423,51 @@ describe('Cumulative billing with PostgreSQL', () => {
         await inFlight
       }
       expect(await stampedTotal(0)).toBeCloseTo(0.6, 9)
+    })
+
+    it('rolls into a period whose start moved forward before the old period ended', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      const resetStart = new Date('2025-09-15T00:00:00.000Z')
+      const resetEnd = new Date('2025-10-15T00:00:00.000Z')
+      await setSubscriptionWindow(resetStart, resetEnd)
+
+      expect(await charge(1)).toMatchObject({
+        billed: true,
+        billingPeriod: { start: resetStart, end: resetEnd },
+      })
+      expect(await stampedTotal(0)).toBeCloseTo(0.4, 9)
+      expect(await stampedWindowTotal(resetStart, resetEnd)).toBeCloseTo(0.6, 9)
+    })
+
+    it('does not hold the rollover while the latest period is still running', async () => {
+      const start = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      const end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      await setSubscriptionWindow(start, end)
+      await charge(0.4, { start, end })
+      const pause = pauseNextTransaction()
+      const inFlight = charge(0.6, { start, end })
+      try {
+        await pause.reached.promise
+        await connection.begin(async (tx) => {
+          await tx`select set_config('lock_timeout', '300ms', true)`
+          await tx`update subscription set period_end = period_end where id = 'sub-1'`
+        })
+      } finally {
+        pause.release.resolve()
+        await inFlight
+      }
+    })
+
+    it('refuses a request key that could collide with its period rows', async () => {
+      await setSubscriptionPeriod(0)
+      await expect(
+        recordCumulativeUsage({
+          ...usage(0.4, 'update-cost:request@1'),
+          payerSubscriptionId: 'sub-1',
+        })
+      ).rejects.toThrow('@')
+      expect(await ledgerRows()).toEqual([])
     })
   })
 })

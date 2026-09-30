@@ -22,7 +22,7 @@ const attribution = {
   organizationId: 'original-org',
   billedAccountUserId: 'original-owner',
   billingEntity: { type: 'organization' as const, id: 'original-org' },
-  billingPeriod: { start: '2026-09-01T00:00:00.000Z', end: '2026-10-01T00:00:00.000Z' },
+  billingPeriod: { start: '2026-09-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
   payerSubscription: null,
 }
 const context = {
@@ -120,5 +120,19 @@ describe('continuation admission', () => {
 
     await expect(refusal).rejects.toBeInstanceOf(OrchestrationError)
     await expect(refusal).rejects.toThrow('blocked')
+  })
+  it('lets a leg run once its admitted period has ended instead of judging the old period', async () => {
+    mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    await expect(
+      authorizeLifecycleContinuation({
+        ...context,
+        billingAttribution: {
+          ...attribution,
+          billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+        },
+      })
+    ).resolves.toBeUndefined()
+    expect(mockCheckExecutionUsageLimits).not.toHaveBeenCalled()
   })
 })

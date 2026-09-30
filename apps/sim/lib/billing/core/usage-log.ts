@@ -591,6 +591,13 @@ export interface RecordCumulativeUsageParams {
    * recorded in a new row stamped with the subscription's current period, so a request that
    * outlives its billing period is invoiced by the period it was spent in rather than topping up
    * a period that has already been closed. Omit it for reporting-window and free payers.
+   *
+   * Mixed versions: code that predates period rows reads only the request key. If such code
+   * (during a deploy, or after a rollback) handles a later callback for a request that already
+   * has period rows, it re-adds those rows' amount to the first row. That only double-counts
+   * when it lands between the rollover and that period's close, which waits at least an hour,
+   * and only for runs spanning a rollover; the exposure is one run's post-rollover spend, cents
+   * to dollars.
    */
   payerSubscriptionId?: string
 }
@@ -612,7 +619,10 @@ export interface RecordCumulativeUsageResult {
  */
 const MAX_CUMULATIVE_PERIOD_ROWS = 12
 
-/** The ledger key of the `index`-th period a cumulative request rolled into; 0 is the request key. */
+/**
+ * The ledger key of the `index`-th period a cumulative request rolled into; 0 is the request key.
+ * A request key may not itself contain `@`, so these keys never collide with another request's.
+ */
 function cumulativePeriodEventKey(eventKey: string, index: number): string {
   return index === 0 ? eventKey : `${eventKey}@${index}`
 }
@@ -774,6 +784,9 @@ export async function recordCumulativeUsage(
   }
 
   const billingContext = await resolveBillingContext(userId, billingEntity, billingPeriod)
+  if (payerSubscriptionId && eventKey.includes('@')) {
+    throw new Error(`Cumulative usage event "${eventKey}" must not contain "@"`)
+  }
 
   const startedAt = Date.now()
   let stage: CumulativeUsageStage = 'pool'
@@ -808,20 +821,6 @@ export async function recordCumulativeUsage(
       await acquireAdvisoryXactLock(tx, 'usage_log_event', eventKey)
 
       enterStage('read')
-      // The payer's current period, share-locked so a rollover of the subscription waits for
-      // this top-up to commit: whatever a close later sums for the old period is final.
-      const [currentPeriod] = payerSubscriptionId
-        ? await tx
-            .select({
-              start: subscriptionTable.periodStart,
-              end: subscriptionTable.periodEnd,
-            })
-            .from(subscriptionTable)
-            .where(eq(subscriptionTable.id, payerSubscriptionId))
-            .for('share')
-            .limit(1)
-        : []
-
       const rows = await tx
         .select({
           id: usageLog.id,
@@ -881,12 +880,34 @@ export async function recordCumulativeUsage(
         return { billed: false, delta: 0, total: recorded, billingPeriod: latestPeriod }
       }
 
-      // Only ever forward: a subscription period that is not past the latest row keeps topping
-      // up that row, whatever the wall clock or a replayed webhook says.
+      // The payer's current period. Once the latest row's period has ended, the read is
+      // share-locked so a rollover of the subscription waits for this top-up to commit, and
+      // whatever the close later sums for the old period is final. Before that no close can be
+      // due, and locking every callback would starve the rollover UPDATE for a busy payer.
+      const periodQuery = payerSubscriptionId
+        ? tx
+            .select({
+              start: subscriptionTable.periodStart,
+              end: subscriptionTable.periodEnd,
+            })
+            .from(subscriptionTable)
+            .where(eq(subscriptionTable.id, payerSubscriptionId))
+            .limit(1)
+        : null
+      const [currentPeriod] = periodQuery
+        ? Date.now() >= latestPeriod.end.getTime()
+          ? await periodQuery.for('share')
+          : await periodQuery
+        : []
+
+      // Only ever forward: a subscription period that does not start after the latest row's
+      // keeps topping up that row, whatever the wall clock or a replayed webhook says. A start
+      // that moved forward inside the old period (anchor reset, resync) still rolls, so the old
+      // period's close is never topped up after the fact.
       const rolledPeriod =
         currentPeriod?.start &&
         currentPeriod.end &&
-        currentPeriod.start.getTime() >= latestPeriod.end.getTime()
+        currentPeriod.start.getTime() > latestPeriod.start.getTime()
           ? { start: currentPeriod.start, end: currentPeriod.end }
           : null
       if (rolledPeriod && latest && chain.length >= MAX_CUMULATIVE_PERIOD_ROWS) {

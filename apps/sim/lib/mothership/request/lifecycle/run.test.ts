@@ -2343,7 +2343,7 @@ describe('runCopilotLifecycle', () => {
       organizationId: 'org-1',
       billedAccountUserId: 'original-owner',
       billingEntity: { type: 'organization' as const, id: 'org-1' },
-      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
       payerSubscription: null,
     }
     setEnvFlags({ isHosted: true })
@@ -2430,7 +2430,7 @@ describe('runCopilotLifecycle', () => {
       organizationId: 'org-1',
       billedAccountUserId: 'user-1',
       billingEntity: { type: 'organization' as const, id: 'org-1' },
-      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
       payerSubscription: null,
     }
     setEnvFlags({ isHosted: true })

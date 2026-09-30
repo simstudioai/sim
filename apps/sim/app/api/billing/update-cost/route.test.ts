@@ -852,6 +852,10 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
 
 describe('POST /api/billing/update-cost — mid-run usage gate', () => {
   let callbackSequence = 0
+  const CURRENT_ATTRIBUTION = {
+    ...ATTRIBUTION,
+    billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
+  }
 
   function attributedCallback() {
     callbackSequence += 1
@@ -881,7 +885,7 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
     mockCheckAndBillPayerOverageThreshold.mockResolvedValue(undefined)
-    mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
+    mockRequireBillingAttributionHeader.mockReturnValue(CURRENT_ATTRIBUTION)
     mockToBillingContext.mockReturnValue({
       billingEntity: { type: 'organization', id: 'org-1' },
       billingPeriod: {
@@ -906,12 +910,12 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
         message: expect.stringContaining('usage limit'),
       },
     })
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(CURRENT_ATTRIBUTION)
   })
 
   it('offers a paid organization payer the increase-limit card', async () => {
     mockRequireBillingAttributionHeader.mockReturnValue({
-      ...ATTRIBUTION,
+      ...CURRENT_ATTRIBUTION,
       payerSubscription: { id: 'sub-1', plan: 'team', status: 'active', seats: 4 },
     })
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
@@ -971,7 +975,7 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     beforeEach(() => {
       mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
       mockRequireBillingAttributionHeader.mockReturnValue({
-        ...ATTRIBUTION,
+        ...CURRENT_ATTRIBUTION,
         payerSubscription: PAYER_SUBSCRIPTION,
       })
     })
@@ -1059,6 +1063,16 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect(body).toMatchObject({
       usageUpgrade: { message: expect.stringMatching(/limit your organization set for you/) },
     })
+  })
+
+  it('does not judge a run against an admitted period that has already ended', async () => {
+    mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body.usageExceeded).toBe(false)
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 
   it('keeps a recorded charge successful when the gate read fails', async () => {
