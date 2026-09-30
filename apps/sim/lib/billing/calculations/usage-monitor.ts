@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -306,38 +306,6 @@ export async function checkBillingEntityBlocked(
  * @param userId The ID of the user to check
  * @returns An object containing the exceeded status and usage details
  */
-/**
- * A blocked account's ledger usage, for display only: `/api/users/me/usage-limits` exposes it as
- * `currentPeriodCost`. The account is blocked either way, so a failed read reports zero rather
- * than turning the blocked refusal into an unreadable-usage one.
- */
-async function readBlockedAccountUsage(
-  userId: string,
-  preloadedSubscription: UsageLimitSubscription | null | undefined,
-  preloadedBillingContext: BillingContext | undefined
-): Promise<number> {
-  try {
-    const sub =
-      preloadedSubscription !== undefined
-        ? preloadedSubscription
-        : await getHighestPrioritySubscription(userId)
-    const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
-    const billingEntity: BillingEntity =
-      subIsOrgScoped && sub
-        ? { type: 'organization', id: sub.referenceId }
-        : { type: 'user', id: userId }
-    const billingPeriod = preloadedBillingContext?.billingPeriod ??
-      resolveSubscriptionUsagePeriod(sub) ?? { ...defaultBillingPeriod(), source: 'default' }
-    return await getBillingPeriodUsageCost(billingEntity, billingPeriod)
-  } catch (error) {
-    logger.warn('Blocked account usage could not be read', {
-      userId,
-      error: getErrorMessage(error),
-    })
-    return 0
-  }
-}
-
 export async function checkServerSideUsageLimits(
   userId: string,
   preloadedSubscription?: UsageLimitSubscription | null,
@@ -347,8 +315,6 @@ export async function checkServerSideUsageLimits(
   currentUsage: number
   limit: number
   message?: string
-  /** Why a refusal is not a spent limit: a blocked account, or usage that could not be read. */
-  reason?: 'billing_blocked' | 'usage_unavailable'
 }> {
   try {
     if (!isBillingEnabled) {
@@ -363,18 +329,21 @@ export async function checkServerSideUsageLimits(
 
     const blocked = await checkBillingBlocked(userId)
     if (blocked.blocked) {
-      const currentUsage = await readBlockedAccountUsage(
-        userId,
-        preloadedSubscription,
-        preloadedBillingContext
-      )
-      return {
-        isExceeded: true,
-        currentUsage,
-        limit: 0,
-        message: blocked.message,
-        reason: 'billing_blocked',
-      }
+      // Enforcement stays blocked, but surfaced usage must be the real ledger
+      // value — `/api/users/me/usage-limits` exposes it as `currentPeriodCost`.
+      const sub =
+        preloadedSubscription !== undefined
+          ? preloadedSubscription
+          : await getHighestPrioritySubscription(userId)
+      const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
+      const billingEntity: BillingEntity =
+        subIsOrgScoped && sub
+          ? { type: 'organization', id: sub.referenceId }
+          : { type: 'user', id: userId }
+      const billingPeriod = preloadedBillingContext?.billingPeriod ??
+        resolveSubscriptionUsagePeriod(sub) ?? { ...defaultBillingPeriod(), source: 'default' }
+      const currentUsage = await getBillingPeriodUsageCost(billingEntity, billingPeriod)
+      return { isExceeded: true, currentUsage, limit: 0, message: blocked.message }
     }
 
     const usageData = await checkUsageStatus(userId, preloadedSubscription, preloadedBillingContext)
@@ -395,7 +364,6 @@ export async function checkServerSideUsageLimits(
         : usageData.isExceeded
           ? exceededMessage
           : undefined,
-      ...(usageData.unavailable ? { reason: 'usage_unavailable' as const } : {}),
     }
   } catch (error) {
     logger.error('Error in server-side usage limit check', {
@@ -412,7 +380,6 @@ export async function checkServerSideUsageLimits(
       isExceeded: true,
       currentUsage: 0,
       limit: 0,
-      reason: 'usage_unavailable',
       message:
         error instanceof Error && error.message.includes('No user stats record found')
           ? 'User account not properly initialized. Please contact support.'

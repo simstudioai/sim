@@ -621,7 +621,8 @@ const MAX_CUMULATIVE_PERIOD_ROWS = 12
 
 /**
  * The ledger key of the `index`-th period a cumulative request rolled into; 0 is the request key.
- * No cumulative request key may contain `@`, so these keys never collide with another request's.
+ * The cost callback refuses a request key containing `@`, so these never collide with another
+ * request's.
  */
 function cumulativePeriodEventKey(eventKey: string, index: number): string {
   return index === 0 ? eventKey : `${eventKey}@${index}`
@@ -784,9 +785,6 @@ export async function recordCumulativeUsage(
   }
 
   const billingContext = await resolveBillingContext(userId, billingEntity, billingPeriod)
-  if (eventKey.includes('@')) {
-    throw new Error(`Cumulative usage event "${eventKey}" must not contain "@"`)
-  }
 
   const startedAt = Date.now()
   let stage: CumulativeUsageStage = 'pool'

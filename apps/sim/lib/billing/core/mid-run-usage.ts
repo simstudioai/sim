@@ -62,11 +62,10 @@ function currentPeriodKey(attribution: BillingAttributionSnapshot): string {
 
 /** The admitted payer's attribution for its current subscription period. */
 async function currentAttribution(
-  attribution: BillingAttributionSnapshot,
-  fresh: boolean
+  attribution: BillingAttributionSnapshot
 ): Promise<BillingAttributionSnapshot> {
   const key = currentPeriodKey(attribution)
-  const cached = fresh ? undefined : currentPeriodCache.get(key)
+  const cached = currentPeriodCache.get(key)
   // A cached period that has since ended is stale: the payer may already be in the next one.
   if (cached && !periodHasEnded(cached)) return cached
   const current = await refreshAttributionPeriod(attribution)
@@ -109,9 +108,9 @@ async function readGateVerdict(
 /**
  * Judges a run against the period its charges land in. A Stripe-period payer's charges roll into
  * whatever period the subscription is in now (a rollover or an early anchor reset included), so
- * such a run is judged against the payer's CURRENT period: a read that straddles the end of that
- * period is judged again against the next one, and a current period that cannot be read makes
- * the verdict unknown, so the run continues. Any other payer's charges stay in the admitted
+ * such a run is judged against the payer's CURRENT period. A current period that cannot be read,
+ * or that ends before its verdict is read, makes the verdict unknown, so the run continues and the
+ * next callback judges the next period. Any other payer's charges stay in the admitted
  * period (a reporting window, or the open default one), so that period is judged, even after it
  * ends.
  */
@@ -120,21 +119,19 @@ export async function readMidRunUsageVerdict(
 ): Promise<MidRunUsageVerdict> {
   if (!isHosted || !isBillingEnabled) return { status: 'within' }
   if (!rollsIntoCurrentPeriod(attribution.billingPeriod)) return readGateVerdict(attribution)
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let judged: BillingAttributionSnapshot
-    try {
-      judged = await currentAttribution(attribution, attempt > 0)
-      if (periodHasEnded(judged)) return { status: 'unknown' }
-    } catch (error) {
-      logger.warn('Current billing period could not be read; continuing the run', {
-        error: getErrorMessage(error),
-      })
-      return { status: 'unknown' }
-    }
-    const verdict = await readGateVerdict(judged)
-    if (!periodHasEnded(judged)) return verdict
+  let judged: BillingAttributionSnapshot
+  try {
+    judged = await currentAttribution(attribution)
+  } catch (error) {
+    logger.warn('Current billing period could not be read; continuing the run', {
+      error: getErrorMessage(error),
+    })
+    return { status: 'unknown' }
   }
-  return { status: 'unknown' }
+  if (periodHasEnded(judged)) return { status: 'unknown' }
+  const verdict = await readGateVerdict(judged)
+  // A period that ended during the read is judged at the next callback, which reloads it.
+  return periodHasEnded(judged) ? { status: 'unknown' } : verdict
 }
 
 /**

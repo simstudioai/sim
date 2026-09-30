@@ -753,20 +753,6 @@ describe('validation lifecycle purposes', () => {
     expect((await POST(request(body, attributedHeaders))).status).toBe(200)
   })
 
-  it('refuses a new turn whose usage cannot be read with neutral copy', async () => {
-    mockCheckAttributedUsageLimits.mockResolvedValueOnce({
-      isExceeded: true,
-      reason: 'usage_unavailable',
-      message: 'Usage limit exceeded: $0.00 used of $0.00 limit.',
-      scope: 'payer',
-    })
-    const refused = await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))
-    expect(refused.status).toBe(402)
-    const refusal = await refused.json()
-    expect(refusal.code).toBe('USAGE_UNAVAILABLE')
-    expect(refusal.error).not.toMatch(/\$/)
-  })
-
   it('checks the payer saved at admission for a direct-v1 run whose actor changed orgs', async () => {
     const endedDecision = {
       ...ACCOUNT_BILLING_DECISION,
@@ -877,21 +863,6 @@ describe('validation lifecycle purposes', () => {
     expect((await POST(request(body, directHeaders))).status).toBe(402)
   })
 
-  it('refuses a blocked new turn with the blocked body the contract declares', async () => {
-    mockCheckAttributedUsageLimits.mockResolvedValueOnce({
-      isExceeded: true,
-      reason: 'billing_blocked',
-      message: 'Billing account frozen.',
-      scope: 'payer',
-    })
-    const refused = await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))
-    expect(refused.status).toBe(402)
-    await expect(refused.json()).resolves.toEqual({
-      code: 'BILLING_BLOCKED',
-      error: 'Billing account frozen.',
-    })
-  })
-
   it('allows cancellation without billing material or spending/standing/plan checks', async () => {
     const response = await POST(
       request({ ...body, purpose: 'cancellation' }, { 'x-sim-billing-protocol': 'attribution-v1' })
@@ -998,12 +969,9 @@ describe('validation lifecycle purposes', () => {
       isExceeded: true,
       payerUsage: { currentUsage: 120, limit: 100 },
     })
-    const refused = await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))
-    expect(refused.status).toBe(402)
-    await expect(refused.json()).resolves.toMatchObject({
-      code: 'USAGE_LIMIT_EXCEEDED',
-      usageUpgrade: { reason: 'usage_limit' },
-    })
+    expect((await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))).status).toBe(
+      402
+    )
     expect((await POST(request({ ...body, purpose: 'new-turn' }, directHeaders))).status).toBe(400)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })

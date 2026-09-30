@@ -9,9 +9,8 @@ import type { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -316,27 +315,40 @@ describe('Cumulative billing with PostgreSQL', () => {
 
   it("counts a reporting run's top-ups after its window ends in that window, and a later run's charges in the next", async () => {
     const payer = { type: 'organization', id: 'payer' } as const
-    const boundary = new Date(Date.now() + 1500)
-    const admitted = {
-      start: new Date(boundary.getTime() - 30 * 24 * 60 * 60 * 1000),
-      end: boundary,
+    const dayMs = 24 * 60 * 60 * 1000
+    // A reporting window is summed by when each row was created; the stamped period only binds a
+    // request's rows to each other.
+    const stamp = {
+      start: new Date('2026-01-01'),
+      end: new Date('2027-01-01'),
       source: 'reporting' as const,
     }
-    const next = {
-      start: boundary,
-      end: new Date(boundary.getTime() + 30 * 24 * 60 * 60 * 1000),
-      source: 'reporting' as const,
+    await recordCumulativeUsage({ ...usage(0.4, 'update-cost:long-run'), billingPeriod: stamp })
+    const [first] = await database
+      .select({ createdAt: schema.usageLog.createdAt })
+      .from(schema.usageLog)
+      .where(eq(schema.usageLog.eventKey, 'update-cost:long-run'))
+    // The admitted window ends right after the run's first charge, and every later write starts
+    // once the database clock has passed that boundary.
+    const boundary = new Date(first.createdAt.getTime() + 1)
+    for (;;) {
+      const [{ passed }] = await connection<{ passed: boolean }[]>`
+        select clock_timestamp()::timestamp > created_at + interval '1 millisecond' as passed
+        from usage_log where event_key = 'update-cost:long-run'
+      `
+      if (passed) break
     }
-    const windowTotal = (period: typeof admitted) =>
-      getBillingPeriodUsageCost(payer, period, undefined, database)
 
-    await recordCumulativeUsage({ ...usage(0.4, 'update-cost:long-run'), billingPeriod: admitted })
-    await sleep(boundary.getTime() - Date.now() + 100)
-    await recordCumulativeUsage({ ...usage(1, 'update-cost:long-run'), billingPeriod: admitted })
-    await recordCumulativeUsage({ ...usage(0.25, 'update-cost:next-run'), billingPeriod: next })
+    await recordCumulativeUsage({ ...usage(1, 'update-cost:long-run'), billingPeriod: stamp })
+    await recordCumulativeUsage({ ...usage(0.25, 'update-cost:next-run'), billingPeriod: stamp })
 
-    expect(await windowTotal(admitted)).toBeCloseTo(1, 9)
-    expect(await windowTotal(next)).toBeCloseTo(0.25, 9)
+    const windowTotal = (start: Date, end: Date) =>
+      getBillingPeriodUsageCost(payer, { start, end, source: 'reporting' }, undefined, database)
+    expect(await windowTotal(new Date(boundary.getTime() - 30 * dayMs), boundary)).toBeCloseTo(1, 9)
+    expect(await windowTotal(boundary, new Date(boundary.getTime() + 30 * dayMs))).toBeCloseTo(
+      0.25,
+      9
+    )
   })
 
   describe('a request that outlives its billing period', () => {
@@ -512,19 +524,5 @@ describe('Cumulative billing with PostgreSQL', () => {
       }
       expect(await stampedWindowTotal(start, end)).toBeCloseTo(0.6, 9)
     })
-
-    it.each([
-      ['with', { payerSubscriptionId: 'sub-1' }],
-      ['without', {}],
-    ])(
-      'refuses a request key that could collide with period rows %s a payer subscription',
-      async (_case, extra) => {
-        await setSubscriptionPeriod(0)
-        await expect(
-          recordCumulativeUsage({ ...usage(0.4, 'update-cost:request@1'), ...extra })
-        ).rejects.toThrow('@')
-        expect(await ledgerRows()).toEqual([])
-      }
-    )
   })
 })

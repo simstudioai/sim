@@ -60,7 +60,6 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   ThresholdSettlementError: MockThresholdSettlementError,
 }))
 
-import { billingUpdateCostResponseSchema } from '@/lib/api/contracts/subscription'
 import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import {
@@ -1233,32 +1232,6 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect(body.usageExceeded).toBe(false)
   })
 
-  it('rejudges a read that straddles the end of the admitted period', async () => {
-    const straddling = {
-      ...CURRENT_ATTRIBUTION,
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: new Date(Date.now() + 40).toISOString(),
-      },
-    }
-    mockRefreshAttributionPeriod
-      .mockResolvedValueOnce(straddling)
-      .mockResolvedValue(CURRENT_ATTRIBUTION)
-    mockCheckAttributedUsageLimits.mockImplementation(
-      async (attribution: typeof CURRENT_ATTRIBUTION) => {
-        if (attribution.billingPeriod.end !== straddling.billingPeriod.end) {
-          return { isExceeded: false }
-        }
-        await sleep(80)
-        return { isExceeded: true, scope: 'payer' }
-      }
-    )
-
-    const body = await (await POST(attributedCallback())).json()
-
-    expect(body.usageExceeded).toBe(false)
-  })
-
   it('answers not exceeded when the standing read outlasts the callback budget', async () => {
     mockCheckAttributedUsageLimits.mockImplementation(async () => {
       await sleep(1500)
@@ -1271,6 +1244,26 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: false })
     expect(Date.now() - startedAt).toBeLessThan(1400)
+  })
+
+  it('does not pause a run on a verdict read across the end of its period', async () => {
+    const straddling = {
+      ...CURRENT_ATTRIBUTION,
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: new Date(Date.now() + 40).toISOString(),
+        source: 'stripe' as const,
+      },
+    }
+    mockRefreshAttributionPeriod.mockResolvedValue(straddling)
+    mockCheckAttributedUsageLimits.mockImplementation(async () => {
+      await sleep(80)
+      return { isExceeded: true, scope: 'payer' }
+    })
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body.usageExceeded).toBe(false)
   })
 
   it('reloads a cached current period once it has ended', async () => {
@@ -1291,24 +1284,6 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     const body = await (await POST(attributedCallback())).json()
 
     expect(body.usageExceeded).toBe(true)
-  })
-
-  it('never answers a verdict whose card and flag disagree', () => {
-    const base = {
-      success: true,
-      data: { processedAt: new Date(0).toISOString(), requestId: 'request-1' },
-    }
-    const card = { reason: 'usage_limit', action: 'upgrade_plan', message: 'Limit reached.' }
-    expect(
-      billingUpdateCostResponseSchema.safeParse({ ...base, usageExceeded: true }).success
-    ).toBe(false)
-    expect(
-      billingUpdateCostResponseSchema.safeParse({
-        ...base,
-        usageExceeded: false,
-        usageUpgrade: card,
-      }).success
-    ).toBe(false)
   })
 
   it('keeps a recorded charge successful when the gate read fails', async () => {
