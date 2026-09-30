@@ -7,7 +7,11 @@
  */
 
 /** Diff state of an edge when comparing two workflow versions. */
-export type EdgeDiffStatus = 'new' | 'deleted' | 'unchanged' | null
+/**
+ * `deleted` is the Copilot preview's loud red dash; `ghost` is the version
+ * comparison's quiet trace of a connection that no longer exists.
+ */
+export type EdgeDiffStatus = 'new' | 'deleted' | 'ghost' | 'unchanged' | null
 
 /** Execution outcome of an edge for run-path visualization. */
 export type EdgeRunStatus = 'success' | 'error' | 'not-executed' | undefined
