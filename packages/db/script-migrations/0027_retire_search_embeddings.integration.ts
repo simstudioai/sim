@@ -257,7 +257,11 @@ describe('retiring dormant Search embeddings', () => {
     await sql`INSERT INTO embedding VALUES ('26003', 'second-search', 'second-search-doc')`
     await sql`CREATE TABLE deletion_blocker (id text REFERENCES embedding(id))`
     await sql`INSERT INTO deletion_blocker VALUES ('26002')`
-    /** Every committed delete sits at or behind the cursor; a failed page leaves all rows past it. */
+    /**
+     * Pages split by mutated rows under an adaptive limit, so how far each failed run gets depends
+     * on page geometry. The geometry-free invariant: every committed delete sits at or behind the
+     * cursor, and a failed page leaves every row past it (IDs 00001-26003 are contiguous).
+     */
     async function expectRolledBackPastCursor() {
       const [progress] = await sql`SELECT phase, after_id FROM search_embedding_cleanup_progress`
       expect(progress.phase).toBe('embeddings')
@@ -349,7 +353,11 @@ describe('retiring dormant Search embeddings', () => {
         sum(rows)::int AS total FROM committed_statement`
       expect(largest).toBeLessThanOrEqual(bound)
       expect(largest).toBeGreaterThan(0)
-      /** 2,286 unretired bulk documents plus `search-doc`, then 3,168 chunks; nothing twice. */
+      /**
+       * Documents: i % 3 <> 0 gives 2,667 Search rows, of which i % 7 = 0 leaves 381 retired, so
+       * 2,286 are updated, plus `search-doc`. Chunks: 501 Search rows from the fixture plus the
+       * 2,667 with i % 3 <> 0 among 1003-5002. Equality proves no row was mutated twice.
+       */
       expect(total).toBe(2287 + 3168)
       expect(
         (
@@ -362,6 +370,7 @@ describe('retiring dormant Search embeddings', () => {
           await sql`SELECT count(*)::int AS n FROM document
           WHERE knowledge_base_id = 'ordinary' AND NOT user_excluded AND enabled`
         )[0].n
+        /** `ordinary-doc` plus the 1,333 i % 3 = 0 rows, less the 190 of them seeded retired. */
       ).toBe(1 + 1333 - 190)
       expect(
         (await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'search'`)[0]
@@ -371,6 +380,7 @@ describe('retiring dormant Search embeddings', () => {
         (
           await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'ordinary'`
         )[0].n
+        /** 501 fixture chunks plus the 1,333 i % 3 = 0 rows among 1003-5002. */
       ).toBe(501 + 1333)
     } finally {
       await sql`DROP TRIGGER IF EXISTS bound_document_update ON document`
@@ -379,6 +389,35 @@ describe('retiring dormant Search embeddings', () => {
       await sql`DROP TABLE committed_statement`
     }
   }, 60_000)
+
+  it('fails at once on a timeout outside the page mutation instead of shrinking the page', async () => {
+    await sql`CREATE SEQUENCE completion_attempts`
+    /** Times out the completion checkpoint, a statement no smaller row limit can speed up. */
+    await sql`CREATE FUNCTION time_out_completion() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM nextval('completion_attempts');
+        RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = 'query_canceled';
+      END $$`
+    await sql`CREATE TABLE search_embedding_cleanup_progress (
+      id integer PRIMARY KEY CHECK (id = 1), knowledge_base_id text NOT NULL,
+      phase text NOT NULL CHECK (phase IN ('documents', 'embeddings', 'done')),
+      after_id text NOT NULL)`
+    await sql`CREATE TRIGGER time_out_completion BEFORE UPDATE ON search_embedding_cleanup_progress
+      FOR EACH ROW WHEN (NEW.phase = 'done') EXECUTE FUNCTION time_out_completion()`
+    try {
+      await expect(pass()).rejects.toMatchObject({ code: '57014' })
+      /** The sequence is not transactional, so it counts rolled-back attempts too. */
+      expect((await sql`SELECT last_value::int AS n FROM completion_attempts`)[0].n).toBe(1)
+      expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+      expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(501)
+      await sql`DROP TRIGGER time_out_completion ON search_embedding_cleanup_progress`
+      expect(await pass()).toBe(true)
+    } finally {
+      await sql`DROP TRIGGER IF EXISTS time_out_completion ON search_embedding_cleanup_progress`
+      await sql`DROP FUNCTION time_out_completion()`
+      await sql`DROP SEQUENCE completion_attempts`
+    }
+  })
 
   it('rejects inconsistent document ownership before deleting any chunk in the page', async () => {
     await sql`UPDATE embedding SET document_id = 'ordinary-doc' WHERE id = '00002'`
