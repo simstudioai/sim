@@ -2,7 +2,11 @@ import type { Span } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
+import {
+  type BillingUpdateCostResponse,
+  type BillingUsageVerdict,
+  billingUpdateCostContract,
+} from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import {
   type AccountBillingDecision,
@@ -18,6 +22,7 @@ import {
   resolveLegacyV0BillingAttribution,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
+import { readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
 import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
@@ -28,6 +33,7 @@ import {
   checkAndBillPayerOverageThreshold,
   ThresholdSettlementError,
 } from '@/lib/billing/threshold-billing'
+import { resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -55,6 +61,30 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
     },
     { status: 400 }
   )
+}
+
+/**
+ * Reads the run payer's standing after a cost callback, so a long run stops at its next step
+ * once it crosses the limit instead of at its next admission, with the card the worker writes
+ * to its log. A duplicate callback answers too: it is often a retry whose first answer was lost.
+ * Served from the execution usage gate: an admission is cached per payer and actor for the gate
+ * TTL and a refusal is always re-read, so steady-state steps cost no ledger read. The charge is
+ * already recorded when this runs; a gate that cannot answer reports not-exceeded and leaves the
+ * refusal to the next step or re-check rather than ending a paying run on a database blip.
+ */
+async function readUsageStanding(
+  userId: string,
+  billingAttribution: BillingAttributionSnapshot | undefined
+): Promise<BillingUsageVerdict> {
+  if (!isHosted || !billingAttribution) return { usageExceeded: false }
+  const verdict = await readMidRunUsageVerdict(billingAttribution)
+  // Only a spent limit pauses the run. A blocked account is refused at the run's next
+  // continuation or re-check, with blocked-account copy rather than the upgrade card.
+  if (verdict.status !== 'exceeded') return { usageExceeded: false }
+  return {
+    usageExceeded: true,
+    usageUpgrade: await resolveUsageUpgradePayload(userId, billingAttribution, verdict.scope),
+  }
 }
 
 function getBillingResolution(
@@ -112,9 +142,10 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     if (!isBillingEnabled) {
       span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.BillingDisabled)
       span.setAttribute(TraceAttr.HttpStatusCode, 200)
-      return NextResponse.json({
+      return NextResponse.json<BillingUpdateCostResponse>({
         success: true,
         message: 'Billing disabled, cost update skipped',
+        usageExceeded: false,
         data: {
           billingEnabled: false,
           processedAt: new Date().toISOString(),
@@ -312,6 +343,13 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
      * Every accepted callback has a stable key, so the maximum cumulative cost
      * converges on one ledger event without underbilling or double-billing.
      */
+    // A run that outlives its admitted Stripe period records later spend in the payer's current
+    // period (see `payerSubscriptionId`), so a closed period is never topped up. Reporting-window
+    // payers are closed from live anchors, and free payers have no close to miss.
+    const rolloverSubscriptionId =
+      billingAttribution && billingContext?.billingPeriod.source !== 'reporting'
+        ? (billingAttribution.payerSubscription?.id ?? undefined)
+        : undefined
     const usageStartedAt = Date.now()
     const result = await recordCumulativeUsage({
       userId,
@@ -322,6 +360,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       cost,
       eventKey: `update-cost:${idempotencyKey}`,
       metadata: { inputTokens, outputTokens },
+      ...(rolloverSubscriptionId ? { payerSubscriptionId: rolloverSubscriptionId } : {}),
     })
     const billed = result.billed
     logger.info(`[${requestId}] Cumulative cost top-up`, {
@@ -338,14 +377,33 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     // callback, including duplicate retries after a prior settlement failure.
     // Strict error handling lets Go retry until the committed usage is settled.
     if (billingContext) {
-      await checkAndBillPayerOverageThreshold(billingContext.billingEntity, {
-        onError: 'throw',
-        expectedBillingPeriod: billingContext.billingPeriod,
-      })
+      try {
+        await checkAndBillPayerOverageThreshold(billingContext.billingEntity, {
+          onError: 'throw',
+          expectedBillingPeriod: rolloverSubscriptionId
+            ? result.billingPeriod
+            : billingContext.billingPeriod,
+        })
+      } catch (error) {
+        // The charge committed while its period was still current (the subscription row was
+        // share-locked), so the period's close, which waits out its grace after the rollover,
+        // invoices it. Refusing here would make the worker drop the run's later charges.
+        if (
+          !rolloverSubscriptionId ||
+          !(error instanceof ThresholdSettlementError) ||
+          error.code !== 'billing_period_elapsed'
+        ) {
+          throw error
+        }
+        logger.info(`[${requestId}] Charge landed in a period that has since rolled over`, {
+          billingPeriodEnd: result.billingPeriod.end.toISOString(),
+        })
+      }
     } else {
       await checkAndBillOverageThreshold(userId, undefined, { onError: 'throw' })
     }
 
+    const usageVerdict = await readUsageStanding(userId, billingAttribution)
     const duration = Date.now() - startTime
 
     // Same-or-lower cumulative than already recorded: nothing new to bill.
@@ -365,6 +423,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
           code: BILLING_CALLBACK_OUTCOME.duplicateBillingEvent.code,
           error: BILLING_CALLBACK_OUTCOME.duplicateBillingEvent.message,
           requestId,
+          ...usageVerdict,
         },
         { status: 409 }
       )
@@ -374,13 +433,15 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       userId,
       duration,
       cost,
+      usageExceeded: usageVerdict.usageExceeded,
     })
 
     span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.Billed)
     span.setAttribute(TraceAttr.HttpStatusCode, 200)
     span.setAttribute(TraceAttr.BillingDurationMs, duration)
-    return NextResponse.json({
+    return NextResponse.json<BillingUpdateCostResponse>({
       success: true,
+      ...usageVerdict,
       data: {
         userId,
         cost,

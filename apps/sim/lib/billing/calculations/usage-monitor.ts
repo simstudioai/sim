@@ -43,6 +43,11 @@ interface UsageData {
   scope: 'user' | 'organization'
   /** Present only when `scope === 'organization'`. */
   organizationId: string | null
+  /**
+   * The ledger could not be read, so `isExceeded` is a fail-closed refusal rather than a
+   * measured one. Admission refuses on it; a run already under way treats it as unknown.
+   */
+  unavailable?: true
 }
 
 /**
@@ -183,6 +188,7 @@ export async function checkUsageStatus(
       limit: 0,
       scope: 'user',
       organizationId: null,
+      unavailable: true,
     }
   }
 }

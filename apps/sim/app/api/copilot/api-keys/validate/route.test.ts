@@ -138,6 +138,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
+import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
 
 const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
@@ -506,7 +507,9 @@ describe('validation lifecycle purposes', () => {
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockAuthorizeCallback.mockReset().mockResolvedValue(undefined)
     mockCheckContinuationBilling.mockReset().mockResolvedValue({ blocked: false })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockIsEnterprisePlan.mockResolvedValue(false)
+    resetUsageGateCache()
   })
 
   it('defaults older callers to full admission and rejects unknown purposes', () => {
@@ -516,7 +519,7 @@ describe('validation lifecycle purposes', () => {
     ).toBe(false)
   })
 
-  it('checks original payer and current scope without repeating spend admission', async () => {
+  it('checks original payer, current scope, and the original payer spend', async () => {
     const response = await POST(request(body, attributedHeaders))
     expect(response.status).toBe(200)
     expect(mockAuthorizeCallback).toHaveBeenCalledWith({ ...body, delegationId: requestId })
@@ -527,7 +530,7 @@ describe('validation lifecycle purposes', () => {
     expect(mockAuthorizeCallback.mock.invocationCallOrder[0]).toBeLessThan(
       mockCheckContinuationBilling.mock.invocationCallOrder[0]
     )
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
     expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
@@ -638,9 +641,74 @@ describe('validation lifecycle purposes', () => {
   })
 
   it.each(['actor', 'payer'])('refuses a newly blocked %s on continuation', async (scope) => {
-    mockCheckContinuationBilling.mockResolvedValueOnce({ blocked: true, scope })
-    expect((await POST(request(body, attributedHeaders))).status).toBe(402)
+    mockCheckContinuationBilling.mockResolvedValueOnce({
+      blocked: true,
+      scope,
+      message: 'Billing account frozen.',
+    })
+    const response = await POST(request(body, attributedHeaders))
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      code: 'BILLING_BLOCKED',
+      error: 'Billing account frozen.',
+    })
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('refuses a payer the usage gate finds blocked as blocked, without the usage card', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'billing_blocked',
+      message: 'Organization billing issue.',
+      scope: 'payer',
+    })
+    const response = await POST(request(body, attributedHeaders))
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      code: 'BILLING_BLOCKED',
+      error: 'Organization billing issue.',
+    })
+  })
+
+  it('admits a polled continuation whose spend cannot be read', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+    })
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out'))
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+  })
+
+  it('refuses a continuation over its usage limit with the card the worker writes', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    const response = await POST(request(body, attributedHeaders))
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      code: 'USAGE_LIMIT_EXCEEDED',
+      error: expect.stringContaining('usage limit'),
+      usageUpgrade: {
+        reason: 'usage_limit',
+        action: 'upgrade_plan',
+        message: expect.stringContaining('usage limit'),
+      },
+    })
+  })
+
+  it('answers a polled re-check from the cached admission and always re-reads a refusal', async () => {
+    for (let call = 0; call < 2; call++) queueTableRows(schemaMock.user, [{ id: 'user-1' }])
+    for (let poll = 0; poll < 3; poll++) {
+      expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    }
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(1)
+
+    resetUsageGateCache()
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+    expect((await POST(request(body, attributedHeaders))).status).toBe(402)
+    expect((await POST(request(body, attributedHeaders))).status).toBe(402)
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(3)
   })
 
   it('allows cancellation without billing material or spending/standing/plan checks', async () => {
@@ -752,7 +820,7 @@ describe('validation lifecycle purposes', () => {
     expect((await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))).status).toBe(
       402
     )
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(1)
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(2)
     expect((await POST(request({ ...body, purpose: 'new-turn' }, directHeaders))).status).toBe(400)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })

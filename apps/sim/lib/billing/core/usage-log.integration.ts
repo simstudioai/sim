@@ -26,6 +26,7 @@ import {
   CumulativeUsageContextMismatchError,
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostByUser,
+  getStampedPeriodRangeUsageCostByUser,
   type RecordCumulativeUsageParams,
   recordCumulativeUsage,
 } from '@/lib/billing/core/usage-log'
@@ -119,7 +120,8 @@ describe('Cumulative billing with PostgreSQL', () => {
       );
       CREATE UNIQUE INDEX usage_log_event_key_unique ON usage_log(event_key)
       WHERE event_key IS NOT NULL;
-      CREATE TABLE driver_probe (id text PRIMARY KEY)
+      CREATE TABLE driver_probe (id text PRIMARY KEY);
+      CREATE TABLE subscription (id text PRIMARY KEY, period_start timestamp, period_end timestamp)
     `)
     transaction.mockImplementation(async (callback: (tx: Transaction) => Promise<unknown>) => {
       const pause = nextPause
@@ -142,6 +144,7 @@ describe('Cumulative billing with PostgreSQL', () => {
   beforeEach(async () => {
     nextPause = undefined
     await connection`truncate usage_log`
+    await connection`truncate subscription`
   })
 
   it.each([
@@ -216,12 +219,12 @@ describe('Cumulative billing with PostgreSQL', () => {
         expect(recovered.billed).toBe(true)
         expect(recovered.delta).toBeCloseTo(0.8 - initial, 9)
         expect(recovered.total).toBe(0.8)
-        expect(await recordCumulativeUsage(usage(0.8))).toEqual({
+        expect(await recordCumulativeUsage(usage(0.8))).toMatchObject({
           billed: false,
           delta: 0,
           total: 0.8,
         })
-        expect(await recordCumulativeUsage(usage(0.3))).toEqual({
+        expect(await recordCumulativeUsage(usage(0.3))).toMatchObject({
           billed: false,
           delta: 0,
           total: 0.8,
@@ -245,7 +248,11 @@ describe('Cumulative billing with PostgreSQL', () => {
       )
     )
     expect(await ledgerRows()).toHaveLength(33)
-    expect(await recordCumulativeUsage(usage(0.8))).toEqual({ billed: false, delta: 0, total: 0.8 })
+    expect(await recordCumulativeUsage(usage(0.8))).toMatchObject({
+      billed: false,
+      delta: 0,
+      total: 0.8,
+    })
   })
 
   it('reads committed pooled and member charges freshly after concurrent executions', async () => {
@@ -305,4 +312,103 @@ describe('Cumulative billing with PostgreSQL', () => {
       expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '0.8' }])
     }
   )
+
+  describe('a request that outlives its billing period', () => {
+    const periods = [
+      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-10-01T00:00:00.000Z'),
+      new Date('2026-11-01T00:00:00.000Z'),
+      new Date('2026-12-01T00:00:00.000Z'),
+    ]
+    const payer = { type: 'organization', id: 'payer' } as const
+
+    async function setSubscriptionPeriod(index: number) {
+      await connection`
+        insert into subscription (id, period_start, period_end)
+        values ('sub-1', ${periods[index].toISOString()}::timestamptz at time zone 'UTC', ${periods[index + 1].toISOString()}::timestamptz at time zone 'UTC')
+        on conflict (id) do update
+          set period_start = excluded.period_start, period_end = excluded.period_end
+      `
+    }
+
+    function charge(cost: number) {
+      return recordCumulativeUsage({ ...usage(cost), payerSubscriptionId: 'sub-1' })
+    }
+
+    /** What the cycle close invoices for one period: the ledger rows stamped with it. */
+    async function stampedTotal(index: number) {
+      const byUser = await getStampedPeriodRangeUsageCostByUser(
+        payer,
+        { from: periods[index], to: periods[index + 1] },
+        undefined,
+        database
+      )
+      return [...byUser.values()].reduce((total, cost) => total + cost, 0)
+    }
+
+    it('invoices a charge that spans a period close exactly once in total', async () => {
+      await setSubscriptionPeriod(0)
+      expect(await charge(0.4)).toMatchObject({ billed: true, total: 0.4 })
+
+      await setSubscriptionPeriod(1)
+      const closedTotal = await stampedTotal(0)
+      expect(closedTotal).toBeCloseTo(0.4, 9)
+
+      const afterClose = await charge(1)
+      expect(afterClose).toMatchObject({ billed: true, total: 1 })
+      expect(afterClose.billingPeriod).toEqual({ start: periods[1], end: periods[2] })
+      expect(await charge(0.9)).toMatchObject({ billed: false, total: 1 })
+      expect(await charge(1.3)).toMatchObject({ billed: true, total: 1.3 })
+      expect(await charge(1.3)).toMatchObject({ billed: false, total: 1.3 })
+
+      await setSubscriptionPeriod(2)
+      expect(await charge(1.5)).toMatchObject({ billed: true, total: 1.5 })
+
+      expect(await stampedTotal(0)).toBeCloseTo(closedTotal, 9)
+      expect(await stampedTotal(1)).toBeCloseTo(0.9, 9)
+      expect(await stampedTotal(2)).toBeCloseTo(0.2, 9)
+      const invoiced = (await stampedTotal(0)) + (await stampedTotal(1)) + (await stampedTotal(2))
+      expect(invoiced).toBeCloseTo(1.5, 9)
+    })
+
+    it('never stamps a charge into a period earlier than its latest row', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      await setSubscriptionPeriod(1)
+      await charge(1)
+      await setSubscriptionPeriod(0)
+      expect(await charge(1.2)).toMatchObject({ billed: true, total: 1.2 })
+      expect(await stampedTotal(0)).toBeCloseTo(0.4, 9)
+      expect(await stampedTotal(1)).toBeCloseTo(0.8, 9)
+    })
+
+    it('stamps a first charge that lands after the close into the current period', async () => {
+      await setSubscriptionPeriod(1)
+      expect(await charge(0.7)).toMatchObject({ billed: true, total: 0.7 })
+      expect(await charge(0.9)).toMatchObject({ billed: true, total: 0.9 })
+      expect(await stampedTotal(0)).toBe(0)
+      expect(await stampedTotal(1)).toBeCloseTo(0.9, 9)
+    })
+
+    it('holds the period advance until an in-flight top-up of the old period commits', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      const pause = pauseNextTransaction()
+      const inFlight = charge(0.6)
+      try {
+        await pause.reached.promise
+        const advance = await connection
+          .begin(async (tx) => {
+            await tx`select set_config('lock_timeout', '300ms', true)`
+            await tx`update subscription set period_start = ${periods[1].toISOString()}::timestamptz at time zone 'UTC' where id = 'sub-1'`
+          })
+          .catch((error: unknown) => error)
+        expect(getPostgresErrorCode(advance)).toBe('55P03')
+      } finally {
+        pause.release.resolve()
+        await inFlight
+      }
+      expect(await stampedTotal(0)).toBeCloseTo(0.6, 9)
+    })
+  })
 })

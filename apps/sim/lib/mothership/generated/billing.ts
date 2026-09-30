@@ -64,9 +64,27 @@ export const BillingCallbackHeaders = z
       context.addIssue({ code: "custom", message: "Incomplete or conflicting billing protocol headers" });
   });
 
+/** Sim's plan-aware usage card: the JSON body of the `<usage_upgrade>` tag its chat renders. */
+export const UsageUpgrade = z.object({
+  reason: z.literal("usage_limit"),
+  action: z.enum(["upgrade_plan", "increase_limit"]),
+  message: z.string().min(1).max(1_000),
+});
+export type UsageUpgrade = z.infer<typeof UsageUpgrade>;
+
 export const BillingCallbackResult = z.object({
   success: z.boolean(),
   code: z.string().optional(),
+  /** The payer is over its plan usage limit after this charge. Absent (older Sim) means not over. */
+  usageExceeded: z.boolean().optional(),
+  /** The card for an over-limit payer; a malformed card never turns a settled charge into a retry. */
+  usageUpgrade: UsageUpgrade.optional().catch(undefined),
+});
+
+/** A continuation refused for the usage limit. A body-less 402 is a blocked account instead. */
+export const UsageLimitRefusal = z.object({
+  code: z.literal("USAGE_LIMIT_EXCEEDED"),
+  usageUpgrade: UsageUpgrade,
 });
 export const BillingDuplicateCode = "DUPLICATE_BILLING_EVENT";
 

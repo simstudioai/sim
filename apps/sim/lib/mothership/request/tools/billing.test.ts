@@ -102,4 +102,15 @@ describe('handleBillingLimitResponse', () => {
       payload: { text: expect.stringContaining('"action":"increase_limit"') },
     })
   })
+
+  it('terminates the turn with the card after a leg that already ended at a checkpoint', async () => {
+    const onEvent = vi.fn()
+    const pausedContext = { streamComplete: true } as StreamingContext
+
+    await handleBillingLimitResponse('actor-1', pausedContext, createExecutionContext(), {
+      onEvent,
+    } as OrchestratorOptions)
+
+    expect(onEvent.mock.calls.map(([event]) => event.type)).toEqual(['text', 'complete'])
+  })
 })

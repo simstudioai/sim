@@ -47,6 +47,7 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   ThresholdSettlementError: MockThresholdSettlementError,
 }))
 
+import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import {
   BillingCallbackBody,
   BillingCallbackHeaders,
@@ -69,6 +70,7 @@ const mockRequireBillingAttributionHeader =
 const mockResolveLegacyV0BillingAttribution =
   billingAttributionMockFns.mockResolveLegacyV0BillingAttribution
 const mockToBillingContext = billingAttributionMockFns.mockToBillingContext
+const mockCheckAttributedUsageLimits = billingAttributionMockFns.mockCheckAttributedUsageLimits
 
 afterAll(resetEnvFlagsMock)
 
@@ -845,5 +847,236 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
 
     expect(res.status).toBe(400)
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/billing/update-cost — mid-run usage gate', () => {
+  let callbackSequence = 0
+
+  function attributedCallback() {
+    callbackSequence += 1
+    const billingRequestId = `0190c03f-9f7d-4b79-8b58-${String(callbackSequence).padStart(12, '0')}`
+    return createMockRequest(
+      'POST',
+      {
+        userId: 'user-1',
+        cost: 0.5 * callbackSequence,
+        model: 'claude-opus-4.8',
+        source: 'workspace-chat',
+        workspaceId: 'ws-1',
+        idempotencyKey: billingRequestId,
+      },
+      {
+        'x-api-key': 'internal',
+        'x-sim-billing-protocol': 'attribution-v1',
+        'x-sim-billing-request-id': billingRequestId,
+        'x-sim-billing-attribution': 'serialized-attribution',
+      }
+    )
+  }
+
+  beforeEach(() => {
+    resetUsageGateCache()
+    setEnvFlags({ isBillingEnabled: true, isHosted: true })
+    mockCheckInternalApiKey.mockReturnValue({ success: true })
+    mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
+    mockCheckAndBillPayerOverageThreshold.mockResolvedValue(undefined)
+    mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
+    mockToBillingContext.mockReturnValue({
+      billingEntity: { type: 'organization', id: 'org-1' },
+      billingPeriod: {
+        start: new Date('2026-07-01T00:00:00.000Z'),
+        end: new Date('2026-08-01T00:00:00.000Z'),
+      },
+    })
+  })
+
+  it('tells the worker when the run payer has crossed its usage limit', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    const res = await POST(attributedCallback())
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({
+      success: true,
+      usageExceeded: true,
+      usageUpgrade: {
+        reason: 'usage_limit',
+        action: 'upgrade_plan',
+        message: expect.stringContaining('usage limit'),
+      },
+    })
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
+  })
+
+  it('offers a paid organization payer the increase-limit card', async () => {
+    mockRequireBillingAttributionHeader.mockReturnValue({
+      ...ATTRIBUTION,
+      payerSubscription: { id: 'sub-1', plan: 'team', status: 'active', seats: 4 },
+    })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    const res = await POST(attributedCallback())
+
+    const body = await res.json()
+    expect(body.usageUpgrade).toMatchObject({
+      action: 'increase_limit',
+      message: expect.stringContaining('organization'),
+    })
+  })
+
+  it('serves a cached admission to every step and re-reads a refusal', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+
+    for (let step = 0; step < 5; step++) {
+      const body = await (await POST(attributedCallback())).json()
+      expect(body.usageExceeded).toBe(false)
+      expect(body).not.toHaveProperty('usageUpgrade')
+    }
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(1)
+
+    resetUsageGateCache()
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+    await POST(attributedCallback())
+    await POST(attributedCallback())
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(3)
+  })
+
+  it('answers a duplicate retry with the verdict its lost first answer carried', async () => {
+    mockRecordCumulativeUsage.mockResolvedValue({ billed: false, delta: 0, total: 0.5 })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    const res = await POST(attributedCallback())
+
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toMatchObject({
+      code: 'DUPLICATE_BILLING_EVENT',
+      usageExceeded: true,
+      usageUpgrade: { action: 'upgrade_plan' },
+    })
+  })
+
+  describe('a run that outlives its billing period', () => {
+    const PAYER_SUBSCRIPTION = {
+      id: 'sub-1',
+      plan: 'team',
+      status: 'active',
+      seats: 4,
+    }
+    const CURRENT_PERIOD = {
+      start: new Date('2026-08-01T00:00:00.000Z'),
+      end: new Date('2026-09-01T00:00:00.000Z'),
+    }
+
+    beforeEach(() => {
+      mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+      mockRequireBillingAttributionHeader.mockReturnValue({
+        ...ATTRIBUTION,
+        payerSubscription: PAYER_SUBSCRIPTION,
+      })
+    })
+
+    it('settles the threshold against the period the charge was stamped into', async () => {
+      mockRecordCumulativeUsage.mockResolvedValue({
+        billed: true,
+        delta: 0.5,
+        total: 1.5,
+        billingPeriod: CURRENT_PERIOD,
+      })
+
+      const res = await POST(attributedCallback())
+
+      expect(res.status).toBe(200)
+      expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ payerSubscriptionId: 'sub-1' })
+      )
+      expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith(
+        { type: 'organization', id: 'org-1' },
+        expect.objectContaining({ expectedBillingPeriod: CURRENT_PERIOD })
+      )
+    })
+
+    it('leaves a period that closed under a recorded charge to the cycle close', async () => {
+      mockRecordCumulativeUsage.mockResolvedValue({
+        billed: true,
+        delta: 0.5,
+        total: 1.5,
+        billingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      })
+      mockCheckAndBillPayerOverageThreshold.mockRejectedValue(
+        new MockThresholdSettlementError('billing_period_elapsed')
+      )
+
+      const res = await POST(attributedCallback())
+
+      expect(res.status).toBe(200)
+    })
+
+    it('keeps reporting-window payers on their frozen period', async () => {
+      mockToBillingContext.mockReturnValue({
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'reporting',
+        },
+      })
+      mockRecordCumulativeUsage.mockResolvedValue({
+        billed: true,
+        delta: 0.5,
+        total: 0.5,
+        billingPeriod: CURRENT_PERIOD,
+      })
+
+      await POST(attributedCallback())
+
+      expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
+        expect.not.objectContaining({ payerSubscriptionId: expect.anything() })
+      )
+    })
+  })
+
+  it.each([
+    ['an unreadable ledger', { isExceeded: true, reason: 'usage_unavailable' }],
+    ['a blocked account', { isExceeded: true, reason: 'billing_blocked', scope: 'payer' }],
+  ])('does not pause a run for %s', async (_case, verdict) => {
+    mockCheckAttributedUsageLimits.mockResolvedValue(verdict)
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body.usageExceeded).toBe(false)
+    expect(body).not.toHaveProperty('usageUpgrade')
+  })
+
+  it('tells a member over the cap their organization set who can raise it', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'member' })
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body).toMatchObject({
+      usageUpgrade: { message: expect.stringMatching(/limit your organization set for you/) },
+    })
+  })
+
+  it('keeps a recorded charge successful when the gate read fails', async () => {
+    mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out'))
+
+    const res = await POST(attributedCallback())
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ usageExceeded: false })
+    expect(mockRecordCumulativeUsage).toHaveBeenCalledOnce()
+  })
+
+  it('reports no exceeded usage when billing is disabled', async () => {
+    setEnvFlags({ isBillingEnabled: false, isHosted: true })
+
+    const res = await POST(attributedCallback())
+
+    await expect(res.json()).resolves.toMatchObject({ usageExceeded: false })
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 })

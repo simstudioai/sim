@@ -111,6 +111,11 @@ export interface AttributedUsageLimitsResult {
   isExceeded: boolean
   message?: string
   scope?: 'actor' | 'payer' | 'member'
+  /**
+   * Why an `isExceeded` refusal is not a spent limit: the account is blocked (payment failed,
+   * dispute), or the payer's usage could not be read and the gate failed closed.
+   */
+  reason?: 'billing_blocked' | 'usage_unavailable'
   payerUsage?: {
     currentUsage: number
     limit: number
@@ -919,6 +924,7 @@ export async function checkAttributedUsageLimits(
       isExceeded: true,
       message: billingBlock.message,
       scope: billingBlock.scope,
+      reason: 'billing_blocked',
     }
   }
 
@@ -944,6 +950,7 @@ export async function checkAttributedUsageLimits(
       message,
       scope: 'payer',
       payerUsage: payerSnapshot,
+      ...(payerUsage.unavailable ? { reason: 'usage_unavailable' as const } : {}),
     }
   }
 

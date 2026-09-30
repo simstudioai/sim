@@ -1,8 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
-import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
-import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { formatUsageUpgradeTag, resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -19,11 +16,12 @@ import type {
 const logger = createLogger('CopilotBillingEffect')
 
 /**
- * Handle a 402 billing-limit response from the Go backend.
+ * Ends the turn with the usage card: a refused dispatch or continuation, a worker 402, or a
+ * worker usage-limit terminal that arrived without a card of its own.
  *
- * Determines whether the user needs a plan upgrade or a limit increase,
- * then dispatches synthetic text + complete events through the handler chain
- * so the client renders the upgrade prompt.
+ * Dispatches synthetic text + complete events through the handler chain so the client renders
+ * the upgrade prompt and the turn finishes as complete, so the next message after an upgrade
+ * starts normally.
  */
 export async function handleBillingLimitResponse(
   userId: string,
@@ -31,47 +29,10 @@ export async function handleBillingLimitResponse(
   execContext: ExecutionContext,
   options: OrchestratorOptions
 ): Promise<void> {
-  let action: 'upgrade_plan' | 'increase_limit' = 'upgrade_plan'
-  let message = "You've reached your usage limit. Please upgrade your plan to continue."
-  try {
-    let plan: string | undefined
-    let orgScoped = false
-    if (execContext.billingAttribution) {
-      plan = execContext.billingAttribution.payerSubscription?.plan
-      orgScoped = execContext.billingAttribution.billingEntity.type === 'organization'
-    } else {
-      const sub = await getHighestPrioritySubscription(userId)
-      plan = sub?.plan
-      orgScoped = isOrgScopedSubscription(sub, userId)
-    }
-
-    if (plan && isPaid(plan)) {
-      // Paid subs use the existing `increase_limit` action so the UI
-      // (`UsageUpgradeDisplay`) renders its standard button. The message
-      // text does the work of clarifying the action when the user can't
-      // actually self-serve the limit change.
-      action = 'increase_limit'
-      if (orgScoped) {
-        message = isEnterprise(plan)
-          ? "You've reached your organization's usage limit for this billing period. Only an organization admin or Sim support can raise an enterprise limit — reach out to them to continue."
-          : "You've reached your organization's usage limit for this billing period. Only an organization owner or admin can raise the limit — please ask them to update it from the team billing settings."
-      } else {
-        message =
-          "You've reached your usage limit for this billing period. Please increase your usage limit from billing settings to continue."
-      }
-    }
-  } catch (error) {
-    logger.warn('Failed to determine subscription plan, defaulting to upgrade_plan', {
-      error: getErrorMessage(error),
-    })
-  }
-
-  const upgradePayload = JSON.stringify({
-    reason: 'usage_limit',
-    action,
-    message,
-  })
-  const syntheticContent = `<usage_upgrade>${upgradePayload}</usage_upgrade>`
+  const payload = await resolveUsageUpgradePayload(userId, execContext.billingAttribution)
+  const syntheticContent = formatUsageUpgradeTag(payload)
+  // The card is this turn's terminal even when the refused leg follows one that already ended.
+  context.streamComplete = false
 
   const syntheticEvents: StreamEvent[] = [
     {

@@ -1,6 +1,12 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAttributedBillingRequestEnvelope } from '@/lib/billing/core/billing-attribution'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { BillingLimitError } from '@/lib/mothership/request/go/stream'
 import { authorizeLifecycleContinuation, restoreBillingAdmission } from './admission'
 
 const mocks = vi.hoisted(() => ({ authorize: vi.fn(), standing: vi.fn() }))
@@ -8,6 +14,8 @@ vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
   authorizeCopilotChatCallback: mocks.authorize,
   checkCopilotContinuationBilling: mocks.standing,
 }))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+const { mockCheckExecutionUsageLimits } = billingUsageGateCacheMockFns
 const attribution = {
   actorUserId: 'actor',
   workspaceId: 'workspace',
@@ -27,6 +35,7 @@ const context = {
 beforeEach(() => {
   setEnvFlags({ isHosted: true })
   mocks.standing.mockResolvedValue({ blocked: false })
+  mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: false })
 })
 afterEach(resetEnvFlagsMock)
 
@@ -68,5 +77,48 @@ describe('continuation admission', () => {
     await expect(
       authorizeLifecycleContinuation({ ...context, billingAttribution: undefined })
     ).rejects.toThrow('missing')
+  })
+  it('refuses a continuation whose original payer has crossed its usage limit', async () => {
+    mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    const refusal = authorizeLifecycleContinuation(context)
+
+    await expect(refusal).rejects.toBeInstanceOf(BillingLimitError)
+    await expect(refusal).rejects.toMatchObject({ userId: 'actor' })
+    expect(mockCheckExecutionUsageLimits).toHaveBeenCalledWith(attribution)
+  })
+  it('keeps a blocked account a forbidden refusal without reading spend', async () => {
+    mocks.standing.mockResolvedValue({ blocked: true })
+
+    await expect(authorizeLifecycleContinuation(context)).rejects.toThrow('blocked')
+    expect(mockCheckExecutionUsageLimits).not.toHaveBeenCalled()
+  })
+  it('does not read spend for a self-hosted continuation', async () => {
+    setEnvFlags({ isHosted: false })
+
+    await authorizeLifecycleContinuation(context)
+    expect(mockCheckExecutionUsageLimits).not.toHaveBeenCalled()
+  })
+  it('continues a leg when spend cannot be read', async () => {
+    mockCheckExecutionUsageLimits.mockRejectedValueOnce(new Error('ledger read timed out'))
+    await expect(authorizeLifecycleContinuation(context)).resolves.toBeUndefined()
+
+    mockCheckExecutionUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+    })
+    await expect(authorizeLifecycleContinuation(context)).resolves.toBeUndefined()
+  })
+  it('refuses a payer the gate finds blocked as a blocked account, not with the usage card', async () => {
+    mockCheckExecutionUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      reason: 'billing_blocked',
+      scope: 'payer',
+    })
+
+    const refusal = authorizeLifecycleContinuation(context)
+
+    await expect(refusal).rejects.toBeInstanceOf(OrchestrationError)
+    await expect(refusal).rejects.toThrow('blocked')
   })
 })

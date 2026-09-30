@@ -518,14 +518,23 @@ export async function runCopilotLifecycle(
           requestPayload,
           lifecycleOptions.workspaceId
         )
-        await runCheckpointLoop(
-          modelSafeRequestPayload,
-          context,
-          execContext,
-          lifecycleOptions,
-          goRoute,
-          hostedBillingRequest
-        )
+        try {
+          await runCheckpointLoop(
+            modelSafeRequestPayload,
+            context,
+            execContext,
+            lifecycleOptions,
+            goRoute,
+            hostedBillingRequest
+          )
+        } catch (error) {
+          // A continuation refused on spend, or a worker 402 on a child leg of a subagent
+          // fan-out, ends the turn with the same card as a refused dispatch.
+          if (!(error instanceof BillingLimitError)) throw error
+          context.awaitingAsyncContinuation = undefined
+          await handleBillingLimitResponse(error.userId, context, execContext, lifecycleOptions)
+          await stopWorkerRunAfterUsageRefusal(context.messageId, execContext)
+        }
       }
 
       // The backend's terminal `complete` is the turn's verdict. A failure it
@@ -1689,6 +1698,32 @@ function causeForLog(error: unknown): { cause?: string } {
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
   return !!(options.abortSignal?.aborted || context.wasAborted)
+}
+
+/**
+ * A refused continuation leaves the worker run parked on its checkpoint, and a parked run holds
+ * the chat: the next message would be refused as busy until the sweeper expires it. Stopping it
+ * frees the chat, so the message sent after an upgrade continues the conversation.
+ */
+async function stopWorkerRunAfterUsageRefusal(
+  streamId: string,
+  execContext: Pick<ExecutionContext, 'userId' | 'chatId'>
+): Promise<void> {
+  try {
+    const { requestExplicitStreamAbort } = await import(
+      '@/lib/mothership/request/session/explicit-abort'
+    )
+    await requestExplicitStreamAbort({
+      streamId,
+      userId: execContext.userId,
+      chatId: execContext.chatId,
+    })
+  } catch (error) {
+    logger.warn('Worker stop after a usage-limit refusal was not delivered', {
+      streamId,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 function cancelPendingTools(context: StreamingContext): void {

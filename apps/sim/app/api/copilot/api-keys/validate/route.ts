@@ -4,7 +4,13 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { validateCopilotApiKeyContract } from '@/lib/api/contracts/copilot'
+import {
+  COPILOT_BILLING_BLOCKED_CODE,
+  COPILOT_USAGE_LIMIT_EXCEEDED_CODE,
+  type ValidateCopilotApiKeyBillingBlocked,
+  type ValidateCopilotApiKeyUsageExceeded,
+  validateCopilotApiKeyContract,
+} from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
@@ -20,9 +26,11 @@ import {
   serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -52,6 +60,8 @@ import { checkInternalApiKey } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotApiKeysValidate')
+
+const CONTINUATION_BLOCKED_MESSAGE = 'Continuation billing account is blocked'
 
 function invalidBillingProtocolResponse(): NextResponse {
   return NextResponse.json({ error: 'Invalid billing attribution protocol' }, { status: 400 })
@@ -402,13 +412,54 @@ export const POST = withRouteHandler((req: NextRequest) =>
             blocked: blocked?.blocked ?? false,
             elapsedMs: Math.round(performance.now() - startedAt),
           })
-          if (blocked?.blocked) {
+          // A continuation, and a worker's periodic re-check of a long run, also reads the
+          // original payer's spend through the cached execution usage gate. A read that fails
+          // admits: the run is already under way, and the next re-check reads again.
+          const verdict =
+            !blocked?.blocked &&
+            purpose === COPILOT_VALIDATION_PURPOSE.continuation &&
+            billing?.kind === 'attributed'
+              ? await readMidRunUsageVerdict(billing.attribution)
+              : null
+          if (blocked?.blocked || verdict?.status === 'blocked') {
             span.setAttribute(
               TraceAttr.CopilotValidateOutcome,
               CopilotValidateOutcome.UsageExceeded
             )
             span.setAttribute(TraceAttr.HttpStatusCode, 402)
-            return new NextResponse(null, { status: 402 })
+            return NextResponse.json<ValidateCopilotApiKeyBillingBlocked>(
+              {
+                code: COPILOT_BILLING_BLOCKED_CODE,
+                error:
+                  (blocked?.blocked
+                    ? blocked.message
+                    : verdict?.status === 'blocked'
+                      ? verdict.message
+                      : undefined) ?? CONTINUATION_BLOCKED_MESSAGE,
+              },
+              { status: 402 }
+            )
+          }
+          if (verdict?.status === 'exceeded' && billing?.kind === 'attributed') {
+            logger.info('[API VALIDATION] Continuation usage exceeded', { userId })
+            span.setAttribute(
+              TraceAttr.CopilotValidateOutcome,
+              CopilotValidateOutcome.UsageExceeded
+            )
+            span.setAttribute(TraceAttr.HttpStatusCode, 402)
+            const usageUpgrade = await resolveUsageUpgradePayload(
+              userId,
+              billing.attribution,
+              verdict.scope
+            )
+            return NextResponse.json<ValidateCopilotApiKeyUsageExceeded>(
+              {
+                code: COPILOT_USAGE_LIMIT_EXCEEDED_CODE,
+                error: usageUpgrade.message,
+                usageUpgrade,
+              },
+              { status: 402 }
+            )
           }
           const isEnterprise =
             purpose === COPILOT_VALIDATION_PURPOSE.cancellation

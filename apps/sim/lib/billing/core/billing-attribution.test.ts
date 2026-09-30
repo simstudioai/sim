@@ -432,6 +432,29 @@ describe('checkAttributedUsageLimits', () => {
     expect(mockCheckOrganizationMemberUsageLimit).not.toHaveBeenCalled()
   })
 
+  it('names a billing block and an unreadable ledger apart from a spent limit', async () => {
+    mockCheckBillingBlocked.mockResolvedValueOnce({ blocked: true, message: 'Frozen.' })
+    await expect(checkAttributedUsageLimits(attribution)).resolves.toMatchObject({
+      isExceeded: true,
+      reason: 'billing_blocked',
+    })
+
+    mockCheckUsageStatus.mockResolvedValueOnce({
+      currentUsage: 0,
+      isExceeded: true,
+      limit: 0,
+      organizationId: null,
+      percentUsed: 100,
+      isWarning: false,
+      scope: 'user',
+      unavailable: true,
+    })
+    await expect(checkAttributedUsageLimits(attribution)).resolves.toMatchObject({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+    })
+  })
+
   it('returns payer exhaustion before checking the actor member cap', async () => {
     mockCheckUsageStatus.mockResolvedValue({
       currentUsage: 100,

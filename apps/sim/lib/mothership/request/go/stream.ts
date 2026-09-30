@@ -2,6 +2,8 @@ import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecordOrNull } from '@sim/utils/object'
+import { COPILOT_BILLING_BLOCKED_CODE } from '@/lib/api/contracts/copilot'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
@@ -104,6 +106,16 @@ function userFacingRejection(value: unknown): string | undefined {
   if (!message || message.length > 200 || /[<\n]/.test(message)) return undefined
   if (/\b\w*[a-z][A-Z]\w*\b|\b\w+_\w+\b/.test(message)) return undefined
   return message
+}
+
+const BILLING_BLOCKED_MESSAGE = 'Billing account is blocked'
+
+function parseJsonRecord(body: string): Record<string, unknown> | null {
+  try {
+    return toRecordOrNull(JSON.parse(body))
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -233,6 +245,14 @@ export async function runStreamLoop(
     const errorText = await response.text().catch(() => '')
 
     if (response.status === 402) {
+      // A blocked account is refused as blocked, never with the usage card.
+      const refusal = parseJsonRecord(errorText)
+      if (refusal?.code === COPILOT_BILLING_BLOCKED_CODE) {
+        throw new OrchestrationError(
+          'forbidden',
+          userFacingRejection(refusal.error) ?? BILLING_BLOCKED_MESSAGE
+        )
+      }
       throw new BillingLimitError(execContext.userId)
     }
 

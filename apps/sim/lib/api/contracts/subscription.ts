@@ -325,7 +325,34 @@ export const billingSwitchPlanResponseSchema = z.object({
   message: z.string().optional(),
 })
 
-export const billingUpdateCostResponseSchema = z.object({
+/**
+ * The upgrade card's payload: the JSON body of a `<usage_upgrade>` tag in assistant text, which
+ * the chat renders as the usage card wherever that text appears (live, replayed, or reloaded).
+ * Sim decides the action and copy from the payer's plan; a worker ending a run at the usage
+ * limit writes the tag with this payload verbatim into its durable log.
+ */
+export const usageUpgradePayloadSchema = z.object({
+  reason: z.literal('usage_limit'),
+  action: z.enum(['upgrade_plan', 'increase_limit']),
+  message: z.string(),
+})
+export type UsageUpgradePayload = z.infer<typeof usageUpgradePayloadSchema>
+
+/**
+ * The payer's standing after a cost callback, read through the cached execution usage gate. It
+ * sits at the top level of the body, beside `success`, where the worker's shared
+ * `BillingCallbackResult` reads it, on a 200 and on a duplicate 409 alike. A worker that
+ * predates the fields ignores them.
+ */
+export const billingUsageVerdictSchema = z.object({
+  /** The payer is over its usage limit; the worker pauses the run at its next step boundary. */
+  usageExceeded: z.boolean(),
+  /** Present exactly when `usageExceeded` is true: the card the worker writes to its log. */
+  usageUpgrade: usageUpgradePayloadSchema.optional(),
+})
+export type BillingUsageVerdict = z.infer<typeof billingUsageVerdictSchema>
+
+export const billingUpdateCostResponseSchema = billingUsageVerdictSchema.extend({
   success: z.literal(true),
   message: z.string().optional(),
   data: z.object({
@@ -336,6 +363,7 @@ export const billingUpdateCostResponseSchema = z.object({
     requestId: z.string(),
   }),
 })
+export type BillingUpdateCostResponse = z.infer<typeof billingUpdateCostResponseSchema>
 
 export const billingSwitchPlanContract = defineRouteContract({
   method: 'POST',

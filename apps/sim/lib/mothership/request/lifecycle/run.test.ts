@@ -199,6 +199,11 @@ vi.mock('@/lib/mothership/request/tools/billing', () => ({
   handleBillingLimitResponse: vi.fn(),
 }))
 
+const mockRequestExplicitStreamAbort = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
+  requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
+}))
+
 vi.mock('@/lib/mothership/request/tools/executor', () => ({
   executeToolAndReport: vi.fn(),
   failPendingToolCall: mockForceFailHungToolCall,
@@ -212,6 +217,7 @@ vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
   resolveEnterpriseByokKey: mockResolveEnterpriseByokKey,
 }))
 
+import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { buildPersistedAssistantMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
@@ -2330,7 +2336,7 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
-  it('cold recovery preserves billing identity and does not read spend again', async () => {
+  it('cold recovery reads spend only against the original billing identity', async () => {
     const attribution = {
       actorUserId: 'user-1',
       workspaceId: 'ws-1',
@@ -2341,7 +2347,7 @@ describe('runCopilotLifecycle', () => {
       payerSubscription: null,
     }
     setEnvFlags({ isHosted: true })
-    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true })
+    resetUsageGateCache()
     const billingRequestId = generateId()
     const onBillingAdmission = vi.fn()
     await runCopilotLifecycle(
@@ -2363,7 +2369,8 @@ describe('runCopilotLifecycle', () => {
         onBillingAdmission,
       }
     )
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledOnce()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(attribution)
     expect(onBillingAdmission).not.toHaveBeenCalled()
     expect(continuationAuth).toHaveBeenCalled()
     expect(mockRunStreamLoop).toHaveBeenCalledOnce()
@@ -2414,6 +2421,65 @@ describe('runCopilotLifecycle', () => {
     expect(handleBillingLimitResponse).toHaveBeenCalledTimes(1)
     expect(mockRunStreamLoop).not.toHaveBeenCalled()
     expect(result.cancelled).not.toBe(true)
+  })
+
+  it('shows the usage card instead of resuming a run whose payer crossed its limit', async () => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'user-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+      payerSubscription: null,
+    }
+    setEnvFlags({ isHosted: true })
+    resetUsageGateCache()
+    mockCheckAttributedUsageLimits
+      .mockResolvedValueOnce({ isExceeded: false })
+      .mockResolvedValue({ isExceeded: true, scope: 'payer' })
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext) => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    mockRequestExplicitStreamAbort.mockResolvedValue({ settled: true })
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        billingAttribution,
+      }
+    )
+
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(2)
+    expect(handleBillingLimitResponse).toHaveBeenCalledOnce()
+    expect(handleBillingLimitResponse).toHaveBeenCalledWith(
+      'user-1',
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    )
+    expect(result.cancelled).not.toBe(true)
+    expect(result.error).toBeUndefined()
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
+      expect.objectContaining({ streamId: 'message-1', userId: 'user-1', chatId: 'chat-1' })
+    )
   })
 
   it('preserves a resume tool name that collides with a configured secret', async () => {

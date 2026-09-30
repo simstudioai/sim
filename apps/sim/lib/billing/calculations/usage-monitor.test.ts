@@ -130,6 +130,21 @@ describe('checkUsageStatus', () => {
     })
   })
 
+  it('refuses on a ledger read failure but marks the answer unavailable', async () => {
+    mockGetBillingPeriodUsageCost.mockRejectedValueOnce(new Error('canceling statement'))
+
+    await expect(
+      checkUsageStatus('user-1', {
+        referenceId: 'user-1',
+        plan: 'free',
+        status: 'active',
+        seats: 1,
+        periodStart: new Date('2026-06-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-07-01T00:00:00.000Z'),
+      })
+    ).resolves.toMatchObject({ isExceeded: true, unavailable: true })
+  })
+
   it('preserves negative ledger-only personal usage', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')
