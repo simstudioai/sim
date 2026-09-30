@@ -24,6 +24,11 @@ interface HandlePostExecutionPauseStateArgs {
  * - If execution is paused with a valid snapshot: persists to `paused_executions` table
  * - If execution is paused without a snapshot: marks execution as failed
  * - If execution is not paused: processes any queued resume entries
+ *
+ * A pause is published only after the core's post-execution logging settles. The
+ * core finalizes the run log in the background, and a resume claims that log only
+ * once it has left `running`, so publishing first lets an immediate resume be
+ * rejected as no longer resumable.
  */
 export async function handlePostExecutionPauseState({
   result,
@@ -33,6 +38,7 @@ export async function handlePostExecutionPauseState({
   loggingSession,
 }: HandlePostExecutionPauseStateArgs): Promise<void> {
   if (result.status === 'paused') {
+    await loggingSession.waitForPostExecution()
     if (!result.snapshotSeed) {
       logger.error('Missing snapshot seed for paused execution', { executionId })
       await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
