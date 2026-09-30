@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 await vi.hoisted(async () => {
   const { setEnv } = await import('@sim/testing/mocks/env.mock')
@@ -14,9 +14,11 @@ await vi.hoisted(async () => {
     NEXT_PUBLIC_BRAND_FAVICON_URL: 'https://brand.example.com/favicon.ico',
     NEXT_PUBLIC_PRIVACY_URL: 'https://legal.example.com/privacy',
     NEXT_PUBLIC_TERMS_URL: 'https://legal.example.com/terms',
+    S3_ENDPOINT: 'https://s3.de.io.cloud.ovh.net',
   })
 })
 
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import { buildCSPString, generateRuntimeCSP, getChatEmbedCSPPolicy, getMainCSPPolicy } from './csp'
 
 describe('buildCSPString', () => {
@@ -32,7 +34,18 @@ describe('buildCSPString', () => {
   })
 })
 
+function connectSources(policy: string): string[] {
+  const directive = policy.split('; ').find((d) => d.startsWith('connect-src ')) ?? ''
+  return directive.split(' ').slice(1)
+}
+
 describe('getMainCSPPolicy', () => {
+  it('allows direct uploads to the build-time S3_ENDPOINT', () => {
+    const sources = connectSources(getMainCSPPolicy())
+    expect(sources).toContain('https://s3.de.io.cloud.ovh.net')
+    expect(sources).toContain('https://*.s3.de.io.cloud.ovh.net')
+  })
+
   it('keeps the restrictive security directives', () => {
     const policy = getMainCSPPolicy()
 
@@ -60,6 +73,40 @@ describe('generateRuntimeCSP', () => {
       .find((directive) => directive.startsWith('frame-src '))
 
     expect(frameSrcDirective).toContain('blob:')
+  })
+})
+
+describe('generateRuntimeCSP S3_ENDPOINT sources', () => {
+  afterEach(() => {
+    setEnv({ S3_ENDPOINT: 'https://s3.de.io.cloud.ovh.net', S3_FORCE_PATH_STYLE: undefined })
+  })
+
+  it('allows the endpoint and its bucket subdomains for virtual-hosted addressing', () => {
+    setEnv({ S3_ENDPOINT: 'https://acct.r2.cloudflarestorage.com/' })
+    const sources = connectSources(generateRuntimeCSP())
+    expect(sources).toContain('https://acct.r2.cloudflarestorage.com')
+    expect(sources).toContain('https://*.acct.r2.cloudflarestorage.com')
+  })
+
+  it('keeps a non-default port and drops the bucket wildcard under S3_FORCE_PATH_STYLE', () => {
+    setEnv({ S3_ENDPOINT: 'https://minio.example.com:9000', S3_FORCE_PATH_STYLE: 'true' })
+    const sources = connectSources(generateRuntimeCSP())
+    expect(sources).toContain('https://minio.example.com:9000')
+    expect(sources.some((s) => s.includes('*.minio.example.com'))).toBe(false)
+  })
+
+  it('does not build a wildcard over an IP endpoint, which is always path-style', () => {
+    setEnv({ S3_ENDPOINT: 'http://10.0.0.5:9000' })
+    const sources = connectSources(generateRuntimeCSP())
+    expect(sources).toContain('http://10.0.0.5:9000')
+    expect(sources.some((s) => s.includes('*.10.0.0.5'))).toBe(false)
+  })
+
+  it('ignores an endpoint without an http(s) scheme instead of emitting a broken source', () => {
+    setEnv({ S3_ENDPOINT: 'minio.example.com:9000' })
+    const csp = generateRuntimeCSP()
+    expect(csp).not.toContain('minio.example.com')
+    expect(connectSources(csp)).toContain("'self'")
   })
 })
 
