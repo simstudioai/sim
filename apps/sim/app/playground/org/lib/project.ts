@@ -13,6 +13,8 @@ export interface Project {
   mock: Workspace
   /** True when the pack was chosen by what the workspace holds or is called, not by position. */
   overlayMatched: boolean
+  /** True until the workspace's workflow list has loaded, so the pack may still change. */
+  overlayPending: boolean
 }
 
 /**
@@ -51,6 +53,7 @@ export function useProjects() {
       (workflowLists[index]?.data ?? []).map((workflow) => workflow.name),
       index
     ),
+    overlayPending: workflowLists[index]?.isPending ?? true,
   }))
   return { projects, isPending: query.isPending, error: query.error }
 }

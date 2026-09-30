@@ -340,7 +340,7 @@ function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTree
           </Link>
           {!railCollapsed && (
             <>
-              {project.mock.needsYou > 0 && (
+              {!project.overlayPending && project.mock.needsYou > 0 && (
                 <ChipTag variant='gray' className='group-hover/project:hidden'>
                   {project.mock.needsYou}
                 </ChipTag>

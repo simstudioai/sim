@@ -391,7 +391,7 @@ export const CLAIMS_DRAFT: DraftRelease = {
     title: 'Cases sent back by analysts',
     kind: 'bar',
     values: [9, 8, 11, 7, 10, 9, 8, 6, 5, 6, 4, 3, 3, 2],
-    releaseIndex: 14,
+    releaseIndex: 13,
   },
   marker: 'v3',
   release: {

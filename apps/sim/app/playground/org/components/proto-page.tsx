@@ -46,7 +46,10 @@ export function ProtoPage({ slug }: { slug?: string[] }) {
         <ProjectRoute workspaceId={route.workspaceId}>
           {(project) => {
             const issue = issueByKey(route.issueKey)
-            if (!issue || issue.workspaceId !== project.mock.id) notFound()
+            if (!issue || issue.workspaceId !== project.mock.id) {
+              if (project.overlayPending) return <Loading label='Loading issue…' />
+              notFound()
+            }
             return (
               <ProjectShell project={project}>
                 <IssuePage key={issue.key} project={project} issue={issue} />
