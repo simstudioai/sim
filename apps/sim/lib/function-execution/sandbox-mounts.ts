@@ -281,6 +281,10 @@ export async function resolveUserFileMounts(args: {
    * Mounts whose own bytes have no provenance source (no principal to bind one, or a key with no
    * canonical metadata record). Workflow runs keep their legacy absence policy; a persistent
    * workbench must not certify a machine that received one.
+   *
+   * Storage contexts other than workspace and execution (chat, copilot, knowledge-base, logs, and
+   * the other public contexts) never have a source, so they always count here and taint a
+   * workbench. That is conservative by design.
    */
   unprovenancedMountCount: number
 }> {

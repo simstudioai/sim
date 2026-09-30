@@ -47,6 +47,7 @@ const {
   mockWriteWorkspaceFileByPath,
   mockUploadExecutionFile,
   mockMountContributors,
+  mockUnprovenancedMountCount,
   mockRenderedMountContributors,
 } = vi.hoisted(() => ({
   mockExecuteInIsolatedVM: vi.fn(),
@@ -54,6 +55,7 @@ const {
   mockWriteWorkspaceFileByPath: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
   mockMountContributors: vi.fn(),
+  mockUnprovenancedMountCount: vi.fn(),
   mockRenderedMountContributors: vi.fn(),
 }))
 
@@ -153,7 +155,7 @@ vi.mock('@/lib/function-execution/sandbox-mounts', () => ({
   }) => ({
     contributingFiles: mockMountContributors(),
     renderedContributingFiles: mockRenderedMountContributors(),
-    unprovenancedMountCount: mockMountContributors() ? 0 : planned.length,
+    unprovenancedMountCount: mockUnprovenancedMountCount(),
     sandboxFiles: planned.map(({ mountPath }) => ({
       type: 'url' as const,
       path: mountPath,
@@ -260,6 +262,7 @@ describe('Function execution request', () => {
   beforeEach(() => {
     resetDbChainMock()
     mockMountContributors.mockReturnValue(undefined)
+    mockUnprovenancedMountCount.mockReturnValue(0)
     mockRenderedMountContributors.mockReturnValue(undefined)
     mockUploadExecutionFile.mockImplementation(async (context, buffer, name, type) => ({
       id: 'execution-file-1',
@@ -2566,6 +2569,7 @@ describe('Function execution request', () => {
       ['no mounts', false],
     ] as const)('withholds workbench certification for %s', async (_label, mounted) => {
       envFlagsMock.isMothershipSandboxEnabled = true
+      mockUnprovenancedMountCount.mockReturnValue(mounted ? 1 : 0)
       hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
         success: true,
         userId: 'user-123',

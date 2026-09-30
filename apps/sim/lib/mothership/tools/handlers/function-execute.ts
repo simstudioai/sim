@@ -499,6 +499,8 @@ export async function executeFunctionExecute(
     'internalSandboxProfile',
     // Server-derived below — a model-supplied value must never select a session.
     'sandboxSessionKey',
+    // Server-derived from resolved inputs; a model-supplied mount would skip their provenance.
+    '_sandboxFiles',
     PRIVATE_SECRET_PROVENANCE_FIELD,
   ])
   // One persistent session sandbox per chat: files and installed packages
