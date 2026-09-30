@@ -1,9 +1,7 @@
+import { mothershipAgentUrlMock } from '@sim/testing/mocks/mothership-agent-url.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/mothership/server/agent-url', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/mothership/server/agent-url')>()),
-  getMothershipBaseURL: async () => 'https://worker.test',
-}))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 import {
   forwardRunReplay,
