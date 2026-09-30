@@ -672,13 +672,23 @@ const organizationWhitelabelEnvelopeResponseSchema = z.object({
   data: organizationWhitelabelSettingsResponseSchema,
 })
 
+/**
+ * The read also carries the entitlement the update enforces, so the settings page can gate on it
+ * without a separate billing read. It sits beside `data` rather than inside it: `data` keeps the
+ * settings shape clients already parse, so a client from before this field reads the same response.
+ */
+const organizationWhitelabelReadResponseSchema =
+  organizationWhitelabelEnvelopeResponseSchema.extend({
+    isEnterprise: z.boolean(),
+  })
+
 export const getOrganizationWhitelabelContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/whitelabel',
   params: organizationParamsSchema,
   response: {
     mode: 'json',
-    schema: organizationWhitelabelEnvelopeResponseSchema,
+    schema: organizationWhitelabelReadResponseSchema,
   },
 })
 
