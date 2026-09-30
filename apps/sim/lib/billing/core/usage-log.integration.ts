@@ -502,6 +502,32 @@ describe('Cumulative billing with PostgreSQL', () => {
       expect(await stampedWindowTotal(resetStart, resetEnd)).toBeCloseTo(0.6, 9)
     })
 
+    it('keeps billing a request whose period start moved forward before its first charge', async () => {
+      const resetStart = new Date('2025-09-15T00:00:00.000Z')
+      const resetEnd = new Date('2025-10-15T00:00:00.000Z')
+      await setSubscriptionWindow(resetStart, resetEnd)
+
+      expect(await charge(0.4)).toMatchObject({ billed: true, total: 0.4 })
+      expect(await charge(1)).toMatchObject({
+        billed: true,
+        total: 1,
+        billingPeriod: { start: resetStart, end: resetEnd },
+      })
+      expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '1' }])
+      expect(await stampedWindowTotal(resetStart, resetEnd)).toBeCloseTo(1, 9)
+    })
+
+    it('refuses a request admitted after the period its first charge was stamped with', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+
+      await expect(charge(1, { start: periods[1], end: periods[2] })).rejects.toMatchObject({
+        name: CumulativeUsageContextMismatchError.name,
+        mismatchedFields: ['billing period'],
+      })
+      expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '0.4' }])
+    })
+
     it('holds an early period-start move until an in-flight top-up commits', async () => {
       const start = new Date(Date.now() - 24 * 60 * 60 * 1000)
       const end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)

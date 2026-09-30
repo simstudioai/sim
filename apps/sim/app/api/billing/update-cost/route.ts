@@ -23,7 +23,6 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import {
-  type MidRunUsageVerdict,
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,
 } from '@/lib/billing/core/mid-run-usage'
@@ -85,7 +84,8 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
  * steady-state steps cost no ledger read. The charge is
  * already recorded when this runs; a gate that cannot answer reports not-exceeded and leaves the
  * refusal to the next step or re-check rather than ending a paying run on a database blip,
- * and so does a read that outlasts {@link USAGE_STANDING_TIMEOUT_MS}.
+ * and so does a read, verdict and upgrade card together, that outlasts
+ * {@link USAGE_STANDING_TIMEOUT_MS}.
  */
 async function readUsageStanding(
   userId: string,
@@ -98,19 +98,21 @@ async function readUsageStanding(
       ? () => readMidRunAccountUsageVerdict(accountDecision)
       : null
   if (!isHosted || !readVerdict) return { usageExceeded: false }
-  let verdict: MidRunUsageVerdict
+  const readStanding = async (): Promise<BillingUsageVerdict> => {
+    const verdict = await readVerdict()
+    // Only a spent limit pauses the run. A blocked account is refused at the run's next
+    // continuation or re-check, with blocked-account copy rather than the upgrade card.
+    if (verdict.status !== 'exceeded') return { usageExceeded: false }
+    return {
+      usageExceeded: true,
+      usageUpgrade: await resolveUsageUpgradePayload(userId, billingAttribution, verdict.scope),
+    }
+  }
   try {
-    verdict = await withinDeadline(readVerdict, Date.now() + USAGE_STANDING_TIMEOUT_MS)
+    return await withinDeadline(readStanding, Date.now() + USAGE_STANDING_TIMEOUT_MS)
   } catch {
     logger.warn('Usage standing read outlasted the callback budget; answering not exceeded')
     return { usageExceeded: false }
-  }
-  // Only a spent limit pauses the run. A blocked account is refused at the run's next
-  // continuation or re-check, with blocked-account copy rather than the upgrade card.
-  if (verdict.status !== 'exceeded') return { usageExceeded: false }
-  return {
-    usageExceeded: true,
-    usageUpgrade: await resolveUsageUpgradePayload(userId, billingAttribution, verdict.scope),
   }
 }
 
