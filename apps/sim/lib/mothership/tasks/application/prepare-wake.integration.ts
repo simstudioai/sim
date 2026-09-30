@@ -12,7 +12,7 @@ const { redisUrl, inheritedRedisUrl } = await vi.hoisted(async () => {
   const url = readTestRedisUrl()
   const inheritedRedisUrl = process.env.REDIS_URL
   /** The real Redis module reads this at import. */
-  process.env.REDIS_URL = url
+  if (url) process.env.REDIS_URL = url
   return { redisUrl: url, inheritedRedisUrl }
 })
 
@@ -31,7 +31,7 @@ import { copilotChats, copilotRuns, permissions, user, workspace } from '@sim/db
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import { closeRedisConnection } from '@/lib/core/config/redis'
+import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
   createRunSegment,
   getLatestRunForStream,
@@ -40,6 +40,7 @@ import {
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import {
   acquirePendingChatStream,
+  getLocalChatStreamLease,
   releasePendingChatStream,
 } from '@/lib/mothership/request/session/abort'
 import { POST as wakeRoute } from '@/app/api/mothership/wake/route'
@@ -47,7 +48,7 @@ import { POST as wakeRoute } from '@/app/api/mothership/wake/route'
 afterAll(async () => {
   chatPubSub?.dispose()
   await closeRedisConnection()
-  if (inheritedRedisUrl === undefined) process.env.REDIS_URL = undefined
+  if (inheritedRedisUrl === undefined) Reflect.deleteProperty(process.env, 'REDIS_URL')
   else process.env.REDIS_URL = inheritedRedisUrl
 })
 
@@ -174,4 +175,36 @@ describe.runIf(Boolean(redisUrl))('task wake retries', () => {
     expect(await acquirePendingChatStream(chatId, nextTurn, 0)).toBe(true)
     await releasePendingChatStream(chatId, nextTurn)
   })
+
+  it("keeps a retry's chat lock when an earlier wake's slow lookup fails after its own lock expired", async () => {
+    const chatId = await idleChat()
+    const runId = generateId()
+    let lookupStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      lookupStarted = resolve
+    })
+    let failLookup!: () => void
+    const failed = new Promise<void>((resolve) => {
+      failLookup = resolve
+    })
+    vi.mocked(getLatestRunForStream).mockImplementationOnce(async () => {
+      lookupStarted()
+      await failed
+      throw new Error('statement timeout')
+    })
+
+    const slowWake = wake(chatId, runId)
+    await started
+    /** The first wake's lock outlives its TTL while the lookup hangs. */
+    const firstLease = getLocalChatStreamLease(chatId, runId)
+    await getRedisClient()?.del(firstLease?.key ?? '')
+    expect((await wake(chatId, runId)).status).toBe(202)
+
+    failLookup()
+    expect((await slowWake).status).toBe(500)
+
+    const nextTurn = generateId()
+    expect(await acquirePendingChatStream(chatId, nextTurn, 0)).toBe(false)
+    await releasePendingChatStream(chatId, runId)
+  }, 15_000)
 })

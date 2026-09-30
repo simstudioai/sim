@@ -44,24 +44,21 @@ export const prepareTaskWake = defineAuthorizedChatUseCase({
     if (!(await acquirePendingChatStream(input.chatId, input.runId))) {
       throw new OrchestrationError('conflict', 'Another stream holds this chat; retry the wake')
     }
+    const lease = getLocalChatStreamLease(input.chatId, input.runId)
     /**
      * The worker retries a wake under the same run ID until its own run appears. A turn sim
      * already ran under that ID without reaching the worker (a usage-limit refusal) can never
      * open again, so answer not-found: the worker dismisses the notification instead of
      * retrying forever. Checked under the chat lock, so an in-flight turn still answers busy.
-     * Any throw here releases the lock just taken, since the wake turn that would release it
-     * never starts.
+     * Any throw here releases the lock just taken, by its own lease: a slow lookup can outlive
+     * the lock, and a retry under the same run ID may hold the chat by then.
      */
     try {
       if (await getLatestRunForStream(input.runId)) {
         throw new OrchestrationError('not_found', 'This wake already ran')
       }
     } catch (error) {
-      await releasePendingChatStream(
-        input.chatId,
-        input.runId,
-        getLocalChatStreamLease(input.chatId, input.runId)
-      )
+      await releasePendingChatStream(input.chatId, input.runId, lease)
       throw error
     }
     return { accepted: true } as const
