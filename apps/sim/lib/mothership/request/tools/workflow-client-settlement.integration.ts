@@ -1,8 +1,20 @@
 /**
  * A browser claims a Chat workflow tool, the execute route runs it, and the browser may never
- * report back (tab closed, network lost, beacon dropped). Runs against real PostgreSQL: the claim,
- * settlement, execution log lookup, guarded completion and the Chat-side waiter are production code.
+ * report back (tab closed, network lost, beacon dropped). Runs against real PostgreSQL and Redis:
+ * the claim, settlement, execution log lookup, guarded completion, published confirmation and the
+ * Chat-side waiter are production code.
  */
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
+  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+  const url = readTestRedisUrl()
+  const inheritedEnv = { REDIS_URL: process.env.REDIS_URL }
+  /** The real Redis module and the confirmation channel read this at import. */
+  process.env.REDIS_URL = url
+  return { redisUrl: url, inheritedEnv }
+})
+
 import { db } from '@sim/db'
 import {
   copilotAsyncToolCalls,
@@ -16,7 +28,7 @@ import {
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import {
   claimWorkflowToolExecution,
@@ -33,7 +45,31 @@ import {
 /** Longer than the waiter's durable poll, far shorter than the hour it used to park for. */
 const WAIT_MS = 10_000
 
-describe('settled client-claimed workflow tools', () => {
+/**
+ * The confirmation a report published for the worker's durable waiter. Reads on the publisher's
+ * own connection, so it is ordered after any confirmation the report already sent.
+ */
+async function publishedConfirmation(toolCallId: string) {
+  const client = getRedisClient()
+  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
+  const value = await client.get(`copilot:tool-confirmation:${toolCallId}`)
+  return value === null ? null : JSON.parse(value)
+}
+
+afterAll(async () => {
+  const channels = globalThis as typeof globalThis & {
+    _toolConfirmationChannel?: { dispose(): void }
+  }
+  channels._toolConfirmationChannel?.dispose()
+  channels._toolConfirmationChannel = undefined
+  await closeRedisConnection()
+  for (const [key, value] of Object.entries(inheritedEnv)) {
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+})
+
+describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const workflowId = generateId()
@@ -178,6 +214,10 @@ describe('settled client-claimed workflow tools', () => {
         claimedBy: null,
         result: { ...data, workflowId, executionId },
       })
+      expect(await publishedConfirmation(toolCallId)).toMatchObject({
+        status: outcome,
+        executionId,
+      })
     }
   )
 
@@ -192,6 +232,7 @@ describe('settled client-claimed workflow tools', () => {
     await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
 
     expect((await toolRow(toolCallId)).completedAt).toEqual(reported?.completedAt)
+    expect(await publishedConfirmation(toolCallId)).toBeNull()
   })
 
   it('keeps a background detach the browser reported on pagehide', async () => {
@@ -201,6 +242,7 @@ describe('settled client-claimed workflow tools', () => {
     await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
 
     expect(await toolRow(toolCallId)).toMatchObject({ status: 'delivered', result: null })
+    expect(await publishedConfirmation(toolCallId)).toBeNull()
   })
 
   it('never completes a call bound to a different execution', async () => {
@@ -215,6 +257,7 @@ describe('settled client-claimed workflow tools', () => {
     })
 
     expect(await toolRow(toolCallId)).toMatchObject({ status: 'running', result: null })
+    expect(await publishedConfirmation(toolCallId)).toBeNull()
   })
 
   it('delivers an execution that ended before it wrote a log as failed', async () => {
@@ -269,5 +312,6 @@ describe('settled client-claimed workflow tools', () => {
       status: 'cancelled',
       completedAt: reported?.completedAt,
     })
+    expect(await publishedConfirmation(toolCallId)).toBeNull()
   })
 })
