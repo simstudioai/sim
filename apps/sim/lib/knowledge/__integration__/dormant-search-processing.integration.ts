@@ -96,20 +96,31 @@ describe('dormant Search document processing', () => {
     expect(stored.status).toBe('pending')
   })
 
-  it('withdraws its own queued generation and refunds the charged attempt', async () => {
+  it('withdraws its own queued generation and refunds the charged attempt once', async () => {
     const queuedAt = new Date('2026-09-29T00:00:00.000Z')
     const token = generateId()
     await db
       .update(document)
-      .set({ processingQueueToken: token, processingQueuedAt: queuedAt, processingAttempts: 1 })
+      .set({ processingQueueToken: token, processingQueuedAt: queuedAt, processingAttempts: 2 })
       .where(eq(document.id, documentId))
-    expect(
-      await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
-        chargedAtDispatch: true,
-        processingQueueToken: token,
-        processingQueuedAt: queuedAt,
-      })
-    ).toEqual({ outcome: 'skipped', reason: 'unavailable' })
+    const attempt = {
+      chargedAtDispatch: true,
+      processingQueueToken: token,
+      processingQueuedAt: queuedAt,
+    }
+    for (const _ of [1, 2]) {
+      expect(
+        await processDocumentAsync(
+          ids.knowledgeBaseId,
+          documentId,
+          source,
+          {},
+          undefined,
+          'pass',
+          attempt
+        )
+      ).toEqual({ outcome: 'skipped', reason: 'unavailable' })
+    }
     const [stored] = await db
       .select({
         status: document.processingStatus,
@@ -119,7 +130,7 @@ describe('dormant Search document processing', () => {
       })
       .from(document)
       .where(eq(document.id, documentId))
-    expect(stored).toEqual({ status: 'pending', token, queuedAt: null, attempts: 0 })
+    expect(stored).toEqual({ status: 'pending', token, queuedAt: null, attempts: 1 })
   })
 
   it('leaves a newer queued generation untouched', async () => {

@@ -1690,6 +1690,8 @@ export async function processDocumentAsync(
             and(
               eq(document.id, documentId),
               eq(document.processingStatus, 'pending'),
+              /** A duplicate of an already-withdrawn generation must not refund again. */
+              isNotNull(document.processingQueuedAt),
               ...queueGenerationConditions(attemptContext)
             )
           )
