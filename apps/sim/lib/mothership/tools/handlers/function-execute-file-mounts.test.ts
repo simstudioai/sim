@@ -238,6 +238,12 @@ describe('Mothership file mounts bind content and classification to the same rec
           reasons: expect.arrayContaining(['mounted-file-provenance-unavailable']),
         })
         expect.soft(written).toEqual({ safe: false })
+        expect(observation.result.output).toEqual({
+          resultWithheld: true,
+          withheldReason: expect.stringMatching(
+            /file, table, or document .* unknown secret provenance/
+          ),
+        })
       } else {
         expect(observation.safe).toBe(true)
         expect(written).toMatchObject({

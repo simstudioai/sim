@@ -47,7 +47,47 @@ const SERVER_MINTED_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /** Field names the disclosure record owns; an id may not take one. */
-const RESERVED_DISCLOSURE_KEYS = new Set(['resultWithheld', 'effect'])
+const RESERVED_DISCLOSURE_KEYS = new Set(['resultWithheld', 'withheldReason', 'effect'])
+
+/**
+ * Guards that trip because a file, table, or document the call read carries no verified secret
+ * record. They are the ones a caller can act on by choosing other inputs, so they get their own
+ * wording; every other latch shares the generic one.
+ */
+const UNKNOWN_INPUT_PROVENANCE_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'mounted-file-provenance-unavailable',
+  'workspace-file-provenance-unknown',
+  'file-source-unidentified',
+  'table-snapshot-unsafe-for-mount',
+  'table-result-provenance-unavailable',
+  'table-run-state-provenance-unavailable',
+  'knowledge-result-provenance-unavailable',
+  'knowledge-row-missing',
+  'knowledge-row-content-mismatch',
+])
+
+const WITHHELD_REASON = {
+  unknownInput:
+    'A file, table, or document this call read has unknown secret provenance, so its output could contain a secret value. Use inputs whose provenance is known (for example, a freshly uploaded file) to see the output.',
+  unverified:
+    "Secret provenance for this call's inputs could not be verified, so its output could contain a secret value.",
+  contentRefused:
+    'The result could not be checked for secret values, usually because it is too large. Request a narrower result.',
+} as const
+
+/**
+ * The model-facing explanation for a withheld result, chosen only from the code-defined wording
+ * above by the guard that tripped. Reasons and origins themselves never cross: an origin is a
+ * caller-supplied string. An absent registry is a surface defect the model cannot act on, so it
+ * carries none.
+ */
+function withheldReason(cause: ToolResultWithholdingCause): string | undefined {
+  if (cause.kind === 'registry-absent') return undefined
+  if (cause.kind === 'content-refused') return WITHHELD_REASON.contentRefused
+  return cause.reasons.some((reason) => UNKNOWN_INPUT_PROVENANCE_REASONS.has(reason))
+    ? WITHHELD_REASON.unknownInput
+    : WITHHELD_REASON.unverified
+}
 
 /** Chooses the withheld-result message a tool's caller should surface. */
 export function toolResultUnavailableError(toolId?: string): string {
@@ -90,17 +130,25 @@ function structuralResult(result: ToolExecutionResult): ToolExecutionResult {
  * on its own — a partially honoured exemption is the one shape a reader would
  * misread as complete.
  */
-function omittedResult(result: ToolExecutionResult, toolId?: string): ToolExecutionResult {
+function omittedResult(
+  result: ToolExecutionResult,
+  cause: ToolResultWithholdingCause,
+  toolId?: string
+): ToolExecutionResult {
   const effect = vouchableEffect(result.effect)
+  const reason = withheldReason(cause)
+  const disclosure = reason ? { resultWithheld: true, withheldReason: reason } : undefined
   if (!effect) {
-    return result.success
-      ? { success: true }
-      : { success: false, error: toolResultUnavailableError(toolId) }
+    return {
+      success: result.success === true,
+      ...(disclosure ? { output: disclosure } : {}),
+      ...(result.success ? {} : { error: toolResultUnavailableError(toolId) }),
+    }
   }
 
   return {
     success: result.success === true,
-    output: { resultWithheld: true, effect: effect.phase, ...effect.ids },
+    output: { resultWithheld: true, ...disclosure, effect: effect.phase, ...effect.ids },
     ...(result.success ? {} : { error: WITHHELD_ERROR_BY_EFFECT_PHASE[effect.phase] }),
   }
 }
@@ -139,11 +187,8 @@ function withheld(
   registry: ResolvedSecretTraceRegistry | undefined,
   toolId: string | undefined
 ): CopilotToolResultProjection {
-  return {
-    safe: false,
-    result: omittedResult(result, toolId),
-    cause: withholdingCause(registry),
-  }
+  const cause = withholdingCause(registry)
+  return { safe: false, result: omittedResult(result, cause, toolId), cause }
 }
 
 /**

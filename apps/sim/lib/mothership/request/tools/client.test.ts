@@ -469,6 +469,8 @@ describe('workflow client tool completion', () => {
         success: true,
         workflowId: 'workflow-1',
         executionId: 'execution-1',
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be checked/),
       },
     })
     expect(registry.isComplete()).toBe(true)
@@ -571,6 +573,8 @@ describe('workflow client tool completion', () => {
         success: true,
         workflowId: 'workflow-1',
         executionId: 'execution-1',
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be verified/),
       },
     })
     expect(registry.isComplete()).toBe(true)
