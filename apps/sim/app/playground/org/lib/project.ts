@@ -1,4 +1,5 @@
 import { useQueries } from '@tanstack/react-query'
+import { DEPTH_LABELS, type ProjectEnvironment, resolveProjectLineages } from '@/lib/projects'
 import { WORKSPACES, type Workspace } from '@/app/playground/org/lib/mock-data'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
@@ -23,28 +24,6 @@ export interface Project {
   environment: string
   /** Every environment of the project, root first. */
   environments: ProjectEnvironment[]
-}
-
-export interface ProjectEnvironment {
-  workspaceId: string
-  label: string
-}
-
-/** A trailing environment word on a workspace name names its environment; the rest names the project. */
-const ENVIRONMENT_SUFFIX =
-  /^(.*?)[\s-]+(prod|production|staging|stage|sandbox|dev|development|test|uat|qa)$/i
-/** What a fork is called when its name carries no environment word, by depth below the root. */
-const DEPTH_LABELS = ['Prod', 'Staging', 'Sandbox'] as const
-
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-}
-
-function parseEnvironmentName(name: string): { base: string; environment: string | null } {
-  const match = ENVIRONMENT_SUFFIX.exec(name.trim())
-  return match
-    ? { base: match[1].trim(), environment: capitalize(match[2]) }
-    : { base: name.trim(), environment: null }
 }
 
 /** What a real workspace shows when no pack claims it: real resources, nothing mock on top. */
@@ -76,38 +55,6 @@ function mockProject(pack: Workspace): Project {
   }
 }
 
-interface Lineage {
-  rootId: string
-  depth: number
-}
-
-/**
- * Groups forked workspaces under the workspace they were forked from, following
- * `forkedFromWorkspaceId` while the parent is in the list the viewer can see.
- */
-function resolveLineages(
-  workspaces: readonly { id: string; forkedFromWorkspaceId?: string | null }[]
-): Map<string, Lineage> {
-  const parents = new Map<string, string | null>()
-  for (const workspace of workspaces)
-    parents.set(workspace.id, workspace.forkedFromWorkspaceId ?? null)
-  const lineages = new Map<string, Lineage>()
-  for (const workspace of workspaces) {
-    let rootId = workspace.id
-    let depth = 0
-    const seen = new Set<string>([rootId])
-    for (;;) {
-      const parent = parents.get(rootId)
-      if (!parent || !parents.has(parent) || seen.has(parent)) break
-      seen.add(parent)
-      rootId = parent
-      depth += 1
-    }
-    lineages.set(workspace.id, { rootId, depth })
-  }
-  return lineages
-}
-
 /**
  * Picks the overlay pack for a real workspace: first the pack whose `matchWorkflows` names one
  * of the workspace's workflows, then the pack whose `match` hits the workspace name. A workspace
@@ -134,26 +81,13 @@ export function useProjects() {
     queries: workspaces.map((workspace) => getWorkflowListQueryOptions(workspace.id)),
   })
   /** A handful of rows, so deriving them each render is cheaper than a memo keyed on the lists. */
-  const lineages = resolveLineages(workspaces)
-  const environmentsByRoot = new Map<string, ProjectEnvironment[]>()
-  for (const workspace of workspaces) {
-    const lineage = lineages.get(workspace.id)
-    if (!lineage) continue
-    const { environment } = parseEnvironmentName(workspace.name)
-    const label = environment ?? DEPTH_LABELS[lineage.depth] ?? `Fork ${lineage.depth}`
-    const list = environmentsByRoot.get(lineage.rootId) ?? []
-    list.push({ workspaceId: workspace.id, label })
-    environmentsByRoot.set(lineage.rootId, list)
-  }
+  const lineages = resolveProjectLineages(workspaces)
   const real: Project[] = workspaces.map((workspace, index) => {
-    const lineage = lineages.get(workspace.id) ?? { rootId: workspace.id, depth: 0 }
-    const root = workspaces.find((candidate) => candidate.id === lineage.rootId) ?? workspace
-    const environments = [...(environmentsByRoot.get(lineage.rootId) ?? [])].sort((a, b) =>
-      a.workspaceId === lineage.rootId ? -1 : b.workspaceId === lineage.rootId ? 1 : 0
-    )
+    const lineage = lineages.get(workspace.id)
+    if (!lineage) throw new Error(`No lineage for workspace ${workspace.id}`)
     return {
       id: workspace.id,
-      name: parseEnvironmentName(root.name).base,
+      name: lineage.name,
       organizationId: workspace.organizationId ?? null,
       ...matchOverlay(
         workspace.name,
@@ -162,10 +96,8 @@ export function useProjects() {
       overlayPending: workflowLists[index]?.isPending ?? true,
       isMock: false,
       rootId: lineage.rootId,
-      environment:
-        environments.find((candidate) => candidate.workspaceId === workspace.id)?.label ??
-        DEPTH_LABELS[0],
-      environments,
+      environment: lineage.environment,
+      environments: lineage.environments,
     }
   })
   /** Packs no real workspace claimed stay in the sidebar as mock projects, below the real ones. */

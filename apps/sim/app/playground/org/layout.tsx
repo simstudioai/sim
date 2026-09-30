@@ -19,6 +19,7 @@ export default async function OrgPrototypeLayout({ children }: { children: React
         'table-row-ttl': false,
         'mothership-model-selector': modelSelectorEnabled,
         'mothership-plan-mode': planModeEnabled,
+        'org-project-view': true,
       }}
     >
       <ProtoShell>{children}</ProtoShell>

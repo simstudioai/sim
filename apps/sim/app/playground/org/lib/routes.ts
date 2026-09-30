@@ -6,6 +6,7 @@ import {
   Library,
   ListChecks,
   Rss,
+  Server,
   Settings,
   Table,
   Workflow,
@@ -22,6 +23,7 @@ export const WORKSPACE_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: Layout },
   { id: 'changelog', label: 'Changelog', icon: Rss },
   { id: 'issues', label: 'Issues', icon: ListChecks },
+  { id: 'environments', label: 'Environments', icon: Server },
   { id: 'credentials', label: 'Integrations', icon: Integration },
   { id: 'workflows', label: 'Workflows', icon: Workflow },
   { id: 'files', label: 'Files', icon: Files },
@@ -34,7 +36,12 @@ export const WORKSPACE_SECTIONS = [
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]['id']
 
 /** What the main project view shows as chips; everything else lives in the full view. */
-export const MAIN_SECTION_IDS: readonly WorkspaceSection[] = ['dashboard', 'changelog', 'issues']
+export const MAIN_SECTION_IDS: readonly WorkspaceSection[] = [
+  'dashboard',
+  'changelog',
+  'issues',
+  'environments',
+]
 export const MAIN_SECTIONS = WORKSPACE_SECTIONS.filter((s) => MAIN_SECTION_IDS.includes(s.id))
 
 function isMainSection(section: WorkspaceSection): boolean {

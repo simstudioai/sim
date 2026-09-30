@@ -593,6 +593,7 @@ export const env = createEnv({
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
     MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
+    ORG_PROJECT_VIEW: z.boolean().optional(),
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     SIM_SEARCH_LIVE: z.boolean().optional(), // Query connected providers directly; false preserves indexed search
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)

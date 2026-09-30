@@ -4,6 +4,7 @@ import { ChipLink } from '@sim/emcn'
 import { Expand } from '@sim/emcn/icons'
 import { Changelog } from '@/app/playground/org/components/changelog'
 import { EnvironmentSwitcher } from '@/app/playground/org/components/environment-switcher'
+import { EnvironmentsTab } from '@/app/playground/org/components/environments/environments-tab'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
@@ -108,6 +109,8 @@ function SectionBody({ project, section, settingsSection }: SectionBodyProps) {
       return <Changelog project={project} />
     case 'issues':
       return <IssuesList project={project} />
+    case 'environments':
+      return <EnvironmentsTab project={project} />
     case 'settings':
       return (
         <ProjectSettings

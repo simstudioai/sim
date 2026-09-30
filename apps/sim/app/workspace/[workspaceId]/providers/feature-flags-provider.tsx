@@ -7,6 +7,7 @@ export interface WorkspaceFeatureFlags {
   'table-row-ttl': boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
+  'org-project-view': boolean
 }
 
 const FeatureFlagsContext = createContext<WorkspaceFeatureFlags | null>(null)
