@@ -26,6 +26,7 @@
     "test:coverage": "vitest run --coverage",
     "test:evals": "EVAL_REPORT_PATH=test-results/evals/agent-tool-use.json vitest run evals/agent-tool-use",
     "test:evals:live": "EVAL_LIVE=1 vitest run --mode live evals/agent-tool-use",
+    "test:evals:compare": "EVAL_LIVE=1 vitest run --mode live evals/agent-tool-use/agent-tool-use.compare.live.test.ts",
     "email:dev": "email dev --dir components/emails",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
