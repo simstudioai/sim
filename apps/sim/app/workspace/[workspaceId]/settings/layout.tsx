@@ -2,10 +2,8 @@
 
 import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  SettingsPendingSection,
-  useSettingsIntentHandler,
-} from '@/components/settings/settings-navigation-provider'
+import { useSettingsIntentHandler } from '@/components/settings/settings-navigation-provider'
+import { SettingsPendingSection } from '@/components/settings/settings-pending-section'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {

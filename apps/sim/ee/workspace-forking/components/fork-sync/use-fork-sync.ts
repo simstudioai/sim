@@ -220,6 +220,12 @@ export interface ForkSyncController {
   mcpReauthCount: number
   inlineSecretCount: number
   dirty: boolean
+  /**
+   * Whether a direction switch would discard anything chosen this session: unsaved mapping edits,
+   * a copy selection that differs from the default, accepted dropped references, or trigger URL
+   * choices. Broader than {@link dirty}, which only tracks what Save persists.
+   */
+  hasSessionChoices: boolean
   saving: boolean
   save: () => void
   discard: () => void
@@ -769,6 +775,20 @@ export function useForkSync(params: {
 
   const dirty = targetsDirty || reconfigDirty
 
+  const copySelectionChanged = useMemo(() => {
+    if (!copyDefaulted) return false
+    const defaults = forkDefaultCopySelection(copyableUnmapped)
+    if (defaults.size !== copySelected.size) return true
+    for (const key of copySelected) if (!defaults.has(key)) return true
+    return false
+  }, [copyDefaulted, copyableUnmapped, copySelected])
+
+  const hasSessionChoices =
+    dirty ||
+    copySelectionChanged ||
+    droppedRefs.size > 0 ||
+    Object.keys(triggerAdoptions).length > 0
+
   const save = () => {
     if (!otherWorkspaceId || !dirty || updateMapping.isPending) return
     const submittedTargets = targets
@@ -1059,6 +1079,7 @@ export function useForkSync(params: {
     mcpReauthCount: diff.data?.mcpReauthServerIds.length ?? 0,
     inlineSecretCount: diff.data?.inlineSecretSources.length ?? 0,
     dirty,
+    hasSessionChoices,
     saving: updateMapping.isPending,
     save,
     discard,

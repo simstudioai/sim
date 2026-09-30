@@ -17,11 +17,9 @@ import {
   toSettingsHeaderMeta,
 } from '@/components/settings/navigation'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
-import {
-  SettingsNavigationProvider,
-  SettingsPendingSection,
-} from '@/components/settings/settings-navigation-provider'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
+import { SettingsPendingSection } from '@/components/settings/settings-pending-section'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'

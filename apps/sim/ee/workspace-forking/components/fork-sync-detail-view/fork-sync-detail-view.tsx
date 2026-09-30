@@ -18,6 +18,7 @@ import {
   ARCHIVED_PREVIEW_LIMIT,
   useForkSync,
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
+import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 interface ForkSyncDetailViewProps {
@@ -71,6 +72,12 @@ export function ForkSyncDetailView({
   const guard = useSettingsUnsavedGuard({ isDirty: controller.dirty })
 
   const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
+  // A direction switch drops every in-session choice (see `useForkSync`), so any confirms first.
+  const [pendingDirection, setPendingDirection] = useState<ForkDirection | null>(null)
+  const changeDirection = (next: ForkDirection) => {
+    if (controller.hasSessionChoices) setPendingDirection(next)
+    else void setDirection(next)
+  }
 
   // Sync is the edge's primary action, so it's the rightmost/black chip; the caller's
   // Open workspace chip sits left of it. Dirty mapping edits swap the whole cluster
@@ -112,17 +119,24 @@ export function ForkSyncDetailView({
         title={title}
         actions={panelActions}
       >
-        <ForkSyncView
-          controller={controller}
-          // A direction switch drops the in-session mapping choices, so unsaved edits confirm first.
-          onDirectionChange={(next) => guard.guardBack(() => void setDirection(next))}
-        />
+        <ForkSyncView controller={controller} onDirectionChange={changeDirection} />
       </SettingsPanel>
 
       <UnsavedChangesModal
         open={guard.showUnsavedModal}
         onOpenChange={guard.setShowUnsavedModal}
         onDiscard={guard.confirmDiscard}
+      />
+
+      <UnsavedChangesModal
+        open={pendingDirection !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDirection(null)
+        }}
+        onDiscard={() => {
+          if (pendingDirection) void setDirection(pendingDirection)
+          setPendingDirection(null)
+        }}
       />
 
       <ChipConfirmModal
