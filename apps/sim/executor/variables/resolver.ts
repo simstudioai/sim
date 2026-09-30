@@ -138,7 +138,7 @@ function appendReferencePath(reference: string, path: Array<string | number>): s
 /** A Function block reference points straight at a large value its runtime cannot load. */
 function getDirectLargeValueError(reference: string, size: number): Error {
   return new Error(
-    `${reference} is too large to pass inline (${formatLargeValueSize(size)}). ${LARGE_VALUE_RUNTIME_HINT}`
+    `${reference} is ${formatLargeValueSize(size)}, too large to pass into this block. ${LARGE_VALUE_RUNTIME_HINT}`
   )
 }
 

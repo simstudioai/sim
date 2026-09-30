@@ -972,7 +972,7 @@ describe('VariableResolver function block inputs', () => {
         'return <Producer.result>'
       )
     ).rejects.toThrow(
-      '<Producer.result> is too large to pass inline (12.0 MB). Select a smaller field, or read it in JavaScript without imports.'
+      '<Producer.result> is 12.0 MB, too large to pass into this block. Select a smaller field, or read it in JavaScript without imports.'
     )
   })
 
@@ -984,7 +984,7 @@ describe('VariableResolver function block inputs', () => {
         "import x from 'x'\nreturn <Producer.result>"
       )
     ).rejects.toThrow(
-      '<Producer.result> is too large to pass inline (12.0 MB). Select a smaller field, or read it in JavaScript without imports.'
+      '<Producer.result> is 12.0 MB, too large to pass into this block. Select a smaller field, or read it in JavaScript without imports.'
     )
   })
 
