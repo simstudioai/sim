@@ -1,5 +1,7 @@
-import { createLogger } from '@sim/logger'
-import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/mothership/async-runs/lifecycle'
+import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
+  isTerminalAsyncStatus,
+} from '@/lib/mothership/async-runs/lifecycle'
 import {
   completeClientWorkflowToolCall,
   detachAsyncToolCall,
@@ -10,12 +12,7 @@ import {
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
 } from '@/lib/mothership/tools/workflow-tools'
-import {
-  getTrustedWorkflowToolExecution,
-  hasWorkflowExecutionLog,
-} from '@/lib/workflows/executor/execution-state'
-
-const logger = createLogger('CopilotWorkflowClientSettlement')
+import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 
 interface ReportClientWorkflowToolParams {
   toolCallId: string
@@ -40,17 +37,10 @@ export async function reportSettledClientWorkflowTool({
   executionId,
   workflowId,
 }: ReportClientWorkflowToolParams): Promise<void> {
-  const execution = await getTrustedWorkflowToolExecution(executionId, workflowId, toolCallId)
-  if (!execution && (await hasWorkflowExecutionLog(executionId, workflowId))) {
-    logger.warn('Settled client workflow execution has no trusted log; leaving it to the client', {
-      toolCallId,
-      executionId,
-      workflowId,
-    })
-    return
-  }
+  const logStatus = await getWorkflowExecutionLogStatus(executionId, workflowId)
+  if (logStatus !== undefined && !isTerminalAsyncStatus(logStatus)) return
 
-  const executionStatus = execution?.status ?? 'failed'
+  const executionStatus = logStatus ?? 'failed'
   const status = getWorkflowToolConfirmationStatus(executionStatus)
   const message = getWorkflowToolCompletionMessage(status)
   const data = createStructuralWorkflowToolCompletionData(status, workflowId, executionId)

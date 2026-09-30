@@ -136,13 +136,13 @@ export async function getExecutionStateForWorkflow(
   return extractExecutionStateFromRow(row)
 }
 
-/** Whether an execution ever started its workflow log, whatever state that log is in now. */
-export async function hasWorkflowExecutionLog(
+/** The status of an execution's workflow log, or `undefined` when it never started one. */
+export async function getWorkflowExecutionLogStatus(
   executionId: string,
   workflowId: string
-): Promise<boolean> {
+): Promise<string | undefined> {
   const [row] = await db
-    .select({ id: workflowExecutionLogs.id })
+    .select({ status: workflowExecutionLogs.status })
     .from(workflowExecutionLogs)
     .where(
       and(
@@ -151,7 +151,7 @@ export async function hasWorkflowExecutionLog(
       )
     )
     .limit(1)
-  return Boolean(row)
+  return row?.status
 }
 
 /** Loads a terminal workflow result only when its server-persisted Copilot binding matches. */
