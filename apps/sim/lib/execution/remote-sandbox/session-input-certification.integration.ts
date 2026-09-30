@@ -100,7 +100,7 @@ describe.skipIf(!redisUrl)('workbench certification at the code boundary', () =>
     const key = `certification-${generateShortId(12)}`
     const identity = { providerId: 'e2b', sandboxId } as const
     createdKeys.push(
-      `mothership:workbench-provenance:v1:${createHash('sha256')
+      `mothership:workbench-provenance:v2:${createHash('sha256')
         .update(JSON.stringify([key, identity.providerId, sandboxId]))
         .digest('hex')}`
     )
@@ -114,13 +114,15 @@ describe.skipIf(!redisUrl)('workbench certification at the code boundary', () =>
       timeoutMs: 30_000,
       session: { key, ...(unprovenanced ? { unprovenancedInputs: true } : {}) },
     }
-    await observeSandboxSessionInputs(
+    const execution = observeSandboxSessionInputs(
       () => true,
       () =>
         kind === 'code'
           ? executeInSandbox(request)
           : executeShellInSandbox({ ...request, envs: {} })
     )
+    if (unprovenanced) await expect(execution).rejects.toThrow('Workbench output withheld')
+    else await expect(execution).resolves.toMatchObject({ sandboxId })
     expect(await isSessionFileProvenanceClean(key, identity)).toBe(!unprovenanced)
   })
 })

@@ -35,6 +35,8 @@ vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
 }))
 
 import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+import { SandboxOutputLimitError } from '@/lib/execution/remote-sandbox/output-limits'
+import { readSessionSecretProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import {
   readSessionSandboxFile,
   writeSessionSandboxFile,
@@ -61,6 +63,24 @@ describe('workbench file cancellation', () => {
     write.mockResolvedValue(undefined)
     remove.mockResolvedValue(undefined)
     run.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 })
+  })
+
+  it('distinguishes a file-size failure without returning provider diagnostics', async () => {
+    read.mockRejectedValueOnce(new SandboxOutputLimitError(4 * 1024 * 1024 + 1, 4 * 1024 * 1024))
+    expect(await readSessionSandboxFile('chat', 'large.txt')).toEqual({
+      outcome: 'error',
+      detail: 'Workbench file exceeds the maximum read size of 4194304 bytes',
+    })
+  })
+
+  it('distinguishes a provenance outage from a missing file without returning storage diagnostics', async () => {
+    vi.mocked(readSessionSecretProvenance).mockRejectedValueOnce(
+      new Error('SYNTHETIC_PRIVATE_DIAGNOSTIC')
+    )
+    expect(await readSessionSandboxFile('chat', 'input.txt')).toEqual({
+      outcome: 'error',
+      detail: 'Workbench file secret provenance is unavailable',
+    })
   })
 
   it('does not write if Stop arrives during the sandbox lookup', async () => {
@@ -112,6 +132,7 @@ describe('workbench file cancellation', () => {
     expect(await readSessionSandboxFile('chat', 'input.csv')).toEqual({
       outcome: 'read',
       content: 'data',
+      secretProvenance: { status: 'exact', entries: [] },
     })
     expect(read).toHaveBeenLastCalledWith(
       '/home/user/input.csv',
@@ -444,4 +465,5 @@ describe('workbench file cancellation', () => {
 vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
   initializeSessionFileProvenance: vi.fn(),
   recordSessionFileInput: vi.fn(),
+  readSessionSecretProvenance: vi.fn(async () => ({ status: 'exact', entries: [] })),
 }))

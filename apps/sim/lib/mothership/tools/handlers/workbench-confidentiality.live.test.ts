@@ -1,0 +1,416 @@
+import { execFile } from 'node:child_process'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { promisify } from 'node:util'
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { generateShortId } from '@sim/utils/id'
+import Redis from 'ioredis'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const io = vi.hoisted(() => ({ mount: vi.fn(), find: vi.fn(), write: vi.fn() }))
+vi.mock('@/tools', () => toolsMock)
+vi.mock('@/lib/mothership/tools/secret-mount-materializer.server', () => ({
+  materializeCopilotCodeSecrets: io.mount,
+  CopilotCodeSecretAccessError: class extends Error {},
+}))
+vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
+vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
+  resolveWorkspaceSandbox: async () => null,
+  provisionRuntimeDependencies: async () => {},
+  repairMissingSandboxImage: async () => null,
+  RUNTIME_INSTALL_TIMEOUT_MS: 60_000,
+}))
+vi.mock('@/lib/mothership/tools/sandbox-session', () => ({
+  buildMothershipSandboxSession: async (args: { sessionKey: string }) => ({ key: args.sessionKey }),
+}))
+vi.mock('@/lib/workspace-files/application/delegated-principal', () => ({
+  rebindWorkspaceFileDelegatedPrincipal: ({ principal }: { principal: unknown }) => principal,
+}))
+vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
+  validateWorkspaceFileWriteTarget: async () => ({ vfsPath: 'files/review.txt' }),
+  writeWorkspaceFileByPath: io.write,
+}))
+
+import { functionExecuteBodySchema } from '@/lib/api/contracts'
+import { encryptSecret } from '@/lib/core/security/encryption'
+import {
+  PRIVATE_TOOL_METADATA_REQUEST_HEADER,
+  RESOLVED_SECRET_NAMES_FIELD,
+  RESOLVED_SECRET_NAMES_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
+import {
+  initializeSessionFileProvenance,
+  isSessionFileProvenanceClean,
+  readSessionSecretProvenance,
+  recordSessionFileInput,
+} from '@/lib/execution/remote-sandbox/session-file-provenance'
+import type { SandboxHandle } from '@/lib/execution/remote-sandbox/types'
+import { executeFunctionRequest } from '@/lib/function-execution/execute-request'
+import { readCliInputFile } from '@/lib/mothership/agent-cli/run-cli'
+import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
+import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
+import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
+import type { CodeExecutionInput } from '@/tools/function/types'
+
+const socket = process.env.MSHIP_TEST_REDIS_SOCKET
+if (!socket) throw new Error('MSHIP_TEST_REDIS_SOCKET must identify a disposable local Redis')
+const redis = new Redis({ path: socket, retryStrategy: () => null, maxRetriesPerRequest: 1 })
+const execute = promisify(execFile)
+const canary = 'SYNTHETIC_REVIEW_SECRET_9b78e6dc'
+const scope = { userId: 'review-actor', workspaceId: 'review-workspace' }
+const roots: string[] = []
+let root: string
+let chatId: string
+let machine: SandboxHandle
+let catalog: Array<{ name: string; plaintext: string; encryptedValue: string }>
+let parent: ResolvedSecretTraceRegistry
+
+function workerPath(path: string) {
+  return path.startsWith('/') ? join(root, path.slice(1)) : join(root, 'home/user', path)
+}
+
+function localWorker(): SandboxHandle {
+  return {
+    sandboxId: `local-${generateShortId(12)}`,
+    runCode: async () => {
+      throw new Error('This reproduction uses actual shell processes')
+    },
+    async runCommand(command, options) {
+      const envs = Object.fromEntries(
+        Object.entries(options.envs ?? {}).map(([key, value]) => [
+          key,
+          value
+            .replaceAll('/home/user', workerPath('/home/user'))
+            .replaceAll('/tmp/sim/', `${workerPath('/tmp/sim')}/`),
+        ])
+      )
+      try {
+        const output = await execute('/bin/bash', ['-c', command], {
+          cwd: workerPath('/home/user'),
+          env: { PATH: '/usr/bin:/bin:/opt/homebrew/bin', ...envs },
+          timeout: options.timeoutMs,
+          maxBuffer: options.maxOutputBytes,
+        })
+        return { ...output, exitCode: 0 }
+      } catch (error) {
+        const failure = error as { stdout: string; stderr: string; code: number }
+        return { stdout: failure.stdout, stderr: failure.stderr, exitCode: failure.code }
+      }
+    },
+    extendLifetime: async () => {},
+    getFileSize: async (path) => (await stat(workerPath(path))).size,
+    readFile: async (path) => readFile(workerPath(path), 'utf8'),
+    async readFileWithLimit(path, options) {
+      const bytes = await readFile(workerPath(path))
+      if (bytes.length > options.maxBytes) throw new Error('Local worker byte cap')
+      return { content: bytes.toString(options.encoding), byteLength: bytes.length }
+    },
+    async writeFile(path, content) {
+      await mkdir(dirname(workerPath(path)), { recursive: true })
+      await writeFile(
+        workerPath(path),
+        typeof content === 'string' ? content : Buffer.from(content)
+      )
+    },
+    removeFile: async (path) => rm(workerPath(path), { force: true }),
+    async listFiles(path) {
+      const entries = await readdir(workerPath(path), { withFileTypes: true })
+      return Promise.all(
+        entries.map(async (entry) => ({
+          path: `${path}/${entry.name}`,
+          relativePath: entry.name,
+          kind: entry.isDirectory() ? ('directory' as const) : ('file' as const),
+          size: (await stat(workerPath(`${path}/${entry.name}`))).size,
+        }))
+      )
+    },
+    kill: async () => {},
+  }
+}
+
+beforeEach(async () => {
+  redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+  redisConfigMockFns.mockAcquireLock.mockImplementation(
+    async (key: string, owner: string, ttl: number) =>
+      (await redis.set(key, owner, 'EX', ttl, 'NX')) === 'OK'
+  )
+  redisConfigMockFns.mockExtendLock.mockImplementation(
+    async (key: string, owner: string, ttl: number) =>
+      (await redis.eval(
+        "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('EXPIRE',KEYS[1],ARGV[2]) else return 0 end",
+        1,
+        key,
+        owner,
+        ttl
+      )) === 1
+  )
+  redisConfigMockFns.mockReleaseLock.mockImplementation(async (key: string, owner: string) => {
+    await redis.eval(
+      "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end",
+      1,
+      key,
+      owner
+    )
+  })
+  remoteSandboxProviderMockFns.mockResolveProvider.mockReturnValue({
+    id: 'e2b',
+    dependencyStrategy: 'prebuilt',
+    resolveLifetimeMs: (ms: number) => ms,
+    findSessionSandbox: io.find,
+    create: async () => {
+      throw new Error('Only the existing disposable worker may be used')
+    },
+  })
+  setEnv({ ENCRYPTION_KEY: 'a'.repeat(64) })
+  envFlagsMock.isMothershipSandboxEnabled = true
+  envFlagsMock.isRemoteSandboxEnabled = true
+  root = await mkdtemp('/private/tmp/sim-workbench-test-')
+  roots.push(root)
+  await mkdir(workerPath('/home/user'), { recursive: true })
+  chatId = `review-${generateShortId(12)}`
+  machine = localWorker()
+  io.find.mockResolvedValue(machine)
+  const encryptedValue = (await encryptSecret(canary)).encrypted
+  catalog = [{ name: 'TOKEN', plaintext: canary, encryptedValue }]
+  parent = new ResolvedSecretTraceRegistry(catalog, scope)
+  io.mount.mockResolvedValue({ envVars: { TOKEN: canary }, catalogEntries: catalog })
+  await initializeSessionFileProvenance(chatSandboxSessionKey(chatId), {
+    providerId: 'e2b',
+    sandboxId: machine.sandboxId,
+  })
+  io.write.mockImplementation(async () => ({
+    file: { id: 'review-file', name: 'review.txt', size: canary.length, type: 'text/plain' },
+    vfsPath: 'files/review.txt',
+  }))
+  toolsMockFns.mockExecuteTool.mockImplementation(
+    async (
+      _id,
+      params: CodeExecutionInput,
+      options: { resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry }
+    ) => {
+      const finishActivation = options.resolvedSecretTraceRegistry.beginPendingActivation()
+      try {
+        const headers = new Headers({
+          [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_NAMES_METADATA_V1,
+        })
+        const response = await executeFunctionRequest(
+          { headers, signal: AbortSignal.timeout(15_000) },
+          functionExecuteBodySchema.parse(buildFunctionExecuteBody(params)),
+          {
+            attributedUserId: scope.userId,
+            principal: createDelegatedPrincipal({
+              subjectUserId: scope.userId,
+              workspaceId: scope.workspaceId,
+            }),
+            sandboxProfile: 'mothership',
+            resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
+          }
+        )
+        const payload = await response.json()
+        for (const name of payload[RESOLVED_SECRET_NAMES_FIELD] ?? []) {
+          expect(
+            options.resolvedSecretTraceRegistry.recordResolved(name, params.envVars![name], {
+              propagated: true,
+            })
+          ).toBe(true)
+        }
+        return await functionExecuteTool.transformResponse!(Response.json(payload))
+      } finally {
+        finishActivation()
+      }
+    }
+  )
+})
+
+afterAll(async () => {
+  redis.disconnect()
+  for (const path of roots) await rm(path, { recursive: true, force: true })
+})
+
+function context(): ToolExecutionContext {
+  return {
+    ...scope,
+    workflowId: '',
+    chatId,
+    resolvedSecretTraceRegistry: parent.forkForInputPaths([]),
+  }
+}
+
+async function run(code: string, secrets: string[] = []) {
+  const current = context()
+  const raw = await executeRunCode({ code, language: 'shell', secrets }, current)
+  const projected = inspectToolResultForCopilot(
+    raw,
+    current.resolvedSecretTraceRegistry,
+    'run_code'
+  )
+  if (projected.safe) parent.mergeToolCallRegistry(current.resolvedSecretTraceRegistry!)
+  return { raw, projected }
+}
+
+describe('persistent workbench output confidentiality', () => {
+  it('allows a mounted empty value without requiring a redaction receipt', async () => {
+    const emptyCatalog = [
+      { name: 'TOKEN', plaintext: '', encryptedValue: (await encryptSecret('')).encrypted },
+    ]
+    io.mount.mockResolvedValue({ envVars: { TOKEN: '' }, catalogEntries: emptyCatalog })
+    const result = await run('printenv TOKEN >/dev/null && test -z "$TOKEN" && printf allowed', [
+      'TOKEN',
+    ])
+    expect(result.raw.success).toBe(true)
+    expect(result.projected.safe).toBe(true)
+    expect(JSON.stringify(result.projected.result)).toContain('allowed')
+  })
+  it('control: same-call secret output is redacted', async () => {
+    const result = await run('printf "%s" "$TOKEN"', ['TOKEN'])
+    expect(result.raw.success).toBe(true)
+    expect(result.projected.safe).toBe(true)
+    expect(JSON.stringify(result.projected.result)).not.toContain(canary)
+    expect(JSON.stringify(result.projected.result)).toContain('{{TOKEN}}')
+  })
+  it.each([
+    ['stdout', 'cat saved.txt'],
+    ['structured result', 'printf "__SIM_RESULT__=\\\"%s\\\"\\n" "$(cat saved.txt)"'],
+    ['error and stderr', 'cat saved.txt >&2; exit 1'],
+  ])('protects later-call output in %s', async (_name, code) => {
+    const first = await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
+    expect(first.raw.success).toBe(true)
+    expect(JSON.stringify(first.projected.result)).not.toContain(canary)
+    const later = await run(code)
+    expect(later.projected.safe).toBe(true)
+    expect(JSON.stringify(later.projected.result)).not.toContain(canary)
+    expect(JSON.stringify(later.projected.result)).toContain('{{TOKEN}}')
+  })
+  it('protects later-call output after an earlier result was redacted', async () => {
+    const first = await run('printf "%s" "$TOKEN" > saved.txt; cat saved.txt', ['TOKEN'])
+    expect(JSON.stringify(first.projected.result)).toContain('{{TOKEN}}')
+    expect(parent.getModelEgressSnapshot().matches?.length).toBeGreaterThan(0)
+    const later = await run('cat saved.txt')
+    expect(later.projected.safe).toBe(true)
+    expect(JSON.stringify(later.projected.result)).not.toContain(canary)
+    expect(JSON.stringify(later.projected.result)).toContain('{{TOKEN}}')
+  })
+  it('refuses secret-bearing CLI input', async () => {
+    await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
+    await expect(readCliInputFile(chatSandboxSessionKey(chatId), 'saved.txt')).rejects.toThrow()
+  })
+  it('permits secret-free CLI input after a secret was received', async () => {
+    await run('printf clean > clean.txt', ['TOKEN'])
+    expect((await readCliInputFile(chatSandboxSessionKey(chatId), 'clean.txt')).toString()).toBe(
+      'clean'
+    )
+  })
+  it('cannot disable redaction through model-supplied secret flags', async () => {
+    const current = context()
+    const raw = await executeRunCode(
+      {
+        code: 'printf \"%s\" \"$TOKEN\"',
+        language: 'shell',
+        secrets: ['TOKEN'],
+        unredactedSecretNames: ['TOKEN'],
+      },
+      current
+    )
+    const projected = inspectToolResultForCopilot(
+      raw,
+      current.resolvedSecretTraceRegistry,
+      'run_code'
+    )
+    expect(projected.safe).toBe(true)
+    expect(JSON.stringify(projected.result)).not.toContain(canary)
+  })
+  it('withholds output when physical machine history is unknown', async () => {
+    await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
+    await recordSessionFileInput(
+      chatSandboxSessionKey(chatId),
+      { providerId: 'e2b', sandboxId: machine.sandboxId },
+      false
+    )
+    expect(
+      await isSessionFileProvenanceClean(chatSandboxSessionKey(chatId), {
+        providerId: 'e2b',
+        sandboxId: machine.sandboxId,
+      })
+    ).toBe(false)
+    const result = await run('cat saved.txt')
+    expect(result.projected.safe).toBe(false)
+    expect(JSON.stringify(result.projected.result)).not.toContain(canary)
+    expect(result.raw.success).toBe(false)
+  })
+  it('retains both values of a rotated secret without storing plaintext', async () => {
+    await run('printf "%s" "$TOKEN" > first.txt', ['TOKEN'])
+    const rotated = 'SYNTHETIC_ROTATED_VALUE_8e13b77f'
+    const entry = {
+      name: 'TOKEN',
+      plaintext: rotated,
+      encryptedValue: (await encryptSecret(rotated)).encrypted,
+    }
+    io.mount.mockResolvedValue({ envVars: { TOKEN: rotated }, catalogEntries: [entry] })
+    await run('printf "%s" "$TOKEN" > second.txt', ['TOKEN'])
+    const output = await run('cat first.txt second.txt')
+    expect(output.projected.safe).toBe(true)
+    expect(JSON.stringify(output.projected.result)).not.toContain(canary)
+    expect(JSON.stringify(output.projected.result)).not.toContain(rotated)
+    const history = await readSessionSecretProvenance(chatSandboxSessionKey(chatId), {
+      providerId: 'e2b',
+      sandboxId: machine.sandboxId,
+    })
+    expect(history.status).toBe('exact')
+    expect(JSON.stringify(history)).not.toContain(canary)
+    expect(JSON.stringify(history)).not.toContain(rotated)
+  })
+  it('reads history after overlapping code has received a new secret', async () => {
+    const started = createDeferred<void>()
+    const finish = createDeferred<void>()
+    const runCommand = machine.runCommand
+    machine.runCommand = async (command, options) => {
+      if (command === 'WAIT_FOR_LATER_INPUT') {
+        started.resolve()
+        await finish.promise
+        return { stdout: canary, stderr: '', exitCode: 0 }
+      }
+      return runCommand(command, options)
+    }
+    const earlier = run('WAIT_FOR_LATER_INPUT')
+    await started.promise
+    const later = await run('printf "%s" "$TOKEN" > overlap.txt', ['TOKEN'])
+    expect(later.raw.success).toBe(true)
+    finish.resolve()
+    const output = await earlier
+    expect(output.projected.safe).toBe(true)
+    expect(JSON.stringify(output.projected.result)).not.toContain(canary)
+    expect(JSON.stringify(output.projected.result)).toContain('{{TOKEN}}')
+  })
+  it('retains historical secret provenance on a text export', async () => {
+    await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
+    const current = context()
+    const result = await executeFunctionExecute(
+      {
+        code: 'true',
+        language: 'shell',
+        outputs: { files: [{ path: 'files/review.txt', sandboxPath: 'saved.txt' }] },
+      },
+      current
+    )
+    expect(result.success).toBe(true)
+    expect(io.write).toHaveBeenCalled()
+    const saved = io.write.mock.calls.at(-1)![0]
+    expect(saved.buffer.toString()).toBe(canary)
+    expect(saved.secretProvenance.status).toBe('exact')
+    expect(saved.secretProvenance.entries.length).toBeGreaterThan(0)
+  })
+})
