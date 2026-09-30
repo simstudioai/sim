@@ -1,6 +1,6 @@
 'use client'
 
-import { ComposerActionButton } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { MessageSquareText } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
@@ -18,23 +18,19 @@ export function useStartChat() {
   }
 }
 
-interface ChatFabProps {
+interface ChatAboutProps {
   /** What the chat opens as its first tab: the page you are on. */
   open: string
 }
 
-/** The floating chat button at the bottom left of a project page. */
-export function ChatFab({ open }: ChatFabProps) {
+/** The chat icon at the top right of a project page. */
+export function ChatAbout({ open }: ChatAboutProps) {
   const startChat = useStartChat()
   return (
-    <div className='absolute bottom-4 left-4 z-10'>
-      <ComposerActionButton
-        aria-label='Chat about this page'
-        className='size-10'
-        onClick={() => startChat(open)}
-      >
-        <MessageSquareText className='size-[16px] text-white dark:text-black' />
-      </ComposerActionButton>
-    </div>
+    <Chip
+      leftIcon={MessageSquareText}
+      aria-label='Chat about this page'
+      onClick={() => startChat(open)}
+    />
   )
 }

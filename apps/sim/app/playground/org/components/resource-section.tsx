@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Chip, ChipTag } from '@sim/emcn'
 import { Database, Files, Integration, Library, Plus, Table, Workflow } from '@sim/emcn/icons'
-import { useStartChat } from '@/app/playground/org/components/chat-fab'
+import { useStartChat } from '@/app/playground/org/components/chat-about'
 import { isPanelKind } from '@/app/playground/org/lib/chat-resources'
 import { RESOURCES, type Workspace } from '@/app/playground/org/lib/mock-data'
 import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'

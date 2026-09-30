@@ -3,7 +3,7 @@
 import { cn } from '@sim/emcn'
 import Link from 'next/link'
 import { Changelog } from '@/app/playground/org/components/changelog'
-import { ChatFab } from '@/app/playground/org/components/chat-fab'
+import { ChatAbout } from '@/app/playground/org/components/chat-about'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
@@ -47,8 +47,7 @@ export function WorkspaceView({ workspace, section, settingsSection }: Workspace
     ? section
     : 'resources'
   return (
-    <div className='relative flex h-full min-h-0 flex-col'>
-      <ChatFab open={pageRef(workspace, section)} />
+    <div className='flex h-full min-h-0 flex-col'>
       <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
         <div className='flex items-start gap-3'>
           <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
@@ -57,6 +56,7 @@ export function WorkspaceView({ workspace, section, settingsSection }: Workspace
             </h1>
             <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
           </div>
+          <ChatAbout open={pageRef(workspace, section)} />
         </div>
         <nav
           aria-label='Project sections'
