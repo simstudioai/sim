@@ -12,7 +12,13 @@ import {
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
-import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
+import {
+  checkExecutionUsageLimits,
+  USAGE_GATE_SETTLE_TIMEOUT_MS,
+  USAGE_GATE_TTL_MS,
+} from '@/lib/billing/core/usage-gate-cache'
+import { coalesceLocally } from '@/lib/concurrency/singleflight'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('MidRunUsage')
 
@@ -122,6 +128,17 @@ export async function readMidRunUsageVerdict(
 }
 
 /**
+ * Admitted direct-v1 verdicts, served for the execution gate's TTL like
+ * {@link checkExecutionUsageLimits} serves attributed ones: the worker re-validates a run on
+ * every resume leg, and each uncached read sums the payer's ledger for the period. Only a
+ * `within` verdict is stored, so a refusal or an unreadable ledger is always read again.
+ */
+const accountVerdictCache = new LRUCache<string, MidRunUsageVerdict>({
+  max: 10_000,
+  ttl: USAGE_GATE_TTL_MS,
+})
+
+/**
  * The same verdict for a direct-v1 run billed to an account decision rather than an attributed
  * payer. The payer is the one saved in the decision at admission, never re-selected from the
  * actor's current memberships, judged against that payer's current subscription period.
@@ -129,6 +146,7 @@ export async function readMidRunUsageVerdict(
 export async function readMidRunAccountUsageVerdict(
   decision: AccountBillingDecision
 ): Promise<MidRunUsageVerdict> {
+  if (!isHosted || !isBillingEnabled) return { status: 'within' }
   try {
     const payer = decision.billingEntity
     const subscription =
@@ -139,6 +157,20 @@ export async function readMidRunAccountUsageVerdict(
       ...defaultBillingPeriod(),
       source: 'default' as const,
     }
+    const key = [
+      payer.type,
+      payer.id,
+      billingPeriod.start.toISOString(),
+      billingPeriod.end.toISOString(),
+      billingPeriod.source,
+      decision.userId,
+      subscription?.id ?? '',
+      subscription?.plan ?? '',
+      subscription?.status ?? '',
+      subscription?.seats ?? '',
+    ].join(':')
+    const cached = accountVerdictCache.get(key)
+    if (cached) return cached
     // An organization payer without a subscription stays organization-scoped on the free plan,
     // as `toUsageLimitSubscription` does for attributed runs, never the actor's personal ledger.
     const usageSubscription =
@@ -153,12 +185,20 @@ export async function readMidRunAccountUsageVerdict(
             periodEnd: billingPeriod.end,
           }
         : null)
-    const usage = await checkUsageStatus(decision.userId, usageSubscription, {
-      billingEntity: payer,
-      billingPeriod,
-    })
+    const usage = await coalesceLocally(
+      `mid-run-account-usage:${key}`,
+      () =>
+        checkUsageStatus(decision.userId, usageSubscription, {
+          billingEntity: payer,
+          billingPeriod,
+        }),
+      USAGE_GATE_SETTLE_TIMEOUT_MS
+    )
     if (usage.unavailable) return { status: 'unknown' }
-    return usage.isExceeded ? { status: 'exceeded', scope: 'payer' } : { status: 'within' }
+    if (usage.isExceeded) return { status: 'exceeded', scope: 'payer' }
+    const within: MidRunUsageVerdict = { status: 'within' }
+    accountVerdictCache.set(key, within)
+    return within
   } catch (error) {
     logger.warn('Mid-run account usage read failed; continuing the run', {
       error: getErrorMessage(error),
@@ -167,7 +207,8 @@ export async function readMidRunAccountUsageVerdict(
   }
 }
 
-/** Drops every cached current period. Test seam; never called in production code. */
-export function resetMidRunPeriodCache(): void {
+/** Drops every cached current period and account verdict. Test seam; never called in production code. */
+export function resetMidRunUsageCaches(): void {
   currentPeriodCache.clear()
+  accountVerdictCache.clear()
 }

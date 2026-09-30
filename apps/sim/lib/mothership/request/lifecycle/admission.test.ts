@@ -6,7 +6,7 @@ import {
 } from '@sim/testing/mocks/billing-usage-gate-cache.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAttributedBillingRequestEnvelope } from '@/lib/billing/core/billing-attribution'
-import { resetMidRunPeriodCache } from '@/lib/billing/core/mid-run-usage'
+import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { BillingLimitError } from '@/lib/mothership/request/go/stream'
 import { authorizeLifecycleContinuation, restoreBillingAdmission } from './admission'
@@ -49,7 +49,7 @@ beforeEach(() => {
     periodStart: new Date(attribution.billingPeriod.start),
     periodEnd: new Date(attribution.billingPeriod.end),
   })
-  resetMidRunPeriodCache()
+  resetMidRunUsageCaches()
 })
 afterEach(resetEnvFlagsMock)
 
@@ -157,7 +157,7 @@ describe('continuation admission', () => {
       authorizeLifecycleContinuation({ ...context, billingAttribution: ended })
     ).rejects.toBeInstanceOf(BillingLimitError)
 
-    resetMidRunPeriodCache()
+    resetMidRunUsageCaches()
     mockGetOrganizationSubscription.mockRejectedValue(new Error('subscription read failed'))
     await expect(
       authorizeLifecycleContinuation({ ...context, billingAttribution: ended })

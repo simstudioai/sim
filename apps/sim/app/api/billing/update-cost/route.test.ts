@@ -49,7 +49,7 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
 }))
 
 import { billingUpdateCostResponseSchema } from '@/lib/api/contracts/subscription'
-import { resetMidRunPeriodCache } from '@/lib/billing/core/mid-run-usage'
+import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import {
   BillingCallbackBody,
@@ -897,7 +897,7 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
 
   beforeEach(() => {
     resetUsageGateCache()
-    resetMidRunPeriodCache()
+    resetMidRunUsageCaches()
     setEnvFlags({ isBillingEnabled: true, isHosted: true })
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
@@ -1136,8 +1136,9 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
         end: new Date(Date.now() + 40).toISOString(),
       },
     }
-    mockRequireBillingAttributionHeader.mockReturnValue(straddling)
-    mockRefreshAttributionPeriod.mockResolvedValue(CURRENT_ATTRIBUTION)
+    mockRefreshAttributionPeriod
+      .mockResolvedValueOnce(straddling)
+      .mockResolvedValue(CURRENT_ATTRIBUTION)
     mockCheckAttributedUsageLimits.mockImplementation(
       async (attribution: typeof CURRENT_ATTRIBUTION) => {
         if (attribution.billingPeriod.end !== straddling.billingPeriod.end) {
@@ -1151,6 +1152,21 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     const body = await (await POST(attributedCallback())).json()
 
     expect(body.usageExceeded).toBe(false)
+    expect(mockRefreshAttributionPeriod).toHaveBeenCalledTimes(2)
+  })
+
+  it('answers not exceeded when the standing read outlasts the callback budget', async () => {
+    mockCheckAttributedUsageLimits.mockImplementation(async () => {
+      await sleep(1500)
+      return { isExceeded: true, scope: 'payer' }
+    })
+    const startedAt = Date.now()
+
+    const res = await POST(attributedCallback())
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: false })
+    expect(Date.now() - startedAt).toBeLessThan(1400)
   })
 
   it('reloads a cached current period once it has ended', async () => {

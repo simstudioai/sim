@@ -22,7 +22,7 @@ import {
   resolveLegacyV0BillingAttribution,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
-import { readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
+import { type MidRunUsageVerdict, readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
 import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
@@ -35,6 +35,7 @@ import {
 } from '@/lib/billing/threshold-billing'
 import { resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { BILLING_CALLBACK_OUTCOME } from '@/lib/mothership/generated/billing-protocol-v1'
@@ -45,6 +46,14 @@ import { checkInternalApiKey } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('BillingUpdateCostAPI')
+/**
+ * How long a cost callback waits on the payer's standing. The worker gives up on the whole
+ * callback after 5 s, and a cold gate read can wait on the ledger far longer; past this the
+ * callback answers not-exceeded. The abandoned read keeps running and caches its admission, and
+ * the next step or re-check reads a refusal again.
+ */
+const USAGE_STANDING_TIMEOUT_MS = 1000
+
 const RETRYABLE_SETTLEMENT_RESPONSE = {
   code: 'BILLING_SETTLEMENT_RETRYABLE',
   error: 'Billing settlement temporarily unavailable',
@@ -70,14 +79,24 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
  * Served from the execution usage gate: an admission is cached per payer and actor for the gate
  * TTL and a refusal is always re-read, so steady-state steps cost no ledger read. The charge is
  * already recorded when this runs; a gate that cannot answer reports not-exceeded and leaves the
- * refusal to the next step or re-check rather than ending a paying run on a database blip.
+ * refusal to the next step or re-check rather than ending a paying run on a database blip,
+ * and so does a read that outlasts {@link USAGE_STANDING_TIMEOUT_MS}.
  */
 async function readUsageStanding(
   userId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<BillingUsageVerdict> {
   if (!isHosted || !billingAttribution) return { usageExceeded: false }
-  const verdict = await readMidRunUsageVerdict(billingAttribution)
+  let verdict: MidRunUsageVerdict
+  try {
+    verdict = await withinDeadline(
+      () => readMidRunUsageVerdict(billingAttribution),
+      Date.now() + USAGE_STANDING_TIMEOUT_MS
+    )
+  } catch {
+    logger.warn('Usage standing read outlasted the callback budget; answering not exceeded')
+    return { usageExceeded: false }
+  }
   // Only a spent limit pauses the run. A blocked account is refused at the run's next
   // continuation or re-check, with blocked-account copy rather than the upgrade card.
   if (verdict.status !== 'exceeded') return { usageExceeded: false }

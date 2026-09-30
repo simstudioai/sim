@@ -141,7 +141,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
-import { resetMidRunPeriodCache } from '@/lib/billing/core/mid-run-usage'
+import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
 
@@ -524,7 +524,7 @@ describe('validation lifecycle purposes', () => {
       periodEnd: new Date(ATTRIBUTION.billingPeriod.end),
     })
     resetUsageGateCache()
-    resetMidRunPeriodCache()
+    resetMidRunUsageCaches()
   })
 
   it('defaults older callers to full admission and rejects unknown purposes', () => {
@@ -794,6 +794,28 @@ describe('validation lifecycle purposes', () => {
     )
 
     expect(response.status).toBe(402)
+  })
+
+  it('answers repeated direct-v1 continuations from the cached admission and re-reads a refusal', async () => {
+    for (let call = 0; call < 2; call++) queueTableRows(schemaMock.user, [{ id: 'user-1' }])
+    for (let leg = 0; leg < 3; leg++) {
+      expect((await POST(request(body, directHeaders))).status).toBe(200)
+    }
+    expect(mockCheckUsageStatus).toHaveBeenCalledTimes(1)
+
+    resetMidRunUsageCaches()
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
+    expect((await POST(request(body, directHeaders))).status).toBe(402)
+    expect((await POST(request(body, directHeaders))).status).toBe(402)
+    expect(mockCheckUsageStatus).toHaveBeenCalledTimes(3)
+  })
+
+  it('never reads the ledger for a direct-v1 continuation when billing is off', async () => {
+    setEnvFlags({ isHosted: false, isBillingEnabled: false })
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
+
+    expect((await POST(request(body, directHeaders))).status).toBe(200)
+    expect(mockCheckUsageStatus).not.toHaveBeenCalled()
   })
 
   it('judges a direct-v1 organization payer without a subscription as that organization', async () => {
