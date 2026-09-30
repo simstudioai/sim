@@ -56,7 +56,14 @@ export function PriorityIcon({ priority, className }: { priority: Priority; clas
   if (priority === 1)
     return (
       <svg viewBox='0 0 14 14' aria-hidden className={cn(GLYPH, className)}>
-        <rect x='1.5' y='1.5' width='11' height='11' rx='2.5' className='fill-[var(--caution)]' />
+        <rect
+          x='1.5'
+          y='1.5'
+          width='11'
+          height='11'
+          rx='2.5'
+          className='fill-[var(--text-primary)]'
+        />
         <path
           d='M7 4v3.6M7 9.6v.2'
           strokeWidth='1.6'

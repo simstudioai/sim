@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
-import { Expand } from '@sim/emcn/icons'
+import { ChipLink, cn } from '@sim/emcn'
+import Link from 'next/link'
 import { Changelog } from '@/app/playground/org/components/changelog'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
@@ -47,28 +47,32 @@ export function WorkspaceView({ workspace, section, full, settingsSection }: Wor
               </h1>
               <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
             </div>
-            <ChipLink
-              href={protoRoutes.full(workspace.id, 'workflows')}
-              variant='border'
-              leftIcon={Expand}
-            >
-              Open full view
+            <ChipLink href={protoRoutes.full(workspace.id, 'workflows')} variant='primary'>
+              Open project
             </ChipLink>
           </div>
           <nav
             aria-label='Project sections'
-            className='-mx-1 flex items-center gap-1 border-[var(--border)] border-b px-1 pb-3'
+            className='flex items-center gap-6 border-[var(--border)] border-b'
           >
-            {MAIN_SECTIONS.map((item) => (
-              <ChipLink
-                key={item.id}
-                href={protoRoutes.workspace(workspace.id, item.id)}
-                active={section === item.id}
-                leftIcon={item.icon}
-              >
-                {item.label}
-              </ChipLink>
-            ))}
+            {MAIN_SECTIONS.map((item) => {
+              const active = section === item.id
+              return (
+                <Link
+                  key={item.id}
+                  href={protoRoutes.workspace(workspace.id, item.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    '-mb-px border-b-2 pb-2.5 text-small transition-colors',
+                    active
+                      ? 'border-[var(--text-primary)] text-[var(--text-primary)]'
+                      : 'border-transparent text-[var(--text-muted)] hover-hover:text-[var(--text-body)]'
+                  )}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
           </nav>
         </header>
       )}

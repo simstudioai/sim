@@ -1,43 +1,52 @@
-import { chipHoverSurfaceClass, cn, OverflowText } from '@sim/emcn'
 import Link from 'next/link'
-import { DelegateAvatar } from '@/app/playground/org/components/delegate-avatar'
-import { AgentStateIcon, PriorityIcon, StatusIcon } from '@/app/playground/org/components/glyphs'
-import {
-  ISSUES,
-  type Issue,
-  STATUS_LABELS,
-  STATUS_ORDER,
-  type Workspace,
-} from '@/app/playground/org/lib/mock-data'
+import { PriorityIcon } from '@/app/playground/org/components/glyphs'
+import { ISSUES, type Issue, type Workspace } from '@/app/playground/org/lib/mock-data'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
 
-/** Sim issues for a project, grouped by status. Tracker links and chats live on the issue page. */
+type Group = 'needsYou' | 'inProgress' | 'done'
+
+const GROUPS: { id: Group; label: string }[] = [
+  { id: 'needsYou', label: 'Needs you' },
+  { id: 'inProgress', label: 'In progress' },
+  { id: 'done', label: 'Done' },
+]
+
+/** Work Sim has picked up; backlog and todo stay in the team's tracker. */
+function groupOf(issue: Issue): Group | null {
+  if (issue.status === 'done') return 'done'
+  if (issue.status !== 'in_progress' && issue.status !== 'blocked') return null
+  const state = issue.agent?.state
+  return state === 'awaitingInput' || state === 'error' ? 'needsYou' : 'inProgress'
+}
+
+/** A plain list of Sim issues: priority, title, and who owns it. */
 export function IssuesList({ workspace }: { workspace: Workspace }) {
   const issues = ISSUES.filter((issue) => issue.workspaceId === workspace.id)
-  if (!issues.length)
-    return <p className='px-6 py-10 text-[var(--text-muted)] text-small'>No issues yet.</p>
+  const byGroup = new Map<Group, Issue[]>()
+  for (const issue of issues) {
+    const group = groupOf(issue)
+    if (!group) continue
+    byGroup.set(group, [...(byGroup.get(group) ?? []), issue])
+  }
+  if (!byGroup.size)
+    return <p className='px-6 py-10 text-[var(--text-muted)] text-small'>Nothing in progress.</p>
+
   return (
-    <div className='h-full overflow-y-auto px-3 pt-3 pb-8'>
-      {STATUS_ORDER.map((status) => {
-        const inStatus = [...issues]
-          .filter((issue) => issue.status === status)
-          .sort((a, b) => (a.priority || 5) - (b.priority || 5))
-        if (!inStatus.length) return null
-        return (
-          <section key={status} className='mb-3'>
-            <div className='flex h-8 items-center gap-2 px-3 text-small'>
-              <StatusIcon status={status} />
-              <span className='text-[var(--text-body)]'>{STATUS_LABELS[status]}</span>
-              <span className='text-[var(--text-muted)]'>{inStatus.length}</span>
-            </div>
-            <div className='flex flex-col gap-[1px]'>
-              {inStatus.map((issue) => (
+    <div className='h-full overflow-y-auto'>
+      <div className='mx-auto flex max-w-[860px] flex-col gap-8 px-6 py-6'>
+        {GROUPS.map(({ id, label }) => {
+          const rows = byGroup.get(id)
+          if (!rows) return null
+          return (
+            <section key={id} className='flex flex-col'>
+              <h2 className='pb-2 text-[var(--text-muted)] text-caption'>{label}</h2>
+              {rows.map((issue) => (
                 <IssueRow key={issue.key} issue={issue} />
               ))}
-            </div>
-          </section>
-        )
-      })}
+            </section>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -46,24 +55,15 @@ function IssueRow({ issue }: { issue: Issue }) {
   return (
     <Link
       href={protoRoutes.issue(issue.workspaceId, issue.key)}
-      className={cn(
-        'flex h-9 items-center gap-3 rounded-lg px-3 text-small',
-        chipHoverSurfaceClass
-      )}
+      className='group flex items-baseline gap-4 border-[var(--border)] border-t py-3 text-small last:border-b'
     >
-      <PriorityIcon priority={issue.priority} />
-      <span className='w-[64px] shrink-0 text-[var(--text-muted)] tabular-nums'>{issue.key}</span>
-      <StatusIcon status={issue.status} />
-      <OverflowText label={issue.title} className='min-w-0 flex-1 text-[var(--text-body)]' />
-      <span className='flex w-[200px] shrink-0 items-center gap-1.5 whitespace-nowrap text-[var(--text-muted)]'>
-        {issue.agent && (
-          <>
-            <AgentStateIcon state={issue.agent.state} />
-            <span className='truncate'>{issue.agent.label}</span>
-          </>
-        )}
+      <PriorityIcon priority={issue.priority} className='translate-y-[2px]' />
+      <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] group-hover:underline group-hover:underline-offset-4'>
+        {issue.title}
       </span>
-      <DelegateAvatar owner={issue.owner} delegate={issue.delegate} />
+      <span className='w-[64px] shrink-0 text-right text-[var(--text-muted)]'>
+        {issue.owner.name.split(' ')[0]}
+      </span>
     </Link>
   )
 }
