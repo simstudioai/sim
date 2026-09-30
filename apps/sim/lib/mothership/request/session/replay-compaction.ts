@@ -168,7 +168,8 @@ function omitDominantBulk(payload: Record<string, unknown>, skipKeys: ReadonlySe
  * only to the copy the writer delivers and persists; the caller keeps the full
  * event for dispatch. Long strings are cut to their head in place, so every
  * object keeps its shape; if that is not enough, long arrays keep their head,
- * and past one replay write the dominating bulk is replaced by a size note.
+ * and past one replay write each dominating bulk is replaced by a size note
+ * until the event fits.
  * Assistant text, file previews, and the arguments of calls the browser
  * executes are never cut; an event
  * still too large is refused by the buffer, which ends the turn with an error.
@@ -190,8 +191,12 @@ export function compactStreamEvent(event: StreamEvent): StreamEvent {
   if (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) {
     compacted = trimArrays(compacted, skipKeys)
   }
-  if (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_MAX_PAYLOAD_BYTES) {
-    compacted = omitDominantBulk(toRecordOrNull(compacted) ?? {}, skipKeys)
+  // Each pass replaces at least OMITTABLE_FIELD_MIN_BYTES, and stops when nothing is left to omit.
+  while (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_MAX_PAYLOAD_BYTES) {
+    const record = toRecordOrNull(compacted) ?? {}
+    const omitted = omitDominantBulk(record, skipKeys)
+    if (omitted === record) break
+    compacted = omitted
   }
   return compacted === payload ? event : ({ ...event, payload: compacted } as StreamEvent)
 }

@@ -296,6 +296,36 @@ describe('compactStreamEvent', () => {
     })
   })
 
+  it('keeps omitting bulk until the event fits when more than one large object remains', () => {
+    const manyKeys = (prefix: string, count: number) =>
+      Object.fromEntries(
+        Array.from({ length: count }, (_, index) => [`${prefix}-${index}`, 'v'.repeat(300)])
+      )
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_workflows_state_get',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: true,
+        status: 'success',
+        output: { workflowId: 'wf-1', a: manyKeys('a', 4_300), b: manyKeys('b', 3_600) },
+      },
+    }
+
+    const compacted = payloadOf(compactStreamEvent(event))
+    const output = toRecord(compacted.output)
+
+    expect(Buffer.byteLength(JSON.stringify(compacted))).toBeLessThanOrEqual(
+      STREAM_EVENT_MAX_PAYLOAD_BYTES
+    )
+    expect(output.workflowId).toBe('wf-1')
+    expect(output.a).toMatch(/^…\[omitted, [\d.]+ MB total\]$/)
+    expect(output.b).toMatch(/^…\[omitted, [\d.]+ MB total\]$/)
+  })
+
   it('never omits identity to make room for client-executed arguments it must keep whole', () => {
     const args = { workflowId: 'wf-1', input: 'w'.repeat(1.5 * MB) }
     const event: StreamEvent = {
