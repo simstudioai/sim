@@ -268,11 +268,17 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
     expect(completed).toBe(true)
   })
 
+  /**
+   * Each 30 s patch of the ~300 KB file would stream ~6 MB of snapshots on its own,
+   * so four of them exceed the turn budget several times over without its cap. The
+   * 500 ms tick keeps the delta count, and so the test's CPU time, small enough to
+   * stay far inside the test timeout on a loaded machine.
+   */
   it('bounds all preview content in a turn of four long patches, and still completes each', async () => {
     const turn = newTurn()
     let contentBytes = 0
     for (let edit = 0; edit < 4; edit++) {
-      const result = await streamPatch(120_000, 200, { turn, edit })
+      const result = await streamPatch(30_000, 500, { turn, edit })
       expect(result.completed).toBe(true)
       contentBytes += result.contentBytes
     }
