@@ -42,6 +42,37 @@ interface FieldChange {
   newValue: unknown
 }
 
+/** The loop configuration fields a container diff compares, in the order they are reported. */
+export const LOOP_CONFIG_FIELDS = [
+  'loopType',
+  'iterations',
+  'forEachItems',
+  'whileCondition',
+  'doWhileCondition',
+] as const
+
+/** The parallel configuration fields a container diff compares, in the order they are reported. */
+export const PARALLEL_CONFIG_FIELDS = ['parallelType', 'count', 'distribution'] as const
+
+export type ContainerConfigField =
+  | (typeof LOOP_CONFIG_FIELDS)[number]
+  | (typeof PARALLEL_CONFIG_FIELDS)[number]
+
+/**
+ * A loop or parallel container present on both sides whose configuration or
+ * membership differs. Added and removed containers are reported as blocks.
+ */
+export interface ContainerChange {
+  id: string
+  kind: 'loop' | 'parallel'
+  name?: string
+  changes: FieldChange[]
+  /** Block ids that are inside the container on the current side only */
+  nodesAdded: string[]
+  /** Block ids that were inside the container on the previous side only */
+  nodesRemoved: string[]
+}
+
 /**
  * Result of workflow diff analysis between two workflow states
  */
@@ -57,6 +88,7 @@ export interface WorkflowDiffSummary {
   }
   loopChanges: { added: number; removed: number; modified: number }
   parallelChanges: { added: number; removed: number; modified: number }
+  containerChanges: ContainerChange[]
   variableChanges: {
     added: number
     removed: number
@@ -66,6 +98,62 @@ export interface WorkflowDiffSummary {
     modifiedNames: string[]
   }
   hasChanges: boolean
+}
+
+/**
+ * Field-by-field description of a container that changed, from the normalized
+ * shapes the equality check already uses so the two can never disagree.
+ */
+function describeContainerChange(
+  id: string,
+  kind: ContainerChange['kind'],
+  name: string | undefined,
+  current: { nodes: string[] } | null,
+  previous: { nodes: string[] } | null,
+  fields: readonly string[]
+): ContainerChange {
+  const changes: FieldChange[] = []
+  const currentRecord = (current ?? {}) as Record<string, unknown>
+  const previousRecord = (previous ?? {}) as Record<string, unknown>
+  for (const field of fields) {
+    if (normalizedStringify(currentRecord[field]) !== normalizedStringify(previousRecord[field])) {
+      changes.push({
+        field,
+        oldValue: previousRecord[field] ?? null,
+        newValue: currentRecord[field] ?? null,
+      })
+    }
+  }
+  const currentNodes = new Set(current?.nodes ?? [])
+  const previousNodes = new Set(previous?.nodes ?? [])
+  return {
+    id,
+    kind,
+    name,
+    changes,
+    nodesAdded: [...currentNodes].filter((node) => !previousNodes.has(node)),
+    nodesRemoved: [...previousNodes].filter((node) => !currentNodes.has(node)),
+  }
+}
+
+/** Whether any counted section of a summary reports a difference. */
+export function summaryHasChanges(summary: Omit<WorkflowDiffSummary, 'hasChanges'>): boolean {
+  return (
+    summary.addedBlocks.length > 0 ||
+    summary.removedBlocks.length > 0 ||
+    summary.modifiedBlocks.length > 0 ||
+    summary.edgeChanges.added > 0 ||
+    summary.edgeChanges.removed > 0 ||
+    summary.loopChanges.added > 0 ||
+    summary.loopChanges.removed > 0 ||
+    summary.loopChanges.modified > 0 ||
+    summary.parallelChanges.added > 0 ||
+    summary.parallelChanges.removed > 0 ||
+    summary.parallelChanges.modified > 0 ||
+    summary.variableChanges.added > 0 ||
+    summary.variableChanges.removed > 0 ||
+    summary.variableChanges.modified > 0
+  )
 }
 
 /**
@@ -82,6 +170,7 @@ export function generateWorkflowDiffSummary(
     edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
     loopChanges: { added: 0, removed: 0, modified: 0 },
     parallelChanges: { added: 0, removed: 0, modified: 0 },
+    containerChanges: [],
     variableChanges: {
       added: 0,
       removed: 0,
@@ -354,10 +443,23 @@ export function generateWorkflowDiffSummary(
     if (!previousLoopIds.includes(id)) {
       result.loopChanges.added++
     } else {
-      const normalizedCurrent = normalizeValue(normalizeLoop(currentLoops[id]))
-      const normalizedPrevious = normalizeValue(normalizeLoop(previousLoops[id]))
-      if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
+      const normalizedCurrent = normalizeLoop(currentLoops[id])
+      const normalizedPrevious = normalizeLoop(previousLoops[id])
+      if (
+        normalizedStringify(normalizeValue(normalizedCurrent)) !==
+        normalizedStringify(normalizeValue(normalizedPrevious))
+      ) {
         result.loopChanges.modified++
+        result.containerChanges.push(
+          describeContainerChange(
+            id,
+            'loop',
+            currentBlocks[id]?.name ?? previousBlocks[id]?.name,
+            normalizedCurrent ?? null,
+            normalizedPrevious ?? null,
+            LOOP_CONFIG_FIELDS
+          )
+        )
       }
     }
   }
@@ -376,10 +478,23 @@ export function generateWorkflowDiffSummary(
     if (!previousParallelIds.includes(id)) {
       result.parallelChanges.added++
     } else {
-      const normalizedCurrent = normalizeValue(normalizeParallel(currentParallels[id]))
-      const normalizedPrevious = normalizeValue(normalizeParallel(previousParallels[id]))
-      if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
+      const normalizedCurrent = normalizeParallel(currentParallels[id])
+      const normalizedPrevious = normalizeParallel(previousParallels[id])
+      if (
+        normalizedStringify(normalizeValue(normalizedCurrent)) !==
+        normalizedStringify(normalizeValue(normalizedPrevious))
+      ) {
         result.parallelChanges.modified++
+        result.containerChanges.push(
+          describeContainerChange(
+            id,
+            'parallel',
+            currentBlocks[id]?.name ?? previousBlocks[id]?.name,
+            normalizedCurrent ?? null,
+            normalizedPrevious ?? null,
+            PARALLEL_CONFIG_FIELDS
+          )
+        )
       }
     }
   }
@@ -417,21 +532,7 @@ export function generateWorkflowDiffSummary(
     }
   }
 
-  result.hasChanges =
-    result.addedBlocks.length > 0 ||
-    result.removedBlocks.length > 0 ||
-    result.modifiedBlocks.length > 0 ||
-    result.edgeChanges.added > 0 ||
-    result.edgeChanges.removed > 0 ||
-    result.loopChanges.added > 0 ||
-    result.loopChanges.removed > 0 ||
-    result.loopChanges.modified > 0 ||
-    result.parallelChanges.added > 0 ||
-    result.parallelChanges.removed > 0 ||
-    result.parallelChanges.modified > 0 ||
-    result.variableChanges.added > 0 ||
-    result.variableChanges.removed > 0 ||
-    result.variableChanges.modified > 0
+  result.hasChanges = summaryHasChanges(result)
 
   return result
 }

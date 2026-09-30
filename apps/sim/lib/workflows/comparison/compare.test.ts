@@ -1620,3 +1620,114 @@ describe('generateWorkflowDiffSummary', () => {
     })
   })
 })
+
+describe('containerChanges', () => {
+  function stateWithLoop(loop: Record<string, any>, blocks: Record<string, any> = {}) {
+    return createWorkflowState({
+      blocks: {
+        loop1: createBlock('loop1', { type: 'loop', name: 'My Loop' }),
+        ...blocks,
+      },
+      loops: { loop1: { id: 'loop1', enabled: true, ...loop } },
+    })
+  }
+
+  it.concurrent('describes a reconfigured loop field by field, named after its block', () => {
+    const previous = stateWithLoop({ nodes: ['a'], loopType: 'for', iterations: 2 })
+    const current = stateWithLoop({ nodes: ['a'], loopType: 'for', iterations: 5 })
+
+    const result = generateWorkflowDiffSummary(current, previous)
+
+    expect(result.loopChanges).toEqual({ added: 0, removed: 0, modified: 1 })
+    expect(result.containerChanges).toEqual([
+      {
+        id: 'loop1',
+        kind: 'loop',
+        name: 'My Loop',
+        changes: [{ field: 'iterations', oldValue: 2, newValue: 5 }],
+        nodesAdded: [],
+        nodesRemoved: [],
+      },
+    ])
+  })
+
+  it.concurrent(
+    'reports membership moves and a loop type switch with the fields that came and went',
+    () => {
+      const previous = stateWithLoop({ nodes: ['a', 'b'], loopType: 'for', iterations: 2 })
+      const current = stateWithLoop({
+        nodes: ['b', 'c'],
+        loopType: 'forEach',
+        forEachItems: '<start.items>',
+        /* Stale count left behind by the switch; the normalized shape drops it for forEach. */
+        iterations: 2,
+      })
+
+      const [change] = generateWorkflowDiffSummary(current, previous).containerChanges
+
+      expect(change.nodesAdded).toEqual(['c'])
+      expect(change.nodesRemoved).toEqual(['a'])
+      expect(change.changes).toEqual([
+        { field: 'loopType', oldValue: 'for', newValue: 'forEach' },
+        { field: 'iterations', oldValue: 2, newValue: null },
+        { field: 'forEachItems', oldValue: null, newValue: '<start.items>' },
+      ])
+    }
+  )
+
+  it.concurrent(
+    'describes a parallel and skips containers that were added, removed or unchanged',
+    () => {
+      const previous = createWorkflowState({
+        blocks: {
+          par1: createBlock('par1', { type: 'parallel' }),
+          parGone: createBlock('parGone', { type: 'parallel' }),
+          loopSame: createBlock('loopSame', { type: 'loop' }),
+        },
+        parallels: {
+          par1: { id: 'par1', nodes: ['x'], parallelType: 'count', count: 2, enabled: true },
+          parGone: { id: 'parGone', nodes: [], parallelType: 'count', count: 1, enabled: true },
+        },
+        loops: { loopSame: { id: 'loopSame', nodes: ['y', 'z'], loopType: 'for', iterations: 1 } },
+      })
+      const current = createWorkflowState({
+        blocks: {
+          par1: createBlock('par1', { type: 'parallel' }),
+          parNew: createBlock('parNew', { type: 'parallel' }),
+          loopSame: createBlock('loopSame', { type: 'loop' }),
+        },
+        parallels: {
+          par1: {
+            id: 'par1',
+            nodes: ['x'],
+            parallelType: 'collection',
+            distribution: '<start.list>',
+            enabled: true,
+          },
+          parNew: { id: 'parNew', nodes: [], parallelType: 'count', count: 3, enabled: true },
+        },
+        /* Same membership in a different order is not a change. */
+        loops: { loopSame: { id: 'loopSame', nodes: ['z', 'y'], loopType: 'for', iterations: 1 } },
+      })
+
+      const result = generateWorkflowDiffSummary(current, previous)
+
+      expect(result.parallelChanges).toEqual({ added: 1, removed: 1, modified: 1 })
+      expect(result.loopChanges).toEqual({ added: 0, removed: 0, modified: 0 })
+      expect(result.containerChanges).toEqual([
+        {
+          id: 'par1',
+          kind: 'parallel',
+          name: 'Block par1',
+          changes: [
+            { field: 'parallelType', oldValue: 'count', newValue: 'collection' },
+            { field: 'count', oldValue: 2, newValue: null },
+            { field: 'distribution', oldValue: null, newValue: '<start.list>' },
+          ],
+          nodesAdded: [],
+          nodesRemoved: [],
+        },
+      ])
+    }
+  )
+})
