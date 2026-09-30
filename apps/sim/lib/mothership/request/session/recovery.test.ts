@@ -12,9 +12,9 @@ vi.mock('./buffer', () => ({
   readEvents,
 }))
 
-import { checkForReplayGap } from './recovery'
+import { findReplayGap, replayGapTerminal } from '@/lib/mothership/request/session/recovery'
 
-describe('checkForReplayGap', () => {
+describe('replay gap', () => {
   it('uses the latest buffered request id when run metadata is missing it', async () => {
     getOldestSeq.mockResolvedValue(10)
     getLatestSeq.mockResolvedValue(12)
@@ -24,7 +24,9 @@ describe('checkForReplayGap', () => {
       },
     ])
 
-    const result = await checkForReplayGap('stream-1', '1')
+    const gap = await findReplayGap('stream-1', '1')
+    expect(gap).not.toBeNull()
+    const result = await replayGapTerminal('stream-1', gap!)
 
     expect(readEvents).toHaveBeenCalledWith('stream-1', '11')
     expect(result?.gapDetected).toBe(true)

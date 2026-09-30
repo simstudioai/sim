@@ -113,10 +113,10 @@ async function liveRunWithTrimmedRing(): Promise<{ streamId: string; runId: stri
   return { streamId, runId }
 }
 
-function reconnect(streamId: string, after: string, batch = false) {
+function reconnect(streamId: string, after: string, batch = false, extra = '') {
   return streamGET(
     new NextRequest(
-      `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=${after}${batch ? '&batch=true' : ''}`
+      `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=${after}${batch ? '&batch=true' : ''}${extra}`
     ),
     { params: Promise.resolve({}) }
   )
@@ -260,7 +260,7 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
 
     const response = await reconnect(streamId, '4')
     const body = response.text()
-    /* Let the tail reach its poll loop, past the reconnect-time gap check. */
+    // Let the tail reach its poll loop, past the reconnect-time gap check.
     await sleep(500)
     await getRedisClient()!.del(
       `mothership_stream:${streamId}:events`,
@@ -270,6 +270,91 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
     const frames = dataFrames(await body)
 
     expect(frames).toEqual([])
+  })
+
+  it('keeps a reader re-synced from the log on the log once a restarted ring grows past its cursor', async () => {
+    const streamId = generateId()
+    await db.insert(copilotRuns).values({
+      id: generateId(),
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+    })
+    for (let index = 1; index <= 4; index++) await appendText(streamId, `part ${index} `)
+    worker.reply.frames = fullResponse(streamId)
+
+    const response = await reconnect(streamId, '2', false, '&source=log')
+    const frames = dataFrames(await response.text())
+
+    expect(response.headers.get(MOTHERSHIP_STREAM_REPLAY_HEADER)).toBe('log')
+    expect(frames.map((frame) => frame.type)).toEqual(['session', 'text', 'complete'])
+  })
+
+  it('serves no ring events to a batch read from a reader re-synced from the log', async () => {
+    const streamId = generateId()
+    await db.insert(copilotRuns).values({
+      id: generateId(),
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+    })
+    for (let index = 1; index <= 4; index++) await appendText(streamId, `part ${index} `)
+
+    const response = await reconnect(streamId, '2', true, '&source=log')
+
+    expect(await response.json()).toMatchObject({ success: true, events: [], status: 'active' })
+  })
+
+  it('holds a stalled replay open before the client re-attaches', async () => {
+    const { streamId } = await liveRunWithTrimmedRing()
+    worker.reply.frames = [
+      workerFrame(streamId, 1, 'text', { channel: 'assistant', text: 'so far', textOffset: 0 }),
+      workerFrame(streamId, 2, 'run', { kind: 'replay_end', reason: 'stalled', textLength: 6 }),
+    ]
+
+    const startedAt = Date.now()
+    const frames = dataFrames(await (await reconnect(streamId, '0')).text())
+
+    expect(frames.map((frame) => frame.type)).toEqual(['text'])
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(9_000)
+  })
+
+  it('ends a replay whose end reason it does not know without a run event or an error', async () => {
+    const { streamId } = await liveRunWithTrimmedRing()
+    worker.reply.frames = [
+      workerFrame(streamId, 1, 'text', { channel: 'assistant', text: 'so far', textOffset: 0 }),
+      workerFrame(streamId, 2, 'run', { kind: 'replay_end', reason: 'drained', textLength: 6 }),
+    ]
+
+    const frames = dataFrames(await (await reconnect(streamId, '0')).text())
+
+    expect(frames.map((frame) => frame.type)).toEqual(['text'])
+  })
+
+  it('ends a live tail without a terminal when its ring loses its head under it', async () => {
+    const streamId = generateId()
+    await db.insert(copilotRuns).values({
+      id: generateId(),
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+    })
+    for (let index = 1; index <= 4; index++) await appendText(streamId, `part ${index} `)
+
+    const response = await reconnect(streamId, '4')
+    const body = response.text()
+    await sleep(500)
+    for (let index = 5; index <= 7; index++) await appendText(streamId, `part ${index} `)
+    const frames = dataFrames(await body)
+
+    expect(frames.map((frame) => frame.type)).not.toContain('complete')
+    expect(response.headers.get(MOTHERSHIP_STREAM_REPLAY_HEADER)).toBeNull()
   })
 
   it('serves no ring events to a batch read the ring can no longer serve', async () => {

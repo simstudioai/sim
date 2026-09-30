@@ -200,6 +200,8 @@ export const copilotChatStreamQuerySchema = z.object({
     .string()
     .optional()
     .transform((value) => value === 'true'),
+  /** `log` once the reader was re-synced from the worker log: its cursor is a log position. */
+  source: z.enum(['ring', 'log']).optional(),
 })
 
 export const copilotChatStopBodySchema = z.object({

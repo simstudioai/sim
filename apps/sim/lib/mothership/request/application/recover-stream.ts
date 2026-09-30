@@ -24,27 +24,13 @@ import {
   getLocalChatStreamLease,
   releasePendingChatStream,
 } from '@/lib/mothership/request/session/abort'
-import { readEvents } from '@/lib/mothership/request/session/buffer'
+import { getLatestSeq, readEvents } from '@/lib/mothership/request/session/buffer'
 import { assertChatStreamLease } from '@/lib/mothership/request/session/controller-lease'
 import { eventToStreamEvent } from '@/lib/mothership/request/session/event'
 import { startsAtReplayHead } from '@/lib/mothership/request/session/recovery'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipStreamRecovery')
-
-type RecoverableRun = NonNullable<Awaited<ReturnType<typeof getLatestRunForStream>>>
-
-/**
- * The run's replay ring no longer holds its first events, so its context cannot be
- * rebuilt from Redis. The reconnect reports `replay_gap` instead of recovering from the
- * tail, which would persist a truncated turn.
- */
-export class StreamReplayHeadTrimmedError extends Error {
-  constructor(readonly run: RecoverableRun) {
-    super(`Replay head trimmed for stream ${run.streamId}`)
-    this.name = 'StreamReplayHeadTrimmedError'
-  }
-}
 
 export const readChatStream = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
@@ -135,7 +121,17 @@ export const readChatStream = defineAuthorizedChatUseCase({
       ])
       if (workspaceId && !userPermission)
         throw new OrchestrationError('forbidden', 'Workspace access revoked')
-      if (!startsAtReplayHead(events[0]?.seq)) throw new StreamReplayHeadTrimmedError(run)
+      /**
+       * A ring that lost its head is treated like an expired one: the controller starts
+       * from an empty context and re-attaches with an empty receipt, so the worker re-sends
+       * the whole response and re-hands its parked calls. Rebuilding from the tail would
+       * persist a truncated turn.
+       */
+      const ringIntact = startsAtReplayHead(events[0]?.seq)
+      const recoveredEvents = ringIntact ? events : []
+      const resumeSeq = ringIntact
+        ? (events.at(-1)?.seq ?? 0)
+        : ((await getLatestSeq(run.streamId)) ?? 0)
       const requestId = typeof saved?.requestId === 'string' ? saved.requestId : generateId()
       const completion = {
         chatId,
@@ -166,7 +162,7 @@ export const readChatStream = defineAuthorizedChatUseCase({
         currentChat: null,
         message: '',
         titleModel: '',
-        resumeSeq: events.at(-1)?.seq ?? 0,
+        resumeSeq,
         orchestrateOptions: {
           userId,
           workspaceId,
@@ -184,7 +180,7 @@ export const readChatStream = defineAuthorizedChatUseCase({
           recovery: {
             ...config.data,
             streamId: run.streamId,
-            events: events.map(eventToStreamEvent),
+            events: recoveredEvents.map(eventToStreamEvent),
           },
           onComplete: buildOnComplete(completion),
           onError: buildOnError(completion),

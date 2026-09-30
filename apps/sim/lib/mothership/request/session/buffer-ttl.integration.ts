@@ -33,7 +33,7 @@ import {
   scheduleBufferCleanup,
 } from '@/lib/mothership/request/session/buffer'
 import { createEvent } from '@/lib/mothership/request/session/event'
-import { checkForReplayGap } from '@/lib/mothership/request/session/recovery'
+import { findReplayGap } from '@/lib/mothership/request/session/recovery'
 
 async function appendText(streamId: string, text: string): Promise<number> {
   const { seq, cursor } = await allocateCursor(streamId)
@@ -104,6 +104,6 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
     await redis.del(`mothership_stream:${streamId}:events`, `mothership_stream:${streamId}:seq`)
     await appendText(streamId, 'after expiry')
 
-    expect(await checkForReplayGap(streamId, '5')).not.toBeNull()
+    expect(await findReplayGap(streamId, '5')).not.toBeNull()
   })
 })

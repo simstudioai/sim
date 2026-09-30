@@ -27,7 +27,6 @@ const { getLatestRunForStream, readEvents, readFilePreviewSessions, findReplayGa
 
 vi.mock('@/lib/mothership/request/application/recover-stream', () => ({
   readChatStream: { execute: getLatestRunForStream },
-  StreamReplayHeadTrimmedError: class extends Error {},
 }))
 
 vi.mock('@/lib/mothership/request/session', () => ({
@@ -36,7 +35,8 @@ vi.mock('@/lib/mothership/request/session', () => ({
   readEvents,
   readFilePreviewSessions,
   findReplayGap,
-  getLatestSeq: async () => null,
+  readRingPosition: async () => ({ requestedAfterSeq: 0, oldestSeq: 0, latestSeq: 0 }),
+  ringCanServe: () => true,
   replayGapTerminal: async () => ({ gapDetected: true, envelopes: [] }),
   createEvent: (event: Record<string, unknown>) => ({
     stream: {

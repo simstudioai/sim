@@ -24,25 +24,22 @@ import {
 } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import {
-  readChatStream,
-  StreamReplayHeadTrimmedError,
-} from '@/lib/mothership/request/application/recover-stream'
-import { FatalSseEventError } from '@/lib/mothership/request/go/parser'
+import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
 import { contextFromRequestHeaders } from '@/lib/mothership/request/go/propagation'
 import { getCopilotTracer, markSpanForError } from '@/lib/mothership/request/otel'
 import {
   createEvent,
   encodeSSEEnvelope,
   findReplayGap,
-  getLatestSeq,
+  forwardRunReplay,
   isTerminalStreamStatus,
   openRunReplay,
   RunReplayUnavailableError,
   readEvents,
   readFilePreviewSessions,
-  readRunReplay,
+  readRingPosition,
   replayGapTerminal,
+  ringCanServe,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/mothership/request/session'
 import { toReplayEnvelope, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
@@ -139,7 +136,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(copilotChatStreamContract, request, {})
   if (!parsed.success) return parsed.response
-  const { streamId, after: afterCursor, batch: batchMode } = parsed.data.query
+  const { streamId, after: afterCursor, batch: batchMode, source } = parsed.data.query
 
   if (!streamId) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
@@ -183,6 +180,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         streamId,
         afterCursor,
         batchMode,
+        fromLog: source === 'log',
         principal,
         rootSpan,
         rootContext,
@@ -205,6 +203,7 @@ async function handleResumeRequestBody({
   streamId,
   afterCursor,
   batchMode,
+  fromLog,
   principal,
   rootSpan,
   rootContext,
@@ -213,26 +212,17 @@ async function handleResumeRequestBody({
   streamId: string
   afterCursor: string
   batchMode: boolean
+  /** The reader's cursor came from a log re-sync, so the ring never serves it. */
+  fromLog: boolean
   principal: SessionPrincipal
   rootSpan: Span
   rootContext: Context
 }) {
-  /**
-   * Set when the run needs a new controller but recovery refused because the ring lost
-   * its head. Its view is still re-synced from the worker log; see `streamRunReplay`.
-   */
-  let recoveryRefused = false
   const readRun = () =>
-    readChatStream
-      .execute({
-        principal,
-        input: { streamId },
-      })
-      .catch((error: unknown) => {
-        if (!(error instanceof StreamReplayHeadTrimmedError)) throw error
-        recoveryRefused = true
-        return error.run
-      })
+    readChatStream.execute({
+      principal,
+      input: { streamId },
+    })
   const run = await readRun()
   logger.info('[Resume] Stream lookup', {
     streamId,
@@ -251,7 +241,7 @@ async function handleResumeRequestBody({
   if (batchMode) {
     const afterSeq = afterCursor || '0'
     const [gap, events, previewSessions] = await Promise.all([
-      findReplayGap(streamId, afterSeq, extractRunRequestId(run)),
+      fromLog ? null : findReplayGap(streamId, afterSeq, extractRunRequestId(run)),
       readEvents(streamId, afterSeq),
       readFilePreviewSessions(streamId).catch((error) => {
         logger.warn('Failed to read preview sessions for stream batch', {
@@ -261,8 +251,8 @@ async function handleResumeRequestBody({
         return []
       }),
     ])
-    /* The ring cannot serve this reader; the live tail re-syncs it from the worker log. */
-    const batchEvents = gap ? [] : events.map(toStreamBatchEvent)
+    // A reader the ring cannot serve is re-synced from the worker log by the live tail.
+    const batchEvents = fromLog || gap ? [] : events.map(toStreamBatchEvent)
     logger.info('[Resume] Batch response', {
       streamId,
       afterCursor: afterSeq,
@@ -295,12 +285,15 @@ async function handleResumeRequestBody({
    * no shared position to join on. The header tells the client to rebuild the turn
    * from an empty response, since the replay's cursors restart at 1.
    */
-  const gap = await findReplayGap(streamId, afterCursor || '0', extractRunRequestId(run))
+  const gap = fromLog
+    ? null
+    : await findReplayGap(streamId, afterCursor || '0', extractRunRequestId(run))
+  const resyncFromLog = fromLog || gap !== null
   let replayBody: ReadableStream<Uint8Array> | null = null
   /** Releases the worker's replay once this response ends; the request signal may never fire. */
   const replayAbort = new AbortController()
   const replaySignal = AbortSignal.any([request.signal, replayAbort.signal])
-  if (gap && run.chatId) {
+  if (resyncFromLog && run.chatId) {
     try {
       replayBody = await openRunReplay({
         streamId,
@@ -323,7 +316,7 @@ async function handleResumeRequestBody({
   const stream = new ReadableStream({
     async start(controller) {
       // Re-enter the root OTel context so any `withCopilotSpan` call below
-      // (inside flushEvents/checkForReplayGap/etc.) parents under
+      // (inside flushEvents/replayGapTerminal/etc.) parents under
       // copilot.resume.request instead of becoming an orphan.
       return otelContext.with(rootContext, () => startInner(controller))
     },
@@ -434,61 +427,30 @@ async function handleResumeRequestBody({
       }
     }
 
-    /**
-     * Forwards the worker's replay under this response's own cursors, starting at 1.
-     * A parked run holds the response open until it resumes, so the client does not
-     * replay the whole log again for every poll; any other end short of the terminal
-     * (the worker's cap, a stalled run, a cut connection) ends it without one and the
-     * client re-attaches, reaching recovery through the reconnect route. When that
-     * recovery was refused, a park or stall ends the view with an error instead.
-     */
+    /** Forwards the worker's replay, keeping the response alive while it waits. */
     const streamRunReplay = async (body: ReadableStream<Uint8Array>) => {
-      let seq = 0
       const keepalive = setInterval(() => {
         if (Date.now() - lastWriteTime < REPLAY_KEEPALIVE_INTERVAL_MS) return
         if (!enqueueComment('keepalive')) replayAbort.abort()
       }, REPLAY_KEEPALIVE_INTERVAL_MS)
       try {
-        const end = await readRunReplay(body, replaySignal, (event) => {
-          seq += 1
-          const envelope = toReplayEnvelope({
-            ...event,
-            seq,
-            stream: { ...event.stream, streamId, cursor: String(seq) },
-          })
-          if (!enqueueEvent(envelope)) return false
-          totalEventsFlushed += 1
-          cursor = String(seq)
-          if (envelope.type === MothershipStreamV1EventType.complete) sawTerminalEvent = true
-          return true
-        }).catch((error: unknown) => {
-          if (error instanceof FatalSseEventError) throw error
-          logger.warn('Run replay connection ended early', {
-            streamId,
-            error: getErrorMessage(error),
-          })
-          return 'closed' as const
+        const end = await forwardRunReplay({
+          body,
+          streamId,
+          signal: replaySignal,
+          write: (envelope) => {
+            if (!enqueueEvent(envelope)) return false
+            totalEventsFlushed += 1
+            cursor = envelope.stream.cursor ?? cursor
+            if (envelope.type === MothershipStreamV1EventType.complete) sawTerminalEvent = true
+            return true
+          },
+          isParked: async () =>
+            (await readRun().catch(() => null))?.status === 'paused_waiting_for_tool',
+          isClosed: () => controllerClosed,
+          deadlineAt: startTime + MAX_STREAM_MS,
         })
-        logger.info('[Resume] Run replay ended', { streamId, end, eventCount: seq })
-        while (
-          end === 'parked' &&
-          !recoveryRefused &&
-          !controllerClosed &&
-          Date.now() - startTime < MAX_STREAM_MS
-        ) {
-          const current = await readRun().catch(() => null)
-          if (current?.status !== 'paused_waiting_for_tool') break
-          await sleep(POLL_INTERVAL_MAX_MS)
-        }
-        /* No controller drives the run and none can be rebuilt from a trimmed ring, so a
-           park or stall is final for this view; re-attaching would only replay it again. */
-        if (recoveryRefused && (end === 'parked' || end === 'stalled')) {
-          emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
-            message: 'This response can no longer continue. Send a message to pick up from here.',
-            code: 'recovery_unavailable',
-            reason: 'recovery_unavailable',
-          })
-        }
+        logger.info('[Resume] Run replay ended', { streamId, end, eventCount: totalEventsFlushed })
       } finally {
         clearInterval(keepalive)
         replayAbort.abort()
@@ -502,8 +464,9 @@ async function handleResumeRequestBody({
         await streamRunReplay(replayBody)
         return
       }
-      if (gap) {
-        const terminal = await replayGapTerminal(streamId, gap, currentRequestId)
+      if (resyncFromLog) {
+        const position = gap ?? (await readRingPosition(streamId, cursor))
+        const terminal = await replayGapTerminal(streamId, position, currentRequestId)
         for (const envelope of terminal.envelopes) {
           if (!enqueueEvent(envelope)) {
             break
@@ -529,8 +492,11 @@ async function handleResumeRequestBody({
           })
           return null
         })
-        /* The ring lost its head under this tail; the re-attach re-syncs from the log. */
-        if (recoveryRefused) break
+        // The ring lost its head or restarted under this tail; the re-attach re-syncs.
+        if (!ringCanServe(await readRingPosition(streamId, cursor))) {
+          logger.warn('Replay ring can no longer serve a live tail', { streamId, cursor })
+          break
+        }
         if (!currentRun) {
           emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
             message: 'The stream could not be recovered because its run metadata is unavailable.',
@@ -548,16 +514,6 @@ async function handleResumeRequestBody({
            at 4 Hz for up to an hour. Any flushed event snaps back to full rate. */
         pollDelayMs =
           flushed > 0 ? POLL_INTERVAL_MS : Math.min(pollDelayMs * 2, POLL_INTERVAL_MAX_MS)
-
-        /* A ring whose numbering restarted after it expired never passes this cursor
-           again; end without a terminal so the client re-attaches and is re-synced. */
-        if (flushed === 0 && !sawTerminalEvent) {
-          const latestSeq = await getLatestSeq(streamId)
-          if (latestSeq !== null && Number(cursor) > latestSeq) {
-            logger.warn('Replay ring restarted under a live tail', { streamId, cursor, latestSeq })
-            break
-          }
-        }
 
         if (controllerClosed) {
           break

@@ -62,7 +62,11 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
       /** Events, or steps to run between them, that the scripted worker streams in order. */
       script: [] as unknown[],
       /** Controller lifecycles started, and what each sink call threw. */
-      runs: [] as Array<{ dispatched: unknown[]; sinkErrors: unknown[] }>,
+      runs: [] as Array<{
+        dispatched: unknown[]
+        sinkErrors: unknown[]
+        recoveredEvents?: unknown[]
+      }>,
     },
   }
 })
@@ -75,9 +79,17 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
    */
   runCopilotLifecycle: async (
     _payload: unknown,
-    options: { onEvent?: (event: unknown) => Promise<void>; abortSignal?: AbortSignal }
+    options: {
+      onEvent?: (event: unknown) => Promise<void>
+      abortSignal?: AbortSignal
+      recovery?: { events: unknown[] }
+    }
   ) => {
-    const run = { dispatched: [] as unknown[], sinkErrors: [] as unknown[] }
+    const run = {
+      dispatched: [] as unknown[],
+      sinkErrors: [] as unknown[],
+      recoveredEvents: options.recovery?.events,
+    }
     worker.runs.push(run)
     for (const event of worker.script) {
       if (typeof event === 'function') {
@@ -794,8 +806,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
           )
         ).text()
       )
-    /* A ring without its head is re-synced from the worker log whatever the cursor;
-       this worker does not know the run, so the replay_gap terminal applies. */
+    // A headless ring is re-synced from the log; this worker lacks the run, so replay_gap.
     worker.replayRequests.length = 0
     const inRange = await reconnect(oldestSeq - 1)
     expect(
@@ -892,7 +903,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     })
 
     it.each(['after=4', 'after=0'])(
-      'shows the full turn from the worker log without recovering from the tail (%s)',
+      'recovers from an empty context, not the tail, and shows the full turn from the log (%s)',
       async (query) => {
         const streamId = await trimmedRecoverableStream()
         worker.hooks.replay = {
@@ -923,16 +934,9 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
         try {
           const frames = dataFrames(await (await resume(streamId, query)).text())
 
-          expect(
-            frames.map((frame) => [frame.type, frame.payload.code ?? frame.payload.status ?? null])
-          ).toEqual([
-            ['text', null],
-            ['error', 'recovery_unavailable'],
-            ['complete', 'error'],
-          ])
+          expect(frames.map((frame) => frame.type)).toEqual(['text'])
           expect(frames[0].payload.text).toBe('part 1 part 2 part 3 part 4 ')
-          expect(worker.runs).toEqual([])
-          expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
+          expect(worker.runs.map((run) => run.recoveredEvents)).toEqual([[]])
         } finally {
           worker.hooks.replay = { status: 404, frames: [] }
         }
@@ -945,7 +949,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       const batch = await (await resume(streamId, 'after=0&batch=true')).json()
 
       expect(batch.events).toEqual([])
-      expect(worker.runs).toEqual([])
+      expect(worker.runs.map((run) => run.recoveredEvents)).toEqual([[]])
     })
 
     it.each([

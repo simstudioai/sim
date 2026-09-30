@@ -69,17 +69,17 @@ export {
   isFilePreviewSession,
 } from './file-preview-session-contract'
 export {
-  checkForReplayGap,
   findReplayGap,
-  type ReplayGap,
-  type ReplayGapResult,
+  type RingPosition,
+  readRingPosition,
   replayGapTerminal,
+  ringCanServe,
 } from './recovery'
 export {
+  forwardRunReplay,
   openRunReplay,
   type RunReplayEnd,
   RunReplayUnavailableError,
-  readRunReplay,
 } from './run-replay'
 export { encodeSSEEnvelope, SSE_RESPONSE_HEADERS } from './sse'
 export type { StreamBatchEvent } from './types'

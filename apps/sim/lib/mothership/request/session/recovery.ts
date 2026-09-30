@@ -18,8 +18,8 @@ export interface ReplayGapResult {
   envelopes: ReturnType<typeof createEvent>[]
 }
 
-/** Where the replay ring stands relative to a reader it can no longer serve. */
-export interface ReplayGap {
+/** Where the replay ring stands relative to a reader's cursor; 0 marks an empty ring. */
+export interface RingPosition {
   requestedAfterSeq: number
   oldestSeq: number
   latestSeq: number
@@ -35,68 +35,78 @@ export function startsAtReplayHead(firstSeq: number | undefined): boolean {
   return firstSeq === undefined || firstSeq <= 1
 }
 
+export async function readRingPosition(
+  streamId: string,
+  afterCursor: string
+): Promise<RingPosition> {
+  const [oldestSeq, latestSeq] = await Promise.all([getOldestSeq(streamId), getLatestSeq(streamId)])
+  return {
+    requestedAfterSeq: Number(afterCursor || '0'),
+    oldestSeq: oldestSeq ?? 0,
+    latestSeq: latestSeq ?? 0,
+  }
+}
+
 /**
- * Whether the ring can serve a reader from `afterCursor`. It cannot once it has lost
- * its head: the events before its oldest are gone, and a cursor that was served from
- * the worker's log instead is not a position in the ring, so no cursor is trusted. Nor
- * can it serve a cursor ahead of its latest event, which only a buffer whose numbering
+ * Whether the ring can serve a reader from its cursor. It cannot once it has lost its
+ * head: the events before its oldest are gone, and a cursor that was served from the
+ * worker's log instead is not a position in the ring, so no cursor is trusted. Nor can
+ * it serve a cursor ahead of its latest event, which only a buffer whose numbering
  * restarted after it expired produces.
  */
+export function ringCanServe({ requestedAfterSeq, oldestSeq, latestSeq }: RingPosition): boolean {
+  return latestSeq <= 0 || (startsAtReplayHead(oldestSeq) && requestedAfterSeq <= latestSeq)
+}
+
+/** The ring's position when it cannot serve `afterCursor` (see {@link ringCanServe}). */
 export async function findReplayGap(
   streamId: string,
   afterCursor: string,
   requestId?: string
-): Promise<ReplayGap | null> {
-  const requestedAfterSeq = Number(afterCursor || '0')
+): Promise<RingPosition | null> {
   return withCopilotSpan(
     TraceSpan.CopilotRecoveryCheckReplayGap,
     {
       [TraceAttr.StreamId]: streamId,
-      [TraceAttr.CopilotRecoveryRequestedAfterSeq]: requestedAfterSeq,
+      [TraceAttr.CopilotRecoveryRequestedAfterSeq]: Number(afterCursor || '0'),
       ...(requestId ? { [TraceAttr.RequestId]: requestId } : {}),
     },
     async (span) => {
-      const [oldestSeq, latestSeq] = await Promise.all([
-        getOldestSeq(streamId),
-        getLatestSeq(streamId),
-      ])
+      const position = await readRingPosition(streamId, afterCursor)
       span.setAttributes({
-        [TraceAttr.CopilotRecoveryOldestSeq]: oldestSeq ?? -1,
-        [TraceAttr.CopilotRecoveryLatestSeq]: latestSeq ?? -1,
+        [TraceAttr.CopilotRecoveryOldestSeq]: position.oldestSeq,
+        [TraceAttr.CopilotRecoveryLatestSeq]: position.latestSeq,
       })
-      if (
-        latestSeq === null ||
-        latestSeq <= 0 ||
-        oldestSeq === null ||
-        (startsAtReplayHead(oldestSeq) && requestedAfterSeq <= latestSeq)
-      ) {
+      if (ringCanServe(position)) {
         span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.InRange)
         return null
       }
       logger.warn('Replay gap detected: the ring cannot serve the requested cursor', {
         streamId,
-        requestedAfterSeq,
-        oldestAvailableSeq: oldestSeq,
-        latestSeq,
+        ...position,
       })
       span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.GapDetected)
-      return { requestedAfterSeq, oldestSeq, latestSeq }
+      return position
     }
   )
 }
 
-/** Ends a reader's view with `replay_gap` when nothing can re-sync it. */
+/**
+ * Ends a reader's view with `replay_gap` when nothing can re-sync it, numbered past
+ * both the ring and the reader's cursor so the reader cannot drop it as already seen.
+ */
 export async function replayGapTerminal(
   streamId: string,
-  gap: ReplayGap,
+  position: RingPosition,
   requestId?: string
 ): Promise<ReplayGapResult> {
-  const { latestSeq, oldestSeq, requestedAfterSeq } = gap
+  const { latestSeq, oldestSeq, requestedAfterSeq } = position
+  const baseSeq = Math.max(latestSeq, requestedAfterSeq)
   const resolvedRequestId = await resolveReplayGapRequestId(streamId, latestSeq, requestId)
   const gapEnvelope = createEvent({
     streamId,
-    cursor: String(latestSeq + 1),
-    seq: latestSeq + 1,
+    cursor: String(baseSeq + 1),
+    seq: baseSeq + 1,
     requestId: resolvedRequestId,
     type: MothershipStreamV1EventType.error,
     payload: {
@@ -110,8 +120,8 @@ export async function replayGapTerminal(
   })
   const terminalEnvelope = createEvent({
     streamId,
-    cursor: String(latestSeq + 2),
-    seq: latestSeq + 2,
+    cursor: String(baseSeq + 2),
+    seq: baseSeq + 2,
     requestId: resolvedRequestId,
     type: MothershipStreamV1EventType.complete,
     payload: {
@@ -120,15 +130,6 @@ export async function replayGapTerminal(
     },
   })
   return { gapDetected: true, envelopes: [gapEnvelope, terminalEnvelope] }
-}
-
-export async function checkForReplayGap(
-  streamId: string,
-  afterCursor: string,
-  requestId?: string
-): Promise<ReplayGapResult | null> {
-  const gap = await findReplayGap(streamId, afterCursor, requestId)
-  return gap ? replayGapTerminal(streamId, gap, requestId) : null
 }
 
 async function resolveReplayGapRequestId(

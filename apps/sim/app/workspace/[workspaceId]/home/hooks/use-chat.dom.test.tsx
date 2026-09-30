@@ -1158,10 +1158,11 @@ describe('useChat remount send recovery', () => {
     }
   })
 
-  it('rebuilds the turn from an empty response when a reconnect is re-synced from the log', async () => {
+  it('rebuilds the turn from an empty response when a reconnect is re-synced from the log, and stays on the log', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
       let tails = 0
+      const streamUrls: string[] = []
       const history: MothershipChatHistory = {
         id: 'chat-log-resync',
         mode: 'agent',
@@ -1188,6 +1189,7 @@ describe('useChat remount send recovery', () => {
       vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
         if (!url.includes('/api/mothership/chat/stream')) return fetchStub(input, init)
+        streamUrls.push(url)
         if (url.includes('batch=true')) {
           return Response.json({ success: true, events: [], status: 'streaming' })
         }
@@ -1216,6 +1218,12 @@ describe('useChat remount send recovery', () => {
       const answer = getResult().messages.find((message) => message.role === 'assistant')
       expect(tails).toBeGreaterThanOrEqual(3)
       expect(answer?.content).toBe('Full response.')
+      const logResyncTail = streamUrls.findIndex(
+        (url) => url.includes('after=3') && !url.includes('batch=true')
+      )
+      const afterLogResync = streamUrls.slice(logResyncTail + 1)
+      expect(afterLogResync.length).toBeGreaterThan(0)
+      expect(afterLogResync.every((url) => url.includes('source=log'))).toBe(true)
     } finally {
       vi.useRealTimers()
     }
