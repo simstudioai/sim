@@ -49,6 +49,7 @@ import {
   startAbortPoller,
   unregisterActiveStream,
 } from '@/lib/mothership/request/session/abort'
+import { isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { SlackSearchAssistantStream } from '@/lib/slack-search/assistant-stream'
@@ -303,7 +304,6 @@ export async function runSlackSearchAssistant(
           ]
         : []),
       recordSlackSearchOutcome(installation, 'assistant_or_delivery_failed'),
-      ...(runId ? [updateRunStatus(runId, 'error')] : []),
     ])
     const errors = outcomes.flatMap((outcome) =>
       outcome.status === 'rejected' ? [outcome.reason] : []
@@ -317,6 +317,20 @@ export async function runSlackSearchAssistant(
     await titleTask
     clearInterval(accessPoller)
     clearInterval(abortPoller)
+    try {
+      if (runId) {
+        /** This turn admitted its own run, so it records the terminal status no other path will. */
+        const cancelled =
+          failed &&
+          (isExplicitStopReason(controller.signal.reason) ||
+            (await wasSlackSearchTurnStopped(turnId, leaseId)))
+        await updateRunStatus(runId, failed ? (cancelled ? 'cancelled' : 'error') : 'complete')
+      }
+    } catch (error) {
+      failure = failure
+        ? new AggregateError([failure, error], 'Slack turn run status could not be recorded')
+        : toError(error)
+    }
     try {
       if (questionPersisted) {
         const stopped = failed && (await wasSlackSearchTurnStopped(turnId, leaseId))
