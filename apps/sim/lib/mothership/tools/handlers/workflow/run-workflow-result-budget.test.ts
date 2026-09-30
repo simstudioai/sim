@@ -31,7 +31,10 @@ vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-import { executeRunWorkflow } from '@/lib/mothership/tools/handlers/workflow/mutations'
+import {
+  executeRunWorkflow,
+  executeRunWorkflowUntilBlock,
+} from '@/lib/mothership/tools/handlers/workflow/mutations'
 
 const EXECUTION_ID = '0f4d5a4c-6a1e-4c2f-9b7d-2c8f1a3e5d90'
 const SECRET = 'fake-secret-for-test-only'
@@ -212,5 +215,82 @@ describe('run_workflow model-facing result budget', () => {
     const long = await pointerFor('a-considerably-longer-secret-value-for-the-same-slot')
     expect(short).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
     expect(long).toBe(short)
+  })
+
+  /** run_workflow_until_block lifts the stopping block's output into `output`; that copy is bounded too. */
+  it('bounds a lifted terminal block output instead of withholding the run', async () => {
+    const narrow = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({ id: `r${index}`, data: { a: 'x', b: 'y' } }))
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [
+        { blockId: 'start', blockName: 'Start', success: true, output: { ok: true } },
+        { blockId: 'query', blockName: 'Query', success: true, output: { rows: narrow(25_000) } },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflowUntilBlock(
+      { workflowId: 'wf-1', stopAfterBlockId: 'query' },
+      context
+    )
+    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const output = projection.result.output as Record<string, unknown>
+    expect(output.output).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
+    expect(output.outputFrom).toEqual({ blockId: 'query', blockName: 'Query' })
+    expect(output.stoppedAfterBlockId).toBe('query')
+  })
+
+  /** The truncation marker is written before secret projection, so it must not carry a length. */
+  it('marks a truncated block input without disclosing its length', async () => {
+    async function inputFor(secret: string) {
+      mocks.executeWorkflowUseCase.mockResolvedValue({
+        success: true,
+        output: { done: true },
+        logs: [
+          {
+            blockId: 'fn',
+            blockName: 'Function',
+            success: true,
+            input: { code: `${'a'.repeat(300)}${secret}${'b'.repeat(3_000)}` },
+            output: { ok: true },
+          },
+        ],
+        metadata: { executionId: EXECUTION_ID },
+      })
+      const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+      return (settled.output as { logs: Array<{ input: { code: string } }> }).logs[0]?.input.code
+    }
+
+    const short = await inputFor('short-secret-1')
+    const long = await inputFor('a-considerably-longer-secret-value-for-the-same-slot')
+    expect(short).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
+    expect(long).toBe(short)
+  })
+
+  /** The projection refuses content past its depth limit however few values it holds. */
+  it('replaces a block output nested past the projection depth limit', async () => {
+    let deep: Record<string, unknown> = { leaf: true }
+    for (let level = 0; level < 150; level += 1) deep = { next: deep }
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { done: true },
+      logs: [
+        { blockId: 'small', blockName: 'Small', success: true, output: { ok: true } },
+        { blockId: 'deep', blockName: 'Deep', success: true, output: deep },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const logs = (projection.result.output as { logs: Array<Record<string, unknown>> }).logs
+    expect(logs[0]?.output).toEqual({ ok: true })
+    expect(logs[1]?.output).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
   })
 })

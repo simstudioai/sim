@@ -263,18 +263,21 @@ export function projectToolErrorMessageForCopilot(
  *
  * A complete registry can still refuse content by its encoded size or by the number of values the
  * projection must walk (its value cap is reached well before the byte cap by row-shaped payloads).
- * Both measures are reported so a `content-refused` line names which one it hit; counting stops
- * at the value cap, so a huge payload is not serialized again just to be logged. Numbers only.
+ * Both measures are reported so a `content-refused` line names which one it hit. Counting stops at
+ * the first limit passed (`resultOverLimit`), so a huge payload is never serialized just to be
+ * logged. Numbers only.
  */
 export function measureWithheldContent(result: ToolExecutionResult): {
   resultBytes?: number
   resultValues?: number
+  resultOverLimit?: true
 } {
   const measure = measureModelContent({ output: result.output, error: result.error })
   if (!measure) return {}
   return {
     resultValues: measure.values,
-    ...(measure.bytes !== undefined ? { resultBytes: measure.bytes } : {}),
+    resultBytes: measure.bytes,
+    ...(measure.exceeded ? { resultOverLimit: true } : {}),
   }
 }
 

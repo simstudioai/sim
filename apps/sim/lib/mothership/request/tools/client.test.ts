@@ -287,6 +287,36 @@ describe('workflow client tool completion', () => {
     expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
   })
 
+  /** Parity with the server path: echoed block inputs are truncated before projection. */
+  it('truncates long echoed block inputs on a browser run', async () => {
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      blockLogs: [
+        {
+          blockId: 'fn',
+          blockName: 'Function',
+          input: { code: 'c'.repeat(5_000) },
+          output: { ok: true },
+        },
+      ],
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+    })
+
+    const logs = (completion?.data as { logs: Array<{ input: { code: string } }> }).logs
+    expect(logs[0]?.input.code).toContain('logs get execution-1 --trace')
+    expect(logs[0]?.input.code.length).toBeLessThan(400)
+  })
+
   it('preserves the server-confirmed status while omitting unavailable execution content', async () => {
     const registry = createParentRegistry()
     waitForToolConfirmation.mockResolvedValue({

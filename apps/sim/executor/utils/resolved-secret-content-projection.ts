@@ -362,30 +362,105 @@ export function projectResolvedSecretContent(
 
 /** Size of a value as the model-content projection sees it, for budgeting and diagnostics. */
 export interface ModelContentMeasure {
-  /** Values walked, stopping at `MAX_CONTENT_NODES + 1`: past the cap the exact count is moot. */
+  /** Values walked: the root and every array item and object property value JSON encodes. */
   values: number
-  /** Encoded bytes; absent when counting stopped at the value cap. */
-  bytes?: number
+  /** Bytes of the value's JSON encoding. */
+  bytes: number
+  /**
+   * True once the walk passed the projection's value, byte, or depth limit and stopped; `values`
+   * and `bytes` are then only what was counted before stopping.
+   */
+  exceeded: boolean
 }
 
-class ModelContentMeasureLimit extends Error {}
+class ModelContentMeasureExceeded extends Error {}
+class ModelContentUnencodable extends Error {}
 
 /**
- * Measures a value in the units the projection caps, without walking past the value cap: a
- * payload that is already over it is reported as over rather than serialized in full. Returns
- * undefined for a value JSON cannot encode (a BigInt, a cycle), which the projection refuses too.
+ * Measures a value in the units the projection caps, following JSON's encoding rules, without
+ * serializing it: strings are measured one at a time and only while they fit the remaining byte
+ * budget, and the walk stops at the first limit it passes. Returns undefined for a value JSON
+ * cannot encode (a BigInt, a cycle), which the projection refuses too.
  */
 export function measureModelContent(value: unknown): ModelContentMeasure | undefined {
   let values = 0
+  let bytes = 0
+  const ancestors = new Set<object>()
+
+  const addBytes = (count: number): void => {
+    bytes += count
+    if (bytes > MAX_MODEL_CONTENT_BYTES) throw new ModelContentMeasureExceeded()
+  }
+  const addString = (text: string): void => {
+    // A JSON string is never shorter than its UTF-16 length plus its quotes.
+    if (text.length + 2 > MAX_MODEL_CONTENT_BYTES - bytes) throw new ModelContentMeasureExceeded()
+    addBytes(Buffer.byteLength(JSON.stringify(text), 'utf8'))
+  }
+  const walk = (raw: unknown, key: string, depth: number): void => {
+    const item =
+      raw !== null &&
+      typeof raw === 'object' &&
+      typeof (raw as { toJSON?: unknown }).toJSON === 'function'
+        ? (raw as { toJSON: (key: string) => unknown }).toJSON(key)
+        : raw
+    values += 1
+    if (values > MAX_CONTENT_NODES || depth > MAX_CONTENT_DEPTH) {
+      throw new ModelContentMeasureExceeded()
+    }
+    if (typeof item === 'string') {
+      addString(item)
+      return
+    }
+    if (typeof item === 'number') {
+      addBytes(Number.isFinite(item) ? String(item).length : 4)
+      return
+    }
+    if (typeof item === 'boolean') {
+      addBytes(item ? 4 : 5)
+      return
+    }
+    if (typeof item === 'bigint') throw new ModelContentUnencodable()
+    if (item === null || typeof item !== 'object') {
+      addBytes(4)
+      return
+    }
+    if (ancestors.has(item)) throw new ModelContentUnencodable()
+    ancestors.add(item)
+    if (Array.isArray(item)) {
+      addBytes(2 + Math.max(0, item.length - 1))
+      for (const [index, child] of item.entries()) {
+        if (child === undefined || typeof child === 'function' || typeof child === 'symbol') {
+          values += 1
+          addBytes(4)
+        } else {
+          walk(child, String(index), depth + 1)
+        }
+      }
+    } else {
+      addBytes(2)
+      let first = true
+      for (const [childKey, child] of Object.entries(item)) {
+        if (child === undefined || typeof child === 'function' || typeof child === 'symbol')
+          continue
+        if (!first) addBytes(1)
+        first = false
+        addString(childKey)
+        addBytes(1)
+        walk(child, childKey, depth + 1)
+      }
+    }
+    ancestors.delete(item)
+  }
+
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol') {
+    return { values: 0, bytes: 0, exceeded: false }
+  }
   try {
-    const encoded = JSON.stringify(value, (_key, item: unknown) => {
-      values += 1
-      if (values > MAX_CONTENT_NODES) throw new ModelContentMeasureLimit()
-      return item
-    })
-    return { values, bytes: encoded === undefined ? 0 : Buffer.byteLength(encoded, 'utf8') }
+    walk(value, '', 0)
+    return { values, bytes, exceeded: false }
   } catch (error) {
-    return error instanceof ModelContentMeasureLimit ? { values } : undefined
+    if (error instanceof ModelContentMeasureExceeded) return { values, bytes, exceeded: true }
+    return undefined
   }
 }
 

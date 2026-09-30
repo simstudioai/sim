@@ -30,7 +30,7 @@ import type {
 } from '@/lib/mothership/tools/handlers/param-types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
 import {
-  compactBlockLogInputs,
+  compactLiftedBlockOutput,
   presentWorkflowLogsForModel,
 } from '@/lib/mothership/tools/workflow-output'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
@@ -144,7 +144,7 @@ function buildExecutionOutput(
 ): ToolCallResult {
   const executionId = result.metadata?.executionId
   const output = stripBinaryFields(result.output)
-  const logs = compactBlockLogInputs(stripBinaryFields(result.logs), executionId)
+  const logs = stripBinaryFields(result.logs)
   const lifted = isEmptyOutput(output) ? lastBlockOutput(logs) : undefined
   // A caller that names the outputs it wants gets those and nothing else: a seven-block
   // run otherwise costs ~14K chars of logs to learn one headline.
@@ -154,7 +154,7 @@ function buildExecutionOutput(
       executionId,
       success: result.success,
       ...extra,
-      output: lifted ? lifted.output : output,
+      output: lifted ? compactLiftedBlockOutput(lifted.output, executionId) : output,
       ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
       ...presentWorkflowLogsForModel(logs, executionId, select),
     },
