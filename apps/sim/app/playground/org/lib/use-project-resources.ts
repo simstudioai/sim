@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/file'
+import type { Project } from '@/app/playground/org/lib/project'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -45,3 +46,20 @@ export function useProjectResources(workspaceId: string) {
 }
 
 export type ProjectResources = ReturnType<typeof useProjectResources>
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
+/** The pack's purpose line when the pack was chosen for this project; otherwise what the workspace holds. */
+export function useProjectDescription(project: Project): string {
+  const { workflows, tables, knowledgeBases, files, isPending } = useProjectResources(project.id)
+  if (project.overlayMatched) return project.mock.description
+  if (isPending) return ''
+  return [
+    plural(workflows.length, 'workflow'),
+    plural(tables.length, 'table'),
+    plural(knowledgeBases.length, 'knowledge base'),
+    plural(files.length, 'file'),
+  ].join(' · ')
+}

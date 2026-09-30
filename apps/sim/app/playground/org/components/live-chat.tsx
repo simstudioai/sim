@@ -57,9 +57,17 @@ export function LiveChat({
   const sentInitialRef = useRef(false)
   useEffect(() => {
     if (!initialMessage || chatId || sentInitialRef.current) return
-    sentInitialRef.current = true
-    void sendMessage(initialMessage)
-    onInitialMessageSent?.()
+    /**
+     * Deferred one tick: a send started inside the mount effect is withdrawn by the hook's own
+     * unmount cleanup when React (StrictMode in dev) simulates a remount, and the cleanup here
+     * cancels the timer in that case so the second mount sends it exactly once.
+     */
+    const timer = window.setTimeout(() => {
+      sentInitialRef.current = true
+      void sendMessage(initialMessage)
+      onInitialMessageSent?.()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [initialMessage, chatId, sendMessage, onInitialMessageSent])
 
   const announcedRef = useRef<string | null>(null)

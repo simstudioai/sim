@@ -8,6 +8,7 @@ import type { WorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { Project } from '@/app/playground/org/lib/project'
 import { workspaceRoutes } from '@/app/playground/org/lib/routes'
 import { SETTINGS_NAV } from '@/app/playground/org/lib/settings-nav'
+import { useProjectDescription } from '@/app/playground/org/lib/use-project-resources'
 
 interface ProjectSettingsProps {
   project: Project
@@ -51,11 +52,12 @@ export function ProjectSettings({ project, sectionId }: ProjectSettingsProps) {
 
 function ProjectGeneral({ project }: { project: Project }) {
   const { tracker, feedbackSources } = project.mock
+  const description = useProjectDescription(project)
   const TrackerIcon =
     tracker.kind === 'jira' ? JiraIcon : tracker.kind === 'linear' ? LinearIcon : null
   const rows: [string, ReactNode][] = [
     ['Name', project.name],
-    ['Description', project.mock.description],
+    ['Description', description],
     [
       'Tracker',
       <span key='tracker' className='flex items-center gap-1.5'>

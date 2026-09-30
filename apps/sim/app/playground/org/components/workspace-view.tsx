@@ -15,7 +15,7 @@ import {
   type WorkspaceSection,
 } from '@/app/playground/org/lib/routes'
 import { DEFAULT_SETTINGS_SECTION } from '@/app/playground/org/lib/settings-nav'
-import { useProjectResources } from '@/app/playground/org/lib/use-project-resources'
+import { useProjectDescription } from '@/app/playground/org/lib/use-project-resources'
 
 interface WorkspaceViewProps {
   project: Project
@@ -80,23 +80,8 @@ export function WorkspaceView({ project, section, full, settingsSection }: Works
   )
 }
 
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
-
-/** The pack's purpose line when it was chosen by name; otherwise what the workspace holds. */
 function ProjectDescription({ project }: { project: Project }) {
-  const { workflows, tables, knowledgeBases, files, isPending } = useProjectResources(project.id)
-  const text = project.overlayMatched
-    ? project.mock.description
-    : isPending
-      ? ''
-      : [
-          plural(workflows.length, 'workflow'),
-          plural(tables.length, 'table'),
-          plural(knowledgeBases.length, 'knowledge base'),
-          plural(files.length, 'file'),
-        ].join(' · ')
+  const text = useProjectDescription(project)
   return <p className='min-h-[18px] text-[var(--text-muted)] text-small'>{text}</p>
 }
 
