@@ -293,4 +293,33 @@ describe('run_workflow model-facing result budget', () => {
     expect(logs[0]?.output).toEqual({ ok: true })
     expect(logs[1]?.output).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
   })
+
+  /** A cut through a secret leaves a fragment no whole-literal redaction can match. */
+  it('never exposes part of a secret that straddles an input truncation point', async () => {
+    const straddling = `${'a'.repeat(190)}${SECRET}${'b'.repeat(3_000)}`
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { done: true },
+      logs: [
+        {
+          blockId: 'fn',
+          blockName: 'Function',
+          success: true,
+          input: { code: straddling, note: straddling },
+          output: { ok: true },
+        },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const serialized = JSON.stringify(projection.result)
+    expect(serialized).toContain(`logs get ${EXECUTION_ID} --trace`)
+    for (let length = 4; length <= SECRET.length; length += 1) {
+      expect(serialized).not.toContain(SECRET.slice(0, length))
+    }
+  })
 })

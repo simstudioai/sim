@@ -71,13 +71,13 @@ function selectFromLogs(selectors: string[], logs: unknown[]): Record<string, un
 const LOG_CODE_INPUT_MAX_CHARS = 240
 /** Any other echoed input string over this is data the caller already has, or can fetch. */
 const LOG_INPUT_STRING_MAX_CHARS = 2_000
-const LOG_INPUT_KEEP_CHARS = 200
 
 /**
  * Compacts the block inputs echoed back in `logs`. A Function block's `input.code` embeds the
  * fully serialized upstream rows, so a seven-block run repeated the same rows several times
- * across ~14k chars of tool result. The marker carries no length: it is written before secret
- * projection, so a length would disclose the length of any secret in the input.
+ * across ~14k chars of tool result. The marker is written before secret projection, so it keeps
+ * nothing of the raw input: a kept prefix could cut through a secret and leave a fragment no
+ * whole-literal redaction matches, and a length would disclose the length of any secret in it.
  */
 function compactBlockLogInputs(logs: unknown, executionId: string | undefined): unknown {
   if (!Array.isArray(logs)) return logs
@@ -89,7 +89,7 @@ function compactBlockLogInputs(logs: unknown, executionId: string | undefined): 
       const limit = key === 'code' ? LOG_CODE_INPUT_MAX_CHARS : LOG_INPUT_STRING_MAX_CHARS
       input[key] =
         typeof value === 'string' && value.length > limit
-          ? `${value.slice(0, LOG_INPUT_KEEP_CHARS)} …[truncated; inspect with logs get ${reference} --trace]`
+          ? `…[input omitted; inspect with logs get ${reference} --trace]`
           : value
     }
     return { ...entry, input }
