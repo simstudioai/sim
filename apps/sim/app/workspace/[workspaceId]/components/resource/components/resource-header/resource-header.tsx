@@ -136,8 +136,8 @@ interface ResourceHeaderProps {
   aside?: ReactNode
   breadcrumbDrop?: BreadcrumbDropConfig
   /**
-   * Show only the parent and the current crumb. The full path stays one hover
-   * away in the parent's popover, so a narrow header keeps its actions.
+   * Show only the current crumb. The full path stays one hover away in its
+   * popover, so a narrow header keeps its actions.
    */
   compact?: boolean
 }
@@ -163,9 +163,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   const TitleIcon = Icon ?? rootCrumb?.icon
   const titleLabel = title ?? rootCrumb?.label
   const crumbs: BreadcrumbItem[] =
-    hasBreadcrumbs && compact && breadcrumbs.length > 2
-      ? breadcrumbs.slice(-2)
-      : (breadcrumbs ?? [])
+    hasBreadcrumbs && compact ? breadcrumbs.slice(-1) : (breadcrumbs ?? [])
   const terminalBreadcrumbIndex =
     hasBreadcrumbs && crumbs[crumbs.length - 1].terminal ? crumbs.length - 1 : -1
   const currentResourceIndex =
@@ -187,12 +185,14 @@ export const ResourceHeader = memo(function ResourceHeader({
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
           {hasBreadcrumbs ? (
             crumbs.map((crumb, i) => {
-              const segmentClassName = getBreadcrumbSegmentClassName(
-                i,
-                crumbs.length,
-                currentResourceIndex,
-                terminalBreadcrumbIndex
-              )
+              const segmentClassName = compact
+                ? 'min-w-0 flex-[0_1_auto]'
+                : getBreadcrumbSegmentClassName(
+                    i,
+                    crumbs.length,
+                    currentResourceIndex,
+                    terminalBreadcrumbIndex
+                  )
               const LocationIcon = i === 0 ? (crumb.icon ?? Icon) : undefined
               /**
                * The first crumb on a nested page opens the hover "path" popover

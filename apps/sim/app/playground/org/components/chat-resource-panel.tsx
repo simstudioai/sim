@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, cn } from '@sim/emcn'
-import { Download, Link, Pencil, Send, Trash } from '@sim/emcn/icons'
+import { Download, Link, Send, Trash } from '@sim/emcn/icons'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import {
@@ -225,15 +225,7 @@ function ResourceView({ workspace, resource, onBrowse }: ResourceViewProps) {
         breadcrumbs={[
           ...(workspace ? [{ label: workspace.name, onClick: () => onBrowse(null) }] : []),
           { label: config.label, icon: Icon, onClick: () => onBrowse(resource.kind) },
-          {
-            label: resource.name,
-            dropdownItems: [
-              { label: 'Download', icon: Download, onClick: () => {} },
-              { label: 'Rename', icon: Pencil, onClick: () => {} },
-              { label: 'Share', icon: Send, onClick: () => {} },
-              { label: 'Delete', icon: Trash, onClick: () => {} },
-            ],
-          },
+          { label: resource.name, icon: Icon },
         ]}
         actions={[
           { icon: Link, text: 'Copy Link', onSelect: () => {} },
