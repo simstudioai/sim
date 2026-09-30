@@ -462,7 +462,8 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       admittedRun: run,
       orchestrateOptions: { userId, workspaceId, chatId, runId, interactive: true },
     })
-    const frames = dataFrames(await new Response(response).text())
+    /** A controller whose teardown throws errors its client stream; its frames are then moot. */
+    const frames = dataFrames(await new Response(response).text().catch(() => ''))
     await teardown
     return { streamId, runId, frames }
   }
@@ -571,6 +572,25 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored.status).toBe('active')
     expect(worker.abortRequests).toEqual([])
+  })
+
+  it('still cleans up a finished turn whose terminal events could not be published', async () => {
+    let eventsKey = ''
+    const { streamId, runId } = await runTurn(
+      [
+        async () => {
+          // A corrupt buffer key makes the terminal append fail while the lease is held.
+          await redis().set(eventsKey, 'corrupt', 'EX', 3600)
+        },
+      ],
+      async (id) => {
+        eventsKey = `mothership_stream:${id}:events`
+      }
+    )
+
+    const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+    expect(stored.status).toBe('complete')
+    expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeLessThanOrEqual(300)
   })
 
   it("leaves its successor's stream untouched when the lease is lost while ending a refused turn", async () => {

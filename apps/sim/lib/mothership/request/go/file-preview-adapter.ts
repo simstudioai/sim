@@ -44,8 +44,6 @@ type FilePreviewStreamState = {
   session: FilePreviewSession
   lastEmittedPreviewText: string
   lastSnapshotAt: number
-  /** Characters of intermediate preview content streamed so far. */
-  streamedChars?: number
 }
 
 type ParsedWorkspaceFileArgs = {
@@ -66,11 +64,11 @@ const DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS = 1000
 const PREVIEW_SNAPSHOT_CHARS_PER_SECOND = 256 * 1024
 
 /**
- * Intermediate preview content streamed per edit is capped at this many
- * characters; past it the preview holds still until the final snapshot, which
- * is always sent when the edit completes.
+ * UTF-8 bytes of intermediate preview content one stream loop may send across
+ * all of its edits, well under the stream's 32 MiB replay budget. Past it the
+ * previews hold still; each edit's final snapshot is still sent on completion.
  */
-export const PREVIEW_INTERMEDIATE_SNAPSHOT_CHARS = 8 * 1024 * 1024
+export const PREVIEW_INTERMEDIATE_SNAPSHOT_BYTES = 8 * 1024 * 1024
 
 /** The minimum gap between full snapshots of a preview this long. */
 function snapshotIntervalMs(baseMs: number, previewText: string): number {
@@ -366,12 +364,15 @@ export function buildPreviewContentUpdate(
 export interface FilePreviewAdapterState {
   editContentState: Map<string, EditContentStreamState>
   filePreviewState: Map<string, FilePreviewStreamState>
+  /** UTF-8 bytes of intermediate preview content sent by this stream loop. */
+  intermediateBytes: number
 }
 
 export function createFilePreviewAdapterState(): FilePreviewAdapterState {
   return {
     editContentState: new Map<string, EditContentStreamState>(),
     filePreviewState: new Map<string, FilePreviewStreamState>(),
+    intermediateBytes: 0,
   }
 }
 
@@ -726,8 +727,9 @@ export async function processFilePreviewStreamEvent(input: {
               now,
               nextSession.operation
             )
-            const streamedChars = (currentPreview.streamedChars ?? 0) + previewUpdate.content.length
-            if (streamedChars > PREVIEW_INTERMEDIATE_SNAPSHOT_CHARS) {
+            const intermediateBytes =
+              state.intermediateBytes + Buffer.byteLength(previewUpdate.content, 'utf8')
+            if (intermediateBytes > PREVIEW_INTERMEDIATE_SNAPSHOT_BYTES) {
               filePreviewState.set(editIntent.toolCallId, {
                 ...currentPreview,
                 session: nextSession,
@@ -737,8 +739,8 @@ export async function processFilePreviewStreamEvent(input: {
                 session: nextSession,
                 lastEmittedPreviewText: nextSession.previewText,
                 lastSnapshotAt: previewUpdate.lastSnapshotAt,
-                streamedChars,
               })
+              state.intermediateBytes = intermediateBytes
 
               await emitPreviewEvent(streamEvent, options, {
                 toolCallId: nextSession.toolCallId,

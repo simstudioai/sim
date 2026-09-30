@@ -25,7 +25,7 @@ import { createStreamingContext } from '@/lib/mothership/request/context/request
 import {
   createFilePreviewAdapterState,
   type FilePreviewAdapterState,
-  PREVIEW_INTERMEDIATE_SNAPSHOT_CHARS,
+  PREVIEW_INTERMEDIATE_SNAPSHOT_BYTES,
   processFilePreviewStreamEvent,
 } from '@/lib/mothership/request/go/file-preview-adapter'
 import { createEvent, eventToStreamEvent } from '@/lib/mothership/request/session'
@@ -175,15 +175,22 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  async function streamPatch(durationMs: number, tickMs: number) {
+  /** Streams one anchored patch of a 300 KB file through `state`, then completes it. */
+  async function streamPatch(
+    durationMs: number,
+    tickMs: number,
+    state = createFilePreviewAdapterState(),
+    edit = 0
+  ) {
     vi.useFakeTimers()
     const base = `ANCHOR\n${'line of existing file content\n'.repeat(10_000)}`
-    const edit = { strategy: 'anchored', mode: 'insert_after', anchor: 'ANCHOR' }
-    peekFileIntentMock.mockResolvedValue({ existingContent: base, edit })
-    const state = createFilePreviewAdapterState()
+    const anchoredEdit = { strategy: 'anchored', mode: 'insert_after', anchor: 'ANCHOR' }
+    peekFileIntentMock.mockResolvedValue({ existingContent: base, edit: anchoredEdit })
+    const editToolCallId = `${EDIT_TOOL_CALL_ID}-${edit}`
     const intent = {
-      ...makeIntent({ operation: 'patch', fileId: 'file-big', fileName: 'big.md' }),
-      edit,
+      ...makeIntent({ operation: 'patch', fileId: `file-big-${edit}`, fileName: 'big.md' }),
+      toolCallId: `${WORKSPACE_FILE_TOOL_CALL_ID}-${edit}`,
+      edit: anchoredEdit,
     }
     const payloads: Array<Record<string, unknown>> = []
     const drive = async (streamEvent: StreamEvent) => {
@@ -202,17 +209,24 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
         state,
       })
     }
+    const delta = (argumentsDelta: string) =>
+      toolEvent({
+        toolCallId: editToolCallId,
+        toolName: 'apply_file_edit',
+        phase: MothershipStreamV1ToolPhase.args_delta,
+        argumentsDelta,
+      })
 
     let streamed = ''
-    await drive(editContentDelta('{"content":"'))
+    await drive(delta('{"content":"'))
     for (let elapsed = 0; elapsed < durationMs; elapsed += tickMs) {
       vi.advanceTimersByTime(tickMs)
       streamed += `word${elapsed} `
-      await drive(editContentDelta(`word${elapsed} `))
+      await drive(delta(`word${elapsed} `))
     }
     await drive(
       toolEvent({
-        toolCallId: EDIT_TOOL_CALL_ID,
+        toolCallId: editToolCallId,
         toolName: 'apply_file_edit',
         phase: MothershipStreamV1ToolPhase.result,
         success: true,
@@ -238,13 +252,18 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
     expect(lastContent).toBe(finalContent)
   })
 
-  it('caps a 300 KB patch streaming for 5 minutes and still ends on its final content', async () => {
-    const { finalContent, lastContent, streamedBytes } = await streamPatch(300_000, 200)
+  it('caps a turn of four long patches and still ends each on its final content', async () => {
+    const state = createFilePreviewAdapterState()
+    let streamedBytes = 0
+    let finalBytes = 0
+    for (let edit = 0; edit < 4; edit++) {
+      const result = await streamPatch(120_000, 200, state, edit)
+      expect(result.lastContent).toBe(result.finalContent)
+      streamedBytes += result.streamedBytes
+      finalBytes += Buffer.byteLength(result.finalContent)
+    }
 
-    expect(streamedBytes).toBeLessThanOrEqual(
-      PREVIEW_INTERMEDIATE_SNAPSHOT_CHARS + Buffer.byteLength(finalContent)
-    )
-    expect(lastContent).toBe(finalContent)
+    expect(streamedBytes).toBeLessThanOrEqual(PREVIEW_INTERMEDIATE_SNAPSHOT_BYTES + finalBytes)
   })
 })
 

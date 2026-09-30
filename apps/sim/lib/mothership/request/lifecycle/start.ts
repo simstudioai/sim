@@ -217,11 +217,20 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   const refusalOf = (thrown?: unknown) =>
     replayRefusal(abortController.signal.aborted ? abortController.signal.reason : thrown)
 
-  /** Set once this controller finalized the turn; only then does it clean up the stream. */
+  /**
+   * Set once this controller ended the turn, even if publishing its terminal
+   * events failed (the run is settled regardless); only then does it clean up
+   * the stream. A superseded controller leaves the turn to its successor.
+   */
   let turnEnded = false
   const endTurn = async (...args: Parameters<typeof finalizeStream>) => {
-    await finalizeStream(...args)
-    turnEnded = true
+    try {
+      await finalizeStream(...args)
+      turnEnded = true
+    } catch (error) {
+      turnEnded = !(error instanceof StreamControllerSupersededError)
+      throw error
+    }
   }
 
   /**
