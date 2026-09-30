@@ -1,7 +1,10 @@
 import type { ComponentType } from 'react'
 import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
-import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  getManagedMcpConnectorBgColor,
+  type ManagedMcpConnectorId,
+} from '@/lib/credential-groups/managed-mcp-connectors'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 import { BrandTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
@@ -18,7 +21,9 @@ export function CredentialGroupProviderTile({ provider, icon }: CredentialGroupP
   return (
     <BrandTile
       icon={blockTypeToIconMap[blockType] ?? icon}
-      background={INTEGRATION_BY_TYPE.get(blockType)?.bgColor}
+      background={
+        INTEGRATION_BY_TYPE.get(blockType)?.bgColor ?? getManagedMcpConnectorBgColor(provider)
+      }
     />
   )
 }

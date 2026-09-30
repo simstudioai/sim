@@ -3,7 +3,10 @@ import {
   searchSourcePageSchema,
   searchSourceSummarySchema,
 } from '@/lib/api/contracts/knowledge/connectors'
-import { searchIntegrationApprovalSchema } from '@/lib/api/contracts/knowledge/search-integrations'
+import {
+  searchIntegrationApprovalSchema,
+  searchIntegrationStatusSchema,
+} from '@/lib/api/contracts/knowledge/search-integrations'
 
 const connectorTypeSchema = z.string().trim().min(1).max(100)
 
@@ -36,7 +39,7 @@ export const organizationSearchSourcesOutputSchema = z.discriminatedUnion('actio
   z.object({ action: z.literal('get'), source: searchSourceSummarySchema }),
   z.object({
     action: z.literal('providers'),
-    providers: z.array(searchIntegrationApprovalSchema).max(100),
+    providers: z.array(searchIntegrationStatusSchema).max(100),
   }),
   z.object({
     action: z.literal('setup'),

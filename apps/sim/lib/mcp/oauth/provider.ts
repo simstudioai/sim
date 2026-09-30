@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
@@ -25,6 +26,7 @@ import {
   saveState,
   saveTokens as saveTokensDb,
 } from '@/lib/mcp/oauth/storage'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 
 const logger = createLogger('SimMcpOauthProvider')
 
@@ -172,6 +174,8 @@ export async function loadPreregisteredClient(
       clientId: mcpServers.oauthClientId,
       clientSecret: mcpServers.oauthClientSecret,
       connectorId: mcpServers.managedConnectorId,
+      workspaceId: mcpServers.workspaceId,
+      organizationId: mcpServers.organizationId,
       url: mcpServers.url,
       authType: mcpServers.authType,
       groupId: mcpServers.credentialGroupId,
@@ -191,6 +195,8 @@ export async function loadPreregisteredClient(
       row.deletedAt
     )
       return undefined
+    if (!(await isSearchProviderEnabled('zoom', resourceScopeFromOwner(row))))
+      throw new Error('Zoom Search is not available for this organization')
     if (row.clientId || row.clientSecret)
       throw new Error('Zoom Search uses the deployment OAuth registration')
     const shared = getSharedZoomMcpClient()

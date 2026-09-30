@@ -149,6 +149,18 @@ Reads preserve provider page/region JSON, including node and edge properties, wi
 
 `test-search-lucid-e2e.ts` exercises the production MCP transport, payload parser and adapter over loopback HTTP with synthetic provider responses and writes `SEARCH_LUCID_REPORT_PATH`. It is separate from real-account acceptance; do not present deterministic fixtures as live Lucid evidence.
 
+### Zoom Search rollout
+
+Zoom Search defaults off for organization-scoped rollout. Enable selected organizations through the `feature-flags` AppConfig profile:
+
+```json
+{
+  "zoom-search": { "enabled": false, "orgIds": ["<approved-organization-id>"] }
+}
+```
+
+Only the canonical organization ID participates in this rollout check. For local or self-hosted deployments, `ZOOM_SEARCH=true` enables Zoom Search globally; leave that boolean fallback off for an organization-targeted rollout. Setup, enrollment and retrieval enforce the flag. The dedicated Zoom MCP Search connector is gated wherever it is invoked, including generic MCP tools; the standard workflow Zoom OAuth/tools remain available. Disabling the flag preserves saved grants and conversations while denying subsequent Search use; existing approvals can still be removed and connected accounts disconnected. Other providers retain the shared Search and credential-group availability policies without a separate provider rollout gate.
+
 ### Shared invariants
 
 - Keep provider parsing isolated from authorization. The application operation owns current membership, policy loading, active account resolution, scoped references, and result projection.

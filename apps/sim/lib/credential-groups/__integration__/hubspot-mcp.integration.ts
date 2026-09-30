@@ -5,22 +5,27 @@ import {
   credential,
   credentialGroupEnrollment,
   mcpServers,
+  member,
   organization,
   user,
 } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { sha256Hex } from '@sim/security/hash'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { getOrganizationAccountsSettings } from '@/lib/credential-groups/application/organization-accounts'
+import { disconnectPersonalOrganizationAccount } from '@/lib/credential-groups/application/personal-organization-accounts'
 import {
   completePublicCredentialGroupMcpOAuth,
   startPublicCredentialGroupMcpOAuth,
 } from '@/lib/credential-groups/application/public-enrollment'
 import { createManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-service'
 import { consumeCredentialGroupMcpOAuthAttempt } from '@/lib/credential-groups/mcp-oauth-state'
+import { listConfiguredManagedMcpConnectors } from '@/lib/credential-groups/provider-availability'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import {
   encryptManagedMcpTokens,
@@ -37,6 +42,7 @@ import {
 } from '@/lib/mcp/oauth/provider'
 import { getOrCreateOauthRow, saveClientInformation } from '@/lib/mcp/oauth/storage'
 import { mcpService } from '@/lib/mcp/service'
+import { listManagedMcpSearchAccounts } from '@/lib/sim-search/live/mcp-accounts'
 
 const SECRET = 'isolated-shared-client-secret'
 const SHARED_CLIENTS = [
@@ -67,6 +73,7 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
   beforeEach(async () => {
     Object.assign(env, {
       REDIS_URL: readTestRedisUrl(),
+      ZOOM_SEARCH: true,
       [connector.clientIdKey]: 'fixture-shared-client',
       [connector.clientSecretKey]: SECRET,
     })
@@ -253,6 +260,74 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
     await expect(runtime(id)).rejects.toThrow(/authorization/)
   })
   if (connector.id === 'zoom') {
+    it('refuses new Zoom sign-in servers when the rollout is off without persisting setup', async () => {
+      Object.assign(env, { ZOOM_SEARCH: false })
+      await expect(create()).rejects.toThrow(/Zoom Search.*not available/)
+      expect(
+        await db.select().from(mcpServers).where(eq(mcpServers.credentialGroupId, group))
+      ).toEqual([])
+    })
+    it('hides existing Zoom grants from enrollment and Search inventories when the rollout is off', async () => {
+      await db.insert(member).values({
+        id: generateId(),
+        organizationId: org,
+        userId: owner,
+        role: 'owner',
+      })
+      const { mcpServer } = await create()
+      const client = await loadPreregisteredClient(mcpServer.id)
+      const id = await grant(mcpServer.id, client?.configurationFingerprint)
+      const scope = { kind: 'organization', organizationId: org } as const
+      expect(await listConfiguredManagedMcpConnectors(group, scope)).toContain('zoom')
+      expect(
+        (await listManagedMcpSearchAccounts({ organizationId: org }, owner)).map((row) => row.id)
+      ).toContain(id)
+      Object.assign(env, { ZOOM_SEARCH: false })
+      expect(await listConfiguredManagedMcpConnectors(group, scope)).not.toContain('zoom')
+      expect(await listManagedMcpSearchAccounts({ organizationId: org }, owner)).toEqual([])
+      const principal = createSessionPrincipal({ userId: owner, sessionId: generateId() })
+      const settings = await getOrganizationAccountsSettings.execute({
+        principal,
+        input: { organizationId: org },
+      })
+      expect(settings.viewerMcpAccounts).toContainEqual(
+        expect.objectContaining({ credentialId: id, mcpServerId: mcpServer.id })
+      )
+      expect(settings.availableMcpConnectors).not.toContain('zoom')
+      Object.assign(env, { ZOOM_SEARCH: true })
+      expect(
+        (await listManagedMcpSearchAccounts({ organizationId: org }, owner)).map((row) => row.id)
+      ).toContain(id)
+      Object.assign(env, { ZOOM_SEARCH: false })
+      await disconnectPersonalOrganizationAccount.execute({
+        principal,
+        input: { credentialId: id },
+      })
+      const disconnected = await getOrganizationAccountsSettings.execute({
+        principal,
+        input: { organizationId: org },
+      })
+      expect(disconnected.viewerMcpAccounts).toEqual([])
+      Object.assign(env, { ZOOM_SEARCH: true })
+      expect(await listManagedMcpSearchAccounts({ organizationId: org }, owner)).toEqual([])
+    })
+    it('blocks existing Zoom runtime grants after rollout disablement and permits them after re-enable', async () => {
+      const { mcpServer } = await create()
+      const client = await loadPreregisteredClient(mcpServer.id)
+      const id = await grant(mcpServer.id, client?.configurationFingerprint)
+      expect((await runtime(id)).tokens.access_token).toBe('fixture-access')
+      Object.assign(env, { ZOOM_SEARCH: false })
+      await expect(runtime(id)).rejects.toThrow(/Zoom Search.*not available/)
+      Object.assign(env, { ZOOM_SEARCH: true })
+      expect((await runtime(id)).tokens.access_token).toBe('fixture-access')
+    })
+    it('does not release the shared Zoom OAuth registration when the organization rollout is off', async () => {
+      const { mcpServer } = await create()
+      Object.assign(env, { ZOOM_SEARCH: false })
+      await expect(loadPreregisteredClient(mcpServer.id)).rejects.toThrow(
+        /Zoom Search.*not available/
+      )
+    })
     it.each(['initial consent', 'runtime scope challenge'] as const)(
       'restricts generic OAuth %s to registered read permissions',
       async (phase) => {
@@ -433,6 +508,27 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
       return attempt!
     }
     const attempt = await start()
+    if (connector.id === 'zoom') {
+      Object.assign(env, { ZOOM_SEARCH: false })
+      await expect(start()).rejects.toThrow(/invalid|expired|available/i)
+      await expect(
+        completePublicCredentialGroupMcpOAuth.execute({
+          principal,
+          input: { attempt, code: 'disabled-code' },
+        })
+      ).rejects.toMatchObject({
+        name: 'CredentialGroupInvitationUnavailableError',
+        statusCode: 409,
+      })
+      expect(exchanges).toBe(0)
+      expect(
+        await db
+          .select()
+          .from(credential)
+          .where(eq(credential.credentialGroupEnrollmentId, enrollmentId))
+      ).toEqual([])
+      Object.assign(env, { ZOOM_SEARCH: true })
+    }
     await completePublicCredentialGroupMcpOAuth.execute({
       principal,
       input: { attempt, code: 'fixture-code' },

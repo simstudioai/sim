@@ -176,7 +176,10 @@ export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase
           })
         : [],
       availableProviders: listConfiguredCredentialGroupProviders(),
-      availableMcpConnectors: await listConfiguredManagedMcpConnectors(credentialGroup?.id),
+      availableMcpConnectors: await listConfiguredManagedMcpConnectors(credentialGroup?.id, {
+        kind: 'organization',
+        organizationId: context.organizationId,
+      }),
       canManage: context.role === 'owner' || context.role === 'admin',
       indexingAvailable: await isKnowledgeMemberAccessAvailable({
         organizationId: context.organizationId,

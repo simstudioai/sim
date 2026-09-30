@@ -30,6 +30,7 @@ import {
 } from '@/lib/mcp/domain-check'
 import { getSharedHubSpotMcpClient, getSharedZoomMcpClient } from '@/lib/mcp/oauth/shared-clients'
 import { generateMcpServerId } from '@/lib/mcp/utils'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 
 export class ManagedMcpConnectorError extends Error {
   constructor(
@@ -228,9 +229,15 @@ export async function createManagedMcpConnector(
     ({ input: CreateManagedMcpConnectorInput } | { validated: ValidatedManagedMcpConnectorInput }),
   executor?: DbTransaction
 ): Promise<ManagedMcpConnectorMutationResult> {
+  const scope = resourceScopeFromOwner(params)
+  const requested = 'validated' in params ? params.validated.input : params.input
+  if (requested.connectorId === 'zoom' && !(await isSearchProviderEnabled('zoom', scope)))
+    throw new ManagedMcpConnectorError(
+      'Zoom Search is not available for this organization',
+      'forbidden'
+    )
   const { input, url } =
     'validated' in params ? params.validated : await validateManagedMcpConnectorInput(params.input)
-  const scope = resourceScopeFromOwner(params)
   const connector = getManagedMcpConnector(input.connectorId)
   const serverId = generateMcpServerId(
     scope.kind === 'workspace' ? scope.workspaceId : resourceScopeKey(scope),
