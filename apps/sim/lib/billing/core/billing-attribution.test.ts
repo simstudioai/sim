@@ -379,36 +379,40 @@ describe('checkAccountBillingBlocks', () => {
     mockCheckBillingEntityBlocked.mockReset().mockResolvedValue({ blocked: false })
   })
 
-  it('checks both the actor and the exact original payer', async () => {
-    await expect(checkAccountBillingBlocks(decision)).resolves.toMatchObject({ blocked: false })
-    expect(mockCheckBillingBlocked).toHaveBeenCalledWith('actor')
-    expect(mockCheckBillingEntityBlocked).toHaveBeenCalledWith(decision.billingEntity)
-  })
-
-  it('refuses an actor block before reading the payer', async () => {
-    mockCheckBillingBlocked.mockResolvedValueOnce({ blocked: true })
+  it('refuses the exact actor and original payer when either is blocked', async () => {
+    mockCheckBillingBlocked.mockImplementation(async (userId: string) => ({
+      blocked: userId === 'actor',
+    }))
     await expect(checkAccountBillingBlocks(decision)).resolves.toMatchObject({
       blocked: true,
       scope: 'actor',
     })
-    expect(mockCheckBillingEntityBlocked).not.toHaveBeenCalled()
-  })
 
-  it('refuses a payer block independently of actor standing', async () => {
-    mockCheckBillingEntityBlocked.mockResolvedValueOnce({ blocked: true })
+    mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
+    mockCheckBillingEntityBlocked.mockImplementation(async (entity: { id: string }) => ({
+      blocked: entity.id === 'original-payer',
+    }))
     await expect(checkAccountBillingBlocks(decision)).resolves.toMatchObject({
       blocked: true,
       scope: 'payer',
     })
   })
 
-  it('reads the same personal actor and payer only once', async () => {
-    await checkAccountBillingBlocks({
-      ...decision,
-      billingEntity: { type: 'user', id: 'actor' },
+  it('reports an actor block ahead of a payer block', async () => {
+    mockCheckBillingBlocked.mockResolvedValue({ blocked: true, message: 'Actor frozen.' })
+    mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: true, message: 'Payer frozen.' })
+    await expect(checkAccountBillingBlocks(decision)).resolves.toEqual({
+      blocked: true,
+      message: 'Actor frozen.',
+      scope: 'actor',
     })
-    expect(mockCheckBillingBlocked).toHaveBeenCalledTimes(1)
-    expect(mockCheckBillingEntityBlocked).not.toHaveBeenCalled()
+  })
+
+  it('answers a personal payer from the actor standing alone', async () => {
+    mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: true })
+    await expect(
+      checkAccountBillingBlocks({ ...decision, billingEntity: { type: 'user', id: 'actor' } })
+    ).resolves.toMatchObject({ blocked: false })
   })
 })
 

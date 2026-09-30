@@ -186,15 +186,21 @@ describe('fresh chat callback authorization', () => {
 })
 
 describe('continuation account standing', () => {
-  it('uses the existing attributed block policy with the original snapshot', async () => {
-    await checkCopilotContinuationBilling({ kind: 'attributed', attribution })
-    expect(mockCheckAttributedBillingBlocks).toHaveBeenCalledWith(attribution)
-    expect(mockCheckAccountBillingBlocks).not.toHaveBeenCalled()
-  })
+  it('judges each run kind by its own block policy and original billing material', async () => {
+    mockCheckAttributedBillingBlocks.mockImplementation(async (value: unknown) => ({
+      blocked: value === attribution,
+      scope: 'payer',
+    }))
+    mockCheckAccountBillingBlocks.mockImplementation(async (value: unknown) => ({
+      blocked: value === account,
+      scope: 'actor',
+    }))
 
-  it('uses the account block policy with the original direct-account decision', async () => {
-    await checkCopilotContinuationBilling({ kind: 'account', decision: account })
-    expect(mockCheckAccountBillingBlocks).toHaveBeenCalledWith(account)
-    expect(mockCheckAttributedBillingBlocks).not.toHaveBeenCalled()
+    await expect(
+      checkCopilotContinuationBilling({ kind: 'attributed', attribution })
+    ).resolves.toEqual({ blocked: true, scope: 'payer' })
+    await expect(
+      checkCopilotContinuationBilling({ kind: 'account', decision: account })
+    ).resolves.toEqual({ blocked: true, scope: 'actor' })
   })
 })

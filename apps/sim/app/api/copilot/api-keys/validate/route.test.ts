@@ -400,6 +400,9 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
   })
 
   it('admits a direct-v1 key without Redis while ignoring a local workspace ID', async () => {
+    mockSerializeAccountBillingDecisionHeader.mockImplementation((decision: object) =>
+      encodeURIComponent(JSON.stringify(decision))
+    )
     mockGetUserEntityPermissions.mockResolvedValueOnce(null)
     mockGetWorkspaceBillingSettings.mockResolvedValueOnce({
       billedAccountUserId: 'different-owner',
@@ -426,11 +429,9 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
     expect(mockGetWorkspaceBillingSettings).not.toHaveBeenCalled()
-    expect(mockSerializeAccountBillingDecisionHeader).toHaveBeenCalledWith({
-      ...ACCOUNT_BILLING_DECISION,
-      payerSubscriptionId: ACCOUNT_SUBSCRIPTION.id,
-    })
-    expect(res.headers.get('x-sim-billing-account-decision')).toBe('serialized-account-decision')
+    expect(
+      JSON.parse(decodeURIComponent(res.headers.get('x-sim-billing-account-decision') ?? ''))
+    ).toEqual({ ...ACCOUNT_BILLING_DECISION, payerSubscriptionId: ACCOUNT_SUBSCRIPTION.id })
   })
 
   it('fails direct-v1 admission closed when its payer cannot be resolved', async () => {
@@ -740,16 +741,16 @@ describe('validation lifecycle purposes', () => {
 
   it('answers a polled re-check from the cached admission and always re-reads a refusal', async () => {
     for (let call = 0; call < 2; call++) queueTableRows(schemaMock.user, [{ id: 'user-1' }])
-    for (let poll = 0; poll < 3; poll++) {
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+    for (let poll = 0; poll < 2; poll++) {
       expect((await POST(request(body, attributedHeaders))).status).toBe(200)
     }
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(1)
 
     resetUsageGateCache()
-    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
     expect((await POST(request(body, attributedHeaders))).status).toBe(402)
-    expect((await POST(request(body, attributedHeaders))).status).toBe(402)
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(3)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
   })
 
   it('refuses a new turn whose usage cannot be read with neutral copy', async () => {
@@ -808,16 +809,16 @@ describe('validation lifecycle purposes', () => {
 
   it('answers repeated direct-v1 continuations from the cached admission and re-reads a refusal', async () => {
     for (let call = 0; call < 2; call++) queueTableRows(schemaMock.user, [{ id: 'user-1' }])
-    for (let leg = 0; leg < 3; leg++) {
+    expect((await POST(request(body, directHeaders))).status).toBe(200)
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
+    for (let leg = 0; leg < 2; leg++) {
       expect((await POST(request(body, directHeaders))).status).toBe(200)
     }
-    expect(mockCheckUsageStatus).toHaveBeenCalledTimes(1)
 
     resetMidRunUsageCaches()
-    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
     expect((await POST(request(body, directHeaders))).status).toBe(402)
-    expect((await POST(request(body, directHeaders))).status).toBe(402)
-    expect(mockCheckUsageStatus).toHaveBeenCalledTimes(3)
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 1, limit: 10 })
+    expect((await POST(request(body, directHeaders))).status).toBe(200)
   })
 
   it('never reads the usage gate for an attributed continuation when billing is off', async () => {
@@ -825,7 +826,6 @@ describe('validation lifecycle purposes', () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
 
     expect((await POST(request(body, attributedHeaders))).status).toBe(200)
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 
   it('never reads the ledger for a direct-v1 continuation when billing is off', async () => {
@@ -833,7 +833,6 @@ describe('validation lifecycle purposes', () => {
     mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
 
     expect((await POST(request(body, directHeaders))).status).toBe(200)
-    expect(mockCheckUsageStatus).not.toHaveBeenCalled()
   })
 
   it('judges a direct-v1 reporting-window run against its admitted window after it ends', async () => {

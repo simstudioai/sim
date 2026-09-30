@@ -9,6 +9,7 @@ import type { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { getPostgresErrorCode } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -312,6 +313,31 @@ describe('Cumulative billing with PostgreSQL', () => {
       expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '0.8' }])
     }
   )
+
+  it("counts a reporting run's top-ups after its window ends in that window, and a later run's charges in the next", async () => {
+    const payer = { type: 'organization', id: 'payer' } as const
+    const boundary = new Date(Date.now() + 1500)
+    const admitted = {
+      start: new Date(boundary.getTime() - 30 * 24 * 60 * 60 * 1000),
+      end: boundary,
+      source: 'reporting' as const,
+    }
+    const next = {
+      start: boundary,
+      end: new Date(boundary.getTime() + 30 * 24 * 60 * 60 * 1000),
+      source: 'reporting' as const,
+    }
+    const windowTotal = (period: typeof admitted) =>
+      getBillingPeriodUsageCost(payer, period, undefined, database)
+
+    await recordCumulativeUsage({ ...usage(0.4, 'update-cost:long-run'), billingPeriod: admitted })
+    await sleep(boundary.getTime() - Date.now() + 100)
+    await recordCumulativeUsage({ ...usage(1, 'update-cost:long-run'), billingPeriod: admitted })
+    await recordCumulativeUsage({ ...usage(0.25, 'update-cost:next-run'), billingPeriod: next })
+
+    expect(await windowTotal(admitted)).toBeCloseTo(1, 9)
+    expect(await windowTotal(next)).toBeCloseTo(0.25, 9)
+  })
 
   describe('a request that outlives its billing period', () => {
     // Past periods: the old period's row is written under the subscription lock only once

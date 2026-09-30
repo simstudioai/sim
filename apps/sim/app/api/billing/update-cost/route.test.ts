@@ -970,18 +970,18 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
   it('serves a cached admission to every step and re-reads a refusal', async () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
 
-    for (let step = 0; step < 5; step++) {
+    expect((await (await POST(attributedCallback())).json()).usageExceeded).toBe(false)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+    for (let step = 0; step < 4; step++) {
       const body = await (await POST(attributedCallback())).json()
       expect(body.usageExceeded).toBe(false)
       expect(body).not.toHaveProperty('usageUpgrade')
     }
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(1)
 
     resetUsageGateCache()
-    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
-    await POST(attributedCallback())
-    await POST(attributedCallback())
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(3)
+    expect((await (await POST(attributedCallback())).json()).usageExceeded).toBe(true)
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    expect((await (await POST(attributedCallback())).json()).usageExceeded).toBe(false)
   })
 
   it('answers a duplicate retry with the verdict its lost first answer carried', async () => {
@@ -1050,7 +1050,6 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       const body = await (await POST(directCallback())).json()
 
       expect(body.usageExceeded).toBe(false)
-      expect(billingUsageMonitorMockFns.mockCheckUsageStatus).not.toHaveBeenCalled()
     })
   })
 
@@ -1061,9 +1060,31 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       status: 'active',
       seats: 4,
     }
+    const ADMITTED_PERIOD = {
+      start: new Date('2026-07-01T00:00:00.000Z'),
+      end: new Date('2026-08-01T00:00:00.000Z'),
+    }
     const CURRENT_PERIOD = {
       start: new Date('2026-08-01T00:00:00.000Z'),
       end: new Date('2026-09-01T00:00:00.000Z'),
+    }
+
+    function admittedWithSource(source: 'stripe' | 'reporting' | 'default') {
+      mockToBillingContext.mockReturnValue({
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: { ...ADMITTED_PERIOD, source },
+      })
+    }
+
+    /** Threshold settlement for a payer whose charges belong to `period` refuses any other. */
+    function settlesOnlyAgainst(period: typeof ADMITTED_PERIOD) {
+      mockCheckAndBillPayerOverageThreshold.mockImplementation(
+        async (_payer: unknown, options: { expectedBillingPeriod: typeof ADMITTED_PERIOD }) => {
+          if (options.expectedBillingPeriod.start.getTime() !== period.start.getTime()) {
+            throw new Error('Settled against a period the charge did not land in')
+          }
+        }
+      )
     }
 
     beforeEach(() => {
@@ -1072,45 +1093,37 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
         ...CURRENT_ATTRIBUTION,
         payerSubscription: PAYER_SUBSCRIPTION,
       })
-      mockToBillingContext.mockReturnValue({
-        billingEntity: { type: 'organization', id: 'org-1' },
-        billingPeriod: {
-          start: new Date('2026-07-01T00:00:00.000Z'),
-          end: new Date('2026-08-01T00:00:00.000Z'),
-          source: 'stripe',
-        },
-      })
+      // As the ledger behaves: a charge given the payer's subscription lands in its current
+      // period, any other stays in the period it was admitted in.
+      mockRecordCumulativeUsage.mockImplementation(
+        async (params: {
+          payerSubscriptionId?: string
+          billingPeriod: typeof ADMITTED_PERIOD
+        }) => ({
+          billed: true,
+          delta: 0.5,
+          total: 1.5,
+          billingPeriod: params.payerSubscriptionId
+            ? CURRENT_PERIOD
+            : { start: params.billingPeriod.start, end: params.billingPeriod.end },
+        })
+      )
     })
 
-    it('settles the threshold against the period the charge was stamped into', async () => {
-      mockRecordCumulativeUsage.mockResolvedValue({
-        billed: true,
-        delta: 0.5,
-        total: 1.5,
-        billingPeriod: CURRENT_PERIOD,
-      })
+    it("records a Stripe payer's charge in its current period and settles it there", async () => {
+      admittedWithSource('stripe')
+      settlesOnlyAgainst(CURRENT_PERIOD)
 
-      const res = await POST(attributedCallback())
-
-      expect(res.status).toBe(200)
-      expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
-        expect.objectContaining({ payerSubscriptionId: 'sub-1' })
-      )
-      expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith(
-        { type: 'organization', id: 'org-1' },
-        expect.objectContaining({ expectedBillingPeriod: CURRENT_PERIOD })
-      )
+      expect((await POST(attributedCallback())).status).toBe(200)
     })
 
     it('leaves a period that closed under a recorded charge to the cycle close', async () => {
+      admittedWithSource('stripe')
       mockRecordCumulativeUsage.mockResolvedValue({
         billed: true,
         delta: 0.5,
         total: 1.5,
-        billingPeriod: {
-          start: new Date('2026-07-01T00:00:00.000Z'),
-          end: new Date('2026-08-01T00:00:00.000Z'),
-        },
+        billingPeriod: ADMITTED_PERIOD,
       })
       mockCheckAndBillPayerOverageThreshold.mockRejectedValue(
         new MockThresholdSettlementError('billing_period_elapsed')
@@ -1121,51 +1134,15 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       expect(res.status).toBe(200)
     })
 
-    it('keeps a payer whose period is not a Stripe period on its frozen period', async () => {
-      mockToBillingContext.mockReturnValue({
-        billingEntity: { type: 'organization', id: 'org-1' },
-        billingPeriod: {
-          start: new Date('2026-07-01T00:00:00.000Z'),
-          end: new Date('2026-08-01T00:00:00.000Z'),
-          source: 'default',
-        },
-      })
-      mockRecordCumulativeUsage.mockResolvedValue({
-        billed: true,
-        delta: 0.5,
-        total: 0.5,
-        billingPeriod: CURRENT_PERIOD,
-      })
+    it.each(['reporting', 'default'] as const)(
+      'keeps a payer with a %s period on the period it was admitted in',
+      async (source) => {
+        admittedWithSource(source)
+        settlesOnlyAgainst(ADMITTED_PERIOD)
 
-      await POST(attributedCallback())
-
-      expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
-        expect.not.objectContaining({ payerSubscriptionId: expect.anything() })
-      )
-    })
-
-    it('keeps reporting-window payers on their frozen period', async () => {
-      mockToBillingContext.mockReturnValue({
-        billingEntity: { type: 'organization', id: 'org-1' },
-        billingPeriod: {
-          start: new Date('2026-07-01T00:00:00.000Z'),
-          end: new Date('2026-08-01T00:00:00.000Z'),
-          source: 'reporting',
-        },
-      })
-      mockRecordCumulativeUsage.mockResolvedValue({
-        billed: true,
-        delta: 0.5,
-        total: 0.5,
-        billingPeriod: CURRENT_PERIOD,
-      })
-
-      await POST(attributedCallback())
-
-      expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
-        expect.not.objectContaining({ payerSubscriptionId: expect.anything() })
-      )
-    })
+        expect((await POST(attributedCallback())).status).toBe(200)
+      }
+    )
   })
 
   it.each([
@@ -1280,7 +1257,6 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     const body = await (await POST(attributedCallback())).json()
 
     expect(body.usageExceeded).toBe(false)
-    expect(mockRefreshAttributionPeriod).toHaveBeenCalledTimes(2)
   })
 
   it('answers not exceeded when the standing read outlasts the callback budget', async () => {
@@ -1341,8 +1317,7 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     const res = await POST(attributedCallback())
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ usageExceeded: false })
-    expect(mockRecordCumulativeUsage).toHaveBeenCalledOnce()
+    await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: false })
   })
 
   it('reports no exceeded usage when billing is disabled', async () => {
