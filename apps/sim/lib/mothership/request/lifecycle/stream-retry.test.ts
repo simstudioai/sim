@@ -8,12 +8,9 @@ import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-ret
 afterEach(() => vi.useRealTimers())
 
 describe('stream recovery budget', () => {
-  it.each([
-    new TypeError('fetch failed'),
-    new StreamEndedWithoutTerminalError('/api/mothership'),
-    new CopilotBackendError('Unavailable', { status: 503 }),
-  ])('stops after three retries despite a long task budget: %s', (error) => {
+  it('stops an ended-without-terminal stream after three retries despite a long task budget', () => {
     vi.useFakeTimers()
+    const error = new StreamEndedWithoutTerminalError('/api/mothership')
     const retry = new StreamRetryWindow()
     for (let index = 0; index < 3; index++) {
       const delay = retry.nextDelay(error)
@@ -25,15 +22,23 @@ describe('stream recovery budget', () => {
     expect(retry.remainingMs()).toBeGreaterThan(3_500_000)
   })
 
-  it('bounds the recovery period from the first failure without shortening healthy work', () => {
-    vi.useFakeTimers()
-    const retry = new StreamRetryWindow()
-    vi.advanceTimersByTime(600_000)
-    expect(retry.nextDelay(new TypeError('fetch failed'))).not.toBeNull()
-    vi.advanceTimersByTime(30_000)
-    expect(retry.nextDelay(new TypeError('fetch failed'))).toBeNull()
-    expect(retry.remainingMs()).toBe(2_970_000)
-  })
+  it.each([new TypeError('fetch failed'), new CopilotBackendError('Unavailable', { status: 502 })])(
+    'keeps retrying an unreachable worker for two minutes from the first failure: %s',
+    (error) => {
+      vi.useFakeTimers()
+      const retry = new StreamRetryWindow()
+      vi.advanceTimersByTime(600_000)
+      const firstFailure = Date.now()
+      for (;;) {
+        const delay = retry.nextDelay(error)
+        if (delay === null) break
+        vi.advanceTimersByTime(delay)
+      }
+      expect(Date.now() - firstFailure).toBeGreaterThan(110_000)
+      expect(Date.now() - firstFailure).toBeLessThanOrEqual(120_000)
+      expect(retry.remainingMs()).toBeGreaterThan(2_800_000)
+    }
+  )
 
   it('never extends the original execution deadline', () => {
     vi.useFakeTimers()
