@@ -1153,6 +1153,26 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect(body.usageExceeded).toBe(false)
   })
 
+  it('reloads a cached current period once it has ended', async () => {
+    const ending = {
+      ...CURRENT_ATTRIBUTION,
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: new Date(Date.now() + 50).toISOString(),
+      },
+    }
+    mockRefreshAttributionPeriod
+      .mockResolvedValueOnce(ending)
+      .mockResolvedValue(CURRENT_ATTRIBUTION)
+    refuseOnlyCurrentPeriod()
+    await POST(attributedCallback())
+    await sleep(100)
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body.usageExceeded).toBe(true)
+  })
+
   it('never answers a verdict whose card and flag disagree', () => {
     const base = {
       success: true,

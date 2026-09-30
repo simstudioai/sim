@@ -796,6 +796,19 @@ describe('validation lifecycle purposes', () => {
     expect(response.status).toBe(402)
   })
 
+  it('judges a direct-v1 organization payer without a subscription as that organization', async () => {
+    mockGetOrganizationSubscription.mockResolvedValue(null)
+    mockCheckUsageStatus.mockImplementation(
+      async (_userId: string, subscription: { referenceId?: string } | null) => ({
+        isExceeded: subscription?.referenceId === 'account-org',
+        currentUsage: 12,
+        limit: 10,
+      })
+    )
+
+    expect((await POST(request(body, directHeaders))).status).toBe(402)
+  })
+
   it('refuses a blocked new turn with the blocked body the contract declares', async () => {
     mockCheckAttributedUsageLimits.mockResolvedValueOnce({
       isExceeded: true,

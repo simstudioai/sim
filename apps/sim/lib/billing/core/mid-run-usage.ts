@@ -60,7 +60,8 @@ async function currentAttribution(
 ): Promise<BillingAttributionSnapshot> {
   const key = currentPeriodKey(attribution)
   const cached = fresh ? undefined : currentPeriodCache.get(key)
-  if (cached) return cached
+  // A cached period that has since ended is stale: the payer may already be in the next one.
+  if (cached && !periodHasEnded(cached)) return cached
   const current = await refreshAttributionPeriod(attribution)
   currentPeriodCache.set(key, current)
   return current
@@ -138,7 +139,21 @@ export async function readMidRunAccountUsageVerdict(
       ...defaultBillingPeriod(),
       source: 'default' as const,
     }
-    const usage = await checkUsageStatus(decision.userId, subscription, {
+    // An organization payer without a subscription stays organization-scoped on the free plan,
+    // as `toUsageLimitSubscription` does for attributed runs, never the actor's personal ledger.
+    const usageSubscription =
+      subscription ??
+      (payer.type === 'organization'
+        ? {
+            referenceId: payer.id,
+            plan: 'free',
+            status: null,
+            seats: null,
+            periodStart: billingPeriod.start,
+            periodEnd: billingPeriod.end,
+          }
+        : null)
+    const usage = await checkUsageStatus(decision.userId, usageSubscription, {
       billingEntity: payer,
       billingPeriod,
     })

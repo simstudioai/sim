@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -306,6 +306,38 @@ export async function checkBillingEntityBlocked(
  * @param userId The ID of the user to check
  * @returns An object containing the exceeded status and usage details
  */
+/**
+ * A blocked account's ledger usage, for display only: `/api/users/me/usage-limits` exposes it as
+ * `currentPeriodCost`. The account is blocked either way, so a failed read reports zero rather
+ * than turning the blocked refusal into an unreadable-usage one.
+ */
+async function readBlockedAccountUsage(
+  userId: string,
+  preloadedSubscription: UsageLimitSubscription | null | undefined,
+  preloadedBillingContext: BillingContext | undefined
+): Promise<number> {
+  try {
+    const sub =
+      preloadedSubscription !== undefined
+        ? preloadedSubscription
+        : await getHighestPrioritySubscription(userId)
+    const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
+    const billingEntity: BillingEntity =
+      subIsOrgScoped && sub
+        ? { type: 'organization', id: sub.referenceId }
+        : { type: 'user', id: userId }
+    const billingPeriod = preloadedBillingContext?.billingPeriod ??
+      resolveSubscriptionUsagePeriod(sub) ?? { ...defaultBillingPeriod(), source: 'default' }
+    return await getBillingPeriodUsageCost(billingEntity, billingPeriod)
+  } catch (error) {
+    logger.warn('Blocked account usage could not be read', {
+      userId,
+      error: getErrorMessage(error),
+    })
+    return 0
+  }
+}
+
 export async function checkServerSideUsageLimits(
   userId: string,
   preloadedSubscription?: UsageLimitSubscription | null,
@@ -331,20 +363,11 @@ export async function checkServerSideUsageLimits(
 
     const blocked = await checkBillingBlocked(userId)
     if (blocked.blocked) {
-      // Enforcement stays blocked, but surfaced usage must be the real ledger
-      // value — `/api/users/me/usage-limits` exposes it as `currentPeriodCost`.
-      const sub =
-        preloadedSubscription !== undefined
-          ? preloadedSubscription
-          : await getHighestPrioritySubscription(userId)
-      const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
-      const billingEntity: BillingEntity =
-        subIsOrgScoped && sub
-          ? { type: 'organization', id: sub.referenceId }
-          : { type: 'user', id: userId }
-      const billingPeriod = preloadedBillingContext?.billingPeriod ??
-        resolveSubscriptionUsagePeriod(sub) ?? { ...defaultBillingPeriod(), source: 'default' }
-      const currentUsage = await getBillingPeriodUsageCost(billingEntity, billingPeriod)
+      const currentUsage = await readBlockedAccountUsage(
+        userId,
+        preloadedSubscription,
+        preloadedBillingContext
+      )
       return {
         isExceeded: true,
         currentUsage,
