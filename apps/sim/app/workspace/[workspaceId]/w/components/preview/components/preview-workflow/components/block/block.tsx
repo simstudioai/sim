@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
-import { OverflowText } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import {
   CanvasSentenceView,
   HANDLE_POSITIONS,
@@ -19,6 +19,7 @@ import {
 } from '@/lib/workflows/blocks/canvas-sentence'
 import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import { resolveCanvasCodePreview } from '@/lib/workflows/blocks/code-preview'
+import type { BlockDiffStatus } from '@/lib/workflows/comparison'
 import {
   getDisplayValue,
   hasDisplayableRowValue,
@@ -38,6 +39,7 @@ import {
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
+import { DiffStatusLabel } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
 import { getBlock } from '@/blocks'
 import { hasBlockAccent } from '@/blocks/accent'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
@@ -98,6 +100,16 @@ interface WorkflowPreviewBlockData extends Record<string, unknown> {
   hasErrorConnection?: boolean
   /** Skips expensive subblock computations for thumbnails/template previews */
   lightweight?: boolean
+  /** Comparison status when previewing a version diff */
+  diffStatus?: BlockDiffStatus
+  /** Sub-block ids the comparison reported as changed on this block */
+  changedFields?: string[]
+}
+
+/** A removed card fades instead of ringing, so only the live statuses have a ring. */
+const DIFF_RING_CLASS: Record<Exclude<BlockDiffStatus, 'removed'>, string> = {
+  added: 'ring-[var(--brand-accent)]',
+  modified: 'ring-[var(--warning)]',
 }
 
 /**
@@ -118,6 +130,8 @@ interface SubBlockRowProps {
   rawValue?: unknown
   workflowMap: Record<string, WorkflowMetadata>
   workflowLabelsReady: boolean
+  /** The comparison reported this field as changed; tint the row */
+  changed?: boolean
 }
 
 /**
@@ -198,6 +212,7 @@ const SubBlockRow = memo(function SubBlockRow({
   rawValue,
   workflowMap,
   workflowLabelsReady,
+  changed = false,
 }: SubBlockRowProps) {
   const displayValue = resolvePreviewDisplayValue(
     value,
@@ -208,7 +223,12 @@ const SubBlockRow = memo(function SubBlockRow({
   )
 
   return (
-    <div className='flex h-5 items-center gap-2'>
+    <div
+      className={cn(
+        'flex h-5 items-center gap-2',
+        changed && '-mx-1 rounded-sm bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] px-1'
+      )}
+    >
       <OverflowText label={title} className='text-[var(--text-tertiary)] text-sm capitalize' />
       {displayValue !== undefined && (
         <OverflowText
@@ -242,7 +262,10 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
     errorEnabled = false,
     hasErrorConnection = false,
     lightweight = false,
+    diffStatus,
+    changedFields,
   } = data
+  const changedFieldSet = useMemo(() => new Set(changedFields ?? []), [changedFields])
 
   const blockConfig = getBlock(type)
   const effectiveTrigger = isTrigger || type === 'starter'
@@ -486,12 +509,31 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
 
   const hasError = executionStatus === 'error'
   const hasSuccess = executionStatus === 'success'
+  const isRemoved = diffStatus === 'removed'
 
   return (
-    <div className='relative w-[250px] select-none rounded-2xl border-[1.5px] border-[var(--border-1)] bg-[var(--surface-2)]'>
+    <div
+      className={cn(
+        'relative w-[250px] select-none rounded-2xl border-[1.5px] border-[var(--border-1)] bg-[var(--surface-2)]',
+        /* Ghost: the same card, just faded, so the eye reads "used to be here" not "broken". */
+        isRemoved &&
+          'border-[var(--border)] bg-[var(--surface-1)] [&>[data-ghost-content]]:opacity-45'
+      )}
+    >
+      {/* Comparison label above the card */}
+      {diffStatus && <DiffStatusLabel status={diffStatus} count={changedFieldSet.size} />}
       {/* Selection ring overlay (takes priority over execution rings) */}
       {isPreviewSelected && (
         <div className='pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px] ring-[var(--text-secondary)]' />
+      )}
+      {/* Comparison ring overlay */}
+      {!isPreviewSelected && diffStatus && diffStatus !== 'removed' && (
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px]',
+            DIFF_RING_CLASS[diffStatus]
+          )}
+        />
       )}
       {/* Success ring overlay (only shown if not selected) */}
       {!isPreviewSelected && hasSuccess && (
@@ -514,7 +556,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
       )}
 
       {/* Header - matches WorkflowBlock structure */}
-      <div className='flex h-[40px] items-center justify-between px-2'>
+      <div data-ghost-content='' className='flex h-[40px] items-center justify-between px-2'>
         <div className='relative z-10 flex min-w-0 flex-1 items-center'>
           <OverflowText
             label={humanizeBlockName(canvasPresentation.title)}
@@ -535,7 +577,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
 
       {/* Content area with subblocks */}
       {hasContentBelowHeader && (
-        <div className='flex flex-col gap-2 p-2'>
+        <div data-ghost-content='' className='flex flex-col gap-2 p-2'>
           {type === 'condition' ? (
             conditionRows.map((cond) => (
               <SubBlockRow
@@ -544,6 +586,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
                 value={lightweight ? undefined : getDisplayValue(cond.value)}
                 workflowMap={workflowMap}
                 workflowLabelsReady={workflowLabelsReady}
+                changed={changedFieldSet.has('conditions')}
               />
             ))
           ) : sentenceSegments ? (
@@ -564,13 +607,20 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
                    back as the `-` sentinel. That reads as noise mid-sentence, so
                    hand the slot back and let its noun stand in instead. */
                 if (!displayValue || displayValue === '-') return null
-                return (
+                const chip = (
                   <SubBlockRowView
                     title={subBlock.title ?? subBlock.id}
                     displayValue={displayValue}
                     codePreview={resolveCanvasCodePreview(subBlock, rawValue, rawValues)}
                     variant='inline-value'
                   />
+                )
+                if (!changedFieldSet.has(subBlockId)) return chip
+                /* The chip, not the sentence, is what changed. */
+                return (
+                  <span className='rounded-sm bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--warning)_45%,transparent)]'>
+                    {chip}
+                  </span>
                 )
               }}
             />
@@ -590,6 +640,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
                   value={lightweight ? undefined : getDisplayValue(route.value)}
                   workflowMap={workflowMap}
                   workflowLabelsReady={workflowLabelsReady}
+                  changed={changedFieldSet.has('routes')}
                 />
               ))}
             </>
@@ -610,6 +661,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
                   rawValue={rawValue}
                   workflowMap={workflowMap}
                   workflowLabelsReady={workflowLabelsReady}
+                  changed={changedFieldSet.has(subBlock.id)}
                 />
               )
             })
@@ -693,6 +745,13 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
  * @param nextProps - Next render props
  * @returns True if render should be skipped (props are equal)
  */
+/** Same changed-field list, by identity first so the common unchanged case costs nothing. */
+function sameFields(prev: string[] | undefined, next: string[] | undefined): boolean {
+  if (prev === next) return true
+  if (!prev || !next || prev.length !== next.length) return false
+  return prev.every((field, index) => field === next[index])
+}
+
 function shouldSkipPreviewBlockRender(
   prevProps: NodeProps<WorkflowPreviewBlockNode>,
   nextProps: NodeProps<WorkflowPreviewBlockNode>
@@ -707,7 +766,9 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.executionStatus !== nextProps.data.executionStatus ||
     prevProps.data.errorEnabled !== nextProps.data.errorEnabled ||
     prevProps.data.hasErrorConnection !== nextProps.data.hasErrorConnection ||
-    prevProps.data.lightweight !== nextProps.data.lightweight
+    prevProps.data.lightweight !== nextProps.data.lightweight ||
+    prevProps.data.diffStatus !== nextProps.data.diffStatus ||
+    !sameFields(prevProps.data.changedFields, nextProps.data.changedFields)
   ) {
     return false
   }
