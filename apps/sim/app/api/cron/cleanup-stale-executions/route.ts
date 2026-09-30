@@ -32,6 +32,7 @@ import {
   STALE_SWEEPABLE_EXECUTION_STATUSES,
   type StaleSweepableExecutionStatus,
 } from '@/lib/logs/types'
+import { sweepOrphanedRuns } from '@/lib/mothership/async-runs/orphaned-runs'
 import { cancelStaleDispatches } from '@/lib/table/dispatcher'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
@@ -738,6 +739,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    /**
+     * Settle Chat runs no controller will finish: their process died, their
+     * controller was superseded without a successor, or Stop found none. Without
+     * this they stay unfinished forever and keep their chat marked as busy.
+     */
+    let orphanedRunsSettled = 0
+    try {
+      orphanedRunsSettled = (await sweepOrphanedRuns()).settledRunIds.length
+    } catch (error) {
+      logger.error('Failed to settle orphaned Chat runs:', {
+        error: toError(error).message,
+      })
+    }
+
     return NextResponse.json({
       success: true,
       executions: {
@@ -767,6 +782,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       deploymentOperations: {
         pruned: deploymentOperationsPruned,
         retentionDays: DEPLOYMENT_OPERATION_RETENTION_DAYS,
+      },
+      chatRuns: {
+        orphanedSettled: orphanedRunsSettled,
       },
     })
   } catch (error) {
