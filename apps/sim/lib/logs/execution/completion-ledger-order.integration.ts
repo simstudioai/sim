@@ -121,13 +121,20 @@ describe('completeWorkflowExecution', () => {
       const executionId = generateId()
       await startExecution(executionId)
 
-      /** The ledger only grows, so the first read that finds the run finished is the one that counts. */
+      /**
+       * The ledger only grows, so the first read that finds the run finished is the one that
+       * counts. Settlement is captured before each read, so a read already in flight when the
+       * completion lands cannot end the loop before the finished run is observed.
+       */
       let completing = true
       const reader = (async () => {
-        while (completing) {
-          if ((await logRow(executionId))?.status !== 'completed') continue
-          if ((await buildCostLedger(executionId)) === null) finishedWithoutLedger++
-          return
+        for (;;) {
+          const settledBeforeRead = !completing
+          if ((await logRow(executionId))?.status === 'completed') {
+            if ((await buildCostLedger(executionId)) === null) finishedWithoutLedger++
+            return
+          }
+          if (settledBeforeRead) return
         }
       })()
 
