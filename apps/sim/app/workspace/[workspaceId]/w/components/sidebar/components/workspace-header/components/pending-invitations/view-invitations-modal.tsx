@@ -18,7 +18,6 @@ import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
-import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { InvitationDisclosure } from '@/app/invite/components/invitation-disclosure'
 import { InvitationWorkspaceAccess } from '@/app/invite/components/invitation-workspace-access'
 import {
@@ -160,9 +159,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
                         icon={
                           singleWorkspaceGrant && (
                             <IdentityTile
-                              initial={getWorkspaceInitial(
-                                singleWorkspaceGrant.workspaceName ?? undefined
-                              )}
+                              glyphSeed={singleWorkspaceGrant.workspaceId}
                               logoUrl={singleWorkspaceGrant.workspaceLogoUrl}
                             />
                           )
