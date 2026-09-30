@@ -63,7 +63,7 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
     worker.runs.push(run)
     for (const event of worker.script) {
       if (typeof event === 'function') {
-        await event()
+        await event(options)
         continue
       }
       try {
@@ -98,6 +98,10 @@ import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
+import {
+  createFilePreviewAdapterState,
+  processFilePreviewStreamEvent,
+} from '@/lib/mothership/request/go/file-preview-adapter'
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import { acquirePendingChatStream } from '@/lib/mothership/request/session/abort'
@@ -116,6 +120,10 @@ import { STREAM_STRING_PREVIEW_UNITS } from '@/lib/mothership/request/session/re
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 import type { StreamingContext } from '@/lib/mothership/request/types'
+import {
+  type PendingFileIntent,
+  storeFileIntent,
+} from '@/lib/mothership/tools/server/files/file-intent-store'
 import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
 
 const MB = 1024 * 1024
@@ -591,6 +599,72 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored.status).toBe('complete')
     expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeLessThanOrEqual(300)
+  })
+
+  it('completes a turn that previews a file larger than one replay write', async () => {
+    const editToolCallId = generateId()
+    const previewToolCallId = generateId()
+    const toolFrame = (payload: Record<string, unknown>): StreamEvent =>
+      ({
+        type: 'tool',
+        payload: {
+          toolCallId: editToolCallId,
+          toolName: 'apply_file_edit',
+          executor: 'sim',
+          mode: 'async',
+          ...payload,
+        },
+      }) as StreamEvent
+    const { runId, frames } = await runTurn([
+      async (options: { onEvent?: (event: unknown) => Promise<void> }) => {
+        // The real preview adapter, fed the worker's patch of a 1.2 MB stored file.
+        const fileId = generateId()
+        const anchor = { strategy: 'anchored', mode: 'insert_after', anchor: 'ANCHOR' }
+        await storeFileIntent(workspaceId, fileId, {
+          operation: 'patch',
+          fileId,
+          workspaceId,
+          userId,
+          fileRecord: {} as PendingFileIntent['fileRecord'],
+          existingContent: `ANCHOR\n${'existing line of the stored file\n'.repeat(40_000)}`,
+          edit: anchor,
+          createdAt: Date.now(),
+        })
+        const context = createStreamingContext()
+        context.activeFileIntents.set('', {
+          toolCallId: previewToolCallId,
+          operation: 'patch',
+          target: { kind: 'file_id', fileId, fileName: 'large.md' },
+          edit: anchor,
+        })
+        const state = createFilePreviewAdapterState()
+        const preview = (streamEvent: StreamEvent) =>
+          processFilePreviewStreamEvent({
+            streamId: generateId(),
+            streamEvent,
+            context,
+            execContext: { userId, workflowId: '', workspaceId },
+            options: { onEvent: (event) => options.onEvent?.(event) },
+            state,
+          })
+        await preview(toolFrame({ phase: 'args_delta', argumentsDelta: '{"content":"' }))
+        for (let chunk = 0; chunk < 3; chunk++) {
+          await preview(
+            toolFrame({ phase: 'args_delta', argumentsDelta: `inserted line ${chunk}` })
+          )
+        }
+        await preview(toolFrame({ phase: 'result', success: true, status: 'success' }))
+      },
+      text('The file is updated.'),
+    ])
+
+    expect(frames.map((frame) => frame.type)).not.toContain('error')
+    expect(frames.at(-1)).toMatchObject({ type: 'complete', payload: { status: 'complete' } })
+    expect(frames.some((frame) => frame.payload.previewPhase === 'file_preview_complete')).toBe(
+      true
+    )
+    const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+    expect(stored.status).toBe('complete')
   })
 
   it("leaves its successor's stream untouched when the lease is lost while ending a refused turn", async () => {

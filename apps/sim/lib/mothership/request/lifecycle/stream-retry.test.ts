@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CopilotBackendError,
   StreamEndedWithoutTerminalError,
+  WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
 
@@ -81,7 +82,7 @@ describe('stream recovery budget', () => {
   it('restarts the unreachable window once the worker answers again', () => {
     vi.useFakeTimers()
     const retry = new StreamRetryWindow()
-    const unreachable = new TypeError('fetch failed')
+    const unreachable = new WorkerUnreachableError(new TypeError('fetch failed'))
     for (let outage = 0; outage < 2; outage++) {
       const start = Date.now()
       while (Date.now() - start < 100_000) {
@@ -93,8 +94,22 @@ describe('stream recovery budget', () => {
     }
   })
 
+  it('keeps a TypeError from handling a delivered stream to the reachable budget', () => {
+    vi.useFakeTimers()
+    const error = new TypeError("Cannot read properties of undefined (reading 'payload')")
+    const retry = new StreamRetryWindow()
+    for (let index = 0; index < 3; index++) {
+      retry.recovered()
+      const delay = retry.nextDelay(error)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
+    }
+    retry.recovered()
+    expect(retry.nextDelay(error)).toBeNull()
+  })
+
   it.each([
-    new TypeError('fetch failed'),
+    new WorkerUnreachableError(new TypeError('fetch failed')),
     new CopilotBackendError('Unavailable', { status: 502 }),
     new CopilotBackendError('Unavailable', {
       status: 504,

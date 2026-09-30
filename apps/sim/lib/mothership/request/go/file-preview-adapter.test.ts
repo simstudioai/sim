@@ -25,7 +25,8 @@ import { createStreamingContext } from '@/lib/mothership/request/context/request
 import {
   createFilePreviewAdapterState,
   type FilePreviewAdapterState,
-  PREVIEW_INTERMEDIATE_SNAPSHOT_BYTES,
+  PREVIEW_FRAME_MAX_BYTES,
+  PREVIEW_TURN_CONTENT_BYTES,
   processFilePreviewStreamEvent,
 } from '@/lib/mothership/request/go/file-preview-adapter'
 import { createEvent, eventToStreamEvent } from '@/lib/mothership/request/session'
@@ -175,15 +176,19 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  /** Streams one anchored patch of a 300 KB file through `state`, then completes it. */
+  /** One turn's adapter state and streaming context, shared by all of its edits. */
+  function newTurn() {
+    return { state: createFilePreviewAdapterState(), context: createStreamingContext() }
+  }
+
+  /** Streams one anchored patch of a file of `baseLines` lines through `turn`, then completes it. */
   async function streamPatch(
     durationMs: number,
     tickMs: number,
-    state = createFilePreviewAdapterState(),
-    edit = 0
+    { turn = newTurn(), edit = 0, baseLines = 10_000 } = {}
   ) {
     vi.useFakeTimers()
-    const base = `ANCHOR\n${'line of existing file content\n'.repeat(10_000)}`
+    const base = `ANCHOR\n${'line of existing file content\n'.repeat(baseLines)}`
     const anchoredEdit = { strategy: 'anchored', mode: 'insert_after', anchor: 'ANCHOR' }
     peekFileIntentMock.mockResolvedValue({ existingContent: base, edit: anchoredEdit })
     const editToolCallId = `${EDIT_TOOL_CALL_ID}-${edit}`
@@ -194,19 +199,18 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
     }
     const payloads: Array<Record<string, unknown>> = []
     const drive = async (streamEvent: StreamEvent) => {
-      const context = createStreamingContext()
-      context.activeFileIntents.set('', intent)
+      turn.context.activeFileIntents.set('', intent)
       await processFilePreviewStreamEvent({
         streamId: STREAM_ID,
         streamEvent,
-        context,
+        context: turn.context,
         execContext,
         options: {
           onEvent: (event) => {
             payloads.push((event as { payload: Record<string, unknown> }).payload)
           },
         },
-        state,
+        state: turn.state,
       })
     }
     const delta = (argumentsDelta: string) =>
@@ -234,11 +238,12 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
     )
 
     const contents = payloads.filter((payload) => payload.previewPhase === 'file_preview_content')
-    const finalContent = base.replace('ANCHOR\n', `ANCHOR\n${streamed}\n`)
     return {
-      finalContent,
+      payloads,
+      finalContent: base.replace('ANCHOR\n', `ANCHOR\n${streamed}\n`),
       lastContent: contents.at(-1)?.content,
-      streamedBytes: contents.reduce(
+      completed: payloads.some((payload) => payload.previewPhase === 'file_preview_complete'),
+      contentBytes: contents.reduce(
         (sum, payload) => sum + Buffer.byteLength(String(payload.content)),
         0
       ),
@@ -246,24 +251,33 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
   }
 
   it('streams a 300 KB patch for 10 s well under the stream budget and ends on its final content', async () => {
-    const { finalContent, lastContent, streamedBytes } = await streamPatch(10_000, 16)
+    const { finalContent, lastContent, contentBytes } = await streamPatch(10_000, 16)
 
-    expect(streamedBytes).toBeLessThan(8 * 1024 * 1024)
+    expect(contentBytes).toBeLessThan(8 * 1024 * 1024)
     expect(lastContent).toBe(finalContent)
   })
 
-  it('caps a turn of four long patches and still ends each on its final content', async () => {
-    const state = createFilePreviewAdapterState()
-    let streamedBytes = 0
-    let finalBytes = 0
+  it('never sends a preview frame over the replay write ceiling, and still completes the edit', async () => {
+    const { payloads, completed } = await streamPatch(2_000, 200, { baseLines: 45_000 })
+
+    for (const payload of payloads) {
+      expect(Buffer.byteLength(JSON.stringify(payload))).toBeLessThanOrEqual(
+        PREVIEW_FRAME_MAX_BYTES
+      )
+    }
+    expect(completed).toBe(true)
+  })
+
+  it('bounds all preview content in a turn of four long patches, and still completes each', async () => {
+    const turn = newTurn()
+    let contentBytes = 0
     for (let edit = 0; edit < 4; edit++) {
-      const result = await streamPatch(120_000, 200, state, edit)
-      expect(result.lastContent).toBe(result.finalContent)
-      streamedBytes += result.streamedBytes
-      finalBytes += Buffer.byteLength(result.finalContent)
+      const result = await streamPatch(120_000, 200, { turn, edit })
+      expect(result.completed).toBe(true)
+      contentBytes += result.contentBytes
     }
 
-    expect(streamedBytes).toBeLessThanOrEqual(PREVIEW_INTERMEDIATE_SNAPSHOT_BYTES + finalBytes)
+    expect(contentBytes).toBeLessThanOrEqual(PREVIEW_TURN_CONTENT_BYTES)
   })
 })
 

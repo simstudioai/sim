@@ -4,6 +4,7 @@ import { StreamContinuityError } from '@/lib/mothership/request/go/parser'
 import {
   CopilotBackendError,
   StreamEndedWithoutTerminalError,
+  WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 
 const MAX_STREAM_RETRIES = 3
@@ -34,6 +35,11 @@ export class StreamRetryWindow {
 
   constructor(timeoutMs = ORCHESTRATION_TIMEOUT_MS) {
     this.deadline = Date.now() + timeoutMs
+  }
+
+  /** Retries taken across both budgets, for logs and spans. */
+  get attempts(): number {
+    return this.attempt + this.unreachableAttempt
   }
 
   remainingMs(): number {
@@ -78,15 +84,15 @@ function backoff(attempt: number): number {
 }
 
 /**
- * No worker answered: a gateway error page from the load balancer, or no
- * connection at all. A JSON 5xx comes from a reachable worker, so it gets the
- * short recovery budget instead.
+ * No worker answered: a gateway error page from the load balancer, or a request
+ * that failed before any response headers. A JSON 5xx, or a failure after the
+ * response began, comes from a reachable worker and gets the short budget.
  */
 function isWorkerUnreachable(error: unknown): boolean {
   if (error instanceof CopilotBackendError) {
     return error.status !== undefined && GATEWAY_STATUSES.has(error.status) && !isJson(error.body)
   }
-  return error instanceof TypeError
+  return error instanceof WorkerUnreachableError
 }
 
 function isJson(body: string | undefined): boolean {
@@ -108,5 +114,5 @@ function isRetryableStreamError(error: unknown): boolean {
   if (error instanceof CopilotBackendError) {
     return error.status !== undefined && error.status >= 500
   }
-  return error instanceof TypeError
+  return error instanceof WorkerUnreachableError || error instanceof TypeError
 }

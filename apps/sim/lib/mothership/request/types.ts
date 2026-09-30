@@ -218,6 +218,8 @@ export interface StreamingContext {
    * main-lane / no-scope intent (file writes there are always sequential).
    */
   activeFileIntents: Map<string, ActiveFileIntent>
+  /** File preview content this turn has streamed; one object shared by every leg. */
+  filePreviewBudget: { contentBytes: number }
   trace: TraceCollector
   subAgentTraceSpans?: Map<string, RequestTraceV1Span>
   /**

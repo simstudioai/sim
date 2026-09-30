@@ -149,6 +149,7 @@ function createStreamingContext(): StreamingContext {
     wasAborted: false,
     errors: [],
     activeFileIntents: new Map(),
+    filePreviewBudget: { contentBytes: 0 },
     trace: new TraceCollector(),
     toolPermissions: {
       enabled: false,
@@ -784,8 +785,9 @@ describe('copilot go stream helpers', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('does not retry network errors because Go may already be executing the request', async () => {
-    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'))
+  it('reports a worker it could not reach without the raw network error', async () => {
+    const networkError = new TypeError('fetch failed')
+    vi.mocked(fetch).mockRejectedValueOnce(networkError)
 
     const context = createStreamingContext()
     const execContext: ExecutionContext = {
@@ -797,7 +799,11 @@ describe('copilot go stream helpers', () => {
       runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
         timeout: 1000,
       })
-    ).rejects.toThrow('fetch failed')
+    ).rejects.toMatchObject({
+      name: 'WorkerUnreachableError',
+      message: 'The agent service is temporarily unavailable. Please try again.',
+      cause: networkError,
+    })
 
     expect(fetch).toHaveBeenCalledTimes(1)
   })

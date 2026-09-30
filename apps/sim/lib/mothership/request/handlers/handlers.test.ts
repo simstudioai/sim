@@ -120,6 +120,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolCalls: new Map(),
       pendingToolPromises: new Map(),
       activeFileIntents: new Map(),
+      filePreviewBudget: { contentBytes: 0 },
       seenToolCalls: new Set(),
       seenToolResults: new Set(),
       currentThinkingBlock: null,

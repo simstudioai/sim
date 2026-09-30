@@ -71,6 +71,17 @@ const BACKEND_UNAVAILABLE_MESSAGE =
 const BACKEND_REJECTED_MESSAGE = 'The agent service could not process this request.'
 
 /**
+ * The request never reached a worker: the connection failed before any response
+ * headers arrived. The network error stays on `cause` for logs.
+ */
+export class WorkerUnreachableError extends Error {
+  constructor(cause: unknown) {
+    super(BACKEND_UNAVAILABLE_MESSAGE, { cause })
+    this.name = 'WorkerUnreachableError'
+  }
+}
+
+/**
  * A worker rejection message the user can act on: short, one line, plain text,
  * and free of identifiers (`userId`, `protocol_version_mismatch`) that only mean
  * something to the code that raised them.
@@ -195,7 +206,8 @@ export async function runStreamLoop(
       headersMs: Math.round(performance.now() - fetchStart),
     }
     context.trace.endSpan(fetchSpan, abortSignal?.aborted ? 'cancelled' : 'error')
-    throw error
+    if (requestSignal.aborted) throw error
+    throw new WorkerUnreachableError(error)
   }
   const headersElapsedMs = Math.round(performance.now() - fetchStart)
   fetchSpan.attributes = {

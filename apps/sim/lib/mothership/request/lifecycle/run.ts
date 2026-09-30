@@ -875,7 +875,7 @@ async function runResumeLegWithRetry(
       if (backoff !== null) {
         leg.errors.length = errorsBeforeAttempt
         logger.warn('Child resume leg failed, retrying', {
-          attempt: retry.attempt + 1,
+          attempt: retry.attempts + 1,
           backoffMs: backoff,
           error: toError(error).message,
         })
@@ -1171,7 +1171,7 @@ async function runCheckpointLoop(
       {
         route,
         isResume,
-        ...(isResume ? { attempt: retry.attempt } : {}),
+        ...(isResume ? { attempt: retry.attempts } : {}),
       }
     )
     context.trace.setActiveSpan(streamSpan)
@@ -1179,7 +1179,7 @@ async function runCheckpointLoop(
     logger.info('Starting stream loop', {
       route,
       isResume,
-      resumeAttempt: retry.attempt,
+      resumeAttempt: retry.attempts,
       pendingToolPromises: context.pendingToolPromises.size,
       toolCallCount: context.toolCalls.size,
       hasCheckpoint: !!context.awaitingAsyncContinuation,
@@ -1237,7 +1237,7 @@ async function runCheckpointLoop(
         logger.warn(
           isResume ? 'Resume stream failed, retrying' : 'Initial stream failed, retrying',
           {
-            attempt: (retry?.attempt ?? 0) + 1,
+            attempt: (retry?.attempts ?? 0) + 1,
             backoffMs: backoff,
             error: toError(streamError).message,
           }

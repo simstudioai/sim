@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
@@ -64,11 +65,17 @@ const DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS = 1000
 const PREVIEW_SNAPSHOT_CHARS_PER_SECOND = 256 * 1024
 
 /**
- * UTF-8 bytes of intermediate preview content one stream loop may send across
- * all of its edits, well under the stream's 32 MiB replay budget. Past it the
- * previews hold still; each edit's final snapshot is still sent on completion.
+ * UTF-8 bytes of preview content one turn may stream across all of its edits,
+ * final snapshots included, well under the stream's 32 MiB replay budget.
  */
-export const PREVIEW_INTERMEDIATE_SNAPSHOT_BYTES = 8 * 1024 * 1024
+export const PREVIEW_TURN_CONTENT_BYTES = 8 * 1024 * 1024
+
+/** Room left in a replay write for the envelope around a preview payload. */
+const PREVIEW_FRAME_ENVELOPE_HEADROOM_BYTES = 16 * 1024
+
+/** The largest serialized preview payload the replay buffer can persist in one write. */
+export const PREVIEW_FRAME_MAX_BYTES =
+  getRedisBudgetLimits('copilot_stream').maxSingleWriteBytes - PREVIEW_FRAME_ENVELOPE_HEADROOM_BYTES
 
 /** The minimum gap between full snapshots of a preview this long. */
 function snapshotIntervalMs(baseMs: number, previewText: string): number {
@@ -364,28 +371,49 @@ export function buildPreviewContentUpdate(
 export interface FilePreviewAdapterState {
   editContentState: Map<string, EditContentStreamState>
   filePreviewState: Map<string, FilePreviewStreamState>
-  /** UTF-8 bytes of intermediate preview content sent by this stream loop. */
-  intermediateBytes: number
 }
 
 export function createFilePreviewAdapterState(): FilePreviewAdapterState {
   return {
     editContentState: new Map<string, EditContentStreamState>(),
     filePreviewState: new Map<string, FilePreviewStreamState>(),
-    intermediateBytes: 0,
   }
 }
 
+/**
+ * Sends one preview frame, and reports whether it did. A content frame that would
+ * not fit one replay write, or past the turn's preview budget, is skipped: the
+ * preview holds its last content, and on completion the client loads the stored
+ * file. A completion too large to send whole drops its tool output instead.
+ */
 async function emitPreviewEvent(
   streamEvent: StreamEvent,
   options: Pick<OrchestratorOptions, 'onEvent'>,
+  context: StreamingContext,
   payload: SyntheticFilePreviewPayload
-): Promise<void> {
+): Promise<boolean> {
+  let frame = payload
+  const frameBytes = Buffer.byteLength(JSON.stringify(frame), 'utf8')
+  if (frame.previewPhase === 'file_preview_content') {
+    const budget = context.filePreviewBudget
+    const contentBytes = budget.contentBytes + Buffer.byteLength(frame.content, 'utf8')
+    if (frameBytes > PREVIEW_FRAME_MAX_BYTES || contentBytes > PREVIEW_TURN_CONTENT_BYTES) {
+      return false
+    }
+    budget.contentBytes = contentBytes
+  } else if (
+    frame.previewPhase === 'file_preview_complete' &&
+    frameBytes > PREVIEW_FRAME_MAX_BYTES
+  ) {
+    const { output: _output, ...withoutOutput } = frame
+    frame = withoutOutput
+  }
   await options.onEvent?.({
     type: MothershipStreamV1EventType.tool,
-    payload,
+    payload: frame,
     ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
   })
+  return true
 }
 
 export async function processFilePreviewStreamEvent(input: {
@@ -468,12 +496,12 @@ export async function processFilePreviewStreamEvent(input: {
         })
         await persistFilePreviewSession(session)
 
-        await emitPreviewEvent(streamEvent, options, {
+        await emitPreviewEvent(streamEvent, options, context, {
           toolCallId,
           toolName: 'prepare_file_edit',
           previewPhase: 'file_preview_start',
         })
-        await emitPreviewEvent(streamEvent, options, {
+        await emitPreviewEvent(streamEvent, options, context, {
           toolCallId,
           toolName: 'prepare_file_edit',
           previewPhase: 'file_preview_target',
@@ -486,7 +514,7 @@ export async function processFilePreviewStreamEvent(input: {
           ...(title ? { title } : {}),
         })
         if (edit) {
-          await emitPreviewEvent(streamEvent, options, {
+          await emitPreviewEvent(streamEvent, options, context, {
             toolCallId,
             toolName: 'prepare_file_edit',
             previewPhase: 'file_preview_edit_meta',
@@ -543,12 +571,12 @@ export async function processFilePreviewStreamEvent(input: {
       })
       await persistFilePreviewSession(session)
 
-      await emitPreviewEvent(streamEvent, options, {
+      await emitPreviewEvent(streamEvent, options, context, {
         toolCallId: intent.toolCallId,
         toolName: 'prepare_file_edit',
         previewPhase: 'file_preview_start',
       })
-      await emitPreviewEvent(streamEvent, options, {
+      await emitPreviewEvent(streamEvent, options, context, {
         toolCallId: intent.toolCallId,
         toolName: 'prepare_file_edit',
         previewPhase: 'file_preview_target',
@@ -561,7 +589,7 @@ export async function processFilePreviewStreamEvent(input: {
         ...(intent.title ? { title: intent.title } : {}),
       })
       if (intent.edit) {
-        await emitPreviewEvent(streamEvent, options, {
+        await emitPreviewEvent(streamEvent, options, context, {
           toolCallId: intent.toolCallId,
           toolName: 'prepare_file_edit',
           previewPhase: 'file_preview_edit_meta',
@@ -605,13 +633,8 @@ export async function processFilePreviewStreamEvent(input: {
         previewVersion: (currentPreview?.session.previewVersion ?? 0) + 1,
         updatedAt: new Date().toISOString(),
       }
-      filePreviewState.set(patchDeleteIntent.toolCallId, {
-        session: nextSession,
-        lastEmittedPreviewText: previewText,
-        lastSnapshotAt: Date.now(),
-      })
       await persistFilePreviewSession(nextSession)
-      await emitPreviewEvent(streamEvent, options, {
+      const sent = await emitPreviewEvent(streamEvent, options, context, {
         toolCallId: nextSession.toolCallId,
         toolName: 'prepare_file_edit',
         previewPhase: 'file_preview_content',
@@ -624,6 +647,20 @@ export async function processFilePreviewStreamEvent(input: {
         ...(nextSession.operation ? { operation: nextSession.operation } : {}),
         ...(nextSession.edit ? { edit: nextSession.edit } : {}),
       })
+      filePreviewState.set(
+        patchDeleteIntent.toolCallId,
+        sent
+          ? {
+              session: nextSession,
+              lastEmittedPreviewText: previewText,
+              lastSnapshotAt: Date.now(),
+            }
+          : {
+              session: nextSession,
+              lastEmittedPreviewText: currentPreview?.lastEmittedPreviewText ?? '',
+              lastSnapshotAt: currentPreview?.lastSnapshotAt ?? 0,
+            }
+      )
     }
   }
 
@@ -727,35 +764,30 @@ export async function processFilePreviewStreamEvent(input: {
               now,
               nextSession.operation
             )
-            const intermediateBytes =
-              state.intermediateBytes + Buffer.byteLength(previewUpdate.content, 'utf8')
-            if (intermediateBytes > PREVIEW_INTERMEDIATE_SNAPSHOT_BYTES) {
-              filePreviewState.set(editIntent.toolCallId, {
-                ...currentPreview,
-                session: nextSession,
-              })
-            } else {
-              filePreviewState.set(editIntent.toolCallId, {
-                session: nextSession,
-                lastEmittedPreviewText: nextSession.previewText,
-                lastSnapshotAt: previewUpdate.lastSnapshotAt,
-              })
-              state.intermediateBytes = intermediateBytes
-
-              await emitPreviewEvent(streamEvent, options, {
-                toolCallId: nextSession.toolCallId,
-                toolName: 'prepare_file_edit',
-                previewPhase: 'file_preview_content',
-                content: previewUpdate.content,
-                contentMode: previewUpdate.contentMode,
-                previewVersion: nextSession.previewVersion,
-                fileName: nextSession.fileName,
-                ...(nextSession.fileId ? { fileId: nextSession.fileId } : {}),
-                ...(nextSession.targetKind ? { targetKind: nextSession.targetKind } : {}),
-                ...(nextSession.operation ? { operation: nextSession.operation } : {}),
-                ...(nextSession.edit ? { edit: nextSession.edit } : {}),
-              })
-            }
+            const sent = await emitPreviewEvent(streamEvent, options, context, {
+              toolCallId: nextSession.toolCallId,
+              toolName: 'prepare_file_edit',
+              previewPhase: 'file_preview_content',
+              content: previewUpdate.content,
+              contentMode: previewUpdate.contentMode,
+              previewVersion: nextSession.previewVersion,
+              fileName: nextSession.fileName,
+              ...(nextSession.fileId ? { fileId: nextSession.fileId } : {}),
+              ...(nextSession.targetKind ? { targetKind: nextSession.targetKind } : {}),
+              ...(nextSession.operation ? { operation: nextSession.operation } : {}),
+              ...(nextSession.edit ? { edit: nextSession.edit } : {}),
+            })
+            // A skipped frame leaves the client on the last content it did receive.
+            filePreviewState.set(
+              editIntent.toolCallId,
+              sent
+                ? {
+                    session: nextSession,
+                    lastEmittedPreviewText: nextSession.previewText,
+                    lastSnapshotAt: previewUpdate.lastSnapshotAt,
+                  }
+                : { ...currentPreview, session: nextSession }
+            )
           }
         } else {
           filePreviewState.set(editIntent.toolCallId, currentPreview)
@@ -792,7 +824,7 @@ export async function processFilePreviewStreamEvent(input: {
         lastEmittedPreviewText: currentPreview.session.previewText,
         lastSnapshotAt: Date.now(),
       })
-      await emitPreviewEvent(streamEvent, options, {
+      await emitPreviewEvent(streamEvent, options, context, {
         toolCallId: currentPreview.session.toolCallId,
         toolName: 'prepare_file_edit',
         previewPhase: 'file_preview_content',
@@ -826,7 +858,7 @@ export async function processFilePreviewStreamEvent(input: {
       await persistFilePreviewSession(completedSession)
     }
 
-    await emitPreviewEvent(streamEvent, options, {
+    await emitPreviewEvent(streamEvent, options, context, {
       toolCallId: editResultIntent.toolCallId,
       toolName: 'prepare_file_edit',
       previewPhase: 'file_preview_complete',
