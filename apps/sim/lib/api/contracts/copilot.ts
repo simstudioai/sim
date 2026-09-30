@@ -297,14 +297,27 @@ export type ValidateCopilotApiKeyBillingBlocked = z.output<
   typeof validateCopilotApiKeyBillingBlockedSchema
 >
 
+export const COPILOT_USAGE_UNAVAILABLE_CODE = 'USAGE_UNAVAILABLE'
+
 /**
- * A 402 from continuation validation. New-turn admission still answers 402 with no body, which
- * older callers treat as a refusal of either kind.
+ * A new turn refused because usage could not be read. Admission fails closed on it; a run
+ * already under way is never refused for it.
  */
+export const validateCopilotApiKeyUsageUnavailableSchema = z.object({
+  code: z.literal(COPILOT_USAGE_UNAVAILABLE_CODE),
+  error: z.string(),
+})
+export type ValidateCopilotApiKeyUsageUnavailable = z.output<
+  typeof validateCopilotApiKeyUsageUnavailableSchema
+>
+
+/** Every 402 from validation, new turn and continuation alike, carries one of these bodies. */
 export const validateCopilotApiKeyRefusalSchema = z.union([
   validateCopilotApiKeyUsageExceededSchema,
   validateCopilotApiKeyBillingBlockedSchema,
+  validateCopilotApiKeyUsageUnavailableSchema,
 ])
+export type ValidateCopilotApiKeyRefusal = z.output<typeof validateCopilotApiKeyRefusalSchema>
 
 export const listCopilotApiKeysContract = defineRouteContract({
   method: 'GET',

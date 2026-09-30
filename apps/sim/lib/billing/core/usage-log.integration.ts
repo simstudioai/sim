@@ -440,7 +440,7 @@ describe('Cumulative billing with PostgreSQL', () => {
       expect(await stampedWindowTotal(resetStart, resetEnd)).toBeCloseTo(0.6, 9)
     })
 
-    it('does not hold the rollover while the latest period is still running', async () => {
+    it('holds an early period-start move until an in-flight top-up commits', async () => {
       const start = new Date(Date.now() - 24 * 60 * 60 * 1000)
       const end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       await setSubscriptionWindow(start, end)
@@ -449,25 +449,32 @@ describe('Cumulative billing with PostgreSQL', () => {
       const inFlight = charge(0.6, { start, end })
       try {
         await pause.reached.promise
-        await connection.begin(async (tx) => {
-          await tx`select set_config('lock_timeout', '300ms', true)`
-          await tx`update subscription set period_end = period_end where id = 'sub-1'`
-        })
+        const reset = await connection
+          .begin(async (tx) => {
+            await tx`select set_config('lock_timeout', '300ms', true)`
+            await tx`update subscription set period_start = now() at time zone 'UTC' where id = 'sub-1'`
+          })
+          .catch((error: unknown) => error)
+        expect(getPostgresErrorCode(reset)).toBe('55P03')
       } finally {
         pause.release.resolve()
         await inFlight
       }
+      expect(await stampedWindowTotal(start, end)).toBeCloseTo(0.6, 9)
     })
 
-    it('refuses a request key that could collide with its period rows', async () => {
-      await setSubscriptionPeriod(0)
-      await expect(
-        recordCumulativeUsage({
-          ...usage(0.4, 'update-cost:request@1'),
-          payerSubscriptionId: 'sub-1',
-        })
-      ).rejects.toThrow('@')
-      expect(await ledgerRows()).toEqual([])
-    })
+    it.each([
+      ['with', { payerSubscriptionId: 'sub-1' }],
+      ['without', {}],
+    ])(
+      'refuses a request key that could collide with period rows %s a payer subscription',
+      async (_case, extra) => {
+        await setSubscriptionPeriod(0)
+        await expect(
+          recordCumulativeUsage({ ...usage(0.4, 'update-cost:request@1'), ...extra })
+        ).rejects.toThrow('@')
+        expect(await ledgerRows()).toEqual([])
+      }
+    )
   })
 })

@@ -75,7 +75,7 @@ const ACCOUNT_BILLING_DECISION = {
   billingEntity: { type: 'organization' as const, id: 'account-org' },
   billingPeriod: {
     start: '2026-07-01T00:00:00.000Z',
-    end: '2026-08-01T00:00:00.000Z',
+    end: '2099-01-01T00:00:00.000Z',
     source: 'reporting' as const,
   },
 }
@@ -147,7 +147,7 @@ const { mockAuthorizeOrganizationChatDelegation: mockAuthorizeOrganizationChat }
   mothershipOrganizationChatsMockFns
 const { mockDeriveBillingContext } = billingUsageLogMockFns
 const { mockGetHighestPrioritySubscription } = billingPlanMockFns
-const { mockCheckServerSideUsageLimits } = billingUsageMonitorMockFns
+const { mockCheckServerSideUsageLimits, mockCheckUsageStatus } = billingUsageMonitorMockFns
 
 const mockIsEnterprisePlan = billingSubscriptionMockFns.mockIsEnterprisePlan
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
@@ -508,6 +508,7 @@ describe('validation lifecycle purposes', () => {
     mockAuthorizeCallback.mockReset().mockResolvedValue(undefined)
     mockCheckContinuationBilling.mockReset().mockResolvedValue({ blocked: false })
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 1, limit: 10 })
     mockIsEnterprisePlan.mockResolvedValue(false)
     resetUsageGateCache()
   })
@@ -554,6 +555,23 @@ describe('validation lifecycle purposes', () => {
     expect(mockDeriveBillingContext).not.toHaveBeenCalled()
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
     expect(response.headers.get('x-sim-billing-account-decision')).toBeNull()
+  })
+
+  it('refuses a direct-v1 continuation whose account is over its usage limit', async () => {
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
+
+    const response = await POST(request(body, directHeaders))
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'USAGE_LIMIT_EXCEEDED',
+      usageUpgrade: { reason: 'usage_limit' },
+    })
+  })
+
+  it('admits a direct-v1 continuation whose usage cannot be read', async () => {
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, unavailable: true })
+    expect((await POST(request(body, directHeaders))).status).toBe(200)
   })
 
   it.each([
@@ -711,6 +729,21 @@ describe('validation lifecycle purposes', () => {
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(3)
   })
 
+  it('refuses a blocked new turn with the blocked body the contract declares', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      reason: 'billing_blocked',
+      message: 'Billing account frozen.',
+      scope: 'payer',
+    })
+    const refused = await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))
+    expect(refused.status).toBe(402)
+    await expect(refused.json()).resolves.toEqual({
+      code: 'BILLING_BLOCKED',
+      error: 'Billing account frozen.',
+    })
+  })
+
   it('allows cancellation without billing material or spending/standing/plan checks', async () => {
     const response = await POST(
       request({ ...body, purpose: 'cancellation' }, { 'x-sim-billing-protocol': 'attribution-v1' })
@@ -817,10 +850,12 @@ describe('validation lifecycle purposes', () => {
       isExceeded: true,
       payerUsage: { currentUsage: 120, limit: 100 },
     })
-    expect((await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))).status).toBe(
-      402
-    )
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(2)
+    const refused = await POST(request({ ...body, purpose: 'new-turn' }, attributedHeaders))
+    expect(refused.status).toBe(402)
+    await expect(refused.json()).resolves.toMatchObject({
+      code: 'USAGE_LIMIT_EXCEEDED',
+      usageUpgrade: { reason: 'usage_limit' },
+    })
     expect((await POST(request({ ...body, purpose: 'new-turn' }, directHeaders))).status).toBe(400)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })

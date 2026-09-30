@@ -10,6 +10,7 @@ import {
 } from '@sim/testing/mocks/billing-usage-log.mock'
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
+import { sleep } from '@sim/utils/helpers'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -47,6 +48,7 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   ThresholdSettlementError: MockThresholdSettlementError,
 }))
 
+import { billingUpdateCostResponseSchema } from '@/lib/api/contracts/subscription'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import {
   BillingCallbackBody,
@@ -71,6 +73,7 @@ const mockResolveLegacyV0BillingAttribution =
   billingAttributionMockFns.mockResolveLegacyV0BillingAttribution
 const mockToBillingContext = billingAttributionMockFns.mockToBillingContext
 const mockCheckAttributedUsageLimits = billingAttributionMockFns.mockCheckAttributedUsageLimits
+const mockRefreshAttributionPeriod = billingAttributionMockFns.mockRefreshAttributionPeriod
 
 afterAll(resetEnvFlagsMock)
 
@@ -236,6 +239,18 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     })
     expect(mockCheckInternalApiKey).toHaveBeenCalledTimes(1)
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
+  })
+
+  it('rejects an idempotency key that could collide with a period row key', async () => {
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        { ...SELF_HOSTED_UPDATE_COST_BODY, idempotencyKey: 'old-go-key@1' },
+        { 'x-api-key': 'internal' }
+      )
+    )
+
+    expect(res.status).toBe(400)
   })
 
   it('rejects billing-enabled callbacks without a stable idempotency key', async () => {
@@ -910,7 +925,6 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
         message: expect.stringContaining('usage limit'),
       },
     })
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(CURRENT_ATTRIBUTION)
   })
 
   it('offers a paid organization payer the increase-limit card', async () => {
@@ -1065,14 +1079,77 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     })
   })
 
-  it('does not judge a run against an admitted period that has already ended', async () => {
+  /** The gate refuses only when it judges the payer's current period. */
+  function refuseOnlyCurrentPeriod() {
+    mockCheckAttributedUsageLimits.mockImplementation(
+      async (attribution: typeof CURRENT_ATTRIBUTION) => ({
+        isExceeded: attribution.billingPeriod.end === CURRENT_ATTRIBUTION.billingPeriod.end,
+        scope: 'payer',
+      })
+    )
+  }
+
+  it('judges a run past its admitted period against the payer current period', async () => {
     mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
+    mockRefreshAttributionPeriod.mockResolvedValue(CURRENT_ATTRIBUTION)
+    refuseOnlyCurrentPeriod()
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body.usageExceeded).toBe(true)
+  })
+
+  it('keeps a run going when its current period cannot be read', async () => {
+    mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
+    mockRefreshAttributionPeriod.mockRejectedValue(new Error('subscription read timed out'))
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
 
     const body = await (await POST(attributedCallback())).json()
 
     expect(body.usageExceeded).toBe(false)
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('rejudges a read that straddles the end of the admitted period', async () => {
+    const straddling = {
+      ...CURRENT_ATTRIBUTION,
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: new Date(Date.now() + 40).toISOString(),
+      },
+    }
+    mockRequireBillingAttributionHeader.mockReturnValue(straddling)
+    mockRefreshAttributionPeriod.mockResolvedValue(CURRENT_ATTRIBUTION)
+    mockCheckAttributedUsageLimits.mockImplementation(
+      async (attribution: typeof CURRENT_ATTRIBUTION) => {
+        if (attribution.billingPeriod.end !== straddling.billingPeriod.end) {
+          return { isExceeded: false }
+        }
+        await sleep(80)
+        return { isExceeded: true, scope: 'payer' }
+      }
+    )
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body.usageExceeded).toBe(false)
+  })
+
+  it('never answers a verdict whose card and flag disagree', () => {
+    const base = {
+      success: true,
+      data: { processedAt: new Date(0).toISOString(), requestId: 'request-1' },
+    }
+    const card = { reason: 'usage_limit', action: 'upgrade_plan', message: 'Limit reached.' }
+    expect(
+      billingUpdateCostResponseSchema.safeParse({ ...base, usageExceeded: true }).success
+    ).toBe(false)
+    expect(
+      billingUpdateCostResponseSchema.safeParse({
+        ...base,
+        usageExceeded: false,
+        usageUpgrade: card,
+      }).success
+    ).toBe(false)
   })
 
   it('keeps a recorded charge successful when the gate read fails', async () => {
@@ -1091,6 +1168,5 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     const res = await POST(attributedCallback())
 
     await expect(res.json()).resolves.toMatchObject({ usageExceeded: false })
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 })

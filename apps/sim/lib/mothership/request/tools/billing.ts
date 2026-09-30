@@ -27,9 +27,10 @@ export async function handleBillingLimitResponse(
   userId: string,
   context: StreamingContext,
   execContext: ExecutionContext,
-  options: OrchestratorOptions
+  options: OrchestratorOptions,
+  scope?: 'actor' | 'payer' | 'member'
 ): Promise<void> {
-  const payload = await resolveUsageUpgradePayload(userId, execContext.billingAttribution)
+  const payload = await resolveUsageUpgradePayload(userId, execContext.billingAttribution, scope)
   const syntheticContent = formatUsageUpgradeTag(payload)
   // The card is this turn's terminal even when the refused leg follows one that already ended.
   context.streamComplete = false

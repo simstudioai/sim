@@ -314,6 +314,8 @@ export async function checkServerSideUsageLimits(
   currentUsage: number
   limit: number
   message?: string
+  /** Why a refusal is not a spent limit: a blocked account, or usage that could not be read. */
+  reason?: 'billing_blocked' | 'usage_unavailable'
 }> {
   try {
     if (!isBillingEnabled) {
@@ -342,7 +344,13 @@ export async function checkServerSideUsageLimits(
       const billingPeriod = preloadedBillingContext?.billingPeriod ??
         resolveSubscriptionUsagePeriod(sub) ?? { ...defaultBillingPeriod(), source: 'default' }
       const currentUsage = await getBillingPeriodUsageCost(billingEntity, billingPeriod)
-      return { isExceeded: true, currentUsage, limit: 0, message: blocked.message }
+      return {
+        isExceeded: true,
+        currentUsage,
+        limit: 0,
+        message: blocked.message,
+        reason: 'billing_blocked',
+      }
     }
 
     const usageData = await checkUsageStatus(userId, preloadedSubscription, preloadedBillingContext)
@@ -359,6 +367,7 @@ export async function checkServerSideUsageLimits(
       currentUsage: usageData.currentUsage,
       limit: usageData.limit,
       message: usageData.isExceeded ? exceededMessage : undefined,
+      ...(usageData.unavailable ? { reason: 'usage_unavailable' as const } : {}),
     }
   } catch (error) {
     logger.error('Error in server-side usage limit check', {
@@ -375,6 +384,7 @@ export async function checkServerSideUsageLimits(
       isExceeded: true,
       currentUsage: 0,
       limit: 0,
+      reason: 'usage_unavailable',
       message:
         error instanceof Error && error.message.includes('No user stats record found')
           ? 'User account not properly initialized. Please contact support.'

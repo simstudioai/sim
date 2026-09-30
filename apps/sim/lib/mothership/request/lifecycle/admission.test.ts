@@ -1,4 +1,5 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
 import {
   billingUsageGateCacheMock,
   billingUsageGateCacheMockFns,
@@ -15,6 +16,8 @@ vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
   checkCopilotContinuationBilling: mocks.standing,
 }))
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+const { mockGetOrganizationSubscription } = billingCoreMockFns
 const { mockCheckExecutionUsageLimits } = billingUsageGateCacheMockFns
 const attribution = {
   actorUserId: 'actor',
@@ -121,18 +124,39 @@ describe('continuation admission', () => {
     await expect(refusal).rejects.toBeInstanceOf(OrchestrationError)
     await expect(refusal).rejects.toThrow('blocked')
   })
-  it('lets a leg run once its admitted period has ended instead of judging the old period', async () => {
-    mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+  it('judges a leg past its admitted period against the payer current period', async () => {
+    const ended = {
+      ...attribution,
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+    }
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-org',
+      referenceId: 'original-org',
+      plan: 'team',
+      status: 'active',
+      seats: 4,
+      periodStart: new Date(attribution.billingPeriod.start),
+      periodEnd: new Date(attribution.billingPeriod.end),
+    })
+    mockCheckExecutionUsageLimits.mockImplementation(async (judged: typeof attribution) => ({
+      isExceeded: judged.billingPeriod.end === attribution.billingPeriod.end,
+      scope: 'payer',
+    }))
 
     await expect(
-      authorizeLifecycleContinuation({
-        ...context,
-        billingAttribution: {
-          ...attribution,
-          billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
-        },
-      })
+      authorizeLifecycleContinuation({ ...context, billingAttribution: ended })
+    ).rejects.toBeInstanceOf(BillingLimitError)
+
+    mockGetOrganizationSubscription.mockRejectedValue(new Error('subscription read failed'))
+    await expect(
+      authorizeLifecycleContinuation({ ...context, billingAttribution: ended })
     ).resolves.toBeUndefined()
-    expect(mockCheckExecutionUsageLimits).not.toHaveBeenCalled()
+  })
+  it('carries a member cap into the refusal so the card names who can raise it', async () => {
+    mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'member' })
+
+    await expect(authorizeLifecycleContinuation(context)).rejects.toMatchObject({
+      scope: 'member',
+    })
   })
 })

@@ -344,25 +344,34 @@ export type UsageUpgradePayload = z.infer<typeof usageUpgradePayloadSchema>
  * `BillingCallbackResult` reads it, on a 200 and on a duplicate 409 alike. A worker that
  * predates the fields ignores them.
  */
-export const billingUsageVerdictSchema = z.object({
-  /** The payer is over its usage limit; the worker pauses the run at its next step boundary. */
-  usageExceeded: z.boolean(),
-  /** Present exactly when `usageExceeded` is true: the card the worker writes to its log. */
-  usageUpgrade: usageUpgradePayloadSchema.optional(),
-})
+export const billingUsageVerdictSchema = z.discriminatedUnion('usageExceeded', [
+  z.object({
+    /** The payer is within its usage limit, or its standing could not be read. */
+    usageExceeded: z.literal(false),
+    usageUpgrade: z.never().optional(),
+  }),
+  z.object({
+    /** The payer is over its usage limit; the worker pauses the run at its next step boundary. */
+    usageExceeded: z.literal(true),
+    /** The card the worker writes to its log. */
+    usageUpgrade: usageUpgradePayloadSchema,
+  }),
+])
 export type BillingUsageVerdict = z.infer<typeof billingUsageVerdictSchema>
 
-export const billingUpdateCostResponseSchema = billingUsageVerdictSchema.extend({
-  success: z.literal(true),
-  message: z.string().optional(),
-  data: z.object({
-    userId: z.string().optional(),
-    cost: z.number().optional(),
-    billingEnabled: z.boolean().optional(),
-    processedAt: z.string(),
-    requestId: z.string(),
-  }),
-})
+export const billingUpdateCostResponseSchema = z
+  .object({
+    success: z.literal(true),
+    message: z.string().optional(),
+    data: z.object({
+      userId: z.string().optional(),
+      cost: z.number().optional(),
+      billingEnabled: z.boolean().optional(),
+      processedAt: z.string(),
+      requestId: z.string(),
+    }),
+  })
+  .and(billingUsageVerdictSchema)
 export type BillingUpdateCostResponse = z.infer<typeof billingUpdateCostResponseSchema>
 
 export const billingSwitchPlanContract = defineRouteContract({

@@ -528,11 +528,17 @@ export async function runCopilotLifecycle(
             hostedBillingRequest
           )
         } catch (error) {
-          // A continuation refused on spend, or a worker 402 on a child leg of a subagent
-          // fan-out, ends the turn with the same card as a refused dispatch.
+          // A continuation refused on spend, or a worker 402 on any leg, ends the turn with the
+          // same card as a refused dispatch and stops the worker run.
           if (!(error instanceof BillingLimitError)) throw error
           context.awaitingAsyncContinuation = undefined
-          await handleBillingLimitResponse(error.userId, context, execContext, lifecycleOptions)
+          await handleBillingLimitResponse(
+            error.userId,
+            context,
+            execContext,
+            lifecycleOptions,
+            error.scope
+          )
           await stopWorkerRunAfterUsageRefusal(context.messageId, execContext)
         }
       }
@@ -1237,10 +1243,6 @@ async function runCheckpointLoop(
     } catch (streamError) {
       context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
       context.trace.setActiveSpan(undefined)
-      if (streamError instanceof BillingLimitError) {
-        await handleBillingLimitResponse(streamError.userId, context, execContext, options)
-        break
-      }
       const backoff = retry?.nextDelay(streamError, options.abortSignal) ?? null
       if (backoff !== null) {
         /** A recovered connection must not finalize with an earlier transport failure. */

@@ -113,4 +113,20 @@ describe('handleBillingLimitResponse', () => {
 
     expect(onEvent.mock.calls.map(([event]) => event.type)).toEqual(['text', 'complete'])
   })
+
+  it('names who can raise the cap for a member over the limit their organization set', async () => {
+    const onEvent = vi.fn()
+
+    await handleBillingLimitResponse(
+      'actor-1',
+      { streamComplete: false } as StreamingContext,
+      createExecutionContext(),
+      { onEvent } as OrchestratorOptions,
+      'member'
+    )
+
+    expect(onEvent.mock.calls[0]?.[0]).toMatchObject({
+      payload: { text: expect.stringContaining('limit your organization set for you') },
+    })
+  })
 })

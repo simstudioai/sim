@@ -2,7 +2,10 @@ import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecordOrNull } from '@sim/utils/object'
-import { COPILOT_BILLING_BLOCKED_CODE } from '@/lib/api/contracts/copilot'
+import {
+  COPILOT_BILLING_BLOCKED_CODE,
+  COPILOT_USAGE_UNAVAILABLE_CODE,
+} from '@/lib/api/contracts/copilot'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
@@ -138,7 +141,11 @@ function backendErrorMessage(status: number, body: string): string {
 }
 
 export class BillingLimitError extends Error {
-  constructor(public readonly userId: string) {
+  /** `member` when the actor hit the cap their organization set, so the card names who can raise it. */
+  constructor(
+    public readonly userId: string,
+    public readonly scope?: 'actor' | 'payer' | 'member'
+  ) {
     super('Usage limit reached')
     this.name = 'BillingLimitError'
   }
@@ -245,9 +252,13 @@ export async function runStreamLoop(
     const errorText = await response.text().catch(() => '')
 
     if (response.status === 402) {
-      // A blocked account is refused as blocked, never with the usage card.
+      // A blocked account, or usage that could not be read, is refused as such, never with the
+      // usage card.
       const refusal = parseJsonRecord(errorText)
-      if (refusal?.code === COPILOT_BILLING_BLOCKED_CODE) {
+      if (
+        refusal?.code === COPILOT_BILLING_BLOCKED_CODE ||
+        refusal?.code === COPILOT_USAGE_UNAVAILABLE_CODE
+      ) {
         throw new OrchestrationError(
           'forbidden',
           userFacingRejection(refusal.error) ?? BILLING_BLOCKED_MESSAGE

@@ -621,7 +621,7 @@ const MAX_CUMULATIVE_PERIOD_ROWS = 12
 
 /**
  * The ledger key of the `index`-th period a cumulative request rolled into; 0 is the request key.
- * A request key may not itself contain `@`, so these keys never collide with another request's.
+ * No cumulative request key may contain `@`, so these keys never collide with another request's.
  */
 function cumulativePeriodEventKey(eventKey: string, index: number): string {
   return index === 0 ? eventKey : `${eventKey}@${index}`
@@ -784,7 +784,7 @@ export async function recordCumulativeUsage(
   }
 
   const billingContext = await resolveBillingContext(userId, billingEntity, billingPeriod)
-  if (payerSubscriptionId && eventKey.includes('@')) {
+  if (eventKey.includes('@')) {
     throw new Error(`Cumulative usage event "${eventKey}" must not contain "@"`)
   }
 
@@ -880,24 +880,19 @@ export async function recordCumulativeUsage(
         return { billed: false, delta: 0, total: recorded, billingPeriod: latestPeriod }
       }
 
-      // The payer's current period. Once the latest row's period has ended, the read is
-      // share-locked so a rollover of the subscription waits for this top-up to commit, and
-      // whatever the close later sums for the old period is final. Before that no close can be
-      // due, and locking every callback would starve the rollover UPDATE for a busy payer.
-      const periodQuery = payerSubscriptionId
-        ? tx
+      // The payer's current period, share-locked so a change to the subscription's period (a
+      // rollover, or an anchor reset inside the old period) waits for this write to commit, and
+      // whatever a close later sums for the old period is final.
+      const [currentPeriod] = payerSubscriptionId
+        ? await tx
             .select({
               start: subscriptionTable.periodStart,
               end: subscriptionTable.periodEnd,
             })
             .from(subscriptionTable)
             .where(eq(subscriptionTable.id, payerSubscriptionId))
+            .for('share')
             .limit(1)
-        : null
-      const [currentPeriod] = periodQuery
-        ? Date.now() >= latestPeriod.end.getTime()
-          ? await periodQuery.for('share')
-          : await periodQuery
         : []
 
       // Only ever forward: a subscription period that does not start after the latest row's

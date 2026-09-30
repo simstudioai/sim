@@ -233,6 +233,10 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     ) {
       return invalidBillingProtocolResponse(requestId, span)
     }
+    // `@` is reserved for the ledger's per-period rows of one request (`<key>@<n>`).
+    if (idempotencyKey?.includes('@')) {
+      return invalidBillingProtocolResponse(requestId, span)
+    }
     const isMcp = source === 'mcp_copilot'
 
     span.setAttributes({

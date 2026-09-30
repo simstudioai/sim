@@ -100,11 +100,13 @@ vi.mock('@/lib/mothership/request/go/stream', () => {
 
   class BillingLimitError extends Error {
     userId: string
+    scope?: string
 
-    constructor(userId: string) {
+    constructor(userId: string, scope?: string) {
       super('Usage limit reached')
       this.name = 'BillingLimitError'
       this.userId = userId
+      this.scope = scope
     }
   }
 
@@ -224,6 +226,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
+  BillingLimitError,
   CopilotBackendError,
   STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
   StreamEndedWithoutTerminalError,
@@ -2423,6 +2426,22 @@ describe('runCopilotLifecycle', () => {
     expect(result.cancelled).not.toBe(true)
   })
 
+  it('stops the worker run when the worker itself refuses a leg at the usage limit', async () => {
+    mockRequestExplicitStreamAbort.mockResolvedValue({ settled: true })
+    mockRunStreamLoop.mockRejectedValueOnce(new BillingLimitError('user-1'))
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', runId: 'run-1' }
+    )
+
+    expect(handleBillingLimitResponse).toHaveBeenCalledOnce()
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
+      expect.objectContaining({ streamId: 'message-1', chatId: 'chat-1' })
+    )
+    expect(result.error).toBeUndefined()
+  })
+
   it('shows the usage card instead of resuming a run whose payer crossed its limit', async () => {
     const billingAttribution = {
       actorUserId: 'user-1',
@@ -2473,7 +2492,8 @@ describe('runCopilotLifecycle', () => {
       'user-1',
       expect.anything(),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      'payer'
     )
     expect(result.cancelled).not.toBe(true)
     expect(result.error).toBeUndefined()

@@ -7,7 +7,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   COPILOT_BILLING_BLOCKED_CODE,
   COPILOT_USAGE_LIMIT_EXCEEDED_CODE,
+  COPILOT_USAGE_UNAVAILABLE_CODE,
   type ValidateCopilotApiKeyBillingBlocked,
+  type ValidateCopilotApiKeyRefusal,
   type ValidateCopilotApiKeyUsageExceeded,
   validateCopilotApiKeyContract,
 } from '@/lib/api/contracts/copilot'
@@ -26,7 +28,10 @@ import {
   serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
+import {
+  readMidRunAccountUsageVerdict,
+  readMidRunUsageVerdict,
+} from '@/lib/billing/core/mid-run-usage'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
@@ -62,6 +67,8 @@ import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 const logger = createLogger('CopilotApiKeysValidate')
 
 const CONTINUATION_BLOCKED_MESSAGE = 'Continuation billing account is blocked'
+const BILLING_BLOCKED_MESSAGE = 'Billing account is blocked'
+const USAGE_UNAVAILABLE_MESSAGE = 'Usage could not be verified. Please try again.'
 
 function invalidBillingProtocolResponse(): NextResponse {
   return NextResponse.json({ error: 'Invalid billing attribution protocol' }, { status: 400 })
@@ -242,13 +249,42 @@ function resolveContinuationBilling(
   }
 }
 
-async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise<{
+interface AdmissionUsage {
   isExceeded: boolean
   currentUsage: number
   limit: number
   scope: string
+  message?: string
+  reason?: 'billing_blocked' | 'usage_unavailable'
   accountBillingDecision?: AccountBillingDecision
-}> {
+}
+
+/** The 402 body for a refused new turn: the same bodies continuation validation answers with. */
+async function admissionRefusal(
+  userId: string,
+  admission: AdmissionBillingDecision,
+  usage: AdmissionUsage
+): Promise<ValidateCopilotApiKeyRefusal> {
+  if (usage.reason === 'billing_blocked') {
+    return { code: COPILOT_BILLING_BLOCKED_CODE, error: usage.message ?? BILLING_BLOCKED_MESSAGE }
+  }
+  if (usage.reason === 'usage_unavailable') {
+    return {
+      code: COPILOT_USAGE_UNAVAILABLE_CODE,
+      error: usage.message ?? USAGE_UNAVAILABLE_MESSAGE,
+    }
+  }
+  const usageUpgrade = await resolveUsageUpgradePayload(
+    userId,
+    admission.kind === 'attributed' || admission.kind === 'legacy-scoped'
+      ? admission.attribution
+      : undefined,
+    usage.scope === 'member' ? 'member' : undefined
+  )
+  return { code: COPILOT_USAGE_LIMIT_EXCEEDED_CODE, error: usageUpgrade.message, usageUpgrade }
+}
+
+async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise<AdmissionUsage> {
   if (admission.kind === 'attributed' || admission.kind === 'legacy-scoped') {
     const usage = await checkAttributedUsageLimits(admission.attribution)
     const enforcedUsage =
@@ -258,6 +294,8 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
       currentUsage: enforcedUsage?.currentUsage ?? 0,
       limit: enforcedUsage?.limit ?? 0,
       scope: usage.scope ?? 'payer',
+      ...(usage.message ? { message: usage.message } : {}),
+      ...(usage.reason ? { reason: usage.reason } : {}),
     }
   }
 
@@ -272,6 +310,8 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
       currentUsage: usage.currentUsage,
       limit: usage.limit,
       scope: 'account',
+      ...(usage.message ? { message: usage.message } : {}),
+      ...(usage.reason ? { reason: usage.reason } : {}),
       accountBillingDecision: {
         userId: admission.userId,
         billingEntity: billingContext.billingEntity,
@@ -292,6 +332,8 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
     currentUsage: usage.currentUsage,
     limit: usage.limit,
     scope: 'account',
+    ...(usage.message ? { message: usage.message } : {}),
+    ...(usage.reason ? { reason: usage.reason } : {}),
   }
 }
 
@@ -416,10 +458,10 @@ export const POST = withRouteHandler((req: NextRequest) =>
           // original payer's spend through the cached execution usage gate. A read that fails
           // admits: the run is already under way, and the next re-check reads again.
           const verdict =
-            !blocked?.blocked &&
-            purpose === COPILOT_VALIDATION_PURPOSE.continuation &&
-            billing?.kind === 'attributed'
-              ? await readMidRunUsageVerdict(billing.attribution)
+            !blocked?.blocked && purpose === COPILOT_VALIDATION_PURPOSE.continuation && billing
+              ? billing.kind === 'attributed'
+                ? await readMidRunUsageVerdict(billing.attribution)
+                : await readMidRunAccountUsageVerdict(billing.decision)
               : null
           if (blocked?.blocked || verdict?.status === 'blocked') {
             span.setAttribute(
@@ -440,7 +482,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
               { status: 402 }
             )
           }
-          if (verdict?.status === 'exceeded' && billing?.kind === 'attributed') {
+          if (verdict?.status === 'exceeded') {
             logger.info('[API VALIDATION] Continuation usage exceeded', { userId })
             span.setAttribute(
               TraceAttr.CopilotValidateOutcome,
@@ -449,7 +491,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
             span.setAttribute(TraceAttr.HttpStatusCode, 402)
             const usageUpgrade = await resolveUsageUpgradePayload(
               userId,
-              billing.attribution,
+              billing?.kind === 'attributed' ? billing.attribution : undefined,
               verdict.scope
             )
             return NextResponse.json<ValidateCopilotApiKeyUsageExceeded>(
@@ -518,7 +560,10 @@ export const POST = withRouteHandler((req: NextRequest) =>
           })
           span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.UsageExceeded)
           span.setAttribute(TraceAttr.HttpStatusCode, 402)
-          return new NextResponse(null, { status: 402 })
+          return NextResponse.json<ValidateCopilotApiKeyRefusal>(
+            await admissionRefusal(userId, admission, usage),
+            { status: 402 }
+          )
         }
 
         const responseHeaders: Record<string, string> = {}

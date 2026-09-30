@@ -162,6 +162,7 @@ export const billingAttributionMockFns = {
   mockToBillingContext: vi.fn(toBillingContext),
   mockCheckAttributedBillingBlocks: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
+  mockRefreshAttributionPeriod: vi.fn(),
 }
 
 /**
@@ -212,4 +213,5 @@ export const billingAttributionMock = {
   toBillingContext: billingAttributionMockFns.mockToBillingContext,
   checkAttributedBillingBlocks: billingAttributionMockFns.mockCheckAttributedBillingBlocks,
   checkAttributedUsageLimits: billingAttributionMockFns.mockCheckAttributedUsageLimits,
+  refreshAttributionPeriod: billingAttributionMockFns.mockRefreshAttributionPeriod,
 }

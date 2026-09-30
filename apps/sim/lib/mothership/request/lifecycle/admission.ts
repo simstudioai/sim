@@ -83,6 +83,6 @@ export async function authorizeLifecycleContinuation(
     const usage = await readMidRunUsageVerdict(context.billingAttribution)
     if (usage.status === 'blocked')
       throw new OrchestrationError('forbidden', 'Continuation billing account is blocked')
-    if (usage.status === 'exceeded') throw new BillingLimitError(context.userId)
+    if (usage.status === 'exceeded') throw new BillingLimitError(context.userId, usage.scope)
   }
 }

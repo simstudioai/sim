@@ -908,6 +908,22 @@ describe('copilot go stream helpers', () => {
     expect(blocked).not.toBeInstanceOf(BillingLimitError)
     expect(blocked).toMatchObject({ code: 'forbidden', message: 'Billing account frozen.' })
 
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ code: 'USAGE_UNAVAILABLE', error: 'Usage could not be verified.' }),
+        { status: 402 }
+      )
+    )
+    await expect(
+      runStreamLoop(
+        'https://example.com/api/tools/resume',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 1000 }
+      )
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 402 }))
     await expect(
       runStreamLoop(

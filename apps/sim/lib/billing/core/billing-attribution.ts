@@ -726,6 +726,36 @@ function buildBillingAttributionSnapshot(params: {
 }
 
 /**
+ * The same payer's attribution for its current usage period, for a run that outlived the period
+ * it was admitted in. The actor, workspace and payer are kept; only the payer's subscription,
+ * and so its period, is read again, and a subscription that no longer belongs to the payer is
+ * refused rather than re-selected.
+ */
+export async function refreshAttributionPeriod(
+  attribution: BillingAttributionSnapshot
+): Promise<BillingAttributionSnapshot> {
+  const validated = assertBillingAttributionSnapshot(attribution)
+  const payerSubscription = validated.organizationId
+    ? await getOrganizationSubscription(validated.organizationId, { onError: 'throw' })
+    : await getHighestPriorityPersonalSubscription(validated.billedAccountUserId, {
+        onError: 'throw',
+      })
+  const expectedReferenceId = validated.organizationId ?? validated.billedAccountUserId
+  if (payerSubscription && payerSubscription.referenceId !== expectedReferenceId) {
+    throw new Error(
+      `Resolved subscription ${payerSubscription.id} does not belong to payer ${expectedReferenceId}`
+    )
+  }
+  return buildBillingAttributionSnapshot({
+    actorUserId: validated.actorUserId,
+    workspaceId: validated.workspaceId,
+    billedAccountUserId: validated.billedAccountUserId,
+    organizationId: validated.organizationId,
+    payerSubscription,
+  })
+}
+
+/**
  * Resolves the payer from the workspace without consulting the actor's
  * subscriptions or organization memberships.
  */
