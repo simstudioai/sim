@@ -164,7 +164,7 @@ describe('buildWorkflowDiffOverlay', () => {
     })
     const target = asState({
       blocks: {
-        squatter: block('squatter', { position: { x: 0, y: 0 }, data: { height: 120 } }),
+        squatter: block('squatter', { position: { x: 0, y: 0 }, height: 120 }),
         /* Stacked directly below the squatter so the first nudge lands on it too. */
         second: block('second', { position: { x: 0, y: 152 }, height: 80 }),
         /* A child at the same spot must not count as a collision for a top-level ghost. */
@@ -193,8 +193,8 @@ describe('buildWorkflowDiffOverlay', () => {
 
     const merged = buildWorkflowDiffOverlay(summary, base, target).mergedState
 
-    /* 0 + 120 + 32 = 152 hits `second`, so a second nudge lands at 152 + 80 + 32. */
-    expect(merged.blocks.gone.position).toEqual({ x: 10, y: 264 })
+    /* 0 + 120 + 32 = 152 hits `second`, drawn at the 100px minimum, so it lands at 152 + 100 + 32. */
+    expect(merged.blocks.gone.position).toEqual({ x: 10, y: 284 })
     expect(merged.blocks.gone).not.toBe(base.blocks.gone)
     expect(merged.blocks.goneChild).toBe(base.blocks.goneChild)
     expect(merged.blocks.goneChild.position).toEqual({ x: 0, y: 0 })
@@ -222,6 +222,52 @@ describe('buildWorkflowDiffOverlay', () => {
     const merged = buildWorkflowDiffOverlay(summary, base, target).mergedState
 
     expect(merged.blocks.oldLoop.position).toEqual({ x: 0, y: 182 })
+  })
+
+  it('treats a stored height of zero as the minimum card height', () => {
+    const base = asState({
+      blocks: { gone: block('gone', { position: { x: 0, y: 60 }, height: 0 }) },
+      edges: [],
+    })
+    const target = asState({
+      blocks: { live: block('live', { position: { x: 0, y: 0 }, height: 0 }) },
+      edges: [],
+    })
+    const summary: WorkflowDiffSummary = {
+      ...emptySummary(),
+      removedBlocks: [{ id: 'gone', type: 'function', name: 'gone' }],
+      addedBlocks: [{ id: 'live', type: 'function', name: 'live' }],
+      hasChanges: true,
+    }
+
+    const merged = buildWorkflowDiffOverlay(summary, base, target).mergedState
+
+    /* The live card is at least 100px tall, so the ghost at y=60 overlaps it and slides to 132. */
+    expect(merged.blocks.gone.position).toEqual({ x: 0, y: 132 })
+  })
+
+  it('sizes boxes with the measurement the canvas passes', () => {
+    const base = asState({
+      blocks: { gone: block('gone', { position: { x: 0, y: 150 } }) },
+      edges: [],
+    })
+    const target = asState({
+      blocks: { live: block('live', { position: { x: 0, y: 0 } }) },
+      edges: [],
+    })
+    const summary: WorkflowDiffSummary = {
+      ...emptySummary(),
+      removedBlocks: [{ id: 'gone', type: 'function', name: 'gone' }],
+      addedBlocks: [{ id: 'live', type: 'function', name: 'live' }],
+      hasChanges: true,
+    }
+
+    const merged = buildWorkflowDiffOverlay(summary, base, target, () => ({
+      width: 250,
+      height: 200,
+    })).mergedState
+
+    expect(merged.blocks.gone.position).toEqual({ x: 0, y: 232 })
   })
 
   it('ghosts removed loops and parallels only when their block was removed', () => {

@@ -519,10 +519,29 @@ interface OneSidedField {
  */
 const SECRET_KEY_PATTERN =
   /^(auth|authorization|bearer|cookie|pwd)$|(token|secret|password|passphrase|credential|api[_-]?key|private[_-]?key|authorization)$/i
+/**
+ * Words that make a key secret wherever they sit in it: `secretAccessKey`,
+ * `aws_secret_access_key`, `passwordHash`. `credential` is not one of them, so
+ * `credentialId` (a reference, not a secret) stays readable.
+ */
+const SECRET_WORDS = new Set(['secret', 'password', 'passphrase', 'passwd', 'pwd'])
 const MASKED_VALUE = '•••'
 
+/** Splits `awsSecretAccessKey`, `client-secret` and `API_KEY` into lowercase words. */
+function keyWords(key: string): string[] {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((word) => word.toLowerCase())
+}
+
 function isSecretKey(key: string): boolean {
-  return SECRET_KEY_PATTERN.test(key.trim())
+  const trimmed = key.trim()
+  return (
+    SECRET_KEY_PATTERN.test(trimmed) || keyWords(trimmed).some((word) => SECRET_WORDS.has(word))
+  )
 }
 
 /**

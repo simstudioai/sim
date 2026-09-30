@@ -42,15 +42,17 @@ const MAX_NUDGES = 8
 /** Sub-block fields whose list items each own a source handle on the canvas card. */
 const BRANCH_LIST_FIELDS = ['conditions', 'routes'] as const
 
-/** The box a card occupies on the preview canvas, sized by the same rules the preview uses. */
-function boxOf(block: BlockState): BoundingBox {
+/** How big a block is drawn; the canvas passes its own measurement so ghost boxes match it. */
+export type MeasureBlock = (block: BlockState) => { width: number; height: number }
+
+/**
+ * Stored sizes clamped to the canvas minimums: the fallback when the caller
+ * does not pass the canvas's own measurement.
+ */
+const measureStoredSize: MeasureBlock = (block) => {
   const data = block.data as { width?: number; height?: number } | undefined
-  const x = block.position?.x ?? 0
-  const y = block.position?.y ?? 0
   if (block.type === 'loop' || block.type === 'parallel') {
     return {
-      x,
-      y,
       width: data?.width
         ? Math.max(data.width, CONTAINER_DIMENSIONS.MIN_WIDTH)
         : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
@@ -60,11 +62,13 @@ function boxOf(block: BlockState): BoundingBox {
     }
   }
   return {
-    x,
-    y,
-    width: data?.width ?? BLOCK_DIMENSIONS.FIXED_WIDTH,
-    height: data?.height ?? block.height ?? BLOCK_DIMENSIONS.MIN_HEIGHT,
+    width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+    height: Math.max(block.height || 0, BLOCK_DIMENSIONS.MIN_HEIGHT),
   }
+}
+
+function boxOf(block: BlockState, measure: MeasureBlock): BoundingBox {
+  return { x: block.position?.x ?? 0, y: block.position?.y ?? 0, ...measure(block) }
 }
 
 /**
@@ -75,9 +79,13 @@ function boxOf(block: BlockState): BoundingBox {
  * Children of a container stay put: their coordinates are relative to the
  * parent and the parent already frames them.
  */
-function nudgeOutOfCollision(ghost: BlockState, occupied: BoundingBox[]): BlockState {
+function nudgeOutOfCollision(
+  ghost: BlockState,
+  occupied: BoundingBox[],
+  measure: MeasureBlock
+): BlockState {
   if (ghost.data?.parentId) return ghost
-  const box = boxOf(ghost)
+  const box = boxOf(ghost, measure)
   let nudges = 0
   let hit = occupied.find((other) => boxesOverlap(box, other))
   while (hit && nudges < MAX_NUDGES) {
@@ -150,7 +158,8 @@ function withRemovedBranches(baseBlock: BlockState, targetBlock: BlockState): Bl
 export function buildWorkflowDiffOverlay(
   summary: WorkflowDiffSummary,
   baseState: WorkflowState,
-  targetState: WorkflowState
+  targetState: WorkflowState,
+  measure: MeasureBlock = measureStoredSize
 ): WorkflowDiffOverlay {
   const blockStatus: Record<string, BlockDiffStatus> = {}
   const changedFieldsByBlock: Record<string, string[]> = {}
@@ -180,10 +189,11 @@ export function buildWorkflowDiffOverlay(
 
   const occupied = Object.values(blocks)
     .filter((block) => !block.data?.parentId)
-    .map(boxOf)
+    .map((block) => boxOf(block, measure))
   for (const block of summary.removedBlocks) {
     const baseBlock = baseState.blocks[block.id]
-    if (baseBlock && !blocks[block.id]) blocks[block.id] = nudgeOutOfCollision(baseBlock, occupied)
+    if (baseBlock && !blocks[block.id])
+      blocks[block.id] = nudgeOutOfCollision(baseBlock, occupied, measure)
   }
 
   const loops = { ...(targetState.loops ?? {}) }

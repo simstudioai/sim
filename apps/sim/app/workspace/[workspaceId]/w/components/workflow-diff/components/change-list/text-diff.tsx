@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { diffWords } from 'diff'
+import { diffWordsWithSpace } from 'diff'
 import {
   buildDiffRows,
   type DiffLine,
@@ -66,6 +66,13 @@ export function TextDiff({ oldText, newText }: TextDiffProps) {
   const rows = useMemo(() => buildDiffRows(oldText, newText), [oldText, newText])
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
   const [expandedAll, setExpandedAll] = useState(false)
+  /* Fold indexes belong to one pair of bodies; a new comparison starts folded again. */
+  const [foldsFor, setFoldsFor] = useState(rows)
+  if (foldsFor !== rows) {
+    setFoldsFor(rows)
+    setExpanded(new Set())
+    setExpandedAll(false)
+  }
   const foldCount = rows.filter((row) => row.type === 'fold').length
 
   return (
@@ -161,7 +168,8 @@ interface InlineDiffProps {
  * on a green tint.
  */
 export function InlineDiff({ oldText, newText }: InlineDiffProps) {
-  const parts = useMemo(() => diffWords(oldText, newText), [oldText, newText])
+  /* Whitespace counts, so a value that differs only by a space still shows where. */
+  const parts = useMemo(() => diffWordsWithSpace(oldText, newText), [oldText, newText])
   return (
     <span className='whitespace-pre-wrap break-words text-[var(--text-primary)] text-small'>
       {parts.map((part, index) => (

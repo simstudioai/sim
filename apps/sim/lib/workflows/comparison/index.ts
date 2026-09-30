@@ -16,5 +16,6 @@ export {
   type BlockDiffStatus,
   buildWorkflowDiffOverlay,
   type EdgeDiffStatus,
+  type MeasureBlock,
   type WorkflowDiffOverlay,
 } from './overlay'

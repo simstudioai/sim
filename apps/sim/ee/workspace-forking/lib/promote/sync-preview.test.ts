@@ -1,8 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  measureTargetDraftBytes: vi.fn(),
+  forEachTargetDraft: vi.fn(),
+}))
+
+vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
+  MAX_FORK_STATE_BYTES: 1000,
+  measureTargetDraftBytes: mocks.measureTargetDraftBytes,
+  forEachTargetDraft: mocks.forEachTargetDraft,
+}))
+
 import {
+  listUnchangedSyncSources,
   projectSyncSource,
   syncChangesWorkflow,
 } from '@/ee/workspace-forking/lib/promote/sync-preview'
@@ -61,5 +74,68 @@ describe('syncChangesWorkflow', () => {
 
   it('always reports a change for a workflow the sync creates', () => {
     expect(syncChangesWorkflow(null, state('return 1'))).toBe(true)
+  })
+})
+
+describe('listUnchangedSyncSources', () => {
+  const items = [
+    { sourceWorkflowId: 's-same', targetWorkflowId: 't-same', mode: 'replace' },
+    { sourceWorkflowId: 's-diff', targetWorkflowId: 't-diff', mode: 'replace' },
+    { sourceWorkflowId: 's-new', targetWorkflowId: 't-new', mode: 'create' },
+  ] as unknown as Parameters<typeof listUnchangedSyncSources>[0]['items']
+  const sourceStates = new Map([
+    ['s-same', state('return 1')],
+    ['s-diff', state('return 2')],
+    ['s-new', state('return 3')],
+  ])
+  const drafts = new Map([
+    ['t-same', state('return 1', 't-b1')],
+    ['t-diff', state('return 1', 't-b1')],
+  ])
+
+  beforeEach(() => {
+    mocks.measureTargetDraftBytes.mockResolvedValue(10)
+    mocks.forEachTargetDraft.mockImplementation(
+      async (
+        ids: string[],
+        _workspaceId: string,
+        visit: (id: string, d: WorkflowState) => void
+      ) => {
+        for (const id of ids) {
+          const draft = drafts.get(id)
+          if (draft) visit(id, draft)
+        }
+      }
+    )
+  })
+
+  it('lists only replaced workflows whose draft already matches, reading replaced targets only', async () => {
+    const unchanged = await listUnchangedSyncSources({
+      items,
+      sourceStates,
+      targetWorkspaceId: 'ws-t',
+      resolveBlockId: resolve,
+    })
+
+    expect([...unchanged]).toEqual(['s-same'])
+    expect(mocks.forEachTargetDraft).toHaveBeenCalledWith(
+      ['t-same', 't-diff'],
+      'ws-t',
+      expect.any(Function)
+    )
+  })
+
+  it('reads no drafts and treats everything as changed when the drafts exceed the limit', async () => {
+    mocks.measureTargetDraftBytes.mockResolvedValue(5000)
+
+    const unchanged = await listUnchangedSyncSources({
+      items,
+      sourceStates,
+      targetWorkspaceId: 'ws-t',
+      resolveBlockId: resolve,
+    })
+
+    expect(unchanged.size).toBe(0)
+    expect(mocks.forEachTargetDraft).not.toHaveBeenCalled()
   })
 })
