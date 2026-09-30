@@ -23,7 +23,11 @@ describe('embedded CLI binary workbench bridge', () => {
   it('preserves arbitrary bytes in both directions and binds both to the same chat', async () => {
     const bytes = Uint8Array.from([0, 255, 137, 80, 78, 71, 13, 10, 128, 195, 0])
     const stream = new Blob([bytes]).stream()
-    readFile.mockResolvedValue({ outcome: 'read', content: Buffer.from(bytes).toString('base64') })
+    readFile.mockResolvedValue({
+      outcome: 'read',
+      content: Buffer.from(bytes).toString('base64'),
+      secretProvenance: { status: 'exact', entries: [] },
+    })
     writeFile.mockResolvedValue({ outcome: 'written', path: '/home/user/result.png' })
     embedded.mockImplementation(async (_args, _identity, options) => {
       expect(await options.readFile('image.png')).toEqual(Buffer.from(bytes))
@@ -51,7 +55,11 @@ describe('embedded CLI binary workbench bridge', () => {
   })
 
   it('resolves equals-form file flags identically without reading escaped literals', async () => {
-    readFile.mockResolvedValue({ outcome: 'read', content: Buffer.from('{}').toString('base64') })
+    readFile.mockResolvedValue({
+      outcome: 'read',
+      content: Buffer.from('{}').toString('base64'),
+      secretProvenance: { status: 'exact', entries: [] },
+    })
     embedded.mockImplementation(async (_args, _identity, options) => {
       expect(await options.readFile('input.json')).toEqual(Buffer.from('{}'))
       return { exitCode: 0, stdout: '', stderr: '' }

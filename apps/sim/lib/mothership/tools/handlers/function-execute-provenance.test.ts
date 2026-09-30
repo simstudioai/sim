@@ -15,7 +15,7 @@ vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { sandboxSessionInputsSafe } from '@/lib/execution/remote-sandbox/execution-observer'
+import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/execution-observer'
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -26,7 +26,7 @@ beforeEach(() => {
   mocks.execute.mockReset()
   mocks.execute.mockImplementation(async () => ({
     success: true,
-    output: { sessionInputsSafe: sandboxSessionInputsSafe() },
+    output: { sessionInputProvenance: sandboxSessionInputProvenance() },
   }))
 })
 
@@ -51,8 +51,10 @@ describe('Function physical-session input certification', () => {
       )
       expect(mocks.execute).toHaveBeenCalledOnce()
       const response = await mocks.execute.mock.results[0].value
-      expect(response.output.sessionInputsSafe).toBe(state === 'empty')
-      expect(sandboxSessionInputsSafe()).toBe(false)
+      expect(response.output.sessionInputProvenance).toEqual(
+        state === 'empty' ? { status: 'exact', entries: [] } : { status: 'unknown' }
+      )
+      expect(sandboxSessionInputProvenance()).toEqual({ status: 'unknown' })
     }
   )
 })

@@ -17,7 +17,7 @@ export function CredentialGroupCompletionHandoff({
   completionId,
   failure,
 }: CredentialGroupCompletionHandoffProps) {
-  const started = useRef(false)
+  const started = useRef<boolean>(false)
   useEffect(() => {
     if (started.current) return
     started.current = true

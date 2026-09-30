@@ -32,19 +32,27 @@ In Sources, open an integration to manage its connection and resource settings. 
 
 ## Connector guides
 
-These nine providers support live Search. Google Docs, Sheets, and Slides are accessed through Drive. Other [knowledge-base connectors](/knowledgebase/connectors) do not automatically become Search integrations.
+These providers support live Search. Google Docs, Sheets, and Slides are accessed through Drive. Other [knowledge-base connectors](/knowledgebase/connectors) do not automatically become Search integrations.
 
 | Source | Search path | Modes |
 | --- | --- | --- |
 | [Coda](/search/coda) | Personal Coda MCP; legacy REST connections search document titles | Member or service |
 | [Confluence](/search/confluence) | Confluence Cloud CQL and content APIs | Member or service |
-| [GitHub](/search/github) | GitHub issue, code, and repository search | Member or GitHub App |
+| [Fireflies](/search/fireflies) | Meeting titles and spoken transcripts | Member only |
+| [GitHub](/search/github) | Repositories, code, issues and pull request discussions | Member or GitHub App |
 | [GitLab](/search/gitlab) | Configured self-managed project's search and read APIs | Service only; admin or CSV permissions |
-| [Gmail](/search/gmail) | Gmail message search and message reads | Member or service |
+| [Gmail](/search/gmail) | Message search and conversation reads | Member or service |
 | [Google Calendar](/search/google-calendar) | Calendar lists and event APIs | Member or service |
-| [Google Drive](/search/google-drive) | Drive search plus supported file reads/exports | Member or service |
+| [Google Drive](/search/google-drive) | File search, supported document reads and comments | Member or service |
+| [Google Meet](/search/google-meet) | Recent conference transcripts and generated-note links | Member only |
+| [Granola](/search/granola) | Semantic meeting search with source notes and transcript reads | Member only |
+| [HubSpot](/search/hubspot) | Contacts, companies, deals and tickets | Member only |
 | [Jira](/search/jira) | Jira Cloud JQL and issue APIs | Member only |
+| [Linear](/search/linear) | Issues and their comment discussions | Member only |
+| [Lucid](/search/lucid) | Lucidchart diagrams and Lucidspark boards | Member only |
+| [Notion](/search/notion) | Page and database content through Notion MCP | Member only |
 | [Slack](/search/slack) | Slack real-time search with the member's user token | Member only |
+| [Zoom](/search/zoom) | Past meetings with available transcripts, notes and summaries | Member only |
 
 [Generic Secrets](/search/generic-secrets) is also available as a source, but does not add searchable documents. Organization mode makes its secrets available across the organization; Member mode lets each person manage their own secrets in Integrations. Build and Plan can use these secrets for requests; Search cannot mount them.
 

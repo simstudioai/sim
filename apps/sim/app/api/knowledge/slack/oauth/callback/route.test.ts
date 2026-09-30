@@ -87,7 +87,7 @@ describe('Slack OAuth callback', () => {
     const response = await GET(request('state=state&code=code'))
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe(
-      'https://www.sim.ai/credential-groups/slack-complete?state=state&ok=false'
+      'https://www.sim.ai/credential-groups/slack-complete?state=state&ok=false&reason=signin_required'
     )
     expect(m.authenticate).not.toHaveBeenCalled()
     expect(m.complete).not.toHaveBeenCalled()

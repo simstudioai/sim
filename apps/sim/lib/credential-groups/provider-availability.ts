@@ -57,5 +57,8 @@ export async function listConfiguredManagedMcpConnectors(credentialGroupId?: str
       .limit(1)
     hubspotReady = Boolean(registration)
   }
-  return MANAGED_MCP_CONNECTOR_IDS.filter((id) => id !== 'hubspot' || hubspotReady)
+  const zoomReady = inspectConfiguredOAuthClient('zoom-mcp').state === 'ready'
+  return MANAGED_MCP_CONNECTOR_IDS.filter(
+    (id) => (id !== 'hubspot' || hubspotReady) && (id !== 'zoom' || zoomReady)
+  )
 }

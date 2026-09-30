@@ -165,6 +165,42 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Verify Zoom search over real HTTP
+        if: matrix.provision == 'push'
+        working-directory: apps/sim
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3040
+          NEXT_PUBLIC_FORCE_HOSTED: 'false'
+          SEARCH_ZOOM_REPORT_PATH: ${{ runner.temp }}/search-zoom.json
+        run: bun scripts/test-search-zoom-e2e.ts
+
+      - name: Upload Zoom acceptance report
+        if: failure() && matrix.provision == 'push'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: search-zoom
+          path: ${{ runner.temp }}/search-zoom.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify Google Meet search over real HTTP
+        if: matrix.provision == 'push'
+        working-directory: apps/sim
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3040
+          NEXT_PUBLIC_FORCE_HOSTED: 'false'
+          SEARCH_GOOGLE_MEET_REPORT_PATH: ${{ runner.temp }}/search-google-meet.json
+        run: bun scripts/test-search-google-meet-e2e.ts
+
+      - name: Upload Google Meet acceptance report
+        if: failure() && matrix.provision == 'push'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: search-google-meet
+          path: ${{ runner.temp }}/search-google-meet.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Verify SCIM and administration over real HTTP
         working-directory: apps/sim
         env:

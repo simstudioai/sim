@@ -24,6 +24,7 @@ import { readNativeProvider, searchNativeProvider } from '@/lib/sim-search/live/
 import { searchWithinPolicy } from '@/lib/sim-search/live/scoped-search'
 import { createLiveServiceSession } from '@/lib/sim-search/live/service-session'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
+import { readZoomMcp, searchZoomMcp } from '@/lib/sim-search/live/zoom-mcp'
 
 type Reference = Pick<
   NativeDocument,
@@ -116,6 +117,8 @@ export async function openLiveAccountSession(
         return searchHubSpotMcp(mcp, search)
       case 'lucid':
         return searchLucidMcp(mcp, search)
+      case 'zoom':
+        return searchZoomMcp(mcp, search)
       default:
         throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
     }
@@ -136,6 +139,8 @@ export async function openLiveAccountSession(
         return readHubSpotMcp(mcp, id)
       case 'lucid':
         return readLucidMcp(mcp, reference)
+      case 'zoom':
+        return readZoomMcp(mcp, id, reference.revision)
       default:
         throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
     }

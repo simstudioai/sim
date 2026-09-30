@@ -27,6 +27,12 @@ import {
   type CompiledCodePlaceholders,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
+import {
+  type DurableSecretProvenance,
+  durableSecretProvenanceFromEnvelope,
+  importDurableSecretProvenance,
+  mergeDurableSecretProvenance,
+} from '@/lib/execution/durable-secret-provenance'
 import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
@@ -72,6 +78,7 @@ import {
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
+import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/execution-observer'
 import {
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
@@ -132,8 +139,8 @@ import {
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
-import type {
-  ResolvedSecretTraceProvenanceV1,
+import {
+  type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -2716,10 +2723,41 @@ export async function executeFunctionRequest(
       )
     }
     const { sandboxFiles: userFileMounts, manifest: mountManifest } = resolvedMounts
-    const mothershipSession =
-      admittedSession && resolvedMounts.unprovenancedMountCount > 0
-        ? { ...admittedSession, unprovenancedInputs: true }
-        : admittedSession
+    const activeRouteContext = routeContext
+    const mothershipSession = admittedSession
+      ? {
+          ...admittedSession,
+          unprovenancedInputs: resolvedMounts.unprovenancedMountCount > 0,
+          inputProvenance: () => {
+            const runtime = activeRouteContext.runtimeFileSecretTraceRegistry?.exportProvenance()
+            return mergeDurableSecretProvenance(
+              sandboxSessionInputProvenance(),
+              runtime
+                ? durableSecretProvenanceFromEnvelope(runtime)
+                : { status: 'exact', entries: [] }
+            )
+          },
+          acceptOutputProvenance: async (provenance: DurableSecretProvenance) => {
+            const registry = activeRouteContext.resolvedSecretTraceRegistry
+            activeRouteContext.runtimeFileSecretTraceRegistry ??= new ResolvedSecretTraceRegistry(
+              [],
+              {
+                userId: auth.attributedUserId,
+                ...(workspaceId ? { workspaceId } : {}),
+              }
+            )
+            const runtimeRegistry = activeRouteContext.runtimeFileSecretTraceRegistry
+            const runtimeImported = await importDurableSecretProvenance(runtimeRegistry, provenance)
+            const imported = registry && (await importDurableSecretProvenance(registry, provenance))
+            activeRouteContext.runtimeFileSecretProvenanceScanner = undefined
+            if (!runtimeImported || !imported) {
+              throw new Error(
+                'Workbench output withheld because its secret provenance is unavailable'
+              )
+            }
+          },
+        }
+      : undefined
     const sandboxFiles = mergeSandboxFileMounts(_sandboxFiles, userFileMounts)
 
     // Every `<block.file.path>` marker becomes the path its file was mounted at,

@@ -964,6 +964,7 @@ describe('session sandbox lease', () => {
 vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
   initializeSessionFileProvenance: vi.fn(),
   recordSessionFileInput: vi.fn(),
+  readSessionSecretProvenance: vi.fn().mockResolvedValue({ status: 'exact', entries: [] }),
 }))
 
 describe('scratch provenance at the actual code boundary', () => {
@@ -977,7 +978,7 @@ describe('scratch provenance at the actual code boundary', () => {
         expect(recordSessionFileInput).toHaveBeenCalledWith(
           'history',
           { providerId: 'e2b', sandboxId: 'provenance-physical' },
-          safe
+          safe ? { status: 'exact', entries: [] } : { status: 'unknown' }
         )
         return original(code, options)
       }
