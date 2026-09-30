@@ -49,14 +49,20 @@ export const prepareTaskWake = defineAuthorizedChatUseCase({
      * already ran under that ID without reaching the worker (a usage-limit refusal) can never
      * open again, so answer not-found: the worker dismisses the notification instead of
      * retrying forever. Checked under the chat lock, so an in-flight turn still answers busy.
+     * Any throw here releases the lock just taken, since the wake turn that would release it
+     * never starts.
      */
-    if (await getLatestRunForStream(input.runId)) {
+    try {
+      if (await getLatestRunForStream(input.runId)) {
+        throw new OrchestrationError('not_found', 'This wake already ran')
+      }
+    } catch (error) {
       await releasePendingChatStream(
         input.chatId,
         input.runId,
         getLocalChatStreamLease(input.chatId, input.runId)
       )
-      throw new OrchestrationError('not_found', 'This wake already ran')
+      throw error
     }
     return { accepted: true } as const
   },

@@ -2,7 +2,8 @@
  * How sim answers the worker's retry of a task wake, against real PostgreSQL and Redis: the
  * wake route, the chat stream lock, and the run records are production code. Only `after` is
  * stubbed, so the background wake turn never starts; each test writes the run record that
- * turn would have written instead.
+ * turn would have written instead. The run lookup passes through to PostgreSQL unless a test
+ * makes it fail.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -20,13 +21,22 @@ vi.mock('next/server', async (original) => ({
   after: () => {},
 }))
 
+vi.mock('@/lib/mothership/async-runs/repository', async (original) => {
+  const actual = await original<typeof import('@/lib/mothership/async-runs/repository')>()
+  return { ...actual, getLatestRunForStream: vi.fn(actual.getLatestRunForStream) }
+})
+
 import { db } from '@sim/db'
 import { copilotChats, copilotRuns, permissions, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { closeRedisConnection } from '@/lib/core/config/redis'
-import { createRunSegment, updateRunStatus } from '@/lib/mothership/async-runs/repository'
+import {
+  createRunSegment,
+  getLatestRunForStream,
+  updateRunStatus,
+} from '@/lib/mothership/async-runs/repository'
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import {
   acquirePendingChatStream,
@@ -152,4 +162,16 @@ describe.runIf(Boolean(redisUrl))('task wake retries', () => {
     expect((await wake(chatId, runId)).status).toBe(409)
     await releasePendingChatStream(chatId, runId)
   }, 15_000)
+
+  it('frees the chat when the run lookup fails after the wake took it', async () => {
+    const chatId = await idleChat()
+    const runId = generateId()
+    vi.mocked(getLatestRunForStream).mockRejectedValueOnce(new Error('statement timeout'))
+
+    expect((await wake(chatId, runId)).status).toBe(500)
+
+    const nextTurn = generateId()
+    expect(await acquirePendingChatStream(chatId, nextTurn, 0)).toBe(true)
+    await releasePendingChatStream(chatId, nextTurn)
+  })
 })
