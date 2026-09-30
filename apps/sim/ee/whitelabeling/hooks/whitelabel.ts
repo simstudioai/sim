@@ -43,7 +43,8 @@ async function fetchWhitelabelSettings(
     params: { id: orgId },
     signal,
   })
-  return { isEnterprise, settings: data }
+  // A server from before the field omits it; saving still enforces the entitlement.
+  return { isEnterprise: isEnterprise ?? true, settings: data }
 }
 
 /**
