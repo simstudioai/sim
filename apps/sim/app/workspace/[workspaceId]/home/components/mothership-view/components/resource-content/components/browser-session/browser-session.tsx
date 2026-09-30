@@ -1359,7 +1359,6 @@ export function BrowserSession({
           <BrowserPageIssueView
             issue={pageState.issue}
             focusRecovery={visible}
-            panelRef={panelRef}
             onReload={() => sendBrowserPanelAction('reload', {}, scopeId)}
           />
         )}

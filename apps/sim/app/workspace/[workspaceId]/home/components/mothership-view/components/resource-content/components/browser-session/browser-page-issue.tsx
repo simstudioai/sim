@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { BrowserPageIssue } from '@sim/browser-protocol'
 import { Chip } from '@sim/emcn'
 import { CircleAlert, Globe, RefreshCw } from '@sim/emcn/icons'
@@ -7,8 +7,6 @@ interface BrowserPageIssueProps {
   issue: BrowserPageIssue
   onReload: () => void
   focusRecovery: boolean
-  /** The browser panel; focus anywhere else in Sim is never taken for recovery. */
-  panelRef: RefObject<HTMLElement | null>
 }
 
 interface BrowserPageIssueCopy {
@@ -128,30 +126,25 @@ export function browserPageIssueCopy(issue: BrowserPageIssue): BrowserPageIssueC
 }
 
 /**
- * Whether the user's focus is somewhere in Sim other than the browser.
- * `document.activeElement` survives a window blur, so a caret left in chat
- * still counts as elsewhere.
+ * Whether nothing in Sim holds focus, as when it was in the native page that
+ * just failed. Any focused element, from the chat composer to the omnibox,
+ * keeps it. `document.activeElement` survives a window blur, so a caret left
+ * in chat still counts.
  */
-function isFocusElsewhere(panel: HTMLElement | null): boolean {
+function isFocusFree(): boolean {
   const active = document.activeElement
-  if (!(active instanceof HTMLElement) || active === document.body) return false
-  return !panel?.contains(active)
+  return !active || active === document.body
 }
 
 /** Replaces a hidden native page and optionally claims renderer focus for keyboard recovery. */
-export function BrowserPageIssueView({
-  issue,
-  onReload,
-  focusRecovery,
-  panelRef,
-}: BrowserPageIssueProps) {
+export function BrowserPageIssueView({ issue, onReload, focusRecovery }: BrowserPageIssueProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const copy = browserPageIssueCopy(issue)
 
   useEffect(() => {
     // Keyboard recovery for someone who was in the browser.
-    if (focusRecovery && !isFocusElsewhere(panelRef.current)) headingRef.current?.focus()
-  }, [focusRecovery, issue, panelRef])
+    if (focusRecovery && isFocusFree()) headingRef.current?.focus()
+  }, [focusRecovery, issue])
 
   const Icon = issue.kind === 'load-error' ? Globe : CircleAlert
 
