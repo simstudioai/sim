@@ -6,7 +6,6 @@ import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manif
 import {
   containsLargeValueRef,
   formatLargeValueSize,
-  getLargeValueMaterializationError,
   isLargeValueRef,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
@@ -87,9 +86,78 @@ function measureJson(value: unknown): { json: string; size: number } | null {
   }
 }
 
-function getNestedLargeValueMaterializationError(): Error {
+interface LocatedLargeValue {
+  path: Array<string | number>
+  size: number
+}
+
+/** An object key a reference can reach with `.key`: no whitespace, path, or operator characters. */
+const REFERENCEABLE_KEY = /^[^\s.[\]+*/=<>!&|]+$/
+
+/** How to use a large value in a runtime that cannot load one on demand. */
+const LARGE_VALUE_RUNTIME_HINT = 'Select a smaller field, or read it in JavaScript without imports.'
+
+/**
+ * Finds the first offloaded value in a resolved value, with its path and stored size.
+ *
+ * Stops at the first hit, like `containsLargeValueRef`, and never descends into an array
+ * manifest's chunks — the manifest itself is the field an author can reference.
+ */
+function findLargeValue(value: unknown): LocatedLargeValue | null {
+  const path: Array<string | number> = []
+  const seen = new WeakSet<object>()
+  const visit = (current: unknown): LocatedLargeValue | null => {
+    if (!current || typeof current !== 'object') return null
+    if (isLargeValueRef(current)) return { path: [...path], size: current.size }
+    if (isLargeArrayManifest(current)) return { path: [...path], size: current.byteSize }
+    if (seen.has(current)) return null
+    seen.add(current)
+    const keys = Array.isArray(current) ? current.keys() : Object.keys(current)
+    for (const key of keys) {
+      path.push(key)
+      const found = visit((current as Record<string | number, unknown>)[key])
+      path.pop()
+      if (found) return found
+    }
+    return null
+  }
+  return visit(value)
+}
+
+/** Extends `<block.field>` with a nested path, or `null` when a key cannot be written as one. */
+function appendReferencePath(reference: string, path: Array<string | number>): string | null {
+  let suffix = ''
+  for (const segment of path) {
+    if (typeof segment === 'number') suffix += `[${segment}]`
+    else if (REFERENCEABLE_KEY.test(segment)) suffix += `${REFERENCE.PATH_DELIMITER}${segment}`
+    else return null
+  }
+  return `${reference.slice(0, -REFERENCE.END.length)}${suffix}${REFERENCE.END}`
+}
+
+/** A Function block reference points straight at a large value its runtime cannot load. */
+function getDirectLargeValueError(reference: string, size: number): Error {
   return new Error(
-    'This execution value contains nested large values. Reference the nested field directly so it can be lazy-loaded.'
+    `${reference} is too large to pass inline (${formatLargeValueSize(size)}). ${LARGE_VALUE_RUNTIME_HINT}`
+  )
+}
+
+/**
+ * A Function block reference holds a large value below its root. Only a reference pointing
+ * straight at a large value can load it on demand, so this names that field.
+ */
+function getNestedLargeValueError(
+  reference: string,
+  value: unknown,
+  canLoadOnDemand: boolean
+): Error {
+  const found = findLargeValue(value)
+  const field = found && appendReferencePath(reference, found.path)
+  const size = found ? `${formatLargeValueSize(found.size)} ` : ''
+  const described = `${reference} contains a ${size}value${field ? ` at ${field}` : ''}.`
+  if (!canLoadOnDemand) return new Error(`${described} ${LARGE_VALUE_RUNTIME_HINT}`)
+  return new Error(
+    `${described} Reference ${field ? 'that field' : 'the field you need'} directly.`
   )
 }
 
@@ -575,7 +643,7 @@ export class VariableResolver {
               index
             )
             if (!lazyReplacement) {
-              throw getLargeValueMaterializationError(effectiveValue)
+              throw getDirectLargeValueError(match, effectiveValue.size)
             }
             replacement = lazyReplacement
           } else if (isLargeArrayManifest(effectiveValue)) {
@@ -586,11 +654,15 @@ export class VariableResolver {
               index
             )
             if (!lazyReplacement) {
-              throw getNestedLargeValueMaterializationError()
+              throw getDirectLargeValueError(match, effectiveValue.byteSize)
             }
             replacement = lazyReplacement
           } else if (containsLargeValueRef(effectiveValue)) {
-            throw getNestedLargeValueMaterializationError()
+            throw getNestedLargeValueError(
+              match,
+              effectiveValue,
+              this.canUseJavaScriptRuntimeHelpers(language, template)
+            )
           } else {
             const offloadedRef = await this.maybeOffloadInlineFunctionContextValue(
               ctx,
@@ -659,7 +731,7 @@ export class VariableResolver {
             )
             return lazyReplacement
           }
-          throw getLargeValueMaterializationError(effectiveValue)
+          throw getDirectLargeValueError(match, effectiveValue.size)
         }
 
         if (isLargeArrayManifest(effectiveValue)) {
@@ -680,11 +752,15 @@ export class VariableResolver {
             )
             return lazyReplacement
           }
-          throw getNestedLargeValueMaterializationError()
+          throw getDirectLargeValueError(match, effectiveValue.byteSize)
         }
 
         if (containsLargeValueRef(effectiveValue)) {
-          throw getNestedLargeValueMaterializationError()
+          throw getNestedLargeValueError(
+            match,
+            effectiveValue,
+            this.canUseJavaScriptRuntimeHelpers(language, template)
+          )
         }
 
         if (this.canInlineResolvedCodeLiteral(effectiveValue, match)) {

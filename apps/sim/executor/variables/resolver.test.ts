@@ -286,6 +286,47 @@ async function evaluateResolvedCondition(
   }
 }
 
+function createOffloadEnv(language: string, producerOutput: Record<string, unknown>) {
+  const { block, ctx } = createResolver(language)
+  const producer = createBlock('producer', 'Producer', BlockType.API)
+  const state = new ExecutionState()
+  state.setBlockOutput('producer', producerOutput)
+  const workflow: SerializedWorkflow = {
+    version: '1',
+    blocks: [producer, block],
+    connections: [],
+    loops: {},
+    parallels: {},
+  }
+  const resolver = new VariableResolver(workflow, {}, state)
+  const durableCtx = {
+    ...ctx,
+    blockStates: state.getBlockStates(),
+    workspaceId: 'workspace-1',
+    workflowId: 'workflow-1',
+    executionId: 'execution-1',
+    largeValueKeys: [] as string[],
+  } as ExecutionContext
+  return { block, resolver, durableCtx }
+}
+
+function largeRef(size: number) {
+  return {
+    __simLargeValueRef: true,
+    version: 1,
+    id: 'lv_ABCDEFGHIJKL',
+    kind: 'string',
+    size,
+    key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
+    executionId: 'execution-1',
+  }
+}
+
+function resolveAgainstProducer(language: string, output: Record<string, unknown>, code: string) {
+  const { block, resolver, durableCtx } = createOffloadEnv(language, output)
+  return resolver.resolveInputsForFunctionBlock(durableCtx, 'function', { code }, block)
+}
+
 describe('VariableResolver function block inputs', () => {
   it('inlines only structurally inert condition literals and defers the rest to the compiler', async () => {
     const { ctx, resolver } = createResolver()
@@ -924,116 +965,100 @@ describe('VariableResolver function block inputs', () => {
   })
 
   it('fails whole large value refs for Function runtimes without lazy helpers', async () => {
-    const { block, ctx } = createResolver('python')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      result: {
-        __simLargeValueRef: true,
-        version: 1,
-        id: 'lv_ABCDEFGHIJKL',
-        kind: 'object',
-        size: 12 * 1024 * 1024,
-        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
-        executionId: 'execution-1',
-      },
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const largeResolver = new VariableResolver(workflow, {}, state)
-    const largeCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-    } as ExecutionContext
-
     await expect(
-      largeResolver.resolveInputsForFunctionBlock(
-        largeCtx,
-        'function',
-        { code: 'return <Producer.result>' },
-        block
+      resolveAgainstProducer(
+        'python',
+        { result: largeRef(12 * 1024 * 1024) },
+        'return <Producer.result>'
       )
-    ).rejects.toThrow('This execution value is too large to inline')
+    ).rejects.toThrow(
+      '<Producer.result> is too large to pass inline (12.0 MB). Select a smaller field, or read it in JavaScript without imports.'
+    )
   })
 
   it('fails whole large value refs for JavaScript with imports', async () => {
-    const { block, ctx } = createResolver('javascript')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      result: {
-        __simLargeValueRef: true,
-        version: 1,
-        id: 'lv_ABCDEFGHIJKL',
-        kind: 'object',
-        size: 12 * 1024 * 1024,
-        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
-        executionId: 'execution-1',
-      },
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const largeResolver = new VariableResolver(workflow, {}, state)
-    const largeCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-    } as ExecutionContext
-
     await expect(
-      largeResolver.resolveInputsForFunctionBlock(
-        largeCtx,
-        'function',
-        { code: "import x from 'x'\nreturn <Producer.result>" },
-        block
+      resolveAgainstProducer(
+        'javascript',
+        { result: largeRef(12 * 1024 * 1024) },
+        "import x from 'x'\nreturn <Producer.result>"
       )
-    ).rejects.toThrow('This execution value is too large to inline')
+    ).rejects.toThrow(
+      '<Producer.result> is too large to pass inline (12.0 MB). Select a smaller field, or read it in JavaScript without imports.'
+    )
   })
 
-  it('fails nested large value refs for JavaScript instead of leaking ref markers', async () => {
-    const { block, ctx } = createResolver('javascript')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      result: {
-        rows: {
-          __simLargeValueRef: true,
-          version: 1,
-          id: 'lv_ABCDEFGHIJKL',
-          kind: 'array',
-          size: 12 * 1024 * 1024,
-          key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
-          executionId: 'execution-1',
-        },
-      },
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const largeResolver = new VariableResolver(workflow, {}, state)
-    const largeCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-    } as ExecutionContext
-
-    await expect(
-      largeResolver.resolveInputsForFunctionBlock(
-        largeCtx,
-        'function',
-        { code: 'return <Producer.result>.rows.length' },
-        block
+  describe('nested large values', () => {
+    it('names the nested field instead of leaking ref markers', async () => {
+      await expect(
+        resolveAgainstProducer(
+          'javascript',
+          { result: { rows: largeRef(12 * 1024 * 1024) } },
+          'return <Producer.result>.rows.length'
+        )
+      ).rejects.toThrow(
+        '<Producer.result> contains a 12.0 MB value at <Producer.result.rows>. Reference that field directly.'
       )
-    ).rejects.toThrow('This execution value contains nested large values')
+    })
+
+    it('names the array index of a large value nested in an array', async () => {
+      await expect(
+        resolveAgainstProducer(
+          'javascript',
+          { contents: [largeRef(10.5 * 1024 * 1024)] },
+          'return <Producer.contents>[0].slice(0, 10)'
+        )
+      ).rejects.toThrow(
+        '<Producer.contents> contains a 10.5 MB value at <Producer.contents[0]>. Reference that field directly.'
+      )
+    })
+
+    it('names a nested array manifest without descending into its chunks', async () => {
+      const chunk = largeRef(9 * 1024 * 1024)
+      const manifest = {
+        __simLargeArrayManifest: true,
+        version: 2,
+        kind: 'array',
+        totalCount: 2,
+        chunkCount: 1,
+        byteSize: chunk.size,
+        chunks: [{ ref: chunk, count: 2, byteSize: chunk.size }],
+        preview: [],
+      }
+      await expect(
+        resolveAgainstProducer(
+          'javascript',
+          { result: { items: manifest } },
+          'return <Producer.result>.items.length'
+        )
+      ).rejects.toThrow(
+        '<Producer.result> contains a 9.0 MB value at <Producer.result.items>. Reference that field directly.'
+      )
+    })
+
+    it('does not suggest a direct reference where it could not be loaded either', async () => {
+      await expect(
+        resolveAgainstProducer(
+          'python',
+          { contents: [largeRef(10.5 * 1024 * 1024)] },
+          'return <Producer.contents>'
+        )
+      ).rejects.toThrow(
+        '<Producer.contents> contains a 10.5 MB value at <Producer.contents[0]>. Select a smaller field, or read it in JavaScript without imports.'
+      )
+    })
+
+    it('omits a field reference that a key cannot be written as', async () => {
+      await expect(
+        resolveAgainstProducer(
+          'javascript',
+          { result: { 'report.txt': largeRef(10.5 * 1024 * 1024) } },
+          'return <Producer.result>'
+        )
+      ).rejects.toThrow(
+        '<Producer.result> contains a 10.5 MB value. Reference the field you need directly.'
+      )
+    })
   })
 
   it('breaks JavaScript string literals around quoted block references', async () => {
@@ -1147,30 +1172,6 @@ describe('VariableResolver function block inputs', () => {
 
 describe('VariableResolver function context overflow offload', () => {
   const REF_KEY = 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json'
-
-  function createOffloadEnv(language: string, producerOutput: Record<string, unknown>) {
-    const { block, ctx } = createResolver(language)
-    const producer = createBlock('producer', 'Producer', BlockType.API)
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', producerOutput)
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [producer, block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const resolver = new VariableResolver(workflow, {}, state)
-    const durableCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      largeValueKeys: [] as string[],
-    } as ExecutionContext
-    return { block, resolver, durableCtx }
-  }
 
   beforeEach(() => {
     mockStoreLargeValue.mockReset()
