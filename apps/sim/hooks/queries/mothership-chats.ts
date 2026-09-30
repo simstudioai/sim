@@ -45,6 +45,8 @@ export interface MothershipChatMetadata {
   isUnread: boolean
   isPinned: boolean
   deletedAt: Date | null
+  /** Workspaces the chat's resources live in. */
+  workspaceIds: string[]
 }
 
 export interface MothershipChatHistory {
@@ -216,6 +218,7 @@ export function mapChat(chat: MothershipChat): MothershipChatMetadata {
       (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
     isPinned: chat.pinned,
     deletedAt: chat.deletedAt ? new Date(chat.deletedAt) : null,
+    workspaceIds: chat.workspaceIds,
   }
 }
 
@@ -745,6 +748,7 @@ export function useForkMothershipChat(owner?: MothershipChatOwner) {
           isUnread: false,
           isPinned: false,
           deletedAt: null,
+          workspaceIds: sourceChat?.workspaceIds ?? [],
         }
         const pinnedCount = existing.findIndex((chat) => !chat.isPinned)
         const insertAt = pinnedCount === -1 ? existing.length : pinnedCount

@@ -44,12 +44,9 @@ interface ProjectRowProps {
   href: string
   newChatHref: string
   active: boolean
-  /** Whether the chats under the row are shown; undefined when there are none to show. */
-  expanded?: boolean
   railCollapsed: boolean
   drag: ProjectDragProps
   isAnyDragActive: boolean
-  onToggleExpand: () => void
 }
 
 /**
@@ -62,11 +59,9 @@ export function ProjectRow({
   href,
   newChatHref,
   active,
-  expanded,
   railCollapsed,
   drag,
   isAnyDragActive,
-  onToggleExpand,
 }: ProjectRowProps) {
   const actions = useProjectActions()
   const pinned = actions.isPinned(project)
@@ -172,13 +167,11 @@ export function ProjectRow({
                   event.preventDefault()
                   return
                 }
-                onToggleExpand()
               }}
               onDoubleClick={(event) => {
                 event.preventDefault()
                 rename.handleStartEdit()
               }}
-              aria-expanded={expanded}
               className='flex min-w-0 flex-1 items-center gap-2'
             >
               <IdentityTile initial={project.name[0]} />

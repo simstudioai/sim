@@ -17,8 +17,13 @@ import {
   ProjectsSection,
   WorkspacesSection,
 } from '@/app/o/[organizationId]/components/organization-sidebar/components'
-import { useOrganizationChats } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
+import { ProjectMarks } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section'
+import {
+  type OrganizationChat,
+  useOrganizationChats,
+} from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
+import { useProjects } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationSettingsSidebar } from '@/app/o/[organizationId]/settings/organization-settings-sidebar'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
@@ -93,6 +98,16 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   const isMac = isMacPlatform()
   const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
   const projectViewEnabled = useFeatureFlag('org-project-view')
+  const { projectByWorkspace } = useProjects(organization.id)
+  /** A chat can span projects, so its row leads with the marks of every project it touched. */
+  const chatProjectMarks = (chat: OrganizationChat) => {
+    const touched = new Map<string, { id: string; name: string }>()
+    for (const workspaceId of chat.workspaceIds ?? []) {
+      const project = projectByWorkspace.get(workspaceId)
+      if (project) touched.set(project.id, { id: project.id, name: project.name })
+    }
+    return <ProjectMarks projects={[...touched.values()]} />
+  }
   const navItems = buildOrganizationNavItems(
     organization.id,
     searchAccess.memberScoped,
@@ -285,6 +300,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                       organizationId={organization.id}
                       isCollapsed={isCollapsed}
                       pathname={pathname}
+                      leadingFor={projectViewEnabled ? chatProjectMarks : undefined}
                     />
                   )}
                 </div>

@@ -1,3 +1,4 @@
+export { ProjectMarks } from './project-marks'
 export { ProjectRow } from './project-row'
 export { ProjectsSection } from './projects-section'
 export { useProjectActions } from './use-project-actions'

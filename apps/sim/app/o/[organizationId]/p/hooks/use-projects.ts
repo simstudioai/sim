@@ -37,7 +37,14 @@ export function useProjects(organizationId: string) {
   })
   /** One entry per project for the sidebar and pickers: each lineage's root. */
   const roots = projects.filter((project) => project.rootId === project.id)
-  return { projects, roots, isPending: query.isPending, error: query.error }
+  const rootById = new Map(roots.map((root) => [root.id, root]))
+  /** The project each workspace belongs to, by workspace id. */
+  const projectByWorkspace = new Map<string, Project>()
+  for (const project of projects) {
+    const root = rootById.get(project.rootId)
+    if (root) projectByWorkspace.set(project.id, root)
+  }
+  return { projects, roots, projectByWorkspace, isPending: query.isPending, error: query.error }
 }
 
 export function useProject(organizationId: string, workspaceId: string) {
