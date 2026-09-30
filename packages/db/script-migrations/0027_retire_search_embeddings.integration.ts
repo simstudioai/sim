@@ -390,6 +390,84 @@ describe('retiring dormant Search embeddings', () => {
     }
   }, 60_000)
 
+  it('bounds the IDs each page reads by the row limit once the limit shrinks', async () => {
+    const docs = 3000
+    const bound = 25
+    await sql`INSERT INTO document (id, knowledge_base_id)
+      SELECT 'doc-' || lpad(i::text, 5, '0'), 'search' FROM generate_series(1, ${docs}) i`
+    /** Statements over `bound` rows time out, which pins the row limit at its 25-row floor. */
+    await sql.unsafe(`CREATE FUNCTION bound_document_update() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF (SELECT count(*) FROM changed_rows) > ${bound} THEN
+          RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = 'query_canceled';
+        END IF;
+        RETURN NULL;
+      END $$`)
+    await sql`CREATE TRIGGER bound_document_update AFTER UPDATE ON document
+      REFERENCING NEW TABLE AS changed_rows FOR EACH STATEMENT EXECUTE FUNCTION bound_document_update()`
+    /**
+     * On a table this small the planner may answer any page with a sequential scan, which reads
+     * every row whatever the window; production pages use the primary key, so the test does too.
+     */
+    await sql`SET enable_seqscan = off`
+    /** Document rows read by any scan, counted across committed and rolled-back pages alike. */
+    async function documentReads() {
+      await sql`SELECT pg_stat_force_next_flush()`
+      await admin`SELECT pg_stat_clear_snapshot()`
+      const [row] = await admin`SELECT (seq_tup_read + coalesce(idx_tup_fetch, 0))::int AS n
+        FROM pg_stat_user_tables WHERE schemaname = ${schema} AND relname = 'document'`
+      return row.n
+    }
+    try {
+      const before = await documentReads()
+      expect(await pass()).toBe(true)
+      const reads = (await documentReads()) - before
+      /**
+       * About 120 pages retire the 3,001 documents 25 at a time, each after one rolled-back attempt
+       * at 50 rows. A window of four IDs per row reads about 300 IDs and 75 update lookups per page,
+       * roughly 15 reads per document, plus the chunk phase and completion rechecks. A fixed
+       * 25,000-ID window re-reads the rest of the table on every attempt, over 100 per document.
+       */
+      expect(reads).toBeLessThan(30 * docs)
+      expect(
+        (
+          await sql`SELECT count(*)::int AS n FROM document
+          WHERE knowledge_base_id = 'search' AND (NOT user_excluded OR enabled)`
+        )[0].n
+      ).toBe(0)
+    } finally {
+      await sql`RESET enable_seqscan`
+      await sql`DROP TRIGGER IF EXISTS bound_document_update ON document`
+      await sql`DROP FUNCTION bound_document_update()`
+    }
+  }, 120_000)
+
+  it('gives the completed-retirement recheck the completion timeout when it resumes', async () => {
+    expect(await pass()).toBe(true)
+    await sql`DELETE FROM script_migrations`
+    /** Stands in for a recheck that outlasts the two-minute page timeout on a large target set. */
+    await sql`CREATE FUNCTION require_recheck_timeout() RETURNS boolean LANGUAGE plpgsql AS $$
+      BEGIN
+        IF current_setting('statement_timeout') <> '30min' THEN
+          RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = 'query_canceled';
+        END IF;
+        RETURN true;
+      END $$`
+    await sql`ALTER TABLE search_embedding_cleanup_targets RENAME TO captured_targets`
+    await sql`CREATE VIEW search_embedding_cleanup_targets AS
+      SELECT knowledge_base_id FROM captured_targets WHERE require_recheck_timeout()`
+    try {
+      expect(await sql`SELECT phase FROM search_embedding_cleanup_progress`).toEqual([
+        { phase: 'done' },
+      ])
+      expect(await pass()).toBe(true)
+    } finally {
+      await sql`DROP VIEW IF EXISTS search_embedding_cleanup_targets`
+      await sql`ALTER TABLE IF EXISTS captured_targets RENAME TO search_embedding_cleanup_targets`
+      await sql`DROP FUNCTION require_recheck_timeout()`
+    }
+  })
+
   it('scans past a run of already-retired documents longer than the row limit in one page', async () => {
     /** 6,000 retired Search documents exceed the initial 2,000-row limit but fit one 25,000-ID scan. */
     await sql`INSERT INTO document (id, knowledge_base_id, user_excluded, enabled)

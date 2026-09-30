@@ -30,18 +30,20 @@ resume the saved scope, phase, cursor and maintenance checkpoints.
 The existing maintenance implementation rebuilds HNSW indexes and vacuums affected tables before
 deployment continues.
 
-Each page reads at most 25,000 IDs and mutates at most a row limit of them. Pages execute
+Each page mutates at most a row limit of target rows and reads at most four IDs per row of that
+limit, never more than 25,000 IDs. Pages execute
 sequentially, and each is followed by a pause as long as the page took, up to five seconds, to
 leave the primary headroom. Retiring a document is a non-HOT update that writes every index on
 `document`, and deleting a chunk cascades into its projections, so a page's cost follows the target
 rows it mutates, not the IDs it reads. A page that reaches the row limit advances the cursor only to
-its last mutated row; the rest of its scan is read again by the next page. Documents that are
-already retired never count against the limit.
+its last mutated row; the rest of its scan is read again by the next page. Tying the scan window to
+the limit keeps that re-reading proportional to the work, even after the limit shrinks. Documents
+that are already retired never count against the limit.
 
 The row limit starts at 2,000 rows. A page is timed from the start of its transaction through its
 commit, including the synchronous-replication wait and any lock-timeout retries. A page slower than
-30 seconds halves the limit. A fast page, one under 7.5 seconds, that reached the limit doubles it,
-up to 8,000. The limit never drops below 25 rows. Phase changes do not adjust it.
+30 seconds halves the limit. A fast page, one under 7.5 seconds, doubles it up to 8,000, which
+also widens the scan window, so sparse stretches are not crawled in small windows. The limit never drops below 25 rows. Phase changes do not adjust it.
 
 Materialized SQL pages keep the IDs inside PostgreSQL; the migration process receives only a cursor
 and a validation result. Each page uses a two-minute statement timeout and a one-second lock
@@ -88,7 +90,7 @@ unrelated rows. Before completion, the cleanup checks for unretired documents an
 behind either cursor and restarts the affected phase if needed. A final bounded pass validates all
 captured KB markers, including empty KBs and KBs whose rows were already scanned, holding shared
 marker locks until the completion checkpoint commits. Resuming a completed cleanup before maintenance
-also revalidates the captured set. Keep target writers stopped and
+also revalidates the captured set, with the same 30-minute timeout as the completion recheck. Keep target writers stopped and
 do not change their Search markers during the pass.
 
 Inspect progress with:
