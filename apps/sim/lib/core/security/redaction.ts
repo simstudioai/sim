@@ -20,6 +20,7 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^client[_-]?secret$/i,
   /^private[_-]?key$/i,
   /^auth[_-]?token$/i,
+  /^.*service[_-]?token[_-]?id$/i,
   /^.*secret$/i,
   /^.*password$/i,
   /^.*token$/i,

@@ -244,6 +244,41 @@ describe('canonical index scoping by surface', () => {
     { id: 'triggerSiteId', type: 'dropdown', canonicalParamId: 'siteId', mode: 'trigger' },
   ] as SubBlockConfig[]
 
+  it.concurrent(
+    'does not let inactive trigger aliases replace concrete action dependencies',
+    () => {
+      const fields = [
+        { id: 'serviceToken', type: 'short-input' },
+        {
+          id: 'triggerServiceToken',
+          type: 'short-input',
+          canonicalParamId: 'serviceToken',
+          mode: 'trigger',
+        },
+        ...MIXED,
+      ] as SubBlockConfig[]
+      const values = {
+        serviceToken: 'action-secret',
+        triggerServiceToken: 'stale-trigger-secret',
+        siteSelector: 'action-site',
+        triggerSiteId: 'stale-trigger-site',
+      }
+      const action = buildCanonicalIndexForSurface(fields, false)
+      expect(resolveActiveDependencyValue('serviceToken', values, action)).toBe('action-secret')
+      expect(
+        resolveActiveDependencyValue('serviceToken', { ...values, serviceToken: undefined }, action)
+      ).toBeUndefined()
+      expect(resolveActiveDependencyValue('triggerSiteId', values, action)).toBe('action-site')
+      expect(
+        resolveActiveDependencyValue(
+          'serviceToken',
+          values,
+          buildCanonicalIndexForSurface(fields, true)
+        )
+      ).toBe('stale-trigger-secret')
+    }
+  )
+
   it.concurrent('keeps the whole array on the action surface', () => {
     expect(getCanonicalSubBlocksForSurface(MIXED, false)).toBe(MIXED)
   })

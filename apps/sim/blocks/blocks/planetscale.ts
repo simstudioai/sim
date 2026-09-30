@@ -1,5 +1,6 @@
 import { PlanetScaleIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 function optionalBoolean(value: unknown): boolean | undefined {
   if (value === undefined || value === null || value === '') return undefined
@@ -28,10 +29,18 @@ export const PlanetScaleBlock: BlockConfig = {
       byOperation: {
         list_databases: ['List databases', { text: 'in', field: 'organization', core: true }],
         get_database: [
-          { text: 'Read database', field: ['databaseSelector', 'manualDatabase'], core: true },
+          {
+            text: 'Read database',
+            field: ['databaseSelector', 'manualDatabase'],
+            core: true,
+          },
         ],
         list_branches: [
-          { text: 'List branches in', field: ['databaseSelector', 'manualDatabase'], core: true },
+          {
+            text: 'List branches in',
+            field: ['databaseSelector', 'manualDatabase'],
+            core: true,
+          },
         ],
         get_branch: [{ text: 'Get branch', field: ['branchSelector', 'manualBranch'], core: true }],
         create_branch: [
@@ -789,7 +798,46 @@ export const PlanetScaleBlock: BlockConfig = {
       condition: { field: 'operation', value: ['review_deploy_request'] },
       required: false,
     },
+    ...getTrigger('planetscale_branch_ready').subBlocks,
+    ...getTrigger('planetscale_branch_anomaly').subBlocks,
+    ...getTrigger('planetscale_branch_out_of_memory').subBlocks,
+    ...getTrigger('planetscale_branch_primary_promoted').subBlocks,
+    ...getTrigger('planetscale_branch_sleeping').subBlocks,
+    ...getTrigger('planetscale_branch_start_maintenance').subBlocks,
+    ...getTrigger('planetscale_backup_failed').subBlocks,
+    ...getTrigger('planetscale_backup_succeeded').subBlocks,
+    ...getTrigger('planetscale_deploy_request_opened').subBlocks,
+    ...getTrigger('planetscale_deploy_request_queued').subBlocks,
+    ...getTrigger('planetscale_deploy_request_in_progress').subBlocks,
+    ...getTrigger('planetscale_deploy_request_pending_cutover').subBlocks,
+    ...getTrigger('planetscale_deploy_request_schema_applied').subBlocks,
+    ...getTrigger('planetscale_deploy_request_errored').subBlocks,
+    ...getTrigger('planetscale_deploy_request_reverted').subBlocks,
+    ...getTrigger('planetscale_deploy_request_closed').subBlocks,
+    ...getTrigger('planetscale_webhook').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'planetscale_branch_ready',
+      'planetscale_branch_anomaly',
+      'planetscale_branch_out_of_memory',
+      'planetscale_branch_primary_promoted',
+      'planetscale_branch_sleeping',
+      'planetscale_branch_start_maintenance',
+      'planetscale_backup_failed',
+      'planetscale_backup_succeeded',
+      'planetscale_deploy_request_opened',
+      'planetscale_deploy_request_queued',
+      'planetscale_deploy_request_in_progress',
+      'planetscale_deploy_request_pending_cutover',
+      'planetscale_deploy_request_schema_applied',
+      'planetscale_deploy_request_errored',
+      'planetscale_deploy_request_reverted',
+      'planetscale_deploy_request_closed',
+      'planetscale_webhook',
+    ],
+  },
   inputs: {
     serviceTokenId: { type: 'string', description: 'Service token ID' },
     serviceToken: { type: 'string', description: 'Service token secret' },

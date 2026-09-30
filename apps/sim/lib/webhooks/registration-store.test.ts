@@ -1,4 +1,5 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsDeploymentOperationCurrent, mockClaimWebhookPath } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import {
   activateWebhookRegistrations,
+  checkpointWebhookCandidate,
   prepareWebhookRegistrationIntents,
   StaleWebhookRegistrationOperationError,
   type WebhookRegistrationOperationFence,
@@ -382,4 +384,49 @@ describe('redeploys racing within seconds', () => {
       })
     )
   })
+})
+
+describe('registration persistence confidentiality', () => {
+  beforeEach(resetDbChainMock)
+  it('preserves non-database domain errors for deployment classification', async () => {
+    const error = Object.assign(new Error('Webhook path is already claimed'), {
+      code: 'webhook_path_conflict',
+    })
+    dbChainMockFns.transaction.mockRejectedValueOnce(error)
+    await expect(prepareWebhookRegistrationIntents({ fence: FENCE, desired: [] })).rejects.toBe(
+      error
+    )
+  })
+
+  it.each(['intent', 'checkpoint'])(
+    'projects credential-bearing database errors into safe %s failures',
+    async (phase) => {
+      const credential = 'fixture-registration-secret-must-never-escape'
+      const databaseError = new DrizzleQueryError(
+        'insert webhook values ($1)',
+        [JSON.stringify({ token: credential })],
+        new Error(credential)
+      )
+      dbChainMockFns.transaction.mockRejectedValueOnce(databaseError)
+      dbChainMockFns.returning.mockRejectedValueOnce(databaseError)
+      const operation =
+        phase === 'intent'
+          ? prepareWebhookRegistrationIntents({ fence: FENCE, desired: [] })
+          : checkpointWebhookCandidate({
+              fence: FENCE,
+              webhookId: 'fixture-id',
+              providerConfig: { token: credential },
+            })
+      try {
+        await operation
+        expect.fail('Persistence must fail')
+      } catch (error) {
+        expect(error).not.toBe(databaseError)
+        expect(String(error)).not.toContain(credential)
+        expect(JSON.stringify(error)).not.toContain(credential)
+        expect((error as Error).cause).toBeUndefined()
+        expect((error as Error).stack).not.toContain(credential)
+      }
+    }
+  )
 })

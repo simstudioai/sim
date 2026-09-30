@@ -79,6 +79,18 @@ describe('canonical-pair completeness', () => {
     { id: 'manualTableId', canonicalParamId: 'tableId', mode: 'advanced' as const },
   ]
 
+  it('keeps inactive trigger members out of action sentence canonical pairs', () => {
+    const config = createConfig(
+      { default: [{ text: 'Query', field: ['tableSelector', 'manualTableId'], core: true }] },
+      [
+        ...pairSubBlocks,
+        { id: 'triggerTableSelector', canonicalParamId: 'tableId', mode: 'trigger' },
+        { id: 'triggerManualTableId', canonicalParamId: 'tableId', mode: 'trigger-advanced' },
+      ]
+    )
+    expect(messages(config)).toEqual([])
+  })
+
   it('rejects a clause naming only the basic member', () => {
     const config = createConfig(
       { default: [{ text: 'Query', field: 'tableSelector', core: true }] },

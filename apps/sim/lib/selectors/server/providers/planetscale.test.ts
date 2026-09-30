@@ -49,6 +49,46 @@ describe('PlanetScale server selectors', () => {
     fetchMock.mockReset()
   })
 
+  it('projects trigger credentials and preserves environment references while ignoring stale action values', async () => {
+    fetchMock.mockResolvedValueOnce(page([{ id: 'fixture-database-id', name: 'fixture-db' }]))
+    const values = {
+      selectedTriggerId: 'planetscale_branch_ready',
+      triggerServiceTokenId: 'fixture-id',
+      triggerServiceToken: 'fixture-token',
+      triggerOrganization: 'fixture-org',
+      triggerDatabaseSelector: 'fixture-db',
+      triggerManualDatabase: 'stale-manual',
+      serviceTokenId: 'stale-action-id',
+      serviceToken: 'stale-action-token',
+      organization: 'stale-action-org',
+    }
+    const picker = PlanetScaleBlock.subBlocks.find(
+      (field) => field.id === 'triggerDatabaseSelector'
+    )!
+    expect(picker).toBeTruthy()
+    const buildContext = (current: Record<string, unknown>) =>
+      buildSelectorContextFromValues({
+        selectorKey: 'planetscale.databases',
+        contextConfigs: getSelectorContextSubBlocks(PlanetScaleBlock.subBlocks, current, true),
+        values: current,
+        dependsOn: getDependsOnFields(picker.dependsOn),
+        canonicalIndex: buildCanonicalIndexForSurface(PlanetScaleBlock.subBlocks, true),
+      })
+    const context = buildContext(values)
+    await expect(
+      planetScaleSelectorAttachments['planetscale.databases'].execute(args({ context }))
+    ).resolves.toEqual({ kind: 'list', items: [{ id: 'fixture-db', label: 'fixture-db' }] })
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe(
+      '/v1/organizations/fixture-org/databases'
+    )
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(
+      'fixture-id:fixture-token'
+    )
+    expect(
+      buildContext({ ...values, triggerServiceToken: '{{PLANETSCALE_TOKEN}}' }).serviceToken
+    ).toBe('{{PLANETSCALE_TOKEN}}')
+  })
+
   it.each([{ serviceToken: '' }, { serviceTokenId: 'id\r\nInjected' }, { organization: '..' }])(
     'rejects invalid credential or scope input before contacting the provider: %j',
     async (context) => {
@@ -128,6 +168,9 @@ describe('PlanetScale server selectors', () => {
         serviceTokenId: 'test-id',
         serviceToken: 'test-secret',
         organization: 'example',
+        triggerServiceTokenId: 'stale-trigger-id',
+        triggerServiceToken: 'stale-trigger-secret',
+        triggerOrganization: 'stale-trigger-org',
         databaseSelector: 'test-db',
         operation,
         [branchField]: 'development',
@@ -164,6 +207,9 @@ describe('PlanetScale server selectors', () => {
         serviceTokenId: 'test-id',
         serviceToken: 'test-secret',
         organization: 'example',
+        triggerServiceTokenId: 'stale-trigger-id',
+        triggerServiceToken: 'stale-trigger-secret',
+        triggerOrganization: 'stale-trigger-org',
         databaseSelector: 'test-db',
         operation: 'create_branch',
         branchSelector: 'stale-hidden',
