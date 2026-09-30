@@ -11,7 +11,6 @@ import {
   ForbiddenOperationError,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isDashboardsEnabled, requireDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { getSkillActorContext, listSkillEditors, type SkillEditor } from '@/lib/skills/access'
 import { skillDelegationPolicy } from '@/lib/skills/application/authorization'
 import { skillOperations } from '@/lib/skills/application/operations'
@@ -212,9 +211,6 @@ export const listSkillsUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ input, context }) {
     const page = await listSkillSummariesPage({
       workspaceId: context.workspaceId,
-      excludedBuiltinIds: (await isDashboardsEnabled(context.workspaceOrganizationId))
-        ? []
-        : ['builtin-create-dashboard'],
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
@@ -243,9 +239,6 @@ export const listAvailableSkillsUseCase = defineAuthorizedWorkspaceUseCase({
     const skills = await listSkillsForUser({
       workspaceId: context.workspaceId,
       userId: requirePrincipalSubjectUserId(principal),
-      excludedBuiltinIds: (await isDashboardsEnabled(context.workspaceOrganizationId))
-        ? []
-        : ['builtin-create-dashboard'],
     })
     return { skills }
   },
@@ -261,11 +254,6 @@ export const getSkillUseCase = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: GetSkillInput }) =>
     resolveSkillContext(input.workspaceId, input.skillId),
   authorizationOptions,
-  async authorizeResource({ context }) {
-    if (context.skill.id === 'builtin-create-dashboard') {
-      await requireDashboardsEnabled(context.workspaceOrganizationId)
-    }
-  },
   async execute({ context }) {
     return { skill: context.skill }
   },

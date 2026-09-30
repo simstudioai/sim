@@ -1,10 +1,10 @@
 # Table-backed dashboards
 
-Each workspace has at most one dashboard, a separate resource with its own sidebar page, resource tab, and Mothership `dashboards get` / `dashboards set` commands. Sim builds it: the page shows an empty state until the first save, and there is no create, rename, move, or folder operation. A partial unique index (migration 0392) keeps one live dashboard per workspace; lifting the limit means dropping it. Storage reuses workspace files with MIME type `text/x-sim-dashboard`; the backing `.dashboard` suffix is hidden from display names. The built-in **create-dashboard** skill documents the syntax without example dashboards or prescribed layouts. Sharing is deferred.
+Each workspace has at most one dashboard, a separate resource with its own sidebar page, resource tab, and Mothership `dashboards get` / `dashboards set` commands. Sim builds it: the page shows an empty state until the first save, and there is no create, rename, move, or folder operation. Dashboards live in the `dashboard` table (migration 0392) with their own id; a unique index on `workspace_id` keeps one per workspace, and dropping it allows several. Saves compare the stored `revision`, so a concurrent edit is never overwritten. Mothership's **create-dashboard** skill documents the syntax. Sharing and fork copies are deferred.
 
 The implementation has three boundaries:
 
-- `spec.ts` validates a bounded YAML document and normalizes ECharts options through the existing `.chart` safety rules. It rejects unknown layout/source keys and reports errors in the viewer and the file VFS `compiled-check` path.
+- `spec.ts` validates a bounded YAML document and normalizes ECharts options through the existing `.chart` safety rules. It rejects unknown layout/source keys; saves reject invalid YAML and the viewer reports panel errors.
 - `table/analytics` computes exact aggregates over authorized table rows. The internal POST `/api/table/[tableId]/analytics` is a session-authenticated adapter for `tables.rows.analytics`, requiring the current viewer's workspace read role and `tables.use`. The operation is session-only because this release's sole query caller is the workspace renderer. Public/versioned query APIs, workflow/executor callers and log queries are deferred. Dashboard APIs and Mothership tools share the dashboard application operations.
 - `components/dashboards` owns EMCN layout, controls and states. `components/charts/echarts-view.tsx` also renders existing `.chart` files, using the local EMCN tokens for its canvas theme. `.chart` retains its existing sampled source behavior; dashboard aggregation is performed on the server.
 
@@ -45,7 +45,7 @@ Queries reuse the table predicate compiler and the existing read-only repeatable
 
 Bounds: 128 KB source, 48 blocks, 4 layout levels, 2 grouping fields, 8 measures, 12 projected columns, 500 result rows and 8 KB per returned row. Limits apply after aggregation. An explicit limit yields a labeled top-N result; unrequested group overflow is an error. API rate admission is per viewer. Errors are never turned into successful zeros. Only visible tabs mount their query observers; identical queries share React Query cache entries for one minute, and Refresh requests fresh data.
 
-Public file shares show a workspace-only message and issue no table requests. This release does not embed live dashboards in public HTML pages or export them as self-contained HTML. Row/query data is not persisted inside the dashboard file.
+Dashboards are workspace-only: there is no public sharing, embedding in public HTML pages, or self-contained export. Row/query data is never persisted with the dashboard.
 
 ## Validation
 
@@ -67,21 +67,12 @@ global switch. Local development uses `DASHBOARDS=true` in the app's ignored
 environment file.
 
 The server resolves the flag for the canonical workspace organization. It gates
-dashboard operations, table analytics, UI entry points, and the
-built-in authoring skill. Mothership receives that availability per turn and
-persists it for continuation; disabled runs omit dashboard commands and skills.
+dashboard operations, table analytics, and UI entry points. Mothership receives it per
+turn as the `dashboards` entitlement and persists it for continuation; runs without it
+omit the dashboard commands, the create-dashboard skill, and dashboard prompt text.
 The Sim server checks current availability on every dashboard operation, including
 calls from a run admitted before the flag changed.
 
 Apply both repositories' additive migrations and deploy the companion worker
 before enabling the flag. Sharing and a tool for capturing the user's displayed
 data are deferred.
-
-
-## Storage
-
-The workspace dashboard is a workspace file at the root with content type
-`text/x-sim-dashboard`. Files listings, file search, and workflow file pickers exclude that
-content type, and only the dashboard use case may write it, so the backing file never appears
-or changes as an ordinary file. Versions, billing, cleanup, and complete workspace copies
-still include it.
