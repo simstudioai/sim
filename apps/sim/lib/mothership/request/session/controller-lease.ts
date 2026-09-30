@@ -28,26 +28,6 @@ export async function assertChatStreamLease(lease: ChatStreamLease): Promise<voi
   }
 }
 
-/**
- * The streams among these whose own controller holds its chat lock, under any token: a
- * recovering controller locks the chat before it claims the run. Throws when the locks
- * cannot be read, since then no stream is provably unowned.
- */
-export async function findStreamsHoldingChatLock(
-  streams: Array<{ chatId: string; streamId: string }>
-): Promise<Set<string>> {
-  const redis = getRedisClient()
-  if (!redis) throw new Error('Chat stream locks are unreadable without Redis')
-  if (streams.length === 0) return new Set()
-  const values = await redis.mget(streams.map(({ chatId }) => chatStreamLockKey(chatId)))
-  const held = new Set<string>()
-  streams.forEach(({ streamId }, index) => {
-    const value = values[index]
-    if (value && streamIdFromLock(value) === streamId) held.add(streamId)
-  })
-  return held
-}
-
 /** Whether this lease still holds its chat lock; an unreadable lock counts as lost. */
 export async function holdsChatStreamLease(lease: ChatStreamLease): Promise<boolean> {
   try {

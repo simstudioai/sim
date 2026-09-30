@@ -23,10 +23,11 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import type { DbTransaction } from '@/lib/db/types'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
+import { getChatStreamLockOwners } from '@/lib/mothership/request/session/abort'
 import { findStreamsWithReplay } from '@/lib/mothership/request/session/buffer'
-import { findStreamsHoldingChatLock } from '@/lib/mothership/request/session/controller-lease'
 
 const logger = createLogger('OrphanedCopilotRuns')
 
@@ -110,13 +111,8 @@ const unownedRunColumns = {
   controllerToken,
 }
 
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
-
-/** A stopped run ends cancelled; the sweep ends it cancelled only if its user pressed Stop. */
-function terminalValues(reason: 'stopped' | 'orphaned' | 'legacy') {
-  if (reason === 'stopped') {
-    return { status: sql`'cancelled'::copilot_run_status`, error: sql`NULL::text` }
-  }
+/** A run ends cancelled only if its user pressed Stop, whoever settles it. */
+function terminalValues(reason: 'orphaned' | 'legacy') {
   const error = reason === 'orphaned' ? ORPHANED_RUN_ERROR : LEGACY_RUN_ERROR
   return {
     status: sql`(CASE WHEN ${stopRequested} THEN 'cancelled' ELSE 'error' END)::copilot_run_status`,
@@ -135,9 +131,8 @@ function terminalValues(reason: 'stopped' | 'orphaned' | 'legacy') {
  * touching the chat's ordering timestamp.
  */
 async function settleRuns(
-  tx: Transaction,
+  tx: DbTransaction,
   runs: UnownedRun[],
-  reason: 'stopped' | 'orphaned',
   guard: SQL | undefined
 ): Promise<UnownedRun[]> {
   if (runs.length === 0) return []
@@ -182,7 +177,7 @@ async function settleRuns(
   for (const run of runs) {
     if (run.controllerToken === null) continue
     await apply([run], eq(controllerToken, run.controllerToken), {
-      ...terminalValues(reason),
+      ...terminalValues('orphaned'),
       completedAt: sql`now()`,
       updatedAt: sql`now()`,
     })
@@ -215,6 +210,23 @@ function announceSettled(runs: UnownedRun[]): void {
       })
     }
   }
+}
+
+/**
+ * The streams among these whose own controller holds its chat lock, under any token: a
+ * recovering controller locks the chat before it claims the run. Throws unless the
+ * locks were read, since otherwise no stream is provably unowned.
+ */
+async function findStreamsHoldingChatLock(
+  runs: Array<{ chatId: string; streamId: string }>
+): Promise<Set<string>> {
+  const { status, ownersByChatId } = await getChatStreamLockOwners([
+    ...new Set(runs.map((run) => run.chatId)),
+  ])
+  if (status !== 'verified') throw new Error('Chat stream locks are unreadable')
+  return new Set(
+    runs.filter((run) => ownersByChatId.get(run.chatId) === run.streamId).map((run) => run.streamId)
+  )
 }
 
 /** The candidates no controller owns; leased runs are skipped when ownership is unreadable. */
@@ -268,7 +280,7 @@ export async function sweepOrphanedRuns(): Promise<{ settledRunIds: string[] }> 
 
     try {
       const unowned = await withoutOwners(candidates)
-      const settled = await db.transaction((tx) => settleRuns(tx, unowned, 'orphaned', orphanIdle))
+      const settled = await db.transaction((tx) => settleRuns(tx, unowned, orphanIdle))
       announceSettled(settled.filter((run) => run.controllerToken !== null))
       settledRunIds.push(...settled.map((run) => run.id))
     } catch (error) {
@@ -289,7 +301,8 @@ export async function sweepOrphanedRuns(): Promise<{ settledRunIds: string[] }> 
 
 /**
  * Settles a stopped run as cancelled when no controller of its stream holds the chat
- * lock. A live controller observes the Stop and settles its own run.
+ * lock. A live controller observes the Stop and settles its own run. The update itself
+ * requires the recorded Stop, so this can never settle a run nobody stopped.
  */
 export async function settleStoppedRunWithoutController(runId: string): Promise<boolean> {
   const [run] = await db
@@ -299,7 +312,7 @@ export async function settleStoppedRunWithoutController(runId: string): Promise<
     .limit(1)
   if (!run?.controllerToken) return false
   if ((await findStreamsHoldingChatLock([run])).has(run.streamId)) return false
-  const settled = await db.transaction((tx) => settleRuns(tx, [run], 'stopped', undefined))
+  const settled = await db.transaction((tx) => settleRuns(tx, [run], stopRequested))
   announceSettled(settled)
   return settled.length > 0
 }

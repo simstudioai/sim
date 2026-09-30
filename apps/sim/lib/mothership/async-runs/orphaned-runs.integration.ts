@@ -48,7 +48,7 @@ import {
   settleStoppedRunWithoutController,
   sweepOrphanedRuns,
 } from '@/lib/mothership/async-runs/orphaned-runs'
-import { updateRunStatus } from '@/lib/mothership/async-runs/repository'
+import { requestRunStop, updateRunStatus } from '@/lib/mothership/async-runs/repository'
 import { abortRun } from '@/lib/mothership/request/application/controls'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
@@ -158,6 +158,11 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     if (options.stopped)
       await db.insert(copilotRequestStops).values({ userId, workspaceId, streamId })
     return { chatId, streamId, runId, controllerToken }
+  }
+
+  /** Records the user's Stop the way the abort use case does before it settles anything. */
+  async function stop(run: { streamId: string; chatId: string }) {
+    await requestRunStop({ userId, workspaceId, streamId: run.streamId, chatId: run.chatId })
   }
 
   async function stored(runId: string) {
@@ -322,8 +327,19 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     expect(run.marker).toBeNull()
   })
 
+  it('never cancels a run nobody stopped', async () => {
+    const orphan = await admittedRun({ superseded: true })
+
+    expect(await settleStoppedRunWithoutController(orphan.runId)).toBe(false)
+
+    const run = await stored(orphan.runId)
+    expect(run.status).toBe('active')
+    expect(run.marker).toBe(orphan.streamId)
+  })
+
   it('leaves a stopped run to the controller of its stream that holds the chat lock', async () => {
     const owned = await admittedRun()
+    await stop(owned)
     await redis().set(chatStreamLockKey(owned.chatId), owned.controllerToken!, 'EX', 60)
 
     try {
@@ -366,6 +382,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   it('settles a stopped run exactly once when Stop races its own controller finalizing', async () => {
     for (let attempt = 0; attempt < 50; attempt++) {
       const orphan = await admittedRun()
+      await stop(orphan)
 
       const [finalized, stopped] = await Promise.all([
         updateRunStatus(orphan.runId, 'complete', {}, orphan.controllerToken!),
@@ -380,6 +397,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   it('settles a stopped run exactly once when Stop races a recovering controller claiming it', async () => {
     for (let attempt = 0; attempt < 50; attempt++) {
       const orphan = await admittedRun()
+      await stop(orphan)
 
       const [claimed, stopped] = await Promise.all([
         claimRunController({
