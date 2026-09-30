@@ -377,7 +377,7 @@ export async function waitForWorkflowToolCompletion({
       ? { output: trustedExecution.finalOutput }
       : {}),
     // Built from raw logs before projection, matching the server handler's presentation.
-    ...presentWorkflowLogsForModel(trustedExecution.blockLogs, executionId, select),
+    ...presentWorkflowLogsForModel(trustedExecution.blockLogs, executionId, toolRegistry, select),
     ...(trustedExecution.error !== undefined ? { error: trustedExecution.error } : {}),
     ...(status === MothershipStreamV1ToolOutcome.cancelled
       ? { reason: 'user_cancelled', cancelledByUser: true }

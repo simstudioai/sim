@@ -1,6 +1,7 @@
 import type { ToolCallEffect, ToolExecutionResult } from '@/lib/mothership/tool-executor/types'
 import { TOOL_EFFECT_PHASE } from '@/lib/mothership/tool-executor/types'
 import {
+  getResolvedSecretModelMatcher,
   measureModelContent,
   projectResolvedSecretModelJsonContent,
 } from '@/executor/utils/resolved-secret-content-projection'
@@ -234,6 +235,23 @@ export function inspectToolResultForCopilot(
     return { safe: true, result: projected }
   } catch {
     return withheld(result, registry, toolId)
+  }
+}
+
+/**
+ * Whether {@link inspectToolResultForCopilot} will walk a result under `registry` against active
+ * secrets, and so refuse it past the projection's value and depth caps as well as its byte cap.
+ * With no active secret the projection passes JSON through under the byte cap alone. A registry
+ * the projection cannot use withholds the result anyway, so it counts as walked.
+ */
+export function copilotProjectionWalksContent(
+  registry: ResolvedSecretTraceRegistry | undefined
+): boolean {
+  try {
+    const snapshot = getResolvedSecretModelMatcher(registry?.forkForPropagatedEntries())
+    return !snapshot.complete || snapshot.matcher !== undefined
+  } catch {
+    return true
   }
 }
 

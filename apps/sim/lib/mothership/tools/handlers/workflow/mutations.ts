@@ -50,6 +50,7 @@ import {
 } from '@/lib/workflows/application/update-workflow-content'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowMutations')
@@ -138,6 +139,7 @@ function buildExecutionOutput(
     error?: string
     status?: ExecutionResultStatus
   },
+  registry: ResolvedSecretTraceRegistry | undefined,
   phase: ToolEffectPhase,
   extra?: Record<string, unknown>,
   select?: string[]
@@ -154,9 +156,9 @@ function buildExecutionOutput(
       executionId,
       success: result.success,
       ...extra,
-      output: lifted ? compactLiftedBlockOutput(lifted.output, executionId) : output,
+      output: lifted ? compactLiftedBlockOutput(lifted.output, executionId, registry) : output,
       ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
-      ...presentWorkflowLogsForModel(logs, executionId, select),
+      ...presentWorkflowLogsForModel(logs, executionId, registry, select),
     },
     error: result.success
       ? undefined
@@ -189,7 +191,10 @@ function failedBlockError(logs: unknown): string | undefined {
   return undefined
 }
 
-function buildExecutionError(error: unknown): ToolCallResult {
+function buildExecutionError(
+  error: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): ToolCallResult {
   if (hasExecutionResult(error)) {
     return buildExecutionOutput(
       {
@@ -197,6 +202,7 @@ function buildExecutionError(error: unknown): ToolCallResult {
         success: false,
         error: error.executionResult.error || 'Workflow execution failed',
       },
+      registry,
       settledPhase(error.executionResult.status)
     )
   }
@@ -344,9 +350,15 @@ export async function executeRunWorkflow(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, settledPhase(result.status), undefined, params.select)
+    return buildExecutionOutput(
+      result,
+      context.resolvedSecretTraceRegistry,
+      settledPhase(result.status),
+      undefined,
+      params.select
+    )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }
 
@@ -507,12 +519,13 @@ export async function executeRunWorkflowUntilBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { stoppedAfterBlockId: params.stopAfterBlockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }
 
@@ -588,12 +601,13 @@ export async function executeRunFromBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { startBlockId: params.startBlockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }
 
@@ -680,11 +694,12 @@ export async function executeRunBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { blockId: params.blockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }

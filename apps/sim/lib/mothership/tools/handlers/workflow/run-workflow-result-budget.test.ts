@@ -38,11 +38,16 @@ import {
 
 const EXECUTION_ID = '0f4d5a4c-6a1e-4c2f-9b7d-2c8f1a3e5d90'
 const SECRET = 'fake-secret-for-test-only'
-const context = {
-  userId: 'user-1',
-  workspaceId: 'workspace-1',
-  toolCallId: 'tool-call-1',
-} as ExecutionContext
+
+/** The handler and the projection share the call's registry, as the tool executor wires them. */
+function callContext(registry: ResolvedSecretTraceRegistry) {
+  return {
+    userId: 'user-1',
+    workspaceId: 'workspace-1',
+    toolCallId: 'tool-call-1',
+    resolvedSecretTraceRegistry: registry,
+  } as ExecutionContext
+}
 
 /** Rows and approximate encoded bytes per block of a synthetic trace-shaped run. */
 const TABLE_QUERIES: ReadonlyArray<readonly [rows: number, bytes: number]> = [
@@ -85,17 +90,30 @@ function traceShapedLogs() {
   })
 }
 
-function secretRegistry() {
+/** A configured secret; `active` records that the run resolved it into its result. */
+function secretRegistry({ active = true } = {}) {
   const registry = new ResolvedSecretTraceRegistry([
     { name: 'API_KEY', plaintext: SECRET, encryptedValue: 'ciphertext' },
   ])
-  registry.recordResolved('API_KEY', SECRET, { propagated: true })
+  if (active) registry.recordResolved('API_KEY', SECRET, { propagated: true })
   return registry
 }
 
+/** Row-shaped output of about 27.5k values: past the log budget, under the projection's cap. */
+function wideRows() {
+  return Array.from({ length: 2_500 }, (_, index) =>
+    Object.fromEntries(Array.from({ length: 10 }, (_, column) => [`c${column}`, `r${index}`]))
+  )
+}
+
 describe('run_workflow model-facing result budget', () => {
+  let registry: ResolvedSecretTraceRegistry
+  let context: ExecutionContext
+
   beforeEach(() => {
     mocks.executeWorkflowUseCase.mockReset()
+    registry = secretRegistry()
+    context = callContext(registry)
   })
 
   it('projects a trace-shaped result with an active secret instead of withholding it', async () => {
@@ -110,7 +128,7 @@ describe('run_workflow model-facing result budget', () => {
     })
 
     const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
 
     expect(projection.safe).toBe(true)
     const output = projection.result.output as Record<string, unknown>
@@ -140,7 +158,7 @@ describe('run_workflow model-facing result budget', () => {
     })
 
     const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
 
     expect(projection.safe).toBe(true)
     expect((projection.result.output as Record<string, unknown>).output).toEqual(finalOutput)
@@ -164,7 +182,7 @@ describe('run_workflow model-facing result budget', () => {
 
     const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
     expect(Buffer.byteLength(JSON.stringify(settled.output))).toBeLessThan(4 * 1024 * 1024)
-    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
 
     expect(projection.safe).toBe(true)
     expect((projection.result.output as Record<string, unknown>).output).toEqual(finalOutput)
@@ -183,7 +201,7 @@ describe('run_workflow model-facing result budget', () => {
       { workflowId: 'wf-1', select: ['Query 4.rows'] },
       context
     )
-    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
 
     expect(projection.safe).toBe(true)
     const output = projection.result.output as Record<string, unknown>
@@ -235,7 +253,7 @@ describe('run_workflow model-facing result budget', () => {
       { workflowId: 'wf-1', stopAfterBlockId: 'query' },
       context
     )
-    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
 
     expect(projection.safe).toBe(true)
     const output = projection.result.output as Record<string, unknown>
@@ -286,7 +304,7 @@ describe('run_workflow model-facing result budget', () => {
     })
 
     const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
 
     expect(projection.safe).toBe(true)
     const logs = (projection.result.output as { logs: Array<Record<string, unknown>> }).logs
@@ -313,7 +331,7 @@ describe('run_workflow model-facing result budget', () => {
     })
 
     const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-    const projection = inspectToolResultForCopilot(settled, secretRegistry(), 'run_workflow')
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
 
     expect(projection.safe).toBe(true)
     const serialized = JSON.stringify(projection.result)
@@ -321,5 +339,60 @@ describe('run_workflow model-facing result budget', () => {
     for (let length = 4; length <= SECRET.length; length += 1) {
       expect(serialized).not.toContain(SECRET.slice(0, length))
     }
+  })
+
+  /**
+   * Without an active secret the projection passes JSON through under its byte cap alone, so
+   * nothing is bounded: a lifted output is the whole point of run_block and reaches the worker in
+   * full, which spills an oversized one to storage for the model to read.
+   */
+  it('returns a large lifted output and its logs in full when no secret is active', async () => {
+    const rows = wideRows()
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [
+        { blockId: 'start', blockName: 'Start', success: true, output: { ok: true } },
+        { blockId: 'query', blockName: 'Query', success: true, output: { rows } },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+    const inactive = secretRegistry({ active: false })
+
+    const settled = await executeRunWorkflowUntilBlock(
+      { workflowId: 'wf-1', stopAfterBlockId: 'query' },
+      callContext(inactive)
+    )
+    const projection = inspectToolResultForCopilot(settled, inactive, 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const output = projection.result.output as Record<string, unknown>
+    expect(output.output).toEqual({ rows })
+    expect((output.logs as Array<Record<string, unknown>>)[1]?.output).toEqual({ rows })
+  })
+
+  /** A lifted output is the run's final output, so it keeps the final output's larger share. */
+  it('returns a lifted output within the final share in full while a secret is active', async () => {
+    const rows = wideRows()
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [{ blockId: 'query', blockName: 'Query', success: true, output: { rows } }],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflowUntilBlock(
+      { workflowId: 'wf-1', stopAfterBlockId: 'query' },
+      context
+    )
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const output = projection.result.output as Record<string, unknown>
+    expect(output.output).toEqual({ rows })
+    // Its log copy is still bounded, so the two together stay under the projection's caps.
+    expect((output.logs as Array<Record<string, unknown>>)[0]?.output).toEqual(
+      expect.stringContaining(`logs get ${EXECUTION_ID} --trace`)
+    )
   })
 })

@@ -1,9 +1,11 @@
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
+import { copilotProjectionWalksContent } from '@/lib/mothership/request/tools/resolved-secret-result'
 import {
   MAX_CONTENT_NODES,
   MAX_MODEL_CONTENT_BYTES,
   measureModelContent,
 } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Shared presentation for server execution and trusted client execution restoration. */
 function presentWorkflowLogs(logs: unknown, select?: string[]): Record<string, unknown> {
@@ -14,18 +16,23 @@ function presentWorkflowLogs(logs: unknown, select?: string[]): Record<string, u
 
 /**
  * The model-facing log fields for one run, built from raw logs before secret projection so both the
- * server handler and browser-run restoration present the same bounded shape: a `select` resolves
- * against the full logs and replaces them, otherwise the echoed logs have their inputs truncated
- * and their outputs bounded.
+ * server handler and browser-run restoration present the same shape: a `select` resolves against
+ * the full logs and replaces them, otherwise the echoed logs have their inputs truncated. Their
+ * outputs are bounded only when `registry` makes the projection walk the result, since only then
+ * can its value or depth cap withhold the whole run; otherwise they cross in full.
  */
 export function presentWorkflowLogsForModel(
   logs: unknown,
   executionId: string | undefined,
+  registry: ResolvedSecretTraceRegistry | undefined,
   select?: string[]
 ): Record<string, unknown> {
   if (select?.length) return presentWorkflowLogs(logs, select)
+  const compacted = compactBlockLogInputs(logs, executionId)
   return presentWorkflowLogs(
-    compactBlockLogOutputs(compactBlockLogInputs(logs, executionId), executionId)
+    copilotProjectionWalksContent(registry)
+      ? compactBlockLogOutputs(compacted, executionId)
+      : compacted
   )
 }
 
@@ -105,6 +112,8 @@ function compactBlockLogInputs(logs: unknown, executionId: string | undefined): 
  */
 const BLOCK_OUTPUT_VALUE_BUDGET = Math.floor(MAX_CONTENT_NODES / 4)
 const BLOCK_OUTPUT_BYTE_BUDGET = Math.floor(MAX_MODEL_CONTENT_BYTES / 4)
+const FINAL_OUTPUT_VALUE_BUDGET = MAX_CONTENT_NODES - BLOCK_OUTPUT_VALUE_BUDGET
+const FINAL_OUTPUT_BYTE_BUDGET = MAX_MODEL_CONTENT_BYTES - BLOCK_OUTPUT_BYTE_BUDGET
 
 interface BlockOutputSize {
   values: number
@@ -170,16 +179,18 @@ function compactBlockLogOutputs(logs: unknown, executionId: string | undefined):
 
 /**
  * Bounds a block output lifted into a run's `output` (run_block and run_workflow_until_block stop
- * before any Response block, so the stopping block's output stands in for the run's). It is a copy
- * of a log output, so it gets the same budget and pointer rather than the headroom a real final
- * output keeps.
+ * before any Response block, so the stopping block's output stands in for the run's). It is the
+ * run's final output, so it keeps the final output's share beside the bounded logs, and like them it
+ * is bounded only when `registry` makes the projection walk the result.
  */
 export function compactLiftedBlockOutput(
   output: unknown,
-  executionId: string | undefined
+  executionId: string | undefined,
+  registry: ResolvedSecretTraceRegistry | undefined
 ): unknown {
+  if (!copilotProjectionWalksContent(registry)) return output
   const size = sizeBlockOutput(output)
-  return size.values <= BLOCK_OUTPUT_VALUE_BUDGET && size.bytes <= BLOCK_OUTPUT_BYTE_BUDGET
+  return size.values <= FINAL_OUTPUT_VALUE_BUDGET && size.bytes <= FINAL_OUTPUT_BYTE_BUDGET
     ? output
     : blockOutputPointer(size.label, executionId)
 }
