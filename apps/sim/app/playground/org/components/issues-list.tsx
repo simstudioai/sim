@@ -2,18 +2,13 @@ import { chipHoverSurfaceClass, cn, OverflowText } from '@sim/emcn'
 import Link from 'next/link'
 import { DelegateAvatar } from '@/app/playground/org/components/delegate-avatar'
 import { AgentStateIcon, PriorityIcon, StatusIcon } from '@/app/playground/org/components/glyphs'
-import {
-  ISSUES,
-  type Issue,
-  STATUS_LABELS,
-  STATUS_ORDER,
-  type Workspace,
-} from '@/app/playground/org/lib/mock-data'
+import { ISSUES, type Issue, STATUS_LABELS, STATUS_ORDER } from '@/app/playground/org/lib/mock-data'
+import type { Project } from '@/app/playground/org/lib/project'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
 
 /** Sim issues for a project, grouped by status. Tracker links and chats live on the issue page. */
-export function IssuesList({ workspace }: { workspace: Workspace }) {
-  const issues = ISSUES.filter((issue) => issue.workspaceId === workspace.id)
+export function IssuesList({ project }: { project: Project }) {
+  const issues = ISSUES.filter((issue) => issue.workspaceId === project.mock.id)
   if (!issues.length)
     return <p className='px-6 py-10 text-[var(--text-muted)] text-small'>No issues yet.</p>
   return (
@@ -32,7 +27,7 @@ export function IssuesList({ workspace }: { workspace: Workspace }) {
             </div>
             <div className='flex flex-col gap-[1px]'>
               {inStatus.map((issue) => (
-                <IssueRow key={issue.key} issue={issue} />
+                <IssueRow key={issue.key} issue={issue} projectId={project.id} />
               ))}
             </div>
           </section>
@@ -42,10 +37,10 @@ export function IssuesList({ workspace }: { workspace: Workspace }) {
   )
 }
 
-function IssueRow({ issue }: { issue: Issue }) {
+function IssueRow({ issue, projectId }: { issue: Issue; projectId: string }) {
   return (
     <Link
-      href={protoRoutes.issue(issue.workspaceId, issue.key)}
+      href={protoRoutes.issue(projectId, issue.key)}
       className={cn(
         'flex h-9 items-center gap-3 rounded-lg px-3 text-small',
         chipHoverSurfaceClass

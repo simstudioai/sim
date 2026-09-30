@@ -15,7 +15,7 @@ import {
   DRAFTS,
   type DraftRelease,
 } from '@/app/playground/org/lib/changelog-data'
-import type { Workspace } from '@/app/playground/org/lib/mock-data'
+import type { Project } from '@/app/playground/org/lib/project'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
 
 const RELEASE_YEAR = 2026
@@ -26,12 +26,12 @@ const H2 =
   '@min-[1000px]/dashboard:text-[24px] text-[20px] text-[var(--text-primary)] leading-tight tracking-[-0.02em]'
 
 /** Next release on top (what's ready, what's still running), shipped releases below. */
-export function Changelog({ workspace }: { workspace: Workspace }) {
-  const draft = DRAFTS.find((d) => d.workspaceId === workspace.id)
+export function Changelog({ project }: { project: Project }) {
+  const draft = DRAFTS.find((d) => d.workspaceId === project.mock.id)
   const [released, setReleased] = useState<ChangelogEntry | null>(null)
   const shipped = [
     ...(released ? [released] : []),
-    ...CHANGELOG.filter((entry) => entry.workspaceId === workspace.id),
+    ...CHANGELOG.filter((entry) => entry.workspaceId === project.mock.id),
   ]
 
   const release = (draftRelease: DraftRelease) => {
@@ -66,8 +66,8 @@ export function Changelog({ workspace }: { workspace: Workspace }) {
               Changelog
             </h1>
             <p className='max-w-[64ch] text-[var(--text-muted)] text-md'>
-              What’s about to ship in {workspace.name}, what Sim is still working on, and what
-              already changed.
+              What’s about to ship in {project.name}, what Sim is still working on, and what already
+              changed.
             </p>
           </div>
         </header>
@@ -81,7 +81,7 @@ export function Changelog({ workspace }: { workspace: Workspace }) {
         )}
 
         {shipped.map((entry) => (
-          <Release key={entry.id} entry={entry} />
+          <Release key={entry.id} entry={entry} projectId={project.id} />
         ))}
 
         {!draft && shipped.length === 0 && (
@@ -133,7 +133,7 @@ function NextRelease({ draft, released, onRelease }: NextReleaseProps) {
         ) : (
           <ul className='flex flex-col'>
             {changes.map((change) => (
-              <DraftChangeRow key={change.text} change={change} workspaceId={draft.workspaceId} />
+              <DraftChangeRow key={change.text} change={change} workspaceId={project.id} />
             ))}
           </ul>
         )}
@@ -145,7 +145,7 @@ function NextRelease({ draft, released, onRelease }: NextReleaseProps) {
           {draft.running.map((work) => (
             <li key={work.issue}>
               <Link
-                href={protoRoutes.issue(draft.workspaceId, work.issue)}
+                href={protoRoutes.issue(project.id, work.issue)}
                 className='flex w-full items-center gap-3 border-[var(--border)] border-b py-3 text-left last:border-b-0 hover-hover:opacity-80'
               >
                 <RunningDot />
@@ -198,7 +198,7 @@ function DraftChangeRow({ change, workspaceId }: DraftChangeRowProps) {
   )
 }
 
-function Release({ entry }: { entry: ChangelogEntry }) {
+function Release({ entry, projectId }: { entry: ChangelogEntry; projectId: string }) {
   const fresh = entry.id === 'released-now'
   return (
     <article className='grid @min-[760px]/dashboard:grid-cols-[132px_minmax(0,1fr)] grid-cols-1 gap-x-10 gap-y-3 border-[var(--border)] border-t pt-14'>
@@ -227,7 +227,7 @@ function Release({ entry }: { entry: ChangelogEntry }) {
             <li key={change.text} className='flex gap-3'>
               <span className='mt-[9px] size-[5px] shrink-0 rounded-full bg-[var(--text-icon)]' />
               <Link
-                href={protoRoutes.issue(entry.workspaceId, change.issues[0])}
+                href={protoRoutes.issue(projectId, change.issues[0])}
                 className='min-w-0 flex-1 text-[var(--text-body)] text-md underline-offset-4 hover:underline'
               >
                 {change.text}

@@ -1,4 +1,10 @@
 import {
+  CLAIMS_CHATS,
+  CLAIMS_ISSUES,
+  CLAIMS_RELEASES,
+  CLAIMS_TRIAGE,
+} from '@/app/playground/org/lib/claims-data'
+import {
   INFRA_ISSUES,
   INFRA_RELEASES,
   INFRA_TRIAGE,
@@ -92,10 +98,15 @@ export interface Release {
   notified: number
 }
 
+/**
+ * An overlay pack: the issues, changelog, tracker and feedback sources a real workspace shows
+ * while those entities have no real source. `match` picks the pack from the workspace name.
+ */
 export interface Workspace {
   id: string
   name: string
   description: string
+  match?: RegExp
   tracker: { kind: TrackerKind; label: string; synced?: string }
   feedbackSources: { source: FeedbackSource; label: string }[]
   dashboards: string[]
@@ -122,9 +133,21 @@ export const PEOPLE = {
 
 export const WORKSPACES: Workspace[] = [
   {
+    id: 'claims',
+    name: 'Payment variance agent',
+    description:
+      'Investigates payment variance and provider-service backlog, drafts briefs, and routes cases for analyst review',
+    match: /payment|claim|variance|provider|backlog|billing/i,
+    tracker: { kind: 'jira', label: 'Jira', synced: '3m ago' },
+    feedbackSources: [{ source: 'slack', label: '#claims-analysts' }],
+    dashboards: [],
+    needsYou: 2,
+  },
+  {
     id: 'infra',
     name: 'Infra analyzer',
     description: 'Investigates workflow issues from feedback and stops for approval',
+    match: /infra|incident|analy|ops|sre|platform/i,
     tracker: { kind: 'linear', label: 'Linear', synced: '1m ago' },
     feedbackSources: [{ source: 'slack', label: '#bot-feedback' }],
     dashboards: ['infra-analyzer'],
@@ -134,6 +157,7 @@ export const WORKSPACES: Workspace[] = [
     id: 'support',
     name: 'Support desk',
     description: 'Answers, routes, and learns from customer tickets',
+    match: /support|desk|help|ticket|service/i,
     tracker: { kind: 'linear', label: 'Linear', synced: '2m ago' },
     feedbackSources: [
       { source: 'slack', label: '#product-feedback' },
@@ -147,6 +171,7 @@ export const WORKSPACES: Workspace[] = [
     id: 'growth',
     name: 'Growth engine',
     description: 'Finds, enriches, and activates new leads',
+    match: /growth|lead|sales|market|outbound/i,
     tracker: { kind: 'jira', label: 'Jira', synced: '4m ago' },
     feedbackSources: [{ source: 'slack', label: '#growth-ideas' }],
     dashboards: ['growth-funnel'],
@@ -156,6 +181,7 @@ export const WORKSPACES: Workspace[] = [
     id: 'finance',
     name: 'Finance close',
     description: 'Reconciles spend and closes the books each month',
+    match: /finance|close|spend|ledger|expense/i,
     tracker: { kind: 'sim', label: 'Sim tracker' },
     feedbackSources: [],
     dashboards: [],
@@ -164,6 +190,7 @@ export const WORKSPACES: Workspace[] = [
 ]
 
 export const CHATS: Chat[] = [
+  ...CLAIMS_CHATS,
   {
     id: 'c0',
     age: '5m',
@@ -295,7 +322,7 @@ const OTHER_RELEASES: Release[] = [
   },
 ]
 
-export const RELEASES: Release[] = [...INFRA_RELEASES, ...OTHER_RELEASES]
+export const RELEASES: Release[] = [...CLAIMS_RELEASES, ...INFRA_RELEASES, ...OTHER_RELEASES]
 
 const slack = (author: string, text: string, at: string): Report => ({
   source: 'slack',
@@ -364,7 +391,7 @@ const OTHER_TRIAGE: TriageProposal[] = [
   },
 ]
 
-export const TRIAGE: TriageProposal[] = [...INFRA_TRIAGE, ...OTHER_TRIAGE]
+export const TRIAGE: TriageProposal[] = [...CLAIMS_TRIAGE, ...INFRA_TRIAGE, ...OTHER_TRIAGE]
 
 const done = (label: string): PlanStep => ({ label, status: 'completed' })
 const doing = (label: string): PlanStep => ({ label, status: 'inProgress' })
@@ -687,7 +714,12 @@ const OTHER_ISSUES: Issue[] = [
   },
 ]
 
-export const ISSUES: Issue[] = [...INFRA_ISSUES, ...SUPPORT_ISSUES, ...OTHER_ISSUES]
+export const ISSUES: Issue[] = [
+  ...CLAIMS_ISSUES,
+  ...INFRA_ISSUES,
+  ...SUPPORT_ISSUES,
+  ...OTHER_ISSUES,
+]
 
 export const STATUS_ORDER: IssueStatus[] = [
   'in_progress',
@@ -871,7 +903,12 @@ export function issueByKey(key: string): Issue | undefined {
   return ISSUES.find((issue) => issue.key === key)
 }
 
-const TRACKER_PREFIX: Record<string, string> = { infra: 'BOT', support: 'SUPT', growth: 'GRW' }
+const TRACKER_PREFIX: Record<string, string> = {
+  infra: 'BOT',
+  support: 'SUPT',
+  growth: 'GRW',
+  claims: 'CLM',
+}
 
 const TRACKER_STATUS: Record<IssueStatus, string> = {
   backlog: 'Backlog',

@@ -7,7 +7,7 @@ import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import { ResourceSection } from '@/app/playground/org/components/resource-section'
-import type { Workspace } from '@/app/playground/org/lib/mock-data'
+import type { Project } from '@/app/playground/org/lib/project'
 import {
   MAIN_SECTIONS,
   protoRoutes,
@@ -15,9 +15,10 @@ import {
   type WorkspaceSection,
 } from '@/app/playground/org/lib/routes'
 import { DEFAULT_SETTINGS_SECTION } from '@/app/playground/org/lib/settings-nav'
+import { useProjectResources } from '@/app/playground/org/lib/use-project-resources'
 
 interface WorkspaceViewProps {
-  workspace: Workspace
+  project: Project
   section: WorkspaceSection
   /** Full view: the sidebar carries navigation, so the page drops the chip row. */
   full: boolean
@@ -28,7 +29,7 @@ interface WorkspaceViewProps {
  * Main view: dashboard, changelog, and issues as chips, with a button into the full view.
  * Full view: just the section; the sidebar has switched to this project's navigation.
  */
-export function WorkspaceView({ workspace, section, full, settingsSection }: WorkspaceViewProps) {
+export function WorkspaceView({ project, section, full, settingsSection }: WorkspaceViewProps) {
   const current = WORKSPACE_SECTIONS.find((item) => item.id === section)
   if (!current) throw new Error(`Unknown section ${section}`)
   return (
@@ -43,12 +44,12 @@ export function WorkspaceView({ workspace, section, full, settingsSection }: Wor
           <div className='flex items-start gap-3'>
             <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
               <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
-                {workspace.name}
+                {project.name}
               </h1>
-              <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
+              <ProjectDescription project={project} />
             </div>
             <ChipLink
-              href={protoRoutes.full(workspace.id, 'workflows')}
+              href={protoRoutes.full(project.id, 'workflows')}
               variant='border'
               leftIcon={Expand}
             >
@@ -62,7 +63,7 @@ export function WorkspaceView({ workspace, section, full, settingsSection }: Wor
             {MAIN_SECTIONS.map((item) => (
               <ChipLink
                 key={item.id}
-                href={protoRoutes.workspace(workspace.id, item.id)}
+                href={protoRoutes.workspace(project.id, item.id)}
                 active={section === item.id}
                 leftIcon={item.icon}
               >
@@ -73,38 +74,58 @@ export function WorkspaceView({ workspace, section, full, settingsSection }: Wor
         </header>
       )}
       <div className='min-h-0 flex-1'>
-        <SectionBody workspace={workspace} section={section} settingsSection={settingsSection} />
+        <SectionBody project={project} section={section} settingsSection={settingsSection} />
       </div>
     </div>
   )
 }
 
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
+/** The pack's purpose line when it was chosen by name; otherwise what the workspace holds. */
+function ProjectDescription({ project }: { project: Project }) {
+  const { workflows, tables, knowledgeBases, files, isPending } = useProjectResources(project.id)
+  const text = project.overlayMatched
+    ? project.mock.description
+    : isPending
+      ? ''
+      : [
+          plural(workflows.length, 'workflow'),
+          plural(tables.length, 'table'),
+          plural(knowledgeBases.length, 'knowledge base'),
+          plural(files.length, 'file'),
+        ].join(' · ')
+  return <p className='min-h-[18px] text-[var(--text-muted)] text-small'>{text}</p>
+}
+
 interface SectionBodyProps {
-  workspace: Workspace
+  project: Project
   section: WorkspaceSection
   settingsSection?: string
 }
 
-function SectionBody({ workspace, section, settingsSection }: SectionBodyProps) {
+function SectionBody({ project, section, settingsSection }: SectionBodyProps) {
   switch (section) {
     case 'dashboard':
       return (
         <div className='flex h-full min-h-0 flex-col'>
-          <ProtoDashboard workspace={workspace} />
+          <ProtoDashboard project={project} />
         </div>
       )
     case 'changelog':
-      return <Changelog workspace={workspace} />
+      return <Changelog project={project} />
     case 'issues':
-      return <IssuesList workspace={workspace} />
+      return <IssuesList project={project} />
     case 'settings':
       return (
         <ProjectSettings
-          workspace={workspace}
+          project={project}
           sectionId={settingsSection ?? DEFAULT_SETTINGS_SECTION}
         />
       )
     default:
-      return <ResourceSection section={section} />
+      return <ResourceSection project={project} section={section} />
   }
 }

@@ -15,20 +15,25 @@ import {
 import { Check, ChevronDown, Folder, Plus, X } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { MockComposer } from '@/app/playground/org/components/mock-composer'
-import { PEOPLE, WORKSPACES } from '@/app/playground/org/lib/mock-data'
+import { useSession } from '@/lib/auth/auth-client'
+import { type Project, useProjects } from '@/app/playground/org/lib/project'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
+import { ChatSurfaceProvider, UserInput } from '@/app/workspace/[workspaceId]/home/components'
 
 const NO_PROJECT = 'none'
 
 /** New chat, Codex-style: pick the project in the heading or on the composer, then ask. */
 export function NewChatHome() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const { projects } = useProjects()
   const [{ project }, setParams] = useQueryStates(protoParsers)
-  const selected = WORKSPACES.find((w) => w.id === project)
+  /** The first project is the default so a fresh visit lands in a project, not an org-wide chat. */
+  const selected =
+    project === NO_PROJECT ? undefined : (projects.find((p) => p.id === project) ?? projects[0])
   const select = (id: string) => void setParams({ project: id })
-  const firstName = PEOPLE.teddy.name.split(' ')[0]
+  const firstName = session?.user?.name?.split(' ')[0]
 
   return (
     <div className='flex h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[18vh]'>
@@ -36,7 +41,7 @@ export function NewChatHome() {
         {selected ? (
           <>
             What should we build in{' '}
-            <ProjectMenu value={project} onSelect={select}>
+            <ProjectMenu projects={projects} value={selected.id} onSelect={select}>
               <button
                 type='button'
                 className='underline decoration-[var(--text-muted)] decoration-dotted underline-offset-[6px] hover-hover:decoration-[var(--text-body)]'
@@ -47,38 +52,51 @@ export function NewChatHome() {
             ?
           </>
         ) : (
-          `What should we get done, ${firstName}?`
+          `What should we get done${firstName ? `, ${firstName}` : ''}?`
         )}
       </h1>
       <div className='flex w-full max-w-chat flex-col gap-2'>
         <div className='flex items-center gap-1'>
-          <ProjectMenu value={project} onSelect={select}>
+          <ProjectMenu projects={projects} value={selected?.id ?? NO_PROJECT} onSelect={select}>
             <Chip leftIcon={selected ? Folder : X} rightIcon={ChevronDown}>
               {selected ? selected.name : 'No project'}
             </Chip>
           </ProjectMenu>
         </div>
-        <MockComposer
-          placeholder={selected ? `Ask Sim to work on ${selected.name}…` : 'Do anything'}
-          onSubmit={() => {
-            if (selected) router.push(`${protoRoutes.workspace(selected.id)}?chat=new`)
-            else toast.success('Started an org-wide chat')
-          }}
-        />
+        <ChatSurfaceProvider userId={session?.user?.id}>
+          <UserInput
+            key={selected?.id ?? NO_PROJECT}
+            draftScopeKey={`proto:home:${selected?.id ?? NO_PROJECT}`}
+            isSending={false}
+            onStopGeneration={() => {}}
+            onSubmit={(text) => {
+              const message = text.trim()
+              if (!message) return
+              if (selected) {
+                router.push(
+                  `${protoRoutes.workspace(selected.id)}?chat=new&q=${encodeURIComponent(message)}`
+                )
+              } else {
+                toast.success('Org-wide chats open from the sidebar for now')
+              }
+            }}
+          />
+        </ChatSurfaceProvider>
       </div>
     </div>
   )
 }
 
 interface ProjectMenuProps {
+  projects: Project[]
   value: string
   onSelect: (id: string) => void
   children: React.ReactElement
 }
 
-function ProjectMenu({ value, onSelect, children }: ProjectMenuProps) {
+function ProjectMenu({ projects, value, onSelect, children }: ProjectMenuProps) {
   const [search, setSearch] = useState('')
-  const matches = WORKSPACES.filter((w) => w.name.toLowerCase().includes(search.toLowerCase()))
+  const matches = projects.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
   return (
     <DropdownMenu onOpenChange={(open) => !open && setSearch('')}>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
@@ -88,11 +106,11 @@ function ProjectMenu({ value, onSelect, children }: ProjectMenuProps) {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        {matches.map((workspace) => (
-          <DropdownMenuItem key={workspace.id} onSelect={() => onSelect(workspace.id)}>
+        {matches.map((project) => (
+          <DropdownMenuItem key={project.id} onSelect={() => onSelect(project.id)}>
             <Folder />
-            <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
-            <Check className={cn(workspace.id !== value && 'invisible')} />
+            <span className='min-w-0 flex-1 truncate'>{project.name}</span>
+            <Check className={cn(project.id !== value && 'invisible')} />
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />

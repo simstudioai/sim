@@ -23,20 +23,15 @@ import {
   Search,
   Settings,
 } from '@sim/emcn/icons'
+import { formatRelativeTime } from '@sim/utils/formatting'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import type { WorkspaceSettingsSection } from '@/components/settings/navigation'
+import { useActiveOrganization, useSession } from '@/lib/auth/auth-client'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
-import { DRAFTS } from '@/app/playground/org/lib/changelog-data'
-import {
-  CHATS,
-  type Chat,
-  ORGANIZATION,
-  PEOPLE,
-  WORKSPACES,
-  type Workspace,
-} from '@/app/playground/org/lib/mock-data'
+import { type Project, useProjects } from '@/app/playground/org/lib/project'
 import {
   fullViewProject,
   MAIN_SECTION_IDS,
@@ -45,6 +40,7 @@ import {
   settingsProject,
   WORKSPACE_SECTIONS,
   type WorkspaceSection,
+  workspaceRoutes,
 } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
 import {
@@ -67,11 +63,14 @@ import {
   SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import {
+  type MothershipChatMetadata,
+  useMothershipChats,
+  useOrganizationMothershipChats,
+} from '@/hooks/queries/mothership-chats'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const CHAT_PREVIEW = 3
-const GENERAL_CHATS = CHATS.filter((chat) => !chat.workspaceId)
-const RUNNING_CHAT_IDS = new Set(DRAFTS.flatMap((draft) => draft.running.map((w) => w.chat.id)))
 
 const NAV_ITEMS: SidebarNavItemData[] = [
   { id: 'home', label: 'New chat', icon: Home, href: PROTO_BASE },
@@ -79,14 +78,24 @@ const NAV_ITEMS: SidebarNavItemData[] = [
   { id: 'connectors', label: 'Connectors', icon: Integration, href: protoRoutes.connectors },
 ]
 
-/** Mock org rail: Home / Search / Connectors, then projects (each with its chats) and recent chats. */
+/** How the sidebar shows a chat's age: "5m", "2h", "3d". */
+function compactAge(date: Date): string {
+  const relative = formatRelativeTime(date.toISOString())
+  return relative === 'just now' ? 'now' : relative.replace(' ago', '')
+}
+
+/** Org rail: Home / Search / Connectors, then the real workspaces as projects (each with its chats). */
 export function ProtoSidebar() {
   const { isCollapsed: railCollapsed, isPeeking } = useSidebarChrome()
   const isCollapsed = railCollapsed && !isPeeking
   const pathname = usePathname()
   const [{ chat: openChat }] = useQueryStates(protoParsers)
-  const fullProject = WORKSPACES.find((w) => w.id === fullViewProject(pathname))
+  const { projects } = useProjects()
+  const { data: organization } = useActiveOrganization()
+  const { data: session } = useSession()
+  const fullProject = projects.find((project) => project.id === fullViewProject(pathname))
   const inSettings = Boolean(fullProject && settingsProject(pathname))
+  const organizationId = projects.find((project) => project.organizationId)?.organizationId
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
@@ -94,6 +103,8 @@ export function ProtoSidebar() {
     contentRef: scrollContentRef,
     enabled: !isCollapsed,
   })
+  const organizationName = organization?.name ?? 'Organization'
+  const userName = session?.user?.name ?? 'You'
 
   return (
     <aside
@@ -129,10 +140,10 @@ export function ProtoSidebar() {
                 fullWidth
                 className={SIDEBAR_RAIL_CHIP_CLASS}
                 onClick={isCollapsed ? toggleCollapsed : undefined}
-                leftAdornment={<IdentityTile initial={ORGANIZATION.name[0]} />}
+                leftAdornment={<IdentityTile initial={organizationName[0]} />}
                 rightIcon={isCollapsed ? undefined : ChevronDown}
               >
-                {ORGANIZATION.name}
+                {organizationName}
               </Chip>
             )}
           </div>
@@ -182,13 +193,13 @@ export function ProtoSidebar() {
           <div ref={scrollContentRef} className='flex flex-col'>
             {fullProject && inSettings ? (
               <SettingsSections
-                workspace={fullProject}
+                project={fullProject}
                 pathname={pathname}
                 railCollapsed={isCollapsed}
               />
             ) : fullProject ? (
               <FullViewSections
-                workspace={fullProject}
+                project={fullProject}
                 pathname={pathname}
                 openChat={openChat}
                 railCollapsed={isCollapsed}
@@ -205,10 +216,10 @@ export function ProtoSidebar() {
                   }
                 >
                   <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                    {WORKSPACES.map((workspace) => (
+                    {projects.map((project) => (
                       <ProjectTree
-                        key={workspace.id}
-                        workspace={workspace}
+                        key={project.id}
+                        project={project}
                         pathname={pathname}
                         openChat={openChat}
                         railCollapsed={isCollapsed}
@@ -217,23 +228,12 @@ export function ProtoSidebar() {
                   </div>
                 </SidebarSection>
 
-                {GENERAL_CHATS.length > 0 && (
-                  <SidebarSection
-                    title='Recent chats'
+                {organizationId && (
+                  <OrgChats
+                    organizationId={organizationId}
+                    pathname={pathname}
                     railCollapsed={isCollapsed}
-                    className={SIDEBAR_SECTION_GAP_CLASS}
-                  >
-                    <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                      {GENERAL_CHATS.map((chat) => (
-                        <ChatRow
-                          key={chat.id}
-                          chat={chat}
-                          href={protoRoutes.chat(chat.id)}
-                          active={pathname === protoRoutes.chat(chat.id)}
-                        />
-                      ))}
-                    </div>
-                  </SidebarSection>
+                  />
                 )}
               </>
             )}
@@ -250,9 +250,9 @@ export function ProtoSidebar() {
             <Chip
               fullWidth
               className={SIDEBAR_RAIL_CHIP_CLASS}
-              leftAdornment={<Avatar size='xs' name={PEOPLE.teddy.name} />}
+              leftAdornment={<Avatar size='xs' name={userName} />}
             >
-              {PEOPLE.teddy.name}
+              {userName}
             </Chip>
           </div>
           {!isCollapsed && <Chip leftIcon={Settings} aria-label='Settings' />}
@@ -262,8 +262,38 @@ export function ProtoSidebar() {
   )
 }
 
+interface OrgChatsProps {
+  organizationId: string
+  pathname: string | null
+  railCollapsed: boolean
+}
+
+/** Chats that belong to no project: the organization's own Sim conversations. */
+function OrgChats({ organizationId, pathname, railCollapsed }: OrgChatsProps) {
+  const { data: chats = [] } = useOrganizationMothershipChats(organizationId)
+  if (!chats.length) return null
+  return (
+    <SidebarSection
+      title='Recent chats'
+      railCollapsed={railCollapsed}
+      className={SIDEBAR_SECTION_GAP_CLASS}
+    >
+      <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+        {chats.map((chat) => (
+          <ChatRow
+            key={chat.id}
+            chat={chat}
+            href={protoRoutes.chat(null, chat.id)}
+            active={pathname === protoRoutes.chat(null, chat.id)}
+          />
+        ))}
+      </div>
+    </SidebarSection>
+  )
+}
+
 interface ProjectTreeProps {
-  workspace: Workspace
+  project: Project
   pathname: string | null
   openChat: string
   railCollapsed: boolean
@@ -273,21 +303,21 @@ interface ProjectTreeProps {
  * A project row with its chats listed underneath, like Codex's project → threads.
  * Hovering the row reveals + for a new chat in that project.
  */
-function ProjectTree({ workspace, pathname, openChat, railCollapsed }: ProjectTreeProps) {
+function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTreeProps) {
   const [showAll, setShowAll] = useState(false)
-  const base = `${PROTO_BASE}/p/${workspace.id}`
+  const base = `${PROTO_BASE}/p/${project.id}`
   const inProject = pathname === base || Boolean(pathname?.startsWith(`${base}/`))
   /** null follows navigation (open while you're in the project); a click pins it open or shut. */
   const [override, setOverride] = useState<boolean | null>(null)
   const expanded = override ?? inProject
-  const chats = CHATS.filter((chat) => chat.workspaceId === workspace.id)
+  const { data: chats = [] } = useMothershipChats(project.id)
   const visible = showAll ? chats : chats.slice(0, CHAT_PREVIEW)
   const panelHref = (chatId: string) =>
-    `${inProject && pathname ? pathname : protoRoutes.workspace(workspace.id)}?chat=${chatId}`
+    `${inProject && pathname ? pathname : protoRoutes.workspace(project.id)}?chat=${chatId}`
 
   return (
     <div className='flex flex-col gap-[1px]'>
-      <SidebarTooltip label={workspace.name} enabled={railCollapsed}>
+      <SidebarTooltip label={project.name} enabled={railCollapsed}>
         <div
           className={cn(
             chipVariants({ active: inProject, fullWidth: true }),
@@ -296,29 +326,29 @@ function ProjectTree({ workspace, pathname, openChat, railCollapsed }: ProjectTr
           )}
         >
           <Link
-            href={protoRoutes.workspace(workspace.id)}
+            href={protoRoutes.workspace(project.id)}
             onClick={() => setOverride(inProject ? !expanded : true)}
             aria-expanded={chats.length > 0 ? expanded : undefined}
             className='flex min-w-0 flex-1 items-center gap-2'
           >
-            <IdentityTile initial={workspace.name[0]} />
+            <IdentityTile initial={project.name[0]} />
             <OverflowText
-              label={workspace.name}
+              label={project.name}
               className='sidebar-collapse-hide flex-1 text-[var(--text-body)]'
               focusTarget='nearest-interactive'
             />
           </Link>
           {!railCollapsed && (
             <>
-              {workspace.needsYou > 0 && (
+              {project.mock.needsYou > 0 && (
                 <ChipTag variant='gray' className='group-hover/project:hidden'>
-                  {workspace.needsYou}
+                  {project.mock.needsYou}
                 </ChipTag>
               )}
               <Link
                 href={panelHref('new')}
-                aria-label={`New chat in ${workspace.name}`}
-                title={`New chat in ${workspace.name}`}
+                aria-label={`New chat in ${project.name}`}
+                title={`New chat in ${project.name}`}
                 className='hidden size-[18px] shrink-0 items-center justify-center rounded-[4px] hover-hover:bg-[var(--surface-active)] group-hover/project:flex'
               >
                 <Plus className='size-[12px] text-[var(--text-icon)]' />
@@ -327,7 +357,7 @@ function ProjectTree({ workspace, pathname, openChat, railCollapsed }: ProjectTr
           )}
         </div>
       </SidebarTooltip>
-      {!railCollapsed && expanded && (
+      {!railCollapsed && expanded && chats.length > 0 && (
         <div className='flex flex-col gap-[1px] pl-[22px]'>
           {visible.map((chat) => (
             <ChatRow
@@ -356,25 +386,26 @@ function ProjectTree({ workspace, pathname, openChat, railCollapsed }: ProjectTr
 }
 
 interface ChatRowProps {
-  chat: Chat
+  chat: MothershipChatMetadata
   href: string
   active: boolean
 }
 
-/** Title, then a spinner while an agent is running in it, else how long ago it moved. */
+/** Title, then a spinner while Sim is still working in it, else how long ago it moved. */
 function ChatRow({ chat, href, active }: ChatRowProps) {
-  const running = RUNNING_CHAT_IDS.has(chat.id)
   return (
     <Link href={href} className={cn(chipVariants({ active, fullWidth: true }), 'h-[26px] gap-2')}>
       <OverflowText
-        label={chat.title}
+        label={chat.name}
         className='sidebar-collapse-hide flex-1 text-[var(--text-body)] text-small'
         focusTarget='nearest-interactive'
       />
-      {running ? (
+      {chat.isActive ? (
         <RunningDot />
       ) : (
-        <span className='shrink-0 text-[var(--text-muted)] text-caption'>{chat.age}</span>
+        <span className='shrink-0 text-[var(--text-muted)] text-caption'>
+          {compactAge(chat.updatedAt)}
+        </span>
       )}
     </Link>
   )
@@ -398,20 +429,20 @@ function fullNavItems(
 }
 
 interface FullViewSectionsProps {
-  workspace: Workspace
+  project: Project
   pathname: string | null
   openChat: string
   railCollapsed: boolean
 }
 
 /** Full view: the project's build sections, then its chats, in place of Projects and Recent chats. */
-function FullViewSections({ workspace, pathname, openChat, railCollapsed }: FullViewSectionsProps) {
-  const chats = CHATS.filter((chat) => chat.workspaceId === workspace.id)
+function FullViewSections({ project, pathname, openChat, railCollapsed }: FullViewSectionsProps) {
+  const { data: chats = [] } = useMothershipChats(project.id)
   return (
     <>
       <SidebarSection title='Build' railCollapsed={railCollapsed}>
         <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-          {fullNavItems(workspace.id, BUILD_SECTIONS).map((item) => (
+          {fullNavItems(project.id, BUILD_SECTIONS).map((item) => (
             <SidebarTooltip key={item.id} label={item.label} enabled={railCollapsed}>
               <SidebarNavChip item={item} active={isNavItemActive(item, pathname)} />
             </SidebarTooltip>
@@ -429,7 +460,7 @@ function FullViewSections({ workspace, pathname, openChat, railCollapsed }: Full
               <ChatRow
                 key={chat.id}
                 chat={chat}
-                href={`${pathname ?? protoRoutes.full(workspace.id)}?chat=${chat.id}`}
+                href={`${pathname ?? protoRoutes.full(project.id)}?chat=${chat.id}`}
                 active={openChat === chat.id}
               />
             ))}
@@ -441,14 +472,17 @@ function FullViewSections({ workspace, pathname, openChat, railCollapsed }: Full
 }
 
 interface SettingsSectionsProps {
-  workspace: Workspace
+  project: Project
   pathname: string | null
   railCollapsed: boolean
 }
 
-/** Settings: the project sidebar gives way to the settings list, grouped like prod. */
-function SettingsSections({ workspace, pathname, railCollapsed }: SettingsSectionsProps) {
-  const base = protoRoutes.settings(workspace.id)
+/**
+ * Settings: the project sidebar gives way to the settings list, grouped like prod.
+ * The project's own General page stays here; every other section opens the real settings page.
+ */
+function SettingsSections({ project, pathname, railCollapsed }: SettingsSectionsProps) {
+  const base = protoRoutes.settings(project.id)
   return (
     <>
       {SETTINGS_GROUPS.map((group, index) => (
@@ -460,7 +494,10 @@ function SettingsSections({ workspace, pathname, railCollapsed }: SettingsSectio
         >
           <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
             {SETTINGS_NAV.filter((item) => item.group === group).map((item) => {
-              const href = protoRoutes.settings(workspace.id, item.id)
+              const href =
+                item.group === 'project'
+                  ? protoRoutes.settings(project.id, item.id)
+                  : workspaceRoutes.settings(project.id, item.id as WorkspaceSettingsSection)
               const active =
                 pathname === href ||
                 (item.id === SETTINGS_NAV[0].id && pathname === base.replace(/\/[^/]+$/, ''))

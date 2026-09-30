@@ -120,7 +120,7 @@ export function AgentRun({ work, workspaceId }: AgentRunProps) {
               <LinkedTickets issueKey={work.issue} />
             </span>
             <Link
-              href={protoRoutes.chat(work.chat.id)}
+              href={protoRoutes.chat(workspaceId, work.chat.id)}
               className='flex items-center gap-1.5 rounded-md px-1 hover:text-[var(--text-body)]'
             >
               <Avatar size='xs' name={work.chat.owner} />

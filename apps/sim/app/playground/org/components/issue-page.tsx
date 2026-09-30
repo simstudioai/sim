@@ -39,9 +39,10 @@ import {
   STATUS_LABELS,
   STATUS_ORDER,
   ticketUrl,
-  type Workspace,
 } from '@/app/playground/org/lib/mock-data'
-import { protoRoutes } from '@/app/playground/org/lib/routes'
+import type { Project } from '@/app/playground/org/lib/project'
+import { protoRoutes, workspaceRoutes } from '@/app/playground/org/lib/routes'
+import { useProjectResources } from '@/app/playground/org/lib/use-project-resources'
 
 const RESOURCE_ICONS = {
   table: Table,
@@ -52,12 +53,13 @@ const RESOURCE_ICONS = {
 } as const
 
 interface IssuePageProps {
-  workspace: Workspace
+  project: Project
   issue: Issue
 }
 
 /** Full-page issue, Linear-style: content column plus a properties column. */
-export function IssuePage({ workspace, issue }: IssuePageProps) {
+export function IssuePage({ project, issue }: IssuePageProps) {
+  const resolveHref = useResourceHrefs(project.id)
   const [status, setStatus] = useState(issue.status)
   const [priority, setPriority] = useState(issue.priority)
   const [activity, setActivity] = useState(issue.activity)
@@ -68,8 +70,8 @@ export function IssuePage({ workspace, issue }: IssuePageProps) {
   return (
     <div className='relative flex h-full min-h-0 flex-col'>
       <header className='flex h-12 shrink-0 items-center gap-2 border-[var(--border)] border-b px-4'>
-        <ChipLink href={protoRoutes.workspace(workspace.id)} leftIcon={ChevronLeft}>
-          {workspace.name}
+        <ChipLink href={protoRoutes.workspace(project.id)} leftIcon={ChevronLeft}>
+          {project.name}
         </ChipLink>
         <span className='text-[var(--text-muted)] text-small'>/</span>
         <span className='text-[var(--text-body)] text-small'>{issue.key}</span>
@@ -224,7 +226,7 @@ export function IssuePage({ workspace, issue }: IssuePageProps) {
               {chats.map((chat) => (
                 <Link
                   key={chat.id}
-                  href={`${protoRoutes.issue(workspace.id, issue.key)}?chat=${chat.id}`}
+                  href={`${protoRoutes.issue(project.id, issue.key)}?chat=${chat.id}`}
                   className={cn(chipVariants({ fullWidth: true }), 'gap-2')}
                 >
                   <Avatar size='xs' name={chat.owner} />
@@ -288,21 +290,44 @@ export function IssuePage({ workspace, issue }: IssuePageProps) {
           {issue.investigation && (
             <div className='mt-4 flex flex-col gap-1'>
               <span className='px-2 text-[var(--text-muted)] text-caption'>Sources</span>
-              {issue.investigation.sources.map((source) => (
-                <Chip key={source.label} fullWidth rightIcon={ArrowUpRight}>
-                  {source.label}
-                </Chip>
-              ))}
+              {issue.investigation.sources.map((source) => {
+                const href = resolveHref(
+                  source.kind === 'workflow' ? 'workflow' : null,
+                  source.label
+                )
+                return href ? (
+                  <ChipLink key={source.label} href={href} fullWidth rightIcon={ArrowUpRight}>
+                    {source.label}
+                  </ChipLink>
+                ) : (
+                  <Chip key={source.label} fullWidth rightIcon={ArrowUpRight}>
+                    {source.label}
+                  </Chip>
+                )
+              })}
             </div>
           )}
           {issue.resources.length > 0 && (
             <div className='mt-4 flex flex-col gap-1'>
               <span className='px-2 text-[var(--text-muted)] text-caption'>Resources</span>
-              {issue.resources.map((resource) => (
-                <Chip key={resource.name} fullWidth leftIcon={RESOURCE_ICONS[resource.kind]}>
-                  {resource.name}
-                </Chip>
-              ))}
+              {issue.resources.map((resource) => {
+                const href = resolveHref(resource.kind, resource.name)
+                return href ? (
+                  <ChipLink
+                    key={resource.name}
+                    href={href}
+                    fullWidth
+                    leftIcon={RESOURCE_ICONS[resource.kind]}
+                    rightIcon={ArrowUpRight}
+                  >
+                    {resource.name}
+                  </ChipLink>
+                ) : (
+                  <Chip key={resource.name} fullWidth leftIcon={RESOURCE_ICONS[resource.kind]}>
+                    {resource.name}
+                  </Chip>
+                )
+              })}
             </div>
           )}
         </aside>
@@ -404,4 +429,35 @@ function ActivityRow({ activity }: { activity: Activity }) {
       <span className='shrink-0 text-[var(--text-muted)] text-caption'>{activity.at}</span>
     </div>
   )
+}
+
+type ResourceKind = Issue['resources'][number]['kind']
+
+/**
+ * Resolves a pack resource to the real workspace page with the same name, so the mock issue's
+ * links land on the seeded workflow, table, knowledge base or file. Unmatched names stay plain.
+ */
+function useResourceHrefs(workspaceId: string) {
+  const { workflows, tables, knowledgeBases, files } = useProjectResources(workspaceId)
+  return (kind: ResourceKind | null, name: string): string | null => {
+    const wanted = name.trim().toLowerCase()
+    const matches = (candidate: string) => candidate.trim().toLowerCase() === wanted
+    if (kind === 'workflow' || kind === null) {
+      const workflow = workflows.find((w) => matches(w.name))
+      if (workflow) return workspaceRoutes.workflow(workspaceId, workflow.id)
+    }
+    if (kind === 'table' || kind === null) {
+      const table = tables.find((t) => matches(t.name))
+      if (table) return workspaceRoutes.table(workspaceId, table.id)
+    }
+    if (kind === 'knowledge' || kind === null) {
+      const base = knowledgeBases.find((b) => matches(b.name))
+      if (base) return workspaceRoutes.knowledgeBase(workspaceId, base.id)
+    }
+    if (kind === 'file' || kind === 'dashboard' || kind === null) {
+      const file = files.find((f) => matches(f.name) || matches(f.name.replace(/\.[^.]+$/, '')))
+      if (file) return workspaceRoutes.file(workspaceId, file.id)
+    }
+    return null
+  }
 }

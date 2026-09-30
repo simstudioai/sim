@@ -1,3 +1,5 @@
+import { CLAIMS_CHANGELOG, CLAIMS_DRAFT } from '@/app/playground/org/lib/claims-data'
+
 export interface ChangelogMetric {
   label: string
   before: number
@@ -77,6 +79,7 @@ export interface DraftRelease {
 }
 
 export const DRAFTS: DraftRelease[] = [
+  CLAIMS_DRAFT,
   {
     workspaceId: 'infra',
     versions: [
@@ -277,6 +280,7 @@ export const DRAFTS: DraftRelease[] = [
 ]
 
 export const CHANGELOG: ChangelogEntry[] = [
+  ...CLAIMS_CHANGELOG,
   {
     id: 'kb-resync',
     workspaceId: 'infra',

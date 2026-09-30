@@ -10,7 +10,10 @@ import {
   Table,
   Workflow,
 } from '@sim/emcn/icons'
-import { CHATS } from '@/app/playground/org/lib/mock-data'
+import {
+  getWorkspaceSettingsHref,
+  type WorkspaceSettingsSection,
+} from '@/components/settings/navigation'
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_NAV } from '@/app/playground/org/lib/settings-nav'
 
 export const PROTO_BASE = '/playground/org'
@@ -43,13 +46,10 @@ export const protoRoutes = {
   search: `${PROTO_BASE}/search`,
   connectors: `${PROTO_BASE}/connectors`,
   /** Project chats slide in beside their project; org-level chats open on their own page. */
-  chat: (chatId: string) => {
-    const chat = CHATS.find((c) => c.id === chatId)
-    if (!chat) throw new Error(`Unknown chat ${chatId}`)
-    return chat.workspaceId
-      ? `${PROTO_BASE}/p/${chat.workspaceId}/dashboard?chat=${chatId}`
-      : `${PROTO_BASE}/chat/${chatId}`
-  },
+  chat: (workspaceId: string | null, chatId: string) =>
+    workspaceId
+      ? `${PROTO_BASE}/p/${workspaceId}/dashboard?chat=${chatId}`
+      : `${PROTO_BASE}/chat/${chatId}`,
   /** Main project view for dashboard/changelog/issues; any other section opens the full view. */
   workspace: (workspaceId: string, section: WorkspaceSection = 'dashboard') =>
     isMainSection(section)
@@ -113,4 +113,26 @@ export function fullViewProject(pathname: string | null): string | null {
 export function settingsProject(pathname: string | null): string | null {
   const match = pathname?.match(/\/p\/([^/]+)\/build\/settings(?:\/|$)/)
   return match ? match[1] : null
+}
+
+/** The real workspace pages a project's resources open in. */
+export const workspaceRoutes = {
+  workflows: (workspaceId: string) => `/workspace/${workspaceId}/w`,
+  workflow: (workspaceId: string, workflowId: string) =>
+    `/workspace/${workspaceId}/w/${workflowId}`,
+  files: (workspaceId: string) => `/workspace/${workspaceId}/files`,
+  file: (workspaceId: string, fileId: string) => `/workspace/${workspaceId}/files/${fileId}`,
+  tables: (workspaceId: string) => `/workspace/${workspaceId}/tables`,
+  table: (workspaceId: string, tableId: string) => `/workspace/${workspaceId}/tables/${tableId}`,
+  knowledge: (workspaceId: string) => `/workspace/${workspaceId}/knowledge`,
+  knowledgeBase: (workspaceId: string, id: string) => `/workspace/${workspaceId}/knowledge/${id}`,
+  logs: (workspaceId: string, executionId?: string | null) =>
+    executionId
+      ? `/workspace/${workspaceId}/logs?executionId=${encodeURIComponent(executionId)}`
+      : `/workspace/${workspaceId}/logs`,
+  integrations: (workspaceId: string) => `/workspace/${workspaceId}/integrations`,
+  credential: (workspaceId: string, credentialId: string) =>
+    `/workspace/${workspaceId}/integrations/connected/${credentialId}`,
+  settings: (workspaceId: string, section: WorkspaceSettingsSection) =>
+    getWorkspaceSettingsHref(workspaceId, section),
 }
