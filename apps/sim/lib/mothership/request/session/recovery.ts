@@ -45,14 +45,16 @@ export async function checkForReplayGap(
         [TraceAttr.CopilotRecoveryLatestSeq]: latestSeq ?? -1,
       })
 
+      /* Trimmed below the ring, or ahead of a buffer whose numbering restarted after it
+         expired: either way the events after the cursor are not the ones it names. */
       if (
         latestSeq !== null &&
         latestSeq > 0 &&
         oldestSeq !== null &&
-        requestedAfterSeq < oldestSeq - 1
+        (requestedAfterSeq < oldestSeq - 1 || requestedAfterSeq > latestSeq)
       ) {
         const resolvedRequestId = await resolveReplayGapRequestId(streamId, latestSeq, requestId)
-        logger.warn('Replay gap detected: requested cursor is below oldest available event', {
+        logger.warn('Replay gap detected: requested cursor is outside the retained events', {
           streamId,
           requestedAfterSeq,
           oldestAvailableSeq: oldestSeq,

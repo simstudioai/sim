@@ -10,8 +10,15 @@ export const SIM_AGENT_API_URL =
     ? rawAgentUrl
     : SIM_AGENT_API_URL_DEFAULT
 
-/** Default timeout for the copilot orchestration stream loop (60 min). */
-export const ORCHESTRATION_TIMEOUT_MS = 3_600_000
+/**
+ * How long a worker SSE leg may stay silent before Sim treats the connection as
+ * lost and re-attaches. The worker writes a keepalive comment whenever a leg has
+ * been quiet for 10 s (checked every 15 s), independent of model or tool progress,
+ * so a healthy leg is never silent for more than about 25 s. It stays well under
+ * the idle timeouts of network intermediaries, which can drop a silent connection
+ * without closing it.
+ */
+export const WORKER_STREAM_IDLE_TIMEOUT_MS = 120_000
 
 /**
  * Watchdog cap for a single sim-executed copilot tool. A tool that neither
@@ -25,10 +32,15 @@ export const TOOL_WATCHDOG_DEFAULT_MS = 60_000
  * Watchdog cap for tool classes with legitimately long runtimes (workflow
  * executions, media/image generation, sandboxed code, deep research). Those
  * tools carry their own inner budgets (plan execution timeouts, sandbox
- * timeouts), so this cap only backstops a true hang and sits above all of
- * them — matching ORCHESTRATION_TIMEOUT_MS so it never undercuts a legal run.
+ * timeouts), so this cap only backstops a true hang and sits above all of them.
  */
-export const TOOL_WATCHDOG_LONG_RUNNING_MS = ORCHESTRATION_TIMEOUT_MS
+export const TOOL_WATCHDOG_LONG_RUNNING_MS = 60 * 60 * 1000
+
+/** How long a tool call held for the user's approval waits for an answer. */
+export const PERMISSION_WAIT_TIMEOUT_MS = 60 * 60 * 1000
+
+/** How long a client-executed tool (browser or desktop app) may take to report its result. */
+export const CLIENT_TOOL_RESULT_TIMEOUT_MS = 60 * 60 * 1000
 
 /** Extra slack the resume gate allows past the slowest pending tool's watchdog. */
 export const TOOL_WATCHDOG_RESUME_GRACE_MS = 30_000
@@ -43,7 +55,7 @@ export const STREAM_TIMEOUT_MS = 3_600_000
  * Workflow tools are client-routed, but the only thing that starts one is the
  * mounted chat view — a call frame that arrives while the user is on a
  * different chat is never dispatched by anyone, and the turn used to park for
- * the full STREAM_TIMEOUT_MS. The real pickup path (stream frame -> execute
+ * the full CLIENT_TOOL_RESULT_TIMEOUT_MS. The real pickup path (stream frame -> execute
  * POST -> claim) lands in ~1-3s, so 30s is an order of magnitude of headroom
  * and cannot steal work from a live tab.
  */

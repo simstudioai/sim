@@ -1089,6 +1089,74 @@ describe('useChat remount send recovery', () => {
     }
   })
 
+  it('keeps re-attaching a long turn whose tails deliver events between separate network failures', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      let tails = 0
+      const history: MothershipChatHistory = {
+        id: 'chat-long-turn',
+        mode: 'agent',
+        title: 'Long turn',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      }
+      mockRequestJson.mockImplementation(() =>
+        Promise.resolve({
+          chat: { ...history, activeStreamId: state.postBodies[0]?.userMessageId ?? null },
+        })
+      )
+      state.postBehavior = 'accept'
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (!url.includes('/api/mothership/chat/stream')) return fetchStub(input, init)
+        if (url.includes('batch=true')) {
+          return Response.json({ success: true, events: [], status: 'streaming' })
+        }
+        tails++
+        const streamId = state.postBodies[0]?.userMessageId ?? ''
+        const event: MothershipStreamV1EventEnvelope = {
+          v: 1,
+          seq: tails,
+          ts: new Date().toISOString(),
+          type: 'text',
+          stream: { streamId, cursor: String(tails) },
+          payload: { channel: 'assistant', text: `part ${tails} ` },
+        }
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`))
+            },
+            pull(controller) {
+              controller.error(new TypeError('network error'))
+            },
+          }),
+          { headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        void getResult().sendMessage('Keep going for hours')
+      })
+      const errors = new Set<string>()
+      let seconds = 0
+      for (; seconds < 600 && tails < 15; seconds++) {
+        await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        const error = getResult().error
+        if (error) errors.add(error)
+      }
+
+      expect(tails).toBeGreaterThanOrEqual(15)
+      /* Each failure after a tail that delivered events retries at the base delay. */
+      expect(seconds).toBeLessThan(60)
+      expect([...errors]).toEqual([])
+      expect(getResult().isSending).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('sends a queued correction after stopping with more than 10 MiB of tool input', async () => {
     state.postBehavior = 'tool'
     state.toolInputPadding = 'x'.repeat(11 * 1024 * 1024)

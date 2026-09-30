@@ -9,8 +9,8 @@ import type {
 } from '@/lib/mothership/async-runs/lifecycle'
 import { upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
   COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
-  STREAM_TIMEOUT_MS,
 } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
@@ -883,7 +883,7 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
-    const timeoutMs = options.timeout || STREAM_TIMEOUT_MS
+    const timeoutMs = options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,
       {

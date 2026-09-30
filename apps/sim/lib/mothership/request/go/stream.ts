@@ -2,7 +2,7 @@ import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecordOrNull } from '@sim/utils/object'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
+import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
@@ -155,6 +155,11 @@ export class StreamEndedWithoutTerminalError extends Error {
   }
 }
 
+/** No bytes, keepalives included, arrived from the worker within the idle timeout. */
+function workerStreamIdleError(): Error {
+  return new Error(`No bytes from the worker in ${WORKER_STREAM_IDLE_TIMEOUT_MS / 1000} s`)
+}
+
 /**
  * Options for the shared stream processing loop.
  */
@@ -177,6 +182,11 @@ export interface StreamLoopOptions extends OrchestratorOptions {
  * Handles: fetch -> parse -> normalize -> dedupe -> subagent routing -> handler dispatch.
  * Callers provide the fetch URL/options and can intercept events via onBeforeDispatch.
  * Feature-specific normalization runs through dedicated adapters before the raw event is forwarded.
+ *
+ * A leg has no wall clock unless the caller sets `timeout`. Its liveness is the
+ * worker's own traffic: while Sim waits for response headers or the next bytes,
+ * {@link WORKER_STREAM_IDLE_TIMEOUT_MS} of silence fails the leg as unreachable
+ * or interrupted, which the caller's retry window re-attaches.
  */
 export async function runStreamLoop(
   fetchUrl: string,
@@ -185,9 +195,21 @@ export async function runStreamLoop(
   execContext: ExecutionContext,
   options: StreamLoopOptions
 ): Promise<void> {
-  const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
-  const timeoutSignal = AbortSignal.timeout(Math.ceil(timeout))
-  const requestSignal = abortSignal ? AbortSignal.any([abortSignal, timeoutSignal]) : timeoutSignal
+  const { timeout, abortSignal } = options
+  const idle = new AbortController()
+  let idleTimer: ReturnType<typeof setTimeout> | undefined
+  const armIdleTimeout = (onIdle?: () => void) => {
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      idle.abort(workerStreamIdleError())
+      onIdle?.()
+    }, WORKER_STREAM_IDLE_TIMEOUT_MS)
+  }
+  const requestSignal = AbortSignal.any([
+    idle.signal,
+    ...(abortSignal ? [abortSignal] : []),
+    ...(timeout === undefined ? [] : [AbortSignal.timeout(Math.ceil(timeout))]),
+  ])
   const filePreviewAdapterState = createFilePreviewAdapterState()
   const attemptedInlineImages = new Set<string>()
 
@@ -200,6 +222,7 @@ export async function runStreamLoop(
   })
   const fetchStart = performance.now()
   let response: Response
+  armIdleTimeout()
   try {
     response = await fetchGo(fetchUrl, {
       ...fetchOptions,
@@ -218,8 +241,11 @@ export async function runStreamLoop(
       headersMs: Math.round(performance.now() - fetchStart),
     }
     context.trace.endSpan(fetchSpan, abortSignal?.aborted ? 'cancelled' : 'error')
+    if (idle.signal.aborted) throw new WorkerUnreachableError(idle.signal.reason)
     if (requestSignal.aborted) throw error
     throw new WorkerUnreachableError(error)
+  } finally {
+    clearTimeout(idleTimer)
   }
   const headersElapsedMs = Math.round(performance.now() - fetchStart)
   fetchSpan.attributes = {
@@ -230,7 +256,12 @@ export async function runStreamLoop(
 
   if (!response.ok) {
     context.trace.endSpan(fetchSpan, 'error')
-    const errorText = await response.text().catch(() => '')
+    // An error body is bounded by the same silence as the leg; a stalled one reads as empty.
+    armIdleTimeout()
+    const errorText = await new Promise<string>((resolve) => {
+      idle.signal.addEventListener('abort', () => resolve(''), { once: true })
+      response.text().then(resolve, () => resolve(''))
+    }).finally(() => clearTimeout(idleTimer))
 
     if (response.status === 402) {
       throw new BillingLimitError(execContext.userId)
@@ -306,11 +337,22 @@ export async function runStreamLoop(
   const reader: ReadableStreamDefaultReader<Uint8Array> = {
     async read() {
       let result: ReadableStreamReadResult<Uint8Array>
+      armIdleTimeout(() => rawReader.cancel(idle.signal.reason).catch(() => {}))
       try {
         result = await rawReader.read()
       } catch (error) {
+        if (idle.signal.aborted) {
+          endedOn = CopilotSseCloseReason.Timeout
+          throw new WorkerStreamInterruptedError(idle.signal.reason)
+        }
         if (requestSignal.aborted) throw error
         throw new WorkerStreamInterruptedError(error)
+      } finally {
+        clearTimeout(idleTimer)
+      }
+      if (idle.signal.aborted) {
+        endedOn = CopilotSseCloseReason.Timeout
+        throw new WorkerStreamInterruptedError(idle.signal.reason)
       }
       if (!result.done && result.value) {
         const now = performance.now()
@@ -329,12 +371,15 @@ export async function runStreamLoop(
     },
   }
 
-  const timeoutId = setTimeout(() => {
-    context.errors.push('Request timed out')
-    context.streamComplete = true
-    endedOn = CopilotSseCloseReason.Timeout
-    reader.cancel().catch(() => {})
-  }, timeout)
+  const timeoutId =
+    timeout === undefined
+      ? undefined
+      : setTimeout(() => {
+          context.errors.push('Request timed out')
+          context.streamComplete = true
+          endedOn = CopilotSseCloseReason.Timeout
+          reader.cancel().catch(() => {})
+        }, timeout)
 
   try {
     await processSSEStream(reader, abortSignal, async (raw) => {
@@ -553,6 +598,7 @@ export async function runStreamLoop(
     flushSubagentThinkingBlock(context)
     flushThinkingBlock(context)
     clearTimeout(timeoutId)
+    clearTimeout(idleTimer)
 
     // Legacy TraceCollector span (consumed by the in-memory trace
     // collector, kept for backwards compatibility with existing

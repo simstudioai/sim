@@ -6,7 +6,7 @@ import {
   workspaceFilesListMock,
   workspaceFilesListMockFns,
 } from '@sim/testing/mocks/workspace-files-list.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -86,6 +86,8 @@ import {
   runStreamLoop,
   STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
   StreamEndedWithoutTerminalError,
+  WorkerStreamInterruptedError,
+  WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 import {
   createProviderToolCallIdentity,
@@ -1022,5 +1024,175 @@ describe('copilot go stream helpers', () => {
         message.includes('Received invalid stream event on shared path')
       )
     ).toBe(true)
+  })
+
+  describe('worker stream liveness without a caller deadline', () => {
+    /** Well past the idle timeout, and under common intermediary idle cuts. */
+    const INTERMEDIARY_IDLE_MS = 300_000
+    const encoder = new TextEncoder()
+    const frame = (event: unknown) => encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+    const firstText = createEvent({
+      streamId: 'long-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-long',
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: 'assistant', text: 'working' },
+    })
+
+    function settle(promise: Promise<void>) {
+      const state: { done: boolean; error?: unknown } = { done: false }
+      promise.then(
+        () => {
+          state.done = true
+        },
+        (error: unknown) => {
+          state.done = true
+          state.error = error
+        }
+      )
+      return state
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('keeps a leg open past an hour while the worker sends keepalives', async () => {
+      vi.useFakeTimers()
+      const complete = createEvent({
+        streamId: 'long-stream',
+        cursor: '2',
+        seq: 2,
+        requestId: 'req-long',
+        type: MothershipStreamV1EventType.complete,
+        payload: { status: MothershipStreamV1CompletionStatus.complete },
+      })
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(frame(firstText))
+              const keepalive = setInterval(() => {
+                try {
+                  controller.enqueue(encoder.encode(': keepalive\n\n'))
+                } catch {
+                  clearInterval(keepalive)
+                }
+              }, 25_000)
+              setTimeout(
+                () => {
+                  clearInterval(keepalive)
+                  controller.enqueue(frame(complete))
+                  controller.close()
+                },
+                2 * 60 * 60 * 1000
+              )
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      )
+      const context = createStreamingContext()
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          context,
+          turnScopedExecContext(),
+          {
+            flushAfterEvent: false,
+          }
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000 + 1_000)
+
+      expect(state).toEqual({ done: true })
+      expect(context.errors).toEqual([])
+      expect(context.streamComplete).toBe(true)
+    })
+
+    it('fails a silent leg as a retryable interruption before an intermediary drops it', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(frame(firstText))
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      )
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          createStreamingContext(),
+          turnScopedExecContext(),
+          { flushAfterEvent: false }
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(state.done).toBe(false)
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS - 60_000)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toBeInstanceOf(WorkerStreamInterruptedError)
+    })
+
+    it('fails a worker whose error body stalls instead of waiting on it forever', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(new ReadableStream<Uint8Array>(), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          createStreamingContext(),
+          turnScopedExecContext(),
+          {}
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toMatchObject({ name: 'CopilotBackendError', status: 503 })
+    })
+
+    it('fails a worker that never answers as unreachable before an intermediary drops it', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockImplementationOnce(
+        (_url, options) =>
+          new Promise<Response>((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+              once: true,
+            })
+          })
+      )
+      const context = createStreamingContext()
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          context,
+          turnScopedExecContext(),
+          {}
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toBeInstanceOf(WorkerUnreachableError)
+      expect(context.wasAborted).not.toBe(true)
+    })
   })
 })

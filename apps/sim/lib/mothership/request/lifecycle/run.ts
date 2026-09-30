@@ -247,7 +247,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
  *
  * Beyond the flag, gating is limited to interactive mothership chats: that is
  * the only surface with a UI that can answer a prompt, so enabling it anywhere
- * else would hang the turn until the orchestration timeout with nothing to click.
+ * else would hang the turn until the permission wait expires with nothing to click.
  */
 async function resolveToolPermissions(
   options: CopilotLifecycleOptions

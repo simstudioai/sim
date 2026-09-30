@@ -48,6 +48,7 @@ import {
 import type { ChatContext } from '@/stores/panel'
 import { hasToolId } from '@/tools/tool-ids'
 
+/** Caps this response on serverless hosts only; the Node server bounds nothing with it. */
 export const maxDuration = 3600
 
 const logger = createLogger('MothershipExecuteAPI')
