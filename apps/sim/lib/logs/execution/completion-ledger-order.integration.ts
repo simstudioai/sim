@@ -1,6 +1,6 @@
 /**
- * Completion ordering against real PostgreSQL: a run's usage ledger is durable before
- * its log reads terminal, so a reader that sees a finished run always sees its cost.
+ * Completion ordering against real PostgreSQL: a run's usage ledger is written before its
+ * log reads terminal, so a reader that sees a finished run always sees its cost.
  */
 import { db } from '@sim/db'
 import {
@@ -11,10 +11,12 @@ import {
   workflowExecutionSnapshots,
   workspace,
 } from '@sim/db/schema'
+import { createDeferred } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { eq, sql } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { buildCostLedger } from '@/lib/logs/cost-ledger'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
@@ -26,8 +28,8 @@ const ids = {
   workflow: generateId(),
 }
 
-/** Enough completions that an ordering gap is observed on every run where one exists. */
-const COMPLETIONS = 20
+/** The advisory lock the usage ledger write takes for its execution before inserting. */
+const USAGE_RECONCILE_LOCK = 'execution_usage_reconcile'
 const EXECUTION_FEE = 0.005
 
 const workflowState: WorkflowState = {
@@ -109,59 +111,60 @@ afterAll(async () => {
   await db.delete(user).where(eq(user.id, ids.owner))
 })
 
+/** Whether a session is waiting on an advisory lock — this file's database has no other traffic. */
+async function hasAdvisoryLockWaiter() {
+  const rows = await db.execute<{ waiting: boolean }>(
+    sql`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND NOT granted) AS waiting`
+  )
+  return Boolean(rows[0]?.waiting)
+}
+
 describe('completeWorkflowExecution', () => {
-  it('never exposes a finished run before its cost ledger', async () => {
+  it('writes the cost ledger before the run reads finished', async () => {
     const billingAttribution = await resolveBillingAttribution({
       actorUserId: ids.owner,
       workspaceId: ids.workspace,
     })
-    let finishedWithoutLedger = 0
+    const executionId = generateId()
+    await startExecution(executionId)
 
-    for (let i = 0; i < COMPLETIONS; i++) {
-      const executionId = generateId()
-      await startExecution(executionId)
+    /** Holds the ledger write at its lock, so the log can be read while it waits there. */
+    const lockHeld = createDeferred<void>()
+    const releaseLock = createDeferred<void>()
+    const holder = db.transaction(async (tx) => {
+      await acquireAdvisoryXactLock(tx, USAGE_RECONCILE_LOCK, executionId)
+      lockHeld.resolve()
+      await releaseLock.promise
+    })
+    await lockHeld.promise
 
-      /**
-       * The ledger only grows, so the first read that finds the run finished is the one that
-       * counts. Settlement is captured before each read, so a read already in flight when the
-       * completion lands cannot end the loop before the finished run is observed.
-       */
-      let completing = true
-      const reader = (async () => {
-        for (;;) {
-          const settledBeforeRead = !completing
-          if ((await logRow(executionId))?.status === 'completed') {
-            if ((await buildCostLedger(executionId)) === null) finishedWithoutLedger++
-            return
-          }
-          if (settledBeforeRead) return
-        }
-      })()
+    const completion = executionLogger.completeWorkflowExecution({
+      executionId,
+      endedAt: new Date().toISOString(),
+      totalDurationMs: 5,
+      costSummary: calculateCostSummary([], { baseExecutionCharge: EXECUTION_FEE }),
+      finalOutput: {},
+      traceSpans: [],
+      status: 'completed',
+      actorUserId: ids.owner,
+      billingAttribution,
+    })
 
-      try {
-        await executionLogger.completeWorkflowExecution({
-          executionId,
-          endedAt: new Date().toISOString(),
-          totalDurationMs: 5,
-          costSummary: calculateCostSummary([], { baseExecutionCharge: EXECUTION_FEE }),
-          finalOutput: {},
-          traceSpans: [],
-          status: 'completed',
-          actorUserId: ids.owner,
-          billingAttribution,
-        })
-      } finally {
-        completing = false
-        // Settle the reader without letting its error replace a completion failure.
-        await reader.catch(() => {})
-      }
-      await reader
-
-      const ledger = await buildCostLedger(executionId)
-      expect(ledger?.total).toBeCloseTo(EXECUTION_FEE, 8)
-      expect(Number((await logRow(executionId))?.costTotal)).toBeCloseTo(EXECUTION_FEE, 8)
+    let statusWhileLedgerBlocked: string | undefined
+    try {
+      await vi.waitFor(async () => {
+        expect(await hasAdvisoryLockWaiter()).toBe(true)
+      })
+      statusWhileLedgerBlocked = (await logRow(executionId))?.status
+    } finally {
+      releaseLock.resolve()
+      await holder
     }
+    await completion
 
-    expect(finishedWithoutLedger).toBe(0)
+    expect(statusWhileLedgerBlocked).toBe('running')
+    expect(await logRow(executionId)).toMatchObject({ status: 'completed' })
+    expect((await buildCostLedger(executionId))?.total).toBeCloseTo(EXECUTION_FEE, 8)
+    expect(Number((await logRow(executionId))?.costTotal)).toBeCloseTo(EXECUTION_FEE, 8)
   })
 })
