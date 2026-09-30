@@ -106,13 +106,23 @@ async function startRequest(
         params: request.params,
         query: { oauthCompletionId: request.completionId },
       })
-      return { url: result.data.url, match: { kind: 'completion', id: request.completionId } }
+      return {
+        url: result.data.url,
+        match: request.completionId
+          ? { kind: 'completion', id: request.completionId }
+          : enrollmentMatch(result.data.url),
+      }
     }
     case 'search-source': {
       const result = await requestJson(connectSimSearchConnectorContract, {
         body: { ...request.body, oauthCompletionId: request.completionId },
       })
-      return { url: result.data.url, match: { kind: 'completion', id: request.completionId } }
+      return {
+        url: result.data.url,
+        match: request.completionId
+          ? { kind: 'completion', id: request.completionId }
+          : enrollmentMatch(result.data.url),
+      }
     }
     case 'slack-managed-users': {
       const { owner, body, credentialGroupId } = request

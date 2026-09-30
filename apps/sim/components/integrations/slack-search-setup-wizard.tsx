@@ -156,7 +156,7 @@ export function SlackSearchSetupWizard({
     return (
       <ChipModal
         open
-        dismissDisabled={busy && !isDesktopApp()}
+        dismissDisabled={connect.isPending || (oauth.isPending && !isDesktopApp())}
         onOpenChange={(open) => {
           if (!open) close()
         }}
@@ -212,7 +212,7 @@ export function SlackSearchSetupWizard({
   return (
     <ChipModal
       open
-      dismissDisabled={busy && !isDesktopApp()}
+      dismissDisabled={connect.isPending || (oauth.isPending && !isDesktopApp())}
       onOpenChange={(open) => {
         if (!open) close()
       }}

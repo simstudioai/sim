@@ -113,6 +113,19 @@ test('source authorization returns to its desktop screen and refreshes live', as
       redirect(`/credential-groups/slack-complete?state=${state}&ok=${ok}`)
       return
     }
+    if (
+      path ===
+      '/api/knowledge/00000000-0000-4000-8000-000000000001/connectors/fixture-connector/enroll'
+    ) {
+      if (url.searchParams.has('oauthCompletionId'))
+        json({ error: 'Direct account connection requires a Search source' }, 400)
+      else
+        json({
+          success: true,
+          data: { url: `${origin}/credential-groups/enroll/fixture-invitation` },
+        })
+      return
+    }
     if (path === '/api/knowledge/github/setup') {
       if (request.method === 'POST') {
         const { setupId } = await body()
@@ -367,6 +380,15 @@ test('source authorization returns to its desktop screen and refreshes live', as
         expect(page.url()).toBe(`${origin}/home`)
       }
     )
+    await check('ordinary knowledge-base enrollment preserves its invitation step', async () => {
+      await page.getByRole('button', { name: 'Connect invited source' }).click()
+      await expect.poll(async () => (await opened()).length).toBe(7)
+      await external.goto((await opened())[6])
+      await external.getByRole('link', { name: 'Authorize invited source' }).click()
+      await expect(page.getByLabel('Enrollment pending')).toHaveText('false')
+      await expect(page.getByLabel('Enrollment error')).toHaveText('')
+      expect(page.url()).toBe(`${origin}/home`)
+    })
     await page.screenshot({ path: test.info().outputPath('source-connect-desktop.png') })
   } finally {
     mkdirSync(dirname(reportPath), { recursive: true })

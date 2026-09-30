@@ -25,12 +25,12 @@ export const desktopSourceRequestSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('member-enrollment'),
     params: knowledgeConnectorParamsSchema,
-    completionId: z.string().uuid(),
+    completionId: z.string().uuid().optional(),
   }),
   z.object({
     kind: z.literal('search-source'),
     body: connectSimSearchConnectorBodySchema,
-    completionId: z.string().uuid(),
+    completionId: z.string().uuid().optional(),
   }),
   z.object({
     kind: z.literal('slack-managed-users'),

@@ -1,3 +1,5 @@
+import { createLogger } from '@sim/logger'
+import { describeError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { slackSearchOAuthCallbackContract } from '@/lib/api/contracts/knowledge/slack'
 import { parseRequest } from '@/lib/api/server'
@@ -14,6 +16,8 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { completeSlackSearchSetup } from '@/lib/knowledge/application/slack-search/setup'
 import { slackSearchInstallPath } from '@/lib/slack-search/install-link'
 import { authenticateSlackPublicInstallation } from '@/lib/slack-search/public-install-auth'
+
+const logger = createLogger('SlackSearchOAuthCallback')
 
 /** OAuth is a redirect protocol; protected configuration remains in the application use case. */
 export const GET = withRouteHandler(async (request) => {
@@ -64,6 +68,12 @@ export const GET = withRouteHandler(async (request) => {
     })
   } catch (error) {
     if (callbackState) {
+      const projected = internalOrchestrationErrorPolicy.project(error)
+      if (
+        !(error instanceof InternalUnauthenticatedError) &&
+        (!projected || projected.status >= 500)
+      )
+        logger.error('Slack authorization callback failed', { error: describeError(error) })
       const url = new URL('/credential-groups/slack-complete', getBaseUrl())
       url.searchParams.set('state', callbackState)
       url.searchParams.set('ok', 'false')

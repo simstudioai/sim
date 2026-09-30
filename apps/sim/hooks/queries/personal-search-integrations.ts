@@ -45,7 +45,7 @@ export function useConnectPersonalSearchIntegration() {
         await connectDesktopSource({ kind: 'personal-search', body }, signal)
         return null
       }
-      return (await requestJson(connectPersonalSearchIntegrationContract, { body })).data
+      return (await requestJson(connectPersonalSearchIntegrationContract, { body, signal })).data
     },
     onSettled: (_data, _error, body) =>
       Promise.all([

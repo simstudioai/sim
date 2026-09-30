@@ -108,7 +108,10 @@ export function useMemberEnrollment({
       nativeAbort.current = controller
       return connectDesktopSource(request, controller.signal)
     },
-    onSettled: () => refreshMemberships(),
+    onSettled: () =>
+      Promise.all(
+        membershipQueryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))
+      ),
     onError: (error) => onConnectionError?.(error.message),
     onSuccess: () => setSetupConnector(null),
   })
@@ -286,7 +289,7 @@ export function useMemberEnrollment({
       nativeConnection.mutate({
         kind: 'member-enrollment',
         params: { id: knowledgeBaseId, connectorId },
-        completionId: generateId(),
+        ...(directOAuth ? { completionId: generateId() } : {}),
       })
       return
     }
@@ -321,7 +324,7 @@ export function useMemberEnrollment({
       nativeConnection.mutate({
         kind: 'search-source',
         body: { ...resourceScopeFields(scope), connectorType, sourceConfig },
-        completionId: generateId(),
+        ...(directOAuth ? { completionId: generateId() } : {}),
       })
       return
     }

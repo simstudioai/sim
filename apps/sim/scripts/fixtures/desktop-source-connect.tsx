@@ -5,10 +5,19 @@ import { createRoot } from 'react-dom/client'
 import { startDesktopSourceBrowser } from '@/lib/desktop/source-browser'
 import { CredentialGroupCompletionHandoff } from '@/app/credential-groups/complete/completion-handoff'
 import { SlackCompletion } from '@/app/credential-groups/slack-complete/slack-completion'
+import { SourceCompletion } from '@/app/desktop/connect/source-completion'
+import { useMemberEnrollment } from '@/app/o/[organizationId]/integrations/indexed/use-member-enrollment'
 import { useSlackSearchInstallations, useStartSlackSearchOAuth } from '@/hooks/queries/slack-search'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 
+const NO_CONNECTIONS = new Set<string>()
+const MEMBERSHIP_KEYS: readonly (readonly string[])[] = []
+
 function SourceConnectFixture() {
+  const enrollment = useMemberEnrollment({
+    membershipQueryKeys: MEMBERSHIP_KEYS,
+    connectedConnectorIds: NO_CONNECTIONS,
+  })
   const [githubCredential, setGithubCredential] = useState('')
   const github = useGitHubInstallationSetup({
     organizationId: 'fixture-organization',
@@ -38,6 +47,16 @@ function SourceConnectFixture() {
       <output aria-label='GitHub pending'>{String(github.pending)}</output>
       <output aria-label='GitHub credential'>{githubCredential}</output>
       <output aria-label='GitHub error'>{github.error}</output>
+      <button
+        disabled={enrollment.isPending}
+        onClick={() =>
+          enrollment.connect('00000000-0000-4000-8000-000000000001', 'fixture-connector')
+        }
+      >
+        Connect invited source
+      </button>
+      <output aria-label='Enrollment pending'>{String(enrollment.isPending)}</output>
+      <output aria-label='Enrollment error'>{enrollment.error}</output>
       <output aria-label='Connection'>{connection.status}</output>
       <output aria-label='Accounts'>{inventory.data?.installations.length ?? 0}</output>
       {connection.error && <p role='alert'>{connection.error.message}</p>}
@@ -63,7 +82,15 @@ function BrowserLauncher() {
 
 const params = new URLSearchParams(location.search)
 const content =
-  location.pathname === '/credential-groups/complete' ? (
+  location.pathname === '/credential-groups/enroll/fixture-invitation' ? (
+    params.has('connected') ? (
+      <SourceCompletion kind='enrollment' id='fixture-invitation' />
+    ) : (
+      <a href='/credential-groups/enroll/fixture-invitation?connected=true'>
+        Authorize invited source
+      </a>
+    )
+  ) : location.pathname === '/credential-groups/complete' ? (
     <CredentialGroupCompletionHandoff completionId={params.get('completionId')!} />
   ) : location.pathname === '/desktop/connect' ? (
     <BrowserLauncher />
