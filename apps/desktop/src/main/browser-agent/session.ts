@@ -2013,12 +2013,14 @@ export function reloadPage(contents: WebContents): void {
 }
 
 /**
- * Reloads past the HTTP cache, the browser's Shift-reload. A hung page takes
- * the plain reload's recovery instead: its renderer must be restarted, since
- * reloading it in place waits on the hung page.
+ * Reloads past the HTTP cache, the browser's Shift-reload. A failed or hung
+ * page takes the plain reload's recovery instead: a load error retries the
+ * URL that failed, which need not be the committed page, and a hung renderer
+ * must be restarted, since reloading it in place waits on the hung page.
  */
 function hardReloadPage(contents: WebContents): void {
-  if (tabForContents(contents)?.pageIssue?.kind === 'unresponsive') {
+  const issue = tabForContents(contents)?.pageIssue
+  if (issue?.kind === 'load-error' || issue?.kind === 'unresponsive') {
     reloadPage(contents)
     return
   }
