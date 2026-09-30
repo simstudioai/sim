@@ -2,14 +2,14 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
-import { appendEvents } from './buffer'
-import type { PersistedStreamEventEnvelope } from './contract'
-import type { ChatStreamLease } from './controller-lease'
-import { createEvent } from './event'
-import { StreamReplayBudgetExhaustedError } from './replay-budget'
-import { compactStreamEvent } from './replay-compaction'
-import { encodeSSEEnvelope } from './sse'
-import type { StreamEvent } from './types'
+import { appendEvents } from '@/lib/mothership/request/session/buffer'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import type { ChatStreamLease } from '@/lib/mothership/request/session/controller-lease'
+import { createEvent } from '@/lib/mothership/request/session/event'
+import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
+import { compactStreamEvent } from '@/lib/mothership/request/session/replay-compaction'
+import { encodeSSEEnvelope } from '@/lib/mothership/request/session/sse'
+import type { StreamEvent } from '@/lib/mothership/request/session/types'
 
 const logger = createLogger('StreamWriter')
 
@@ -130,9 +130,11 @@ export class StreamWriter {
   }
 
   /**
-   * Delivers an event and records it for replay. Oversized strings are cut first
-   * ({@link compactStreamEvent}); the client and the replay buffer receive the
-   * same compacted copy, while the caller keeps the full event for dispatch.
+   * Delivers an event and records it for replay. An oversized event is compacted
+   * first ({@link compactStreamEvent}): long strings are cut to their head, then
+   * long arrays to their head, then any bulk still past one replay write is
+   * replaced by a size note. The client and the replay buffer receive the same
+   * compacted copy, while the caller keeps the full event for dispatch.
    *
    * A leased writer persists before delivering. When the buffer refuses, the
    * publish rejects with {@link StreamReplayBudgetExhaustedError}, and every later

@@ -32,7 +32,7 @@ export class StreamRetryWindow {
   private firstFailureAt?: number
   private firstUnreachableAt?: number
   private unreachableAttempt = 0
-  attempt = 0
+  private attempt = 0
 
   constructor(timeoutMs = ORCHESTRATION_TIMEOUT_MS) {
     this.deadline = Date.now() + timeoutMs
@@ -119,5 +119,5 @@ function isRetryableStreamError(error: unknown): boolean {
   if (error instanceof CopilotBackendError) {
     return error.status !== undefined && error.status >= 500
   }
-  return error instanceof WorkerUnreachableError || error instanceof TypeError
+  return error instanceof WorkerUnreachableError
 }

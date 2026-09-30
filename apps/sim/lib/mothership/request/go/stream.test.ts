@@ -832,6 +832,39 @@ describe('copilot go stream helpers', () => {
     })
   })
 
+  it('keeps the timeout error when the body read fails after the request timed out', async () => {
+    const first = createEvent({
+      streamId: 'timed-out-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-timed-out',
+      type: 'text',
+      payload: { channel: 'assistant', text: 'partial' },
+    })
+    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
+      const signal = init?.signal
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`))
+            signal?.addEventListener('abort', () => controller.error(signal.reason))
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    })
+
+    await expect(
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 20, flushAfterEvent: false }
+      )
+    ).rejects.toMatchObject({ name: 'TimeoutError' })
+  })
+
   it('reports a worker it could not reach without the raw network error', async () => {
     const networkError = new TypeError('fetch failed')
     vi.mocked(fetch).mockRejectedValueOnce(networkError)

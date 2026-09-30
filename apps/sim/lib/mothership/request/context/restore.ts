@@ -14,10 +14,12 @@ export async function restoreStreamingContext(
 ): Promise<void> {
   for (const saved of events) {
     // Preview content already in the replay counts toward this turn's preview budget.
-    if (saved.type === 'tool' && 'previewPhase' in saved.payload) {
-      if (saved.payload.previewPhase === 'file_preview_content') {
-        context.filePreviewBudget.contentBytes += Buffer.byteLength(saved.payload.content, 'utf8')
-      }
+    if (
+      saved.type === 'tool' &&
+      'previewPhase' in saved.payload &&
+      saved.payload.previewPhase === 'file_preview_content'
+    ) {
+      context.filePreviewBudget.contentBytes += Buffer.byteLength(saved.payload.content, 'utf8')
     }
     const event = reconcileTextEvent(saved, context.accumulatedContent)
     if (!event) continue

@@ -146,11 +146,11 @@ export function buildAssistantSnapshotMessage(params: {
 }
 
 export function markMessageStopped(message: PersistedMessage): PersistedMessage {
-  const hasExecutingTool = message.contentBlocks?.some((block) =>
+  const hasUnsettledTool = message.contentBlocks?.some((block) =>
     isUnsettledToolState(block.toolCall?.state)
   )
   const hasOpenBlock = message.contentBlocks?.some((block) => block.endedAt === undefined)
-  if (!hasExecutingTool && !hasOpenBlock) {
+  if (!hasUnsettledTool && !hasOpenBlock) {
     return message
   }
 

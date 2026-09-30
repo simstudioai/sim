@@ -25,11 +25,11 @@ import { createStreamingContext } from '@/lib/mothership/request/context/request
 import {
   createFilePreviewAdapterState,
   type FilePreviewAdapterState,
-  PREVIEW_FRAME_MAX_BYTES,
   PREVIEW_TURN_CONTENT_BYTES,
   processFilePreviewStreamEvent,
 } from '@/lib/mothership/request/go/file-preview-adapter'
 import { createEvent, eventToStreamEvent } from '@/lib/mothership/request/session'
+import { STREAM_EVENT_MAX_PAYLOAD_BYTES } from '@/lib/mothership/request/session/replay-compaction'
 import type {
   ActiveFileIntent,
   ExecutionContext,
@@ -262,7 +262,7 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
 
     for (const payload of payloads) {
       expect(Buffer.byteLength(JSON.stringify(payload))).toBeLessThanOrEqual(
-        PREVIEW_FRAME_MAX_BYTES
+        STREAM_EVENT_MAX_PAYLOAD_BYTES
       )
     }
     expect(completed).toBe(true)

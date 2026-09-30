@@ -1,4 +1,8 @@
 import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
+import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import { isUnsettledToolState, withBlockTiming } from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -17,10 +21,6 @@ import {
   type ToolCallInfo,
   ToolCallStatus,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { getMothershipAttachmentPreviewUrl } from './attachment-preview'
-import { isLiveAssistantMessageId } from './live-message-id'
-import type { PersistedMessage } from './persisted-message'
-import { isUnsettledToolState, withBlockTiming } from './persisted-message'
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   [MothershipStreamV1ToolOutcome.success]: ToolCallStatus.success,

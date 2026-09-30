@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
@@ -15,6 +14,7 @@ import {
   type SyntheticFilePreviewPayload,
   upsertFilePreviewSession,
 } from '@/lib/mothership/request/session'
+import { STREAM_EVENT_MAX_PAYLOAD_BYTES } from '@/lib/mothership/request/session/replay-compaction'
 import type {
   ActiveFileIntent,
   ExecutionContext,
@@ -69,13 +69,6 @@ const PREVIEW_SNAPSHOT_CHARS_PER_SECOND = 256 * 1024
  * final snapshots included, well under the stream's 32 MiB replay budget.
  */
 export const PREVIEW_TURN_CONTENT_BYTES = 8 * 1024 * 1024
-
-/** Room left in a replay write for the envelope around a preview payload. */
-const PREVIEW_FRAME_ENVELOPE_HEADROOM_BYTES = 16 * 1024
-
-/** The largest serialized preview payload the replay buffer can persist in one write. */
-export const PREVIEW_FRAME_MAX_BYTES =
-  getRedisBudgetLimits('copilot_stream').maxSingleWriteBytes - PREVIEW_FRAME_ENVELOPE_HEADROOM_BYTES
 
 /** The minimum gap between full snapshots of a preview this long. */
 function snapshotIntervalMs(baseMs: number, previewText: string): number {
@@ -397,13 +390,13 @@ async function emitPreviewEvent(
   if (frame.previewPhase === 'file_preview_content') {
     const budget = context.filePreviewBudget
     const contentBytes = budget.contentBytes + Buffer.byteLength(frame.content, 'utf8')
-    if (frameBytes > PREVIEW_FRAME_MAX_BYTES || contentBytes > PREVIEW_TURN_CONTENT_BYTES) {
+    if (frameBytes > STREAM_EVENT_MAX_PAYLOAD_BYTES || contentBytes > PREVIEW_TURN_CONTENT_BYTES) {
       return false
     }
     budget.contentBytes = contentBytes
   } else if (
     frame.previewPhase === 'file_preview_complete' &&
-    frameBytes > PREVIEW_FRAME_MAX_BYTES
+    frameBytes > STREAM_EVENT_MAX_PAYLOAD_BYTES
   ) {
     const { output: _output, ...withoutOutput } = frame
     frame = withoutOutput

@@ -95,18 +95,11 @@ describe('stream recovery budget', () => {
     }
   })
 
-  it('keeps a TypeError from handling a delivered stream to the reachable budget', () => {
-    vi.useFakeTimers()
-    const error = new TypeError("Cannot read properties of undefined (reading 'payload')")
+  it('never retries a TypeError thrown by our own stream handling', () => {
     const retry = new StreamRetryWindow()
-    for (let index = 0; index < 3; index++) {
-      retry.recovered()
-      const delay = retry.nextDelay(error)
-      expect(delay).not.toBeNull()
-      vi.advanceTimersByTime(delay ?? 0)
-    }
-    retry.recovered()
-    expect(retry.nextDelay(error)).toBeNull()
+    expect(
+      retry.nextDelay(new TypeError("Cannot read properties of undefined (reading 'payload')"))
+    ).toBeNull()
   })
 
   it.each([
@@ -135,9 +128,9 @@ describe('stream recovery budget', () => {
     vi.useFakeTimers()
     const retry = new StreamRetryWindow(120_000)
     vi.advanceTimersByTime(119_999)
-    expect(retry.nextDelay(new TypeError('fetch failed'))).toBeNull()
+    expect(retry.nextDelay(new WorkerUnreachableError(new TypeError('fetch failed')))).toBeNull()
     vi.advanceTimersByTime(120_000)
-    expect(retry.nextDelay(new TypeError('fetch failed'))).toBeNull()
+    expect(retry.nextDelay(new WorkerUnreachableError(new TypeError('fetch failed')))).toBeNull()
     expect(() => retry.remainingMs()).toThrow('could not be restored')
   })
 
@@ -145,7 +138,9 @@ describe('stream recovery budget', () => {
     const retry = new StreamRetryWindow()
     const controller = new AbortController()
     controller.abort()
-    expect(retry.nextDelay(new TypeError('fetch failed'), controller.signal)).toBeNull()
+    expect(
+      retry.nextDelay(new WorkerUnreachableError(new TypeError('fetch failed')), controller.signal)
+    ).toBeNull()
     expect(retry.nextDelay(new DOMException('Stopped', 'AbortError'))).toBeNull()
     expect(retry.nextDelay(new CopilotBackendError('Forbidden', { status: 403 }))).toBeNull()
     expect(retry.nextDelay(new Error('Invalid operation'))).toBeNull()

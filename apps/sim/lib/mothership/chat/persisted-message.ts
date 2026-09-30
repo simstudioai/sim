@@ -21,7 +21,11 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { ContentBlock, OrchestratorResult } from '@/lib/mothership/request/types'
+import type {
+  ContentBlock,
+  LocalToolCallStatus,
+  OrchestratorResult,
+} from '@/lib/mothership/request/types'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
@@ -362,7 +366,7 @@ export function buildPersistedAssistantMessage(
   return message
 }
 
-const UNSETTLED_TOOL_STATES: ReadonlySet<string> = new Set([
+const UNSETTLED_TOOL_STATES: ReadonlySet<LocalToolCallStatus> = new Set<LocalToolCallStatus>([
   'pending',
   'executing',
   'awaiting_approval',
@@ -370,7 +374,8 @@ const UNSETTLED_TOOL_STATES: ReadonlySet<string> = new Set([
 
 /** A tool row that has not finished: waiting to run, running, or awaiting a decision. */
 export function isUnsettledToolState(state: string | undefined): boolean {
-  return state !== undefined && UNSETTLED_TOOL_STATES.has(state)
+  const unsettled: ReadonlySet<string | undefined> = UNSETTLED_TOOL_STATES
+  return unsettled.has(state)
 }
 
 /** Settles every unfinished tool row at a turn terminal so none reloads as a spinner. */

@@ -4,9 +4,9 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { StreamEvent } from '@/lib/mothership/request/session/types'
 import { isClientExecutedToolCall } from '@/lib/mothership/tools/client-executed-tools'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
-import type { StreamEvent } from './types'
 
 /**
  * Payloads whose strings could serialize past this are compacted before they are
@@ -28,7 +28,7 @@ const NO_KEYS: ReadonlySet<string> = new Set()
 const ARGUMENTS_KEY: ReadonlySet<string> = new Set(['arguments'])
 
 /** Items kept at the head of an array that string cuts alone could not bound. */
-export const STREAM_ARRAY_HEAD_ITEMS = 100
+const STREAM_ARRAY_HEAD_ITEMS = 100
 
 /**
  * A cheap estimate of a value's serialized size, without serializing it. It can
@@ -52,7 +52,7 @@ function estimateBytes(value: unknown): number {
  * far shorter than the cut, and text fields keep their head, so nothing but the
  * named top-level keys is exempt.
  */
-function truncateStrings(value: unknown, skipKeys: ReadonlySet<string> = NO_KEYS): unknown {
+function truncateStrings(value: unknown, skipKeys: ReadonlySet<string>): unknown {
   return mapLeaves(value, skipKeys, (leaf) => {
     if (typeof leaf !== 'string' || leaf.length <= STREAM_STRING_PREVIEW_UNITS) return leaf
     const end = STREAM_STRING_PREVIEW_UNITS
@@ -180,26 +180,27 @@ function shed(
     : isRecordLike(value)
       ? Object.entries(value).filter(([key]) => !skipKeys.has(key))
       : []
-  // Identity fields are never this large, so only bulk is ever replaced.
+  // Only children over the floor are candidates; if they cannot cover the need,
+  // a nested node is replaced whole, its own identity fields included.
   const children: Sized[] = entries
     .map(([key, child]) => ({ key, value: child, bytes: serializedBytes(child, sizes) }))
     .filter((child) => child.bytes > OMITTABLE_FIELD_MIN_BYTES)
     .sort((left, right) => right.bytes - left.bytes)
   if (children.length === 0) return top ? value : omissionNote(bytes)
 
-  const gain = (child: Sized) =>
-    child.bytes - Buffer.byteLength(JSON.stringify(omissionNote(child.bytes)), 'utf8')
+  const gain = (child: Sized) => child.bytes - serializedBytes(omissionNote(child.bytes))
   const replacements = new Map<string | number, unknown>()
   let remaining = need
   for (let index = 0; index < children.length && remaining > 0; index++) {
-    let sufficient: Sized | undefined
-    for (let candidate = children.length - 1; candidate >= index; candidate--) {
-      if (gain(children[candidate]) >= remaining) {
-        sufficient = children[candidate]
-        break
+    // Children are sorted largest first, so if this one cannot cover the rest, none can.
+    if (gain(children[index]) >= remaining) {
+      let sufficient = children[index]
+      for (let candidate = children.length - 1; candidate > index; candidate--) {
+        if (gain(children[candidate]) >= remaining) {
+          sufficient = children[candidate]
+          break
+        }
       }
-    }
-    if (sufficient) {
       replacements.set(sufficient.key, shed(sufficient.value, remaining, sizes, NO_KEYS))
       remaining = 0
     } else {
@@ -224,10 +225,9 @@ function shed(
  * event for dispatch. Long strings are cut to their head in place, so every
  * object keeps its shape; if that is not enough, long arrays keep their head,
  * and past one replay write the smallest sufficient bulk is replaced by a size
- * note, keeping the fields beside it.
- * Assistant text, file previews, and the arguments of calls the browser
- * executes are never cut; an event
- * still too large is refused by the buffer, which ends the turn with an error.
+ * note, keeping the fields beside it. Assistant text, file previews, and the
+ * arguments of calls the browser executes are never cut; an event still too
+ * large is refused by the buffer, which ends the turn with an error.
  */
 export function compactStreamEvent(event: StreamEvent): StreamEvent {
   const payload = toRecordOrNull(event.payload)
@@ -242,11 +242,11 @@ export function compactStreamEvent(event: StreamEvent): StreamEvent {
     payload.phase === MothershipStreamV1ToolPhase.call && isClientExecutedToolCall(toolName, args)
       ? ARGUMENTS_KEY
       : NO_KEYS
+  const sizes = new WeakMap<object, number>()
   let compacted = truncateStrings(payload, skipKeys)
-  if (serializedBytes(compacted) > STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) {
+  if (serializedBytes(compacted, sizes) > STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) {
     compacted = trimArrays(compacted, skipKeys)
   }
-  const sizes = new WeakMap<object, number>()
   const bytes = serializedBytes(compacted, sizes)
   if (bytes > STREAM_EVENT_MAX_PAYLOAD_BYTES) {
     compacted = shed(compacted, bytes - STREAM_EVENT_MAX_PAYLOAD_BYTES, sizes, skipKeys, true)

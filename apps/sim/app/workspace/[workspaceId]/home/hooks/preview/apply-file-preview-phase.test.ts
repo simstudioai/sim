@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
-import { deriveFilePreviewSession, previewHoldsFinalContent } from './apply-file-preview-phase'
+import {
+  deriveFilePreviewSession,
+  previewHoldsFinalContent,
+} from '@/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase'
 
 const NOW = '2026-06-08T00:00:00.000Z'
 
@@ -117,5 +120,17 @@ describe('previewHoldsFinalContent', () => {
 
   it('does not hold it when no content was received at all', () => {
     expect(previewHoldsFinalContent(undefined, complete(7))).toBe(false)
+  })
+
+  it('does not hold it when the session exists but received no text', () => {
+    const prev = session({ previewText: '', previewVersion: 7 })
+
+    expect(previewHoldsFinalContent(prev, complete(7))).toBe(false)
+  })
+
+  it('holds the received text when the completion carries no version to compare', () => {
+    const prev = session({ previewText: 'final text', previewVersion: 3 })
+
+    expect(previewHoldsFinalContent(prev, complete())).toBe(true)
   })
 })

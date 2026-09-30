@@ -4370,11 +4370,11 @@ export function useChat(
         } else {
           setPendingMessages((prev) =>
             prev.map((msg) => {
-              const hasExecutingTool = msg.contentBlocks?.some((block) =>
+              const hasUnsettledTool = msg.contentBlocks?.some((block) =>
                 isUnsettledToolState(block.toolCall?.status)
               )
               const hasOpenBlock = msg.contentBlocks?.some((block) => block.endedAt === undefined)
-              if (!hasExecutingTool && !hasOpenBlock) {
+              if (!hasUnsettledTool && !hasOpenBlock) {
                 return msg
               }
               const updatedBlocks: ContentBlock[] = (msg.contentBlocks ?? []).map((block) => ({

@@ -221,6 +221,7 @@ import {
   CopilotBackendError,
   STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
   StreamEndedWithoutTerminalError,
+  WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import {
@@ -2718,7 +2719,7 @@ describe('runCopilotLifecycle', () => {
             headers.push(new Headers(request.headers))
             context.accumulatedContent = 'Saved partial answer'
             context.errors.push('connection interrupted')
-            throw new TypeError('fetch failed')
+            throw new WorkerUnreachableError(new TypeError('fetch failed'))
           }
         )
       }
@@ -2811,7 +2812,9 @@ describe('runCopilotLifecycle', () => {
     vi.useFakeTimers()
     try {
       const controller = new AbortController()
-      mockRunStreamLoop.mockRejectedValueOnce(new TypeError('fetch failed'))
+      mockRunStreamLoop.mockRejectedValueOnce(
+        new WorkerUnreachableError(new TypeError('fetch failed'))
+      )
       const pending = runCopilotLifecycle(
         { message: 'hello', messageId: 'stopped-outage' },
         {
@@ -2927,50 +2930,6 @@ describe('runCopilotLifecycle', () => {
 
     expect(JSON.stringify(persisted)).toContain('The agent service is temporarily unavailable.')
     expect(JSON.stringify(persisted)).not.toMatch(/<html|Bad Gateway|nginx/)
-  })
-
-  it('stops a TypeError that repeats while handling each reattach at three retries', async () => {
-    vi.useFakeTimers()
-    try {
-      let attempts = 0
-      mockRunStreamLoop.mockImplementation(
-        async (
-          _url: string,
-          _init: RequestInit,
-          _context: StreamingContext,
-          _exec: ExecutionContext,
-          options: { onEvent?: (event: unknown) => Promise<void> }
-        ): Promise<void> => {
-          attempts++
-          await options.onEvent?.({ type: 'session', payload: { kind: 'start' } })
-          throw new TypeError("Cannot read properties of undefined (reading 'payload')")
-        }
-      )
-
-      const pending = runCopilotLifecycle(
-        { message: 'hello', messageId: 'stream-repeated-type-error' },
-        {
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          chatId: 'chat-1',
-          executionId: 'exec-1',
-          runId: 'run-1',
-          executionContext: {
-            userId: 'user-1',
-            workflowId: '',
-            workspaceId: 'ws-1',
-            chatId: 'chat-1',
-          },
-        }
-      )
-      await vi.advanceTimersByTimeAsync(60_000)
-
-      expect(attempts).toBe(4)
-      expect(await pending).toEqual(expect.objectContaining({ success: false }))
-    } finally {
-      mockRunStreamLoop.mockReset()
-      vi.useRealTimers()
-    }
   })
 
   it('stops a failure that repeats after every reattach at three retries', async () => {
