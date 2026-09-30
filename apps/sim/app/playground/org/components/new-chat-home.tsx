@@ -16,6 +16,9 @@ import { Check, ChevronDown, Folder, Plus, X } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
+import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
+import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { type Project, useProjects } from '@/app/playground/org/lib/project'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
@@ -23,8 +26,17 @@ import { ChatSurfaceProvider, UserInput } from '@/app/workspace/[workspaceId]/ho
 
 const NO_PROJECT = 'none'
 
-/** New chat, Codex-style: pick the project in the heading or on the composer, then ask. */
-export function NewChatHome() {
+interface NewChatHomeProps {
+  /** The organization to chat in; without one, only project chats can start here. */
+  organization: OrganizationSurfaceContext | null
+}
+
+/**
+ * New chat: the organization Home from the product (Build, Plan and Search), plus a project
+ * picker. Build with a project picked opens that project's chat; everything else is the
+ * organization chat exactly as the product runs it.
+ */
+export function NewChatHome({ organization }: NewChatHomeProps) {
   const router = useRouter()
   const { data: session } = useSession()
   const { roots: projects } = useProjects()
@@ -34,6 +46,49 @@ export function NewChatHome() {
     project === NO_PROJECT ? undefined : (projects.find((p) => p.id === project) ?? projects[0])
   const select = (id: string) => void setParams({ project: id })
   const firstName = session?.user?.name?.split(' ')[0]
+
+  /** Hands a build message to the picked project's chat; false leaves it to the org Home. */
+  const openProjectChat = (message: string): boolean => {
+    if (!selected) return false
+    router.push(
+      selected.isMock
+        ? `${protoRoutes.workspace(selected.id)}?chat=new`
+        : `${protoRoutes.workspace(selected.id)}?chat=new&q=${encodeURIComponent(message)}`
+    )
+    return true
+  }
+
+  if (organization?.mothershipAvailable) {
+    return (
+      <OrganizationProvider context={organization}>
+        <OrganizationHome
+          userName={session?.user?.name ?? undefined}
+          syncChatUrl={false}
+          landing={(mode) =>
+            mode === 'agent'
+              ? {
+                  heading: selected ? `What should we build in ${selected.name}?` : undefined,
+                  accessory: (
+                    <div className='mb-2 flex items-center gap-1'>
+                      <ProjectMenu
+                        projects={projects}
+                        value={selected?.id ?? NO_PROJECT}
+                        onSelect={select}
+                      >
+                        <Chip leftIcon={selected ? Folder : X} rightIcon={ChevronDown}>
+                          {selected ? selected.name : 'No project'}
+                        </Chip>
+                      </ProjectMenu>
+                    </div>
+                  ),
+                }
+              : undefined
+          }
+          onBeforeSend={(message, mode) => mode === 'agent' && openProjectChat(message)}
+        />
+      </OrganizationProvider>
+    )
+  }
 
   return (
     <div className='flex h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[18vh]'>
@@ -72,15 +127,8 @@ export function NewChatHome() {
             onSubmit={(text) => {
               const message = text.trim()
               if (!message) return
-              if (selected?.isMock) {
-                router.push(`${protoRoutes.workspace(selected.id)}?chat=new`)
-              } else if (selected) {
-                router.push(
-                  `${protoRoutes.workspace(selected.id)}?chat=new&q=${encodeURIComponent(message)}`
-                )
-              } else {
-                toast.success('Org-wide chats open from the sidebar for now')
-              }
+              if (!openProjectChat(message))
+                toast.success('Org-wide chats need an organization with Sim Chat')
             }}
           />
         </ChatSurfaceProvider>

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
+import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { LiveChat } from '@/app/playground/org/components/live-chat'
 import { NewChatHome } from '@/app/playground/org/components/new-chat-home'
@@ -13,13 +14,19 @@ import { parseProtoRoute } from '@/app/playground/org/lib/routes'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 
 /** Client-side router for the prototype's catch-all and project routes. */
-export function ProtoPage({ slug }: { slug?: string[] }) {
+interface ProtoPageProps {
+  slug?: string[]
+  /** The organization the home page chats in; resolved on the server for the home route only. */
+  organization?: OrganizationSurfaceContext | null
+}
+
+export function ProtoPage({ slug, organization = null }: ProtoPageProps) {
   const route = parseProtoRoute(slug)
   if (!route) notFound()
 
   switch (route.kind) {
     case 'home':
-      return <NewChatHome />
+      return <NewChatHome organization={organization} />
     case 'search':
       return <Placeholder title='Search' body='Org-wide search stays as it is today.' />
     case 'connectors':
