@@ -14,7 +14,7 @@ interface SourceConnectLauncherProps {
 }
 
 export function SourceConnectLauncher({ requestId, state, port }: SourceConnectLauncherProps) {
-  const started = useRef(false)
+  const started = useRef<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     if (started.current) return

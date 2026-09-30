@@ -65,7 +65,7 @@ function SourceConnectFixture() {
 }
 
 function BrowserLauncher() {
-  const started = useRef(false)
+  const started = useRef<boolean>(false)
   const [error, setError] = useState('')
   useEffect(() => {
     if (started.current) return
@@ -99,6 +99,7 @@ const content =
       mode='search'
       ok={params.get('ok') === 'true'}
       state={params.get('state') ?? undefined}
+      reason={params.get('reason') ?? undefined}
     />
   ) : (
     <SourceConnectFixture />

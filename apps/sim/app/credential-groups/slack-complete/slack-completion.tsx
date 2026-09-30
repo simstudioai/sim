@@ -23,7 +23,7 @@ export function SlackCompletion({
   credentialGroupId,
   slackBotCredentialId,
 }: SlackCompletionProps) {
-  const started = useRef(false)
+  const started = useRef<boolean>(false)
   useEffect(() => {
     if (started.current || !state) return
     started.current = true

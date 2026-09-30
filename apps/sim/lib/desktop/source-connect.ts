@@ -40,7 +40,9 @@ export async function connectDesktopSource(
           new Error(
             result?.error === 'cancelled' || result?.error === 'superseded'
               ? 'Connection canceled. You can try again.'
-              : 'Connection did not complete. Try connecting again.'
+              : result?.error === 'signin_required'
+                ? 'Sign in to Sim in your browser, then try connecting again.'
+                : 'Connection did not complete. Try connecting again.'
           )
         )
     }

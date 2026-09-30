@@ -17,6 +17,7 @@ export default async function SlackCompletePage({ searchParams }: SlackCompleteP
   const scalar = (key: string) =>
     typeof params[key] === 'string' && params[key].length <= 512 ? params[key] : undefined
   const ok = params.ok === 'true'
+  const signInRequired = !ok && params.reason === 'signin_required'
   const mode = params.mode === 'managed' ? 'managed' : 'search'
   const organizationId = scalar('organizationId')
   return (
@@ -25,7 +26,9 @@ export default async function SlackCompletePage({ searchParams }: SlackCompleteP
       description={
         ok
           ? 'Your connection is ready. You can return to Sim.'
-          : 'Authorization did not complete. Return to Sim and try connecting again.'
+          : signInRequired
+            ? 'Sign in to Sim in your browser, then return to Sim and restart Slack setup.'
+            : 'Authorization did not complete. Return to Sim and try connecting again.'
       }
     >
       <SlackCompletion
@@ -39,12 +42,14 @@ export default async function SlackCompletePage({ searchParams }: SlackCompleteP
       />
       <ChipLink
         href={
-          organizationId
-            ? organizationRoutes(organizationId).settingsSection('search-slack')
-            : APP_ENTRY_PATH
+          signInRequired
+            ? '/login'
+            : organizationId
+              ? organizationRoutes(organizationId).settingsSection('search-slack')
+              : APP_ENTRY_PATH
         }
       >
-        Return to Sim
+        {signInRequired ? 'Sign in to Sim' : 'Return to Sim'}
       </ChipLink>
     </DesktopHandoffShell>
   )

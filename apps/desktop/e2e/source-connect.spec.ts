@@ -110,7 +110,9 @@ test('source authorization returns to its desktop screen and refreshes live', as
       const ok = attempts.get(state) === session && url.searchParams.has('code')
       attempts.delete(state)
       if (ok) installed = true
-      redirect(`/credential-groups/slack-complete?state=${state}&ok=${ok}`)
+      const reason =
+        url.searchParams.get('error') === 'session_expired' ? '&reason=signin_required' : ''
+      redirect(`/credential-groups/slack-complete?state=${state}&ok=${ok}${reason}`)
       return
     }
     if (
@@ -224,7 +226,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
     if (path === '/provider') {
       const state = url.searchParams.get('state') ?? ''
       response.end(
-        `<!doctype html><a href="/api/knowledge/slack/oauth/callback?state=${state}&code=fixture">Authorize</a><a href="/api/knowledge/slack/oauth/callback?state=${state}&error=denied">Cancel</a>`
+        `<!doctype html><a href="/api/knowledge/slack/oauth/callback?state=${state}&code=fixture">Authorize</a><a href="/api/knowledge/slack/oauth/callback?state=${state}&error=denied">Cancel</a><a href="/api/knowledge/slack/oauth/callback?state=${state}&error=session_expired">Session expired</a>`
       )
       return
     }
@@ -387,6 +389,15 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await external.getByRole('link', { name: 'Authorize invited source' }).click()
       await expect(page.getByLabel('Enrollment pending')).toHaveText('false')
       await expect(page.getByLabel('Enrollment error')).toHaveText('')
+      expect(page.url()).toBe(`${origin}/home`)
+    })
+    await check('browser sign-in failures retain recovery guidance on desktop', async () => {
+      await page.getByRole('button', { name: 'Connect Slack' }).click()
+      await expect.poll(async () => (await opened()).length).toBe(8)
+      await external.goto((await opened())[7])
+      await external.getByRole('link', { name: 'Session expired' }).click()
+      await expect(page.getByLabel('Connection')).toHaveText('error')
+      await expect(page.getByRole('alert')).toContainText('Sign in to Sim in your browser')
       expect(page.url()).toBe(`${origin}/home`)
     })
     await page.screenshot({ path: test.info().outputPath('source-connect-desktop.png') })
