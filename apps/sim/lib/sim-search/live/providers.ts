@@ -59,6 +59,18 @@ interface ManagedMcpProvider {
 
 /** Native providers implement both reads; managed MCP retrieval is dispatched by account-session. */
 export const LIVE_SEARCH_PROVIDERS = {
+  lucid: {
+    transport: 'managed_mcp',
+    guide: {
+      syntax:
+        'Nonempty document-title keywords, at most 400 characters. Results are relevance-ranked, not guaranteed literal title matches. The provider returns at most 200 relevance-ranked candidates; Sim verifies metadata for at most 10. Search has no continuation.',
+      scope:
+        'kind lucidchart or lucidspark selects a product; omit to search both. To search shape text within a known document, set project to its UUID or Lucid URL and use one literal substring of at most 200 characters. Dates use modification time; sorting and end dates apply only to retrieved candidates, not the entire account.',
+      example: 'deployment architecture',
+      avoid:
+        'Boolean/field operators, ownership filters, claiming exhaustive account-wide body search or global newest/oldest results. Title previews are metadata; read results for structured pages, nodes, edges and properties. Preserve explicit endpoint styles when interpreting arrows. Reads require a stable version and reject documents over 8 page regions or 512 KiB. Images, linked websites, comments, Lucidscale and documents owned outside the connected account are not included.',
+    },
+  },
   google_drive: {
     guide: {
       syntax:

@@ -104,6 +104,11 @@ export const LIVE_SEARCH_SCOPE_FIELDS: Record<
     hint: 'Use Confluence space keys. Restrict the site below when spaces share a key.',
     example: 'ENG, TEAM',
   },
+  lucid: {
+    label: 'Documents',
+    hint: 'Member accounts search accessible Lucidchart diagrams and Lucidspark boards.',
+    example: '',
+  },
   linear: { label: 'Projects', hint: 'Member accounts search all accessible issues.', example: '' },
   hubspot: {
     label: 'CRM records',

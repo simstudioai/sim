@@ -12,6 +12,7 @@ import {
   NativeSearchError,
 } from '@/lib/sim-search/live/http'
 import { readHubSpotMcp, searchHubSpotMcp } from '@/lib/sim-search/live/hubspot-mcp'
+import { readLucidMcp, searchLucidMcp } from '@/lib/sim-search/live/lucid-mcp'
 import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 import { readNotionMcp, searchNotionMcp } from '@/lib/sim-search/live/notion-mcp'
@@ -113,11 +114,14 @@ export async function openLiveAccountSession(
         return searchNotionMcp(mcp, search)
       case 'hubspot':
         return searchHubSpotMcp(mcp, search)
+      case 'lucid':
+        return searchLucidMcp(mcp, search)
       default:
         throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
     }
   }
-  const readMcp = (id: string) => {
+  const readMcp = (reference: Reference) => {
+    const { id } = reference
     if (!mcp) throw new NativeSearchError('unavailable', 'Managed MCP connection unavailable.')
     switch (provider) {
       case 'coda':
@@ -130,6 +134,8 @@ export async function openLiveAccountSession(
         return readNotionMcp(mcp, id)
       case 'hubspot':
         return readHubSpotMcp(mcp, id)
+      case 'lucid':
+        return readLucidMcp(mcp, reference)
       default:
         throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
     }
@@ -184,7 +190,7 @@ export async function openLiveAccountSession(
           signal,
           verify: boundary.verify,
         })
-      return readMcp(reference.id)
+      return readMcp(reference)
     },
     async verifyCurrent(document) {
       const current = await sourceBoundary(

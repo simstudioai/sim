@@ -10,8 +10,8 @@ import {
   type LiveSearchAccountStatus,
   liveSearchProviderSchema,
   type NativeSearchQuery,
-  NOTION_SEARCH_TERMS_REQUIRED,
   nativeSearchQueriesSchema,
+  SEARCH_TERMS_REQUIRED,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
@@ -344,8 +344,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     )
       throw new OrchestrationError('validation', 'Invalid live search query or result limit')
     const filters = input.filters
-    if (!queries && filters?.source === 'notion' && !input.query.trim())
-      throw new OrchestrationError('validation', NOTION_SEARCH_TERMS_REQUIRED)
+    if (
+      !queries &&
+      (filters?.source === 'notion' || filters?.source === 'lucid') &&
+      !input.query.trim()
+    )
+      throw new OrchestrationError('validation', SEARCH_TERMS_REQUIRED[filters.source])
     if (
       filters?.startDate &&
       filters.endDate &&

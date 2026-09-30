@@ -30,7 +30,11 @@ describe('atomic organization live Search MCP setup', () => {
 
   beforeAll(() => {
     vi.spyOn(dns, 'resolveHostAddresses').mockImplementation(async (hostname) => {
-      if (!['api.fireflies.ai', 'mcp.granola.ai', 'mcp.notion.com'].includes(hostname))
+      if (
+        !['api.fireflies.ai', 'mcp.granola.ai', 'mcp.notion.com', 'mcp.lucid.app'].includes(
+          hostname
+        )
+      )
         throw new Error(`Unexpected DNS lookup in setup fixture: ${hostname}`)
       return { addresses: ['93.184.216.34'], preferred: '93.184.216.34' }
     })
@@ -105,6 +109,7 @@ describe('atomic organization live Search MCP setup', () => {
     ['fireflies', 'https://api.fireflies.ai/mcp'],
     ['granola', 'https://mcp.granola.ai/mcp'],
     ['notion', 'https://mcp.notion.com/mcp'],
+    ['lucid', 'https://mcp.lucid.app/mcp/readonly'],
   ])(
     'approves %s with an organization-owned sign-in server and access policy',
     async (provider, url) => {
