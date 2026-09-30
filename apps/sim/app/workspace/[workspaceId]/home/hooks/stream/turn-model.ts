@@ -13,7 +13,6 @@ import {
 import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import { isOmittedStreamValue } from '@/lib/mothership/request/session/omission'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
@@ -539,9 +538,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           // back into an ordinary running row without waiting for the result.
           node.status = 'running'
         }
-        // Stream compaction may have omitted the whole argument object; its stub
-        // is not arguments, so the node keeps whatever it already had.
-        if (isRecordLike(payload.arguments) && !isOmittedStreamValue(payload.arguments)) {
+        if (isRecordLike(payload.arguments)) {
           node.args = payload.arguments
           const activity = ToolActivity.safeParse(payload.arguments.activity)
           if (!node.activity && activity.success) node.activity = activity.data

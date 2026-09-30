@@ -37,6 +37,7 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
       server,
       abortRequests,
       /** Events the scripted worker streams through the controller's sink, in order. */
+      /** Events, or steps to run between them, that the scripted worker streams in order. */
       script: [] as unknown[],
       /** Controller lifecycles started, and what each sink call threw. */
       runs: [] as Array<{ dispatched: unknown[]; sinkErrors: unknown[] }>,
@@ -57,6 +58,10 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
     const run = { dispatched: [] as unknown[], sinkErrors: [] as unknown[] }
     worker.runs.push(run)
     for (const event of worker.script) {
+      if (typeof event === 'function') {
+        await event()
+        continue
+      }
       try {
         await options.onEvent?.(event)
       } catch (error) {
@@ -77,6 +82,7 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
 
 import { db } from '@sim/db'
 import { copilotChats, copilotRuns, permissions, user, workspace } from '@sim/db/schema'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -94,10 +100,8 @@ import {
   StreamControllerSupersededError,
 } from '@/lib/mothership/request/session/controller-lease'
 import { eventToStreamEvent } from '@/lib/mothership/request/session/event'
-import { STREAM_TRUNCATION_KEY } from '@/lib/mothership/request/session/omission'
 import {
   REPLAY_BUDGET_EXHAUSTED_CODE,
-  REPLAY_BUDGET_EXHAUSTED_MESSAGE,
   StreamReplayBudgetExhaustedError,
 } from '@/lib/mothership/request/session/replay-budget'
 import { STREAM_STRING_PREVIEW_UNITS } from '@/lib/mothership/request/session/replay-compaction'
@@ -168,6 +172,13 @@ function toolCall(
   }
 }
 
+function dataFrames(body: string) {
+  return body
+    .split('\n\n')
+    .filter((frame) => frame.startsWith('data: '))
+    .map((frame) => JSON.parse(frame.slice('data: '.length)))
+}
+
 function text(value: string): StreamEvent {
   return { type: 'text', payload: { channel: 'assistant', text: value } }
 }
@@ -207,12 +218,7 @@ describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => 
       arguments: {
         activity: { id: 'activity-1', title: 'Reading logs' },
         command: 'logs get --run latest',
-        stdout: stdout.slice(0, STREAM_STRING_PREVIEW_UNITS),
-      },
-      [STREAM_TRUNCATION_KEY]: {
-        fields: [
-          { path: '/arguments/stdout', bytes: 2 * MB, previewBytes: STREAM_STRING_PREVIEW_UNITS },
-        ],
+        stdout: `${stdout.slice(0, STREAM_STRING_PREVIEW_UNITS)}…[truncated, 2 MB total]`,
       },
     })
     expect(toRecord(call.payload).arguments).toMatchObject({ stdout })
@@ -244,7 +250,11 @@ describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => 
     expect(toRecord(replayed[0].payload)).toMatchObject({
       success: true,
       status: 'success',
-      output: { exitCode: 0, resources, stdout: 'r'.repeat(STREAM_STRING_PREVIEW_UNITS) },
+      output: {
+        exitCode: 0,
+        resources,
+        stdout: `${'r'.repeat(STREAM_STRING_PREVIEW_UNITS)}…[truncated, 1.6 MB total]`,
+      },
     })
     expect(writer.persistenceStopped).toBe(false)
   })
@@ -323,8 +333,12 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   const userId = generateId()
   const workspaceId = generateId()
   const chatId = generateId()
-  const streamId = generateId()
-  const runId = generateId()
+  const ownerMessage = new StreamReplayBudgetExhaustedError({
+    resource: 'owner_redis_bytes',
+    currentBytes: 0,
+    limitBytes: 0,
+    attemptedBytes: 0,
+  }).userMessage
 
   beforeAll(async () => {
     const now = new Date()
@@ -350,6 +364,10 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       permissionType: 'admin',
     })
     await db.insert(copilotChats).values({ id: chatId, userId, workspaceId, type: 'mothership' })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: userId },
+      session: { id: generateId() },
+    })
   })
 
   afterAll(async () => {
@@ -359,14 +377,14 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     await db.delete(user).where(eq(user.id, userId))
   })
 
-  it('ends as an error, marks its run terminal, stops the worker, and starts no recovery controller', async () => {
+  /** Admits a turn the way the chat POST does, runs its controller, and returns its frames. */
+  async function runTurn(script: unknown[], prepare?: (streamId: string) => Promise<void>) {
+    const streamId = generateId()
+    const runId = generateId()
     expect(await acquirePendingChatStream(chatId, streamId, 0)).toBe(true)
-    const lease = {
-      key: chatStreamLockKey(chatId),
-      value: (await redis().get(chatStreamLockKey(chatId)))!,
-    }
+    const controllerToken = (await redis().get(chatStreamLockKey(chatId)))!
     const request = {
-      message: 'Summarize the latest logs',
+      message: 'Summarize the logs',
       userId,
       messageId: streamId,
       chatId,
@@ -383,7 +401,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
         streamId,
         requestContext: {
           requestId: generateId(),
-          controllerToken: lease.value,
+          controllerToken,
           recovery: {
             kind: 'interactive_stream',
             request,
@@ -393,15 +411,10 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
         },
       })
       .returning()
-    const { maxOwnerBytes } = getRedisBudgetLimits('copilot_stream')
-    const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
-    /** Room for the turn's opening session frame, not for the worker's tool call. */
-    await redis().set(ownerBudgetKey, String(maxOwnerBytes - 512), 'EX', 3600)
-    worker.script = [
-      toolCall('call-refused', 'cli_blocks_get', { command: `blocks get ${'b'.repeat(1024)}` }),
-      text('never delivered'),
-    ]
-
+    await prepare?.(streamId)
+    worker.runs.length = 0
+    worker.abortRequests.length = 0
+    worker.script = script
     const response = createSSEStream({
       requestPayload: request,
       userId,
@@ -417,15 +430,23 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       admittedRun: run,
       orchestrateOptions: { userId, workspaceId, chatId, runId, interactive: true },
     })
-    const frames = (await new Response(response).text())
-      .split('\n\n')
-      .filter((frame) => frame.startsWith('data: '))
-      .map((frame) => JSON.parse(frame.slice('data: '.length)))
+    return { streamId, runId, frames: dataFrames(await new Response(response).text()) }
+  }
 
-    const [controllerRun] = worker.runs
-    expect(controllerRun.dispatched).toEqual([])
-    expect(controllerRun.sinkErrors[0]).toBeInstanceOf(StreamReplayBudgetExhaustedError)
-    expect(controllerRun.sinkErrors[0]).not.toBeInstanceOf(StreamControllerSupersededError)
+  it('ends as an error, marks its run terminal, stops the worker, and starts no recovery controller', async () => {
+    const { streamId, runId, frames } = await runTurn(
+      [
+        toolCall('call-refused', 'cli_blocks_get', { command: `blocks get ${'b'.repeat(1024)}` }),
+        text('never delivered'),
+      ],
+      async (streamId) => {
+        const { maxOwnerBytes } = getRedisBudgetLimits('copilot_stream')
+        const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
+        /** Room for the turn's opening session frame, not for the worker's tool call. */
+        await redis().set(ownerBudgetKey, String(maxOwnerBytes - 512), 'EX', 3600)
+      }
+    )
+
     expect(frames.map((frame) => [frame.type, frame.payload.code ?? frame.payload.status])).toEqual(
       [
         ['session', undefined],
@@ -433,27 +454,19 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
         ['complete', 'error'],
       ]
     )
-    expect(frames[1].payload.message).toBe(REPLAY_BUDGET_EXHAUSTED_MESSAGE)
-
+    expect(frames[1].payload.message).toBe(ownerMessage)
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
-    expect(stored).toMatchObject({ status: 'error', error: REPLAY_BUDGET_EXHAUSTED_MESSAGE })
+    expect(stored).toMatchObject({ status: 'error', error: ownerMessage })
     expect(worker.abortRequests).toEqual([expect.objectContaining({ messageId: streamId })])
     expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
 
-    authMockFns.mockGetSession.mockResolvedValue({
-      user: { id: userId },
-      session: { id: generateId() },
-    })
     const reconnect = await streamGET(
       new NextRequest(`http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=0`),
       { params: Promise.resolve({}) }
     )
-    const replayed = (await reconnect.text())
-      .split('\n\n')
-      .filter((frame) => frame.startsWith('data: '))
-      .map((frame) => JSON.parse(frame.slice('data: '.length)))
+    const replayed = dataFrames(await reconnect.text())
     expect(replayed.map((frame) => frame.type)).toEqual(['session', 'error', 'complete'])
-    expect(replayed[1].payload.message).toBe(REPLAY_BUDGET_EXHAUSTED_MESSAGE)
+    expect(replayed[1].payload.message).toBe(ownerMessage)
     expect(replayed[2].payload.status).toBe('error')
 
     const recovered = await readChatStream.execute({
@@ -463,5 +476,32 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     expect(recovered?.status).toBe('error')
     expect(worker.runs).toHaveLength(1)
     expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
+
+    const [controllerRun] = worker.runs
+    expect(controllerRun.dispatched).toEqual([])
+    expect(controllerRun.sinkErrors[0]).toBeInstanceOf(StreamReplayBudgetExhaustedError)
+  })
+
+  it("leaves its successor's stream untouched when a superseded controller is refused an oversized frame", async () => {
+    const successorToken = `successor\n${generateId()}`
+    const { streamId, runId, frames } = await runTurn([
+      async () => {
+        await redis().set(chatStreamLockKey(chatId), successorToken, 'EX', 60)
+      },
+      toolCall('call-oversized', 'run_workflow', {
+        workflowId: generateId(),
+        input: 'w'.repeat(1.5 * MB),
+      }),
+    ])
+
+    expect(frames.map((frame) => frame.type)).toEqual(['session'])
+    /** The client stream closes before the controller's teardown; let teardown finish. */
+    await sleep(500)
+    expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
+    expect(await redis().get(chatStreamLockKey(chatId))).toBe(successorToken)
+    const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+    expect(stored.status).toBe('active')
+    expect(worker.abortRequests).toEqual([])
+    await redis().del(chatStreamLockKey(chatId))
   })
 })

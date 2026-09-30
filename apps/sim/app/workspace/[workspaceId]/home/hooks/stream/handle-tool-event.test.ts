@@ -4,9 +4,6 @@ vi.mock('@/lib/mothership/resources/extraction', () => ({
   isResourceToolName: vi.fn(() => false),
   extractResourcesFromToolResult: vi.fn(() => []),
 }))
-vi.mock('@/lib/mothership/tools/workflow-tools', () => ({
-  isWorkflowToolName: vi.fn(() => false),
-}))
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry',
   () => ({ invalidateResourceQueries: vi.fn() })

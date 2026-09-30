@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react'
 import { PillsRing } from '@sim/emcn'
-import { describeOmittedStreamValues } from '@/lib/mothership/request/session/omission'
 import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import type { GenericResourceData } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -60,7 +59,7 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
             <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[var(--text-body)] text-caption'>
               {typeof entry.result.output === 'string'
                 ? entry.result.output
-                : JSON.stringify(entry.result.output, describeOmittedStreamValues, 2)}
+                : JSON.stringify(entry.result.output, null, 2)}
             </pre>
           )}
           {entry.result?.error && (

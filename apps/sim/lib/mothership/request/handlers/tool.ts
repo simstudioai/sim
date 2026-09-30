@@ -48,6 +48,7 @@ import type {
 } from '@/lib/mothership/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
@@ -56,10 +57,7 @@ import {
   normalizeToolActivityDescription,
   refineStreamingCliToolName,
 } from '@/lib/mothership/tools/tool-display'
-import {
-  isWorkflowToolName,
-  resolveWorkflowToolTargetId,
-} from '@/lib/mothership/tools/workflow-tools'
+import { resolveWorkflowToolTargetId } from '@/lib/mothership/tools/workflow-tools'
 import { getBlockByToolName } from '@/blocks/registry'
 import {
   abortPendingToolIfStreamDead,

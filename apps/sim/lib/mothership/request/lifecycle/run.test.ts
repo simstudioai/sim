@@ -208,7 +208,6 @@ import {
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import {
   REPLAY_BUDGET_EXHAUSTED_CODE,
-  REPLAY_BUDGET_EXHAUSTED_MESSAGE,
   StreamReplayBudgetExhaustedError,
 } from '@/lib/mothership/request/session/replay-budget'
 import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
@@ -1952,6 +1951,34 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
+  const ownerRefusal = () =>
+    new StreamReplayBudgetExhaustedError({
+      resource: 'owner_redis_bytes',
+      currentBytes: 32 * 1024 * 1024,
+      limitBytes: 32 * 1024 * 1024,
+      attemptedBytes: 512,
+    })
+
+  function runWithStreamAbort(abortController: AbortController) {
+    return runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        abortSignal: abortController.signal,
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        },
+      }
+    )
+  }
+
   it.each([
     ['throws the refusal', true],
     ['returns after the abort', false],
@@ -1959,54 +1986,45 @@ describe('runCopilotLifecycle', () => {
     'ends a turn stopped by a refused replay write as an error, not a user cancel, when the stream %s',
     async (_label, throws) => {
       const abortController = new AbortController()
+      const refusal = ownerRefusal()
       mockRunStreamLoop.mockImplementationOnce(
-        async (
-          _fetchUrl: string,
-          _fetchOptions: RequestInit,
-          context: StreamingContext
-        ): Promise<void> => {
+        async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
           context.accumulatedContent = 'partial answer'
-          const refusal = new StreamReplayBudgetExhaustedError({
-            resource: 'owner_redis_bytes',
-            currentBytes: 32 * 1024 * 1024,
-            limitBytes: 32 * 1024 * 1024,
-            attemptedBytes: 512,
-          })
           abortController.abort(refusal)
           context.wasAborted = true
           if (throws) throw refusal
         }
       )
 
-      const result = await runCopilotLifecycle(
-        { message: 'hello', messageId: 'stream-1' },
-        {
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          chatId: 'chat-1',
-          executionId: 'exec-1',
-          runId: 'run-1',
-          abortSignal: abortController.signal,
-          executionContext: {
-            userId: 'user-1',
-            workflowId: '',
-            workspaceId: 'ws-1',
-            chatId: 'chat-1',
-          },
-        }
-      )
+      const result = await runWithStreamAbort(abortController)
 
       expect(result).toEqual(
         expect.objectContaining({
           success: false,
           cancelled: false,
           content: 'partial answer',
-          error: REPLAY_BUDGET_EXHAUSTED_MESSAGE,
+          error: refusal.userMessage,
           errorCode: REPLAY_BUDGET_EXHAUSTED_CODE,
         })
       )
     }
   )
+
+  it('keeps a Stop a cancellation when a replay refusal follows it', async () => {
+    const abortController = new AbortController()
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        abortController.abort('user_stop:abortActiveStream')
+        context.wasAborted = true
+        throw ownerRefusal()
+      }
+    )
+
+    const result = await runWithStreamAbort(abortController)
+
+    expect(result).toEqual(expect.objectContaining({ success: false, cancelled: true }))
+    expect(result.errorCode).toBeUndefined()
+  })
 
   it('returns the cancelled result when cancelled completion persistence fails', async () => {
     const abortController = new AbortController()

@@ -18,7 +18,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
-import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 import { isZeroStreamCursor } from './stream-protocol'

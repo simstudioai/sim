@@ -60,9 +60,8 @@ import {
   StreamControllerSupersededError,
 } from '@/lib/mothership/request/session/controller-lease'
 import {
-  REPLAY_BUDGET_EXHAUSTED_CODE,
-  REPLAY_BUDGET_EXHAUSTED_MESSAGE,
-  StreamReplayBudgetExhaustedError,
+  replayRefusal,
+  type StreamReplayBudgetExhaustedError,
 } from '@/lib/mothership/request/session/replay-budget'
 import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
 import { TraceCollector } from '@/lib/mothership/request/trace'
@@ -209,6 +208,14 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   }
 
   const collector = new TraceCollector()
+  let handedOff = false
+
+  /**
+   * The replay refusal that ends this turn. Once the controller is aborted its
+   * reason is authoritative, so a refusal that follows a Stop stays a Stop.
+   */
+  const refusalOf = (thrown?: unknown) =>
+    replayRefusal(abortController.signal.aborted ? abortController.signal.reason : thrown)
 
   /**
    * A refused replay write ends the turn as an error: every replacement would be
@@ -235,8 +242,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         ...result,
         success: false,
         cancelled: false,
-        error: REPLAY_BUDGET_EXHAUSTED_MESSAGE,
-        errorCode: REPLAY_BUDGET_EXHAUSTED_CODE,
+        error: refusal.userMessage,
+        errorCode: refusal.code,
       },
       publisher,
       runId,
@@ -408,9 +415,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                   */
                   if (!abortController.signal.aborted) {
                     abortController.abort(
-                      error instanceof StreamReplayBudgetExhaustedError
-                        ? error
-                        : new StreamControllerSupersededError()
+                      replayRefusal(error) ?? new StreamControllerSupersededError()
                     )
                   }
                   throw error
@@ -424,14 +429,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
 
             lifecycleResult = result
-            const replayRefusal =
-              abortController.signal.reason instanceof StreamReplayBudgetExhaustedError
-                ? abortController.signal.reason
-                : undefined
+            const refusal = refusalOf()
             // A completed result wins a late Stop; passive disconnection never cancels.
             outcome = result.success
               ? RequestTraceV1Outcome.success
-              : replayRefusal
+              : refusal
                 ? RequestTraceV1Outcome.error
                 : result.cancelled || abortController.signal.aborted
                   ? RequestTraceV1Outcome.cancelled
@@ -440,8 +442,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               cancelReason = recordCancelled()
             }
             await assertControllerOwnership()
-            if (replayRefusal && !result.success) {
-              await finalizeAfterReplayRefusal(replayRefusal, result)
+            if (refusal && !result.success) {
+              await finalizeAfterReplayRefusal(refusal, result)
             } else {
               await finalizeStream(result, publisher, runId, outcome, requestId)
             }
@@ -451,18 +453,14 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               abortController.signal.reason instanceof StreamControllerSupersededError
             ) {
               logger.info('Stream controller handed off; leaving its run recoverable', { streamId })
+              handedOff = true
               return
             }
             await assertControllerOwnership()
-            const replayRefusal =
-              error instanceof StreamReplayBudgetExhaustedError
-                ? error
-                : abortController.signal.reason instanceof StreamReplayBudgetExhaustedError
-                  ? abortController.signal.reason
-                  : undefined
-            if (replayRefusal) {
+            const refusal = refusalOf(error)
+            if (refusal) {
               outcome = RequestTraceV1Outcome.error
-              await finalizeAfterReplayRefusal(replayRefusal)
+              await finalizeAfterReplayRefusal(refusal)
               return
             }
             const wasCancelled = abortController.signal.aborted
@@ -512,7 +510,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               await releasePendingChatStream(chatId, streamId, lease)
             }
             processResourcesReleased = true
-            if (!(abortController.signal.reason instanceof StreamControllerSupersededError)) {
+            // A superseded controller must not expire or clear its successor's stream.
+            if (!handedOff) {
               await scheduleBufferCleanup(streamId)
               await scheduleFilePreviewSessionCleanup(streamId)
               await cleanupAbortMarker(streamId)

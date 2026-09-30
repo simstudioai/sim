@@ -53,11 +53,7 @@ import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-ret
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
-import {
-  REPLAY_BUDGET_EXHAUSTED_CODE,
-  REPLAY_BUDGET_EXHAUSTED_MESSAGE,
-  StreamReplayBudgetExhaustedError,
-} from '@/lib/mothership/request/session/replay-budget'
+import { replayRefusal } from '@/lib/mothership/request/session/replay-budget'
 import {
   getToolCallTerminalData,
   requireToolCallStateResult,
@@ -541,22 +537,19 @@ export async function runCopilotLifecycle(
         context.completionStatus === MothershipStreamV1CompletionStatus.complete
       // A refused replay write aborts the turn to stop it, but the turn failed; it
       // was not stopped by the user.
-      const replayBudgetExhausted = stoppedByReplayBudget(lifecycleOptions.abortSignal)
-      if (replayBudgetExhausted && !context.errors.includes(REPLAY_BUDGET_EXHAUSTED_MESSAGE)) {
-        context.errors.push(REPLAY_BUDGET_EXHAUSTED_MESSAGE)
-      }
+      const refusal = replayRefusal(lifecycleOptions.abortSignal?.reason)
       // Consult the lifecycle signal as well as the flag. `context.wasAborted` is
       // only reached from a fanout leg through the (deliberately asymmetric) merge
       // in `mergeResumeLegOutputs`, so a Stop landing mid-fanout could otherwise
       // classify the turn as a success. Mirrors the check already used below on
       // the throw path.
       const turnWasAborted =
-        !replayBudgetExhausted &&
+        !refusal &&
         (context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
           context.wasAborted ||
           (lifecycleOptions.abortSignal?.aborted ?? false))
       const succeeded =
-        !replayBudgetExhausted &&
+        !refusal &&
         !turnWasAborted &&
         (backendFinishedTurn || (!context.completionStatus && context.errors.length === 0))
 
@@ -577,9 +570,7 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
-        ...(replayBudgetExhausted
-          ? { error: REPLAY_BUDGET_EXHAUSTED_MESSAGE, errorCode: REPLAY_BUDGET_EXHAUSTED_CODE }
-          : {}),
+        ...(refusal ? { error: refusal.userMessage, errorCode: refusal.code } : {}),
         errors: !succeeded && context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -617,11 +608,8 @@ export async function runCopilotLifecycle(
       // partial content can be appended.
       // Return `cancelled: true` so upstream classification stays
       // consistent with the success-path cancel result.
-      const replayBudgetExhausted =
-        error instanceof StreamReplayBudgetExhaustedError ||
-        stoppedByReplayBudget(lifecycleOptions.abortSignal)
-      const wasCancelled =
-        !replayBudgetExhausted && (lifecycleOptions.abortSignal?.aborted ?? false)
+      const refusal = replayRefusal(lifecycleOptions.abortSignal?.reason)
+      const wasCancelled = !refusal && (lifecycleOptions.abortSignal?.aborted ?? false)
       // Preserve whatever streamed before the throw for both terminals. A thrown
       // backend error (as opposed to an `error` SSE event that lets the loop finish
       // normally) must still carry the partial assistant turn so onError can
@@ -636,8 +624,8 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
-        error: replayBudgetExhausted ? REPLAY_BUDGET_EXHAUSTED_MESSAGE : err.message,
-        ...(replayBudgetExhausted ? { errorCode: REPLAY_BUDGET_EXHAUSTED_CODE } : {}),
+        error: refusal?.userMessage ?? err.message,
+        ...(refusal ? { errorCode: refusal.code } : {}),
         errors: context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -1679,10 +1667,6 @@ async function withEnterpriseByokKey(
     ...(byokApiKey && !(await isMothershipModelSelectorEnabled()) ? ['modelSelection'] : []),
   ])
   return byokApiKey ? { ...refreshed, byokApiKey } : refreshed
-}
-
-function stoppedByReplayBudget(signal: AbortSignal | undefined): boolean {
-  return signal?.reason instanceof StreamReplayBudgetExhaustedError
 }
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
