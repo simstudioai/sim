@@ -36,8 +36,8 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   const secrets = useOrganizationSecretSource(organizationId)
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
-  const navigate = (result: OrganizationAccountConnectionResponse) =>
-    window.location.assign(result.authorizationUrl ?? result.invitationLink)
+  const navigate = (result: OrganizationAccountConnectionResponse | null) =>
+    result && window.location.assign(result.authorizationUrl ?? result.invitationLink)
   const onError = (error: Error) => toast.error(error.message)
   const error = inventory.error ?? policies.error ?? secrets.error
   if (error)
