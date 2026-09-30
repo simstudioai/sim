@@ -64,6 +64,11 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
     this.preregistered = preregistered
   }
 
+  /** Deployment registrations may restrict consent even when discovery advertises more tools. */
+  get authorizationScope(): string | undefined {
+    return this.preregistered?.scope
+  }
+
   get redirectUrl(): string {
     return `${getBaseUrl().replace(/\/$/, '')}/api/mcp/oauth/callback`
   }

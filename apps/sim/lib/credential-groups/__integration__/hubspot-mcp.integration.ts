@@ -30,7 +30,11 @@ import {
 import { createManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
 import * as oauth from '@/lib/mcp/oauth/auth'
 import { createCoordinatedMcpOauthFetch } from '@/lib/mcp/oauth/coordinated-fetch'
-import { loadPreregisteredClient, McpOauthRedirectRequired } from '@/lib/mcp/oauth/provider'
+import {
+  loadPreregisteredClient,
+  McpOauthRedirectRequired,
+  SimMcpOauthProvider,
+} from '@/lib/mcp/oauth/provider'
 import { getOrCreateOauthRow, saveClientInformation } from '@/lib/mcp/oauth/storage'
 import { mcpService } from '@/lib/mcp/service'
 
@@ -248,6 +252,75 @@ describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
     Object.assign(env, { [connector.clientSecretKey]: 'rotated-secret' })
     await expect(runtime(id)).rejects.toThrow(/authorization/)
   })
+  if (connector.id === 'zoom') {
+    it.each(['initial consent', 'runtime scope challenge'] as const)(
+      'restricts generic OAuth %s to registered read permissions',
+      async (phase) => {
+        const { mcpServer } = await create()
+        const issuer = 'https://oauth.fixture.test'
+        const loadProvider = async () =>
+          new SimMcpOauthProvider({
+            row: await getOrCreateOauthRow({ mcpServerId: mcpServer.id, organizationId: org }),
+            preregistered: await loadPreregisteredClient(mcpServer.id),
+          })
+        const provider = await loadProvider()
+        const fetchFn: typeof fetch = async (request) => {
+          const url = new URL(
+            typeof request === 'string' ? request : request instanceof URL ? request : request.url
+          )
+          if (url.href === connector.url)
+            return new Response(null, {
+              status: 403,
+              headers: {
+                'www-authenticate':
+                  'Bearer error="insufficient_scope", scope="meeting:write:meeting"',
+              },
+            })
+          if (url.pathname.includes('oauth-protected-resource'))
+            return Response.json({
+              resource: connector.url,
+              authorization_servers: [issuer],
+              scopes_supported: [...connector.scope.split(' '), 'meeting:write:meeting'],
+            })
+          if (
+            url.pathname.includes('oauth-authorization-server') ||
+            url.pathname.includes('openid-configuration')
+          )
+            return Response.json({
+              issuer,
+              authorization_endpoint: `${issuer}/authorize`,
+              token_endpoint: `${issuer}/token`,
+              response_types_supported: ['code'],
+              code_challenge_methods_supported: ['S256'],
+              token_endpoint_auth_methods_supported: [connector.tokenAuthMethod],
+            })
+          throw new Error(`Unexpected OAuth fixture request: ${url.origin}${url.pathname}`)
+        }
+        try {
+          if (phase === 'initial consent') {
+            await oauth.mcpAuthGuarded(provider, { serverUrl: connector.url, fetchFn })
+          } else {
+            await provider.saveTokens({ access_token: 'fixture-access', token_type: 'Bearer' })
+            const request = createCoordinatedMcpOauthFetch(
+              { credentialId: mcpServer.id, loadProvider, initialProvider: provider },
+              { serverUrl: connector.url, fetch: fetchFn }
+            )
+            await request(connector.url, { method: 'POST' })
+          }
+          throw new Error('Expected authorization to require consent')
+        } catch (error) {
+          if (!(error instanceof McpOauthRedirectRequired)) throw error
+          const authorization = new URL(error.authorizationUrl)
+          expect(authorization.searchParams.get('scope')).toBe(connector.scope)
+          expect(authorization.searchParams.get('code_challenge_method')).toBe('S256')
+          const storedProvider = await loadProvider()
+          expect(
+            Buffer.from(sha256Hex(await storedProvider.codeVerifier()), 'hex').toString('base64url')
+          ).toBe(authorization.searchParams.get('code_challenge'))
+        }
+      }
+    )
+  }
   it('binds the public OAuth round trip to the shared client and rejects rotation before exchange', async () => {
     const { mcpServer } = await create()
     const token = generateId()

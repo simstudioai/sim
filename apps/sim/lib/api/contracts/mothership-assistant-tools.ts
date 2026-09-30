@@ -61,13 +61,15 @@ export const nativeSearchQuerySchema = z
   })
   .strict()
   .superRefine((input, context) => {
-    if (input.kind && hasSearchKinds(input.provider)) {
-      const kinds = PROVIDER_KIND_SCHEMAS[input.provider]
-      if (!kinds.safeParse(input.kind).success)
+    if (input.kind) {
+      const kinds = hasSearchKinds(input.provider) ? PROVIDER_KIND_SCHEMAS[input.provider] : null
+      if (!kinds?.safeParse(input.kind).success)
         context.addIssue({
           code: 'custom',
           path: ['kind'],
-          message: `${input.provider} kind must be one of: ${kinds.options.join(', ')}.`,
+          message: kinds
+            ? `${input.provider} kind must be one of: ${kinds.options.join(', ')}.`
+            : `${input.provider} does not support kind selection.`,
         })
     }
     if ((input.provider === 'notion' || input.provider === 'lucid') && !input.query)

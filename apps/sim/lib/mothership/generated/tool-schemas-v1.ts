@@ -5989,7 +5989,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         startDate: {
           description:
-            'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
+            'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Google Meet, Zoom, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
           type: 'string',
           format: 'date-time',
           pattern:
@@ -6043,7 +6043,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         nativeQueries: {
           description:
-            "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion and Lucid always require search terms. Up to 4 per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Both reject ownership filters. Lucid searches titles with no search continuation; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
+            "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion and Lucid always require search terms. Up to 4 per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid searches titles with no search continuation; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
           minItems: 1,
           maxItems: 9,
           type: 'array',
@@ -6055,6 +6055,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 enum: [
                   'google_drive',
                   'gmail',
+                  'google_meet',
+                  'zoom',
                   'google_calendar',
                   'slack',
                   'jira',
@@ -6094,6 +6096,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   'tickets',
                   'lucidchart',
                   'lucidspark',
+                  'transcript',
+                  'smart_notes',
+                  'meeting',
                 ],
               },
               project: {
@@ -7842,6 +7847,48 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
         },
       },
+    },
+    resultSchema: undefined,
+  },
+  dashboards: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        workspaceId: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 100,
+        },
+        action: {
+          anyOf: [
+            {
+              type: 'string',
+              const: 'get',
+            },
+            {
+              type: 'string',
+              const: 'set',
+            },
+          ],
+        },
+        content: {
+          description:
+            'Required for action: set. Only used for action: set. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 131072,
+        },
+        expectedRevision: {
+          description:
+            'The revision from `dashboards get`; required once the dashboard exists. Only used for action: set. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 256,
+        },
+      },
+      required: ['action'],
+      additionalProperties: false,
     },
     resultSchema: undefined,
   },

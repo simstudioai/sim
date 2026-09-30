@@ -1,4 +1,6 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -15,6 +17,7 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
+import { env } from '@/lib/core/config/env'
 import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -60,22 +63,34 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 const boundContinuationSchema = z
   .object({
-    v: z.literal(1),
+    v: z.literal(2),
     scope: z.string().regex(/^[A-Za-z0-9_-]{22}$/),
     cursor: z.string().min(1).max(2048),
     listingEndDate: z.string().datetime({ offset: true }).optional(),
   })
   .strict()
 type BoundContinuation = z.output<typeof boundContinuationSchema>
+const signedContinuationSchema = boundContinuationSchema.extend({
+  signature: z.string().regex(/^[a-f0-9]{64}$/),
+})
+
+function continuationSignature(provider: 'hubspot' | 'zoom', value: BoundContinuation): string {
+  return hmacSha256Hex(
+    `live-search-continuation:${provider}:${canonicalJson(value)}`,
+    env.BETTER_AUTH_SECRET
+  )
+}
 
 function readBoundContinuation(provider: 'hubspot' | 'zoom', value: string): BoundContinuation {
   try {
     const prefix = `${provider}:`
     if (!value.startsWith(prefix) || value.length > (provider === 'hubspot' ? 512 : 4000))
       throw new Error('Invalid continuation')
-    const continuation = boundContinuationSchema.parse(
+    const { signature, ...continuation } = signedContinuationSchema.parse(
       JSON.parse(Buffer.from(value.slice(prefix.length), 'base64url').toString('utf8'))
     )
+    if (!safeCompare(signature, continuationSignature(provider, continuation)))
+      throw new Error('Invalid continuation signature')
     if (provider === 'hubspot' && !/^[1-9]\d{0,3}$/.test(continuation.cursor))
       throw new Error('Invalid HubSpot continuation')
     return continuation
@@ -88,8 +103,10 @@ function readBoundContinuation(provider: 'hubspot' | 'zoom', value: string): Bou
 }
 
 function writeBoundContinuation(provider: 'hubspot' | 'zoom', value: BoundContinuation): string {
-  const cursor = `${provider}:${Buffer.from(JSON.stringify(boundContinuationSchema.parse(value))).toString('base64url')}`
-  if (cursor.length > 4000)
+  const payload = boundContinuationSchema.parse(value)
+  const signed = { ...payload, signature: continuationSignature(provider, payload) }
+  const cursor = `${provider}:${Buffer.from(JSON.stringify(signed)).toString('base64url')}`
+  if (cursor.length > (provider === 'hubspot' ? 512 : 4000))
     throw new NativeSearchError(
       'unavailable',
       'The provider continuation is too large. Narrow the query and restart without a cursor.'
@@ -534,7 +551,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             continuationScope &&
             (account.provider === 'hubspot' || account.provider === 'zoom')
               ? writeBoundContinuation(account.provider, {
-                  v: 1,
+                  v: 2,
                   scope: continuationScope,
                   cursor: page.nextCursor,
                   ...(listingEndDate ? { listingEndDate } : {}),
