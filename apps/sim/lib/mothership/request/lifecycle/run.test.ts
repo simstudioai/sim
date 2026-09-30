@@ -2913,7 +2913,7 @@ describe('runCopilotLifecycle', () => {
     expect(JSON.stringify(persisted)).not.toMatch(/<html|Bad Gateway|nginx/)
   })
 
-  it('gives each outage its own retry budget once a reconnect streams again', async () => {
+  it('stops a failure that repeats after every reattach at three retries', async () => {
     vi.useFakeTimers()
     try {
       let attempts = 0
@@ -2926,21 +2926,14 @@ describe('runCopilotLifecycle', () => {
           options: { onEvent?: (event: unknown) => Promise<void> }
         ): Promise<void> => {
           attempts++
-          if (attempts < 6) {
-            await options.onEvent?.({
-              type: 'text',
-              payload: { channel: 'assistant', text: `part ${attempts} ` },
-            })
-            context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
-            throw new StreamEndedWithoutTerminalError('/api/mothership')
-          }
-          context.streamComplete = true
-          context.completionStatus = MothershipStreamV1CompletionStatus.complete
+          await options.onEvent?.({ type: 'session', payload: { kind: 'start' } })
+          context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+          throw new StreamEndedWithoutTerminalError('/api/mothership')
         }
       )
 
       const pending = runCopilotLifecycle(
-        { message: 'hello', messageId: 'stream-repeated-outages' },
+        { message: 'hello', messageId: 'stream-repeated-failure' },
         {
           userId: 'user-1',
           workspaceId: 'ws-1',
@@ -2957,8 +2950,8 @@ describe('runCopilotLifecycle', () => {
       )
       await vi.advanceTimersByTimeAsync(60_000)
 
-      expect(await pending).toEqual(expect.objectContaining({ success: true }))
-      expect(attempts).toBe(6)
+      expect(attempts).toBe(4)
+      expect(await pending).toEqual(expect.objectContaining({ success: false }))
     } finally {
       mockRunStreamLoop.mockReset()
       vi.useRealTimers()

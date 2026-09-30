@@ -25,6 +25,7 @@ import { createStreamingContext } from '@/lib/mothership/request/context/request
 import {
   createFilePreviewAdapterState,
   type FilePreviewAdapterState,
+  PREVIEW_INTERMEDIATE_SNAPSHOT_CHARS,
   processFilePreviewStreamEvent,
 } from '@/lib/mothership/request/go/file-preview-adapter'
 import { createEvent, eventToStreamEvent } from '@/lib/mothership/request/session'
@@ -174,7 +175,7 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  it('streams a 300 KB patch for 10 s well under the stream budget and ends on its final content', async () => {
+  async function streamPatch(durationMs: number, tickMs: number) {
     vi.useFakeTimers()
     const base = `ANCHOR\n${'line of existing file content\n'.repeat(10_000)}`
     const edit = { strategy: 'anchored', mode: 'insert_after', anchor: 'ANCHOR' }
@@ -204,10 +205,10 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
 
     let streamed = ''
     await drive(editContentDelta('{"content":"'))
-    for (let tick = 0; tick < 625; tick++) {
-      vi.advanceTimersByTime(16)
-      streamed += `word${tick} `
-      await drive(editContentDelta(`word${tick} `))
+    for (let elapsed = 0; elapsed < durationMs; elapsed += tickMs) {
+      vi.advanceTimersByTime(tickMs)
+      streamed += `word${elapsed} `
+      await drive(editContentDelta(`word${elapsed} `))
     }
     await drive(
       toolEvent({
@@ -219,12 +220,31 @@ describe('processFilePreviewStreamEvent — preview byte rate', () => {
     )
 
     const contents = payloads.filter((payload) => payload.previewPhase === 'file_preview_content')
-    const streamedBytes = contents.reduce(
-      (sum, payload) => sum + Buffer.byteLength(String(payload.content)),
-      0
-    )
+    const finalContent = base.replace('ANCHOR\n', `ANCHOR\n${streamed}\n`)
+    return {
+      finalContent,
+      lastContent: contents.at(-1)?.content,
+      streamedBytes: contents.reduce(
+        (sum, payload) => sum + Buffer.byteLength(String(payload.content)),
+        0
+      ),
+    }
+  }
+
+  it('streams a 300 KB patch for 10 s well under the stream budget and ends on its final content', async () => {
+    const { finalContent, lastContent, streamedBytes } = await streamPatch(10_000, 16)
+
     expect(streamedBytes).toBeLessThan(8 * 1024 * 1024)
-    expect(contents.at(-1)?.content).toBe(base.replace('ANCHOR\n', `ANCHOR\n${streamed}\n`))
+    expect(lastContent).toBe(finalContent)
+  })
+
+  it('caps a 300 KB patch streaming for 5 minutes and still ends on its final content', async () => {
+    const { finalContent, lastContent, streamedBytes } = await streamPatch(300_000, 200)
+
+    expect(streamedBytes).toBeLessThanOrEqual(
+      PREVIEW_INTERMEDIATE_SNAPSHOT_CHARS + Buffer.byteLength(finalContent)
+    )
+    expect(lastContent).toBe(finalContent)
   })
 })
 

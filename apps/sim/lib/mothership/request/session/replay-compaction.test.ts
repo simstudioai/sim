@@ -145,7 +145,7 @@ describe('compactStreamEvent', () => {
     expect(args.stdin).toBe(`${'x'.repeat(STREAM_STRING_PREVIEW_UNITS)}…[truncated, 1 MB total]`)
   })
 
-  it('never compacts a file preview or a generated API key', () => {
+  it('never compacts a file preview', () => {
     const preview: StreamEvent = {
       type: 'tool',
       payload: {
@@ -158,21 +158,8 @@ describe('compactStreamEvent', () => {
         fileName: 'notes.md',
       },
     }
-    const apiKey: StreamEvent = {
-      type: 'tool',
-      payload: {
-        toolCallId: 'c',
-        toolName: 'generate_api_key',
-        executor: 'sim',
-        mode: 'async',
-        phase: 'result',
-        success: true,
-        output: { key: 'k'.repeat(400 * 1024) },
-      },
-    }
 
     expect(compactStreamEvent(preview)).toBe(preview)
-    expect(compactStreamEvent(apiKey)).toBe(apiKey)
   })
 
   it('compacts a copy and leaves the caller’s event whole for dispatch', () => {

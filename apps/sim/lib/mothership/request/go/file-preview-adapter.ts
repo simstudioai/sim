@@ -44,6 +44,8 @@ type FilePreviewStreamState = {
   session: FilePreviewSession
   lastEmittedPreviewText: string
   lastSnapshotAt: number
+  /** Characters of intermediate preview content streamed so far. */
+  streamedChars?: number
 }
 
 type ParsedWorkspaceFileArgs = {
@@ -62,6 +64,13 @@ const DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS = 1000
  * file's snapshots slow down instead of filling the stream's replay budget.
  */
 const PREVIEW_SNAPSHOT_CHARS_PER_SECOND = 256 * 1024
+
+/**
+ * Intermediate preview content streamed per edit is capped at this many
+ * characters; past it the preview holds still until the final snapshot, which
+ * is always sent when the edit completes.
+ */
+export const PREVIEW_INTERMEDIATE_SNAPSHOT_CHARS = 8 * 1024 * 1024
 
 /** The minimum gap between full snapshots of a preview this long. */
 function snapshotIntervalMs(baseMs: number, previewText: string): number {
@@ -706,9 +715,8 @@ export async function processFilePreviewStreamEvent(input: {
               snapshotIntervalMs(PATCH_PREVIEW_SNAPSHOT_INTERVAL_MS, nextSession.previewText)
           ) {
             filePreviewState.set(editIntent.toolCallId, {
+              ...currentPreview,
               session: nextSession,
-              lastEmittedPreviewText: currentPreview.lastEmittedPreviewText,
-              lastSnapshotAt: currentPreview.lastSnapshotAt,
             })
           } else {
             const previewUpdate = buildPreviewContentUpdate(
@@ -718,33 +726,37 @@ export async function processFilePreviewStreamEvent(input: {
               now,
               nextSession.operation
             )
+            const streamedChars = (currentPreview.streamedChars ?? 0) + previewUpdate.content.length
+            if (streamedChars > PREVIEW_INTERMEDIATE_SNAPSHOT_CHARS) {
+              filePreviewState.set(editIntent.toolCallId, {
+                ...currentPreview,
+                session: nextSession,
+              })
+            } else {
+              filePreviewState.set(editIntent.toolCallId, {
+                session: nextSession,
+                lastEmittedPreviewText: nextSession.previewText,
+                lastSnapshotAt: previewUpdate.lastSnapshotAt,
+                streamedChars,
+              })
 
-            filePreviewState.set(editIntent.toolCallId, {
-              session: nextSession,
-              lastEmittedPreviewText: nextSession.previewText,
-              lastSnapshotAt: previewUpdate.lastSnapshotAt,
-            })
-
-            await emitPreviewEvent(streamEvent, options, {
-              toolCallId: nextSession.toolCallId,
-              toolName: 'prepare_file_edit',
-              previewPhase: 'file_preview_content',
-              content: previewUpdate.content,
-              contentMode: previewUpdate.contentMode,
-              previewVersion: nextSession.previewVersion,
-              fileName: nextSession.fileName,
-              ...(nextSession.fileId ? { fileId: nextSession.fileId } : {}),
-              ...(nextSession.targetKind ? { targetKind: nextSession.targetKind } : {}),
-              ...(nextSession.operation ? { operation: nextSession.operation } : {}),
-              ...(nextSession.edit ? { edit: nextSession.edit } : {}),
-            })
+              await emitPreviewEvent(streamEvent, options, {
+                toolCallId: nextSession.toolCallId,
+                toolName: 'prepare_file_edit',
+                previewPhase: 'file_preview_content',
+                content: previewUpdate.content,
+                contentMode: previewUpdate.contentMode,
+                previewVersion: nextSession.previewVersion,
+                fileName: nextSession.fileName,
+                ...(nextSession.fileId ? { fileId: nextSession.fileId } : {}),
+                ...(nextSession.targetKind ? { targetKind: nextSession.targetKind } : {}),
+                ...(nextSession.operation ? { operation: nextSession.operation } : {}),
+                ...(nextSession.edit ? { edit: nextSession.edit } : {}),
+              })
+            }
           }
         } else {
-          filePreviewState.set(editIntent.toolCallId, {
-            session: currentPreview.session,
-            lastEmittedPreviewText: currentPreview.lastEmittedPreviewText,
-            lastSnapshotAt: currentPreview.lastSnapshotAt,
-          })
+          filePreviewState.set(editIntent.toolCallId, currentPreview)
         }
       }
     }

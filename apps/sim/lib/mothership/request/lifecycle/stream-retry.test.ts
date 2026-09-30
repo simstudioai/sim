@@ -39,20 +39,58 @@ describe('stream recovery budget', () => {
     expect(retry.nextDelay(error)).toBeNull()
   })
 
-  it('starts a fresh recovery budget once a retry reconnects', () => {
+  it('keeps a reachable failure to three retries however often the worker reattaches', () => {
     vi.useFakeTimers()
     const error = new StreamEndedWithoutTerminalError('/api/mothership')
     const retry = new StreamRetryWindow()
+    for (let index = 0; index < 3; index++) {
+      retry.recovered()
+      const delay = retry.nextDelay(error)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
+    }
+    retry.recovered()
+    expect(retry.nextDelay(error)).toBeNull()
+  })
+
+  it('still gives the replacement worker its reachable retries after a long outage', () => {
+    vi.useFakeTimers()
+    const retry = new StreamRetryWindow()
+    const unreachable = new CopilotBackendError('Unavailable', {
+      status: 502,
+      body: '<html><body>502 Bad Gateway</body></html>',
+    })
+    const start = Date.now()
+    while (Date.now() - start < 70_000) {
+      const delay = retry.nextDelay(unreachable)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
+    }
+    const reachable = new CopilotBackendError('Unavailable', {
+      status: 503,
+      body: '{"error":"Account admission is unavailable"}',
+    })
+    for (let index = 0; index < 3; index++) {
+      const delay = retry.nextDelay(reachable)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
+    }
+    expect(retry.nextDelay(reachable)).toBeNull()
+  })
+
+  it('restarts the unreachable window once the worker answers again', () => {
+    vi.useFakeTimers()
+    const retry = new StreamRetryWindow()
+    const unreachable = new TypeError('fetch failed')
     for (let outage = 0; outage < 2; outage++) {
-      for (let index = 0; index < 3; index++) {
-        const delay = retry.nextDelay(error)
+      const start = Date.now()
+      while (Date.now() - start < 100_000) {
+        const delay = retry.nextDelay(unreachable)
         expect(delay).not.toBeNull()
         vi.advanceTimersByTime(delay ?? 0)
       }
       retry.recovered()
-      vi.advanceTimersByTime(60_000)
     }
-    expect(retry.nextDelay(error)).not.toBeNull()
   })
 
   it.each([

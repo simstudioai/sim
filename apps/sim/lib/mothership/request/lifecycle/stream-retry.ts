@@ -19,10 +19,17 @@ const GATEWAY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504])
  */
 const WORKER_REPLACEMENT_WINDOW_MS = 120_000
 
-/** Recovery is bounded independently of the healthy run's execution budget. */
+/**
+ * Recovery is bounded independently of the healthy run's execution budget, by
+ * two budgets that never share state: an unreachable worker gets a two-minute
+ * window from the moment it stopped answering, and any failure of a worker that
+ * did answer gets the original three retries within 30 s.
+ */
 export class StreamRetryWindow {
   private readonly deadline: number
   private firstFailureAt?: number
+  private firstUnreachableAt?: number
+  private unreachableAttempt = 0
   attempt = 0
 
   constructor(timeoutMs = ORCHESTRATION_TIMEOUT_MS) {
@@ -36,24 +43,38 @@ export class StreamRetryWindow {
     return remaining
   }
 
-  /** A retry reconnected and made progress; a later outage gets a fresh budget. */
+  /** The worker answered, so a later loss of it starts a fresh unreachable window. */
   recovered(): void {
-    this.attempt = 0
-    this.firstFailureAt = undefined
+    this.firstUnreachableAt = undefined
+    this.unreachableAttempt = 0
   }
 
   nextDelay(error: unknown, signal?: AbortSignal): number | null {
     if (signal?.aborted || !isRetryableStreamError(error)) return null
+    if (isWorkerUnreachable(error)) {
+      this.firstUnreachableAt ??= Date.now()
+      const delay = backoff(this.unreachableAttempt)
+      if (!this.fits(delay, this.firstUnreachableAt + WORKER_REPLACEMENT_WINDOW_MS)) return null
+      this.unreachableAttempt++
+      return delay
+    }
+    // Any other retryable failure is an answer from the worker.
+    this.recovered()
     this.firstFailureAt ??= Date.now()
-    const unreachable = isWorkerUnreachable(error)
-    if (!unreachable && this.attempt >= MAX_STREAM_RETRIES) return null
-    const recoveryDeadline =
-      this.firstFailureAt + (unreachable ? WORKER_REPLACEMENT_WINDOW_MS : STREAM_RECOVERY_WINDOW_MS)
-    const delay = backoffWithJitter(this.attempt + 1, null, { baseMs: 250, maxMs: 5_000 })
-    if (Date.now() + delay >= Math.min(this.deadline, recoveryDeadline)) return null
+    if (this.attempt >= MAX_STREAM_RETRIES) return null
+    const delay = backoff(this.attempt)
+    if (!this.fits(delay, this.firstFailureAt + STREAM_RECOVERY_WINDOW_MS)) return null
     this.attempt++
     return delay
   }
+
+  private fits(delay: number, recoveryDeadline: number): boolean {
+    return Date.now() + delay < Math.min(this.deadline, recoveryDeadline)
+  }
+}
+
+function backoff(attempt: number): number {
+  return backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 5_000 })
 }
 
 /**

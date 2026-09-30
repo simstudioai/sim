@@ -40,7 +40,7 @@ function toToolCallInfo(block: PersistedContentBlock, stored: boolean): ToolCall
   const tc = block.toolCall
   if (!tc) return undefined
   if (isToolHiddenInUi(tc.name)) return undefined
-  /** A stored turn has ended; a row it left unfinished did not finish. */
+  // A stored turn has ended, so a row it left unfinished did not finish.
   const status: ToolCallStatus =
     stored && isUnsettledToolState(tc.state)
       ? ToolCallStatus.interrupted

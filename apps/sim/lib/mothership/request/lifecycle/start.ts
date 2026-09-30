@@ -217,6 +217,13 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   const refusalOf = (thrown?: unknown) =>
     replayRefusal(abortController.signal.aborted ? abortController.signal.reason : thrown)
 
+  /** Set once this controller finalized the turn; only then does it clean up the stream. */
+  let turnEnded = false
+  const endTurn = async (...args: Parameters<typeof finalizeStream>) => {
+    await finalizeStream(...args)
+    turnEnded = true
+  }
+
   /**
    * A refused replay write ends the turn as an error: every replacement would be
    * refused the same event. The run is marked terminal before the lock is
@@ -234,7 +241,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       currentBytes: refusal.refusal.currentBytes,
       limitBytes: refusal.refusal.limitBytes,
     })
-    await finalizeStream(
+    await endTurn(
       {
         content: '',
         contentBlocks: [],
@@ -330,7 +337,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                 outcome = RequestTraceV1Outcome.cancelled
                 abortController.abort(AbortReason.UserStop)
                 cancelReason = recordCancelled()
-                await finalizeStream(
+                await endTurn(
                   {
                     success: false,
                     cancelled: true,
@@ -445,7 +452,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             if (refusal && !result.success) {
               await finalizeAfterReplayRefusal(refusal, result)
             } else {
-              await finalizeStream(result, publisher, runId, outcome, requestId)
+              await endTurn(result, publisher, runId, outcome, requestId)
             }
           } catch (error) {
             if (
@@ -485,7 +492,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               toolCalls: [],
               error: 'An unexpected error occurred while processing the response.',
             }
-            await finalizeStream(syntheticResult, publisher, runId, outcome, requestId)
+            await endTurn(syntheticResult, publisher, runId, outcome, requestId)
           } finally {
             collector.endSpan(
               requestSpan,
@@ -507,11 +514,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             unregisterActiveStream(streamId, abortController)
             /*
               The stream's buffer and abort marker belong to whoever holds the chat
-              lock now. Clean them up only while this controller still holds it, and
-              before releasing it, so a successor's stream is never expired and its
-              Stop is never cleared.
+              lock now. Clean them up only when this controller ended the turn and
+              still holds the lock, and before releasing it: a run left recoverable,
+              or a successor's stream, keeps its buffer and any pending Stop.
             */
-            if (!chatId || (lease && (await holdsChatStreamLease(lease)))) {
+            if (turnEnded && (!chatId || (lease && (await holdsChatStreamLease(lease))))) {
               await scheduleBufferCleanup(streamId)
               await scheduleFilePreviewSessionCleanup(streamId)
               await cleanupAbortMarker(streamId)

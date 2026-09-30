@@ -19,13 +19,15 @@ export const STREAM_STRING_PREVIEW_UNITS = 8 * 1024
 const NO_KEYS: ReadonlySet<string> = new Set()
 const ARGUMENTS_KEY: ReadonlySet<string> = new Set(['arguments'])
 
-/** Its live result is the only place the plaintext key reaches the browser. */
-const GENERATE_API_KEY_TOOL = 'generate_api_key'
-
 /** Items kept at the head of an array that string cuts alone could not bound. */
 export const STREAM_ARRAY_HEAD_ITEMS = 100
 
-/** An upper bound on a value's serialized size, without serializing it. */
+/**
+ * A cheap estimate of a value's serialized size, without serializing it. It can
+ * undercount strings of control characters, which JSON escapes to six bytes
+ * each, but even then an event under the threshold stays under 6 / 3 × 256 KiB,
+ * half the replay buffer's 1 MiB write ceiling.
+ */
 function estimateBytes(value: unknown): number {
   if (typeof value === 'string') return value.length * 3 + 2
   if (Array.isArray(value))
@@ -81,7 +83,7 @@ function mapLeaves(
 ): unknown {
   if (Array.isArray(value)) {
     const items = array(value)
-    let copy: unknown[] | undefined = items === value ? undefined : [...items]
+    let copy: unknown[] | undefined = items === value ? undefined : items
     items.forEach((item, index) => {
       const next = mapLeaves(item, NO_KEYS, leaf, array)
       if (next !== item) (copy ??= [...items])[index] = next
@@ -103,8 +105,8 @@ function mapLeaves(
  * only to the copy the writer delivers and persists; the caller keeps the full
  * event for dispatch. Long strings are cut to their head in place, so every
  * object keeps its shape; if that is not enough, long arrays keep their head.
- * Assistant text, file previews, `generate_api_key` results, and the arguments
- * of calls the browser executes are never cut; an event
+ * Assistant text, file previews, and the arguments of calls the browser
+ * executes are never cut; an event
  * still too large is refused by the buffer, which ends the turn with an error.
  */
 export function compactStreamEvent(event: StreamEvent): StreamEvent {
@@ -115,9 +117,6 @@ export function compactStreamEvent(event: StreamEvent): StreamEvent {
   }
   if (estimateBytes(payload) <= STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) return event
   const toolName = typeof payload.toolName === 'string' ? payload.toolName : ''
-  if (payload.phase === MothershipStreamV1ToolPhase.result && toolName === GENERATE_API_KEY_TOOL) {
-    return event
-  }
   const args = isRecordLike(payload.arguments) ? payload.arguments : undefined
   const skipKeys =
     payload.phase === MothershipStreamV1ToolPhase.call && isClientExecutedToolCall(toolName, args)

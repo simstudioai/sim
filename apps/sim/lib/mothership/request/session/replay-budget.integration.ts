@@ -551,6 +551,28 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     }
   )
 
+  it('leaves a run it handed off recoverable after a transient append failure', async () => {
+    let eventsKey = ''
+    const { streamId, runId, frames } = await runTurn(
+      [
+        async () => {
+          // A corrupt buffer key makes the next append fail while the lease is still held.
+          await redis().set(eventsKey, 'corrupt', 'EX', 3600)
+        },
+        toolCall('call-unsaved', 'cli_blocks_get', { command: 'blocks get' }),
+      ],
+      async (id) => {
+        eventsKey = `mothership_stream:${id}:events`
+      }
+    )
+
+    expect(frames.map((frame) => frame.type)).toEqual(['session'])
+    expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
+    const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+    expect(stored.status).toBe('active')
+    expect(worker.abortRequests).toEqual([])
+  })
+
   it("leaves its successor's stream untouched when the lease is lost while ending a refused turn", async () => {
     const successorToken = `successor\n${generateId()}`
     worker.hooks.onAbort = async () => {
