@@ -269,4 +269,31 @@ describe('copilot chat stream replay route', () => {
 
     await expect(response.json()).resolves.toMatchObject({ success: true, events: [] })
   })
+
+  it('ends a live tail without a terminal when the ring trims past its cursor mid-tail', async () => {
+    getLatestRunForStream.mockResolvedValue({
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
+    const event = (seq: number, text: string) => ({
+      stream: { streamId: 'stream-1', cursor: String(seq) },
+      seq,
+      trace: { requestId: 'req-1' },
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: 'assistant', text },
+    })
+    readEvents
+      .mockResolvedValueOnce([event(1, 'the start of the turn')])
+      .mockResolvedValue([event(5, 'past a trimmed gap')])
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+    )
+    const text = (await readAllChunks(response)).join('')
+
+    expect(text).toContain('the start of the turn')
+    expect(text).not.toContain('past a trimmed gap')
+    expect(text).not.toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
+  })
 })

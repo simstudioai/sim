@@ -76,6 +76,13 @@ export async function openRunReplay(params: {
     clearTimeout(headersTimer)
   }
   if (REPLAY_REFUSED_STATUSES.has(response.status)) {
+    // A key refusal is otherwise silent: every reader just falls back to replay_gap.
+    if (response.status !== 404) {
+      logger.warn('The worker refused this deployment the run replay', {
+        streamId,
+        status: response.status,
+      })
+    }
     await response.body?.cancel().catch(() => {})
     return null
   }
