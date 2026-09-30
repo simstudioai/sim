@@ -6,6 +6,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
+  loadWorkflowFromNormalizedTables,
   materializeDeploymentState,
 } from '@/lib/workflows/persistence/utils'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
@@ -309,6 +310,26 @@ async function readAdmittedSourceState(
  * dropping the workflow from the fork/promote. Block migrations (credential remap
  * to current ids) are applied so copied references reflect current resources.
  */
+/**
+ * The target workflow as its editor currently holds it: the draft tables plus
+ * the variables on the workflow row, in the same shape as a deployed state.
+ * A sync overwrites exactly this, so it is the honest "before" of a preview.
+ */
+export async function loadTargetDraftState(workflowId: string): Promise<WorkflowState | null> {
+  const [draft, rows] = await Promise.all([
+    loadWorkflowFromNormalizedTables(workflowId),
+    db.select({ variables: workflow.variables }).from(workflow).where(eq(workflow.id, workflowId)),
+  ])
+  if (!draft) return null
+  return {
+    blocks: draft.blocks,
+    edges: draft.edges,
+    loops: draft.loops,
+    parallels: draft.parallels,
+    variables: (rows[0]?.variables ?? {}) as Record<string, Variable>,
+  }
+}
+
 export async function readDeployedState(
   workflowId: string,
   workspaceId: string,
