@@ -95,7 +95,10 @@ import {
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
-import { reportSettledClientWorkflowTool } from '@/lib/mothership/request/tools/workflow-client-settlement'
+import {
+  reportQueuedClientWorkflowTool,
+  reportSettledClientWorkflowTool,
+} from '@/lib/mothership/request/tools/workflow-client-settlement'
 import {
   ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
   type CopilotWorkflowToolBindingResult,
@@ -1312,6 +1315,19 @@ async function handleExecutePost(
         trustedInitialResolvedSecretTraceProvenance,
       })
       executionIdClaimCommitted = asyncResult.retainExecutionClaim
+      if (copilotToolCallId && workflowToolClaimAcquired && asyncResult.retainExecutionClaim) {
+        await reportQueuedClientWorkflowTool({
+          toolCallId: copilotToolCallId,
+          executionId,
+          workflowId,
+        }).catch((error) => {
+          reqLogger.warn('Could not report queued Copilot workflow execution', {
+            copilotToolCallId,
+            executionId,
+            error: getErrorMessage(error),
+          })
+        })
+      }
       return asyncResult.response
     }
 

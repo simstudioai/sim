@@ -136,6 +136,24 @@ export async function getExecutionStateForWorkflow(
   return extractExecutionStateFromRow(row)
 }
 
+/** Whether an execution ever started its workflow log, whatever state that log is in now. */
+export async function hasWorkflowExecutionLog(
+  executionId: string,
+  workflowId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: workflowExecutionLogs.id })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  return Boolean(row)
+}
+
 /** Loads a terminal workflow result only when its server-persisted Copilot binding matches. */
 export async function getTrustedWorkflowToolExecution(
   executionId: string,

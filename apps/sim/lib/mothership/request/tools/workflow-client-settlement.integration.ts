@@ -25,7 +25,10 @@ import {
   settleClientWorkflowToolExecution,
 } from '@/lib/mothership/async-runs/repository'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
-import { reportSettledClientWorkflowTool } from '@/lib/mothership/request/tools/workflow-client-settlement'
+import {
+  reportQueuedClientWorkflowTool,
+  reportSettledClientWorkflowTool,
+} from '@/lib/mothership/request/tools/workflow-client-settlement'
 
 /** Longer than the waiter's durable poll, far shorter than the hour it used to park for. */
 const WAIT_MS = 10_000
@@ -99,7 +102,7 @@ describe('settled client-claimed workflow tools', () => {
   async function executionLog(
     toolCallId: string,
     executionId: string,
-    status: 'completed' | 'failed' | 'cancelled'
+    status: 'completed' | 'failed' | 'cancelled' | 'pending'
   ) {
     const snapshotId = generateId()
     snapshotIds.push(snapshotId)
@@ -122,18 +125,24 @@ describe('settled client-claimed workflow tools', () => {
     })
   }
 
-  /** A run_workflow call the browser claimed through the execute route, then ran to `status`. */
-  async function claimedAndSettled(status: 'completed' | 'failed' | 'cancelled' = 'completed') {
+  /** A run_workflow call the browser claimed through the execute route. */
+  async function claimed(args: Record<string, unknown> = { workflowId }) {
     const toolCallId = generateId()
     const executionId = generateId()
     await db.insert(copilotAsyncToolCalls).values({
       runId,
       toolCallId,
       toolName: 'run_workflow',
-      args: { workflowId },
+      args,
       status: 'running',
     })
     expect(await claimWorkflowToolExecution(toolCallId, executionId, 'client')).not.toBeNull()
+    return { toolCallId, executionId }
+  }
+
+  /** A claimed call whose bound execution ran to `status`. */
+  async function claimedAndSettled(status: 'completed' | 'failed' | 'cancelled' = 'completed') {
+    const { toolCallId, executionId } = await claimed()
     await executionLog(toolCallId, executionId, status)
     await settleClientWorkflowToolExecution(toolCallId, executionId)
     return { toolCallId, executionId }
@@ -206,5 +215,59 @@ describe('settled client-claimed workflow tools', () => {
     })
 
     expect(await toolRow(toolCallId)).toMatchObject({ status: 'running', result: null })
+  })
+
+  it('delivers an execution that ended before it wrote a log as failed', async () => {
+    const { toolCallId, executionId } = await claimed()
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+
+    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+
+    expect(await waiting).toMatchObject({
+      status: 'error',
+      data: { success: false, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'failed', claimedBy: null })
+  })
+
+  it('leaves a paused execution to the client', async () => {
+    const { toolCallId, executionId } = await claimed()
+    await executionLog(toolCallId, executionId, 'pending')
+
+    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'running', result: null })
+  })
+
+  it('moves a queued async run to the background when the browser never reports', async () => {
+    const { toolCallId, executionId } = await claimed({ workflowId, async: true })
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+
+    await reportQueuedClientWorkflowTool({ toolCallId, executionId, workflowId })
+
+    expect(await waiting).toMatchObject({
+      status: 'background',
+      data: { workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({
+      status: 'delivered',
+      claimedBy: `workflow:${executionId}`,
+    })
+  })
+
+  it('keeps a queued async run the browser already finalized', async () => {
+    const { toolCallId, executionId } = await claimed({ workflowId, async: true })
+    const reported = await completeAsyncToolCall({
+      toolCallId,
+      status: 'cancelled',
+      result: { success: false, workflowId, executionId },
+    })
+
+    await reportQueuedClientWorkflowTool({ toolCallId, executionId, workflowId })
+
+    expect(await toolRow(toolCallId)).toMatchObject({
+      status: 'cancelled',
+      completedAt: reported?.completedAt,
+    })
   })
 })
