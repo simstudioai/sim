@@ -90,9 +90,11 @@ const logger = createLogger('CopilotLifecycle')
 
 const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
 
-/** Shown when the worker ends a turn with an error terminal but gives no reason. */
-const ENDED_RUN_MESSAGE =
-  'This run had already ended before it could continue. Send a message to pick up where it left off.'
+/**
+ * Shown when the worker ends a turn with an error terminal but gives no reason. Every surface
+ * (Chat, workflow execute, inbox) reports it, so it carries no surface-specific next step.
+ */
+const ENDED_RUN_MESSAGE = 'This run had already ended before it could continue.'
 
 class CopilotModelContentProjectionError extends Error {
   constructor() {
@@ -577,11 +579,12 @@ export async function runCopilotLifecycle(
         !refusal &&
         !turnWasAborted &&
         (backendFinishedTurn || (!context.completionStatus && context.errors.length === 0))
-      // The worker sends an error terminal with no `error` event only when it rebuilds an
-      // ended run from its log, which drops the stored reason: a resume or reattach that
-      // reaches a run that already ended, for example at its deadline. Say so rather than
-      // leave the turn to a generic failure; a reported reason always wins.
+      // The worker sends an error terminal with no `error` event only when it replays a run
+      // that already ended (for example at its deadline) to a resume or reattach, because
+      // that replay does not carry the run's stored reason. Say so rather than leave the turn
+      // to a generic failure; a reported reason or a replay refusal always wins.
       const endedWithoutReason =
+        !refusal &&
         !turnWasAborted &&
         context.completionStatus === MothershipStreamV1CompletionStatus.error &&
         context.errors.length === 0

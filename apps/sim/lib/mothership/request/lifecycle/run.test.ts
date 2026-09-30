@@ -2037,6 +2037,28 @@ describe('runCopilotLifecycle', () => {
     }
   )
 
+  it('reports a replay refusal over a reasonless error terminal', async () => {
+    const abortController = new AbortController()
+    const refusal = ownerRefusal()
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+        abortController.abort(refusal)
+      }
+    )
+
+    const result = await runWithStreamAbort(abortController)
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        cancelled: false,
+        error: refusal.userMessage,
+        errorCode: REPLAY_BUDGET_EXHAUSTED_CODE,
+      })
+    )
+  })
+
   it('keeps a Stop a cancellation when a replay refusal follows it', async () => {
     const abortController = new AbortController()
     mockRunStreamLoop.mockImplementationOnce(
