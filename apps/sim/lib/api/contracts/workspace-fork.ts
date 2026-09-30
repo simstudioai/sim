@@ -332,12 +332,22 @@ export const forkWorkflowChangeSchema = z.discriminatedUnion('action', [
     ...forkWorkflowChangeNames,
     /** The deployed source workflow this sync copies; optional so a new client tolerates an old server during rollout. */
     sourceWorkflowId: workflowIdSchema.optional(),
+    /**
+     * Whether the sync would change the target's draft. False when the draft already matches
+     * the source's deployment; defaulted so a new client tolerates an old server during rollout.
+     */
+    hasChanges: z.boolean().default(true),
   }),
   z.object({
     action: z.literal('create'),
     ...forkWorkflowChangeNames,
     /** The deployed source workflow this sync copies; optional so a new client tolerates an old server during rollout. */
     sourceWorkflowId: workflowIdSchema.optional(),
+    /**
+     * Whether the sync would change the target's draft. False when the draft already matches
+     * the source's deployment; defaulted so a new client tolerates an old server during rollout.
+     */
+    hasChanges: z.boolean().default(true),
   }),
   z.object({ action: z.literal('archive'), ...forkWorkflowChangeNames }),
 ])

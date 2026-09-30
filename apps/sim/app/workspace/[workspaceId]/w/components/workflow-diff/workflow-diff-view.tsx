@@ -10,10 +10,13 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
-import { buildWorkflowDiffOverlay, generateWorkflowDiffSummary } from '@/lib/workflows/comparison'
+import {
+  buildWorkflowDiffOverlay,
+  generateWorkflowDiffSummary,
+  omitPresentationChanges,
+} from '@/lib/workflows/comparison'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { ChangeList } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list'
-import { omitPresentationChanges } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const CHANGE_LIST_WIDTH_CLASS = 'w-[440px] max-w-[45%]'
@@ -68,6 +71,10 @@ export function WorkflowDiffView({
   const overlay = useMemo(
     () => buildWorkflowDiffOverlay(summary, baseState, targetState),
     [summary, baseState, targetState]
+  )
+  const containers = useMemo(
+    () => ({ base: baseState, target: targetState }),
+    [baseState, targetState]
   )
 
   const handleNodeClick = useCallback((blockId: string) => {
@@ -151,6 +158,7 @@ export function WorkflowDiffView({
             summary={summary}
             baseBlocks={baseState.blocks}
             targetBlocks={targetState.blocks}
+            containers={containers}
             selectedBlockId={selectedBlockId}
             onSelectBlock={setSelectedBlockId}
             environmentBindings={environmentBindings}

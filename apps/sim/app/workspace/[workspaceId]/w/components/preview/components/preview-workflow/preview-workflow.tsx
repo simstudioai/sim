@@ -585,7 +585,17 @@ export function PreviewWorkflow({
      * whose handle matches no mounted handle, so without this the preview
      * renders the cards with no lines between them.
      */
-    return normalizeWorkflowEdgeHandles(workflowState.edges).map((edge) => {
+    /*
+     * Ghosts go first: edges sharing a z-index paint in array order, and a
+     * Loop/Parallel target gives its live and removed edges the same one, so
+     * order is what keeps a ghost under the live line into that container.
+     */
+    const ordered = normalizeWorkflowEdgeHandles(workflowState.edges)
+    const edgesInPaintOrder = [
+      ...ordered.filter((edge) => edgeDiffStatus?.[edge.id] === 'removed'),
+      ...ordered.filter((edge) => edgeDiffStatus?.[edge.id] !== 'removed'),
+    ]
+    return edgesInPaintOrder.map((edge) => {
       const status = getEdgeExecutionStatus(edge)
       const isErrorEdge = edge.sourceHandle === 'error'
       const isGhost = edgeDiffStatus?.[edge.id] === 'removed'

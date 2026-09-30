@@ -14,6 +14,7 @@ import { loadTargetDraftSubBlocks } from '@/ee/workspace-forking/lib/copy/copy-w
 import {
   listForkExcludedDeployedWorkflows,
   loadSourceDeployedStates,
+  loadTargetDraftStates,
   loadTargetWebhookPathsByBlock,
 } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
@@ -26,6 +27,10 @@ import {
   collectForkClearedRefCandidates,
 } from '@/ee/workspace-forking/lib/promote/cleared-refs'
 import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+import {
+  projectSyncSource,
+  syncChangesWorkflow,
+} from '@/ee/workspace-forking/lib/promote/sync-preview'
 import { buildForkTriggerPlan } from '@/ee/workspace-forking/lib/promote/trigger-urls'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 
@@ -90,6 +95,7 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
       sourceCandidates,
       sourceWorkflowRows,
       excludedSourceWorkflows,
+      targetDraftStates,
     ] = await Promise.all([
       loadForkDependentValues(db, auth.edge.childWorkspaceId, allTargetIds),
       loadTargetDraftSubBlocks(db, replaceTargetIds),
@@ -101,6 +107,8 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
         .where(eq(workflow.workspaceId, auth.sourceWorkspaceId)),
       // Deployed-but-excluded source workflows, so the preview can show what a sync skips.
       listForkExcludedDeployedWorkflows(db, auth.sourceWorkspaceId),
+      // Whole drafts, so each row can say whether the sync changes anything in it.
+      loadTargetDraftStates(replaceTargetIds, auth.targetWorkspaceId),
     ])
     const storedByKey = new Map(
       storedValues.map((entry) => [
@@ -242,6 +250,24 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
       blockName: reference.blockName,
     })
 
+    // A replaced workflow whose draft already matches what the sync writes changes nothing, so its
+    // row offers no comparison. Same projection and rule as the per-workflow preview, so the row
+    // and the preview never disagree. A draft that failed to load counts as changed.
+    const changedSourceIds = new Set<string>()
+    for (const item of plan.items) {
+      const sourceState = sourceStates.get(item.sourceWorkflowId)
+      const before =
+        item.mode === 'replace' ? (targetDraftStates.get(item.targetWorkflowId) ?? null) : null
+      const changed =
+        !sourceState ||
+        (item.mode === 'replace' && !before) ||
+        syncChangesWorkflow(
+          before,
+          projectSyncSource(sourceState, before, item.targetWorkflowId, resolveBlockId)
+        )
+      if (changed) changedSourceIds.add(item.sourceWorkflowId)
+    }
+
     // Orient the mapping around the workspace the modal is open in (`id`): show the
     // caller's workflow name first, the sync partner's second, so renames are legible.
     const currentIsSource = auth.sourceWorkspaceId === id
@@ -254,6 +280,7 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
             currentName: item.sourceMeta.name,
             otherName: item.sourceMeta.name,
             sourceWorkflowId: item.sourceWorkflowId,
+            hasChanges: true,
           }
         }
         const targetName = item.targetName ?? item.sourceMeta.name
@@ -262,6 +289,7 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
           currentName: currentIsSource ? item.sourceMeta.name : targetName,
           otherName: currentIsSource ? targetName : item.sourceMeta.name,
           sourceWorkflowId: item.sourceWorkflowId,
+          hasChanges: changedSourceIds.has(item.sourceWorkflowId),
         }
       }),
       ...plan.archivedTargets.map((target) => ({

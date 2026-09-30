@@ -5,15 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { BlockState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   classifyChange,
   describeListItems,
   formatScalar,
   listBlockChanges,
   listOneSidedFields,
+  listOrderChanged,
   maskSecretsDeep,
-  omitPresentationChanges,
   pairListItems,
   splitEnvironmentBindings,
   toDiffText,
@@ -455,77 +455,37 @@ describe('listOneSidedFields', () => {
   })
 })
 
-describe('omitPresentationChanges', () => {
-  it('hides presentation-only rows, drops blocks left empty and recomputes hasChanges', () => {
-    const only = summary({
-      modifiedBlocks: [
-        {
-          id: 'a',
-          type: 'function',
-          name: 'a',
-          changes: [
-            { field: 'horizontalHandles', oldValue: true, newValue: false },
-            { field: 'tools.properties', oldValue: {}, newValue: {} },
-          ],
-        },
-        {
-          id: 'b',
-          type: 'function',
-          name: 'b',
-          changes: [
-            { field: 'horizontalHandles', oldValue: true, newValue: false },
-            { field: 'code', oldValue: 'x', newValue: 'y' },
-          ],
-        },
-      ],
-      hasChanges: true,
-    })
+describe('masked values in text and list fields', () => {
+  it('masks secrets inside a JSON-encoded string field', () => {
+    const stored = JSON.stringify({ Authorization: 'Bearer live-key', Accept: 'json' })
 
-    const next = omitPresentationChanges(only)
+    expect(toDiffText(stored)).not.toContain('live-key')
+    expect(formatScalar('function', 'headers', stored)).not.toContain('live-key')
+    expect(toDiffText('plain')).toBe('plain')
+  })
 
-    expect(next.modifiedBlocks).toEqual([
-      {
-        id: 'b',
-        type: 'function',
-        name: 'b',
-        changes: [{ field: 'code', oldValue: 'x', newValue: 'y' }],
-      },
+  it('reports an input default that changed only inside a secret as a masked change', () => {
+    declareSubBlocks({ starter: [{ id: 'inputFormat', type: 'input-format' }] })
+    const field = (token: string) =>
+      describeListItems('starter', 'inputFormat', [
+        { id: 'f', name: 'headers', type: 'object', value: { Authorization: token } },
+      ])
+
+    const [old] = field('Bearer a')
+    const [next] = field('Bearer b')
+
+    expect(old.text).toBe(next.text)
+    expect(pairListItems([old], [next], false)).toMatchObject([
+      { kind: 'changed', secretChanged: true },
     ])
-    expect(next.hasChanges).toBe(true)
+  })
 
-    /* The basic/advanced mode decides which stored value executes, so it is never hidden. */
-    const modeOnly = summary({
-      modifiedBlocks: [
-        {
-          id: 'c',
-          type: 'slack',
-          name: 'c',
-          changes: [
-            { field: 'data.canonicalModes', oldValue: {}, newValue: { channel: 'advanced' } },
-          ],
-        },
-      ],
-      hasChanges: true,
-    })
-    expect(omitPresentationChanges(modeOnly).modifiedBlocks).toHaveLength(1)
+  it('tells a reordered list apart from the same items stored differently', () => {
+    const a = { key: 'a', label: 'a', text: '1' }
+    const b = { key: 'b', label: 'b', text: '2' }
 
-    const presentationOnly = summary({
-      modifiedBlocks: [only.modifiedBlocks[0]],
-      hasChanges: true,
-    })
-    expect(omitPresentationChanges(presentationOnly)).toMatchObject({
-      modifiedBlocks: [],
-      hasChanges: false,
-    })
-    expect(
-      omitPresentationChanges(
-        summary({
-          modifiedBlocks: [only.modifiedBlocks[0]],
-          edgeChanges: { added: 1, removed: 0, addedDetails: [], removedDetails: [] },
-          hasChanges: true,
-        })
-      ).hasChanges
-    ).toBe(true)
+    expect(listOrderChanged([a, b], [b, a])).toBe(true)
+    expect(listOrderChanged([a, b], [a, b])).toBe(false)
   })
 })
 
@@ -674,5 +634,33 @@ describe('listBlockChanges', () => {
     })
     /* The survivor is not itself in the diff, so it only appears under its wrapper. */
     expect(byId.has('survivor')).toBe(false)
+  })
+})
+
+describe('listBlockChanges container settings', () => {
+  it("gives an added loop's card its iteration settings from the loop config", () => {
+    const target = { loop1: block('loop1', { type: 'loop' }) }
+    const containers = {
+      base: { loops: {}, parallels: {} },
+      target: {
+        loops: { loop1: { id: 'loop1', nodes: [], loopType: 'for', iterations: 4 } },
+        parallels: {},
+      },
+    } as unknown as {
+      base: Pick<WorkflowState, 'loops' | 'parallels'>
+      target: Pick<WorkflowState, 'loops' | 'parallels'>
+    }
+
+    const [entry] = listBlockChanges(
+      summary({ addedBlocks: [{ id: 'loop1', type: 'loop', name: 'loop1' }], hasChanges: true }),
+      {},
+      target,
+      containers
+    )
+
+    expect(entry.changes).toEqual([
+      { field: 'loopType', oldValue: null, newValue: 'for' },
+      { field: 'iterations', oldValue: null, newValue: 4 },
+    ])
   })
 })

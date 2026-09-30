@@ -1,4 +1,4 @@
-import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import { type BoundingBox, boxesOverlap } from '@/lib/workflows/autolayout'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
@@ -42,11 +42,26 @@ const MAX_NUDGES = 8
 /** Sub-block fields whose list items each own a source handle on the canvas card. */
 const BRANCH_LIST_FIELDS = ['conditions', 'routes'] as const
 
+/** The box a card occupies on the preview canvas, sized by the same rules the preview uses. */
 function boxOf(block: BlockState): BoundingBox {
   const data = block.data as { width?: number; height?: number } | undefined
+  const x = block.position?.x ?? 0
+  const y = block.position?.y ?? 0
+  if (block.type === 'loop' || block.type === 'parallel') {
+    return {
+      x,
+      y,
+      width: data?.width
+        ? Math.max(data.width, CONTAINER_DIMENSIONS.MIN_WIDTH)
+        : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+      height: data?.height
+        ? Math.max(data.height, CONTAINER_DIMENSIONS.MIN_HEIGHT)
+        : CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    }
+  }
   return {
-    x: block.position?.x ?? 0,
-    y: block.position?.y ?? 0,
+    x,
+    y,
     width: data?.width ?? BLOCK_DIMENSIONS.FIXED_WIDTH,
     height: data?.height ?? block.height ?? BLOCK_DIMENSIONS.MIN_HEIGHT,
   }

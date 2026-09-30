@@ -29,7 +29,7 @@ import {
   splitEnvironmentBindings,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
 import { BlockTile } from '@/blocks/block-tile'
-import type { BlockState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const STATUS_BADGE_VARIANT: Record<BlockDiffStatus, 'green' | 'amber' | 'red'> = {
   added: 'green',
@@ -42,6 +42,11 @@ interface ChangeListProps {
   /** The two sides, so cards can show an added or removed block's fields and detect moves */
   baseBlocks: Record<string, BlockState>
   targetBlocks: Record<string, BlockState>
+  /** Each side's loop and parallel configs, so an added or removed container shows what it runs */
+  containers: {
+    base: Pick<WorkflowState, 'loops' | 'parallels'>
+    target: Pick<WorkflowState, 'loops' | 'parallels'>
+  }
   selectedBlockId: string | null
   onSelectBlock: Dispatch<SetStateAction<string | null>>
   /**
@@ -67,13 +72,14 @@ export function ChangeList({
   summary,
   baseBlocks,
   targetBlocks,
+  containers,
   selectedBlockId,
   onSelectBlock,
   environmentBindings = false,
 }: ChangeListProps) {
   const entries = useMemo(
-    () => listBlockChanges(summary, baseBlocks, targetBlocks),
-    [summary, baseBlocks, targetBlocks]
+    () => listBlockChanges(summary, baseBlocks, targetBlocks, containers),
+    [summary, baseBlocks, targetBlocks, containers]
   )
   const blocks = useMemo(() => ({ ...baseBlocks, ...targetBlocks }), [baseBlocks, targetBlocks])
   const cardRefs = useRef<Map<string, HTMLDivElement>>(null)
@@ -224,7 +230,13 @@ const BlockCard = memo(function BlockCard({
   nested = false,
 }: BlockCardProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [seenSelection, setSeenSelection] = useState(selectedBlockId)
   const selected = selectedBlockId === entry.id
+  /* Selecting a block nested in this card on the canvas opens the card so its row can show. */
+  if (seenSelection !== selectedBlockId) {
+    setSeenSelection(selectedBlockId)
+    if (selectedBlockId !== null && !selected) setCollapsed(false)
+  }
   const block = blocks[entry.id]
   const setCardRef = useCallback(
     (node: HTMLDivElement | null) => registerCard(entry.id, node),
@@ -235,9 +247,7 @@ const BlockCard = memo(function BlockCard({
     const fields =
       entry.status === 'modified'
         ? entry.changes
-        : block
-          ? listOneSidedFields(block, entry.status)
-          : []
+        : [...entry.changes, ...(block ? listOneSidedFields(block, entry.status) : [])]
     return environmentBindings
       ? splitEnvironmentBindings(entry.type, fields)
       : { logic: fields, bindings: [] }

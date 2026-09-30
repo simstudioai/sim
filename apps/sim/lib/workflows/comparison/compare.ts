@@ -136,6 +136,25 @@ function describeContainerChange(
   }
 }
 
+/**
+ * A container's configuration as it would be reported field by field, keeping
+ * only the fields its loop or parallel type uses. For a container that exists
+ * on one side, so its card can show what it runs as a change from nothing.
+ */
+export function containerConfigFields(
+  state: Pick<WorkflowState, 'loops' | 'parallels'>,
+  id: string
+): Array<{ field: ContainerConfigField; value: unknown }> {
+  const loop = normalizeLoop(state.loops?.[id])
+  const parallel = loop ? undefined : normalizeParallel(state.parallels?.[id])
+  const record = (loop ?? parallel) as Record<string, unknown> | undefined
+  if (!record) return []
+  const fields: readonly ContainerConfigField[] = loop ? LOOP_CONFIG_FIELDS : PARALLEL_CONFIG_FIELDS
+  return fields
+    .filter((field) => record[field] !== undefined)
+    .map((field) => ({ field, value: record[field] }))
+}
+
 /** Whether any counted section of a summary reports a difference. */
 export function summaryHasChanges(summary: Omit<WorkflowDiffSummary, 'hasChanges'>): boolean {
   return (
@@ -154,6 +173,34 @@ export function summaryHasChanges(summary: Omit<WorkflowDiffSummary, 'hasChanges
     summary.variableChanges.removed > 0 ||
     summary.variableChanges.modified > 0
   )
+}
+
+/**
+ * Fields the comparison engine counts but a reviewer never needs to see: pure
+ * canvas presentation. They still drive "needs redeploy", so the summary keeps
+ * them and {@link omitPresentationChanges} hides them for review. The
+ * basic/advanced mode memory is NOT one of them: with both values stored, the
+ * mode decides which one executes.
+ */
+const PRESENTATION_FIELDS = new Set(['horizontalHandles'])
+
+/**
+ * The summary with presentation-only field changes removed, and any block that
+ * only had those dropped from the modified list, so the canvas and the list
+ * agree on what counts as a change.
+ */
+export function omitPresentationChanges(summary: WorkflowDiffSummary): WorkflowDiffSummary {
+  const modifiedBlocks = summary.modifiedBlocks
+    .map((block) => ({
+      ...block,
+      changes: block.changes.filter(
+        (change) => !PRESENTATION_FIELDS.has(change.field) && !change.field.endsWith('.properties')
+      ),
+    }))
+    .filter((block) => block.changes.length > 0)
+  const next = { ...summary, modifiedBlocks }
+  next.hasChanges = summaryHasChanges(next)
+  return next
 }
 
 /**

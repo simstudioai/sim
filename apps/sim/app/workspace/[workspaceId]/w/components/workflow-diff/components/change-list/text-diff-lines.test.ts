@@ -160,4 +160,16 @@ describe('buildDiffRows', () => {
     expect(lines.map((line) => line.kind)).toEqual(['removed', 'added'])
     expect(lines.every((line) => line.parts === undefined)).toBe(true)
   })
+  it('reads CRLF and bare CR endings as line breaks', () => {
+    const rows = buildDiffRows('a\r\nb\rc', 'a\nb\nd')
+
+    expect(
+      rows.map((row) => (row.type === 'line' ? [row.line.kind, row.line.text] : row.type))
+    ).toEqual([
+      ['context', 'a'],
+      ['context', 'b'],
+      ['removed', 'c'],
+      ['added', 'd'],
+    ])
+  })
 })

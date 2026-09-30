@@ -23,6 +23,12 @@ export type CompareSide = { kind: 'draft' } | { kind: 'version'; version: number
 
 const DRAFT_OPTION_VALUE = 'draft'
 
+/** The visible label of the selected option, so each picker's accessible name says what it holds. */
+function optionLabel(options: ChipDropdownOption[], value: string): string {
+  const label = options.find((option) => option.value === value)?.label
+  return typeof label === 'string' ? label : ''
+}
+
 function sideToValue(side: CompareSide): string {
   return side.kind === 'draft' ? DRAFT_OPTION_VALUE : String(side.version)
 }
@@ -113,6 +119,7 @@ export function CompareVersionsModal({
             value={sideToValue(base)}
             onChange={(value) => setBase(valueToSide(value))}
             align='start'
+            aria-label={`Compare from ${optionLabel(options, sideToValue(base))}`}
           />
           <ArrowRight className='size-[12px] shrink-0 text-[var(--text-icon)]' />
           <ChipDropdown
@@ -120,6 +127,7 @@ export function CompareVersionsModal({
             value={sideToValue(target)}
             onChange={(value) => setTarget(valueToSide(value))}
             align='start'
+            aria-label={`Compare to ${optionLabel(options, sideToValue(target))}`}
           />
         </div>
       </ChipModalHeader>

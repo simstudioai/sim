@@ -7,7 +7,13 @@ import {
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { generateWorkflowDiffSummary, hasWorkflowChanged } from './compare'
+import {
+  containerConfigFields,
+  generateWorkflowDiffSummary,
+  hasWorkflowChanged,
+  omitPresentationChanges,
+  type WorkflowDiffSummary,
+} from './compare'
 
 /**
  * Type helper for converting test workflow state to app workflow state.
@@ -1730,4 +1736,129 @@ describe('containerChanges', () => {
       ])
     }
   )
+})
+
+function summary(overrides: Partial<WorkflowDiffSummary> = {}): WorkflowDiffSummary {
+  return {
+    addedBlocks: [],
+    removedBlocks: [],
+    modifiedBlocks: [],
+    edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
+    loopChanges: { added: 0, removed: 0, modified: 0 },
+    parallelChanges: { added: 0, removed: 0, modified: 0 },
+    containerChanges: [],
+    variableChanges: {
+      added: 0,
+      removed: 0,
+      modified: 0,
+      addedNames: [],
+      removedNames: [],
+      modifiedNames: [],
+    },
+    hasChanges: false,
+    ...overrides,
+  }
+}
+
+describe('omitPresentationChanges', () => {
+  it('hides presentation-only rows, drops blocks left empty and recomputes hasChanges', () => {
+    const only = summary({
+      modifiedBlocks: [
+        {
+          id: 'a',
+          type: 'function',
+          name: 'a',
+          changes: [
+            { field: 'horizontalHandles', oldValue: true, newValue: false },
+            { field: 'tools.properties', oldValue: {}, newValue: {} },
+          ],
+        },
+        {
+          id: 'b',
+          type: 'function',
+          name: 'b',
+          changes: [
+            { field: 'horizontalHandles', oldValue: true, newValue: false },
+            { field: 'code', oldValue: 'x', newValue: 'y' },
+          ],
+        },
+      ],
+      hasChanges: true,
+    })
+
+    const next = omitPresentationChanges(only)
+
+    expect(next.modifiedBlocks).toEqual([
+      {
+        id: 'b',
+        type: 'function',
+        name: 'b',
+        changes: [{ field: 'code', oldValue: 'x', newValue: 'y' }],
+      },
+    ])
+    expect(next.hasChanges).toBe(true)
+
+    /* The basic/advanced mode decides which stored value executes, so it is never hidden. */
+    const modeOnly = summary({
+      modifiedBlocks: [
+        {
+          id: 'c',
+          type: 'slack',
+          name: 'c',
+          changes: [
+            { field: 'data.canonicalModes', oldValue: {}, newValue: { channel: 'advanced' } },
+          ],
+        },
+      ],
+      hasChanges: true,
+    })
+    expect(omitPresentationChanges(modeOnly).modifiedBlocks).toHaveLength(1)
+
+    const presentationOnly = summary({
+      modifiedBlocks: [only.modifiedBlocks[0]],
+      hasChanges: true,
+    })
+    expect(omitPresentationChanges(presentationOnly)).toMatchObject({
+      modifiedBlocks: [],
+      hasChanges: false,
+    })
+    expect(
+      omitPresentationChanges(
+        summary({
+          modifiedBlocks: [only.modifiedBlocks[0]],
+          edgeChanges: { added: 1, removed: 0, addedDetails: [], removedDetails: [] },
+          hasChanges: true,
+        })
+      ).hasChanges
+    ).toBe(true)
+  })
+})
+
+describe('containerConfigFields', () => {
+  it('reports only the settings the loop or parallel type uses', () => {
+    const state = {
+      loops: {
+        l: {
+          id: 'l',
+          nodes: [],
+          loopType: 'forEach' as const,
+          iterations: 5,
+          forEachItems: '<start.items>',
+        },
+      },
+      parallels: {
+        p: { id: 'p', nodes: [], parallelType: 'count' as const, count: 3, distribution: 'x' },
+      },
+    } as unknown as Pick<WorkflowState, 'loops' | 'parallels'>
+
+    expect(containerConfigFields(state, 'l')).toEqual([
+      { field: 'loopType', value: 'forEach' },
+      { field: 'forEachItems', value: '<start.items>' },
+    ])
+    expect(containerConfigFields(state, 'p')).toEqual([
+      { field: 'parallelType', value: 'count' },
+      { field: 'count', value: 3 },
+    ])
+    expect(containerConfigFields(state, 'missing')).toEqual([])
+  })
 })

@@ -200,6 +200,30 @@ describe('buildWorkflowDiffOverlay', () => {
     expect(merged.blocks.goneChild.position).toEqual({ x: 0, y: 0 })
   })
 
+  it('sizes a removed container with no stored size the way the preview draws it', () => {
+    const base = asState({
+      blocks: { oldLoop: block('oldLoop', { type: 'loop', position: { x: 0, y: 0 } }) },
+      edges: [],
+      loops: { oldLoop: { id: 'oldLoop', nodes: [], loopType: 'for', iterations: 2 } },
+    })
+    const target = asState({
+      /* Past a plain card's 250px but inside the 500px default container width. */
+      blocks: { live: block('live', { position: { x: 400, y: 50 }, height: 100 }) },
+      edges: [],
+      loops: {},
+    })
+    const summary: WorkflowDiffSummary = {
+      ...emptySummary(),
+      removedBlocks: [{ id: 'oldLoop', type: 'loop', name: 'oldLoop' }],
+      addedBlocks: [{ id: 'live', type: 'function', name: 'live' }],
+      hasChanges: true,
+    }
+
+    const merged = buildWorkflowDiffOverlay(summary, base, target).mergedState
+
+    expect(merged.blocks.oldLoop.position).toEqual({ x: 0, y: 182 })
+  })
+
   it('ghosts removed loops and parallels only when their block was removed', () => {
     const base = asState({
       blocks: {
