@@ -62,12 +62,6 @@ export function WorkflowDiffView({
   environmentBindings = false,
 }: WorkflowDiffViewProps) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
-  /* A selection belongs to one comparison; picking another version starts unselected. */
-  const [selectionFor, setSelectionFor] = useState({ baseState, targetState })
-  if (selectionFor.baseState !== baseState || selectionFor.targetState !== targetState) {
-    setSelectionFor({ baseState, targetState })
-    setSelectedBlockId(null)
-  }
   const [listElement, setListElement] = useState<HTMLDivElement | null>(null)
   const listEdges = useScrollEdges(listElement)
 
