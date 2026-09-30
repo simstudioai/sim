@@ -584,7 +584,6 @@ export async function runCopilotLifecycle(
       // that replay does not carry the run's stored reason. Say so rather than leave the turn
       // to a generic failure; a reported reason or a replay refusal always wins.
       const endedWithoutReason =
-        !refusal &&
         !turnWasAborted &&
         context.completionStatus === MothershipStreamV1CompletionStatus.error &&
         context.errors.length === 0

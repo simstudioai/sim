@@ -2059,6 +2059,35 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
+  it('explains an error terminal that arrives without a reason as an already-ended run', async () => {
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+      }
+    )
+
+    const result = await runWithStreamAbort(new AbortController())
+
+    expect(result.success).toBe(false)
+    expect(result.cancelled).toBe(false)
+    expect(result.error).toEqual(expect.stringContaining('already ended'))
+  })
+
+  it('keeps a Stop a cancellation when the error terminal carries no reason', async () => {
+    const abortController = new AbortController()
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+        abortController.abort()
+      }
+    )
+
+    const result = await runWithStreamAbort(abortController)
+
+    expect(result.cancelled).toBe(true)
+    expect(result.error).toBeUndefined()
+  })
+
   it('keeps a Stop a cancellation when a replay refusal follows it', async () => {
     const abortController = new AbortController()
     mockRunStreamLoop.mockImplementationOnce(
@@ -3350,78 +3379,6 @@ describe('runCopilotLifecycle', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBeUndefined()
     expect(result.errors).toEqual(['The provider is overloaded'])
-  })
-
-  it('explains an error terminal that arrives without a reason as an already-ended run', async () => {
-    const executionContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: '',
-      workspaceId: 'ws-1',
-      chatId: 'chat-1',
-    }
-
-    mockRunStreamLoop.mockImplementationOnce(
-      async (
-        _fetchUrl: string,
-        _fetchOptions: RequestInit,
-        context: StreamingContext
-      ): Promise<void> => {
-        context.completionStatus = MothershipStreamV1CompletionStatus.error
-      }
-    )
-
-    const result = await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-        executionId: 'exec-1',
-        runId: 'run-1',
-        executionContext,
-      }
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.cancelled).toBe(false)
-    expect(result.error).toEqual(expect.stringContaining('already ended'))
-  })
-
-  it('keeps a Stop a cancellation when the error terminal carries no reason', async () => {
-    const executionContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: '',
-      workspaceId: 'ws-1',
-      chatId: 'chat-1',
-    }
-    const abortController = new AbortController()
-
-    mockRunStreamLoop.mockImplementationOnce(
-      async (
-        _fetchUrl: string,
-        _fetchOptions: RequestInit,
-        context: StreamingContext
-      ): Promise<void> => {
-        context.completionStatus = MothershipStreamV1CompletionStatus.error
-        abortController.abort()
-      }
-    )
-
-    const result = await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-        executionId: 'exec-1',
-        runId: 'run-1',
-        executionContext,
-        abortSignal: abortController.signal,
-      }
-    )
-
-    expect(result.cancelled).toBe(true)
-    expect(result.error).toBeUndefined()
   })
 
   it('force-fails a hung tool promise and resumes with an error result instead of wedging', async () => {
