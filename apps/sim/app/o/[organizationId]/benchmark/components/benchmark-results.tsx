@@ -54,9 +54,9 @@ export function BenchmarkResults({
                 </div>
               )}
               <div>
-                <dt className='text-[var(--text-muted)]'>Recovered answer</dt>
+                <dt className='text-[var(--text-muted)]'>Answer from the generated spec</dt>
                 <dd className='mt-1 whitespace-pre-wrap break-words text-[var(--text-body)]'>
-                  {answer?.answer || 'Not specified'}
+                  {answer?.answer || 'No answer returned'}
                 </dd>
               </div>
               <div>
