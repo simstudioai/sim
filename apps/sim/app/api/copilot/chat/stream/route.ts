@@ -471,11 +471,13 @@ async function handleResumeRequestBody({
       markSpanForError(rootSpan, error)
     } finally {
       request.signal.removeEventListener('abort', abortListener)
+      // Read before closing: closing the controller here is this route ending, not the client.
+      const clientDisconnected = controllerClosed
       closeController()
       rootSpan.setAttributes({
         [TraceAttr.CopilotResumeOutcome]: sawTerminalEvent
           ? CopilotResumeOutcome.TerminalDelivered
-          : controllerClosed
+          : clientDisconnected
             ? CopilotResumeOutcome.ClientDisconnected
             : CopilotResumeOutcome.EndedWithoutTerminal,
         [TraceAttr.CopilotResumeEventCount]: totalEventsFlushed,

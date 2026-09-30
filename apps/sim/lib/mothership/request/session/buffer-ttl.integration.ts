@@ -9,8 +9,8 @@ const { redisUrl } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
   const url = readTestRedisUrl()
   process.env.REDIS_URL = url
-  /** Short enough that the park below outlasts it several times over. */
-  process.env.COPILOT_STREAM_TTL_SECONDS = '2'
+  /** The park below outlasts it more than twice over in real time. */
+  process.env.COPILOT_STREAM_TTL_SECONDS = '5'
   return { redisUrl: url }
 })
 
@@ -63,12 +63,12 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
     const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
     const chargedBytes = await getRedisClient()!.get(ownerBudgetKey)
     /** The counter's own TTL is an hour; shortening it stands in for a park that long. */
-    await getRedisClient()!.expire(ownerBudgetKey, 2)
+    await getRedisClient()!.expire(ownerBudgetKey, 5)
 
     vi.useFakeTimers({ toFake: ['Date'] })
     const poller = startAbortPoller(streamId, new AbortController(), { chatId, pollMs: 50 })
     try {
-      for (let tick = 0; tick < 10; tick++) {
+      for (let tick = 0; tick < 24; tick++) {
         vi.setSystemTime(Date.now() + 21_000)
         await sleep(500)
       }

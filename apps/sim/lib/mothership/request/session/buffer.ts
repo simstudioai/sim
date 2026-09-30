@@ -181,11 +181,13 @@ export async function scheduleBufferCleanup(
 ): Promise<void> {
   try {
     await withRedisRetry({ operation: 'schedule_outbox_cleanup', streamId }, async (redis) => {
+      // The marker goes first: a refresh that lands before it is overridden by the
+      // expirations below, and one that lands after it sees the marker and does nothing.
       const pipeline = redis.pipeline()
+      pipeline.set(getClosedKey(streamId), '1', 'EX', ttlSeconds)
       pipeline.expire(getEventsKey(streamId), ttlSeconds)
       pipeline.expire(getSeqKey(streamId), ttlSeconds)
       pipeline.expire(getAbortKey(streamId), ttlSeconds)
-      pipeline.set(getClosedKey(streamId), '1', 'EX', ttlSeconds)
       await pipeline.exec()
     })
   } catch (error) {

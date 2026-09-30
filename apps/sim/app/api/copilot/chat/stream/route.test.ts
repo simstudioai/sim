@@ -1,3 +1,9 @@
+import { trace } from '@opentelemetry/api'
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base'
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +12,9 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { CopilotResumeOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 
 const { getLatestRunForStream, readEvents, readFilePreviewSessions, checkForReplayGap } =
   vi.hoisted(() => ({
@@ -177,6 +186,10 @@ describe('copilot chat stream replay route', () => {
   })
 
   it('ends a still-running replay at its cap without a terminal so the client re-attaches', async () => {
+    const exporter = new InMemorySpanExporter()
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+    )
     vi.useFakeTimers()
     getLatestRunForStream.mockResolvedValue({
       status: 'active',
@@ -194,5 +207,12 @@ describe('copilot chat stream replay route', () => {
     expect(text).toContain(': keepalive')
     expect(text).not.toContain(`"type":"${MothershipStreamV1EventType.error}"`)
     expect(text).not.toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
+    const resume = exporter
+      .getFinishedSpans()
+      .find((span) => span.name === TraceSpan.CopilotResumeRequest)
+    expect(resume?.attributes[TraceAttr.CopilotResumeOutcome]).toBe(
+      CopilotResumeOutcome.EndedWithoutTerminal
+    )
+    trace.disable()
   })
 })
