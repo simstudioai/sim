@@ -82,20 +82,6 @@ const attachmentPageSchema = z.object({
   results: z.array(attachmentSchema).max(250),
   _links: z.object({ next: providerCursor.optional() }).optional(),
 })
-/** Only provider-owned codes are kept from an error body; titles and details are never logged. */
-const atlassianErrorBodySchema = z.object({
-  errors: z
-    .array(
-      z.object({
-        code: z
-          .string()
-          .regex(/^[A-Za-z0-9_.-]{1,64}$/)
-          .optional()
-          .catch(undefined),
-      })
-    )
-    .max(10),
-})
 const OPAQUE_HEADER_VALUE = /^[A-Za-z0-9_.-]{1,128}$/
 const scopeMismatchSchema = z.object({
   code: z.literal(401),
@@ -158,40 +144,26 @@ function opaqueHeader(response: Response, name: string): string | undefined {
   return value && OPAQUE_HEADER_VALUE.test(value) ? value : undefined
 }
 
-/** Atlassian support resolves a failure from its trace ID; the raw body may hold secrets and is never logged. */
-async function readServerErrorCodes(response: Response): Promise<string[] | undefined> {
-  const payload = await readBoundedHttpErrorPayload(response)
-  if (!payload.ok) return undefined
-  try {
-    const parsed = atlassianErrorBodySchema.safeParse(JSON.parse(payload.body))
-    return parsed.success
-      ? parsed.data.errors.flatMap((error) => (error.code ? [error.code] : []))
-      : undefined
-  } catch {
-    return undefined
-  }
-}
-
 /**
  * Metadata reads are idempotent GETs, and Atlassian intermittently answers them
  * with a bare 500 that the shared transient-status set omits. Raising it inside
  * the transport lets the shared backoff retry it like a 503. Every 5xx attempt
- * is logged with Atlassian's trace identifiers; other 5xx responses keep the
- * shared handling, so their bodies are left for it to read.
+ * logs Atlassian's trace identifiers from its headers, which support resolves a
+ * failure from; the body is never read here, so a stalled body cannot consume
+ * the retry budget and no raw payload reaches the logs.
  */
 const METADATA_RETRY_OPTIONS: RetryOptions = {
   fetcher: async (input, init, transport) => {
     const response = await transport(input, init)
     if (response.status < 500) return response
-    const retried = response.status === 500
     logger.warn('Confluence attachment metadata request failed', {
       status: response.status,
       path: new URL(String(input)).pathname,
       traceId: opaqueHeader(response, 'atl-traceid'),
       requestId: opaqueHeader(response, 'x-arequestid'),
-      ...(retried ? { errorCodes: await readServerErrorCodes(response) } : {}),
     })
-    if (!retried) return response
+    if (response.status !== 500) return response
+    await response.body?.cancel()
     throw metadataServerError(response.status)
   },
   retryCondition: (error) =>

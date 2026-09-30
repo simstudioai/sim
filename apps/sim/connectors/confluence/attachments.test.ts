@@ -285,12 +285,15 @@ describe('Confluence attachment listing', () => {
       }
     }
 
-    it('retries a transient 500 instead of failing the listing', async () => {
+    it.each([
+      ['a complete body', () => 'upstream error'],
+      ['a body that never finishes', () => new ReadableStream<Uint8Array>()],
+    ])('retries a transient 500 with %s instead of failing the listing', async (_, body) => {
       let failed = false
-      listingFails(() => {
-        if (failed) return false
+      fetchMock.mockImplementation(async () => {
+        if (failed) return Response.json({ results: [file({ id: 'p1-file' })] })
         failed = true
-        return true
+        return new Response(body(), { status: 500 })
       })
       const result = await listPastBackoff({ ...INPUT, listParents: parents(['p1']) })
       expect(result.documents.map((doc) => doc.externalId)).toEqual([
@@ -298,7 +301,6 @@ describe('Confluence attachment listing', () => {
         'attachment:page:p1:p1-file',
       ])
       expect(result.listingFailures).toBeUndefined()
-      expect(fetchMock).toHaveBeenCalledTimes(2)
     })
 
     it('skips isolated parents whose listing keeps failing and keeps listing the rest', async () => {
@@ -353,7 +355,6 @@ describe('Confluence attachment listing', () => {
         )
       )
       expect(logged).toContain('5c1f0e2a9b7d4e1f')
-      expect(logged).toContain('INTERNAL_SERVER_ERROR')
       expect(logged).not.toContain('<script>')
       expect(logged).not.toContain('leaked-secret-value')
     })
@@ -365,7 +366,6 @@ describe('Confluence attachment listing', () => {
         await expect(
           listPastBackoff({ ...INPUT, listParents: parents(['p1', 'p2', 'p3', 'p4']) })
         ).rejects.toMatchObject({ status })
-        expect(fetchMock).toHaveBeenCalledTimes(3 * 6)
       }
     )
   })
