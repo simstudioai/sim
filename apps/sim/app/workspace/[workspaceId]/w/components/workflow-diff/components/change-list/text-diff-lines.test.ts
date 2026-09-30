@@ -12,7 +12,7 @@ import {
   ONE_SIDED_VISIBLE_LINES,
   splitLines,
   toLines,
-} from './text-diff-lines'
+} from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/text-diff-lines'
 
 const context = (count: number): DiffLine[] =>
   Array.from({ length: count }, (_, index) => ({ kind: 'context', text: `ctx ${index}` }))

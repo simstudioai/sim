@@ -6,14 +6,14 @@ import {
   createWorkflowState as createTestWorkflowState,
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   containerConfigFields,
   generateWorkflowDiffSummary,
   hasWorkflowChanged,
   omitPresentationChanges,
   type WorkflowDiffSummary,
-} from './compare'
+} from '@/lib/workflows/comparison/compare'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
  * Type helper for converting test workflow state to app workflow state.
