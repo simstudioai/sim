@@ -7,8 +7,8 @@ import { LiveChat } from '@/app/playground/org/components/live-chat'
 import { NewChatHome } from '@/app/playground/org/components/new-chat-home'
 import { ProjectShell } from '@/app/playground/org/components/project-shell'
 import { WorkspaceView } from '@/app/playground/org/components/workspace-view'
-import { issueByKey } from '@/app/playground/org/lib/mock-data'
 import { type Project, useProject, useProjects } from '@/app/playground/org/lib/project'
+import { useProjectSources } from '@/app/playground/org/lib/project-sources'
 import { parseProtoRoute } from '@/app/playground/org/lib/routes'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 
@@ -44,18 +44,7 @@ export function ProtoPage({ slug }: { slug?: string[] }) {
     case 'issue':
       return (
         <ProjectRoute workspaceId={route.workspaceId}>
-          {(project) => {
-            const issue = issueByKey(route.issueKey)
-            if (!issue || issue.workspaceId !== project.mock.id) {
-              if (project.overlayPending) return <Loading label='Loading issue…' />
-              notFound()
-            }
-            return (
-              <ProjectShell project={project}>
-                <IssuePage key={issue.key} project={project} issue={issue} />
-              </ProjectShell>
-            )
-          }}
+          {(project) => <IssueRoute project={project} issueKey={route.issueKey} />}
         </ProjectRoute>
       )
   }
@@ -72,6 +61,27 @@ function ProjectRoute({ workspaceId, children }: ProjectRouteProps) {
   if (project) return <>{children(project)}</>
   if (isPending) return <Loading label='Loading project…' />
   notFound()
+}
+
+interface IssueRouteProps {
+  project: Project
+  issueKey: string
+}
+
+/** One of the project's issues; the source may still be settling while the workflow lists load. */
+function IssueRoute({ project, issueKey }: IssueRouteProps) {
+  const issue = useProjectSources()
+    .issuesFor(project)
+    .find((candidate) => candidate.key === issueKey)
+  if (!issue) {
+    if (project.overlayPending) return <Loading label='Loading issue…' />
+    notFound()
+  }
+  return (
+    <ProjectShell project={project}>
+      <IssuePage key={issue.key} project={project} issue={issue} />
+    </ProjectShell>
+  )
 }
 
 /** An org-wide chat: Sim over the organization instead of one project. */

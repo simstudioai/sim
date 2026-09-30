@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/file'
 import { type Project, realWorkspaceId } from '@/app/playground/org/lib/project'
+import { useProjectSources } from '@/app/playground/org/lib/project-sources'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -57,12 +58,13 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
-/** The pack's purpose line when the pack was chosen for this project; otherwise what the workspace holds. */
+/** The source's purpose line for this project when it has one; otherwise what the workspace holds. */
 export function useProjectDescription(project: Project): string {
+  const description = useProjectSources().descriptionFor(project)
   const { workflows, tables, knowledgeBases, files, isPending } = useProjectResources(
     realWorkspaceId(project)
   )
-  if (project.overlayMatched) return project.mock.description
+  if (description) return description
   if (isPending) return ''
   return [
     plural(workflows.length, 'workflow'),

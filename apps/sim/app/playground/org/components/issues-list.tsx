@@ -1,14 +1,18 @@
+'use client'
+
 import { chipHoverSurfaceClass, cn, OverflowText } from '@sim/emcn'
 import Link from 'next/link'
 import { DelegateAvatar } from '@/app/playground/org/components/delegate-avatar'
 import { AgentStateIcon, PriorityIcon, StatusIcon } from '@/app/playground/org/components/glyphs'
-import { ISSUES, type Issue, STATUS_LABELS, STATUS_ORDER } from '@/app/playground/org/lib/mock-data'
+import { STATUS_LABELS, STATUS_ORDER } from '@/app/playground/org/lib/issue-vocabulary'
 import type { Project } from '@/app/playground/org/lib/project'
+import { useProjectSources } from '@/app/playground/org/lib/project-sources'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
+import type { Issue } from '@/app/playground/org/lib/types'
 
 /** Sim issues for a project, grouped by status. Tracker links and chats live on the issue page. */
 export function IssuesList({ project }: { project: Project }) {
-  const issues = ISSUES.filter((issue) => issue.workspaceId === project.mock.id)
+  const issues = useProjectSources().issuesFor(project)
   if (!issues.length)
     return <p className='px-6 py-10 text-[var(--text-muted)] text-small'>No issues yet.</p>
   return (

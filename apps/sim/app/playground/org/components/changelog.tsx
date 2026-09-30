@@ -6,17 +6,18 @@ import { CircleAlert, CircleCheck, Rocket } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { EChartsView } from '@/components/charts/echarts-view'
 import { SlackMonoIcon } from '@/components/icons'
+import { DEPTH_LABELS } from '@/lib/projects'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
-import {
-  CHANGELOG,
-  type ChangelogChart,
-  type ChangelogEntry,
-  type ChangelogMetric,
-  DRAFTS,
-  type DraftRelease,
-} from '@/app/playground/org/lib/changelog-data'
 import type { Project } from '@/app/playground/org/lib/project'
+import { useProjectSources } from '@/app/playground/org/lib/project-sources'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
+import type {
+  ChangelogChart,
+  ChangelogEntry,
+  ChangelogMetric,
+  DraftRelease,
+  RunningWork,
+} from '@/app/playground/org/lib/types'
 
 const RELEASE_YEAR = 2026
 const TODAY = 'Sep 28'
@@ -25,14 +26,30 @@ const AFTER_COLOR = '#5C7399'
 const H2 =
   '@min-[1000px]/dashboard:text-[24px] text-[20px] text-[var(--text-primary)] leading-tight tracking-[-0.02em]'
 
-/** Next release on top (what's ready, what's still running), shipped releases below. */
+/**
+ * What an environment's changelog shows: Prod what shipped, Staging the next release being
+ * drafted, Sandbox the work still running. Any other environment reads like Prod.
+ */
+type ChangelogMode = 'shipped' | 'draft' | 'running'
+
+function changelogMode(environment: string): ChangelogMode {
+  if (environment === DEPTH_LABELS[1]) return 'draft'
+  if (environment === DEPTH_LABELS[2]) return 'running'
+  return 'shipped'
+}
+
+const MODE_COPY: Record<ChangelogMode, (projectName: string) => string> = {
+  shipped: (name) => `What already changed in ${name}, release by release.`,
+  draft: (name) => `What’s about to ship in ${name}: the next release Sim has drafted.`,
+  running: (name) =>
+    `What Sim is still working on in ${name}. Each joins the next release when it finishes.`,
+}
+
+/** One environment's changelog: shipped releases, the draft next release, or the running work. */
 export function Changelog({ project }: { project: Project }) {
-  const draft = DRAFTS.find((d) => d.workspaceId === project.mock.id)
+  const mode = changelogMode(project.environment)
+  const { shipped, draft } = useProjectSources().changelogFor(project)
   const [released, setReleased] = useState<ChangelogEntry | null>(null)
-  const shipped = [
-    ...(released ? [released] : []),
-    ...CHANGELOG.filter((entry) => entry.workspaceId === project.mock.id),
-  ]
 
   const release = (draftRelease: DraftRelease) => {
     const ready = draftRelease.changes.filter((change) => change.state === 'ready')
@@ -66,31 +83,48 @@ export function Changelog({ project }: { project: Project }) {
               Changelog
             </h1>
             <p className='max-w-[64ch] text-[var(--text-muted)] text-md'>
-              What’s about to ship in {project.name}, what Sim is still working on, and what already
-              changed.
+              {MODE_COPY[mode](project.name)}
             </p>
           </div>
         </header>
 
-        {draft && (
-          <NextRelease
-            draft={draft}
-            projectId={project.id}
-            released={released !== null}
-            onRelease={() => release(draft)}
-          />
-        )}
+        {mode === 'shipped' &&
+          (shipped.length > 0 ? (
+            shipped.map((entry) => <Release key={entry.id} entry={entry} projectId={project.id} />)
+          ) : (
+            <EmptyNote>Nothing has shipped here yet.</EmptyNote>
+          ))}
 
-        {shipped.map((entry) => (
-          <Release key={entry.id} entry={entry} projectId={project.id} />
-        ))}
+        {mode === 'draft' &&
+          (draft ? (
+            <>
+              <NextRelease
+                draft={draft}
+                projectId={project.id}
+                released={released !== null}
+                onRelease={() => release(draft)}
+              />
+              {released && <Release entry={released} projectId={project.id} />}
+            </>
+          ) : (
+            <EmptyNote>No release is being drafted.</EmptyNote>
+          ))}
 
-        {!draft && shipped.length === 0 && (
-          <p className='text-[var(--text-muted)] text-md'>Nothing has shipped here yet.</p>
-        )}
+        {mode === 'running' &&
+          (draft && draft.running.length > 0 ? (
+            <section className='flex flex-col gap-3 rounded-xl border border-[var(--border)] px-7 py-7'>
+              <RunningNow running={draft.running} projectId={project.id} />
+            </section>
+          ) : (
+            <EmptyNote>Nothing is running right now.</EmptyNote>
+          ))}
       </div>
     </div>
   )
+}
+
+function EmptyNote({ children }: { children: string }) {
+  return <p className='text-[var(--text-muted)] text-md'>{children}</p>
 }
 
 interface NextReleaseProps {
@@ -100,6 +134,7 @@ interface NextReleaseProps {
   onRelease: () => void
 }
 
+/** The draft next release: what is ready, what is held for approval, and the chart it will mark. */
 function NextRelease({ draft, projectId, released, onRelease }: NextReleaseProps) {
   const changes = draft.changes.filter((change) => !released || change.state === 'approval')
   const readyCount = released ? 0 : draft.changes.filter((c) => c.state === 'ready').length
@@ -141,26 +176,36 @@ function NextRelease({ draft, projectId, released, onRelease }: NextReleaseProps
         )}
       </div>
 
-      <div className='flex flex-col gap-3'>
-        <SubHeading title='Running now' aside='Joins this release when it finishes' />
-        <ul className='flex flex-col'>
-          {draft.running.map((work) => (
-            <li key={work.issue}>
-              <Link
-                href={protoRoutes.issue(projectId, work.issue)}
-                className='flex w-full items-center gap-3 border-[var(--border)] border-b py-3 text-left last:border-b-0 hover-hover:opacity-80'
-              >
-                <RunningDot />
-                <span className='min-w-0 flex-1 text-[var(--text-body)] text-md'>{work.task}</span>
-                <span className='shrink-0 text-[var(--text-muted)] text-small'>{work.step}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-
       <ReleaseChart chart={draft.chart} date={TODAY} marker={draft.marker} shaded={false} />
     </section>
+  )
+}
+
+interface RunningNowProps {
+  running: RunningWork[]
+  projectId: string
+}
+
+/** The work Sim is running now; each row opens its issue. */
+function RunningNow({ running, projectId }: RunningNowProps) {
+  return (
+    <>
+      <SubHeading title='Running now' aside='Joins the next release when it finishes' />
+      <ul className='flex flex-col'>
+        {running.map((work) => (
+          <li key={work.issue}>
+            <Link
+              href={protoRoutes.issue(projectId, work.issue)}
+              className='flex w-full items-center gap-3 border-[var(--border)] border-b py-3 text-left last:border-b-0 hover-hover:opacity-80'
+            >
+              <RunningDot />
+              <span className='min-w-0 flex-1 text-[var(--text-body)] text-md'>{work.task}</span>
+              <span className='shrink-0 text-[var(--text-muted)] text-small'>{work.step}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
 

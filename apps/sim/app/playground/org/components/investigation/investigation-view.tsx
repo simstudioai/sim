@@ -22,7 +22,7 @@ import type {
   Investigation,
   InvestigationStep,
   SourceMessage,
-} from '@/app/playground/org/lib/infra-data'
+} from '@/app/playground/org/lib/types'
 
 const STEP_ICONS: Record<InvestigationStep['kind'], React.ComponentType<{ className?: string }>> = {
   feedback: MessageSquareText,

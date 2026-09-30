@@ -1,6 +1,6 @@
 import { Chip, cn, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sim/emcn'
 import { ArrowUpRight } from '@sim/emcn/icons'
-import type { Evidence, RunBlock } from '@/app/playground/org/lib/infra-data'
+import type { Evidence, RunBlock } from '@/app/playground/org/lib/types'
 
 const MONO = 'font-mono text-caption'
 

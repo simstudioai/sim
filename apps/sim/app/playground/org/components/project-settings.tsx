@@ -1,12 +1,9 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Chip, ChipLink } from '@sim/emcn'
-import { ArrowUpRight } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn'
 import { JiraIcon, LinearIcon } from '@/components/icons'
-import type { WorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { Project } from '@/app/playground/org/lib/project'
-import { workspaceRoutes } from '@/app/playground/org/lib/routes'
 import { SETTINGS_NAV } from '@/app/playground/org/lib/settings-nav'
 import { useProjectDescription } from '@/app/playground/org/lib/use-project-resources'
 
@@ -16,8 +13,8 @@ interface ProjectSettingsProps {
 }
 
 /**
- * One settings section; the settings list itself lives in the sidebar. The project's General
- * page is the prototype's own; every other section is the real workspace settings page.
+ * One settings section of a mock project; the settings list itself lives in the sidebar. The
+ * project's General page is the prototype's own; the workspace sections have nothing behind them.
  */
 export function ProjectSettings({ project, sectionId }: ProjectSettingsProps) {
   const active = SETTINGS_NAV.find((item) => item.id === sectionId)
@@ -35,17 +32,8 @@ export function ProjectSettings({ project, sectionId }: ProjectSettingsProps) {
         </header>
         {active.group === 'project' ? (
           <ProjectGeneral project={project} />
-        ) : project.isMock ? (
-          <span className='text-[var(--text-muted)] text-small'>Nothing here yet.</span>
         ) : (
-          <ChipLink
-            href={workspaceRoutes.settings(project.id, active.id as WorkspaceSettingsSection)}
-            variant='border'
-            rightIcon={ArrowUpRight}
-            className='self-start'
-          >
-            Open {active.label} in workspace settings
-          </ChipLink>
+          <span className='text-[var(--text-muted)] text-small'>Nothing here yet.</span>
         )}
       </div>
     </div>

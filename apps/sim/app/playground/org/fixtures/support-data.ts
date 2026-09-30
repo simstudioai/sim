@@ -1,5 +1,4 @@
-import type { Investigation } from '@/app/playground/org/lib/infra-data'
-import type { Issue } from '@/app/playground/org/lib/mock-data'
+import type { Investigation, Issue } from '@/app/playground/org/lib/types'
 
 const AVA = { id: 'ava', name: 'Ava Chen' }
 

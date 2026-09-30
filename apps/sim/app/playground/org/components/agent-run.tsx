@@ -6,8 +6,9 @@ import { CircleCheck, Mic, Plus } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { ShimmerText } from '@/components/ui/shimmer-text'
 import { LinkedTickets } from '@/app/playground/org/components/linked-tickets'
-import type { RunningWork } from '@/app/playground/org/lib/changelog-data'
+import type { Project } from '@/app/playground/org/lib/project'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
+import type { RunningWork } from '@/app/playground/org/lib/types'
 
 const NARRATION_INTERVAL_S = 7
 
@@ -19,14 +20,14 @@ function formatElapsed(total: number): string {
 
 interface AgentRunProps {
   work: RunningWork
-  workspaceId: string
+  project: Project
 }
 
 /**
  * A background run seen from inside its chat: elapsed time, what the agent is saying now,
  * a Thinking shimmer, and a composer to steer, auto-approve, or stop it.
  */
-export function AgentRun({ work, workspaceId }: AgentRunProps) {
+export function AgentRun({ work, project }: AgentRunProps) {
   const [seconds, setSeconds] = useState(0)
   const [autoApprove, setAutoApprove] = useState(false)
   const [stopped, setStopped] = useState(false)
@@ -112,15 +113,15 @@ export function AgentRun({ work, workspaceId }: AgentRunProps) {
           <span className='ml-auto flex items-center gap-2 text-[var(--text-muted)] text-small'>
             <span className='inline-flex items-center gap-0.5'>
               <Link
-                href={protoRoutes.issue(workspaceId, work.issue)}
+                href={protoRoutes.issue(project.id, work.issue)}
                 className='underline-offset-2 hover:text-[var(--text-body)] hover:underline'
               >
                 {work.issue}
               </Link>
-              <LinkedTickets issueKey={work.issue} />
+              <LinkedTickets project={project} issueKey={work.issue} />
             </span>
             <Link
-              href={protoRoutes.chat(workspaceId, work.chat.id)}
+              href={protoRoutes.chat(project.id, work.chat.id)}
               className='flex items-center gap-1.5 rounded-md px-1 hover:text-[var(--text-body)]'
             >
               <Avatar size='xs' name={work.chat.owner} />

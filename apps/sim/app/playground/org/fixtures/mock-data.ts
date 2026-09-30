@@ -3,127 +3,26 @@ import {
   CLAIMS_ISSUES,
   CLAIMS_RELEASES,
   CLAIMS_TRIAGE,
-} from '@/app/playground/org/lib/claims-data'
+} from '@/app/playground/org/fixtures/claims-data'
 import {
   INFRA_ISSUES,
   INFRA_RELEASES,
   INFRA_TRIAGE,
-  type Investigation,
-} from '@/app/playground/org/lib/infra-data'
-import { SUPPORT_ISSUES } from '@/app/playground/org/lib/support-data'
-
-export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'blocked' | 'done' | 'canceled'
-export type Priority = 0 | 1 | 2 | 3 | 4
-export type AgentState = 'pending' | 'active' | 'awaitingInput' | 'error' | 'complete' | 'stale'
-export type FeedbackSource = 'slack' | 'email' | 'intercom' | 'pagerduty'
-export type TrackerKind = 'sim' | 'linear' | 'jira'
-
-export interface Person {
-  id: string
-  name: string
-}
-
-export interface Delegate {
-  kind: 'agent' | 'workflow' | 'sim'
-  name: string
-}
-
-export interface Report {
-  source: FeedbackSource
-  channel: string
-  author: string
-  text: string
-  at: string
-}
-
-export interface PlanStep {
-  label: string
-  status: 'pending' | 'inProgress' | 'completed' | 'canceled'
-}
-
-export interface Activity {
-  kind: 'thought' | 'action' | 'elicitation' | 'response' | 'error'
-  text: string
-  at: string
-}
-
-/** A ticket in Linear, Jira, or GitHub that a Sim issue points at. */
-export interface LinkedTicket {
-  system: 'linear' | 'jira' | 'github'
-  key: string
-  title: string
-  status: string
-}
-
-export interface Issue {
-  key: string
-  workspaceId: string
-  title: string
-  status: IssueStatus
-  priority: Priority
-  owner: Person
-  delegate?: Delegate
-  agent?: { state: AgentState; label: string }
-  project?: string
-  labels: string[]
-  due?: string
-  description: string
-  research?: { cause: string; related: string[] }
-  reports: Report[]
-  plan: PlanStep[]
-  activity: Activity[]
-  releaseId?: string
-  resources: { kind: 'table' | 'workflow' | 'dashboard' | 'knowledge' | 'file'; name: string }[]
-  investigation?: Investigation
-  /** Tickets in external trackers this Sim issue covers; derived from the project tracker when omitted. */
-  linked?: LinkedTicket[]
-}
-
-export interface TriageProposal {
-  id: string
-  workspaceId: string
-  title: string
-  summary: string
-  reports: Report[]
-  suggestion: { kind: 'new' } | { kind: 'duplicate'; key: string; confidence: number }
-  at: string
-}
-
-export interface Release {
-  id: string
-  workspaceId: string
-  name: string
-  date: string
-  notes: string
-  notified: number
-}
-
-/**
- * An overlay pack: the issues, changelog, tracker and feedback sources a real workspace shows
- * while those entities have no real source. `match` picks the pack from the workspace name.
- */
-export interface Workspace {
-  id: string
-  name: string
-  description: string
-  /** Picks this pack when the workspace name matches; a name-independent signal is `matchWorkflows`. */
-  match?: RegExp
-  /** Picks this pack when the workspace holds a workflow with one of these exact names. */
-  matchWorkflows?: string[]
-  tracker: { kind: TrackerKind; label: string; synced?: string }
-  feedbackSources: { source: FeedbackSource; label: string }[]
-  dashboards: string[]
-  needsYou: number
-}
-
-export interface Chat {
-  id: string
-  title: string
-  workspaceId?: string
-  owner?: string
-  /** Relative time of the last message, as the sidebar shows it. */
-  age: string
-}
+} from '@/app/playground/org/fixtures/infra-data'
+import { SUPPORT_ISSUES } from '@/app/playground/org/fixtures/support-data'
+import type {
+  Chat,
+  Issue,
+  IssueStatus,
+  LinkedTicket,
+  Person,
+  PlanStep,
+  Release,
+  Report,
+  ResourceItem,
+  TriageProposal,
+  Workspace,
+} from '@/app/playground/org/lib/types'
 
 export const ORGANIZATION = { id: 'acme', name: 'Acme Inc' }
 
@@ -729,40 +628,6 @@ export const ISSUES: Issue[] = [
   ...OTHER_ISSUES,
 ]
 
-export const STATUS_ORDER: IssueStatus[] = [
-  'in_progress',
-  'blocked',
-  'todo',
-  'backlog',
-  'done',
-  'canceled',
-]
-
-export const STATUS_LABELS: Record<IssueStatus, string> = {
-  backlog: 'Backlog',
-  todo: 'Todo',
-  in_progress: 'In progress',
-  blocked: 'Blocked',
-  done: 'Done',
-  canceled: 'Canceled',
-}
-
-export const PRIORITY_LABELS: Record<Priority, string> = {
-  0: 'No priority',
-  1: 'Urgent',
-  2: 'High',
-  3: 'Medium',
-  4: 'Low',
-}
-
-export interface ResourceItem {
-  id: string
-  name: string
-  meta: string
-  updated: string
-  owner: string
-}
-
 export const RESOURCES: Record<
   'workflows' | 'logs' | 'tables' | 'files' | 'knowledge' | 'credentials',
   ResourceItem[]
@@ -905,10 +770,6 @@ export function workspaceById(id: string): Workspace {
   const workspace = WORKSPACES.find((w) => w.id === id)
   if (!workspace) throw new Error(`Unknown mock workspace ${id}`)
   return workspace
-}
-
-export function issueByKey(key: string): Issue | undefined {
-  return ISSUES.find((issue) => issue.key === key)
 }
 
 const TRACKER_PREFIX: Record<string, string> = {

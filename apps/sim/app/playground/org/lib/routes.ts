@@ -15,6 +15,7 @@ import {
   getWorkspaceSettingsHref,
   type WorkspaceSettingsSection,
 } from '@/components/settings/navigation'
+import { MOCK_PROJECT_IDS, type Project } from '@/app/playground/org/lib/project'
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_NAV } from '@/app/playground/org/lib/settings-nav'
 
 export const PROTO_BASE = '/playground/org'
@@ -35,17 +36,22 @@ export const WORKSPACE_SECTIONS = [
 
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]['id']
 
-/** What the main project view shows as chips; everything else lives in the full view. */
-export const MAIN_SECTION_IDS: readonly WorkspaceSection[] = [
-  'dashboard',
-  'changelog',
-  'issues',
-  'environments',
-]
-export const MAIN_SECTIONS = WORKSPACE_SECTIONS.filter((s) => MAIN_SECTION_IDS.includes(s.id))
+const MAIN_SECTION_LIST = ['dashboard', 'changelog', 'issues', 'environments'] as const
 
-function isMainSection(section: WorkspaceSection): boolean {
-  return MAIN_SECTION_IDS.includes(section)
+/** A section of the project main view. */
+export type MainSection = (typeof MAIN_SECTION_LIST)[number]
+/** A Build section: a real workspace page, or a mock project's static table. */
+export type BuildSection = Exclude<WorkspaceSection, MainSection>
+
+/** What the main project view shows as chips; everything else lives in Build. */
+export const MAIN_SECTION_IDS: readonly WorkspaceSection[] = MAIN_SECTION_LIST
+export const MAIN_SECTIONS = WORKSPACE_SECTIONS.filter((s) => MAIN_SECTION_IDS.includes(s.id))
+export const BUILD_SECTION_IDS: readonly BuildSection[] = WORKSPACE_SECTIONS.map(
+  (s) => s.id
+).filter((id): id is BuildSection => !isMainSection(id))
+
+export function isMainSection(section: WorkspaceSection): section is MainSection {
+  return (MAIN_SECTION_LIST as readonly WorkspaceSection[]).includes(section)
 }
 
 export const protoRoutes = {
@@ -62,10 +68,13 @@ export const protoRoutes = {
     isMainSection(section)
       ? `${PROTO_BASE}/p/${workspaceId}/${section}`
       : `${PROTO_BASE}/p/${workspaceId}/build/${section}`,
-  /** Settings replace the project sidebar with the settings list. */
+  /** Mock projects only: settings replace the project sidebar with the settings list. */
   settings: (workspaceId: string, section: string = DEFAULT_SETTINGS_SECTION) =>
     `${PROTO_BASE}/p/${workspaceId}/build/settings/${section}`,
-  /** Full view: the sidebar becomes this project's navigation. */
+  /**
+   * Mock projects only: the playground's static Build tables, with the sidebar as the
+   * project's navigation. A real project's Build sections are its workspace pages.
+   */
   full: (workspaceId: string, section: WorkspaceSection = 'dashboard') =>
     `${PROTO_BASE}/p/${workspaceId}/build/${section}`,
   issue: (workspaceId: string, key: string) => `${PROTO_BASE}/p/${workspaceId}/issue/${key}`,
@@ -93,12 +102,20 @@ export function parseProtoRoute(slug: string[] | undefined): ProtoRoute | null {
   if (head === 'chat' && a && !b) return { kind: 'chat', chatId: a }
   if (head === 'p' && a) {
     if (b === 'issue' && c) return { kind: 'issue', workspaceId: a, issueKey: c }
-    if (b === 'build' && c === 'settings') {
-      const settingsSection = d ?? DEFAULT_SETTINGS_SECTION
-      if (!SETTINGS_NAV.some((item) => item.id === settingsSection)) return null
-      return { kind: 'workspace', workspaceId: a, section: 'settings', full: true, settingsSection }
-    }
     if (b === 'build') {
+      /** Only a mock project builds here; a real project's Build sections are its workspace pages. */
+      if (!MOCK_PROJECT_IDS.has(a)) return null
+      if (c === 'settings') {
+        const settingsSection = d ?? DEFAULT_SETTINGS_SECTION
+        if (!SETTINGS_NAV.some((item) => item.id === settingsSection)) return null
+        return {
+          kind: 'workspace',
+          workspaceId: a,
+          section: 'settings',
+          full: true,
+          settingsSection,
+        }
+      }
       const section = WORKSPACE_SECTIONS.find((s) => s.id === (c ?? 'dashboard'))
       if (section) return { kind: 'workspace', workspaceId: a, section: section.id, full: true }
       return null
@@ -110,13 +127,13 @@ export function parseProtoRoute(slug: string[] | undefined): ProtoRoute | null {
   return null
 }
 
-/** The project whose full view is open, read from the path; null in the org view. */
+/** The mock project whose full view is open, read from the path; null in the org view. */
 export function fullViewProject(pathname: string | null): string | null {
   const match = pathname?.match(/\/p\/([^/]+)\/build(?:\/|$)/)
   return match ? match[1] : null
 }
 
-/** The project whose settings are open, read from the path; null elsewhere. */
+/** The mock project whose settings are open, read from the path; null elsewhere. */
 export function settingsProject(pathname: string | null): string | null {
   const match = pathname?.match(/\/p\/([^/]+)\/build\/settings(?:\/|$)/)
   return match ? match[1] : null
@@ -142,4 +159,27 @@ export const workspaceRoutes = {
     `/workspace/${workspaceId}/integrations/connected/${credentialId}`,
   settings: (workspaceId: string, section: WorkspaceSettingsSection) =>
     getWorkspaceSettingsHref(workspaceId, section),
+  /** The settings page every workspace has; `/settings` itself redirects here. */
+  settingsHome: (workspaceId: string) => `/workspace/${workspaceId}/settings/general`,
+}
+
+const BUILD_PAGES: Record<BuildSection, (workspaceId: string) => string> = {
+  credentials: workspaceRoutes.integrations,
+  workflows: workspaceRoutes.workflows,
+  files: workspaceRoutes.files,
+  logs: (workspaceId) => workspaceRoutes.logs(workspaceId),
+  tables: workspaceRoutes.tables,
+  knowledge: workspaceRoutes.knowledge,
+  settings: workspaceRoutes.settingsHome,
+}
+
+/**
+ * Where a project's Build section opens: the real workspace page, or, for a mock project with
+ * no workspace behind it, the playground's static table.
+ */
+export function buildSectionHref(
+  project: Pick<Project, 'id' | 'isMock'>,
+  section: BuildSection
+): string {
+  return project.isMock ? protoRoutes.full(project.id, section) : BUILD_PAGES[section](project.id)
 }

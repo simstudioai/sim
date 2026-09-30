@@ -15,18 +15,14 @@ import { protoRoutes, type WorkspaceSection } from '@/app/playground/org/lib/rou
 interface EnvironmentSwitcherProps {
   project: Project
   section: WorkspaceSection
-  /** Whether the current page is the full view, so the switch lands on the same view. */
-  full: boolean
 }
 
 /**
  * The project's environment (Prod, Staging, Sandbox): each is a forked workspace in the same
  * lineage, and switching keeps the section you are looking at.
  */
-export function EnvironmentSwitcher({ project, section, full }: EnvironmentSwitcherProps) {
+export function EnvironmentSwitcher({ project, section }: EnvironmentSwitcherProps) {
   const router = useRouter()
-  const target = (workspaceId: string) =>
-    full ? protoRoutes.full(workspaceId, section) : protoRoutes.workspace(workspaceId, section)
   if (project.environments.length <= 1)
     return (
       <Chip leftIcon={Server} className='text-[var(--text-muted)]'>
@@ -44,7 +40,7 @@ export function EnvironmentSwitcher({ project, section, full }: EnvironmentSwitc
         {project.environments.map((environment) => (
           <DropdownMenuItem
             key={environment.workspaceId}
-            onSelect={() => router.push(target(environment.workspaceId))}
+            onSelect={() => router.push(protoRoutes.workspace(environment.workspaceId, section))}
           >
             <span className='flex-1'>{environment.label}</span>
             {environment.workspaceId === project.id && (

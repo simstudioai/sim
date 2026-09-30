@@ -1,6 +1,7 @@
 import { useQueries } from '@tanstack/react-query'
 import { DEPTH_LABELS, type ProjectEnvironment, resolveProjectLineages } from '@/lib/projects'
-import { WORKSPACES, type Workspace } from '@/app/playground/org/lib/mock-data'
+import { matchOverlay, WORKSPACES } from '@/app/playground/org/fixtures'
+import type { Workspace } from '@/app/playground/org/lib/types'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
@@ -26,17 +27,6 @@ export interface Project {
   environments: ProjectEnvironment[]
 }
 
-/** What a real workspace shows when no pack claims it: real resources, nothing mock on top. */
-const NO_PACK: Workspace = {
-  id: 'none',
-  name: '',
-  description: '',
-  tracker: { kind: 'sim', label: 'Sim tracker' },
-  feedbackSources: [],
-  dashboards: [],
-  needsYou: 0,
-}
-
 /** The ids the mock projects live at; a route with one of these never touches a real workspace. */
 export const MOCK_PROJECT_IDS: ReadonlySet<string> = new Set(WORKSPACES.map((pack) => pack.id))
 
@@ -55,24 +45,6 @@ function mockProject(pack: Workspace): Project {
   }
 }
 
-/**
- * Picks the overlay pack for a real workspace: first the pack whose `matchWorkflows` names one
- * of the workspace's workflows, then the pack whose `match` hits the workspace name. A workspace
- * nothing claims shows only its real resources.
- */
-export function matchOverlay(
-  name: string,
-  workflowNames: readonly string[]
-): Pick<Project, 'mock' | 'overlayMatched'> {
-  const byWorkflow = WORKSPACES.find((pack) =>
-    pack.matchWorkflows?.some((wanted) => workflowNames.includes(wanted))
-  )
-  const matched = byWorkflow ?? WORKSPACES.find((pack) => pack.match?.test(name))
-  return matched
-    ? { mock: matched, overlayMatched: true }
-    : { mock: NO_PACK, overlayMatched: false }
-}
-
 export function useProjects() {
   const query = useWorkspacesQuery()
   const workspaces = query.data ?? []
@@ -82,18 +54,38 @@ export function useProjects() {
   })
   /** A handful of rows, so deriving them each render is cheaper than a memo keyed on the lists. */
   const lineages = resolveProjectLineages(workspaces)
-  const real: Project[] = workspaces.map((workspace, index) => {
+  const indexById = new Map(workspaces.map((workspace, index) => [workspace.id, index]))
+  /**
+   * Issues, changelog and the rest of the pack belong to the project, so the pack is chosen
+   * once per lineage from its root workspace and shared by every environment.
+   */
+  const overlayByRoot = new Map<
+    string,
+    Pick<Project, 'mock' | 'overlayMatched' | 'overlayPending'>
+  >()
+  const overlayFor = (rootId: string) => {
+    const known = overlayByRoot.get(rootId)
+    if (known) return known
+    const rootIndex = indexById.get(rootId)
+    if (rootIndex === undefined) throw new Error(`No root workspace ${rootId}`)
+    const overlay = {
+      ...matchOverlay(
+        workspaces[rootIndex].name,
+        (workflowLists[rootIndex]?.data ?? []).map((workflow) => workflow.name)
+      ),
+      overlayPending: workflowLists[rootIndex]?.isPending ?? true,
+    }
+    overlayByRoot.set(rootId, overlay)
+    return overlay
+  }
+  const real: Project[] = workspaces.map((workspace) => {
     const lineage = lineages.get(workspace.id)
     if (!lineage) throw new Error(`No lineage for workspace ${workspace.id}`)
     return {
       id: workspace.id,
       name: lineage.name,
       organizationId: workspace.organizationId ?? null,
-      ...matchOverlay(
-        workspace.name,
-        (workflowLists[index]?.data ?? []).map((workflow) => workflow.name)
-      ),
-      overlayPending: workflowLists[index]?.isPending ?? true,
+      ...overlayFor(lineage.rootId),
       isMock: false,
       rootId: lineage.rootId,
       environment: lineage.environment,

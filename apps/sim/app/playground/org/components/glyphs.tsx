@@ -14,7 +14,7 @@ import type {
   FeedbackSource,
   IssueStatus,
   Priority,
-} from '@/app/playground/org/lib/mock-data'
+} from '@/app/playground/org/lib/types'
 
 const GLYPH = 'size-[14px] shrink-0'
 

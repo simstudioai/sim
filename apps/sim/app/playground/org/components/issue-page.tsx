@@ -26,22 +26,15 @@ import {
 import { InvestigationView } from '@/app/playground/org/components/investigation/investigation-view'
 import { TicketIcon } from '@/app/playground/org/components/linked-tickets'
 import { MockComposer } from '@/app/playground/org/components/mock-composer'
-import { chatsForIssue } from '@/app/playground/org/lib/changelog-data'
 import {
-  type Activity,
-  CHATS,
-  type Issue,
-  linkedTickets,
-  type PlanStep,
   PRIORITY_LABELS,
-  type Priority,
-  RELEASES,
   STATUS_LABELS,
   STATUS_ORDER,
-  ticketUrl,
-} from '@/app/playground/org/lib/mock-data'
+} from '@/app/playground/org/lib/issue-vocabulary'
 import { type Project, realWorkspaceId } from '@/app/playground/org/lib/project'
+import { useProjectSources } from '@/app/playground/org/lib/project-sources'
 import { protoRoutes, workspaceRoutes } from '@/app/playground/org/lib/routes'
+import type { Activity, Issue, PlanStep, Priority } from '@/app/playground/org/lib/types'
 import { useProjectResources } from '@/app/playground/org/lib/use-project-resources'
 
 const RESOURCE_ICONS = {
@@ -59,13 +52,15 @@ interface IssuePageProps {
 
 /** Full-page issue, Linear-style: content column plus a properties column. */
 export function IssuePage({ project, issue }: IssuePageProps) {
+  const sources = useProjectSources()
   const resolveHref = useResourceHrefs(realWorkspaceId(project))
   const [status, setStatus] = useState(issue.status)
   const [priority, setPriority] = useState(issue.priority)
   const [activity, setActivity] = useState(issue.activity)
-  const release = RELEASES.find((r) => r.id === issue.releaseId)
-  const tickets = linkedTickets(issue)
-  const chats = chatsForIssue(issue.key)
+  const release = sources.releaseFor(project, issue)
+  const tickets = sources.linkedTicketsFor(project, issue)
+  const chats = sources.issueChatsFor(project, issue.key)
+  const chatTitles = new Map(sources.chatsFor(project).map((chat) => [chat.id, chat.title]))
 
   return (
     <div className='relative flex h-full min-h-0 flex-col'>
@@ -96,7 +91,7 @@ export function IssuePage({ project, issue }: IssuePageProps) {
                   {tickets.map((ticket) => (
                     <a
                       key={ticket.key}
-                      href={ticketUrl(ticket)}
+                      href={sources.ticketUrl(ticket)}
                       target='_blank'
                       rel='noopener noreferrer'
                       className='flex items-center gap-1.5 text-[var(--text-body)] underline-offset-2 hover:underline'
@@ -198,7 +193,7 @@ export function IssuePage({ project, issue }: IssuePageProps) {
               {tickets.map((ticket) => (
                 <a
                   key={ticket.key}
-                  href={ticketUrl(ticket)}
+                  href={sources.ticketUrl(ticket)}
                   target='_blank'
                   rel='noopener noreferrer'
                   className={cn(
@@ -231,7 +226,7 @@ export function IssuePage({ project, issue }: IssuePageProps) {
                 >
                   <Avatar size='xs' name={chat.owner} />
                   <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-small'>
-                    {CHATS.find((c) => c.id === chat.id)?.title ?? `${chat.owner}’s chat`}
+                    {chatTitles.get(chat.id) ?? `${chat.owner}’s chat`}
                   </span>
                   {chat.running && <RunningDot />}
                 </Link>

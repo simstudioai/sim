@@ -1,6 +1,6 @@
 import { Avatar, cn } from '@sim/emcn'
 import { Sim, Workflow, Zap } from '@sim/emcn/icons'
-import type { Delegate, Person } from '@/app/playground/org/lib/mock-data'
+import type { Delegate, Person } from '@/app/playground/org/lib/types'
 
 const DELEGATE_ICON = { agent: Zap, workflow: Workflow, sim: Sim } as const
 

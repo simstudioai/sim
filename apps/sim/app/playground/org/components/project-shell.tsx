@@ -9,9 +9,8 @@ import { ChatThread } from '@/app/playground/org/components/chat-thread'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
 import { LiveChat } from '@/app/playground/org/components/live-chat'
 import { MockComposer } from '@/app/playground/org/components/mock-composer'
-import { DRAFTS } from '@/app/playground/org/lib/changelog-data'
-import { CHATS, type Chat } from '@/app/playground/org/lib/mock-data'
 import type { Project } from '@/app/playground/org/lib/project'
+import { useProjectSources } from '@/app/playground/org/lib/project-sources'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 
@@ -83,16 +82,15 @@ function SideChat({
   onInitialMessageSent,
   onClose,
 }: SideChatProps) {
+  const sources = useProjectSources()
   const { data: chats } = useMothershipChats(project.isMock ? undefined : project.id)
   const realChat = chats?.find((chat) => chat.id === chatId)
-  /** Chats from the overlay pack (changelog and issue stories) keep their canned threads. */
-  const mockChat: Chat | undefined = CHATS.find(
-    (chat) => chat.id === chatId && chat.workspaceId === project.mock.id
-  )
+  /** Chats from the project source (changelog and issue stories) keep their canned threads. */
+  const mockChat = sources.chatsFor(project).find((chat) => chat.id === chatId)
   const runs = mockChat
-    ? (DRAFTS.find((draft) => draft.workspaceId === project.mock.id)?.running.filter(
-        (work) => work.chat.id === mockChat.id
-      ) ?? [])
+    ? (sources
+        .changelogFor(project)
+        .draft?.running.filter((work) => work.chat.id === mockChat.id) ?? [])
     : []
   const running = runs.length > 0 || Boolean(realChat?.isActive)
   const title =
@@ -114,7 +112,7 @@ function SideChat({
         <div className='min-h-0 flex-1 overflow-y-auto px-4 py-5'>
           <div className='flex flex-col gap-8'>
             {runs.map((work) => (
-              <AgentRun key={work.issue} work={work} workspaceId={project.id} />
+              <AgentRun key={work.issue} work={work} project={project} />
             ))}
           </div>
         </div>

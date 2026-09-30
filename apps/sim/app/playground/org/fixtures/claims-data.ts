@@ -1,12 +1,13 @@
-import type { ChangelogEntry, DraftRelease } from '@/app/playground/org/lib/changelog-data'
 import type {
+  ChangelogEntry,
   Chat,
+  DraftRelease,
   Issue,
   PlanStep,
   Release,
   Report,
   TriageProposal,
-} from '@/app/playground/org/lib/mock-data'
+} from '@/app/playground/org/lib/types'
 
 /**
  * Overlay pack for a payment-variance investigation agent: it queries a data warehouse for

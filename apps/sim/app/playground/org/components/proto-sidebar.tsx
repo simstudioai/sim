@@ -28,13 +28,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
-import type { WorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useActiveOrganization, useSession } from '@/lib/auth/auth-client'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
-import { DRAFTS } from '@/app/playground/org/lib/changelog-data'
-import { CHATS } from '@/app/playground/org/lib/mock-data'
 import { type Project, useProjects } from '@/app/playground/org/lib/project'
+import { type ProjectChat, useProjectSources } from '@/app/playground/org/lib/project-sources'
 import {
+  BUILD_SECTION_IDS,
   fullViewProject,
   MAIN_SECTION_IDS,
   PROTO_BASE,
@@ -42,7 +41,6 @@ import {
   settingsProject,
   WORKSPACE_SECTIONS,
   type WorkspaceSection,
-  workspaceRoutes,
 } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
 import {
@@ -94,17 +92,17 @@ interface ChatItem {
   running: boolean
 }
 
-const RUNNING_MOCK_CHAT_IDS = new Set(
-  DRAFTS.flatMap((draft) => draft.running.map((w) => w.chat.id))
-)
-
-function toChatItems(project: Project, real: MothershipChatMetadata[] | undefined): ChatItem[] {
+function toChatItems(
+  project: Project,
+  real: MothershipChatMetadata[] | undefined,
+  fromSource: ProjectChat[]
+): ChatItem[] {
   if (project.isMock)
-    return CHATS.filter((chat) => chat.workspaceId === project.mock.id).map((chat) => ({
+    return fromSource.map((chat) => ({
       id: chat.id,
       name: chat.title,
       age: chat.age,
-      running: RUNNING_MOCK_CHAT_IDS.has(chat.id),
+      running: chat.running,
     }))
   return (real ?? []).map((chat) => ({
     id: chat.id,
@@ -123,7 +121,10 @@ export function ProtoSidebar() {
   const { projects, roots } = useProjects()
   const { data: organization } = useActiveOrganization()
   const { data: session } = useSession()
-  const fullProject = projects.find((project) => project.id === fullViewProject(pathname))
+  /** Only a mock project has a full view here; a real project's Build is its workspace pages. */
+  const fullProject = projects.find(
+    (project) => project.isMock && project.id === fullViewProject(pathname)
+  )
   const inSettings = Boolean(fullProject && settingsProject(pathname))
   const organizationId = projects.find((project) => project.organizationId)?.organizationId
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
@@ -356,8 +357,10 @@ function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTree
   /** null follows navigation (open while you're in the project); a click pins it open or shut. */
   const [override, setOverride] = useState<boolean | null>(null)
   const expanded = override ?? inProject
+  const sources = useProjectSources()
   const { data: realChats } = useMothershipChats(project.isMock ? undefined : chatWorkspaceId)
-  const chats = toChatItems(project, realChats)
+  const chats = toChatItems(project, realChats, sources.chatsFor(project))
+  const needsYou = project.overlayPending ? 0 : sources.needsYouFor(project)
   const visible = showAll ? chats : chats.slice(0, CHAT_PREVIEW)
   const panelHref = (chatId: string) =>
     `${inProject && pathname ? pathname : protoRoutes.workspace(project.id)}?chat=${chatId}`
@@ -387,9 +390,9 @@ function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTree
           </Link>
           {!railCollapsed && (
             <>
-              {!project.overlayPending && project.mock.needsYou > 0 && (
+              {needsYou > 0 && (
                 <ChipTag variant='gray' className='group-hover/project:hidden'>
-                  {project.mock.needsYou}
+                  {needsYou}
                 </ChipTag>
               )}
               <Link
@@ -457,9 +460,7 @@ function ChatRow({ chat, href, active }: ChatRowProps) {
 }
 
 const PRIMARY_SECTIONS: readonly WorkspaceSection[] = MAIN_SECTION_IDS
-const BUILD_SECTIONS: readonly WorkspaceSection[] = WORKSPACE_SECTIONS.map((s) => s.id).filter(
-  (id) => !MAIN_SECTION_IDS.includes(id)
-)
+const BUILD_SECTIONS: readonly WorkspaceSection[] = BUILD_SECTION_IDS
 
 function fullNavItems(
   workspaceId: string,
@@ -480,10 +481,11 @@ interface FullViewSectionsProps {
   railCollapsed: boolean
 }
 
-/** Full view: the project's build sections, then its chats, in place of Projects and Recent chats. */
+/** Mock project full view: its static Build sections, then its chats, in place of Projects and Recent chats. */
 function FullViewSections({ project, pathname, openChat, railCollapsed }: FullViewSectionsProps) {
+  const sources = useProjectSources()
   const { data: realChats } = useMothershipChats(project.isMock ? undefined : project.id)
-  const chats = toChatItems(project, realChats)
+  const chats = toChatItems(project, realChats, sources.chatsFor(project))
   return (
     <>
       <SidebarSection title='Build' railCollapsed={railCollapsed}>
@@ -524,8 +526,8 @@ interface SettingsSectionsProps {
 }
 
 /**
- * Settings: the project sidebar gives way to the settings list, grouped like prod.
- * The project's own General page stays here; every other section opens the real settings page.
+ * Mock project settings: the project sidebar gives way to the settings list, grouped like prod.
+ * The project's own General page has content; the workspace sections have nothing behind them.
  */
 function SettingsSections({ project, pathname, railCollapsed }: SettingsSectionsProps) {
   const base = protoRoutes.settings(project.id)
@@ -540,10 +542,7 @@ function SettingsSections({ project, pathname, railCollapsed }: SettingsSections
         >
           <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
             {SETTINGS_NAV.filter((item) => item.group === group).map((item) => {
-              const href =
-                item.group === 'project'
-                  ? protoRoutes.settings(project.id, item.id)
-                  : workspaceRoutes.settings(project.id, item.id as WorkspaceSettingsSection)
+              const href = protoRoutes.settings(project.id, item.id)
               const active =
                 pathname === href ||
                 (item.id === SETTINGS_NAV[0].id && pathname === base.replace(/\/[^/]+$/, ''))

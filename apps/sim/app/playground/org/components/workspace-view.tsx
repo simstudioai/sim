@@ -11,6 +11,7 @@ import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import { ResourceSection } from '@/app/playground/org/components/resource-section'
 import type { Project } from '@/app/playground/org/lib/project'
 import {
+  buildSectionHref,
   MAIN_SECTIONS,
   protoRoutes,
   WORKSPACE_SECTIONS,
@@ -22,14 +23,14 @@ import { useProjectDescription } from '@/app/playground/org/lib/use-project-reso
 interface WorkspaceViewProps {
   project: Project
   section: WorkspaceSection
-  /** Full view: the sidebar carries navigation, so the page drops the chip row. */
+  /** Full view (mock projects only): the sidebar carries navigation, so the page drops the chip row. */
   full: boolean
   settingsSection?: string
 }
 
 /**
- * Main view: dashboard, changelog, and issues as chips, with a button into the full view.
- * Full view: just the section; the sidebar has switched to this project's navigation.
+ * Main view: dashboard, changelog, issues and environments as chips, with a button into Build.
+ * Build opens the real workspace pages; a mock project shows its static tables here instead.
  */
 export function WorkspaceView({ project, section, full, settingsSection }: WorkspaceViewProps) {
   const current = WORKSPACE_SECTIONS.find((item) => item.id === section)
@@ -40,7 +41,7 @@ export function WorkspaceView({ project, section, full, settingsSection }: Works
         <header className='flex h-12 shrink-0 items-center gap-2 border-[var(--border)] border-b px-6'>
           <current.icon className='size-[14px] text-[var(--text-icon)]' />
           <h1 className='min-w-0 flex-1 text-[var(--text-body)] text-small'>{current.label}</h1>
-          <EnvironmentSwitcher project={project} section={section} full />
+          <EnvironmentSwitcher project={project} section={section} />
         </header>
       ) : (
         <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
@@ -52,9 +53,9 @@ export function WorkspaceView({ project, section, full, settingsSection }: Works
               <ProjectDescription project={project} />
             </div>
             <div className='flex shrink-0 items-center gap-1'>
-              <EnvironmentSwitcher project={project} section={section} full={false} />
+              <EnvironmentSwitcher project={project} section={section} />
               <ChipLink
-                href={protoRoutes.full(project.id, 'workflows')}
+                href={buildSectionHref(project, 'workflows')}
                 variant='border'
                 leftIcon={Expand}
               >
@@ -119,6 +120,6 @@ function SectionBody({ project, section, settingsSection }: SectionBodyProps) {
         />
       )
     default:
-      return <ResourceSection project={project} section={section} />
+      return <ResourceSection section={section} />
   }
 }
