@@ -214,14 +214,17 @@ export async function prePersistClientExecutableToolCall(
   if (!isToolCallStreamEvent(event)) return
 
   const data = event.payload
-  // A replay is history and never gates anything, so it cannot carry a prompt.
-  if (data.replay) {
+  const isGenerating = data.status === TOOL_CALL_STATUS.generating
+  const isPartial = data.partial === true || isGenerating
+  /*
+    Only a live, complete call frame can be held behind a prompt, and only when
+    the gate below decides so. A replay is history and a partial frame is not yet
+    a call, so neither may carry the worker's approval stamp to the client.
+  */
+  if (data.replay || isPartial) {
     if (data.status === TOOL_AWAITING_APPROVAL_STATUS) data.status = undefined
     return
   }
-  const isGenerating = data.status === TOOL_CALL_STATUS.generating
-  const isPartial = data.partial === true || isGenerating
-  if (isPartial) return
 
   const ui = getToolCallUI(data)
   const catalogEntry = getToolEntry(data.toolName)
