@@ -9,6 +9,7 @@ import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { workflowsOrchestrationMock } from '@sim/testing/mocks/workflows-orchestration.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -503,31 +504,53 @@ describe('run_workflow model-facing result budget', () => {
 
   /**
    * The bound only handles size. An output JSON cannot encode cannot be checked, so the run is still
-   * refused rather than the value being hidden behind a pointer.
+   * refused rather than the value being hidden behind a pointer, even while a bulky log beside it
+   * is replaced. The bulky log comes first, so the whole-result walk passes the cap before it ever
+   * reaches the unencodable one.
    */
   it('still refuses a run with an unencodable block output while bounding bulky ones', async () => {
+    const narrow = Array.from({ length: 25_000 }, (_, index) => ({
+      id: `r${index}`,
+      data: { a: 'x' },
+    }))
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,
-      output: {},
+      output: { done: true },
       logs: [
-        {
-          blockId: 'big',
-          blockName: 'Big',
-          success: true,
-          output: { rows: tableRows(4_800, 3_200_000) },
-        },
+        { blockId: 'big', blockName: 'Big', success: true, output: { rows: narrow } },
         { blockId: 'odd', blockName: 'Odd', success: true, output: { count: 1n } },
       ],
       metadata: { executionId: EXECUTION_ID },
     })
 
-    const settled = await executeRunWorkflowUntilBlock(
-      { workflowId: 'wf-1', stopAfterBlockId: 'odd' },
-      context
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+    const presented = settled.output as { logs: Array<{ output: unknown }> }
+    expect(presented.logs[0]?.output).toEqual(
+      expect.stringContaining(`logs get ${EXECUTION_ID} --trace`)
     )
-    const presented = settled.output as { output: unknown; logs: Array<{ output: unknown }> }
-    expect(presented.output).toEqual({ count: 1n })
     expect(presented.logs[1]?.output).toEqual({ count: 1n })
     expect(inspectToolResultForCopilot(settled, registry, 'run_workflow').safe).toBe(false)
+  })
+
+  /** The projection checks the error with the output, so the whole-result measure includes it. */
+  it('counts the error toward the caps a run result is bounded against', async () => {
+    const text = { text: 'y'.repeat(Math.floor(MAX_INLINE_MATERIALIZATION_BYTES * 0.6)) }
+    const error = `Report failed: ${'e'.repeat(Math.floor(MAX_INLINE_MATERIALIZATION_BYTES * 0.5))}`
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: false,
+      error,
+      output: { done: false },
+      logs: [{ blockId: 'big', blockName: 'Big', success: true, output: text }],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    expect(projection.result.error).toBe(error)
+    expect(
+      (projection.result.output as { logs: Array<{ output: unknown }> }).logs[0]?.output
+    ).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
   })
 })
