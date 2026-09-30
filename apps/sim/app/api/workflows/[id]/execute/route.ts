@@ -95,6 +95,7 @@ import {
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
+import { reportSettledClientWorkflowTool } from '@/lib/mothership/request/tools/workflow-client-settlement'
 import {
   ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
   type CopilotWorkflowToolBindingResult,
@@ -509,11 +510,25 @@ async function handleExecutePost(
     )
     await copilotSettlement
   }
+  /** A bound execution reports its own outcome, so a browser that detached never strands the turn. */
   const executeBoundWorkflow = async <T>(execute: () => Promise<T>): Promise<T> => {
     try {
       return await execute()
     } finally {
       await settleCopilotExecution()
+      if (copilotToolCallId && workflowToolClaimAcquired) {
+        await reportSettledClientWorkflowTool({
+          toolCallId: copilotToolCallId,
+          executionId,
+          workflowId,
+        }).catch((error) => {
+          reqLogger.warn('Could not report settled Copilot workflow execution', {
+            copilotToolCallId,
+            executionId,
+            error: getErrorMessage(error),
+          })
+        })
+      }
     }
   }
 

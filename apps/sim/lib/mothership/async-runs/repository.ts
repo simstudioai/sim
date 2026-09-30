@@ -1216,6 +1216,21 @@ export async function claimWorkflowToolExecution(
   )
 }
 
+/**
+ * Finalizes a client-bound workflow tool from its own settled execution. It
+ * applies only while the call is still running under that execution's claim, so
+ * a browser report or a background detach that landed first always wins.
+ */
+export async function completeClientWorkflowToolCall(
+  input: CompleteAsyncToolCallInput,
+  executionId: string
+) {
+  return await completeClaimedAsyncToolCall(
+    input,
+    `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
+  )
+}
+
 export async function releaseWorkflowToolExecutionClaim(toolCallId: string, executionId: string) {
   const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
   return await withDbSpan(
