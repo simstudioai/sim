@@ -2765,8 +2765,16 @@ export function useChat(
         abortControllerRef.current?.signal.aborted === true ||
         shouldContinue?.() === false
 
-      for (let attempt = 0; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
+      /**
+       * An attempt whose tail delivered new events re-attached successfully, so
+       * the failure after it starts a fresh budget at the base delay. Only
+       * failures without progress count toward exhaustion, which keeps separate
+       * network drops hours apart in a long turn from adding up.
+       */
+      let attempt = 0
+      while (attempt <= MAX_RECONNECT_ATTEMPTS) {
         if (isStaleReconnect()) return true
+        const cursorBeforeAttempt = lastCursorRef.current
 
         if (attempt > 0) {
           const delayMs = Math.min(
@@ -2868,6 +2876,7 @@ export function useChat(
             error: toError(err).message,
           })
         }
+        attempt = lastCursorRef.current !== cursorBeforeAttempt ? 1 : attempt + 1
       }
 
       logger.error('All reconnect attempts exhausted', {
