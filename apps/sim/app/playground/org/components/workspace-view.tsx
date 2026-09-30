@@ -1,48 +1,42 @@
 'use client'
 
-import { cn } from '@sim/emcn'
-import Link from 'next/link'
+import {
+  ChipDropdown,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@sim/emcn'
+import { Check, ChevronDown, Settings } from '@sim/emcn/icons'
 import { Changelog } from '@/app/playground/org/components/changelog'
-import { ChatAbout } from '@/app/playground/org/components/chat-about'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import { ResourceKinds } from '@/app/playground/org/components/resource-kinds'
 import { ResourceSection } from '@/app/playground/org/components/resource-section'
-import { isPanelKind } from '@/app/playground/org/lib/chat-resources'
-import type { Workspace } from '@/app/playground/org/lib/mock-data'
+import { WORKSPACES, workspaceById } from '@/app/playground/org/lib/mock-data'
 import {
   MAIN_SECTION_IDS,
   MAIN_SECTIONS,
   type ProjectSection,
-  protoRoutes,
 } from '@/app/playground/org/lib/routes'
-import { DEFAULT_SETTINGS_SECTION } from '@/app/playground/org/lib/settings-nav'
+import { SETTINGS_NAV } from '@/app/playground/org/lib/settings-nav'
+import { useWorkspacePane } from '@/app/playground/org/lib/workspace-pane-store'
 
 const TABS = [
   ...MAIN_SECTIONS.map((item) => ({ id: item.id as ProjectSection, label: item.label })),
   { id: 'resources' as ProjectSection, label: 'Resources' },
 ]
 
-/** What a chat started from this page opens first: the dashboard, a kind's list, or the project. */
-function pageRef(workspace: Workspace, section: ProjectSection): string {
-  if (section === 'dashboard' && workspace.dashboards[0])
-    return `dashboard:${workspace.id}:${workspace.dashboards[0]}`
-  if (isPanelKind(section)) return `browse:${workspace.id}:${section}`
-  return `browse:${workspace.id}`
-}
-
-interface WorkspaceViewProps {
-  workspace: Workspace
-  section: ProjectSection
-  settingsSection?: string
-}
-
 /**
- * The project page: dashboard, changelog, issues, and resources as tabs. Resources lists every
- * other kind underneath; opening one keeps the page and the tab, and swaps what is below.
+ * The workspace tab: pick a project, then its dashboard, changelog, issues, and resources.
+ * Resources lists every other kind; opening one keeps the tab and swaps what is below.
  */
-export function WorkspaceView({ workspace, section, settingsSection }: WorkspaceViewProps) {
+export function WorkspaceView() {
+  const { projectId, section, setProject, setSection } = useWorkspacePane()
+  const workspace = workspaceById(projectId)
   const activeTab: ProjectSection = MAIN_SECTION_IDS.includes(section as never)
     ? section
     : 'resources'
@@ -51,12 +45,32 @@ export function WorkspaceView({ workspace, section, settingsSection }: Workspace
       <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
         <div className='flex items-start gap-3'>
           <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-            <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
-              {workspace.name}
-            </h1>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type='button'
+                  className='flex w-fit items-center gap-1.5 text-[20px] text-[var(--text-primary)] leading-tight'
+                >
+                  {workspace.name}
+                  <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='start' className='w-[260px]'>
+                {WORKSPACES.map((candidate) => (
+                  <DropdownMenuItem key={candidate.id} onSelect={() => setProject(candidate.id)}>
+                    <span className='min-w-0 flex-1 truncate'>{candidate.name}</span>
+                    <Check className={cn(candidate.id !== workspace.id && 'invisible')} />
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setSection('settings')}>
+                  <Settings />
+                  Settings
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
           </div>
-          <ChatAbout open={pageRef(workspace, section)} />
         </div>
         <nav
           aria-label='Project sections'
@@ -65,9 +79,10 @@ export function WorkspaceView({ workspace, section, settingsSection }: Workspace
           {TABS.map((item) => {
             const active = activeTab === item.id
             return (
-              <Link
+              <button
                 key={item.id}
-                href={protoRoutes.workspace(workspace.id, item.id)}
+                type='button'
+                onClick={() => setSection(item.id)}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   '-mb-px border-b-2 pb-2.5 text-small transition-colors',
@@ -77,25 +92,21 @@ export function WorkspaceView({ workspace, section, settingsSection }: Workspace
                 )}
               >
                 {item.label}
-              </Link>
+              </button>
             )
           })}
         </nav>
       </header>
-      <div className='min-h-0 flex-1'>
-        <SectionBody workspace={workspace} section={section} settingsSection={settingsSection} />
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        <SectionBody section={section} />
       </div>
     </div>
   )
 }
 
-interface SectionBodyProps {
-  workspace: Workspace
-  section: ProjectSection
-  settingsSection?: string
-}
-
-function SectionBody({ workspace, section, settingsSection }: SectionBodyProps) {
+function SectionBody({ section }: { section: ProjectSection }) {
+  const { projectId, settingsSection, setSettingsSection } = useWorkspacePane()
+  const workspace = workspaceById(projectId)
   switch (section) {
     case 'dashboard':
       return (
@@ -111,10 +122,16 @@ function SectionBody({ workspace, section, settingsSection }: SectionBodyProps) 
       return <ResourceKinds workspace={workspace} />
     case 'settings':
       return (
-        <ProjectSettings
-          workspace={workspace}
-          sectionId={settingsSection ?? DEFAULT_SETTINGS_SECTION}
-        />
+        <div className='flex flex-col gap-2'>
+          <div className='px-6 pt-4'>
+            <ChipDropdown
+              value={settingsSection}
+              onChange={setSettingsSection}
+              options={SETTINGS_NAV.map((item) => ({ value: item.id, label: item.label }))}
+            />
+          </div>
+          <ProjectSettings workspace={workspace} sectionId={settingsSection} />
+        </div>
       )
     default:
       return <ResourceSection workspace={workspace} section={section} />

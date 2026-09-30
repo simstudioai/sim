@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { Chip, ChipTag } from '@sim/emcn'
 import { Database, Files, Integration, Library, Plus, Table, Workflow } from '@sim/emcn/icons'
-import { useStartChat } from '@/app/playground/org/components/chat-about'
+import { useQueryStates } from 'nuqs'
 import { isPanelKind } from '@/app/playground/org/lib/chat-resources'
 import { RESOURCES, type Workspace } from '@/app/playground/org/lib/mock-data'
+import { protoParsers } from '@/app/playground/org/lib/search-params'
 import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
 import {
   Resource,
@@ -46,7 +47,7 @@ interface ResourceSectionProps {
 
 /** The existing Resource list over static rows; opening a row starts a chat with it in a tab. */
 export function ResourceSection({ workspace, section }: ResourceSectionProps) {
-  const startChat = useStartChat()
+  const [, setParams] = useQueryStates(protoParsers)
   const config = CONFIG[section]
   const [search, setSearch] = useState('')
   const Icon = config.icon
@@ -87,7 +88,7 @@ export function ResourceSection({ workspace, section }: ResourceSectionProps) {
             ? (id) => {
                 const item = RESOURCES[section].find((candidate) => candidate.id === id)
                 if (!item) throw new Error(`Unknown ${section} row ${id}`)
-                startChat(`${section}:${workspace.id}:${id}`)
+                void setParams({ open: `${section}:${workspace.id}:${id}` })
               }
             : undefined
         }

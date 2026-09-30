@@ -1,10 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Avatar, Banner, Chip, ChipDropdown, ChipLink, chipVariants, cn } from '@sim/emcn'
+import { Avatar, Banner, Chip, ChipDropdown, chipVariants, cn } from '@sim/emcn'
 import {
   ArrowUpRight,
-  ChevronLeft,
   Circle,
   CircleCheck,
   Database,
@@ -15,7 +14,6 @@ import {
   X,
 } from '@sim/emcn/icons'
 import Link from 'next/link'
-import { ChatAbout } from '@/app/playground/org/components/chat-about'
 import { DelegateAvatar, delegateIcon } from '@/app/playground/org/components/delegate-avatar'
 import {
   AgentStateIcon,
@@ -69,12 +67,9 @@ export function IssuePage({ workspace, issue }: IssuePageProps) {
   return (
     <div className='relative flex h-full min-h-0 flex-col'>
       <header className='flex h-12 shrink-0 items-center gap-2 border-[var(--border)] border-b px-4'>
-        <ChipLink href={protoRoutes.workspace(workspace.id)} leftIcon={ChevronLeft}>
-          {workspace.name}
-        </ChipLink>
+        <span className='text-[var(--text-muted)] text-small'>{workspace.name}</span>
         <span className='text-[var(--text-muted)] text-small'>/</span>
         <span className='min-w-0 flex-1 text-[var(--text-body)] text-small'>{issue.key}</span>
-        <ChatAbout open={`issues:${workspace.id}:${issue.key}`} />
       </header>
       {issue.agent?.state === 'error' && (
         <Banner

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,7 @@ import { Download, Globe, Link, MoreHorizontal, Send, TerminalWindow, Trash } fr
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { useQueryStates } from 'nuqs'
-import { AttachedResource } from '@/app/playground/org/components/attached-resource'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import {
   ChatResourcePanel,
   type PanelView,
@@ -33,8 +33,11 @@ import {
   resolvePanelResource,
 } from '@/app/playground/org/lib/chat-resources'
 import { useProtoChats } from '@/app/playground/org/lib/chat-store'
-import { type Chat, workspaceById } from '@/app/playground/org/lib/mock-data'
+import { type Chat, PEOPLE, WORKSPACES, workspaceById } from '@/app/playground/org/lib/mock-data'
+import type { ProjectSection } from '@/app/playground/org/lib/routes'
+import { WORKSPACE_SECTIONS } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
+import { useWorkspacePane } from '@/app/playground/org/lib/workspace-pane-store'
 import {
   ChatPanelContent,
   ChatPanelLayout,
@@ -43,6 +46,9 @@ import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+
+/** The pinned first tab: the project, shared by every chat. */
+const WORKSPACE_TAB = 'workspace'
 
 /** A tab that is still browsing; opening something turns it into that thing's tab. */
 interface NewTab {
@@ -95,6 +101,20 @@ function stripItem(tab: PanelTab, active: boolean): TabStripItem {
   }
 }
 
+/** The tab a `?open=` ref names: `browse:workspace[:kind]` or `kind:workspace:id`. */
+function tabFromRef(ref: string): PanelTab {
+  if (!ref.startsWith('browse:')) return resolvePanelResource(ref)
+  const [, workspaceId, kind] = ref.split(':')
+  if (!workspaceId) throw new Error(`Bad browse ref ${ref}`)
+  if (!kind) return newTab(workspaceId, null)
+  if (!isPanelKind(kind)) throw new Error(`Bad browse ref ${ref}`)
+  return newTab(workspaceId, kind)
+}
+
+function isProjectSection(value: string): value is ProjectSection {
+  return value === 'resources' || WORKSPACE_SECTIONS.some((section) => section.id === value)
+}
+
 const noop = () => {}
 
 const NO_MESSAGES: ChatMessage[] = []
@@ -107,41 +127,22 @@ const SEED: ChatMessage[] = [
   },
 ]
 
-/** The tab a `?open=` ref names: `browse:workspace[:kind]` or `kind:workspace:id`. */
-function tabFromRef(ref: string): PanelTab {
-  if (!ref.startsWith('browse:')) return resolvePanelResource(ref)
-  const [, workspaceId, kind] = ref.split(':')
-  if (!workspaceId) throw new Error(`Bad browse ref ${ref}`)
-  if (!kind) return newTab(workspaceId, null)
-  if (!isPanelKind(kind)) throw new Error(`Bad browse ref ${ref}`)
-  return newTab(workspaceId, kind)
-}
-
-function isResource(tab: PanelTab): tab is PanelResource {
-  return tab.kind !== 'new' && tab.kind !== 'browser' && tab.kind !== 'terminal'
-}
-
 interface ChatSurfaceProps {
   chat: Chat
   /** A chat with no messages yet; its first message becomes its title. */
   fresh?: boolean
 }
 
-/** A chat with the resource panel on the right: real panel chrome, mock resources. */
+/** A chat on the left, the workspace pane on the right: real panel chrome, mock resources. */
 export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
-  const [{ open: openRef }] = useQueryStates(protoParsers)
+  const [{ open: openRef }, setParams] = useQueryStates(protoParsers)
   const renameChat = useProtoChats((state) => state.renameChat)
-  const [opened] = useState(() => (openRef ? tabFromRef(openRef) : undefined))
+  const { projectId, setProject, setSection } = useWorkspacePane()
   const [collapsed, setCollapsed] = useState(false)
-  const [tabs, setTabs] = useState<PanelTab[]>(() => {
-    const mentioned: PanelTab[] = mentionedIn(chat.id)
-    return opened && !mentioned.some((tab) => tabKey(tab) === tabKey(opened))
-      ? [...mentioned, opened]
-      : mentioned
-  })
-  const [activeKey, setActiveKey] = useState<string | null>(() => {
-    const first = opened ?? mentionedIn(chat.id)[0]
-    return first ? tabKey(first) : null
+  const [tabs, setTabs] = useState<PanelTab[]>(() => mentionedIn(chat.id))
+  const [activeKey, setActiveKey] = useState<string>(() => {
+    const first = mentionedIn(chat.id)[0]
+    return first ? panelResourceKey(first) : WORKSPACE_TAB
   })
 
   const activeIndex = tabs.findIndex((tab) => tabKey(tab) === activeKey)
@@ -162,6 +163,7 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
       // Already open: the browsing tab that found it is spent.
       if (active?.kind === 'new') setTabs((prev) => prev.filter((_, i) => i !== activeIndex))
       setActiveKey(key)
+      setCollapsed(false)
       return
     }
     place(resource)
@@ -191,24 +193,64 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
     setTabs(next)
     if (activeKey === key) {
       const neighbour = next[index] ?? next[index - 1]
-      setActiveKey(neighbour ? tabKey(neighbour) : null)
+      setActiveKey(neighbour ? tabKey(neighbour) : WORKSPACE_TAB)
     }
   }
 
-  const view: PanelView = !active
-    ? { type: 'browse', workspaceId: null, kind: null }
-    : active.kind === 'new'
-      ? { type: 'browse', workspaceId: active.workspaceId, kind: active.browseKind }
-      : active.kind === 'browser' || active.kind === 'terminal'
-        ? { type: active.kind }
-        : { type: 'resource', resource: active }
+  /**
+   * A `?open=` link anywhere in the pane is read once and stripped: `workspace:id:section`
+   * selects the project in the workspace tab, anything else opens as a resource tab.
+   */
+  useEffect(() => {
+    if (!openRef) return
+    if (openRef.startsWith('workspace:')) {
+      const [, workspaceId, section] = openRef.split(':')
+      if (!WORKSPACES.some((w) => w.id === workspaceId)) throw new Error(`Bad ref ${openRef}`)
+      setProject(workspaceId)
+      if (section) {
+        if (!isProjectSection(section)) throw new Error(`Bad ref ${openRef}`)
+        setSection(section)
+      }
+      setActiveKey(WORKSPACE_TAB)
+      setCollapsed(false)
+    } else {
+      const tab = tabFromRef(openRef)
+      if (tab.kind === 'new') place(tab)
+      else if (tab.kind === 'browser' || tab.kind === 'terminal') place(tab)
+      else open(tab)
+    }
+    void setParams({ open: null }, { history: 'replace', scroll: false })
+    // Runs once per ref; the handlers read the tabs at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRef])
+
+  const view: PanelView =
+    activeKey === WORKSPACE_TAB || !active
+      ? { type: 'workspace' }
+      : active.kind === 'new'
+        ? { type: 'browse', workspaceId: active.workspaceId, kind: active.browseKind }
+        : active.kind === 'browser' || active.kind === 'terminal'
+          ? { type: active.kind }
+          : { type: 'resource', resource: active }
+
+  const project = workspaceById(projectId)
+  const stripTabs: TabStripItem[] = [
+    {
+      id: WORKSPACE_TAB,
+      title: project.name,
+      icon: <IdentityTile initial={project.name[0]} />,
+      pinned: true,
+      active: activeKey === WORKSPACE_TAB,
+    },
+    ...tabs.map((tab) => stripItem(tab, activeKey === tabKey(tab))),
+  ]
 
   return (
     <ChatPanelLayout
       panel={
         <ChatPanelContent collapsed={collapsed}>
           <TabStrip
-            tabs={tabs.map((tab) => stripItem(tab, activeKey === tabKey(tab)))}
+            tabs={stripTabs}
             variant='floating'
             className={RESOURCE_HEADER_CLASSES.stripGeometry}
             onSelect={setActiveKey}
@@ -234,7 +276,7 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
         </ChatPanelContent>
       }
       collapsed={collapsed}
-      label='resources'
+      label='workspace'
       onToggle={() => setCollapsed((prev) => !prev)}
       onResize={noop}
       onResizeKeyDown={noop}
@@ -250,7 +292,9 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
         <ChatThread
           placeholder={fresh ? 'Do anything' : 'Reply to Sim…'}
           seed={fresh ? NO_MESSAGES : chat.id === 'c15' ? SEED : undefined}
-          attachments={opened && isResource(opened) && <AttachedResource resource={opened} />}
+          emptyTitle={
+            fresh ? `What should we get done, ${PEOPLE.teddy.name.split(' ')[0]}?` : undefined
+          }
           onSend={
             fresh && chat.title === 'New chat'
               ? (text) => renameChat(chat.id, truncate(text, 48))

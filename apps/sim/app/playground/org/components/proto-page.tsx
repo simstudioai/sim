@@ -2,11 +2,8 @@
 
 import { notFound } from 'next/navigation'
 import { ChatSurface } from '@/app/playground/org/components/chat-surface'
-import { IssuePage } from '@/app/playground/org/components/issue-page'
-import { NewChatHome } from '@/app/playground/org/components/new-chat-home'
-import { WorkspaceView } from '@/app/playground/org/components/workspace-view'
 import { useProtoChats } from '@/app/playground/org/lib/chat-store'
-import { CHATS, type Chat, issueByKey, WORKSPACES } from '@/app/playground/org/lib/mock-data'
+import { CHATS, type Chat } from '@/app/playground/org/lib/mock-data'
 import { parseProtoRoute } from '@/app/playground/org/lib/routes'
 
 const NEW_CHAT: Chat = { id: 'new', title: 'New chat', age: 'now' }
@@ -19,7 +16,7 @@ export function ProtoPage({ slug }: { slug?: string[] }) {
 
   switch (route.kind) {
     case 'home':
-      return <NewChatHome />
+      return <ChatSurface key='new' chat={NEW_CHAT} fresh />
     case 'search':
       return <Placeholder title='Search' body='Org-wide search stays as it is today.' />
     case 'connectors':
@@ -32,23 +29,6 @@ export function ProtoPage({ slug }: { slug?: string[] }) {
       return (
         <ChatSurface key={chat.id} chat={chat} fresh={route.chatId === 'new' || Boolean(started)} />
       )
-    }
-    case 'workspace': {
-      const workspace = WORKSPACES.find((w) => w.id === route.workspaceId)
-      if (!workspace) notFound()
-      return (
-        <WorkspaceView
-          workspace={workspace}
-          section={route.section}
-          settingsSection={route.settingsSection}
-        />
-      )
-    }
-    case 'issue': {
-      const workspace = WORKSPACES.find((w) => w.id === route.workspaceId)
-      const issue = issueByKey(route.issueKey)
-      if (!workspace || !issue || issue.workspaceId !== workspace.id) notFound()
-      return <IssuePage key={issue.key} workspace={workspace} issue={issue} />
     }
   }
 }

@@ -6,6 +6,7 @@ import { Globe, TerminalWindow } from '@sim/emcn/icons'
 import { BrowseRow, BrowseSection } from '@/app/playground/org/components/browse-rows'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
+import { WorkspaceView } from '@/app/playground/org/components/workspace-view'
 import {
   mentionedIn,
   PANEL_KINDS,
@@ -29,6 +30,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
 export type PanelView =
+  | { type: 'workspace' }
   | { type: 'browse'; workspaceId: string | null; kind: PanelKind | null }
   | { type: 'resource'; resource: PanelResource }
   | { type: 'browser' }
@@ -52,6 +54,7 @@ export function ChatResourcePanel({
   onOpenTerminal,
   onBrowse,
 }: ChatResourcePanelProps) {
+  if (view.type === 'workspace') return <WorkspaceView />
   if (view.type === 'resource') return <ResourceBody resource={view.resource} />
   if (view.type === 'browser') return <BrowserView />
   if (view.type === 'terminal') return <TerminalView />
