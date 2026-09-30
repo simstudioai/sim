@@ -15,6 +15,7 @@ await vi.hoisted(async () => {
     NEXT_PUBLIC_PRIVACY_URL: 'https://legal.example.com/privacy',
     NEXT_PUBLIC_TERMS_URL: 'https://legal.example.com/terms',
     S3_ENDPOINT: 'https://s3.de.io.cloud.ovh.net',
+    S3_FORCE_PATH_STYLE: undefined,
   })
 })
 
