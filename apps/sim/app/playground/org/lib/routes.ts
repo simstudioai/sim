@@ -10,6 +10,7 @@ import {
   Table,
   Workflow,
 } from '@sim/emcn/icons'
+import type { PanelResource } from '@/app/playground/org/lib/chat-resources'
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_NAV } from '@/app/playground/org/lib/settings-nav'
 
 export const PROTO_BASE = '/playground/org'
@@ -43,6 +44,9 @@ export const protoRoutes = {
   connectors: `${PROTO_BASE}/connectors`,
   /** Every chat opens on its own page with the resource panel beside it; the page 404s an unknown id. */
   chat: (chatId: string) => `${PROTO_BASE}/chat/${chatId}`,
+  /** A new chat with `resource` open in a tab and attached to the first message. */
+  chatAbout: (resource: PanelResource) =>
+    `${PROTO_BASE}/chat/new?open=${resource.kind}:${resource.workspaceId}:${resource.id}`,
   /** The project page: dashboard, changelog, issues, and resources as tabs; a resource kind sits under Resources. */
   workspace: (workspaceId: string, section: ProjectSection = 'dashboard') =>
     section === 'settings'

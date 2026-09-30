@@ -6,13 +6,21 @@ import { ArrowUp } from '@sim/emcn/icons'
 
 interface MockComposerProps {
   placeholder: string
+  /** Context chips shown above the text, like resources dropped into the real composer. */
+  attachments?: React.ReactNode
   onSubmit?: (message: string) => void
   rows?: number
   className?: string
 }
 
 /** Static stand-in for the chat composer: textarea plus send, no attachments or skills. */
-export function MockComposer({ placeholder, onSubmit, rows = 2, className }: MockComposerProps) {
+export function MockComposer({
+  placeholder,
+  attachments,
+  onSubmit,
+  rows = 2,
+  className,
+}: MockComposerProps) {
   const [value, setValue] = useState('')
   const submit = () => {
     const message = value.trim()
@@ -27,6 +35,7 @@ export function MockComposer({ placeholder, onSubmit, rows = 2, className }: Moc
         className
       )}
     >
+      {attachments && <div className='flex flex-wrap gap-1'>{attachments}</div>}
       <textarea
         value={value}
         rows={rows}

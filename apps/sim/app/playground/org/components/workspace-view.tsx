@@ -1,6 +1,7 @@
 'use client'
 
-import { cn } from '@sim/emcn'
+import { ChipLink, cn } from '@sim/emcn'
+import { MessageSquareText } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { Changelog } from '@/app/playground/org/components/changelog'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
@@ -8,6 +9,7 @@ import { ProjectSettings } from '@/app/playground/org/components/project-setting
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import { ResourceKinds } from '@/app/playground/org/components/resource-kinds'
 import { ResourceSection } from '@/app/playground/org/components/resource-section'
+import { MOCK_DASHBOARDS } from '@/app/playground/org/lib/dashboards'
 import type { Workspace } from '@/app/playground/org/lib/mock-data'
 import {
   MAIN_SECTION_IDS,
@@ -39,9 +41,26 @@ export function WorkspaceView({ workspace, section, settingsSection }: Workspace
   return (
     <div className='flex h-full min-h-0 flex-col'>
       <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
-        <div className='flex min-w-0 flex-col gap-0.5'>
-          <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>{workspace.name}</h1>
-          <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
+        <div className='flex items-start gap-3'>
+          <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+            <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
+              {workspace.name}
+            </h1>
+            <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
+          </div>
+          {section === 'dashboard' && workspace.dashboards[0] && (
+            <ChipLink
+              href={protoRoutes.chatAbout({
+                kind: 'dashboard',
+                id: workspace.dashboards[0],
+                workspaceId: workspace.id,
+                name: MOCK_DASHBOARDS[workspace.dashboards[0]].title,
+              })}
+              leftIcon={MessageSquareText}
+            >
+              Chat about this
+            </ChipLink>
+          )}
         </div>
         <nav
           aria-label='Project sections'
@@ -102,6 +121,6 @@ function SectionBody({ workspace, section, settingsSection }: SectionBodyProps) 
         />
       )
     default:
-      return <ResourceSection section={section} />
+      return <ResourceSection workspace={workspace} section={section} />
   }
 }

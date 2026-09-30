@@ -10,6 +10,7 @@ import {
   Database,
   Files,
   Layout,
+  MessageSquareText,
   Table,
   Workflow,
   X,
@@ -72,7 +73,18 @@ export function IssuePage({ workspace, issue }: IssuePageProps) {
           {workspace.name}
         </ChipLink>
         <span className='text-[var(--text-muted)] text-small'>/</span>
-        <span className='text-[var(--text-body)] text-small'>{issue.key}</span>
+        <span className='min-w-0 flex-1 text-[var(--text-body)] text-small'>{issue.key}</span>
+        <ChipLink
+          href={protoRoutes.chatAbout({
+            kind: 'issues',
+            id: issue.key,
+            workspaceId: workspace.id,
+            name: issue.title,
+          })}
+          leftIcon={MessageSquareText}
+        >
+          Chat about this
+        </ChipLink>
       </header>
       {issue.agent?.state === 'error' && (
         <Banner

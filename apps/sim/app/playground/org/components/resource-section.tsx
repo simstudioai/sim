@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { Chip, ChipTag } from '@sim/emcn'
 import { Database, Files, Integration, Library, Plus, Table, Workflow } from '@sim/emcn/icons'
-import { RESOURCES } from '@/app/playground/org/lib/mock-data'
+import { useRouter } from 'next/navigation'
+import { isPanelKind } from '@/app/playground/org/lib/chat-resources'
+import { RESOURCES, type Workspace } from '@/app/playground/org/lib/mock-data'
+import { protoRoutes } from '@/app/playground/org/lib/routes'
 import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
 import {
   Resource,
@@ -37,8 +40,14 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Updated' },
 ]
 
-/** The existing Resource list over static rows; the section chip is the title, so no header bar. */
-export function ResourceSection({ section }: { section: ResourceSectionId }) {
+interface ResourceSectionProps {
+  workspace: Workspace
+  section: ResourceSectionId
+}
+
+/** The existing Resource list over static rows; opening a row starts a chat with it in a tab. */
+export function ResourceSection({ workspace, section }: ResourceSectionProps) {
+  const router = useRouter()
   const config = CONFIG[section]
   const [search, setSearch] = useState('')
   const Icon = config.icon
@@ -71,7 +80,26 @@ export function ResourceSection({ section }: { section: ResourceSectionId }) {
           placeholder: `Search ${config.title.toLowerCase()}`,
         }}
       />
-      <Resource.Table columns={COLUMNS} rows={rows} />
+      <Resource.Table
+        columns={COLUMNS}
+        rows={rows}
+        onRowClick={
+          isPanelKind(section)
+            ? (id) => {
+                const item = RESOURCES[section].find((candidate) => candidate.id === id)
+                if (!item) throw new Error(`Unknown ${section} row ${id}`)
+                router.push(
+                  protoRoutes.chatAbout({
+                    kind: section,
+                    id,
+                    workspaceId: workspace.id,
+                    name: item.name,
+                  })
+                )
+              }
+            : undefined
+        }
+      />
     </Resource>
   )
 }

@@ -20,11 +20,12 @@ const SEED: ChatMessage[] = [
 interface ChatThreadProps {
   placeholder: string
   seed?: ChatMessage[]
+  attachments?: React.ReactNode
   className?: string
 }
 
 /** Static chat thread; replies are canned so the layout can be judged without Mothership. */
-export function ChatThread({ placeholder, seed = SEED, className }: ChatThreadProps) {
+export function ChatThread({ placeholder, seed = SEED, attachments, className }: ChatThreadProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(seed)
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
@@ -47,6 +48,7 @@ export function ChatThread({ placeholder, seed = SEED, className }: ChatThreadPr
       <div className='shrink-0 px-3 pb-3'>
         <MockComposer
           placeholder={placeholder}
+          attachments={attachments}
           onSubmit={(text) =>
             setMessages((prev) => [
               ...prev,

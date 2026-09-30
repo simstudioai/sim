@@ -1,5 +1,10 @@
 import { MOCK_DASHBOARDS } from '@/app/playground/org/lib/dashboards'
-import { ISSUES, RESOURCES, type Workspace } from '@/app/playground/org/lib/mock-data'
+import {
+  ISSUES,
+  RESOURCES,
+  type Workspace,
+  workspaceById,
+} from '@/app/playground/org/lib/mock-data'
 import { WORKSPACE_SECTIONS } from '@/app/playground/org/lib/routes'
 
 /** Resource families the chat panel can browse and open as tabs. */
@@ -136,4 +141,16 @@ export function resourcesOfKind(workspace: Workspace, kind: PanelKind): PanelRes
         status: item.meta,
       }))
   }
+}
+
+/** The resource a `kind:workspaceId:id` reference names; throws when it names nothing. */
+export function resolvePanelResource(ref: string): PanelResource {
+  const [kind, workspaceId, id] = ref.split(':')
+  if (!kind || !workspaceId || !id || !isPanelKind(kind)) throw new Error(`Bad resource ref ${ref}`)
+  const known = [
+    ...Object.values(MENTIONED).flat(),
+    ...resourcesOfKind(workspaceById(workspaceId), kind),
+  ].find((resource) => resource.kind === kind && resource.id === id)
+  if (!known) throw new Error(`Unknown resource ${ref}`)
+  return known
 }

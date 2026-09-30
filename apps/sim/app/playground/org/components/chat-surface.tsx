@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import {
+  ChipTag,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -14,6 +15,7 @@ import {
 } from '@sim/emcn'
 import { Download, Globe, Link, MoreHorizontal, Send, TerminalWindow, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
+import { useQueryStates } from 'nuqs'
 import {
   ChatResourcePanel,
   type PanelView,
@@ -26,8 +28,10 @@ import {
   type PanelResource,
   panelKindConfig,
   panelResourceKey,
+  resolvePanelResource,
 } from '@/app/playground/org/lib/chat-resources'
 import { type Chat, workspaceById } from '@/app/playground/org/lib/mock-data'
+import { protoParsers } from '@/app/playground/org/lib/search-params'
 import {
   ChatPanelContent,
   ChatPanelLayout,
@@ -106,10 +110,17 @@ interface ChatSurfaceProps {
 
 /** A chat with the resource panel on the right: real panel chrome, mock resources. */
 export function ChatSurface({ chat }: ChatSurfaceProps) {
+  const [{ open: openRef }] = useQueryStates(protoParsers)
+  const [opened] = useState(() => (openRef ? resolvePanelResource(openRef) : undefined))
   const [collapsed, setCollapsed] = useState(false)
-  const [tabs, setTabs] = useState<PanelTab[]>(() => mentionedIn(chat.id))
+  const [tabs, setTabs] = useState<PanelTab[]>(() => {
+    const mentioned = mentionedIn(chat.id)
+    return opened && !mentioned.some((r) => panelResourceKey(r) === panelResourceKey(opened))
+      ? [...mentioned, opened]
+      : mentioned
+  })
   const [activeKey, setActiveKey] = useState<string | null>(() => {
-    const first = mentionedIn(chat.id)[0]
+    const first = opened ?? mentionedIn(chat.id)[0]
     return first ? panelResourceKey(first) : null
   })
 
@@ -219,10 +230,22 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
         <ChatThread
           placeholder={chat.id === 'new' ? 'Do anything' : 'Reply to Sim…'}
           seed={chat.id === 'c15' ? SEED : chat.id === 'new' ? NO_MESSAGES : undefined}
+          attachments={opened && <AttachedResource resource={opened} />}
           className='mx-auto w-full max-w-[760px]'
         />
       </div>
     </ChatPanelLayout>
+  )
+}
+
+/** A resource attached to the message being written, as the real composer shows dropped context. */
+function AttachedResource({ resource }: { resource: PanelResource }) {
+  const Icon = panelKindConfig(resource.kind).icon
+  return (
+    <ChipTag variant='gray'>
+      <Icon className='size-[12px] text-[var(--text-icon)]' />
+      {resource.name}
+    </ChipTag>
   )
 }
 
