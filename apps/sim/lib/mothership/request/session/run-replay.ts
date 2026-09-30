@@ -93,36 +93,6 @@ export async function openRunReplay(params: {
   return response.body
 }
 
-/**
- * A replay reader that ends, as a cut connection does, once the worker sends nothing,
- * not even a keepalive, for {@link WORKER_STREAM_IDLE_TIMEOUT_MS}.
- */
-function idleBoundedReader(
-  reader: ReadableStreamDefaultReader<Uint8Array>
-): ReadableStreamDefaultReader<Uint8Array> {
-  return {
-    async read() {
-      let timer: ReturnType<typeof setTimeout> | undefined
-      const silent = new Promise<ReadableStreamReadResult<Uint8Array>>((resolve) => {
-        timer = setTimeout(() => {
-          reader.cancel().catch(() => {})
-          resolve({ done: true, value: undefined })
-        }, WORKER_STREAM_IDLE_TIMEOUT_MS)
-      })
-      try {
-        return await Promise.race([reader.read(), silent])
-      } finally {
-        clearTimeout(timer)
-      }
-    },
-    cancel: (reason) => reader.cancel(reason),
-    releaseLock: () => reader.releaseLock(),
-    get closed() {
-      return reader.closed
-    },
-  }
-}
-
 /** Every reason the worker may end a replay with; a reason added to the contract fails here. */
 const REPLAY_END_REASONS = {
   parked: true,
@@ -166,21 +136,26 @@ async function readRunReplay(
   onEvent: (event: PersistedStreamEventEnvelope) => boolean
 ): Promise<RunReplayEnd> {
   let end: RunReplayEnd = 'closed'
-  await processSSEStream(idleBoundedReader(body.getReader()), signal, (raw) => {
-    const control = replayEnd(raw)
-    if (control) {
-      end = control
-      return true
-    }
-    const parsed = parsePersistedStreamEventEnvelope(raw)
-    if (!parsed.ok) throw new FatalSseEventError(`Invalid run replay event: ${parsed.message}`)
-    if (!onEvent(parsed.event)) return true
-    if (parsed.event.type === MothershipStreamV1EventType.complete) {
-      end = 'complete'
-      return true
-    }
-    return undefined
-  })
+  await processSSEStream(
+    body.getReader(),
+    signal,
+    (raw) => {
+      const control = replayEnd(raw)
+      if (control) {
+        end = control
+        return true
+      }
+      const parsed = parsePersistedStreamEventEnvelope(raw)
+      if (!parsed.ok) throw new FatalSseEventError(`Invalid run replay event: ${parsed.message}`)
+      if (!onEvent(parsed.event)) return true
+      if (parsed.event.type === MothershipStreamV1EventType.complete) {
+        end = 'complete'
+        return true
+      }
+      return undefined
+    },
+    WORKER_STREAM_IDLE_TIMEOUT_MS
+  )
   return end
 }
 

@@ -1,6 +1,5 @@
 import {
   type Dispatch,
-  type RefObject,
   type SetStateAction,
   useCallback,
   useEffect,
@@ -312,12 +311,6 @@ const logger = createLogger('useChat')
  * its cursors are log positions, so every later read names the log as its source and
  * is never served from the replay ring, even one that restarted and grew past them.
  */
-/** The streams re-synced from the log, created on first use outside render. */
-function logResyncedStreams(ref: RefObject<Set<string> | null>): Set<string> {
-  ref.current ??= new Set()
-  return ref.current
-}
-
 function streamReconnectQuery(streamId: string, afterCursor: string, fromLog: boolean): string {
   return `streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}${fromLog ? '&source=log' : ''}`
 }
@@ -972,7 +965,7 @@ export function useChat(
   const streamRequestIdRef = useRef<string | undefined>(undefined)
   const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
   const lastCursorRef = useRef('0')
-  const logResyncedStreamsRef = useRef<Set<string> | null>(null)
+  const logResyncedStreamIdRef = useRef<string | null>(null)
   const activeStreamReturnRecoveryRef = useRef<ActiveStreamRecovery | null>(null)
   const sendingRef = useRef(false)
   const streamGenRef = useRef(0)
@@ -2388,7 +2381,7 @@ export function useChat(
       )
       // boundary-raw-fetch: stream-resume batch endpoint requires dynamic per-request traceparent header propagation that the contract layer does not model, and the response is consumed alongside live SSE tail fetches
       const response = await fetch(
-        `/api/mothership/chat/stream?${streamReconnectQuery(streamId, afterCursor, logResyncedStreams(logResyncedStreamsRef).has(streamId))}&batch=true`,
+        `/api/mothership/chat/stream?${streamReconnectQuery(streamId, afterCursor, logResyncedStreamIdRef.current === streamId)}&batch=true`,
         {
           signal: fetchSignal,
           ...(streamTraceparentRef.current
@@ -2580,7 +2573,7 @@ export function useChat(
 
           // boundary-raw-fetch: live SSE tail endpoint streams events consumed via response.body.getReader() and processSSEStream
           const sseRes = await fetch(
-            `/api/mothership/chat/stream?${streamReconnectQuery(streamId, latestCursor, logResyncedStreams(logResyncedStreamsRef).has(streamId))}`,
+            `/api/mothership/chat/stream?${streamReconnectQuery(streamId, latestCursor, logResyncedStreamIdRef.current === streamId)}`,
             {
               signal: activeAbort.signal,
               ...(streamTraceparentRef.current
@@ -2601,7 +2594,7 @@ export function useChat(
 
           // Re-sent from the worker's log with cursors restarting at 1: rebuild from empty.
           if (sseRes.headers.get(MOTHERSHIP_STREAM_REPLAY_HEADER) === 'log') {
-            logResyncedStreams(logResyncedStreamsRef).add(streamId)
+            logResyncedStreamIdRef.current = streamId
             const reset = applyReconnectReplaySelection(streamId, '0')
             latestCursor = reset.afterCursor
             preserveNextReplayState = reset.preserveExistingState
