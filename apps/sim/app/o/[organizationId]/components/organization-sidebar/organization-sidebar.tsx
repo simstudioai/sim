@@ -98,13 +98,13 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   const isMac = isMacPlatform()
   const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
   const projectViewEnabled = useFeatureFlag('org-project-view')
-  const { projectByWorkspace } = useProjects(organization.id)
-  /** A chat can span projects, so its row leads with the marks of every project it touched. */
+  const { projectById } = useProjects(organization.id)
+  /** A chat can span projects, so its row leads with the marks of every project it worked in. */
   const chatProjectMarks = (chat: OrganizationChat) => {
     const touched = new Map<string, { id: string; name: string }>()
-    for (const workspaceId of chat.workspaceIds ?? []) {
-      const project = projectByWorkspace.get(workspaceId)
-      if (project) touched.set(project.id, { id: project.id, name: project.name })
+    for (const projectId of chat.projectIds ?? []) {
+      const project = projectById.get(projectId)
+      if (project) touched.set(projectId, { id: projectId, name: project.name })
     }
     return <ProjectMarks projects={[...touched.values()]} />
   }

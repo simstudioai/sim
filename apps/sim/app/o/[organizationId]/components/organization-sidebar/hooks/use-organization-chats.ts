@@ -9,8 +9,8 @@ export interface OrganizationChat {
   /** Has a reply the viewer has not opened. */
   isUnread?: boolean
   isPinned?: boolean
-  /** Workspaces the chat worked in, for showing the projects it touched. */
-  workspaceIds?: string[]
+  /** Projects the chat worked in, shown as marks on its row. */
+  projectIds?: string[]
 }
 
 /** Lists only the current member's private organization conversations. */
@@ -23,7 +23,7 @@ export function useOrganizationChats(organizationId: string) {
     isActive: chat.isActive,
     isUnread: chat.isUnread,
     isPinned: chat.isPinned,
-    workspaceIds: chat.workspaceIds,
+    projectIds: chat.projectIds,
   }))
   return { chats, isLoading: query.isPending }
 }

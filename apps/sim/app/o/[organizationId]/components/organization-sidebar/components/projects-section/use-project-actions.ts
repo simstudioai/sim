@@ -1,27 +1,22 @@
 'use client'
 
 import { useCallback } from 'react'
-import { parseEnvironmentName } from '@/lib/projects'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import { useRenameProject } from '@/hooks/queries/projects'
 import {
   useDeleteWorkspace,
   usePinnedWorkspaceIds,
   useToggleWorkspacePin,
-  useUpdateWorkspace,
-  useWorkspacesQuery,
 } from '@/hooks/queries/workspace'
 
 /**
- * Rename, pin and delete for a project, applied to every workspace of its lineage: a rename
- * keeps each environment's own suffix ("Staging", "Sandbox"), a delete removes forks before
- * their parent, and the pin lives on the root. Mock projects have no workspace, so every
- * action is a no-op for them.
+ * Rename, pin and delete for a project: a rename changes the project's own name, a delete
+ * removes its workspaces forks first, and the pin lives on its root workspace.
  */
 export function useProjectActions() {
-  const { data: workspaces } = useWorkspacesQuery()
   const { data: pinnedIds } = usePinnedWorkspaceIds()
   const { mutate: togglePin } = useToggleWorkspacePin()
-  const { mutateAsync: updateWorkspace, isPending: isRenaming } = useUpdateWorkspace()
+  const { mutateAsync: renameProject, isPending: isRenaming } = useRenameProject()
   const { mutateAsync: deleteWorkspace, isPending: isDeleting } = useDeleteWorkspace()
 
   const isPinned = useCallback(
@@ -38,19 +33,11 @@ export function useProjectActions() {
 
   const rename = useCallback(
     async (project: Project, name: string) => {
-      const base = name.trim()
-      if (!base || base === project.name) return
-      for (const environment of project.environments) {
-        const workspace = workspaces?.find((candidate) => candidate.id === environment.workspaceId)
-        if (!workspace) continue
-        const { environment: suffix } = parseEnvironmentName(workspace.name)
-        await updateWorkspace({
-          workspaceId: workspace.id,
-          name: suffix ? `${base} ${suffix}` : base,
-        })
-      }
+      const next = name.trim()
+      if (!next || next === project.name) return
+      await renameProject({ projectId: project.projectId, name: next })
     },
-    [updateWorkspace, workspaces]
+    [renameProject]
   )
 
   const remove = useCallback(

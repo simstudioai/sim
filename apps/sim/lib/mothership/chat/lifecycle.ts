@@ -17,6 +17,7 @@ import {
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import { recordChatWorkspaceProject } from '@/lib/projects/membership'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -467,6 +468,7 @@ export async function resolveOrCreateChat(params: {
     logger.warn('Failed to create new copilot chat row', { userId, workflowId, workspaceId })
     return { chatId: '', chat: null, isNew: true }
   }
+  if (workspaceId && !workflowId) await recordChatWorkspaceProject(db, newChat.id, workspaceId)
 
   return { chatId: newChat.id, chat: newChat, isNew: true }
 }

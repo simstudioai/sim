@@ -36,7 +36,6 @@ import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { captureEvent } from '@/lib/posthog/client'
-import { parseEnvironmentName, resolveProjectLineages } from '@/lib/projects'
 import {
   BUILD_NAV_SECTIONS,
   PROJECT_NAV_SECTIONS,
@@ -73,6 +72,7 @@ import {
   useWorkspaceSidebarServices,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/use-workspace-sidebar-services'
 import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
+import { useProjectsQuery } from '@/hooks/queries/projects'
 import { useUserProfile } from '@/hooks/queries/user-profile'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -129,6 +129,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
   const openSearchModal = useSearchModalStore((state) => state.open)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const { data: workspaces } = useWorkspacesQuery()
+  const { data: projects } = useProjectsQuery()
 
   const services = useWorkspaceSidebarServices({ workspaceId, workflowId })
   const { chats, chatsLoading, chatsEnabled } = services
@@ -146,23 +147,35 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
   const isOnSettingsPage = pathname?.startsWith(`/workspace/${workspaceId}/settings`) ?? false
 
   /**
-   * The project this workspace belongs to. Until the workspace list arrives the route's own
-   * workspace stands in as a one-environment project, so the header never renders blank.
+   * The project this workspace belongs to, labelled by workspace names. Until the project list
+   * arrives the route's own workspace stands in as a one-environment project, so the header
+   * never renders blank.
    */
   const project = useMemo(() => {
-    const lineage = workspaces ? resolveProjectLineages(workspaces).get(workspaceId) : undefined
-    if (lineage) {
-      const root = workspaces?.find((workspace) => workspace.id === lineage.rootId)
-      return { ...lineage, logoUrl: root?.logoUrl ?? null }
+    const found = projects?.find((candidate) =>
+      candidate.workspaces.some((workspace) => workspace.id === workspaceId)
+    )
+    const root = found?.workspaces[0]
+    const own = found?.workspaces.find((workspace) => workspace.id === workspaceId)
+    if (found && own) {
+      return {
+        name: found.name,
+        environment: own.name,
+        environments: found.workspaces.map((workspace) => ({
+          workspaceId: workspace.id,
+          label: workspace.name,
+        })),
+        logoUrl: workspaces?.find((workspace) => workspace.id === root?.id)?.logoUrl ?? null,
+      }
     }
-    const { base, environment } = parseEnvironmentName(hostContext.workspace.name)
+    const name = hostContext.workspace.name
     return {
-      name: base,
-      environment: environment ?? 'Prod',
-      environments: [{ workspaceId, label: environment ?? 'Prod' }],
+      name,
+      environment: name,
+      environments: [{ workspaceId, label: name }],
       logoUrl: null,
     }
-  }, [workspaces, workspaceId, hostContext.workspace.name])
+  }, [projects, workspaces, workspaceId, hostContext.workspace.name])
 
   /** The page the viewer is on, relative to the workspace, so a switch lands on its peer. */
   const workspaceSubPath = useMemo(() => {

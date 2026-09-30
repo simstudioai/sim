@@ -63,7 +63,9 @@ export function EnvironmentTable({ columns, children }: EnvironmentTableProps) {
               <th key={column.id} scope='col' className='h-9 px-3 text-left font-normal'>
                 <div className='flex items-baseline gap-2'>
                   <span className='shrink-0 text-[var(--text-body)]'>{column.label}</span>
-                  <OverflowText label={column.name} className='text-[var(--text-muted)]' />
+                  {column.name !== column.label ? (
+                    <OverflowText label={column.name} className='text-[var(--text-muted)]' />
+                  ) : null}
                 </div>
               </th>
             ))}

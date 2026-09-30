@@ -1,41 +1,49 @@
-import { type ProjectEnvironment, resolveProjectLineages } from '@/lib/projects'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import type { ProjectApi } from '@/lib/api/contracts/projects'
+import type { ProjectEnvironment } from '@/lib/projects/types'
+import { useProjectsQuery } from '@/hooks/queries/projects'
 
-/** A workspace seen as a project: its fork lineage, with this workspace as one environment. */
+/** A workspace seen as a project: the project it belongs to, with this workspace as one environment. */
 export interface Project {
   /** The workspace this view is on; every route and hook uses it. */
   id: string
+  /** The project's own id, for renaming it and for chats that record it. */
+  projectId: string
   name: string
   organizationId: string | null
-  /** The workspace at the top of the lineage; lists show one project per root. */
+  /** The project's first workspace the viewer can access; lists show one project per root. */
   rootId: string
-  /** Which environment this workspace is within its project: Prod, Staging, Sandbox. */
+  /** This workspace's environment, labelled by its name. */
   environment: string
-  /** Every environment of the project, root first. */
+  /** Every environment of the project the viewer can access, root first; labels are workspace names. */
   environments: ProjectEnvironment[]
 }
 
-/** The organization's projects: every workspace it hosts, grouped by fork lineage. */
-export function useProjects(organizationId: string) {
-  const query = useWorkspacesQuery()
-  const workspaces = (query.data ?? []).filter(
-    (workspace) => workspace.organizationId === organizationId
-  )
-  /** A handful of rows, so deriving them each render is cheaper than a memo keyed on the list. */
-  const lineages = resolveProjectLineages(workspaces)
-  const projects: Project[] = workspaces.map((workspace) => {
-    const lineage = lineages.get(workspace.id)
-    if (!lineage) throw new Error(`No lineage for workspace ${workspace.id}`)
-    return {
+/** Each accessible workspace of each project, as the view it opens on. */
+export function toProjectViews(projects: readonly ProjectApi[]): Project[] {
+  return projects.flatMap((project) => {
+    const environments = project.workspaces.map((workspace) => ({
+      workspaceId: workspace.id,
+      label: workspace.name,
+    }))
+    const rootId = environments[0]?.workspaceId
+    if (!rootId) return []
+    return project.workspaces.map((workspace) => ({
       id: workspace.id,
-      name: lineage.name,
-      organizationId: workspace.organizationId ?? null,
-      rootId: lineage.rootId,
-      environment: lineage.environment,
-      environments: lineage.environments,
-    }
+      projectId: project.id,
+      name: project.name,
+      organizationId: project.organizationId,
+      rootId,
+      environment: workspace.name,
+      environments,
+    }))
   })
-  /** One entry per project for the sidebar and pickers: each lineage's root. */
+}
+
+/** The organization's projects, from the projects the viewer can access there. */
+export function useProjects(organizationId: string) {
+  const query = useProjectsQuery(organizationId)
+  const projects = toProjectViews(query.data ?? [])
+  /** One entry per project for the sidebar and pickers: each project's root. */
   const roots = projects.filter((project) => project.rootId === project.id)
   const rootById = new Map(roots.map((root) => [root.id, root]))
   /** The project each workspace belongs to, by workspace id. */
@@ -44,7 +52,16 @@ export function useProjects(organizationId: string) {
     const root = rootById.get(project.rootId)
     if (root) projectByWorkspace.set(project.id, root)
   }
-  return { projects, roots, projectByWorkspace, isPending: query.isPending, error: query.error }
+  /** Each project's root view, by project id, for things that record projects rather than workspaces. */
+  const projectById = new Map(roots.map((root) => [root.projectId, root]))
+  return {
+    projects,
+    roots,
+    projectByWorkspace,
+    projectById,
+    isPending: query.isPending,
+    error: query.error,
+  }
 }
 
 export function useProject(organizationId: string, workspaceId: string) {

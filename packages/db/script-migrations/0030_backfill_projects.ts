@@ -10,25 +10,6 @@ const PROJECT_BATCH_SIZE = 200
 /** Chats scanned per transaction when recording the projects they worked in. */
 const CHAT_BATCH_SIZE = 500
 
-/**
- * A trailing environment word on a workspace name names its environment; the rest names the
- * project. Frozen copy of `apps/sim/lib/projects/lineage.ts` (migrations cannot import apps).
- */
-const ENVIRONMENT_SUFFIX =
-  /^(.*?)[\s-]+(prod|production|staging|stage|sandbox|dev|development|test|uat|qa)$/i
-/** What a fork is called when its name carries no environment word, by depth below the root. */
-const DEPTH_LABELS = ['Prod', 'Staging', 'Sandbox'] as const
-
-function parseEnvironmentName(name: string): { base: string; environment: string | null } {
-  const match = ENVIRONMENT_SUFFIX.exec(name.trim())
-  if (!match) return { base: name.trim(), environment: null }
-  const word = match[2]
-  return {
-    base: match[1].trim(),
-    environment: word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-  }
-}
-
 interface WorkspaceRow {
   id: string
   name: string
@@ -66,19 +47,14 @@ export function resolveLineagePlacements(
   return placements
 }
 
-/** The environment label a lineage member gets: its name's word, else its depth's default. */
-export function environmentLabel(name: string, depth: number): string {
-  return parseEnvironmentName(name).environment ?? DEPTH_LABELS[depth] ?? `Fork ${depth}`
-}
-
-/** A project's name: the lineage root's name without a trailing environment word. */
+/** A project's name: its lineage root workspace's name. */
 export function projectName(rootName: string): string {
-  return parseEnvironmentName(rootName).base || rootName.trim() || 'Untitled project'
+  return rootName.trim() || 'Untitled project'
 }
 
 /**
  * Puts every workspace in exactly one project: one project per fork lineage, named after the
- * lineage's root and owned by the root's organization (none for a personal workspace). Resumable:
+ * lineage's root workspace and owned by the root's organization (none for a personal workspace). Resumable:
  * workspaces already placed are skipped, and a lineage whose root already has a project gains its
  * remaining members there.
  */
@@ -128,8 +104,8 @@ export async function backfillProjectMemberships(
         for (const member of unplacedByRoot.get(rootId) ?? []) {
           const depth = placements.get(member.id)?.depth ?? 0
           const inserted = await tx`
-            INSERT INTO project_workspace (project_id, workspace_id, environment, position)
-            VALUES (${projectId}, ${member.id}, ${environmentLabel(member.name, depth)}, ${depth})
+            INSERT INTO project_workspace (project_id, workspace_id, position)
+            VALUES (${projectId}, ${member.id}, ${depth})
             ON CONFLICT (workspace_id) DO NOTHING
           `
           memberships += inserted.count

@@ -29,6 +29,7 @@ import {
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { type MothershipResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { copyChatProjects } from '@/lib/projects/membership'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('ForkChat')
@@ -164,6 +165,7 @@ export const forkChat = defineAuthorizedChatUseCase({
           .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
         if (!row) throw new Error('Failed to create forked chat')
         await persistChatFileCopies(tx, plan, failedIds)
+        await copyChatProjects(tx, chatId, newId)
         await appendCopilotChatMessages(
           newId,
           rewriteMessageFileRefs(forkedMessages, maps),

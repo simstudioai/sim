@@ -22,6 +22,7 @@ import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { projectKeys } from '@/hooks/queries/utils/project-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -74,6 +75,8 @@ export function useForkWorkspace() {
     mutationFn: (vars: { workspaceId: string; body: ForkWorkspaceBody }) =>
       requestJson(forkWorkspaceContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSuccess: (data) => {
+      /** A fork joins its parent's project. */
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
       // Merge the new fork into the active list cache before invalidation so the
       // immediate navigation into it can't race a stale list and trip the
       // not-in-workspaces redirect (mirrors useCreateWorkspace).
@@ -184,6 +187,8 @@ export function useUnlinkFork() {
     onSettled: () => {
       // Unlink dissolves the edge: lineage loses the row, and the edge's mappings/diff
       // no longer exist. Workflows and deployments are untouched.
+      /** A disconnected fork moves into a project of its own. */
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })

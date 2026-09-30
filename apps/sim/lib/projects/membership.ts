@@ -2,7 +2,6 @@ import { project, projectWorkspace, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { DEPTH_LABELS, parseEnvironmentName } from '@/lib/projects/lineage'
 
 /**
  * The write paths that keep every workspace in exactly one project. Each runs inside the
@@ -10,16 +9,9 @@ import { DEPTH_LABELS, parseEnvironmentName } from '@/lib/projects/lineage'
  * ever without a project.
  */
 
-/** A project's name: the workspace's name without a trailing environment word. */
+/** A project's name: the name of the workspace that roots it. */
 function projectNameFor(workspaceName: string): string {
-  return parseEnvironmentName(workspaceName).base || workspaceName.trim() || 'Untitled project'
-}
-
-/** The environment a workspace plays: its name's environment word, else its depth's default. */
-function environmentFor(workspaceName: string, position: number): string {
-  return (
-    parseEnvironmentName(workspaceName).environment ?? DEPTH_LABELS[position] ?? `Fork ${position}`
-  )
+  return workspaceName.trim() || 'Untitled project'
 }
 
 interface NewWorkspace {
@@ -35,12 +27,7 @@ export async function createProjectForWorkspace(
 ): Promise<string> {
   const projectId = generateId()
   await tx.insert(project).values({ id: projectId, name: projectNameFor(name), organizationId })
-  await tx.insert(projectWorkspace).values({
-    projectId,
-    workspaceId,
-    environment: environmentFor(name, 0),
-    position: 0,
-  })
+  await tx.insert(projectWorkspace).values({ projectId, workspaceId, position: 0 })
   return projectId
 }
 
@@ -59,20 +46,17 @@ export async function addForkToParentProject(tx: DbOrTx, fork: NewFork): Promise
     .where(eq(projectWorkspace.workspaceId, fork.parentWorkspaceId))
     .limit(1)
   if (!parent) return createProjectForWorkspace(tx, fork)
-  const position = parent.position + 1
   await tx.insert(projectWorkspace).values({
     projectId: parent.projectId,
     workspaceId: fork.workspaceId,
-    environment: environmentFor(fork.name, position),
-    position,
+    position: parent.position + 1,
   })
   return parent.projectId
 }
 
 /**
  * A disconnected fork leaves its parent's project with every workspace forked from it, into a
- * new project named after it in full: stripping its environment word would give it the very
- * name of the project it left. Environment labels are kept; positions restart from the fork.
+ * new project named after it; positions restart from the fork.
  */
 export async function moveForkToNewProject(
   tx: DbOrTx,
@@ -107,7 +91,7 @@ export async function moveForkToNewProject(
   const projectId = generateId()
   await tx.insert(project).values({
     id: projectId,
-    name: fork.name.trim() || 'Untitled project',
+    name: projectNameFor(fork.name),
     organizationId: fork.organizationId,
   })
   await tx
@@ -120,4 +104,31 @@ export async function moveForkToNewProject(
       )
     )
   return projectId
+}
+
+/** A chat started in a workspace records that workspace's project. */
+export async function recordChatWorkspaceProject(
+  tx: DbOrTx,
+  chatId: string,
+  workspaceId: string
+): Promise<void> {
+  await tx.execute(sql`
+    INSERT INTO copilot_chat_project (chat_id, project_id)
+    SELECT ${chatId}::uuid, pw.project_id FROM project_workspace pw
+    WHERE pw.workspace_id = ${workspaceId}
+    ON CONFLICT DO NOTHING
+  `)
+}
+
+/** A forked chat carries its parent's projects. */
+export async function copyChatProjects(
+  tx: DbOrTx,
+  fromChatId: string,
+  toChatId: string
+): Promise<void> {
+  await tx.execute(sql`
+    INSERT INTO copilot_chat_project (chat_id, project_id)
+    SELECT ${toChatId}::uuid, project_id FROM copilot_chat_project WHERE chat_id = ${fromChatId}::uuid
+    ON CONFLICT DO NOTHING
+  `)
 }

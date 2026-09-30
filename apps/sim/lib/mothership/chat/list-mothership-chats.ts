@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChatProject, copilotChats } from '@sim/db/schema'
 import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { MothershipChat, MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
@@ -33,19 +33,11 @@ export async function listMothershipChats(
       lastSeenAt: copilotChats.lastSeenAt,
       pinned: copilotChats.pinned,
       deletedAt: copilotChats.deletedAt,
-      /**
-       * The workspaces the chat worked in: its own workspace, if it has one, and every workspace
-       * its resources live in. A JSON aggregate, so the driver returns a parsed array.
-       */
-      workspaceIds: sql<string[]>`coalesce((
-        select jsonb_agg(distinct ids.id)
-        from (
-          select ${copilotChats.workspaceId} as id
-          union
-          select resource ->> 'workspaceId'
-          from jsonb_array_elements(${copilotChats.resources}) as resource
-        ) as ids
-        where ids.id is not null
+      /** The projects recorded for the chat. A JSON aggregate, so the driver returns a parsed array. */
+      projectIds: sql<string[]>`coalesce((
+        select jsonb_agg(${copilotChatProject.projectId} order by ${copilotChatProject.createdAt})
+        from ${copilotChatProject}
+        where ${copilotChatProject.chatId} = ${copilotChats.id}
       ), '[]'::jsonb)`,
     })
     .from(copilotChats)
@@ -83,6 +75,6 @@ export async function listMothershipChats(
     lastSeenAt: c.lastSeenAt ? c.lastSeenAt.toISOString() : null,
     pinned: c.pinned,
     deletedAt: c.deletedAt ? c.deletedAt.toISOString() : null,
-    workspaceIds: c.workspaceIds,
+    projectIds: c.projectIds,
   }))
 }

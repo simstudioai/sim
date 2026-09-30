@@ -15,7 +15,6 @@ import {
   dropdownMenuRowClass,
 } from '@sim/emcn'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
-import { resolveProjectLineages } from '@/lib/projects'
 import {
   ResourceMenuSections,
   resourceFromItem,
@@ -46,6 +45,7 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { useProjectsQuery } from '@/hooks/queries/projects'
 import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -117,26 +117,19 @@ interface ProjectGroup<T> {
   workspaces: T[]
 }
 
-/** The organization's workspaces grouped into projects by fork lineage, in list order. */
-function groupWorkspacesByProject<
-  T extends { id: string; name: string; forkedFromWorkspaceId?: string | null },
->(workspaces: readonly T[]): ProjectGroup<T>[] {
-  const lineages = resolveProjectLineages(workspaces)
+/** The listed workspaces grouped into their projects, in project order. */
+function groupWorkspacesByProject<T extends { id: string }>(
+  projects: readonly { id: string; name: string; workspaces: readonly { id: string }[] }[],
+  workspaces: readonly T[]
+): ProjectGroup<T>[] {
   const byId = new Map(workspaces.map((workspace) => [workspace.id, workspace]))
-  const groups = new Map<string, ProjectGroup<T>>()
-  for (const workspace of workspaces) {
-    const lineage = lineages.get(workspace.id)
-    if (!lineage || groups.has(lineage.rootId)) continue
-    groups.set(lineage.rootId, {
-      id: lineage.rootId,
-      name: lineage.name,
-      workspaces: lineage.environments.flatMap((environment) => {
-        const member = byId.get(environment.workspaceId)
-        return member ? [member] : []
-      }),
+  return projects.flatMap((project) => {
+    const members = project.workspaces.flatMap((member) => {
+      const workspace = byId.get(member.id)
+      return workspace ? [workspace] : []
     })
-  }
-  return [...groups.values()]
+    return members.length ? [{ id: project.id, name: project.name, workspaces: members }] : []
+  })
 }
 
 export const PlusMenuDropdown = React.memo(
@@ -185,7 +178,14 @@ export const PlusMenuDropdown = React.memo(
     )
     /** With the org project view, the menu opens on projects, each revealing its workspaces. */
     const projectViewEnabled = useFeatureFlag('org-project-view')
-    const projectGroups = useMemo(() => groupWorkspacesByProject(workspaces), [workspaces])
+    const { data: projects = [] } = useProjectsQuery(
+      organizationId,
+      Boolean(organizationId) && projectViewEnabled
+    )
+    const projectGroups = useMemo(
+      () => groupWorkspacesByProject(projects, workspaces),
+      [projects, workspaces]
+    )
     const [inventories, setInventories] = useState<Record<string, AvailableResources>>({})
     const receiveInventory = useCallback((workspaceId: string, inventory: AvailableResources) => {
       setInventories((current) =>

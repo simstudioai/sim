@@ -27,6 +27,7 @@ import {
   type WorkspaceQueryScope,
   type WorkspacesResponse,
 } from '@/lib/api/contracts'
+import { projectKeys } from '@/hooks/queries/utils/project-keys'
 import {
   normalizeWorkspace,
   normalizeWorkspacesResponse,
@@ -295,6 +296,8 @@ export function useCreateWorkspace() {
       return data.workspace
     },
     onSuccess: (newWorkspace) => {
+      /** A new workspace roots a new project. */
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
       queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
         if (!previous) {
           return {
@@ -336,6 +339,8 @@ export function useDeleteWorkspace() {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
+      /** Projects list their workspaces by name, and drop a deleted one. */
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
     },
   })
 }
@@ -360,6 +365,8 @@ export function useUpdateWorkspace() {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
+      /** Projects list their workspaces by name, and drop a deleted one. */
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
     },
   })
 }

@@ -4,7 +4,7 @@ import {
   type ForkWorkflowChange,
   forkCopyableKindSchema,
 } from '@/lib/api/contracts/workspace-fork'
-import type { ProjectEnvironment } from '@/lib/projects'
+import type { ProjectEnvironment } from '@/lib/projects/types'
 import {
   MAPPING_SECTION,
   type MappableMappingKind,

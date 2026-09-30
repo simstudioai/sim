@@ -2053,8 +2053,8 @@ export const project = pgTable(
 
 /**
  * A workspace's place in its project. `workspace_id` is unique, so a workspace sits in at most
- * one project; the write paths and the backfill keep it in exactly one. `environment` names the
- * part it plays (Prod, Staging, Sandbox) and `position` orders the pipeline from the root.
+ * one project; the write paths and the backfill keep it in exactly one. The workspace's own name
+ * is its environment's label; `position` orders the pipeline from the root.
  */
 export const projectWorkspace = pgTable(
   'project_workspace',
@@ -2065,7 +2065,6 @@ export const projectWorkspace = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    environment: text('environment').notNull(),
     position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

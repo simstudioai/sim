@@ -61,7 +61,9 @@ function EnvironmentCard({
           />
         ) : null}
       </div>
-      <OverflowText label={column.name} className='text-[var(--text-muted)] text-small' />
+      {column.name !== column.label ? (
+        <OverflowText label={column.name} className='text-[var(--text-muted)] text-small' />
+      ) : null}
       <p className='text-[var(--text-muted)] text-caption'>
         {parent ? `Forked from ${parent.label}` : 'Root of the lineage'}
         {undoable ? ` · last sync from ${undoable.otherName} can be undone` : ''}

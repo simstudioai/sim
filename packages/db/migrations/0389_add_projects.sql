@@ -17,7 +17,6 @@ CREATE TABLE "project" (
 CREATE TABLE "project_workspace" (
 	"project_id" text NOT NULL,
 	"workspace_id" text NOT NULL,
-	"environment" text NOT NULL,
 	"position" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "project_workspace_project_id_workspace_id_pk" PRIMARY KEY("project_id","workspace_id")

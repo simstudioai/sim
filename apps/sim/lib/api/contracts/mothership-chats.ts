@@ -280,8 +280,8 @@ export const mothershipChatSchema = z.object({
   lastSeenAt: dateStringSchema.nullable(),
   pinned: z.boolean(),
   deletedAt: dateStringSchema.nullable(),
-  /** Workspaces the chat's resources live in; defaulted so a new client tolerates an old server. */
-  workspaceIds: z.array(z.string()).default([]),
+  /** Projects the chat worked in; defaulted so a new client tolerates an old server. */
+  projectIds: z.array(z.string()).default([]),
 })
 
 export const listMothershipChatsContract = defineRouteContract({
