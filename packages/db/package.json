@@ -34,6 +34,7 @@
     "db:generate": "bunx drizzle-kit generate --config=./drizzle.config.ts",
     "db:push": "bun --env-file=.env run ./scripts/push.ts",
     "db:migrate": "bun --env-file=.env run ./scripts/migrate.ts",
+    "db:move-workspace-chats-to-organizations": "bun --env-file=.env run ./scripts/move-workspace-chats-to-organizations.ts",
     "db:reconcile-fork-kb-file-ownership": "bun --env-file=.env run ./scripts/reconcile-fork-kb-file-ownership.ts",
     "db:reconcile-workspace-storage": "bun --env-file=.env run ./scripts/reconcile-workspace-storage.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",

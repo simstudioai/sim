@@ -7,6 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { addForkToParentProject } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
@@ -282,6 +283,12 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       forkedFromWorkspaceId: source.id,
       createdAt: now,
       updatedAt: now,
+    })
+    await addForkToParentProject(tx, {
+      workspaceId: childWorkspaceId,
+      name: childName,
+      organizationId: policy.organizationId ?? null,
+      parentWorkspaceId: source.id,
     })
 
     const sourcePermissions = await tx

@@ -5,11 +5,17 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItemLabel,
   DropdownMenuLabel,
   DropdownMenuSearchInput,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   dropdownMenuRowClass,
 } from '@sim/emcn'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { resolveProjectLineages } from '@/lib/projects'
 import {
   ResourceMenuSections,
   resourceFromItem,
@@ -39,6 +45,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -103,6 +110,35 @@ interface PlusMenuDropdownProps {
   mentionQuery?: string
 }
 
+interface ProjectGroup<T> {
+  id: string
+  name: string
+  /** Root first, in pipeline order. */
+  workspaces: T[]
+}
+
+/** The organization's workspaces grouped into projects by fork lineage, in list order. */
+function groupWorkspacesByProject<
+  T extends { id: string; name: string; forkedFromWorkspaceId?: string | null },
+>(workspaces: readonly T[]): ProjectGroup<T>[] {
+  const lineages = resolveProjectLineages(workspaces)
+  const byId = new Map(workspaces.map((workspace) => [workspace.id, workspace]))
+  const groups = new Map<string, ProjectGroup<T>>()
+  for (const workspace of workspaces) {
+    const lineage = lineages.get(workspace.id)
+    if (!lineage || groups.has(lineage.rootId)) continue
+    groups.set(lineage.rootId, {
+      id: lineage.rootId,
+      name: lineage.name,
+      workspaces: lineage.environments.flatMap((environment) => {
+        const member = byId.get(environment.workspaceId)
+        return member ? [member] : []
+      }),
+    })
+  }
+  return [...groups.values()]
+}
+
 export const PlusMenuDropdown = React.memo(
   React.forwardRef<PlusMenuHandle, PlusMenuDropdownProps>(function PlusMenuDropdown(
     {
@@ -147,6 +183,9 @@ export const PlusMenuDropdown = React.memo(
     const workspaces = allWorkspaces.filter(
       (workspace) => workspace.organizationId === organizationId
     )
+    /** With the org project view, the menu opens on projects, each revealing its workspaces. */
+    const projectViewEnabled = useFeatureFlag('org-project-view')
+    const projectGroups = useMemo(() => groupWorkspacesByProject(workspaces), [workspaces])
     const [inventories, setInventories] = useState<Record<string, AvailableResources>>({})
     const receiveInventory = useCallback((workspaceId: string, inventory: AvailableResources) => {
       setInventories((current) =>
@@ -418,16 +457,49 @@ export const PlusMenuDropdown = React.memo(
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
               {organizationId &&
-                workspaces.map((workspace) => (
-                  <WorkspaceResourceSubmenu
-                    key={workspace.id}
-                    workspace={workspace}
-                    excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
-                    selectFolders
-                    onSelect={handleSelect}
-                    onSelectWorkspace={handleWorkspaceSelect}
-                  />
-                ))}
+                (projectViewEnabled
+                  ? projectGroups.map((group) =>
+                      /** A project with one workspace opens that workspace's resources directly. */
+                      group.workspaces.length === 1 ? (
+                        <WorkspaceResourceSubmenu
+                          key={group.id}
+                          workspace={{ ...group.workspaces[0], name: group.name }}
+                          excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
+                          selectFolders
+                          onSelect={handleSelect}
+                          onSelectWorkspace={handleWorkspaceSelect}
+                        />
+                      ) : (
+                        <DropdownMenuSub key={group.id}>
+                          <DropdownMenuSubTrigger>
+                            <IdentityTile initial={group.name[0] ?? '?'} />
+                            <DropdownMenuItemLabel label={group.name} />
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
+                            {group.workspaces.map((workspace) => (
+                              <WorkspaceResourceSubmenu
+                                key={workspace.id}
+                                workspace={workspace}
+                                excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
+                                selectFolders
+                                onSelect={handleSelect}
+                                onSelectWorkspace={handleWorkspaceSelect}
+                              />
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      )
+                    )
+                  : workspaces.map((workspace) => (
+                      <WorkspaceResourceSubmenu
+                        key={workspace.id}
+                        workspace={workspace}
+                        excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
+                        selectFolders
+                        onSelect={handleSelect}
+                        onSelectWorkspace={handleWorkspaceSelect}
+                      />
+                    )))}
               <ResourceMenuSections
                 sections={treeSections}
                 groups={

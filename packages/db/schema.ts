@@ -2028,6 +2028,53 @@ export const workspace = pgTable(
   })
 )
 
+/**
+ * A project: the unit people think in (one agent, one product), grouping one or more
+ * workspaces as its environments. Every workspace belongs to exactly one project, so a new
+ * workspace gets a project of its own, a fork joins its parent's, and disconnecting a fork moves
+ * it to a new one. Not gated on organizations: a personal workspace's project has none.
+ */
+export const project = pgTable(
+  'project',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'set null',
+    }),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('project_organization_id_idx').on(table.organizationId),
+  })
+)
+
+/**
+ * A workspace's place in its project. `workspace_id` is unique, so a workspace sits in at most
+ * one project; the write paths and the backfill keep it in exactly one. `environment` names the
+ * part it plays (Prod, Staging, Sandbox) and `position` orders the pipeline from the root.
+ */
+export const projectWorkspace = pgTable(
+  'project_workspace',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    environment: text('environment').notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.projectId, table.workspaceId] }),
+    workspaceIdUnique: uniqueIndex('project_workspace_workspace_id_unique').on(table.workspaceId),
+  })
+)
+
 export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_type', [
   'workflow',
   'oauth_credential',
@@ -4035,6 +4082,27 @@ export const copilotChats = pgTable(
     userWorkspaceDeletedPartialIdx: index('copilot_chats_user_workspace_deleted_partial_idx')
       .on(table.userId, table.workspaceId)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+  })
+)
+
+/**
+ * The projects a chat worked in. A chat is owned by its organization (or, for a personal
+ * workspace, that workspace) and may touch any project the user can reach; this records which.
+ */
+export const copilotChatProject = pgTable(
+  'copilot_chat_project',
+  {
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.chatId, table.projectId] }),
+    projectIdIdx: index('copilot_chat_project_project_id_idx').on(table.projectId),
   })
 )
 

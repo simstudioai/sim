@@ -25,6 +25,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
@@ -74,6 +75,9 @@ export function Composer({
   const attachedFilesRef = useRef(files.attachedFiles)
   attachedFilesRef.current = files.attachedFiles
   const imagesOnly = requestMode === 'assistant'
+  /** With the org project view, Search keeps the composer's framed box instead of its own bar. */
+  const projectViewEnabled = useFeatureFlag('org-project-view')
+  const searchBar = imagesOnly && !projectViewEnabled
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -197,8 +201,34 @@ export function Composer({
     />
   )
 
+  const modeSelector = showModeSelector && (
+    <ConversationModeSelector
+      value={requestMode}
+      searchEnabled={searchEnabled}
+      onChange={
+        onModeChange
+          ? (mode) => {
+              if (
+                mode === 'assistant' &&
+                (editor.getActiveContexts().length > 0 ||
+                  files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
+              ) {
+                toast.info(
+                  'Remove resource and skill mentions and non-image attachments before switching to Search.'
+                )
+                return
+              }
+              onModeChange(mode)
+            }
+          : undefined
+      }
+    />
+  )
+
   const leadingControls = (
     <>
+      {/** With the org project view the mode leads, then what the message carries. */}
+      {projectViewEnabled && modeSelector}
       {imagesOnly && !showModeSelector && (
         <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
       )}
@@ -218,29 +248,7 @@ export function Composer({
         </Tooltip.Root>
       )}
       {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
-      {showModeSelector && (
-        <ConversationModeSelector
-          value={requestMode}
-          searchEnabled={searchEnabled}
-          onChange={
-            onModeChange
-              ? (mode) => {
-                  if (
-                    mode === 'assistant' &&
-                    (editor.getActiveContexts().length > 0 ||
-                      files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
-                  ) {
-                    toast.info(
-                      'Remove resource and skill mentions and non-image attachments before switching to Search.'
-                    )
-                    return
-                  }
-                  onModeChange(mode)
-                }
-              : undefined
-          }
-        />
-      )}
+      {!projectViewEnabled && modeSelector}
     </>
   )
   const voiceControl = voice.isSupported && (
@@ -283,15 +291,15 @@ export function Composer({
       className={cn(
         inter.className,
         'relative z-10 mx-auto w-full max-w-chat',
-        !imagesOnly &&
+        !searchBar &&
           'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        !imagesOnly && isInitialView && 'shadow-ambient'
+        !searchBar && isInitialView && 'shadow-ambient'
       )}
     >
-      {!imagesOnly && attachmentList}
-      {!imagesOnly && promptEditor}
+      {!searchBar && attachmentList}
+      {!searchBar && promptEditor}
 
-      {imagesOnly ? (
+      {searchBar ? (
         <SearchInputBar
           floating={isInitialView}
           attachments={attachmentList}
@@ -308,6 +316,8 @@ export function Composer({
         />
       ) : (
         <InputToolbar
+          /** Search answers from indexed sources, so no model, speed or effort applies to it. */
+          showModelSelector={!imagesOnly}
           leadingControls={leadingControls}
           voiceControl={voiceControl}
           submitControl={submitControl}

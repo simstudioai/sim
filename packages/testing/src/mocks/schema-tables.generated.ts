@@ -500,6 +500,8 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
   ],
+  project: ['id', 'name', 'organizationId', 'archivedAt', 'createdAt', 'updatedAt'],
+  projectWorkspace: ['projectId', 'workspaceId', 'environment', 'position', 'createdAt'],
   workspaceForkResourceMap: [
     'id',
     'childWorkspaceId',
@@ -971,6 +973,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
   ],
+  copilotChatProject: ['chatId', 'projectId', 'createdAt'],
   mothershipResourceEffects: ['chatId', 'effectId', 'createdAt'],
   copilotMessages: [
     'id',

@@ -8,6 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { moveForkToNewProject } from '@/lib/projects/membership'
 import {
   acquireForkEdgeLock,
   type ForkEdge,
@@ -54,6 +55,8 @@ export async function unlinkForkEdge(
       )
       .returning({ id: workspace.id })
     if (updated.length === 0) return false
+    /** A disconnected fork is its own project now, taking its descendants with it. */
+    await moveForkToNewProject(tx, childWorkspaceId)
 
     await tx
       .delete(workspaceForkResourceMap)
