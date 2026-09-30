@@ -31,7 +31,7 @@ vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
   RUNTIME_INSTALL_TIMEOUT_MS: 60_000,
 }))
 
-import { getRedisClient } from '@/lib/core/config/redis'
+import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
   executeInSandbox,
@@ -82,6 +82,7 @@ afterAll(async () => {
     const redis = getRedisClient()
     if (redis) await redis.del(...createdKeys)
   }
+  if (redisUrl) await closeRedisConnection()
   // Only restore what the hoisted setup changed; assigning undefined would store the string "undefined".
   if (!redisUrl) return
   if (inheritedRedisUrl === undefined) Reflect.deleteProperty(process.env, 'REDIS_URL')
