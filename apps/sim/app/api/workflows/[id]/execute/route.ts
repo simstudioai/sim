@@ -1636,6 +1636,12 @@ async function handleExecutePost(
             reqLogger.error('Failed to cleanup base64 cache', { error })
           })
         }
+        /**
+         * The sync response is the run's receipt: callers read its log and cost as soon
+         * as it lands. The core finalizes both in the background, so hold the response
+         * until they are durable.
+         */
+        await loggingSession.waitForPostExecution()
       }
     }
 
