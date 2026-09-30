@@ -27,7 +27,7 @@ const NO_PROJECT = 'none'
 export function NewChatHome() {
   const router = useRouter()
   const { data: session } = useSession()
-  const { projects } = useProjects()
+  const { roots: projects } = useProjects()
   const [{ project }, setParams] = useQueryStates(protoParsers)
   /** The first project is the default so a fresh visit lands in a project, not an org-wide chat. */
   const selected =

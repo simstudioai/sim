@@ -3,6 +3,7 @@
 import { ChipLink } from '@sim/emcn'
 import { Expand } from '@sim/emcn/icons'
 import { Changelog } from '@/app/playground/org/components/changelog'
+import { EnvironmentSwitcher } from '@/app/playground/org/components/environment-switcher'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
@@ -37,7 +38,8 @@ export function WorkspaceView({ project, section, full, settingsSection }: Works
       {full && section === 'settings' ? null : full ? (
         <header className='flex h-12 shrink-0 items-center gap-2 border-[var(--border)] border-b px-6'>
           <current.icon className='size-[14px] text-[var(--text-icon)]' />
-          <h1 className='text-[var(--text-body)] text-small'>{current.label}</h1>
+          <h1 className='min-w-0 flex-1 text-[var(--text-body)] text-small'>{current.label}</h1>
+          <EnvironmentSwitcher project={project} section={section} full />
         </header>
       ) : (
         <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
@@ -48,13 +50,16 @@ export function WorkspaceView({ project, section, full, settingsSection }: Works
               </h1>
               <ProjectDescription project={project} />
             </div>
-            <ChipLink
-              href={protoRoutes.full(project.id, 'workflows')}
-              variant='border'
-              leftIcon={Expand}
-            >
-              Open full view
-            </ChipLink>
+            <div className='flex shrink-0 items-center gap-1'>
+              <EnvironmentSwitcher project={project} section={section} full={false} />
+              <ChipLink
+                href={protoRoutes.full(project.id, 'workflows')}
+                variant='border'
+                leftIcon={Expand}
+              >
+                Open full view
+              </ChipLink>
+            </div>
           </div>
           <nav
             aria-label='Project sections'

@@ -120,7 +120,7 @@ export function ProtoSidebar() {
   const isCollapsed = railCollapsed && !isPeeking
   const pathname = usePathname()
   const [{ chat: openChat }] = useQueryStates(protoParsers)
-  const { projects } = useProjects()
+  const { projects, roots } = useProjects()
   const { data: organization } = useActiveOrganization()
   const { data: session } = useSession()
   const fullProject = projects.find((project) => project.id === fullViewProject(pathname))
@@ -246,7 +246,7 @@ export function ProtoSidebar() {
                   }
                 >
                   <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                    {projects.map((project) => (
+                    {roots.map((project) => (
                       <ProjectTree
                         key={project.id}
                         project={project}
@@ -334,18 +334,29 @@ interface ProjectTreeProps {
   railCollapsed: boolean
 }
 
+/** Which of the project's environments the path is in, if any. */
+function activeEnvironmentId(project: Project, pathname: string | null): string | null {
+  for (const environment of project.environments) {
+    const base = `${PROTO_BASE}/p/${environment.workspaceId}`
+    if (pathname === base || pathname?.startsWith(`${base}/`)) return environment.workspaceId
+  }
+  return null
+}
+
 /**
  * A project row with its chats listed underneath, like Codex's project → threads.
- * Hovering the row reveals + for a new chat in that project.
+ * Hovering the row reveals + for a new chat in that project. A project spans every
+ * environment in its fork lineage; the chats shown belong to the environment you are in.
  */
 function ProjectTree({ project, pathname, openChat, railCollapsed }: ProjectTreeProps) {
   const [showAll, setShowAll] = useState(false)
-  const base = `${PROTO_BASE}/p/${project.id}`
-  const inProject = pathname === base || Boolean(pathname?.startsWith(`${base}/`))
+  const activeId = activeEnvironmentId(project, pathname)
+  const inProject = activeId !== null
+  const chatWorkspaceId = activeId ?? project.id
   /** null follows navigation (open while you're in the project); a click pins it open or shut. */
   const [override, setOverride] = useState<boolean | null>(null)
   const expanded = override ?? inProject
-  const { data: realChats } = useMothershipChats(project.isMock ? undefined : project.id)
+  const { data: realChats } = useMothershipChats(project.isMock ? undefined : chatWorkspaceId)
   const chats = toChatItems(project, realChats)
   const visible = showAll ? chats : chats.slice(0, CHAT_PREVIEW)
   const panelHref = (chatId: string) =>
