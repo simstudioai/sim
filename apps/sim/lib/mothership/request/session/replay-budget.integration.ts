@@ -667,6 +667,63 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     expect(stored.status).toBe('complete')
   })
 
+  it('streams far past the owner budget without refusing, retaining a bounded contiguous tail', async () => {
+    const { maxOwnerBytes, maxUserBytes } = getRedisBudgetLimits('copilot_stream')
+    const chunk = 'x'.repeat(4 * 1024)
+    const eventCount = Math.ceil((maxOwnerBytes * 1.3) / chunk.length)
+    const { streamId, runId, frames } = await runTurn(
+      Array.from({ length: eventCount }, (_, index) => text(`${index}:${chunk}`))
+    )
+
+    expect(frames.map((frame) => frame.type)).not.toContain('error')
+    expect(frames.at(-1)).toMatchObject({ type: 'complete', payload: { status: 'complete' } })
+    const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+    expect(stored.status).toBe('complete')
+
+    const members = await storedMembers(streamId)
+    const retainedBytes = members.reduce((sum, member) => sum + Buffer.byteLength(member), 0)
+    const [ownerBudgetKey, userBudgetKey] = getRedisBudgetKeys({
+      kind: 'copilot_stream',
+      id: streamId,
+      userId,
+    })
+    expect(Number(await redis().get(ownerBudgetKey))).toBe(retainedBytes)
+    expect(retainedBytes).toBeLessThan(maxOwnerBytes)
+    expect(Number(await redis().get(userBudgetKey))).toBeLessThan(maxUserBytes)
+
+    const seqs = members.map((member) => JSON.parse(member).seq as number)
+    const oldestSeq = seqs[0]
+    const latestSeq = seqs.at(-1)!
+    expect(oldestSeq).toBeGreaterThan(1)
+    expect(seqs).toEqual(Array.from({ length: seqs.length }, (_, index) => oldestSeq + index))
+
+    const reconnect = async (after: number) =>
+      dataFrames(
+        await (
+          await streamGET(
+            new NextRequest(
+              `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=${after}`
+            ),
+            { params: Promise.resolve({}) }
+          )
+        ).text()
+      )
+    const inRange = await reconnect(oldestSeq - 1)
+    expect(inRange.map((frame) => frame.seq)).toEqual(seqs)
+    const behind = await reconnect(oldestSeq - 2)
+    expect(behind.map((frame) => [frame.type, frame.payload.code ?? frame.payload.reason])).toEqual(
+      [
+        ['error', 'replay_gap'],
+        ['complete', 'replay_gap'],
+      ]
+    )
+    expect(behind[0].payload.data).toEqual({
+      oldestAvailableSeq: oldestSeq,
+      requestedAfterSeq: oldestSeq - 2,
+    })
+    expect(behind[0].seq).toBe(latestSeq + 1)
+  }, 180_000)
+
   it("leaves its successor's stream untouched when the lease is lost while ending a refused turn", async () => {
     const successorToken = `successor\n${generateId()}`
     worker.hooks.onAbort = async () => {
