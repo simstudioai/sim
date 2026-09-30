@@ -75,6 +75,7 @@ export function Changelog({ project }: { project: Project }) {
         {draft && (
           <NextRelease
             draft={draft}
+            projectId={project.id}
             released={released !== null}
             onRelease={() => release(draft)}
           />
@@ -94,11 +95,12 @@ export function Changelog({ project }: { project: Project }) {
 
 interface NextReleaseProps {
   draft: DraftRelease
+  projectId: string
   released: boolean
   onRelease: () => void
 }
 
-function NextRelease({ draft, released, onRelease }: NextReleaseProps) {
+function NextRelease({ draft, projectId, released, onRelease }: NextReleaseProps) {
   const changes = draft.changes.filter((change) => !released || change.state === 'approval')
   const readyCount = released ? 0 : draft.changes.filter((c) => c.state === 'ready').length
   const held = draft.changes.filter((change) => change.state === 'approval')
@@ -133,7 +135,7 @@ function NextRelease({ draft, released, onRelease }: NextReleaseProps) {
         ) : (
           <ul className='flex flex-col'>
             {changes.map((change) => (
-              <DraftChangeRow key={change.text} change={change} workspaceId={project.id} />
+              <DraftChangeRow key={change.text} change={change} workspaceId={projectId} />
             ))}
           </ul>
         )}
@@ -145,7 +147,7 @@ function NextRelease({ draft, released, onRelease }: NextReleaseProps) {
           {draft.running.map((work) => (
             <li key={work.issue}>
               <Link
-                href={protoRoutes.issue(project.id, work.issue)}
+                href={protoRoutes.issue(projectId, work.issue)}
                 className='flex w-full items-center gap-3 border-[var(--border)] border-b py-3 text-left last:border-b-0 hover-hover:opacity-80'
               >
                 <RunningDot />

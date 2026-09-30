@@ -106,7 +106,10 @@ export interface Workspace {
   id: string
   name: string
   description: string
+  /** Picks this pack when the workspace name matches; a name-independent signal is `matchWorkflows`. */
   match?: RegExp
+  /** Picks this pack when the workspace holds a workflow with one of these exact names. */
+  matchWorkflows?: string[]
   tracker: { kind: TrackerKind; label: string; synced?: string }
   feedbackSources: { source: FeedbackSource; label: string }[]
   dashboards: string[]
@@ -138,6 +141,11 @@ export const WORKSPACES: Workspace[] = [
     description:
       'Investigates payment variance and provider-service backlog, drafts briefs, and routes cases for analyst review',
     match: /payment|claim|variance|provider|backlog|billing/i,
+    matchWorkflows: [
+      'Payment Exception Investigation',
+      'Provider Service Recovery',
+      'Analyst Review - Demo Cases',
+    ],
     tracker: { kind: 'jira', label: 'Jira', synced: '3m ago' },
     feedbackSources: [{ source: 'slack', label: '#claims-analysts' }],
     dashboards: [],
