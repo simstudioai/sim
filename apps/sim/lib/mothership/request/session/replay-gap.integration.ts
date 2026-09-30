@@ -241,9 +241,27 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
     await db.update(copilotRuns).set({ status: 'active' }).where(eq(copilotRuns.id, runId))
     const frames = dataFrames(await body)
 
+    const elapsed = Date.now() - startedAt
     expect(frames.map((frame) => frame.type)).toEqual(['text'])
-    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(1_500)
+    expect(elapsed).toBeGreaterThanOrEqual(1_500)
+    expect(elapsed).toBeLessThan(5_000)
     expect(worker.requests).toHaveLength(1)
+  })
+
+  it('ends a stalled replay promptly once the run finishes', async () => {
+    const { streamId, runId } = await liveRunWithTrimmedRing()
+    worker.reply.frames = [
+      workerFrame(streamId, 1, 'text', { channel: 'assistant', text: 'so far', textOffset: 0 }),
+      workerFrame(streamId, 2, 'run', { kind: 'replay_end', reason: 'stalled', textLength: 6 }),
+    ]
+
+    const startedAt = Date.now()
+    const body = (await reconnect(streamId, '0')).text()
+    await sleep(1_000)
+    await db.update(copilotRuns).set({ status: 'complete' }).where(eq(copilotRuns.id, runId))
+    await body
+
+    expect(Date.now() - startedAt).toBeLessThan(5_000)
   })
 
   it('ends a live tail without a terminal when its ring restarts under it', async () => {

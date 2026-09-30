@@ -10,6 +10,7 @@ import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/go/parser'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import {
+  isTerminalStreamStatus,
   type PersistedStreamEventEnvelope,
   parsePersistedStreamEventEnvelope,
 } from '@/lib/mothership/request/session/contract'
@@ -21,7 +22,8 @@ const logger = createLogger('RunReplay')
 const REPLAY_PATH = '/api/streams/replay'
 /** A reader's replay response stays open at least this long unless the run ended. */
 const REPLAY_MIN_RESPONSE_MS = 10_000
-const REPLAY_HOLD_POLL_MS = 2_000
+const REPLAY_HOLD_POLL_MS = 1_000
+const PARKED_RUN_STATUS = 'paused_waiting_for_tool'
 
 /** How a worker replay leg ended: at the run's terminal, short of it, or cut off. */
 export type RunReplayEnd = 'complete' | StreamReplayEnd['reason'] | 'closed'
@@ -140,8 +142,8 @@ export interface ForwardRunReplayOptions {
   signal: AbortSignal
   /** Writes one event to the reader; false once the reader is gone. */
   write: (event: PersistedStreamEventEnvelope) => boolean
-  /** Whether the run still waits on calls Sim executes. */
-  isParked: () => Promise<boolean>
+  /** The run's current status, or null when it cannot be read. */
+  readRunStatus: () => Promise<string | null>
   isClosed: () => boolean
   /** When the reader's response must end regardless. */
   deadlineAt: number
@@ -150,12 +152,13 @@ export interface ForwardRunReplayOptions {
 /**
  * Forwards a replay leg to one reader under that response's own cursors, starting at
  * 1, then decides how long the response stays open. A terminal or the worker's cap
- * ends it at once: the cap came after minutes of progress. A park holds it while the
- * run waits on Sim, and any other end holds it at least {@link REPLAY_MIN_RESPONSE_MS},
- * so a reader re-attaches, and replays the whole log again, at most that often.
+ * ends it at once: the cap came after minutes of progress. Otherwise it holds, ending
+ * as soon as the run reaches a terminal or, after a park, resumes; a stall or a cut
+ * connection holds at least {@link REPLAY_MIN_RESPONSE_MS}, so a reader re-attaches,
+ * and replays the whole log again, at most that often.
  */
 export async function forwardRunReplay(options: ForwardRunReplayOptions): Promise<RunReplayEnd> {
-  const { body, streamId, signal, write, isParked, isClosed, deadlineAt } = options
+  const { body, streamId, signal, write, readRunStatus, isClosed, deadlineAt } = options
   const startedAt = Date.now()
   let seq = 0
   const end = await readRunReplay(body, signal, (event) => {
@@ -173,8 +176,15 @@ export async function forwardRunReplay(options: ForwardRunReplayOptions): Promis
     return 'closed' as const
   })
   if (end === 'complete' || end === 'cap') return end
+  // Sim may mark the park a moment after the worker ends on it, so a park only counts as
+  // resumed once Sim was seen parked; until then it holds like any other end.
+  let sawParked = false
   while (!isClosed() && Date.now() < deadlineAt) {
-    const parked = end === 'parked' && (await isParked())
+    const status = await readRunStatus()
+    if (isTerminalStreamStatus(status)) break
+    const parked = end === 'parked' && status === PARKED_RUN_STATUS
+    if (end === 'parked' && sawParked && !parked) break
+    sawParked ||= parked
     const remaining = REPLAY_MIN_RESPONSE_MS - (Date.now() - startedAt)
     if (!parked && remaining <= 0) break
     await sleep(parked ? REPLAY_HOLD_POLL_MS : Math.min(REPLAY_HOLD_POLL_MS, remaining))

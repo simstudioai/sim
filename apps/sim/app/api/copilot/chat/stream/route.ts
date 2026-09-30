@@ -50,6 +50,8 @@ const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
 const POLL_INTERVAL_MAX_MS = 2_000
 const REPLAY_KEEPALIVE_INTERVAL_MS = 15_000
+/** How often a tail that is still flushing events checks that its ring can serve it. */
+const RING_CHECK_EVERY_BUSY_POLLS = 8
 /**
  * One replay response stays open at most this long, inside the route's `maxDuration`.
  * A run still going at the cap is not over: the response ends without a terminal
@@ -445,8 +447,7 @@ async function handleResumeRequestBody({
             if (envelope.type === MothershipStreamV1EventType.complete) sawTerminalEvent = true
             return true
           },
-          isParked: async () =>
-            (await readRun().catch(() => null))?.status === 'paused_waiting_for_tool',
+          readRunStatus: async () => (await readRun().catch(() => null))?.status ?? null,
           isClosed: () => controllerClosed,
           deadlineAt: startTime + MAX_STREAM_MS,
         })
@@ -480,7 +481,7 @@ async function handleResumeRequestBody({
         return
       }
 
-      await flushEvents()
+      let lastFlushed = await flushEvents()
 
       let pollDelayMs = POLL_INTERVAL_MS
       while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
@@ -492,8 +493,11 @@ async function handleResumeRequestBody({
           })
           return null
         })
-        // The ring lost its head or restarted under this tail; the re-attach re-syncs.
-        if (!ringCanServe(await readRingPosition(streamId, cursor))) {
+        // The ring lost its head or restarted under this tail; the re-attach re-syncs. Only a
+        // quiet ring can have restarted or have a dead controller that recovery re-sends
+        // under, so a busy tail checks every few polls rather than on each one.
+        const checkRing = lastFlushed === 0 || pollIterations % RING_CHECK_EVERY_BUSY_POLLS === 0
+        if (checkRing && !ringCanServe(await readRingPosition(streamId, cursor))) {
           logger.warn('Replay ring can no longer serve a live tail', { streamId, cursor })
           break
         }
@@ -509,6 +513,7 @@ async function handleResumeRequestBody({
         currentRequestId = extractRunRequestId(currentRun) || currentRequestId
 
         const flushed = await flushEvents()
+        lastFlushed = flushed
         /* Adaptive tail: 4 Hz only while events are actually flowing; a quiet stream
            decays toward the cap so an attached client doesn't hammer Postgres + Redis
            at 4 Hz for up to an hour. Any flushed event snaps back to full rate. */
