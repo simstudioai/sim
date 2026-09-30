@@ -262,8 +262,38 @@ describe('compactStreamEvent', () => {
     expect(Buffer.byteLength(JSON.stringify(compacted))).toBeLessThanOrEqual(
       STREAM_EVENT_MAX_PAYLOAD_BYTES
     )
-    expect(compacted.output).toMatch(/^…\[omitted, [\d.]+ MB total\]$/)
+    expect(toRecord(compacted.output).blocks).toMatch(/^…\[omitted, [\d.]+ MB total\]$/)
     expect(compacted).toMatchObject({ toolCallId: 'c', success: true, status: 'success' })
+  })
+
+  it('omits only the bulk inside an output, keeping the ids and resources the UI reads', () => {
+    const blocks = Object.fromEntries(
+      Array.from({ length: 5_000 }, (_, index) => [`block-${index}`, 'b'.repeat(300)])
+    )
+    const resources = [{ type: 'workflow', id: 'wf-1', title: 'Pipeline' }]
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_workflows_state_get',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: true,
+        status: 'success',
+        output: { workflowId: 'wf-1', resources, data: { id: 'wf-1', name: 'Pipeline', blocks } },
+      },
+    }
+
+    const output = toRecord(payloadOf(compactStreamEvent(event)).output)
+
+    expect(output.workflowId).toBe('wf-1')
+    expect(output.resources).toEqual(resources)
+    expect(output.data).toEqual({
+      id: 'wf-1',
+      name: 'Pipeline',
+      blocks: expect.stringMatching(/^…\[omitted, [\d.]+ MB total\]$/),
+    })
   })
 
   it('never omits identity to make room for client-executed arguments it must keep whole', () => {

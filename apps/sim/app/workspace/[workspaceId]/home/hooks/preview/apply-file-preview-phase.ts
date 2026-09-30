@@ -99,3 +99,17 @@ export function deriveFilePreviewSession(
       }
   }
 }
+
+/**
+ * Whether the preview text the client holds is the edit's final content. The
+ * server skips a content frame too large for the stream, so a completion whose
+ * version is newer than the last content received means the text is an earlier
+ * draft, and only the stored file is the saved result.
+ */
+export function previewHoldsFinalContent(
+  prev: FilePreviewSession | undefined,
+  completion: Extract<SyntheticFilePreviewPayload, { previewPhase: 'file_preview_complete' }>
+): boolean {
+  if (!prev || prev.previewText.length === 0) return false
+  return completion.previewVersion === undefined || prev.previewVersion >= completion.previewVersion
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
-import { deriveFilePreviewSession } from './apply-file-preview-phase'
+import { deriveFilePreviewSession, previewHoldsFinalContent } from './apply-file-preview-phase'
 
 const NOW = '2026-06-08T00:00:00.000Z'
 
@@ -92,5 +92,30 @@ describe('deriveFilePreviewSession', () => {
     expect(second?.previewText).toBe('ABC') // NOT 'ABCABC'
     const third = run(second)
     expect(third?.previewText).toBe('ABC')
+  })
+})
+
+describe('previewHoldsFinalContent', () => {
+  const complete = (previewVersion?: number) => ({
+    previewPhase: 'file_preview_complete' as const,
+    toolCallId: 'tool-1',
+    toolName: 'prepare_file_edit' as const,
+    ...(previewVersion !== undefined ? { previewVersion } : {}),
+  })
+
+  it('holds the final content when the last content received is the completed version', () => {
+    const prev = session({ previewText: 'final text', previewVersion: 7 })
+
+    expect(previewHoldsFinalContent(prev, complete(7))).toBe(true)
+  })
+
+  it('does not hold it when later versions were never received, so the stored file must load', () => {
+    const prev = session({ previewText: 'an earlier draft', previewVersion: 5 })
+
+    expect(previewHoldsFinalContent(prev, complete(7))).toBe(false)
+  })
+
+  it('does not hold it when no content was received at all', () => {
+    expect(previewHoldsFinalContent(undefined, complete(7))).toBe(false)
   })
 })

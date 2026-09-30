@@ -111,21 +111,56 @@ function mapLeaves(
 /** A field must be at least this large to be omitted as a last resort. */
 const OMITTABLE_FIELD_MIN_BYTES = 64 * 1024
 
-/**
- * Replaces the payload's largest field with a note of its size: the last resort
- * for an event whose many short values no cut could bound, such as an object
- * with thousands of keys.
- */
-function omitLargestField(payload: Record<string, unknown>, skipKeys: ReadonlySet<string>) {
-  let largest: { key: string; bytes: number } | undefined
-  for (const [key, field] of Object.entries(payload)) {
-    if (skipKeys.has(key)) continue
-    const bytes = Buffer.byteLength(JSON.stringify(field) ?? '', 'utf8')
-    if (!largest || bytes > largest.bytes) largest = { key, bytes }
+type Child = { key: string | number; value: unknown; bytes: number }
+
+/** The largest child of an object or array, by serialized size. */
+function largestChild(value: unknown, skipKeys: ReadonlySet<string>): Child | undefined {
+  const entries: Array<[string | number, unknown]> = Array.isArray(value)
+    ? value.map((item, index) => [index, item])
+    : isRecordLike(value)
+      ? Object.entries(value).filter(([key]) => !skipKeys.has(key))
+      : []
+  let largest: Child | undefined
+  for (const [key, child] of entries) {
+    const bytes = Buffer.byteLength(JSON.stringify(child) ?? '', 'utf8')
+    if (!largest || bytes > largest.bytes) largest = { key, value: child, bytes }
   }
+  return largest
+}
+
+/** Copies `value` along `path`, replacing the value at its end. */
+function replaceAt(value: unknown, path: Array<string | number>, replacement: unknown): unknown {
+  if (path.length === 0) return replacement
+  const [key, ...rest] = path
+  if (Array.isArray(value)) {
+    const copy = [...value]
+    copy[Number(key)] = replaceAt(copy[Number(key)], rest, replacement)
+    return copy
+  }
+  const copy = { ...toRecordOrNull(value) }
+  copy[String(key)] = replaceAt(copy[String(key)], rest, replacement)
+  return copy
+}
+
+/**
+ * The last resort for an event whose many short values no cut could bound,
+ * such as an object with thousands of keys. Walks down from the largest field
+ * while one child holds most of its parent's bytes, and replaces only that
+ * dominating node with a note of its size, so the small siblings the UI reads
+ * (ids, resources, status) stay intact.
+ */
+function omitDominantBulk(payload: Record<string, unknown>, skipKeys: ReadonlySet<string>) {
+  let node = largestChild(payload, skipKeys)
   // Identity fields are never this large, so only bulk is ever replaced.
-  if (!largest || largest.bytes <= OMITTABLE_FIELD_MIN_BYTES) return payload
-  return { ...payload, [largest.key]: `…[omitted, ${formatFileSize(largest.bytes)} total]` }
+  if (!node || node.bytes <= OMITTABLE_FIELD_MIN_BYTES) return payload
+  const path = [node.key]
+  for (;;) {
+    const child = largestChild(node.value, NO_KEYS)
+    if (!child || child.bytes * 2 <= node.bytes || child.bytes <= OMITTABLE_FIELD_MIN_BYTES) break
+    path.push(child.key)
+    node = child
+  }
+  return replaceAt(payload, path, `…[omitted, ${formatFileSize(node.bytes)} total]`)
 }
 
 /**
@@ -133,7 +168,7 @@ function omitLargestField(payload: Record<string, unknown>, skipKeys: ReadonlySe
  * only to the copy the writer delivers and persists; the caller keeps the full
  * event for dispatch. Long strings are cut to their head in place, so every
  * object keeps its shape; if that is not enough, long arrays keep their head,
- * and past one replay write the largest field is replaced by a size note.
+ * and past one replay write the dominating bulk is replaced by a size note.
  * Assistant text, file previews, and the arguments of calls the browser
  * executes are never cut; an event
  * still too large is refused by the buffer, which ends the turn with an error.
@@ -156,7 +191,7 @@ export function compactStreamEvent(event: StreamEvent): StreamEvent {
     compacted = trimArrays(compacted, skipKeys)
   }
   if (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_MAX_PAYLOAD_BYTES) {
-    compacted = omitLargestField(toRecordOrNull(compacted) ?? {}, skipKeys)
+    compacted = omitDominantBulk(toRecordOrNull(compacted) ?? {}, skipKeys)
   }
   return compacted === payload ? event : ({ ...event, payload: compacted } as StreamEvent)
 }
