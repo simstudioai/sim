@@ -15,11 +15,24 @@ export const benchmarkBlankSchema = z
     answer: z.string().min(1, 'A blank must have an answer'),
   })
   .strict()
+export const benchmarkSourceSchema = z
+  .object({
+    citationId: z.string().min(1),
+    quote: z.string().trim().min(1),
+    url: z
+      .url()
+      .refine((value) => ['https:', 'http:'].includes(new URL(value).protocol))
+      .optional(),
+    title: z.string().optional(),
+  })
+  .strict()
 export const benchmarkReconstructionSchema = z
   .object({
     id: benchmarkBlankSchema.shape.id,
     answer: z.string(),
     support: z.string(),
+    sources: z.array(benchmarkSourceSchema).optional(),
+    evidenceError: z.string().optional(),
   })
   .strict()
 export const benchmarkGradeSchema = z
@@ -27,6 +40,7 @@ export const benchmarkGradeSchema = z
     id: benchmarkBlankSchema.shape.id,
     correct: z.boolean(),
     reason: z.string(),
+    basis: z.enum(['spec', 'reference', 'missing']).optional(),
   })
   .strict()
 export const benchmarkArtifactsSchema = z
@@ -38,6 +52,7 @@ export const benchmarkArtifactsSchema = z
     generatedSpec: benchmarkSpecSchema.nullable(),
     reconstruction: z.array(benchmarkReconstructionSchema).nullable(),
     grade: z.array(benchmarkGradeSchema).nullable(),
+    recoveryMode: z.literal('references').optional(),
   })
   .strict()
 

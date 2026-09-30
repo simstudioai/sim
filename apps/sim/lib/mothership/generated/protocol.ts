@@ -488,10 +488,14 @@ export interface ProtocolMismatch {
 export const BenchmarkExecution = z.discriminatedUnion("stage", [
   z.strictObject({ stage: z.literal("distill") }),
   z.strictObject({ stage: z.literal("reconstruct"), spec: z.string().min(1) }),
+  z.strictObject({ stage: z.literal("resolve"), spec: z.string().min(1) }),
 ]);
 export type BenchmarkExecution = z.infer<typeof BenchmarkExecution>;
 
 export interface ExecuteRequest extends StreamResponseReceipt {
+  /** Organization Plan scope is reserved for reference-resolving benchmark executions. */
+  organizationId?: string | undefined;
+  mode?: "plan" | undefined;
   benchmark?: BenchmarkExecution | undefined;
   /** Optional per-call output bound for stateless structured stages (1–32768 tokens). */
   maxOutputTokens?: number | undefined;

@@ -30,6 +30,11 @@ function RunSnapshot({
           <p className='mt-1 text-[var(--text-muted)] text-small tabular-nums'>
             {Math.round((run.correct / run.total) * 100)}% · {run.correct} of {run.total} recovered
           </p>
+          <p className='mt-1 text-[var(--text-muted)] text-small'>
+            {run.artifacts.recoveryMode === 'references'
+              ? 'Spec with reference resolution'
+              : 'Spec only'}
+          </p>
           {run.reviewedCount > 0 && (
             <p className='mt-1 text-[var(--text-muted)] text-small'>
               {run.reviewedCount} human overrides · AI score{' '}
@@ -108,7 +113,7 @@ export function BenchmarkRunComparison({
         <p role='status' className='text-[var(--text-body)] text-small'>
           {comparable
             ? `${delta > 0 ? '+' : ''}${Number(delta.toFixed(1))} percentage points vs baseline · ${improved} details improved · ${regressed} regressed`
-            : 'These runs used different task briefs or reference details. Their scores are not directly comparable.'}
+            : 'These runs used different inputs or recovery methods. Their scores are not directly comparable.'}
         </p>
       )}
       {(run.reviewedCount > 0 || (baseline?.reviewedCount ?? 0) > 0) && (

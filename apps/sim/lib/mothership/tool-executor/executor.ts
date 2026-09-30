@@ -49,7 +49,7 @@ export async function executeTool(
         !context.organizationId &&
         !context.targetWorkspaceId &&
         !context.workflowId
-      : context.benchmark === 'plan' &&
+      : (context.benchmark === 'plan' || context.benchmark === 'resolve') &&
         ['search_workspace', 'read_document'].includes(toolId) &&
         context.organizationId &&
         !context.workspaceId &&

@@ -143,7 +143,7 @@ function BenchmarkEditor({
       <BenchmarkStep
         number={3}
         title='Fill in the blanks'
-        description='A fresh reader fills the blanks by reading or searching the generated plan. It has no enterprise access or prior memory.'
+        description='A fresh reader fills the blanks from the generated plan and may look up references already named there. Lookups cannot supply missing workflow rules. The reader never sees expected answers or the completed workspace.'
         pending={stage === 'reconstruct'}
         action={
           <Chip
