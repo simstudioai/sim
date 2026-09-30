@@ -29,13 +29,24 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
 })
 
 import { db } from '@sim/db'
-import { copilotChats, copilotRuns, permissions, user, workspace } from '@sim/db/schema'
+import {
+  copilotChats,
+  copilotRequestStops,
+  copilotRuns,
+  permissions,
+  user,
+  workspace,
+} from '@sim/db/schema'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { randomInt } from '@sim/utils/random'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
+  ORPHANED_RUN_ERROR,
   settleStoppedRunWithoutController,
   sweepOrphanedRuns,
+  UNLEASED_RUN_ERROR,
 } from '@/lib/mothership/async-runs/orphaned-runs'
 import { updateRunStatus } from '@/lib/mothership/async-runs/repository'
 import { abortRun } from '@/lib/mothership/request/application/controls'
@@ -98,6 +109,8 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
    * A run as the chat POST admits it: the chat marker names its stream and the run
    * records the lock value its first controller held. `idleMinutes` backdates its
    * last durable write; `controllerToken: null` is a run with no lease protocol.
+   * `stopped` records the user's Stop intent; `superseded` only closes tool admission,
+   * as a newer turn's workbench does to older runs.
    */
   async function admittedRun(
     options: {
@@ -105,6 +118,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       status?: 'active' | 'paused_waiting_for_tool'
       controllerToken?: string | null
       stopped?: boolean
+      superseded?: boolean
     } = {}
   ) {
     const chatId = generateId()
@@ -137,8 +151,10 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
         : { source: 'headless_lifecycle' },
       startedAt: idle,
       updatedAt: idle,
-      ...(options.stopped ? { toolAdmissionClosedAt: idle } : {}),
+      ...(options.stopped || options.superseded ? { toolAdmissionClosedAt: idle } : {}),
     })
+    if (options.stopped)
+      await db.insert(copilotRequestStops).values({ userId, workspaceId, streamId })
     return { chatId, streamId, runId, controllerToken }
   }
 
@@ -174,15 +190,35 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     expect((await stored(orphan.runId)).status).toBe('cancelled')
   })
 
+  it('settles a run a newer turn superseded, without a Stop, as an error', async () => {
+    const orphan = await admittedRun({ idleMinutes: 90, superseded: true })
+
+    const { settledRunIds } = await sweepOrphanedRuns()
+
+    expect(settledRunIds).toContain(orphan.runId)
+    const run = await stored(orphan.runId)
+    expect(run.status).toBe('error')
+    expect(run.error).toBeTruthy()
+  })
+
   it('settles a run without a lease only after the unleased ceiling', async () => {
     const recent = await admittedRun({ idleMinutes: 90, controllerToken: null })
     const abandoned = await admittedRun({ idleMinutes: 25 * 60, controllerToken: null })
-
+    const [before] = await db
+      .select({ updatedAt: copilotRuns.updatedAt })
+      .from(copilotRuns)
+      .where(eq(copilotRuns.id, abandoned.runId))
     const { settledRunIds } = await sweepOrphanedRuns()
 
     expect(settledRunIds).toContain(abandoned.runId)
     expect(settledRunIds).not.toContain(recent.runId)
-    expect((await stored(abandoned.runId)).status).toBe('error')
+    const settled = await stored(abandoned.runId)
+    expect(settled.status).toBe('error')
+    /** Its retention clock keeps running from its last real write, and it reads as never finalized. */
+    expect(settled.updatedAt).toEqual(before.updatedAt)
+    expect(settled.completedAt).toEqual(before.updatedAt)
+    expect(settled.error).toBe(UNLEASED_RUN_ERROR)
+    expect(settled.error).not.toBe(ORPHANED_RUN_ERROR)
     expect((await stored(recent.runId)).status).toBe('active')
   })
 
@@ -281,6 +317,66 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       expect(run.marker).toBe(owned.streamId)
     } finally {
       await redis().del(chatStreamLockKey(owned.chatId))
+    }
+  })
+
+  it('never deadlocks a sweep against recovering controllers claiming the same runs', async () => {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const orphans = await Promise.all(
+        Array.from({ length: 20 }, () => admittedRun({ idleMinutes: 90 }))
+      )
+
+      const [sweep, ...claims] = await Promise.all([
+        sweepOrphanedRuns(),
+        /** Staggered so claims land while the sweep's settling transaction holds its locks. */
+        ...orphans.map((orphan) =>
+          sleep(randomInt(0, 40)).then(() =>
+            claimRunController({
+              runId: orphan.runId,
+              chatId: orphan.chatId,
+              previousToken: orphan.controllerToken!,
+              token: `${orphan.streamId}\n${generateId()}`,
+            })
+          )
+        ),
+      ])
+
+      orphans.forEach((orphan, index) => {
+        expect(claims[index] !== sweep.settledRunIds.includes(orphan.runId)).toBe(true)
+      })
+    }
+  })
+
+  it('settles a stopped run exactly once when Stop races its own controller finalizing', async () => {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const orphan = await admittedRun()
+
+      const [finalized, stopped] = await Promise.all([
+        updateRunStatus(orphan.runId, 'complete', {}, orphan.controllerToken!),
+        settleStoppedRunWithoutController(orphan.runId),
+      ])
+
+      expect(Boolean(finalized) !== stopped).toBe(true)
+      expect((await stored(orphan.runId)).status).toBe(stopped ? 'cancelled' : 'complete')
+    }
+  })
+
+  it('settles a stopped run exactly once when Stop races a recovering controller claiming it', async () => {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const orphan = await admittedRun()
+
+      const [claimed, stopped] = await Promise.all([
+        claimRunController({
+          runId: orphan.runId,
+          chatId: orphan.chatId,
+          previousToken: orphan.controllerToken!,
+          token: `${orphan.streamId}\n${generateId()}`,
+        }),
+        settleStoppedRunWithoutController(orphan.runId),
+      ])
+
+      expect(claimed !== stopped).toBe(true)
+      expect((await stored(orphan.runId)).status).toBe(stopped ? 'cancelled' : 'active')
     }
   })
 })

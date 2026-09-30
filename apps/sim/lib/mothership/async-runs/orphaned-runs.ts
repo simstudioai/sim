@@ -1,7 +1,14 @@
 import { db } from '@sim/db'
-import { type CopilotRunStatus, copilotChats, copilotRuns } from '@sim/db/schema'
+import {
+  type CopilotRunStatus,
+  copilotChats,
+  copilotOrganizationRequestStops,
+  copilotRequestStops,
+  copilotRuns,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import {
   and,
   asc,
@@ -16,7 +23,6 @@ import {
   sql,
 } from 'drizzle-orm'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { findStreamsWithReplay } from '@/lib/mothership/request/session/buffer'
 import { findStreamsHoldingChatLock } from '@/lib/mothership/request/session/controller-lease'
 
@@ -31,11 +37,17 @@ const UNFINISHED_RUN_STATUSES: CopilotRunStatus[] = [
 ]
 
 /**
- * How long a leased run must sit without a controller or a durable write before it is
- * settled. No worker leg outlives the orchestration budget, so past it a reconnect has
- * nothing left to resume.
+ * How long a leased run must go without a status write before the sweep may settle it.
+ *
+ * This is a recovery window, not a liveness test, and is independent of any run
+ * deadline. Liveness comes only from the chat lock: a live controller renews it by
+ * heartbeat for as long as it runs, however long that is, and a run whose stream holds
+ * the lock is never settled. For a run with no lock holder, this window and the replay
+ * buffer's `:seq` key (whose TTL each write renews, `COPILOT_STREAM_TTL_SECONDS`,
+ * one hour by default) leave a reconnect time to resume it; the sweep waits for both.
+ * A TTL configured below this window shortens only that resume window, never safety.
  */
-export const ORPHANED_RUN_GRACE_MS = ORCHESTRATION_TIMEOUT_MS
+export const ORPHANED_RUN_GRACE_MS = 60 * 60 * 1000
 
 /**
  * Runs admitted without a chat lease (headless turns and rows from before the lease
@@ -45,9 +57,12 @@ export const ORPHANED_RUN_GRACE_MS = ORCHESTRATION_TIMEOUT_MS
 export const UNLEASED_RUN_GRACE_MS = 24 * 60 * 60 * 1000
 
 export const ORPHANED_RUN_ERROR = 'This response was interrupted before it finished.'
+export const UNLEASED_RUN_ERROR = 'Run was never finalized (no controller lease).'
 
 const SWEEP_BATCH_SIZE = 500
-const SWEEP_MAX_ROWS_PER_RUN = 10_000
+const SWEEP_MAX_ROWS_PER_RUN = 5_000
+/** Spaces full batches so a backlog drains without a sustained burst of synchronous commits. */
+const SWEEP_BATCH_PAUSE_MS = 200
 
 const controllerToken = sql<string | null>`${copilotRuns.requestContext}->>'controllerToken'`
 
@@ -57,6 +72,15 @@ function idleFor(ms: number): SQL {
 
 const leasedRunIdle = and(isNotNull(controllerToken), idleFor(ORPHANED_RUN_GRACE_MS))
 const unleasedRunIdle = and(isNull(controllerToken), idleFor(UNLEASED_RUN_GRACE_MS))
+const orphanIdle = or(leasedRunIdle, unleasedRunIdle)
+
+/** The user pressed Stop on this stream; a newer turn also closes tool admission, without one. */
+const stopRequested = sql`(EXISTS (SELECT 1 FROM ${copilotRequestStops} s
+    WHERE s.user_id = ${copilotRuns.userId} AND s.workspace_id = ${copilotRuns.workspaceId}
+      AND s.stream_id = ${copilotRuns.streamId})
+  OR EXISTS (SELECT 1 FROM ${copilotOrganizationRequestStops} s
+    WHERE s.user_id = ${copilotRuns.userId} AND s.organization_id = ${copilotRuns.organizationId}
+      AND s.stream_id = ${copilotRuns.streamId}))`
 
 interface UnownedRun {
   id: string
@@ -80,30 +104,51 @@ const unownedRunColumns = {
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+/** A stopped run ends cancelled; the sweep ends it cancelled only if its user pressed Stop. */
+function terminalValues(reason: 'stopped' | 'orphaned' | 'unleased') {
+  if (reason === 'stopped') {
+    return { status: sql`'cancelled'::copilot_run_status`, error: sql`NULL::text` }
+  }
+  const error = reason === 'orphaned' ? ORPHANED_RUN_ERROR : UNLEASED_RUN_ERROR
+  return {
+    status: sql`(CASE WHEN ${stopRequested} THEN 'cancelled' ELSE 'error' END)::copilot_run_status`,
+    error: sql`CASE WHEN ${stopRequested} THEN NULL ELSE ${error}::text END`,
+  }
+}
+
 /**
  * Settles each run only while it is still unfinished and still names the controller
  * the caller observed, so a finalizing controller or a successor's claim, both of
- * which write the same row, wins or loses atomically against it. A run that Stop
- * already closed settles as cancelled. The chat marker is released without touching
- * the chat's ordering timestamp.
+ * which write the same row, wins or loses atomically against it.
+ *
+ * Chat rows are locked first, in id order, as a controller's claim does, so the two
+ * never wait on each other in opposite orders. A run without a lease keeps its last
+ * write as its completion and retention time. The chat marker is released without
+ * touching the chat's ordering timestamp.
  */
 async function settleRuns(
   tx: Transaction,
   runs: UnownedRun[],
-  guard: SQL | undefined,
-  outcome: { status: 'error' | 'cancelled'; error?: string }
+  reason: 'stopped' | 'orphaned',
+  guard: SQL | undefined
 ): Promise<UnownedRun[]> {
+  if (runs.length === 0) return []
+  const chatIds = [...new Set(runs.map((run) => run.chatId))]
+  await tx
+    .select({ id: copilotChats.id })
+    .from(copilotChats)
+    .where(inArray(copilotChats.id, chatIds))
+    .orderBy(asc(copilotChats.id))
+    .for('update')
+
   const settled: UnownedRun[] = []
-  const apply = async (owner: SQL | undefined, batch: UnownedRun[]) => {
+  const apply = async (batch: UnownedRun[], owner: SQL, values: object) => {
     if (batch.length === 0) return
     const rows = await tx
       .update(copilotRuns)
       .set({
-        status: sql`(CASE WHEN ${copilotRuns.toolAdmissionClosedAt} IS NOT NULL THEN 'cancelled' ELSE ${outcome.status} END)::copilot_run_status`,
-        error: sql`CASE WHEN ${copilotRuns.toolAdmissionClosedAt} IS NOT NULL THEN NULL ELSE ${outcome.error ?? null}::text END`,
-        completedAt: sql`now()`,
+        ...values,
         toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())`,
-        updatedAt: sql`now()`,
       })
       .where(
         and(
@@ -122,18 +167,27 @@ async function settleRuns(
   }
 
   await apply(
+    runs.filter((run) => run.controllerToken === null),
     isNull(controllerToken),
-    runs.filter((run) => run.controllerToken === null)
+    { ...terminalValues('unleased'), completedAt: sql`${copilotRuns.updatedAt}` }
   )
   for (const run of runs) {
-    if (run.controllerToken !== null) await apply(eq(controllerToken, run.controllerToken), [run])
+    if (run.controllerToken === null) continue
+    await apply([run], eq(controllerToken, run.controllerToken), {
+      ...terminalValues(reason),
+      completedAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
   }
 
-  for (const run of settled) {
+  if (settled.length > 0) {
+    const markers = settled.map((run) => sql`(${run.chatId}::uuid, ${run.streamId}::text)`)
     await tx
       .update(copilotChats)
       .set({ conversationId: null })
-      .where(and(eq(copilotChats.id, run.chatId), eq(copilotChats.conversationId, run.streamId)))
+      .where(
+        sql`(${copilotChats.id}, ${copilotChats.conversationId}) IN (${sql.join(markers, sql`, `)})`
+      )
   }
   return settled
 }
@@ -155,57 +209,68 @@ function announceSettled(runs: UnownedRun[]): void {
   }
 }
 
+/** The candidates no controller owns; leased runs are skipped when ownership is unreadable. */
+async function withoutOwners(candidates: UnownedRun[]): Promise<UnownedRun[]> {
+  const leased = candidates.filter((run) => run.controllerToken !== null)
+  const unleased = candidates.filter((run) => run.controllerToken === null)
+  if (leased.length === 0) return unleased
+  try {
+    const [locked, replayable] = await Promise.all([
+      findStreamsHoldingChatLock(leased),
+      findStreamsWithReplay(leased.map((run) => run.streamId)),
+    ])
+    return unleased.concat(
+      leased.filter((run) => !locked.has(run.streamId) && !replayable.has(run.streamId))
+    )
+  } catch (error) {
+    logger.warn('Chat stream ownership is unreadable; leaving leased runs for a later sweep', {
+      error: getErrorMessage(error),
+    })
+    return unleased
+  }
+}
+
 /**
  * Settles runs that no controller will ever finish: a leased run whose stream holds no
  * chat lock and has no replay buffer left, idle past the recovery window, and a run
- * without a lease idle past any process lifetime. Unreadable locks skip leased runs.
+ * without a lease idle past any process lifetime. A failed batch is logged and skipped.
  */
 export async function sweepOrphanedRuns(): Promise<{ settledRunIds: string[] }> {
   const settledRunIds: string[] = []
-  const idle = or(leasedRunIdle, unleasedRunIdle)
   let cursor: string | undefined
   let considered = 0
 
   while (considered < SWEEP_MAX_ROWS_PER_RUN) {
+    const limit = Math.min(SWEEP_BATCH_SIZE, SWEEP_MAX_ROWS_PER_RUN - considered)
     const candidates: UnownedRun[] = await db
       .select(unownedRunColumns)
       .from(copilotRuns)
       .where(
         and(
           inArray(copilotRuns.status, UNFINISHED_RUN_STATUSES),
-          idle,
+          orphanIdle,
           cursor ? gt(copilotRuns.id, cursor) : undefined
         )
       )
       .orderBy(asc(copilotRuns.id))
-      .limit(Math.min(SWEEP_BATCH_SIZE, SWEEP_MAX_ROWS_PER_RUN - considered))
+      .limit(limit)
     if (candidates.length === 0) break
     considered += candidates.length
     cursor = candidates[candidates.length - 1].id
 
-    const leased = candidates.filter((run) => run.controllerToken !== null)
-    let unowned = candidates.filter((run) => run.controllerToken === null)
-    if (leased.length > 0) {
-      try {
-        const [locked, replayable] = await Promise.all([
-          findStreamsHoldingChatLock(leased),
-          findStreamsWithReplay(leased.map((run) => run.streamId)),
-        ])
-        unowned = unowned.concat(
-          leased.filter((run) => !locked.has(run.streamId) && !replayable.has(run.streamId))
-        )
-      } catch (error) {
-        logger.warn('Chat stream ownership is unreadable; leaving leased runs for a later sweep', {
-          error: getErrorMessage(error),
-        })
-      }
+    try {
+      const unowned = await withoutOwners(candidates)
+      const settled = await db.transaction((tx) => settleRuns(tx, unowned, 'orphaned', orphanIdle))
+      announceSettled(settled.filter((run) => run.controllerToken !== null))
+      settledRunIds.push(...settled.map((run) => run.id))
+    } catch (error) {
+      logger.warn('A batch of orphaned runs could not be settled; a later sweep retries it', {
+        count: candidates.length,
+        error: getErrorMessage(error),
+      })
     }
-
-    const settled = await db.transaction((tx) =>
-      settleRuns(tx, unowned, idle, { status: 'error', error: ORPHANED_RUN_ERROR })
-    )
-    announceSettled(settled.filter((run) => run.controllerToken !== null))
-    settledRunIds.push(...settled.map((run) => run.id))
+    if (candidates.length < limit) break
+    await sleep(SWEEP_BATCH_PAUSE_MS)
   }
 
   if (settledRunIds.length > 0) {
@@ -226,9 +291,7 @@ export async function settleStoppedRunWithoutController(runId: string): Promise<
     .limit(1)
   if (!run?.controllerToken) return false
   if ((await findStreamsHoldingChatLock([run])).has(run.streamId)) return false
-  const settled = await db.transaction((tx) =>
-    settleRuns(tx, [run], undefined, { status: 'cancelled' })
-  )
+  const settled = await db.transaction((tx) => settleRuns(tx, [run], 'stopped', undefined))
   announceSettled(settled)
   return settled.length > 0
 }
