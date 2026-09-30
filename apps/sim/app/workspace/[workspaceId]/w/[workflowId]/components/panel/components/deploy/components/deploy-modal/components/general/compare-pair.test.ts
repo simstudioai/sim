@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { resolveComparePair } from './compare-pair'
+import { resolveComparePair } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/compare-pair'
 
 describe('resolveComparePair', () => {
   it('puts the older version on the base side whichever was clicked', () => {

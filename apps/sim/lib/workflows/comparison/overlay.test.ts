@@ -2,9 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import {
+  generateWorkflowDiffSummary,
+  type WorkflowDiffSummary,
+} from '@/lib/workflows/comparison/compare'
+import { buildWorkflowDiffOverlay } from '@/lib/workflows/comparison/overlay'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { generateWorkflowDiffSummary, type WorkflowDiffSummary } from './compare'
-import { buildWorkflowDiffOverlay } from './overlay'
 
 /** Overlay only reads position, data and ids; the cast keeps the fixtures short. */
 function asState(state: Record<string, unknown>): WorkflowState {

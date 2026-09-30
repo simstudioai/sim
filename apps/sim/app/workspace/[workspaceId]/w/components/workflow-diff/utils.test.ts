@@ -3,9 +3,6 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison'
-import { getBlock } from '@/blocks/registry'
-import type { SubBlockConfig } from '@/blocks/types'
-import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   classifyChange,
   describeListItems,
@@ -19,7 +16,10 @@ import {
   toDiffText,
   toItemList,
   toMessageList,
-} from './utils'
+} from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
+import { getBlock } from '@/blocks/registry'
+import type { SubBlockConfig } from '@/blocks/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** The global registry mock returns no sub-blocks; tests declare the ones they need per block type. */
 function declareSubBlocks(byType: Record<string, Partial<SubBlockConfig>[]>) {
