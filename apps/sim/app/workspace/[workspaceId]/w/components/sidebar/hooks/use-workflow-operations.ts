@@ -27,24 +27,39 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
   // render, so depending on the object would leave this callback unmemoized.
   const createWorkflowMutate = createWorkflowMutation.mutate
 
-  const handleCreateWorkflow = useCallback((): Promise<string | null> => {
-    const { clearDiff } = useWorkflowDiffStore.getState()
-    clearDiff()
+  /**
+   * Creates a workflow filed under `folderId` (`null` for the workspace root) and opens it.
+   * The canvas navigation is optimistic: the registry marks the id as creating so the
+   * canvas waits for the row rather than 404ing on a workflow the server has not yet saved.
+   */
+  const handleCreateWorkflowInFolder = useCallback(
+    (folderId: string | null): Promise<string | null> => {
+      const { clearDiff } = useWorkflowDiffStore.getState()
+      clearDiff()
 
-    const name = generateCreativeWorkflowName()
-    const id = generateId()
+      const name = generateCreativeWorkflowName()
+      const id = generateId()
 
-    createWorkflowMutate({
-      workspaceId,
-      name,
-      id,
-      deduplicate: true,
-    })
+      createWorkflowMutate({
+        workspaceId,
+        ...(folderId ? { folderId } : {}),
+        name,
+        id,
+        deduplicate: true,
+      })
 
-    useWorkflowRegistry.getState().markWorkflowCreating(id)
-    router.push(`/workspace/${workspaceId}/w/${id}`)
-    return Promise.resolve(id)
-  }, [createWorkflowMutate, workspaceId, router])
+      useWorkflowRegistry.getState().markWorkflowCreating(id)
+      router.push(`/workspace/${workspaceId}/w/${id}`)
+      return Promise.resolve(id)
+    },
+    [createWorkflowMutate, workspaceId, router]
+  )
+
+  /** Creates at the workspace root. Takes no arguments so it can be wired straight to a click. */
+  const handleCreateWorkflow = useCallback(
+    (): Promise<string | null> => handleCreateWorkflowInFolder(null),
+    [handleCreateWorkflowInFolder]
+  )
 
   return {
     workflows,
@@ -53,5 +68,6 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
     isCreatingWorkflow: createWorkflowMutation.isPending,
 
     handleCreateWorkflow,
+    handleCreateWorkflowInFolder,
   }
 }

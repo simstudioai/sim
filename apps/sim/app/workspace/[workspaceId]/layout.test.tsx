@@ -68,6 +68,10 @@ vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
   Sidebar: () => null,
 }))
 
+vi.mock('@/app/workspace/[workspaceId]/components/project-build-sidebar', () => ({
+  ProjectBuildSidebar: () => null,
+}))
+
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-access-denied', () => ({
   WorkspaceAccessDenied: () => <div>Workspace access denied</div>,
 }))
