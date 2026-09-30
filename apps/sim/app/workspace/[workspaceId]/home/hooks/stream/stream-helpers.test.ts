@@ -27,4 +27,11 @@ describe('finalizeResidualToolCalls', () => {
     expect(finalizeResidualToolCalls(open, 'error')).toBe(true)
     expect(finalizeResidualToolCalls(settled, 'error')).toBe(false)
   })
+
+  it('reports closing an open subagent lane as a change to persist', () => {
+    const blocks: ContentBlock[] = [{ type: 'subagent', content: 'research' }]
+
+    expect(finalizeResidualToolCalls(blocks, 'error')).toBe(true)
+    expect(blocks[0].endedAt).toEqual(expect.any(Number))
+  })
 })

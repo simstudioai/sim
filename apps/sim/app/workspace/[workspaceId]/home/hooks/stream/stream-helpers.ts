@@ -72,7 +72,7 @@ export function asPayloadRecord(value: unknown): StreamPayload | undefined {
  * Settles every unfinished tool row (running, pending, or awaiting approval) at
  * a turn terminal by propagating the turn's outcome: a clean `complete` settles
  * a straggler `success`, a stop `cancelled`, an error `error`. Also closes any
- * open subagent lane. Returns whether any tool row was settled.
+ * open subagent lane. Returns whether it settled a row or closed a lane.
  */
 export function finalizeResidualToolCalls(
   blocks: ContentBlock[],
@@ -94,6 +94,7 @@ export function finalizeResidualToolCalls(
     // transport-based gating.
     if (block.type === 'subagent' && block.endedAt === undefined) {
       block.endedAt = endedAt
+      settled = true
       continue
     }
     const tc = block.toolCall

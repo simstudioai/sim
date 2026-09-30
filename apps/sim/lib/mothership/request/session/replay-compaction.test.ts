@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 import {
   compactStreamEvent,
   STREAM_EVENT_COMPACTION_THRESHOLD_BYTES,
+  STREAM_EVENT_MAX_PAYLOAD_BYTES,
   STREAM_STRING_PREVIEW_UNITS,
 } from '@/lib/mothership/request/session/replay-compaction'
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
@@ -236,5 +237,50 @@ describe('compactStreamEvent', () => {
     expect(kept.at(-1)).toMatch(/^…\[truncated, \d+ more items\]$/)
     expect(output.data).toEqual({ results: citations })
     expect(toRecord(payloadOf(event).output).rows).toHaveLength(40_000)
+  })
+
+  it('omits the largest remaining field when cuts alone leave the event over one replay write', () => {
+    const blocks = Object.fromEntries(
+      Array.from({ length: 5_000 }, (_, index) => [`block-${index}`, 'b'.repeat(300)])
+    )
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_workflows_state_get',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: true,
+        status: 'success',
+        output: { blocks },
+      },
+    }
+
+    const compacted = payloadOf(compactStreamEvent(event))
+
+    expect(Buffer.byteLength(JSON.stringify(compacted))).toBeLessThanOrEqual(
+      STREAM_EVENT_MAX_PAYLOAD_BYTES
+    )
+    expect(compacted.output).toMatch(/^…\[omitted, [\d.]+ MB total\]$/)
+    expect(compacted).toMatchObject({ toolCallId: 'c', success: true, status: 'success' })
+  })
+
+  it('never omits identity to make room for client-executed arguments it must keep whole', () => {
+    const args = { workflowId: 'wf-1', input: 'w'.repeat(1.5 * MB) }
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'run_workflow',
+        executor: 'client',
+        mode: 'async',
+        phase: 'call',
+        ui: { clientExecutable: true },
+        arguments: args,
+      },
+    }
+
+    expect(compactStreamEvent(event)).toBe(event)
   })
 })

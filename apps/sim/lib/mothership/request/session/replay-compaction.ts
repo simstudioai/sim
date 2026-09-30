@@ -1,4 +1,5 @@
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
+import { getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolPhase,
@@ -12,6 +13,13 @@ import type { StreamEvent } from './types'
  * persisted and delivered; well under the replay buffer's 1 MiB write ceiling.
  */
 export const STREAM_EVENT_COMPACTION_THRESHOLD_BYTES = 256 * 1024
+
+/** Room left in a replay write for the envelope around an event's payload. */
+const ENVELOPE_HEADROOM_BYTES = 16 * 1024
+
+/** The largest serialized payload the replay buffer can persist in one write. */
+export const STREAM_EVENT_MAX_PAYLOAD_BYTES =
+  getRedisBudgetLimits('copilot_stream').maxSingleWriteBytes - ENVELOPE_HEADROOM_BYTES
 
 /** UTF-16 units kept at the head of a long string. */
 export const STREAM_STRING_PREVIEW_UNITS = 8 * 1024
@@ -100,11 +108,32 @@ function mapLeaves(
   return copy ?? value
 }
 
+/** A field must be at least this large to be omitted as a last resort. */
+const OMITTABLE_FIELD_MIN_BYTES = 64 * 1024
+
+/**
+ * Replaces the payload's largest field with a note of its size: the last resort
+ * for an event whose many short values no cut could bound, such as an object
+ * with thousands of keys.
+ */
+function omitLargestField(payload: Record<string, unknown>, skipKeys: ReadonlySet<string>) {
+  let largest: { key: string; bytes: number } | undefined
+  for (const [key, field] of Object.entries(payload)) {
+    if (skipKeys.has(key)) continue
+    const bytes = Buffer.byteLength(JSON.stringify(field) ?? '', 'utf8')
+    if (!largest || bytes > largest.bytes) largest = { key, bytes }
+  }
+  // Identity fields are never this large, so only bulk is ever replaced.
+  if (!largest || largest.bytes <= OMITTABLE_FIELD_MIN_BYTES) return payload
+  return { ...payload, [largest.key]: `…[omitted, ${formatFileSize(largest.bytes)} total]` }
+}
+
 /**
  * Bounds an outgoing stream event so the replay buffer can persist it. Applied
  * only to the copy the writer delivers and persists; the caller keeps the full
  * event for dispatch. Long strings are cut to their head in place, so every
- * object keeps its shape; if that is not enough, long arrays keep their head.
+ * object keeps its shape; if that is not enough, long arrays keep their head,
+ * and past one replay write the largest field is replaced by a size note.
  * Assistant text, file previews, and the arguments of calls the browser
  * executes are never cut; an event
  * still too large is refused by the buffer, which ends the turn with an error.
@@ -125,6 +154,9 @@ export function compactStreamEvent(event: StreamEvent): StreamEvent {
   let compacted = truncateStrings(payload, skipKeys)
   if (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) {
     compacted = trimArrays(compacted, skipKeys)
+  }
+  if (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_MAX_PAYLOAD_BYTES) {
+    compacted = omitLargestField(toRecordOrNull(compacted) ?? {}, skipKeys)
   }
   return compacted === payload ? event : ({ ...event, payload: compacted } as StreamEvent)
 }
