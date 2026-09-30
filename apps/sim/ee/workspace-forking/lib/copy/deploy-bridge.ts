@@ -391,7 +391,8 @@ export async function loadTargetDraftState(
 }
 
 /**
- * Serialized size of the blocks in these workflows' drafts, from one query, so
+ * Serialized size of the blocks in these workflows' drafts (sub-blocks, outputs
+ * and data, the block columns a draft load materializes), from one query, so
  * a caller can decide whether reading the drafts in full is affordable before
  * it reads any of them.
  */
@@ -399,7 +400,11 @@ export async function measureTargetDraftBytes(workflowIds: string[]): Promise<nu
   if (workflowIds.length === 0) return 0
   const [row] = await db
     .select({
-      bytes: sql<string>`coalesce(sum(octet_length(${workflowBlocks.subBlocks}::text)), 0)`,
+      bytes: sql<string>`coalesce(sum(
+        octet_length(${workflowBlocks.subBlocks}::text) +
+          octet_length(${workflowBlocks.outputs}::text) +
+          coalesce(octet_length(${workflowBlocks.data}::text), 0)
+      ), 0)`,
     })
     .from(workflowBlocks)
     .where(inArray(workflowBlocks.workflowId, workflowIds))
