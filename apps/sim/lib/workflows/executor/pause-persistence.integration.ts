@@ -1,11 +1,10 @@
 /**
- * Pause publication against real PostgreSQL: a paused run becomes resumable only after
- * its log has been finalized out of `running`, so an immediate resume finds a claimable log.
+ * Pause publication against real PostgreSQL: a paused run becomes resumable only once its
+ * log has been finalized out of `running`, so an immediate resume finds a claimable log.
  */
 import { db } from '@sim/db'
 import {
   pausedExecutions,
-  resumeQueue,
   user,
   workflow,
   workflowExecutionLogs,
@@ -13,10 +12,9 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createDeferred } from '@sim/testing'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
@@ -31,13 +29,9 @@ const ids = {
   owner: `pause-publish-owner-${generateId()}`,
   workspace: generateId(),
   workflow: generateId(),
-  execution: generateId(),
 }
 
 const CONTEXT_ID = 'approval'
-
-/** Long enough for an unguarded publish to commit; a guarded one never resolves while held. */
-const UNGUARDED_PUBLISH_WINDOW_MS = 250
 
 const workflowState: WorkflowState = {
   blocks: {
@@ -56,7 +50,10 @@ const workflowState: WorkflowState = {
   parallels: {},
 }
 
-function pausedResult(billingAttribution: BillingAttributionSnapshot): ExecutionResult {
+function pausedResult(
+  executionId: string,
+  billingAttribution: BillingAttributionSnapshot
+): ExecutionResult {
   return {
     success: true,
     output: {},
@@ -77,7 +74,7 @@ function pausedResult(billingAttribution: BillingAttributionSnapshot): Execution
         metadata: {
           workflowId: ids.workflow,
           workspaceId: ids.workspace,
-          executionId: ids.execution,
+          executionId,
           userId: ids.owner,
           billingAttribution,
         },
@@ -87,17 +84,34 @@ function pausedResult(billingAttribution: BillingAttributionSnapshot): Execution
   }
 }
 
-async function logStatus() {
+/** Starts a run whose log is `running`, as the core leaves it when execution returns. */
+async function startRun() {
+  const executionId = generateId()
+  const billingAttribution = await resolveBillingAttribution({
+    actorUserId: ids.owner,
+    workspaceId: ids.workspace,
+  })
+  const loggingSession = new LoggingSession(ids.workflow, executionId, 'api', 'pause-publish')
+  await loggingSession.safeStart({
+    userId: ids.owner,
+    workspaceId: ids.workspace,
+    billingAttribution,
+    workflowState,
+  })
+  return { executionId, loggingSession, result: pausedResult(executionId, billingAttribution) }
+}
+
+async function logStatus(executionId: string) {
   const [row] = await db
     .select({ status: workflowExecutionLogs.status })
     .from(workflowExecutionLogs)
-    .where(eq(workflowExecutionLogs.executionId, ids.execution))
+    .where(eq(workflowExecutionLogs.executionId, executionId))
   return row?.status
 }
 
-function resume() {
+function resume(executionId: string) {
   return PauseResumeManager.enqueueOrStartResume({
-    executionId: ids.execution,
+    executionId,
     workflowId: ids.workflow,
     contextId: CONTEXT_ID,
     resumeInput: {},
@@ -132,8 +146,12 @@ beforeAll(async () => {
   })
 })
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 afterAll(async () => {
-  await db.delete(resumeQueue).where(eq(resumeQueue.parentExecutionId, ids.execution))
+  // Deleting a paused execution cascades to its resume queue entries.
   await db.delete(pausedExecutions).where(eq(pausedExecutions.workflowId, ids.workflow))
   await db.delete(workflowExecutionLogs).where(eq(workflowExecutionLogs.workflowId, ids.workflow))
   await db
@@ -144,19 +162,8 @@ afterAll(async () => {
 })
 
 describe('handlePostExecutionPauseState', () => {
-  it('publishes a pause only after the run log is finalized, so an immediate resume finds a claimable log', async () => {
-    const billingAttribution = await resolveBillingAttribution({
-      actorUserId: ids.owner,
-      workspaceId: ids.workspace,
-    })
-    const loggingSession = new LoggingSession(ids.workflow, ids.execution, 'api', 'pause-publish')
-    await loggingSession.safeStart({
-      userId: ids.owner,
-      workspaceId: ids.workspace,
-      billingAttribution,
-      workflowState,
-    })
-    expect(await logStatus()).toBe('running')
+  it('publishes a pause only after its log is finalized, so an immediate resume finds a claimable log', async () => {
+    const { executionId, loggingSession, result } = await startRun()
 
     /** Holds the core's background log finalizer open, as a slow trace projection would. */
     const finalizer = createDeferred<void>()
@@ -164,24 +171,44 @@ describe('handlePostExecutionPauseState', () => {
       finalizer.promise.then(() => loggingSession.safeCompleteWithPause({ traceSpans: [] }))
     )
 
+    const persistPauseResult = PauseResumeManager.persistPauseResult
+    const logFinalizedAtPublish: boolean[] = []
+    vi.spyOn(PauseResumeManager, 'persistPauseResult').mockImplementation((args) => {
+      logFinalizedAtPublish.push(loggingSession.hasCompleted())
+      return persistPauseResult.call(PauseResumeManager, args)
+    })
+
     const publish = handlePostExecutionPauseState({
-      result: pausedResult(billingAttribution),
+      result,
       workflowId: ids.workflow,
-      executionId: ids.execution,
+      executionId,
       loggingSession,
     })
-    await Promise.race([publish, sleep(UNGUARDED_PUBLISH_WINDOW_MS)])
-
-    expect(await logStatus()).toBe('running')
-    await expect(resume()).rejects.toMatchObject({
-      name: 'ResumeAdmissionError',
-      statusCode: 404,
-    })
-
     finalizer.resolve()
     await publish
 
-    expect(await logStatus()).toBe('pending')
-    await expect(resume()).resolves.toMatchObject({ status: 'starting' })
+    expect(logFinalizedAtPublish).toEqual([true])
+    expect(await logStatus(executionId)).toBe('pending')
+    await expect(resume(executionId)).resolves.toMatchObject({ status: 'starting' })
+  })
+
+  it('fails the run instead of publishing a pause whose log was never finalized', async () => {
+    const { executionId, loggingSession, result } = await startRun()
+
+    /** The core's finalizer swallows its own failures, so a lost pause write still settles. */
+    loggingSession.setPostExecutionPromise(Promise.resolve())
+
+    await handlePostExecutionPauseState({
+      result,
+      workflowId: ids.workflow,
+      executionId,
+      loggingSession,
+    })
+
+    expect(await logStatus(executionId)).toBe('failed')
+    await expect(resume(executionId)).rejects.toMatchObject({
+      name: 'ResumeAdmissionError',
+      statusCode: 404,
+    })
   })
 })
