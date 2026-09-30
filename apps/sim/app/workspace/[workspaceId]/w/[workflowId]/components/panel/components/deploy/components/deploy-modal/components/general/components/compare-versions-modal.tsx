@@ -7,13 +7,13 @@ import {
   ChipModal,
   ChipModalBody,
   ChipModalHeader,
-  Skeleton,
 } from '@sim/emcn'
+import { ArrowRight } from '@sim/emcn/icons'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useDraftWorkflowState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state'
 import {
-  CHANGE_LIST_WIDTH_CLASS,
+  WorkflowDiffSkeleton,
   WorkflowDiffView,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff'
 import { useDeploymentVersionState } from '@/hooks/queries/workflows'
@@ -103,7 +103,7 @@ export function CompareVersionsModal({
       srTitle='Compare versions'
       aria-describedby={descriptionId}
       size='full'
-      className='h-[92vh] [&>div]:h-full'
+      className='h-[84vh] [&>div]:h-full'
     >
       <ChipModalHeader onClose={() => onOpenChange(false)}>
         <div className='flex items-center gap-2'>
@@ -114,7 +114,7 @@ export function CompareVersionsModal({
             onChange={(value) => setBase(valueToSide(value))}
             align='start'
           />
-          <span className='text-[var(--text-muted)]'>→</span>
+          <ArrowRight className='size-[12px] shrink-0 text-[var(--text-icon)]' />
           <ChipDropdown
             options={options}
             value={sideToValue(target)}
@@ -132,12 +132,7 @@ export function CompareVersionsModal({
             {loadError.message || 'Could not load one of the versions.'}
           </div>
         ) : isLoading || !baseState || !targetState ? (
-          <div className='flex h-full gap-0'>
-            <Skeleton className='h-full flex-1 rounded-none' />
-            <Skeleton
-              className={`h-full ${CHANGE_LIST_WIDTH_CLASS} rounded-none border-[var(--border)] border-l`}
-            />
-          </div>
+          <WorkflowDiffSkeleton />
         ) : (
           <WorkflowDiffView baseState={baseState} targetState={targetState} />
         )}

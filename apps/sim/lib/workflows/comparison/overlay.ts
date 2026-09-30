@@ -103,16 +103,22 @@ function withRemovedBranches(baseBlock: BlockState, targetBlock: BlockState): Bl
     const targetItems = readBranchList(targetBlock.subBlocks?.[field]?.value)
     if (!baseItems || !targetItems) continue
     const present = new Set(targetItems.map((item) => item.id))
-    const missing = baseItems.filter((item) => typeof item.id === 'string' && !present.has(item.id))
-    if (missing.length === 0) continue
+    if (baseItems.every((item) => typeof item.id !== 'string' || present.has(item.id))) continue
+    /* Slot each missing branch back where it sat, so the roles the card reads off position hold. */
+    const items = [...targetItems]
+    for (let index = baseItems.length - 1; index >= 0; index -= 1) {
+      const item = baseItems[index]
+      if (typeof item.id !== 'string' || present.has(item.id)) continue
+      const successor = baseItems.slice(index + 1).find((later) => present.has(later.id))
+      const at = successor ? items.findIndex((candidate) => candidate.id === successor.id) : -1
+      items.splice(at === -1 ? items.length : at, 0, item)
+      present.add(item.id)
+    }
     merged = {
       ...merged,
       subBlocks: {
         ...merged.subBlocks,
-        [field]: {
-          ...merged.subBlocks[field],
-          value: JSON.stringify([...targetItems, ...missing]),
-        },
+        [field]: { ...merged.subBlocks[field], value: JSON.stringify(items) },
       },
     }
   }
@@ -194,7 +200,10 @@ export function buildWorkflowDiffOverlay(
   for (const [edge, key] of baseKeyed) {
     if (targetKeys.has(key)) continue
     /* A base edge can share an id with a rewired target edge; keep both drawable. */
-    const id = seenIds.has(edge.id) ? `${edge.id}__removed` : edge.id
+    let id = edge.id
+    for (let attempt = 1; seenIds.has(id); attempt += 1) {
+      id = attempt === 1 ? `${edge.id}__removed` : `${edge.id}__removed${attempt}`
+    }
     seenIds.add(id)
     edges.push({ ...edge, id })
     edgeStatus[id] = 'removed'

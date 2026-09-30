@@ -19,7 +19,6 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const mocks = vi.hoisted(() => ({
   loadSourceDeployedStates: vi.fn(),
   loadTargetDraftState: vi.fn(),
-  readDeployedState: vi.fn(),
   loadForkBlockMap: vi.fn(),
   computeForkPromotePlan: vi.fn(),
 }))
@@ -31,7 +30,6 @@ vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLine
 vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mocks.loadSourceDeployedStates,
   loadTargetDraftState: mocks.loadTargetDraftState,
-  readDeployedState: mocks.readDeployedState,
 }))
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   loadForkBlockMap: mocks.loadForkBlockMap,
@@ -124,7 +122,6 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
     })
     mocks.computeForkPromotePlan.mockResolvedValue({ items: [planItem()], archivedTargets: [] })
     mocks.loadTargetDraftState.mockResolvedValue(state({ 'mapped-b1': {} }))
-    mocks.readDeployedState.mockResolvedValue(null)
   })
 
   it('re-keys the source through the block map and derives ids for unmapped blocks', async () => {
@@ -143,13 +140,29 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
       afterLabel: 'Ask Biz (deployed)',
     })
     expect(result.before).toEqual(state({ 'mapped-b1': {} }))
+    expect(mocks.loadTargetDraftState).toHaveBeenCalledWith('wf-tgt', 'parent')
   })
 
-  it('re-keys the source variables to the target ids by name so they compare as themselves', async () => {
+  it('re-keys source variables and their assignments to the target ids by unique name', async () => {
     const source = state({ b1: {} })
-    source.variables = { 'v-src': { id: 'v-src', name: 'region', type: 'string', value: 'eu' } }
+    source.variables = {
+      'v-src': { id: 'v-src', name: 'region', type: 'string', value: 'eu' },
+      'v-only': { id: 'v-only', name: 'extra', type: 'string', value: 'x' },
+      'v-dup-1': { id: 'v-dup-1', name: 'dup', type: 'string', value: '1' },
+      'v-dup-2': { id: 'v-dup-2', name: 'dup', type: 'string', value: '2' },
+    }
+    source.blocks.b1.subBlocks = {
+      variables: {
+        id: 'variables',
+        type: 'variables-input',
+        value: JSON.stringify([{ variableId: 'v-src', value: 'us' }]),
+      },
+    }
     const target = state({ 'mapped-b1': {} })
-    target.variables = { 'v-tgt': { id: 'v-tgt', name: 'region', type: 'string', value: 'us' } }
+    target.variables = {
+      'v-tgt': { id: 'v-tgt', name: 'region', type: 'string', value: 'us' },
+      'v-tgt-dup': { id: 'v-tgt-dup', name: 'dup', type: 'string', value: '9' },
+    }
     mocks.loadSourceDeployedStates.mockResolvedValue({
       deployedWorkflows: [{ id: 'wf-src' }],
       sourceStates: new Map([['wf-src', source]]),
@@ -160,7 +173,15 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
 
     expect(result.after.variables).toEqual({
       'v-tgt': { id: 'v-tgt', name: 'region', type: 'string', value: 'eu' },
+      'v-only': { id: 'v-only', name: 'extra', type: 'string', value: 'x' },
+      /* A name shared by two source variables cannot be paired, so both keep their ids. */
+      'v-dup-1': { id: 'v-dup-1', name: 'dup', type: 'string', value: '1' },
+      'v-dup-2': { id: 'v-dup-2', name: 'dup', type: 'string', value: '2' },
     })
+    const assignments = result.after.blocks['mapped-b1'].subBlocks.variables.value
+    expect(typeof assignments === 'string' ? JSON.parse(assignments) : assignments).toEqual([
+      { variableId: 'v-tgt', value: 'us' },
+    ])
   })
 
   it('reports null before for a workflow the sync would create, without reading the target', async () => {
@@ -172,20 +193,15 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
     const result = await run()
 
     expect(result.before).toBeNull()
+    expect(result.targetWorkflowId).toBeNull()
     expect(result.beforeLabel).toBe('Ask Biz (current)')
     expect(mocks.loadTargetDraftState).not.toHaveBeenCalled()
-    expect(mocks.readDeployedState).not.toHaveBeenCalled()
   })
 
-  it('falls back to the live deployment when the target has no draft', async () => {
-    const deployed = state({ 'mapped-b1': {}, extra: {} })
+  it('fails instead of guessing when a replaced target cannot be loaded', async () => {
     mocks.loadTargetDraftState.mockResolvedValue(null)
-    mocks.readDeployedState.mockResolvedValue(deployed)
 
-    const result = await run()
-
-    expect(result.before).toBe(deployed)
-    expect(mocks.readDeployedState).toHaveBeenCalledWith('wf-tgt', 'parent')
+    await expect(run()).rejects.toMatchObject({ code: 'not_found' })
   })
 
   it('rejects a workflow that is not in the sync plan before reading any target state', async () => {
@@ -193,7 +209,23 @@ describe('getWorkspaceSyncWorkflowDiff', () => {
       code: 'not_found',
     })
     expect(mocks.loadTargetDraftState).not.toHaveBeenCalled()
-    expect(mocks.readDeployedState).not.toHaveBeenCalled()
+  })
+
+  it('rejects a planned workflow whose deployed state did not load', async () => {
+    mocks.loadSourceDeployedStates.mockResolvedValue({
+      deployedWorkflows: [{ id: 'wf-src' }],
+      sourceStates: new Map(),
+    })
+
+    await expect(run()).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.loadTargetDraftState).not.toHaveBeenCalled()
+  })
+
+  it('refuses two admin workspaces that are not a direct fork edge', async () => {
+    workspaceForkingLineageMockFns.mockResolveForkEdge.mockResolvedValue(null)
+
+    await expect(run()).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.loadSourceDeployedStates).not.toHaveBeenCalled()
   })
 
   it('reads the other side as the source on a pull and pairs through the child block map', async () => {

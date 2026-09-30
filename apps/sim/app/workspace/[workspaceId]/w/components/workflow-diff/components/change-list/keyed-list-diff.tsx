@@ -1,21 +1,17 @@
 'use client'
 
 import { cn } from '@sim/emcn'
+import {
+  DIFF_SIGN,
+  DIFF_SIGN_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/diff-signs'
 import { TextDiff } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/text-diff'
 import {
   describeListItems,
   isPositionalListField,
-  type ListRowKind,
   pairListItems,
   toItemList,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
-
-const SIGN: Record<ListRowKind, string> = { added: '+', removed: '−', changed: '~' }
-const SIGN_CLASS: Record<ListRowKind, string> = {
-  added: 'text-[var(--brand-accent)]',
-  removed: 'text-[var(--text-error)]',
-  changed: 'text-[var(--warning)]',
-}
 
 interface KeyedListDiffProps {
   blockType: string
@@ -44,10 +40,10 @@ export function KeyedListDiff({ blockType, field, oldValue, newValue }: KeyedLis
           <span
             className={cn(
               'w-3 shrink-0 text-center font-mono text-small leading-5',
-              SIGN_CLASS[row.kind]
+              DIFF_SIGN_CLASS[row.kind]
             )}
           >
-            {SIGN[row.kind]}
+            {DIFF_SIGN[row.kind]}
           </span>
           <div className='flex min-w-0 flex-1 flex-col gap-1'>
             <span

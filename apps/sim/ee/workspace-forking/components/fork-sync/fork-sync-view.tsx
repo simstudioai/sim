@@ -25,6 +25,10 @@ import type {
   ForkTriggerMapping,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
+
+/** A change row that names a deployed source workflow, so it can be previewed block for block. */
+type ForkWorkflowPreviewChange = Extract<ForkWorkflowChange, { action: 'update' | 'create' }>
+
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -809,8 +813,12 @@ interface ForkSyncViewProps {
  * blocking references. The page header's Sync action commits it (after the overwrite confirm).
  */
 export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProps) {
-  const [diffWorkflow, setDiffWorkflow] = useState<ForkWorkflowChange | null>(null)
-  const diffSourceWorkflowId = diffWorkflow?.sourceWorkflowId
+  const [diffWorkflow, setDiffWorkflow] = useState<ForkWorkflowPreviewChange | null>(null)
+  /* A source in one direction is a target in the other, so a direction switch closes the preview. */
+  const handleDirectionChange = (direction: ForkDirection) => {
+    setDiffWorkflow(null)
+    onDirectionChange(direction)
+  }
   const detailsError = controller.errorMessage ?? controller.diffErrorMessage
   const headsUp =
     controller.mcpReauthCount > 0 ||
@@ -840,7 +848,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
         <div className='flex flex-col gap-2'>
           <ChipSwitch
             value={controller.direction}
-            onChange={onDirectionChange}
+            onChange={handleDirectionChange}
             aria-label='Sync direction'
             options={[
               { value: 'push', label: 'Push' },
@@ -869,9 +877,9 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           deployed workflow appears here, changed or not), so the muted state nudges a deploy.
           Unsynced workflows list greyed at the end, with a tooltip naming which workspace
           they are unsynced in - the sync will not touch them. */}
-      {diffWorkflow && diffSourceWorkflowId && controller.otherWorkspaceId && (
+      {diffWorkflow && controller.otherWorkspaceId && (
         <ForkWorkflowDiffModal
-          key={`${controller.direction}:${diffSourceWorkflowId}`}
+          key={`${controller.direction}:${diffWorkflow.sourceWorkflowId}`}
           open
           onOpenChange={(open) => {
             if (!open) setDiffWorkflow(null)
@@ -879,7 +887,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           workspaceId={controller.workspaceId}
           otherWorkspaceId={controller.otherWorkspaceId}
           direction={controller.direction}
-          sourceWorkflowId={diffSourceWorkflowId}
+          sourceWorkflowId={diffWorkflow.sourceWorkflowId}
           workflowName={diffWorkflow.currentName}
         />
       )}
@@ -891,10 +899,6 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
               <div className='flex flex-col gap-1'>
                 {controller.workflowChanges.map((change, index) => {
                   const renamed = change.currentName !== change.otherName
-                  const canPreview =
-                    change.action !== 'archive' &&
-                    Boolean(change.sourceWorkflowId) &&
-                    Boolean(controller.otherWorkspaceId)
                   return (
                     <div
                       key={`${change.action}:${change.currentName}:${index}`}
@@ -911,7 +915,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                           </span>
                         </>
                       ) : null}
-                      {canPreview && (
+                      {change.action !== 'archive' && controller.otherWorkspaceId && (
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button

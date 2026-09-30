@@ -1,15 +1,28 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, cn } from '@sim/emcn'
+import {
+  type Dispatch,
+  memo,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { Badge, cn, OverflowText } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import { humanizeBlockName } from '@sim/workflow-renderer'
-import type { WorkflowDiffSummary } from '@/lib/workflows/comparison'
+import type { BlockDiffStatus, WorkflowDiffSummary } from '@/lib/workflows/comparison'
 import { BindingChangeRow } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/binding-change-row'
+import {
+  DIFF_SIGN,
+  DIFF_SIGN_CLASS,
+  type DiffSignKind,
+} from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/diff-signs'
 import { FieldChangeRow } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/field-change-row'
 import {
   type BlockChangeEntry,
-  type BlockChangeStatus,
   listBlockChanges,
   listOneSidedFields,
   splitEnvironmentBindings,
@@ -17,25 +30,17 @@ import {
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-const STATUS_BADGE_VARIANT: Record<BlockChangeStatus, 'green' | 'amber' | 'red'> = {
+const STATUS_BADGE_VARIANT: Record<BlockDiffStatus, 'green' | 'amber' | 'red'> = {
   added: 'green',
   modified: 'amber',
   removed: 'red',
 }
 
-const STATUS_LABEL: Record<BlockChangeStatus, string> = {
+const STATUS_LABEL: Record<BlockDiffStatus, string> = {
   added: 'Added',
   modified: 'Modified',
   removed: 'Removed',
 }
-
-const SIGN_CLASS: Record<BlockChangeStatus, string> = {
-  added: 'text-[var(--brand-accent)]',
-  removed: 'text-[var(--text-error)]',
-  modified: 'text-[var(--warning)]',
-}
-
-const SIGN: Record<BlockChangeStatus, string> = { added: '+', removed: '−', modified: '~' }
 
 interface ChangeListProps {
   summary: WorkflowDiffSummary
@@ -43,12 +48,19 @@ interface ChangeListProps {
   baseBlocks: Record<string, BlockState>
   targetBlocks: Record<string, BlockState>
   selectedBlockId: string | null
-  onSelectBlock: (blockId: string | null) => void
+  onSelectBlock: Dispatch<SetStateAction<string | null>>
   /**
    * The two sides live in different workspaces, so credentials, picked
    * resources and trigger paths differ by design; group them apart, muted.
    */
   environmentBindings?: boolean
+}
+
+/** Whether the selected block is this entry or one nested under it. */
+function containsSelection(entry: BlockChangeEntry, selectedBlockId: string | null): boolean {
+  if (!selectedBlockId) return false
+  if (entry.id === selectedBlockId) return true
+  return entry.children.some((child) => containsSelection(child, selectedBlockId))
 }
 
 /**
@@ -76,9 +88,10 @@ export function ChangeList({
     if (node) cardRefs.current?.set(id, node)
     else cardRefs.current?.delete(id)
   }, [])
+  /* Stable across selections, so only the cards whose selection changed re-render. */
   const toggleSelected = useCallback(
-    (id: string) => onSelectBlock(selectedBlockId === id ? null : id),
-    [onSelectBlock, selectedBlockId]
+    (id: string) => onSelectBlock((current) => (current === id ? null : id)),
+    [onSelectBlock]
   )
 
   useEffect(() => {
@@ -109,7 +122,8 @@ export function ChangeList({
               key={entry.id}
               entry={entry}
               blocks={blocks}
-              selectedBlockId={selectedBlockId}
+              /* Only a card holding the selection needs the id; every other card sees null. */
+              selectedBlockId={containsSelection(entry, selectedBlockId) ? selectedBlockId : null}
               onToggleSelected={toggleSelected}
               registerCard={registerCard}
               environmentBindings={environmentBindings}
@@ -156,7 +170,7 @@ export function ChangeList({
               <NamedRow key={`a-${name}`} kind='added' name={name} />
             ))}
             {summary.variableChanges.modifiedNames.map((name) => (
-              <NamedRow key={`m-${name}`} kind='modified' name={name} />
+              <NamedRow key={`m-${name}`} kind='changed' name={name} />
             ))}
             {summary.variableChanges.removedNames.map((name) => (
               <NamedRow key={`r-${name}`} kind='removed' name={name} />
@@ -189,6 +203,7 @@ function Section({ title, count, children }: SectionProps) {
 interface BlockCardProps {
   entry: BlockChangeEntry
   blocks: Record<string, BlockState>
+  /** The selected block id when it is this card or one nested inside it, else null */
   selectedBlockId: string | null
   onToggleSelected: (id: string) => void
   registerCard: (id: string, node: HTMLDivElement | null) => void
@@ -216,6 +231,10 @@ const BlockCard = memo(function BlockCard({
   const [collapsed, setCollapsed] = useState(false)
   const selected = selectedBlockId === entry.id
   const block = blocks[entry.id]
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => registerCard(entry.id, node),
+    [registerCard, entry.id]
+  )
   const { logic, bindings } = useMemo(() => {
     /* A block on one side only is every field arriving or leaving; same rows, one side empty. */
     const fields =
@@ -243,9 +262,9 @@ const BlockCard = memo(function BlockCard({
 
   return (
     <div
-      ref={(node) => registerCard(entry.id, node)}
+      ref={setCardRef}
       className={cn(
-        'flex flex-col rounded-md border transition-colors',
+        'flex flex-col overflow-hidden rounded-md border transition-colors',
         nested ? 'bg-[var(--surface-1)]' : 'bg-[var(--surface-2)]',
         selected ? 'border-[var(--text-secondary)]' : 'border-[var(--border)]'
       )}
@@ -253,6 +272,7 @@ const BlockCard = memo(function BlockCard({
       <div
         role='button'
         tabIndex={0}
+        aria-pressed={selected}
         aria-expanded={hasBody ? !collapsed : undefined}
         onClick={toggle}
         onKeyDown={(event) => {
@@ -263,14 +283,15 @@ const BlockCard = memo(function BlockCard({
           }
         }}
         className={cn(
-          'flex cursor-pointer items-center gap-2 rounded-md hover-hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-[var(--text-secondary)]',
+          'flex cursor-pointer items-center gap-2 transition-colors hover-hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-[var(--text-secondary)] focus-visible:ring-inset',
           nested ? 'p-2' : 'p-3'
         )}
       >
         <BlockTile blockType={entry.type} size={nested ? 'sm' : 'lg'} />
-        <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-small'>
-          {humanizeBlockName(entry.name)}
-        </span>
+        <OverflowText
+          label={humanizeBlockName(entry.name)}
+          className='flex-1 font-medium text-[var(--text-primary)] text-small'
+        />
         <Badge variant={bindingsOnly ? 'gray' : STATUS_BADGE_VARIANT[entry.status]} size='sm'>
           {bindingsOnly ? 'Bindings only' : STATUS_LABEL[entry.status]}
         </Badge>
@@ -341,7 +362,9 @@ const BlockCard = memo(function BlockCard({
                   key={child.id}
                   entry={child}
                   blocks={blocks}
-                  selectedBlockId={selectedBlockId}
+                  selectedBlockId={
+                    containsSelection(child, selectedBlockId) ? selectedBlockId : null
+                  }
                   onToggleSelected={onToggleSelected}
                   registerCard={registerCard}
                   environmentBindings={environmentBindings}
@@ -371,7 +394,7 @@ const BlockCard = memo(function BlockCard({
 })
 
 interface NamedRowProps {
-  kind: BlockChangeStatus
+  kind: DiffSignKind
   name: string
 }
 
@@ -379,17 +402,15 @@ interface NamedRowProps {
 function NamedRow({ kind, name }: NamedRowProps) {
   return (
     <div className='flex items-center gap-2 text-small'>
-      <span className={cn('w-3 shrink-0 text-center font-mono', SIGN_CLASS[kind])}>
-        {SIGN[kind]}
+      <span className={cn('w-3 shrink-0 text-center font-mono', DIFF_SIGN_CLASS[kind])}>
+        {DIFF_SIGN[kind]}
       </span>
-      <span
-        className={cn(
-          'min-w-0 truncate',
+      <OverflowText
+        label={name}
+        className={
           kind === 'removed' ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'
-        )}
-      >
-        {name}
-      </span>
+        }
+      />
     </div>
   )
 }

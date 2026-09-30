@@ -22,8 +22,8 @@ import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/compon
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { resolveComparePair } from './compare-pair'
-import { type CompareSide, CompareVersionsModal, Versions } from './components'
+import { type ComparePair, resolveComparePair } from './compare-pair'
+import { CompareVersionsModal, Versions } from './components'
 import { formatVersionLabel } from './format-version-label'
 
 const logger = createLogger('GeneralDeploy')
@@ -65,21 +65,9 @@ export function GeneralDeploy({
   onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
   const expandedPreviewDescriptionId = useId()
-  const [comparePair, setComparePair] = useState<{ base: CompareSide; target: CompareSide } | null>(
-    null
-  )
+  const [comparePair, setComparePair] = useState<ComparePair | null>(null)
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
-  const activeVersion = versions.find((v) => v.isActive)?.version ?? null
-
-  /**
-   * Opens a comparison with the older version on the left. Comparing the live
-   * version (or any version when nothing is live) shows it against the draft,
-   * which is what a redeploy would ship.
-   */
-  const handleCompareVersion = (version: number) => {
-    setComparePair(resolveComparePair(version, activeVersion))
-  }
   const previewMode: PreviewMode =
     selectedVersion !== null && !showActiveDespiteSelection ? 'selected' : 'active'
   const [showLoadDialog, setShowLoadDialog] = useState(false)
@@ -93,6 +81,12 @@ export function GeneralDeploy({
     workflowId: string
     version: number
   } | null>(null)
+  const activeVersion = versions.find((v) => v.isActive)?.version ?? null
+
+  /** See resolveComparePair for which two sides a version opens against. */
+  const handleCompareVersion = (version: number) => {
+    setComparePair(resolveComparePair(version, activeVersion))
+  }
 
   const selectedVersionInfo = versions.find((v) => v.version === selectedVersion)
   const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote?.version)
@@ -225,7 +219,7 @@ export function GeneralDeploy({
                 <button
                   type='button'
                   onClick={() => handleCompareVersion(activeVersion)}
-                  className='text-[var(--warning)] text-caption underline-offset-2 hover-hover:underline focus-visible:underline focus-visible:outline-none'
+                  className='text-[var(--text-primary)] text-small underline-offset-2 hover-hover:underline focus-visible:underline focus-visible:outline-none'
                 >
                   View changes
                 </button>

@@ -1,15 +1,37 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { cn } from '@sim/emcn'
+import {
+  cn,
+  OverflowText,
+  Skeleton,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
+import { ArrowRight } from '@sim/emcn/icons'
 import { buildWorkflowDiffOverlay, generateWorkflowDiffSummary } from '@/lib/workflows/comparison'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { ChangeList } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list'
 import { omitPresentationChanges } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-/** The change list pane and the skeleton that stands in for it share one width. */
-export const CHANGE_LIST_WIDTH_CLASS = 'w-[440px] max-w-[45%]'
+const CHANGE_LIST_WIDTH_CLASS = 'w-[440px] max-w-[45%]'
+
+/** The two empty panes a host shows while it loads the sides of a comparison. */
+export function WorkflowDiffSkeleton() {
+  return (
+    <div className='flex h-full'>
+      <Skeleton className='h-full flex-1 rounded-none' />
+      <Skeleton
+        className={cn(
+          CHANGE_LIST_WIDTH_CLASS,
+          'h-full rounded-none border-[var(--border)] border-l'
+        )}
+      />
+    </div>
+  )
+}
 
 interface WorkflowDiffViewProps {
   /** The older or source side of the comparison */
@@ -36,6 +58,8 @@ export function WorkflowDiffView({
   environmentBindings = false,
 }: WorkflowDiffViewProps) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
+  const [listElement, setListElement] = useState<HTMLDivElement | null>(null)
+  const listEdges = useScrollEdges(listElement)
 
   const summary = useMemo(
     () => omitPresentationChanges(generateWorkflowDiffSummary(targetState, baseState)),
@@ -51,14 +75,29 @@ export function WorkflowDiffView({
   }, [])
   const handlePaneClick = useCallback(() => setSelectedBlockId(null), [])
 
+  /* A reconfigured container counts as modified even when no field of its own changed. */
+  const modifiedCount = new Set([
+    ...summary.modifiedBlocks.map((block) => block.id),
+    ...summary.containerChanges.map((container) => container.id),
+  ]).size
+  const variableCount =
+    summary.variableChanges.added +
+    summary.variableChanges.removed +
+    summary.variableChanges.modified
   const counts = [
     { label: 'added', value: summary.addedBlocks.length, className: 'text-[var(--brand-accent)]' },
-    { label: 'modified', value: summary.modifiedBlocks.length, className: 'text-[var(--warning)]' },
+    { label: 'modified', value: modifiedCount, className: 'text-[var(--warning)]' },
     {
       label: 'removed',
       value: summary.removedBlocks.length,
       className: 'text-[var(--text-error)]',
     },
+    {
+      label: 'connections',
+      value: summary.edgeChanges.added + summary.edgeChanges.removed,
+      className: 'text-[var(--text-tertiary)]',
+    },
+    { label: 'variables', value: variableCount, className: 'text-[var(--text-tertiary)]' },
   ].filter((count) => count.value > 0)
 
   return (
@@ -66,25 +105,20 @@ export function WorkflowDiffView({
       <div className='flex h-[40px] shrink-0 items-center gap-3 border-[var(--border)] border-b px-4'>
         {baseLabel && targetLabel && (
           <div className='flex min-w-0 items-center gap-2 text-small'>
-            <span className='truncate text-[var(--text-secondary)]'>{baseLabel}</span>
-            <span className='text-[var(--text-muted)]'>→</span>
-            <span className='truncate font-medium text-[var(--text-primary)]'>{targetLabel}</span>
+            <OverflowText label={baseLabel} className='text-[var(--text-secondary)]' />
+            <ArrowRight className='size-[12px] shrink-0 text-[var(--text-icon)]' />
+            <OverflowText label={targetLabel} className='font-medium text-[var(--text-primary)]' />
           </div>
         )}
         <div className='ml-auto flex items-center gap-3 text-caption tabular-nums'>
-          {counts.length === 0 ? (
-            <span className='text-[var(--text-tertiary)]'>No changes</span>
-          ) : (
+          {summary.hasChanges ? (
             counts.map((count) => (
               <span key={count.label} className={count.className}>
                 {count.value} {count.label}
               </span>
             ))
-          )}
-          {(summary.edgeChanges.added > 0 || summary.edgeChanges.removed > 0) && (
-            <span className='text-[var(--text-tertiary)]'>
-              {summary.edgeChanges.added + summary.edgeChanges.removed} connections
-            </span>
+          ) : (
+            <span className='text-[var(--text-tertiary)]'>No changes</span>
           )}
         </div>
       </div>
@@ -105,10 +139,13 @@ export function WorkflowDiffView({
           />
         </div>
         <div
+          ref={setListElement}
           className={cn(
             CHANGE_LIST_WIDTH_CLASS,
+            scrollFadeClass,
             'h-full shrink-0 overflow-y-auto border-[var(--border)] border-l bg-[var(--surface-1)]'
           )}
+          {...scrollFadeAttributes(listEdges)}
         >
           <ChangeList
             summary={summary}

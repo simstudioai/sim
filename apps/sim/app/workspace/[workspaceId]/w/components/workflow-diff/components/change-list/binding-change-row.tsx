@@ -1,5 +1,6 @@
 'use client'
 
+import { OverflowText } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
 import {
@@ -28,7 +29,7 @@ export function BindingChangeRow({ blockType, field, oldValue, newValue }: Bindi
 
   return (
     <div className='flex min-w-0 items-center gap-2 text-caption'>
-      <span className='w-[112px] shrink-0 truncate text-[var(--text-tertiary)]'>{label}</span>
+      <OverflowText label={label} className='w-[112px] shrink-0 text-[var(--text-tertiary)]' />
       {kind === 'secret' ? (
         <span className='text-[var(--text-muted)]'>Differs between workspaces</span>
       ) : (

@@ -738,13 +738,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
   )
 }
 
-/**
- * Custom comparison function for React.memo optimization.
- * Uses fast-path primitive comparison before shallow comparing subBlockValues.
- * @param prevProps - Previous render props
- * @param nextProps - Next render props
- * @returns True if render should be skipped (props are equal)
- */
 /** Same changed-field list, by identity first so the common unchanged case costs nothing. */
 function sameFields(prev: string[] | undefined, next: string[] | undefined): boolean {
   if (prev === next) return true
@@ -752,6 +745,13 @@ function sameFields(prev: string[] | undefined, next: string[] | undefined): boo
   return prev.every((field, index) => field === next[index])
 }
 
+/**
+ * Custom comparison function for React.memo optimization.
+ * Uses fast-path primitive comparison before shallow comparing subBlockValues.
+ * @param prevProps - Previous render props
+ * @param nextProps - Next render props
+ * @returns True if render should be skipped (props are equal)
+ */
 function shouldSkipPreviewBlockRender(
   prevProps: NodeProps<WorkflowPreviewBlockNode>,
   nextProps: NodeProps<WorkflowPreviewBlockNode>

@@ -1,4 +1,4 @@
-import { diffLines, diffWords } from 'diff'
+import { diffLines, diffWordsWithSpace } from 'diff'
 
 /** Lines of context kept around each change before the rest folds away. */
 export const CONTEXT_LINES = 2
@@ -18,6 +18,12 @@ const MAX_WORD_HIGHLIGHT_RATIO = 0.6
  * stalling the pane on a pathological prompt.
  */
 const MAX_WORD_DIFF_CHARS = 4000
+/**
+ * Line diffing is quadratic in the worst case too; two bodies with more lines
+ * than this between them are summarized instead of diffed so opening a
+ * comparison never hangs the tab.
+ */
+export const MAX_DIFF_LINES = 2000
 
 export interface DiffLine {
   kind: 'added' | 'removed' | 'context'
@@ -30,12 +36,14 @@ export type DiffRow =
   | { type: 'line'; line: DiffLine }
   | { type: 'fold'; lines: DiffLine[] }
   | { type: 'tail'; lines: DiffLine[] }
+  | { type: 'oversized'; oldLines: number; newLines: number }
 
 /**
  * Pairs each run of removed lines with the run of added lines that follows it,
  * line by line, and marks the words that differ within each pair. A one-word
  * edit inside a long sentence then reads as that word, not as the whole line
- * leaving and coming back.
+ * leaving and coming back. Whitespace counts as a word so an indentation-only
+ * edit still shows.
  */
 export function markWordChanges(lines: DiffLine[]): DiffLine[] {
   const out = [...lines]
@@ -55,7 +63,7 @@ export function markWordChanges(lines: DiffLine[]): DiffLine[] {
       const added = out[removedEnd + offset]
       const total = removed.text.length + added.text.length
       if (total === 0 || total > MAX_WORD_DIFF_CHARS) continue
-      const words = diffWords(removed.text, added.text)
+      const words = diffWordsWithSpace(removed.text, added.text)
       const changedChars = words
         .filter((part) => part.added || part.removed)
         .reduce((sum, part) => sum + part.value.length, 0)
@@ -122,9 +130,12 @@ export function foldRows(lines: DiffLine[]): DiffRow[] {
   return rows
 }
 
-/** Caps a body with no unchanged lines at a visible head plus one expander for the rest. */
+/** Caps a body that is all added or all removed at a visible head plus one expander for the rest. */
 export function capOneSided(lines: DiffLine[]): DiffRow[] {
-  const oneSided = lines.length > 0 && lines.every((line) => line.kind === lines[0].kind)
+  const oneSided =
+    lines.length > 0 &&
+    lines[0].kind !== 'context' &&
+    lines.every((line) => line.kind === lines[0].kind)
   if (!oneSided || lines.length <= ONE_SIDED_VISIBLE_LINES) return foldRows(lines)
   return [
     ...lines.slice(0, ONE_SIDED_VISIBLE_LINES).map((line): DiffRow => ({ type: 'line', line })),
@@ -132,7 +143,14 @@ export function capOneSided(lines: DiffLine[]): DiffRow[] {
   ]
 }
 
-/** The rows a text diff renders for two bodies: line diff, word marks, folds and the one-sided cap. */
+/**
+ * The rows a text diff renders for two bodies: line diff, word marks, folds and
+ * the one-sided cap, or a single summary row when the bodies are too long to
+ * diff inline.
+ */
 export function buildDiffRows(oldText: string, newText: string): DiffRow[] {
+  const oldLines = splitLines(oldText).length
+  const newLines = splitLines(newText).length
+  if (oldLines + newLines > MAX_DIFF_LINES) return [{ type: 'oversized', oldLines, newLines }]
   return capOneSided(markWordChanges(toLines(oldText, newText)))
 }

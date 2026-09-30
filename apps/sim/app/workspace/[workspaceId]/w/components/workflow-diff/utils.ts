@@ -1,20 +1,17 @@
 import { isContainerType } from '@/lib/workflows/autolayout'
 import {
+  type BlockDiffStatus,
   type ContainerConfigField,
-  LOOP_CONFIG_FIELDS,
-  PARALLEL_CONFIG_FIELDS,
   summaryHasChanges,
   type WorkflowDiffSummary,
 } from '@/lib/workflows/comparison'
 import { formatValueForDisplay } from '@/lib/workflows/comparison/resolve-values'
 import { getBlock } from '@/blocks/registry'
-import type { SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-export { isContainerType }
-
 /** How a changed value should be rendered in the change list. */
-export type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle' | 'messages' | 'list'
+type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle' | 'messages' | 'list'
 
 /** Sub-block types whose values read as prose or code, so they get a line diff. */
 const TEXT_SUB_BLOCK_TYPES = new Set<string>([
@@ -216,11 +213,12 @@ export function describeListItems(
               ['name']
             ))
           : undefined
-      const { serverId: _serverId, toolName: _toolName, ...rawParams } = paramRecord
-      const visibleParams = maskSecretParams(rawParams)
-      /* What the tool is allowed to do and how it runs matters as much as its params. */
+      const { serverId, toolName: _toolName, ...rawParams } = paramRecord
+      const visibleParams = maskSecretsDeep(rawParams) as Record<string, unknown>
+      /* What the tool is allowed to do, where it runs and how it runs matter as much as its params. */
       const body = filterBlank({
-        ...pick(item, TOOL_EXECUTION_FIELDS),
+        ...(maskSecretsDeep(pick(item, TOOL_EXECUTION_FIELDS)) as Record<string, unknown>),
+        server: serverId,
         params: Object.keys(visibleParams).length ? visibleParams : undefined,
       })
       return {
@@ -253,7 +251,7 @@ export function describeListItems(
     return {
       key: id ?? label,
       label,
-      text: Object.keys(rest).length ? JSON.stringify(rest, null, 2) : '',
+      text: Object.keys(rest).length ? JSON.stringify(maskSecretsDeep(rest), null, 2) : '',
     }
   })
 }
@@ -320,17 +318,10 @@ const CONTAINER_FIELD_LABELS: Record<ContainerConfigField, string> = {
   distribution: 'Collection',
 }
 
-const CONTAINER_CONFIG_FIELDS: ReadonlySet<string> = new Set<string>([
-  ...LOOP_CONFIG_FIELDS,
-  ...PARALLEL_CONFIG_FIELDS,
-])
-
-function isContainerConfigField(field: string): field is ContainerConfigField {
-  return CONTAINER_CONFIG_FIELDS.has(field)
-}
-
 export function containerFieldLabel(field: string): string {
-  return isContainerConfigField(field) ? CONTAINER_FIELD_LABELS[field] : field
+  return Object.hasOwn(CONTAINER_FIELD_LABELS, field)
+    ? CONTAINER_FIELD_LABELS[field as ContainerConfigField]
+    : field
 }
 
 /**
@@ -338,7 +329,7 @@ export function containerFieldLabel(field: string): string {
  * definition: block-level settings and the editor's basic/advanced mode per
  * canonical parameter, which decides which of two stored values executes.
  */
-const ENGINE_FIELD_LABELS: Record<string, string> = {
+export const ENGINE_FIELD_LABELS: Record<string, string> = {
   'data.canonicalModes': 'Field modes',
   name: 'Name',
   enabled: 'Enabled',
@@ -346,12 +337,8 @@ const ENGINE_FIELD_LABELS: Record<string, string> = {
   advancedMode: 'Advanced mode',
 }
 
-export function engineFieldLabel(field: string): string | undefined {
-  return ENGINE_FIELD_LABELS[field]
-}
-
 /** A chat message as an agent block stores it. */
-export interface DiffMessage {
+interface DiffMessage {
   role: string
   content: string
 }
@@ -384,17 +371,23 @@ export function toMessageList(value: unknown): DiffMessage[] {
   return []
 }
 
-/** Block definitions are static, so each type's sub-blocks are indexed once. */
-const subBlockIndex = new Map<string, Map<string, SubBlockConfig>>()
+/**
+ * Each block definition's sub-blocks are indexed once, keyed by the definition
+ * object itself so a re-registered definition (custom blocks, tests) is never
+ * served from a stale index.
+ */
+const subBlockIndex = new WeakMap<BlockConfig, Map<string, SubBlockConfig>>()
 
 function findSubBlockConfig(blockType: string, field: string): SubBlockConfig | undefined {
-  let index = subBlockIndex.get(blockType)
+  const config = getBlock(blockType)
+  if (!config) return undefined
+  let index = subBlockIndex.get(config)
   if (!index) {
     index = new Map()
-    for (const subBlock of getBlock(blockType)?.subBlocks ?? []) {
+    for (const subBlock of config.subBlocks ?? []) {
       if (!index.has(subBlock.id)) index.set(subBlock.id, subBlock)
     }
-    subBlockIndex.set(blockType, index)
+    subBlockIndex.set(config, index)
   }
   return index.get(field)
 }
@@ -433,7 +426,8 @@ export function classifyChange(
   newValue: unknown
 ): ValueKind {
   const config = findSubBlockConfig(blockType, field)
-  if (config?.password) return 'secret'
+  /* A definition this viewer cannot resolve (a source-side custom block, a retired block) still hides secrets by name. */
+  if (config?.password || (!config && isSecretKey(field))) return 'secret'
   if (config?.type === 'messages-input' || isMessageList(oldValue) || isMessageList(newValue)) {
     return 'messages'
   }
@@ -467,15 +461,18 @@ export function formatScalar(blockType: string, field: string, value: unknown): 
   return formatValueForDisplay(value)
 }
 
-/** A string for the line diff; objects are pretty-printed so structure diffs line by line. */
+/**
+ * A string for the line diff; objects are pretty-printed, with secret-looking
+ * leaves masked, so structure diffs line by line.
+ */
 export function toDiffText(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'string') return value
-  return JSON.stringify(value, null, 2)
+  return JSON.stringify(maskSecretsDeep(value), null, 2)
 }
 
 /** One side of a block that only exists in one version: what it has, as a change from nothing. */
-export interface OneSidedField {
+interface OneSidedField {
   field: string
   oldValue: unknown
   newValue: unknown
@@ -484,17 +481,42 @@ export interface OneSidedField {
 /**
  * Keys whose values are never rendered, wherever they appear in a stored value:
  * anchored to the end of the key so `maxTokens` and `tokenLimit` stay visible
- * while `accessToken`, `client_secret` and `apiKey` are masked.
+ * while `accessToken`, `client_secret`, `apiKey` and an `Authorization` header
+ * are masked.
  */
 const SECRET_KEY_PATTERN =
-  /(token|secret|password|passphrase|credential|api[_-]?key|private[_-]?key)$/i
+  /^(auth|authorization|bearer|cookie|pwd)$|(token|secret|password|passphrase|credential|api[_-]?key|private[_-]?key|authorization)$/i
 const MASKED_VALUE = '•••'
 
-/** Returns a copy of a params object with secret-looking values masked. */
-export function maskSecretParams(params: Record<string, unknown>): Record<string, unknown> {
+function isSecretKey(key: string): boolean {
+  return SECRET_KEY_PATTERN.test(key.trim())
+}
+
+/**
+ * Returns a copy of a stored value with every secret-looking leaf masked, at any
+ * depth: object keys, and the `Value` of a key/value table row whose `Key`
+ * names a secret (an API block's headers).
+ */
+export function maskSecretsDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(maskSecretsDeep)
+  if (value === null || typeof value !== 'object') return value
+  const record = value as Record<string, unknown>
+  const cells = record.cells
+  if (cells && typeof cells === 'object' && !Array.isArray(cells)) {
+    const row = cells as Record<string, unknown>
+    if (
+      typeof row.Key === 'string' &&
+      isSecretKey(row.Key) &&
+      row.Value !== '' &&
+      row.Value != null
+    ) {
+      return { ...record, cells: { ...row, Value: MASKED_VALUE } }
+    }
+  }
   const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(params)) {
-    out[key] = SECRET_KEY_PATTERN.test(key) && value !== '' && value != null ? MASKED_VALUE : value
+  for (const [key, entry] of Object.entries(record)) {
+    out[key] =
+      isSecretKey(key) && entry !== '' && entry != null ? MASKED_VALUE : maskSecretsDeep(entry)
   }
   return out
 }
@@ -531,7 +553,7 @@ export function listOneSidedFields(block: BlockState, side: 'added' | 'removed')
   }
   for (const subBlock of declared) push(subBlock.id, block.subBlocks?.[subBlock.id]?.value)
   for (const [field, state] of Object.entries(block.subBlocks ?? {})) {
-    if (SECRET_KEY_PATTERN.test(field)) continue
+    if (isSecretKey(field)) continue
     push(field, state?.value)
   }
   return out
@@ -564,8 +586,6 @@ export function omitPresentationChanges(summary: WorkflowDiffSummary): WorkflowD
   return next
 }
 
-export type BlockChangeStatus = 'added' | 'modified' | 'removed'
-
 /** One block listed under a container's "Blocks inside". */
 export interface MembershipRow {
   name: string
@@ -584,7 +604,7 @@ export interface BlockChangeEntry {
   id: string
   type: string
   name: string
-  status: BlockChangeStatus
+  status: BlockDiffStatus
   changes: WorkflowDiffSummary['modifiedBlocks'][number]['changes']
   /** Set on a surviving block whose container changed */
   moved?: BlockMove
@@ -677,7 +697,11 @@ export function listBlockChanges(
   for (const container of summary.containerChanges) {
     if (added.has(container.id) || removed.has(container.id)) continue
     const entry = ensureModified(container.id)
-    entry.changes = [...entry.changes, ...container.changes]
+    const seen = new Set(entry.changes.map((change) => change.field))
+    entry.changes = [
+      ...entry.changes,
+      ...container.changes.filter((change) => !seen.has(change.field)),
+    ]
     if (container.nodesAdded.length || container.nodesRemoved.length) {
       const row = (id: string): MembershipRow => ({
         name: blockName(blocks, id),

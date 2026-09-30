@@ -1,9 +1,9 @@
 'use client'
 
 import { useId } from 'react'
-import { ChipModal, ChipModalBody, ChipModalHeader, Skeleton } from '@sim/emcn'
+import { ChipModal, ChipModalBody, ChipModalHeader } from '@sim/emcn'
 import {
-  CHANGE_LIST_WIDTH_CLASS,
+  WorkflowDiffSkeleton,
   WorkflowDiffView,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff'
 import { useForkWorkflowDiff } from '@/ee/workspace-forking/hooks/use-fork-workflow-diff'
@@ -46,7 +46,7 @@ export function ForkWorkflowDiffModal({
       srTitle={`Changes to ${workflowName}`}
       aria-describedby={descriptionId}
       size='full'
-      className='h-[92vh] [&>div]:h-full'
+      className='h-[84vh] [&>div]:h-full'
     >
       <ChipModalHeader onClose={() => onOpenChange(false)}>{workflowName}</ChipModalHeader>
       <ChipModalBody fullBleed>
@@ -58,12 +58,7 @@ export function ForkWorkflowDiffModal({
             {query.error.message || 'Could not load the comparison.'}
           </div>
         ) : !query.data ? (
-          <div className='flex h-full'>
-            <Skeleton className='h-full flex-1 rounded-none' />
-            <Skeleton
-              className={`h-full ${CHANGE_LIST_WIDTH_CLASS} rounded-none border-[var(--border)] border-l`}
-            />
-          </div>
+          <WorkflowDiffSkeleton />
         ) : (
           <WorkflowDiffView
             baseState={query.data.before ?? EMPTY_STATE}

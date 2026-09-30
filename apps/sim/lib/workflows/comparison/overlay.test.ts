@@ -330,8 +330,104 @@ describe('buildWorkflowDiffOverlay', () => {
       JSON.parse(overlay.mergedState.blocks.cond.subBlocks.conditions.value as string).map(
         (item: { id: string }) => item.id
       )
-    ).toEqual(['c-if', 'c-else', 'c-elif'])
+    ).toEqual(['c-if', 'c-elif', 'c-else'])
     /* An untouched block is passed through by identity. */
     expect(overlay.mergedState.blocks.b).toBe(target.blocks.b)
+  })
+
+  it('stacks a second ghost below the first and stops sliding after the nudge cap', () => {
+    const base = asState({
+      blocks: {
+        goneA: block('goneA', { position: { x: 0, y: 0 }, height: 100 }),
+        goneB: block('goneB', { position: { x: 0, y: 0 }, height: 60 }),
+      },
+      edges: [],
+    })
+    const target = asState({
+      blocks: { squatter: block('squatter', { position: { x: 0, y: 0 }, height: 120 }) },
+      edges: [],
+    })
+    const summary: WorkflowDiffSummary = {
+      ...emptySummary(),
+      removedBlocks: [
+        { id: 'goneA', type: 'function', name: 'goneA' },
+        { id: 'goneB', type: 'function', name: 'goneB' },
+      ],
+      hasChanges: true,
+    }
+
+    const merged = buildWorkflowDiffOverlay(summary, base, target).mergedState
+    expect(merged.blocks.goneA.position).toEqual({ x: 0, y: 152 })
+    /* Clears the squatter, then the first ghost: 152 + 100 + 32. */
+    expect(merged.blocks.goneB.position).toEqual({ x: 0, y: 284 })
+
+    const stack = Object.fromEntries(
+      Array.from({ length: 12 }, (_, index) => [
+        `live${index}`,
+        block(`live${index}`, { position: { x: 0, y: index * 132 }, height: 100 }),
+      ])
+    )
+    const capped = buildWorkflowDiffOverlay(
+      { ...emptySummary(), removedBlocks: [{ id: 'goneA', type: 'function', name: 'goneA' }] },
+      base,
+      asState({ blocks: stack, edges: [] })
+    ).mergedState
+    /* Eight nudges of one 132px card each, then the slide gives up. */
+    expect(capped.blocks.goneA.position).toEqual({ x: 0, y: 8 * 132 })
+  })
+
+  it('slots a deleted branch back where it sat so the surviving else keeps its role', () => {
+    const conditions = (ids: string[]) => ({
+      conditions: { value: JSON.stringify(ids.map((id) => ({ id, value: id }))) },
+    })
+    const base = asState({
+      blocks: {
+        cond: block('cond', { type: 'condition', subBlocks: conditions(['if', 'elif', 'else']) }),
+      },
+      edges: [],
+    })
+    const target = asState({
+      blocks: { cond: block('cond', { type: 'condition', subBlocks: conditions(['if', 'else']) }) },
+      edges: [],
+    })
+
+    const merged = buildWorkflowDiffOverlay(emptySummary(), base, target).mergedState
+    expect(
+      JSON.parse(merged.blocks.cond.subBlocks.conditions.value as string).map(
+        (item: { id: string }) => item.id
+      )
+    ).toEqual(['if', 'elif', 'else'])
+  })
+
+  it('never reuses an id when suffixing ghost edges', () => {
+    const blocks = { a: block('a'), b: block('b'), c: block('c') }
+    const base = asState({
+      blocks,
+      edges: [
+        { id: 'e', source: 'a', target: 'b' },
+        { id: 'e', source: 'b', target: 'c' },
+      ],
+    })
+    const target = asState({
+      blocks,
+      edges: [
+        { id: 'e', source: 'a', target: 'c' },
+        { id: 'e__removed', source: 'c', target: 'a' },
+      ],
+    })
+
+    const overlay = buildWorkflowDiffOverlay(emptySummary(), base, target)
+    expect(overlay.mergedState.edges.map((edge) => edge.id)).toEqual([
+      'e',
+      'e__removed',
+      'e__removed2',
+      'e__removed3',
+    ])
+    expect(overlay.edgeStatus).toEqual({
+      e: 'added',
+      e__removed: 'added',
+      e__removed2: 'removed',
+      e__removed3: 'removed',
+    })
   })
 })
