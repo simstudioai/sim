@@ -390,6 +390,38 @@ describe('retiring dormant Search embeddings', () => {
     }
   }, 60_000)
 
+  it('scans past a run of already-retired documents longer than the row limit in one page', async () => {
+    /** 6,000 retired Search documents exceed the initial 2,000-row limit but fit one 25,000-ID scan. */
+    await sql`INSERT INTO document (id, knowledge_base_id, user_excluded, enabled)
+      SELECT 'doc-' || lpad(i::text, 5, '0'), 'search', true, false FROM generate_series(1, 6000) i`
+    await sql`INSERT INTO document (id, knowledge_base_id)
+      SELECT 'doc-' || lpad(i::text, 5, '0'), 'search' FROM generate_series(6001, 6010) i`
+    await sql`CREATE SEQUENCE document_page_statements`
+    await sql`CREATE FUNCTION count_document_page() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM nextval('document_page_statements');
+        RETURN NULL;
+      END $$`
+    /** Statement triggers fire even for zero rows, so this counts every documents-phase page. */
+    await sql`CREATE TRIGGER count_document_page AFTER UPDATE ON document
+      FOR EACH STATEMENT EXECUTE FUNCTION count_document_page()`
+    try {
+      expect(await pass()).toBe(true)
+      /** One page retires the 11 unretired rows (10 bulk plus `search-doc`); one more finds the end. */
+      expect((await sql`SELECT last_value::int AS n FROM document_page_statements`)[0].n).toBe(2)
+      expect(
+        (
+          await sql`SELECT count(*)::int AS n FROM document
+          WHERE knowledge_base_id = 'search' AND (NOT user_excluded OR enabled)`
+        )[0].n
+      ).toBe(0)
+    } finally {
+      await sql`DROP TRIGGER IF EXISTS count_document_page ON document`
+      await sql`DROP FUNCTION count_document_page()`
+      await sql`DROP SEQUENCE document_page_statements`
+    }
+  })
+
   it('fails at once on a timeout outside the page mutation instead of shrinking the page', async () => {
     await sql`CREATE SEQUENCE completion_attempts`
     /** Times out the completion checkpoint, a statement no smaller row limit can speed up. */
