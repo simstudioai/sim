@@ -22,7 +22,8 @@ import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/compon
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { Versions } from './components'
+import { resolveComparePair } from './compare-pair'
+import { type CompareSide, CompareVersionsModal, Versions } from './components'
 import { formatVersionLabel } from './format-version-label'
 
 const logger = createLogger('GeneralDeploy')
@@ -37,6 +38,8 @@ interface GeneralDeployProps {
   versionsLoading: boolean
   isPromotingVersion: boolean
   deployReadiness: DeployReadiness
+  /** The draft differs from the live version, so a "View changes" affordance is offered */
+  needsRedeployment: boolean
   onPromoteToLive: (version: number) => Promise<void>
   onLoadDeploymentComplete: () => void
   onLoadDeploymentBlocked: (message: string) => void
@@ -56,13 +59,27 @@ export function GeneralDeploy({
   versionsLoading,
   isPromotingVersion,
   deployReadiness,
+  needsRedeployment,
   onPromoteToLive,
   onLoadDeploymentComplete,
   onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
   const expandedPreviewDescriptionId = useId()
+  const [comparePair, setComparePair] = useState<{ base: CompareSide; target: CompareSide } | null>(
+    null
+  )
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
+  const activeVersion = versions.find((v) => v.isActive)?.version ?? null
+
+  /**
+   * Opens a comparison with the older version on the left. Comparing the live
+   * version (or any version when nothing is live) shows it against the draft,
+   * which is what a redeploy would ship.
+   */
+  const handleCompareVersion = (version: number) => {
+    setComparePair(resolveComparePair(version, activeVersion))
+  }
   const previewMode: PreviewMode =
     selectedVersion !== null && !showActiveDespiteSelection ? 'selected' : 'active'
   const [showLoadDialog, setShowLoadDialog] = useState(false)
@@ -198,11 +215,22 @@ export function GeneralDeploy({
       <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
-            <Label className='block truncate pl-0.5 text-small'>
-              {previewMode === 'selected' && selectedVersionInfo
-                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                : 'Live Workflow'}
-            </Label>
+            <div className='flex items-center gap-2'>
+              <Label className='block truncate pl-0.5 text-small'>
+                {previewMode === 'selected' && selectedVersionInfo
+                  ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
+                  : 'Live Workflow'}
+              </Label>
+              {needsRedeployment && activeVersion !== null && !showToggle && (
+                <button
+                  type='button'
+                  onClick={() => handleCompareVersion(activeVersion)}
+                  className='text-[var(--warning)] text-caption underline-offset-2 hover-hover:underline focus-visible:underline focus-visible:outline-none'
+                >
+                  View changes
+                </button>
+              )}
+            </div>
             <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
               <ChipButtonGroup
                 value={previewMode}
@@ -273,6 +301,7 @@ export function GeneralDeploy({
             onSelectVersion={handleSelectVersion}
             onPromoteToLive={handlePromoteToLive}
             onLoadDeployment={handleLoadDeployment}
+            onCompare={handleCompareVersion}
           />
         </div>
       </div>
@@ -325,6 +354,20 @@ export function GeneralDeploy({
           pending: isPromotingVersion,
         }}
       />
+
+      {workflowId && comparePair && (
+        <CompareVersionsModal
+          key={JSON.stringify(comparePair)}
+          open
+          onOpenChange={(open) => {
+            if (!open) setComparePair(null)
+          }}
+          workflowId={workflowId}
+          versions={versions}
+          initialBase={comparePair.base}
+          initialTarget={comparePair.target}
+        />
+      )}
 
       {workflowToShow && (
         <ChipModal

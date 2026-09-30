@@ -1,0 +1,147 @@
+'use client'
+
+import { useId, useMemo, useState } from 'react'
+import {
+  ChipDropdown,
+  type ChipDropdownOption,
+  ChipModal,
+  ChipModalBody,
+  ChipModalHeader,
+  Skeleton,
+} from '@sim/emcn'
+import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
+import { useDraftWorkflowState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state'
+import {
+  CHANGE_LIST_WIDTH_CLASS,
+  WorkflowDiffView,
+} from '@/app/workspace/[workspaceId]/w/components/workflow-diff'
+import { useDeploymentVersionState } from '@/hooks/queries/workflows'
+
+/** One side of a comparison: the editor draft or a numbered deployment version. */
+export type CompareSide = { kind: 'draft' } | { kind: 'version'; version: number }
+
+const DRAFT_OPTION_VALUE = 'draft'
+
+function sideToValue(side: CompareSide): string {
+  return side.kind === 'draft' ? DRAFT_OPTION_VALUE : String(side.version)
+}
+
+function valueToSide(value: string): CompareSide {
+  return value === DRAFT_OPTION_VALUE
+    ? { kind: 'draft' }
+    : { kind: 'version', version: Number(value) }
+}
+
+interface CompareVersionsModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  workflowId: string
+  versions: WorkflowDeploymentVersionResponse[]
+  initialBase: CompareSide
+  initialTarget: CompareSide
+}
+
+/**
+ * Full-width comparison of any two versions of this workflow, including the
+ * unsaved draft. Both sides are pickable from the header so a reviewer can
+ * move between pairs without leaving the view.
+ */
+export function CompareVersionsModal({
+  open,
+  onOpenChange,
+  workflowId,
+  versions,
+  initialBase,
+  initialTarget,
+}: CompareVersionsModalProps) {
+  const descriptionId = useId()
+  const [base, setBase] = useState<CompareSide>(initialBase)
+  const [target, setTarget] = useState<CompareSide>(initialTarget)
+  /* Subscribed only while the modal is open, and only if a side is the draft. */
+  const draftState = useDraftWorkflowState(
+    workflowId,
+    base.kind === 'draft' || target.kind === 'draft'
+  )
+
+  const options = useMemo((): ChipDropdownOption[] => {
+    const sorted = [...versions].sort((a, b) => b.version - a.version)
+    return [
+      { value: DRAFT_OPTION_VALUE, label: 'Draft' },
+      ...sorted.map((version) => {
+        /* A name that merely repeats the number would read as "v2 · v2". */
+        const name = version.name === `v${version.version}` ? null : version.name
+        const label = formatVersionLabel(version.version, name)
+        return {
+          value: String(version.version),
+          label: version.isActive ? `${label} (live)` : label,
+        }
+      }),
+    ]
+  }, [versions])
+
+  const baseQuery = useDeploymentVersionState(
+    workflowId,
+    base.kind === 'version' ? base.version : null
+  )
+  const targetQuery = useDeploymentVersionState(
+    workflowId,
+    target.kind === 'version' ? target.version : null
+  )
+
+  const baseState = base.kind === 'draft' ? draftState : (baseQuery.data ?? null)
+  const targetState = target.kind === 'draft' ? draftState : (targetQuery.data ?? null)
+  const isLoading =
+    (base.kind === 'version' && baseQuery.isLoading) ||
+    (target.kind === 'version' && targetQuery.isLoading)
+  const loadError = baseQuery.error ?? targetQuery.error
+
+  return (
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle='Compare versions'
+      aria-describedby={descriptionId}
+      size='full'
+      className='h-[92vh] [&>div]:h-full'
+    >
+      <ChipModalHeader onClose={() => onOpenChange(false)}>
+        <div className='flex items-center gap-2'>
+          <span>Compare</span>
+          <ChipDropdown
+            options={options}
+            value={sideToValue(base)}
+            onChange={(value) => setBase(valueToSide(value))}
+            align='start'
+          />
+          <span className='text-[var(--text-muted)]'>→</span>
+          <ChipDropdown
+            options={options}
+            value={sideToValue(target)}
+            onChange={(value) => setTarget(valueToSide(value))}
+            align='start'
+          />
+        </div>
+      </ChipModalHeader>
+      <ChipModalBody fullBleed>
+        <p id={descriptionId} className='sr-only'>
+          Blocks, fields and connections that differ between the two selected versions.
+        </p>
+        {loadError ? (
+          <div className='flex h-full items-center justify-center text-[var(--text-error)] text-small'>
+            {loadError.message || 'Could not load one of the versions.'}
+          </div>
+        ) : isLoading || !baseState || !targetState ? (
+          <div className='flex h-full gap-0'>
+            <Skeleton className='h-full flex-1 rounded-none' />
+            <Skeleton
+              className={`h-full ${CHANGE_LIST_WIDTH_CLASS} rounded-none border-[var(--border)] border-l`}
+            />
+          </div>
+        ) : (
+          <WorkflowDiffView baseState={baseState} targetState={targetState} />
+        )}
+      </ChipModalBody>
+    </ChipModal>
+  )
+}
