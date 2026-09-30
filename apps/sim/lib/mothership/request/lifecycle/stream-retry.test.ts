@@ -10,7 +10,7 @@ import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-ret
 afterEach(() => vi.useRealTimers())
 
 describe('stream recovery budget', () => {
-  it('stops an ended-without-terminal stream after three retries despite a long task budget', () => {
+  it('stops an ended-without-terminal stream after three retries on a leg with no deadline', () => {
     vi.useFakeTimers()
     const error = new StreamEndedWithoutTerminalError('/api/mothership')
     const retry = new StreamRetryWindow()
@@ -21,7 +21,6 @@ describe('stream recovery budget', () => {
     }
     expect(retry.nextDelay(error)).toBeNull()
     expect(retry.attempt).toBe(3)
-    expect(retry.remainingMs()).toBeGreaterThan(3_500_000)
   })
 
   it.each([
@@ -121,7 +120,6 @@ describe('stream recovery budget', () => {
     }
     expect(Date.now() - firstFailure).toBeGreaterThan(110_000)
     expect(Date.now() - firstFailure).toBeLessThanOrEqual(120_000)
-    expect(retry.remainingMs()).toBeGreaterThan(2_800_000)
   })
 
   it('never extends the original execution deadline', () => {
@@ -156,6 +154,52 @@ describe('stream recovery budget', () => {
       expect(delay).not.toBeNull()
       vi.advanceTimersByTime(delay ?? 0)
     }
+    expect(retry.nextDelay(error)).toBeNull()
+  })
+
+  it('has no leg deadline unless the caller sets one', () => {
+    vi.useFakeTimers()
+    const retry = new StreamRetryWindow()
+    vi.advanceTimersByTime(3 * 60 * 60 * 1000)
+    expect(retry.remainingMs()).toBeUndefined()
+    expect(retry.nextDelay(new StreamEndedWithoutTerminalError('/api/mothership'))).not.toBeNull()
+  })
+
+  it('gives an interruption hours into a healthy leg a fresh reachable budget', () => {
+    vi.useFakeTimers()
+    const error = new WorkerStreamInterruptedError(new Error('socket closed'))
+    const retry = new StreamRetryWindow()
+    for (let index = 0; index < 3; index++) {
+      const delay = retry.nextDelay(error)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
+    }
+    for (let minute = 0; minute < 3 * 60; minute++) {
+      retry.recovered()
+      vi.advanceTimersByTime(60_000)
+    }
+    for (let index = 0; index < 3; index++) {
+      const delay = retry.nextDelay(error)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
+    }
+    expect(retry.nextDelay(error)).toBeNull()
+  })
+
+  it('keeps the reachable budget spent when the leg fails again soon after re-attaching', () => {
+    vi.useFakeTimers()
+    const error = new WorkerStreamInterruptedError(new Error('socket closed'))
+    const retry = new StreamRetryWindow()
+    for (let index = 0; index < 3; index++) {
+      const delay = retry.nextDelay(error)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
+      for (let event = 0; event < 5; event++) {
+        retry.recovered()
+        vi.advanceTimersByTime(1_000)
+      }
+    }
+    retry.recovered()
     expect(retry.nextDelay(error)).toBeNull()
   })
 })

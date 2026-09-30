@@ -132,6 +132,21 @@ export async function clearBuffer(streamId: string, operation = 'clear_outbox'):
   })
 }
 
+/**
+ * Slides a live stream's replay TTLs without an append. The TTLs otherwise move only
+ * when an event lands, so a run parked on a long tool call or approval would lose its
+ * replay history and restart its numbering while it is still running.
+ */
+export async function refreshBufferTtl(streamId: string): Promise<void> {
+  const { ttlSeconds } = getStreamConfig()
+  await withRedisRetry({ operation: 'refresh_outbox_ttl', streamId }, async (redis) => {
+    const pipeline = redis.pipeline()
+    pipeline.expire(getEventsKey(streamId), ttlSeconds)
+    pipeline.expire(getSeqKey(streamId), ttlSeconds)
+    await pipeline.exec()
+  })
+}
+
 export async function scheduleBufferCleanup(
   streamId: string,
   ttlSeconds = DEFAULT_COMPLETED_TTL_SECONDS

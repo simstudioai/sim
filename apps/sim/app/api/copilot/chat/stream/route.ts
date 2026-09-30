@@ -43,7 +43,12 @@ const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
 const POLL_INTERVAL_MAX_MS = 2_000
 const REPLAY_KEEPALIVE_INTERVAL_MS = 15_000
-const MAX_STREAM_MS = 60 * 60 * 1000
+/**
+ * One replay response stays open at most this long, inside the route's `maxDuration`.
+ * A run still going at the cap is not over: the response ends without a terminal
+ * event and the client re-attaches from its cursor.
+ */
+const MAX_STREAM_MS = 60 * 60 * 1000 - 60_000
 
 function extractCanonicalRequestId(value: unknown): string {
   return typeof value === 'string' && value.length > 0 ? value : ''
@@ -450,13 +455,6 @@ async function handleResumeRequestBody({
         }
 
         await sleep(pollDelayMs)
-      }
-      if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
-        emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
-          message: 'The stream recovery timed out before completion.',
-          code: 'resume_timeout',
-          reason: 'timeout',
-        })
       }
     } catch (error) {
       if (!controllerClosed && !request.signal.aborted) {

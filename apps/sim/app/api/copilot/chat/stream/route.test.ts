@@ -1,6 +1,6 @@
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   MothershipStreamV1CompletionStatus,
@@ -62,6 +62,10 @@ async function readAllChunks(response: Response): Promise<string[]> {
 }
 
 describe('copilot chat stream replay route', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
@@ -170,5 +174,25 @@ describe('copilot chat stream replay route', () => {
     expect(body).toContain(`"type":"${MothershipStreamV1EventType.error}"`)
     expect(body).toContain('"code":"resume_run_unavailable"')
     expect(body).toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
+  })
+
+  it('ends a still-running replay at its cap without a terminal so the client re-attaches', async () => {
+    vi.useFakeTimers()
+    getLatestRunForStream.mockResolvedValue({
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=7')
+    )
+    const body = readAllChunks(response)
+    await vi.advanceTimersByTimeAsync(61 * 60 * 1000)
+    const text = (await body).join('')
+
+    expect(text).toContain(': keepalive')
+    expect(text).not.toContain(`"type":"${MothershipStreamV1EventType.error}"`)
+    expect(text).not.toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
   })
 })
