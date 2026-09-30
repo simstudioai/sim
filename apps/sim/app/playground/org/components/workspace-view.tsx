@@ -1,15 +1,15 @@
 'use client'
 
-import { Chip, cn } from '@sim/emcn'
-import { MessageSquareText } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn'
 import Link from 'next/link'
-import { useQueryStates } from 'nuqs'
 import { Changelog } from '@/app/playground/org/components/changelog'
+import { ChatFab } from '@/app/playground/org/components/chat-fab'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import { ResourceKinds } from '@/app/playground/org/components/resource-kinds'
 import { ResourceSection } from '@/app/playground/org/components/resource-section'
+import { isPanelKind } from '@/app/playground/org/lib/chat-resources'
 import type { Workspace } from '@/app/playground/org/lib/mock-data'
 import {
   MAIN_SECTION_IDS,
@@ -17,13 +17,20 @@ import {
   type ProjectSection,
   protoRoutes,
 } from '@/app/playground/org/lib/routes'
-import { protoParsers } from '@/app/playground/org/lib/search-params'
 import { DEFAULT_SETTINGS_SECTION } from '@/app/playground/org/lib/settings-nav'
 
 const TABS = [
   ...MAIN_SECTIONS.map((item) => ({ id: item.id as ProjectSection, label: item.label })),
   { id: 'resources' as ProjectSection, label: 'Resources' },
 ]
+
+/** What a chat started from this page opens first: the dashboard, a kind's list, or the project. */
+function pageRef(workspace: Workspace, section: ProjectSection): string {
+  if (section === 'dashboard' && workspace.dashboards[0])
+    return `dashboard:${workspace.id}:${workspace.dashboards[0]}`
+  if (isPanelKind(section)) return `browse:${workspace.id}:${section}`
+  return `browse:${workspace.id}`
+}
 
 interface WorkspaceViewProps {
   workspace: Workspace
@@ -36,33 +43,18 @@ interface WorkspaceViewProps {
  * other kind underneath; opening one keeps the page and the tab, and swaps what is below.
  */
 export function WorkspaceView({ workspace, section, settingsSection }: WorkspaceViewProps) {
-  const [, setParams] = useQueryStates(protoParsers)
   const activeTab: ProjectSection = MAIN_SECTION_IDS.includes(section as never)
     ? section
     : 'resources'
   return (
-    <div className='flex h-full min-h-0 flex-col'>
+    <div className='relative flex h-full min-h-0 flex-col'>
+      <ChatFab open={pageRef(workspace, section)} />
       <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
         <div className='flex items-start gap-3'>
           <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-            <div className='flex items-center gap-1.5'>
-              <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
-                {workspace.name}
-              </h1>
-              <Chip
-                leftIcon={MessageSquareText}
-                aria-label='Chat about this'
-                onClick={() =>
-                  void setParams({
-                    chat: 'new',
-                    open:
-                      section === 'dashboard' && workspace.dashboards[0]
-                        ? `dashboard:${workspace.id}:${workspace.dashboards[0]}`
-                        : null,
-                  })
-                }
-              />
-            </div>
+            <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
+              {workspace.name}
+            </h1>
             <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
           </div>
         </div>

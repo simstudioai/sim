@@ -21,11 +21,19 @@ interface ChatThreadProps {
   placeholder: string
   seed?: ChatMessage[]
   attachments?: React.ReactNode
+  /** Called with each message the person sends. */
+  onSend?: (text: string) => void
   className?: string
 }
 
 /** Static chat thread; replies are canned so the layout can be judged without Mothership. */
-export function ChatThread({ placeholder, seed = SEED, attachments, className }: ChatThreadProps) {
+export function ChatThread({
+  placeholder,
+  seed = SEED,
+  attachments,
+  onSend,
+  className,
+}: ChatThreadProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(seed)
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
@@ -49,13 +57,14 @@ export function ChatThread({ placeholder, seed = SEED, attachments, className }:
         <MockComposer
           placeholder={placeholder}
           attachments={attachments}
-          onSubmit={(text) =>
+          onSubmit={(text) => {
+            onSend?.(text)
             setMessages((prev) => [
               ...prev,
               { role: 'user', text },
               { role: 'assistant', text: 'On it — this is a prototype, so this reply is canned.' },
             ])
-          }
+          }}
         />
       </div>
     </div>

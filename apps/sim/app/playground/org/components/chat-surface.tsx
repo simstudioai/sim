@@ -14,6 +14,7 @@ import {
 } from '@sim/emcn'
 import { Download, Globe, Link, MoreHorizontal, Send, TerminalWindow, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import { useQueryStates } from 'nuqs'
 import { AttachedResource } from '@/app/playground/org/components/attached-resource'
 import {
@@ -23,6 +24,7 @@ import {
 import { type ChatMessage, ChatThread } from '@/app/playground/org/components/chat-thread'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
 import {
+  isPanelKind,
   mentionedIn,
   type PanelKind,
   type PanelResource,
@@ -30,6 +32,7 @@ import {
   panelResourceKey,
   resolvePanelResource,
 } from '@/app/playground/org/lib/chat-resources'
+import { useProtoChats } from '@/app/playground/org/lib/chat-store'
 import { type Chat, workspaceById } from '@/app/playground/org/lib/mock-data'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
 import {
@@ -104,24 +107,41 @@ const SEED: ChatMessage[] = [
   },
 ]
 
+/** The tab a `?open=` ref names: `browse:workspace[:kind]` or `kind:workspace:id`. */
+function tabFromRef(ref: string): PanelTab {
+  if (!ref.startsWith('browse:')) return resolvePanelResource(ref)
+  const [, workspaceId, kind] = ref.split(':')
+  if (!workspaceId) throw new Error(`Bad browse ref ${ref}`)
+  if (!kind) return newTab(workspaceId, null)
+  if (!isPanelKind(kind)) throw new Error(`Bad browse ref ${ref}`)
+  return newTab(workspaceId, kind)
+}
+
+function isResource(tab: PanelTab): tab is PanelResource {
+  return tab.kind !== 'new' && tab.kind !== 'browser' && tab.kind !== 'terminal'
+}
+
 interface ChatSurfaceProps {
   chat: Chat
+  /** A chat with no messages yet; its first message becomes its title. */
+  fresh?: boolean
 }
 
 /** A chat with the resource panel on the right: real panel chrome, mock resources. */
-export function ChatSurface({ chat }: ChatSurfaceProps) {
+export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
   const [{ open: openRef }] = useQueryStates(protoParsers)
-  const [opened] = useState(() => (openRef ? resolvePanelResource(openRef) : undefined))
+  const renameChat = useProtoChats((state) => state.renameChat)
+  const [opened] = useState(() => (openRef ? tabFromRef(openRef) : undefined))
   const [collapsed, setCollapsed] = useState(false)
   const [tabs, setTabs] = useState<PanelTab[]>(() => {
-    const mentioned = mentionedIn(chat.id)
-    return opened && !mentioned.some((r) => panelResourceKey(r) === panelResourceKey(opened))
+    const mentioned: PanelTab[] = mentionedIn(chat.id)
+    return opened && !mentioned.some((tab) => tabKey(tab) === tabKey(opened))
       ? [...mentioned, opened]
       : mentioned
   })
   const [activeKey, setActiveKey] = useState<string | null>(() => {
     const first = opened ?? mentionedIn(chat.id)[0]
-    return first ? panelResourceKey(first) : null
+    return first ? tabKey(first) : null
   })
 
   const activeIndex = tabs.findIndex((tab) => tabKey(tab) === activeKey)
@@ -228,9 +248,14 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
           {chat.id === 'c15' && <RunningDot />}
         </header>
         <ChatThread
-          placeholder={chat.id === 'new' ? 'Do anything' : 'Reply to Sim…'}
-          seed={chat.id === 'c15' ? SEED : chat.id === 'new' ? NO_MESSAGES : undefined}
-          attachments={opened && <AttachedResource resource={opened} />}
+          placeholder={fresh ? 'Do anything' : 'Reply to Sim…'}
+          seed={fresh ? NO_MESSAGES : chat.id === 'c15' ? SEED : undefined}
+          attachments={opened && isResource(opened) && <AttachedResource resource={opened} />}
+          onSend={
+            fresh && chat.title === 'New chat'
+              ? (text) => renameChat(chat.id, truncate(text, 48))
+              : undefined
+          }
           className='mx-auto w-full max-w-[760px]'
         />
       </div>

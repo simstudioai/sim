@@ -28,6 +28,7 @@ import { usePathname } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
 import { DRAFTS } from '@/app/playground/org/lib/changelog-data'
+import { useProtoChats } from '@/app/playground/org/lib/chat-store'
 import {
   CHATS,
   type Chat,
@@ -72,6 +73,7 @@ export function ProtoSidebar() {
   const { isCollapsed: railCollapsed, isPeeking } = useSidebarChrome()
   const isCollapsed = railCollapsed && !isPeeking
   const pathname = usePathname()
+  const created = useProtoChats((state) => state.created)
   const settingsWorkspace = WORKSPACES.find((w) => w.id === settingsProject(pathname))
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -192,7 +194,7 @@ export function ProtoSidebar() {
                   className={SIDEBAR_SECTION_GAP_CLASS}
                 >
                   <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                    {CHATS.map((chat) => (
+                    {[...created, ...CHATS].map((chat) => (
                       <ChatRow
                         key={chat.id}
                         chat={chat}
