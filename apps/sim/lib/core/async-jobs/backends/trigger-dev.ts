@@ -1,9 +1,12 @@
+import { db } from '@sim/db'
+import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { taskContext } from '@trigger.dev/core/v3'
 import { ApiError, runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
+import { eq } from 'drizzle-orm'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import {
   AsyncJobEnqueueError,
@@ -78,7 +81,36 @@ async function retrieveRunById(jobId: string): Promise<TriggerRun | null> {
   }
 }
 
-/** Resolves a caller-chosen job id through the `jobId:` tag set at enqueue. */
+/**
+ * Retains Trigger's accepted run ID before enqueue can return success. The
+ * idempotency result table shares receipts across app processes; its ordinary
+ * retention bounds storage, with tag lookup retained for older jobs.
+ */
+async function storeRunReceipt(jobId: string, runId: string): Promise<void> {
+  const result = { runId }
+  await db
+    .insert(idempotencyKey)
+    .values({ key: `trigger-job:${jobId}`, result })
+    .onConflictDoUpdate({
+      target: idempotencyKey.key,
+      set: { result, createdAt: new Date() },
+    })
+}
+
+/** Reads accepted run IDs without depending on Trigger's asynchronous tag index. */
+async function retrieveRunByReceipt(jobId: string): Promise<TriggerRun | null> {
+  const [receipt] = await db
+    .select({ result: idempotencyKey.result })
+    .from(idempotencyKey)
+    .where(eq(idempotencyKey.key, `trigger-job:${jobId}`))
+    .limit(1)
+  const result = receipt?.result
+  return isRecordLike(result) && typeof result.runId === 'string'
+    ? retrieveRunById(result.runId)
+    : null
+}
+
+/** Resolves legacy or expired receipts through the `jobId:` tag set at enqueue. */
 async function retrieveRunByJobIdTag(jobId: string): Promise<TriggerRun | null> {
   for await (const candidate of runs.list({ tag: `jobId:${jobId}`, limit: 1 })) {
     return runs.retrieve(candidate.id)
@@ -331,6 +363,18 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       throw classifyTriggerEnqueueError(error)
     }
 
+    if (options?.jobId) {
+      try {
+        await storeRunReceipt(options.jobId, handle.id)
+      } catch (error) {
+        throw new AsyncJobEnqueueError('Trigger run accepted but its receipt could not be stored', {
+          acceptance: 'unknown',
+          retryable: true,
+          cause: error,
+        })
+      }
+    }
+
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
     return handle.id
   }
@@ -417,7 +461,10 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
   async getJob(jobId: string): Promise<Job | null> {
     try {
-      const run = (await retrieveRunById(jobId)) ?? (await retrieveRunByJobIdTag(jobId))
+      const run =
+        (await retrieveRunById(jobId)) ??
+        (jobId.startsWith(TRIGGER_RUN_ID_PREFIX) ? null : await retrieveRunByReceipt(jobId)) ??
+        (await retrieveRunByJobIdTag(jobId))
       if (!run) {
         logger.debug('Job not found in trigger.dev', { jobId })
         return null
@@ -492,7 +539,9 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     const executionTag = buildExecutionTag(binding.executionId)
     const workflowTag = buildWorkflowTag(binding.workflowId)
     const allowedTaskIdentifiers = EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE[scope]
+    let cancelledRootRunId: string | undefined
     const isAllowedTask = (run: CancellationListRun) =>
+      run.id !== cancelledRootRunId &&
       (allowedTaskIdentifiers as readonly string[]).includes(run.taskIdentifier)
     const cutoff = new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000)
     const state: CancellationScanState = {
@@ -501,6 +550,20 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     }
 
     try {
+      if (binding.rootJobId) {
+        const root = await this.getJob(binding.rootJobId)
+        if (
+          root &&
+          (allowedTaskIdentifiers as readonly string[]).includes(root.type) &&
+          (root.status === JOB_STATUS.PENDING || root.status === JOB_STATUS.PROCESSING) &&
+          payloadMatchesExecution(root.payload, binding)
+        ) {
+          await this.cancelJob(root.id)
+          cancelledRootRunId = root.id
+          state.cancelledJobs += 1
+        }
+      }
+
       await scanAndCancelTriggerRuns({
         binding,
         cancelJob: (jobId) => this.cancelJob(jobId),

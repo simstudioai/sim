@@ -197,6 +197,7 @@ describe('cancelWorkflowExecution', () => {
       {
         workflowId: 'wf-1',
         executionId: 'ex-1',
+        rootJobId: 'workflow-execution:ex-1',
       },
       'standalone'
     )
@@ -775,6 +776,7 @@ describe('cancelWorkflowExecution', () => {
       {
         workflowId: 'wf-1',
         executionId: 'ex-1',
+        rootJobId: 'workflow-execution:ex-1',
       },
       'standalone'
     )
@@ -795,6 +797,7 @@ describe('cancelWorkflowExecution', () => {
       {
         workflowId: 'wf-1',
         executionId: 'ex-1',
+        rootJobId: 'workflow-execution:ex-1',
       },
       'standalone'
     )
@@ -1268,6 +1271,7 @@ describe('cancelWorkflowExecution', () => {
       {
         workflowId: 'wf-1',
         executionId: 'ex-1',
+        rootJobId: 'workflow-execution:ex-1',
       },
       'standalone'
     )

@@ -2,6 +2,7 @@ import {
   asyncJobsRegionMock,
   asyncJobsRegionMockFns,
 } from '@sim/testing/mocks/async-jobs-region.mock'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   MockTriggerApiError as MockApiError,
@@ -168,6 +169,13 @@ describe('TriggerDevJobQueue enqueue', () => {
     ).rejects.toMatchObject({ acceptance: 'rejected', retryable: false })
 
     expect(mockTrigger).not.toHaveBeenCalled()
+  })
+
+  it('preserves ambiguous acceptance when the run receipt cannot be persisted', async () => {
+    dbChainMockFns.onConflictDoUpdate.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(
+      new TriggerDevJobQueue().enqueue('workflow-execution', {}, { jobId: 'workflow:1' })
+    ).rejects.toMatchObject({ acceptance: 'unknown', retryable: true })
   })
 
   it('classifies a client response as proven non-acceptance', async () => {
