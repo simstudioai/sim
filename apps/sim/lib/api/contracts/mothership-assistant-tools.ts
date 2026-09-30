@@ -4,8 +4,10 @@ import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog
 export const liveSearchProviderSchema = z.enum(LIVE_SEARCH_PROVIDER_IDS)
 export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
 
-export const NOTION_SEARCH_TERMS_REQUIRED =
-  'Notion requires search terms. Add keywords or a concise question.'
+export const SEARCH_TERMS_REQUIRED = {
+  notion: 'Notion requires search terms. Add keywords or a concise question.',
+  lucid: 'Lucid requires search terms. Add document-title keywords or a literal shape-text query.',
+} as const
 
 /**
  * Native queries one call may send to the same provider account. Alternatives run as separate
@@ -64,11 +66,11 @@ export const nativeSearchQuerySchema = z
           message: `${input.provider} kind must be one of: ${kinds.options.join(', ')}.`,
         })
     }
-    if (input.provider === 'notion' && !input.query)
+    if ((input.provider === 'notion' || input.provider === 'lucid') && !input.query)
       context.addIssue({
         code: 'custom',
         path: ['query'],
-        message: NOTION_SEARCH_TERMS_REQUIRED,
+        message: SEARCH_TERMS_REQUIRED[input.provider],
       })
   })
 export type NativeSearchQuery = z.output<typeof nativeSearchQuerySchema>

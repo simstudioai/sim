@@ -287,20 +287,34 @@ describe('authorized live retrieval', () => {
       }
     )
   })
-  it.each([
-    { startDate: '2026-08-01T00:00:00Z' },
-    { source: ' notion ', startDate: '2026-08-01T00:00:00Z' },
-    { sortBy: 'newest' as const },
-    { sortBy: 'oldest' as const },
-  ])('rejects a Notion-only live listing with %j', async (bound) => {
-    await expect(
-      searchLiveKnowledge.execute({
-        principal,
-        input: { ...input, query: ' \t ', filters: { source: 'notion', ...bound } },
+  describe.each(['notion', 'lucid'] as const)('%s requires terms before dispatch', (provider) => {
+    it.each([
+      { startDate: '2026-08-01T00:00:00Z' },
+      { source: ` ${provider} `, startDate: '2026-08-01T00:00:00Z' },
+      { sortBy: 'newest' as const },
+      { sortBy: 'oldest' as const },
+    ])('rejects a provider-only listing with %j', async (bound) => {
+      await expect(
+        searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, query: ' \t ', filters: { source: provider, ...bound } },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+    })
+    it('rejects an empty native query even with a date bound', async () => {
+      await expect(
+        searchLiveKnowledge.execute({
+          principal,
+          input: {
+            ...input,
+            query: 'topology',
+            filters: { startDate: '2026-08-01T00:00:00Z' },
+            nativeQueries: [{ provider, query: ' \t ' }],
+          },
+        })
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([expect.objectContaining({ path: [0, 'query'] })]),
       })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: 'Notion requires search terms. Add keywords or a concise question.',
     })
   })
   it.each([undefined, 'google_drive'])(

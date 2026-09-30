@@ -93,9 +93,15 @@ protocol.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (mode === 'tool-error') return failed()
   if (name === 'lucid_get_document_metadata') {
     metadataReads++
+    if (args.document_id === ID && mode === 'candidate-error') return failed()
+    if (args.document_id === ID && mode === 'candidate-rate')
+      return { ...failed(), content: [{ type: 'text' as const, text: 'Rate limit reached' }] }
     if (mode === 'revoked' && metadataReads > 1) return failed()
     return result({
-      documentId: mode === 'metadata-id' ? OTHER_ID : args.document_id,
+      documentId:
+        mode === 'metadata-id' || (mode === 'stale-candidate' && args.document_id === ID)
+          ? OTHER_ID
+          : args.document_id,
       title: TITLE,
       product: mode === 'spark' ? 'lucidspark' : 'lucidchart',
       viewUrl:
@@ -119,7 +125,12 @@ protocol.setRequestHandler(CallToolRequestSchema, async (request) => {
     assert(
       Object.keys(args).every((key) => ['query', 'product', 'last_modified_after'].includes(key))
     )
-    const rowCount = mode === 'search-cap' ? 200 : 1
+    const rowCount =
+      mode === 'search-cap'
+        ? 200
+        : ['stale-candidate', 'candidate-error', 'candidate-rate'].includes(mode)
+          ? 2
+          : 1
     return result({
       query: args.query,
       results:
@@ -387,6 +398,31 @@ try {
     padding += 'x'
     await assert.rejects(read, /512 KiB/)
   })
+  await check(
+    'A stale candidate cannot discard another independently readable document',
+    async () => {
+      mode = 'stale-candidate'
+      const page = await search()
+      assert.deepEqual(
+        page.documents.map((document) => document.id),
+        [OTHER_ID]
+      )
+      assert.equal(page.partial, true)
+      assert.match(page.message ?? '', /excluded/i)
+    }
+  )
+  for (const [failure, status] of [
+    ['candidate-error', 'unavailable'],
+    ['candidate-rate', 'rate_limited'],
+  ] as const) {
+    await check(`Candidate provider failure ${status} remains terminal`, async () => {
+      mode = failure
+      await assert.rejects(
+        () => search(),
+        (error: unknown) => error instanceof NativeSearchError && error.status === status
+      )
+    })
+  }
   await check('Capped title search discloses coverage without inventing a cursor', async () => {
     mode = 'search-cap'
     const page = await search()

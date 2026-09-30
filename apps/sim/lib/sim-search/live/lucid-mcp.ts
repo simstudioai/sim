@@ -41,7 +41,10 @@ function resource(value: string): { id: string; kind?: string } | undefined {
   }
 }
 
-async function metadata(client: ManagedSearchMcpClient, id: string): Promise<NativeDocument> {
+async function metadata(
+  client: ManagedSearchMcpClient,
+  id: string
+): Promise<NativeDocument | undefined> {
   if (!UUID.test(id)) invalid('Invalid Lucid document identity.')
   const row = object(await client.call('lucid_get_document_metadata', { document_id: id }))
   const url = resource(string(row.viewUrl))
@@ -58,7 +61,7 @@ async function metadata(client: ManagedSearchMcpClient, id: string): Promise<Nat
     typeof row.lastModified !== 'string' ||
     !Number.isFinite(Date.parse(row.lastModified))
   )
-    invalid('Lucid document metadata is incomplete, changed, or no longer readable.')
+    return undefined
   return {
     id,
     kind: url.kind,
@@ -99,6 +102,7 @@ export async function searchLucidMcp(
         'Lucid document search requires a document UUID or Lucid URL and a literal text query.'
       )
     const document = await metadata(client, scope.id)
+    if (!document) invalid('Lucid document metadata is incomplete or no longer readable.')
     if (
       (scope.kind && document.kind !== scope.kind) ||
       !products.some((product) => product === document.kind)
@@ -176,13 +180,16 @@ export async function searchLucidMcp(
   const limit = Math.max(1, Math.min(MAX_CANDIDATES, input.limit))
   const documents = await mapWithConcurrency(candidates.slice(0, limit), 3, async (candidate) => {
     const document = await metadata(client, candidate.id)
-    if (document.kind !== candidate.kind) invalid('Lucid document product changed during search.')
+    if (!document || document.kind !== candidate.kind) {
+      dropped = true
+      return undefined
+    }
     return document
   })
   const capped = candidates.length > limit || result.results.length >= 200
   const localDates = hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters))
   return {
-    documents,
+    documents: documents.filter((document) => document !== undefined),
     hasMore: capped,
     partial: dropped || capped || localDates,
     message:
@@ -191,7 +198,7 @@ export async function searchLucidMcp(
         ? ' Dates use current modification timestamps; sorting and the end-date filter cover only the retrieved candidates, not the entire account.'
         : '') +
       (capped ? ' The candidate limit was reached; narrow the title query.' : '') +
-      (dropped ? ' Unsupported search results were excluded.' : ''),
+      (dropped ? ' Unsupported or no-longer-readable search results were excluded.' : ''),
   }
 }
 
@@ -225,6 +232,7 @@ export async function readLucidMcp(
   reference: Pick<NativeDocument, 'id' | 'kind' | 'revision'>
 ): Promise<NativeDocument> {
   const before = await metadata(client, reference.id)
+  if (!before) invalid('Lucid document metadata is incomplete or no longer readable.')
   if (
     (reference.kind && reference.kind !== before.kind) ||
     (reference.revision && reference.revision !== before.revision)
@@ -304,6 +312,7 @@ export async function readLucidMcp(
   }
   const after = await metadata(client, before.id)
   if (
+    !after ||
     after.revision !== before.revision ||
     after.kind !== before.kind ||
     after.modifiedAt !== before.modifiedAt ||
