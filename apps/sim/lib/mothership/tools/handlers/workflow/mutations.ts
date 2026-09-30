@@ -29,7 +29,10 @@ import type {
   VariableOperation,
 } from '@/lib/mothership/tools/handlers/param-types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
-import { presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
+import {
+  boundRunResultForModel,
+  presentWorkflowLogsForModel,
+} from '@/lib/mothership/tools/workflow-output'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
@@ -47,38 +50,10 @@ import {
 } from '@/lib/workflows/application/update-workflow-content'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowMutations')
-
-/** Above this a Function block's `input.code` is echoed upstream JSON, not code worth reading. */
-const LOG_CODE_INPUT_MAX_CHARS = 240
-/** Any other echoed input string over this is data the caller already has, or can fetch. */
-const LOG_INPUT_STRING_MAX_CHARS = 2_000
-const LOG_INPUT_KEEP_CHARS = 200
-
-/**
- * Compacts the block inputs echoed back in `logs`. A Function block's `input.code` embeds the
- * fully serialized upstream rows, so a seven-block run repeated the same rows several times
- * across ~14k chars of tool result. Outputs are never touched — they are what the run was for —
- * and the full input stays one `logs get <executionId> --trace` away.
- */
-function compactBlockLogInputs(logs: unknown, executionId: string | undefined): unknown {
-  if (!Array.isArray(logs)) return logs
-  const reference = executionId ?? '<executionId>'
-  return logs.map((entry) => {
-    if (!isPlainRecord(entry) || !isPlainRecord(entry.input)) return entry
-    const input: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(entry.input)) {
-      const limit = key === 'code' ? LOG_CODE_INPUT_MAX_CHARS : LOG_INPUT_STRING_MAX_CHARS
-      input[key] =
-        typeof value === 'string' && value.length > limit
-          ? `${value.slice(0, LOG_INPUT_KEEP_CHARS)} …[${value.length} chars, see logs get ${reference} --trace]`
-          : value
-    }
-    return { ...entry, input }
-  })
-}
 
 function stripBinaryFields(value: unknown): unknown {
   if (value === null || value === undefined) return value
@@ -164,29 +139,38 @@ function buildExecutionOutput(
     error?: string
     status?: ExecutionResultStatus
   },
+  registry: ResolvedSecretTraceRegistry | undefined,
   phase: ToolEffectPhase,
   extra?: Record<string, unknown>,
   select?: string[]
 ): ToolCallResult {
   const executionId = result.metadata?.executionId
   const output = stripBinaryFields(result.output)
-  const logs = compactBlockLogInputs(stripBinaryFields(result.logs), executionId)
+  const logs = stripBinaryFields(result.logs)
   const lifted = isEmptyOutput(output) ? lastBlockOutput(logs) : undefined
+  const error = result.success
+    ? undefined
+    : result.error || failedBlockError(logs) || 'Workflow execution failed'
   // A caller that names the outputs it wants gets those and nothing else: a seven-block
   // run otherwise costs ~14K chars of logs to learn one headline.
   return {
     success: result.success,
-    output: {
+    output: boundRunResultForModel(
+      {
+        executionId,
+        success: result.success,
+        ...extra,
+        output: lifted ? lifted.output : output,
+        ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
+        ...presentWorkflowLogsForModel(logs, executionId, registry, select, {
+          previewLongInputs: true,
+        }),
+      },
+      error,
       executionId,
-      success: result.success,
-      ...extra,
-      output: lifted ? lifted.output : output,
-      ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
-      ...presentWorkflowLogs(logs, select),
-    },
-    error: result.success
-      ? undefined
-      : result.error || failedBlockError(logs) || 'Workflow execution failed',
+      registry
+    ),
+    error,
     effect: executionEffect(phase, executionId),
   }
 }
@@ -215,7 +199,10 @@ function failedBlockError(logs: unknown): string | undefined {
   return undefined
 }
 
-function buildExecutionError(error: unknown): ToolCallResult {
+function buildExecutionError(
+  error: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): ToolCallResult {
   if (hasExecutionResult(error)) {
     return buildExecutionOutput(
       {
@@ -223,6 +210,7 @@ function buildExecutionError(error: unknown): ToolCallResult {
         success: false,
         error: error.executionResult.error || 'Workflow execution failed',
       },
+      registry,
       settledPhase(error.executionResult.status)
     )
   }
@@ -370,9 +358,15 @@ export async function executeRunWorkflow(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, settledPhase(result.status), undefined, params.select)
+    return buildExecutionOutput(
+      result,
+      context.resolvedSecretTraceRegistry,
+      settledPhase(result.status),
+      undefined,
+      params.select
+    )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }
 
@@ -533,12 +527,13 @@ export async function executeRunWorkflowUntilBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { stoppedAfterBlockId: params.stopAfterBlockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }
 
@@ -614,12 +609,13 @@ export async function executeRunFromBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { startBlockId: params.startBlockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }
 
@@ -706,11 +702,12 @@ export async function executeRunBlock(
 
     return buildExecutionOutput(
       result,
+      context.resolvedSecretTraceRegistry,
       settledPhase(result.status),
       { blockId: params.blockId },
       params.select
     )
   } catch (error) {
-    return buildExecutionError(error)
+    return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
 }

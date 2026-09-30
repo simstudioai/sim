@@ -686,7 +686,10 @@ describe('executeToolAndReport provenance isolation', () => {
     expect(completion).toEqual({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool completed',
-      data: { success: true },
+      data: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be verified/),
+      },
     })
     expect(registry.isComplete()).toBe(true)
     expect(registry.getActiveMatches()).toEqual([])
