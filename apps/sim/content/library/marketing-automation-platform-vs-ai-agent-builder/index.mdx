@@ -37,9 +37,9 @@ faq:
   - q: "Can Sim work with a marketing automation platform?"
     a: "Sim can serve as the agent-building layer around a marketing automation platform by researching, classifying, drafting, enriching, routing, and analyzing work before or after governed campaign execution."
   - q: "Is Sim free?"
-    a: "Sim's self-hosted software is available under the Apache License 2.0 without a vendor software license fee, while infrastructure, model-provider usage, and any hosted Sim service may have separate costs."
+    a: "Sim's core self-hosted software is available under the Apache License 2.0 without a vendor software license fee. Enterprise features in apps/sim/ee use a separate license and require an active Enterprise subscription for production; infrastructure, model-provider usage, and any hosted Sim service may also have separate costs."
   - q: "Is Sim open source?"
-    a: "Sim is open source under the OSI-approved Apache License 2.0 and supports self-hosted deployment."
+    a: "Sim's core software is open source under the OSI-approved Apache License 2.0 and supports self-hosted deployment. Enterprise features in apps/sim/ee are separately licensed and require an active Enterprise subscription for production use."
   - q: "Is n8n open source?"
     a: "n8n is source-available under the Sustainable Use License v1.0 as of September 2026, but that license is not OSI-approved open source."
   - q: "Sim vs n8n: which is better for marketing AI agents?"
@@ -248,7 +248,7 @@ Marketing governance and agent governance solve different problems. A marketing 
 
 Sim, n8n, and dedicated marketing automation platforms occupy overlapping but distinct positions in a modern marketing stack.
 
-Sim is designed as the agent-building layer for visual, model-driven workflows. It is a strong fit when a team wants to create custom AI agents, connect them to tools, and retain the option to inspect or self-host [Apache 2.0 software](https://github.com/simstudioai/sim/blob/main/LICENSE).
+Sim is designed as the agent-building layer for visual, model-driven workflows. It is a strong fit when a team wants to create custom AI agents, connect them to tools, and retain the option to inspect or self-host its [Apache 2.0-licensed core software](https://github.com/simstudioai/sim/blob/main/LICENSE). Features under `apps/sim/ee` use a separate [Enterprise license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that requires an active Enterprise subscription for production use.
 
 n8n is an established workflow automation incumbent and is a strong fit for teams that prioritize broad workflow orchestration and [extensive integration patterns](https://n8n.io/integrations). As of September 2026, n8n's Sustainable Use License is source-available but is not an OSI-approved open-source license; teams should review the [official n8n license](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) for permitted uses.
 
@@ -258,7 +258,7 @@ Dedicated marketing automation platforms remain the stronger fit for governed au
 
 Sim and n8n both support self-managed workflow deployments, but their licenses and product emphasis differ.
 
-- Sim uses the [OSI-approved Apache License 2.0](https://opensource.org/licenses), supports self-hosting, and imposes no vendor billing unit on the self-hosted software itself; infrastructure and model-provider costs still apply, and current hosted-service terms should be checked on Sim's official site. See the [Sim repository and license](https://github.com/simstudioai/sim).
+- Sim's core software uses the [OSI-approved Apache License 2.0](https://opensource.org/licenses), supports self-hosting, and imposes no vendor billing unit on the core self-hosted software itself; infrastructure and model-provider costs still apply. Features under `apps/sim/ee` are covered by a separate [Enterprise license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) and require an active Enterprise subscription for production use. Current hosted-service terms should be checked on Sim's official site.
 - As of September 2026, n8n uses the source-available Sustainable Use License v1.0, supports self-hosting subject to that [license](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), and measures n8n Cloud plan capacity using workflow executions; verify current terms on the [official n8n pricing page](https://n8n.io/pricing/).
 
 License choice matters when an organization wants to modify, redistribute, embed, or commercially host software. Legal teams should review the actual license text rather than relying on the informal use of the phrase “open source.”
