@@ -180,7 +180,11 @@ export async function finishDesktopSourceBrowser(
     return false
   sessionStorage.removeItem(STORAGE_KEY)
   const url = new URL(buildConnectCompletePath(context.state, context.port), window.location.origin)
-  if (completion.error) url.searchParams.set('error', 'connection_failed')
+  if (completion.error)
+    url.searchParams.set(
+      'error',
+      completion.error === 'signin_required' ? 'signin_required' : 'connection_failed'
+    )
   else if (context.github) {
     try {
       const result = await requestJson(readGitHubSearchSetupContract, { query: context.github })

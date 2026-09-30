@@ -77,6 +77,8 @@ export const GET = withRouteHandler(async (request) => {
       const url = new URL('/credential-groups/slack-complete', getBaseUrl())
       url.searchParams.set('state', callbackState)
       url.searchParams.set('ok', 'false')
+      if (error instanceof InternalUnauthenticatedError)
+        url.searchParams.set('reason', 'signin_required')
       return NextResponse.redirect(url, {
         status: 303,
         headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
