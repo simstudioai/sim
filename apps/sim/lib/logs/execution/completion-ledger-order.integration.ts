@@ -111,11 +111,18 @@ afterAll(async () => {
   await db.delete(user).where(eq(user.id, ids.owner))
 })
 
-/** Whether a session is waiting on an advisory lock — this file's database has no other traffic. */
-async function hasAdvisoryLockWaiter() {
-  const rows = await db.execute<{ waiting: boolean }>(
-    sql`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND NOT granted) AS waiting`
-  )
+/**
+ * Whether a session waits on this execution's ledger lock. A bigint advisory key is stored
+ * split across `classid` (high 32 bits) and `objid` (low 32 bits) with `objsubid = 1`.
+ */
+async function isLedgerLockAwaited(executionId: string) {
+  const rows = await db.execute<{ waiting: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_locks
+      WHERE locktype = 'advisory' AND NOT granted AND objsubid = 1
+        AND ((classid::bigint << 32) | objid::bigint) = hashtextextended(${executionId}, 0)
+    ) AS waiting
+  `)
   return Boolean(rows[0]?.waiting)
 }
 
@@ -150,11 +157,19 @@ describe('completeWorkflowExecution', () => {
       billingAttribution,
     })
 
+    /** A completion that settles before blocking surfaces its own outcome instead of a timeout. */
+    const settledWithoutBlocking = completion.then(() => {
+      throw new Error('Completion finished without waiting on the ledger lock')
+    })
+
     let statusWhileLedgerBlocked: string | undefined
     try {
-      await vi.waitFor(async () => {
-        expect(await hasAdvisoryLockWaiter()).toBe(true)
-      })
+      await Promise.race([
+        vi.waitFor(async () => {
+          expect(await isLedgerLockAwaited(executionId)).toBe(true)
+        }),
+        settledWithoutBlocking,
+      ])
       statusWhileLedgerBlocked = (await logRow(executionId))?.status
     } finally {
       releaseLock.resolve()
