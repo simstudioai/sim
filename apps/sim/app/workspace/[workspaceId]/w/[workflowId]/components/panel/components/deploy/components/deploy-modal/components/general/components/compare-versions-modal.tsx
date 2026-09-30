@@ -142,7 +142,12 @@ export function CompareVersionsModal({
         ) : isLoading || !baseState || !targetState ? (
           <WorkflowDiffSkeleton />
         ) : (
-          <WorkflowDiffView baseState={baseState} targetState={targetState} />
+          /* One view per picked pair, so selection and folds start fresh when either side changes. */
+          <WorkflowDiffView
+            key={`${sideToValue(base)}:${sideToValue(target)}`}
+            baseState={baseState}
+            targetState={targetState}
+          />
         )}
       </ChipModalBody>
     </ChipModal>

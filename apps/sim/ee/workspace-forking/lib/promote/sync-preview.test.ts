@@ -118,13 +118,9 @@ describe('listUnchangedSyncSources', () => {
     })
 
     expect([...unchanged]).toEqual(['s-same'])
-    expect(mocks.forEachTargetDraft).toHaveBeenCalledWith(
-      ['t-same', 't-diff'],
-      'ws-t',
-      expect.any(Function)
-    )
   })
 
+  /* `s-same` would be listed if any draft were read, so an empty result shows none was. */
   it('reads no drafts and treats everything as changed when the drafts exceed the limit', async () => {
     mocks.measureTargetDraftBytes.mockResolvedValue(5000)
 
@@ -136,6 +132,5 @@ describe('listUnchangedSyncSources', () => {
     })
 
     expect(unchanged.size).toBe(0)
-    expect(mocks.forEachTargetDraft).not.toHaveBeenCalled()
   })
 })

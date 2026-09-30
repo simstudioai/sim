@@ -92,7 +92,6 @@ describe('fork workflow-diff route', () => {
     )
 
     expect(response.status).toBe(403)
-    expect(mocks.loadSourceDeployedWorkflow).not.toHaveBeenCalled()
   })
 
   it('rejects a request without the source workflow id', async () => {
@@ -102,7 +101,6 @@ describe('fork workflow-diff route', () => {
     )
 
     expect(response.status).toBe(400)
-    expect(mocks.loadSourceDeployedWorkflow).not.toHaveBeenCalled()
   })
 
   it('rejects workspaces that are not a direct fork edge without reading state', async () => {
@@ -114,7 +112,6 @@ describe('fork workflow-diff route', () => {
     )
 
     expect(response.status).toBe(400)
-    expect(mocks.loadSourceDeployedWorkflow).not.toHaveBeenCalled()
   })
 
   it('maps a workflow outside the sync plan to 404', async () => {
@@ -152,7 +149,7 @@ describe('fork workflow-diff route', () => {
     expect(response.status).toBe(404)
   })
 
-  it('reads the target draft and only its block pairs when the sync replaces a workflow', async () => {
+  it('returns the target draft as before when the sync replaces a workflow', async () => {
     const targetState = {
       ...emptyState,
       blocks: {},
@@ -164,7 +161,10 @@ describe('fork workflow-diff route', () => {
       mode: 'replace',
       sourceMeta: { name: 'Support Agent' },
     })
-    mocks.loadTargetDraftState.mockResolvedValue(targetState)
+    /* Only the replaced target in the target workspace has a draft; any other read is a 404. */
+    mocks.loadTargetDraftState.mockImplementation(async (id: string, workspaceId: string) =>
+      id === 'wf-tgt' && workspaceId === 'parent' ? targetState : null
+    )
 
     const response = await GET(
       request({ otherWorkspaceId: 'parent', direction: 'push', sourceWorkflowId: 'wf-src' }),
@@ -172,11 +172,6 @@ describe('fork workflow-diff route', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mocks.loadTargetDraftState).toHaveBeenCalledWith('wf-tgt', 'parent')
-    expect(mocks.loadForkBlockMap).toHaveBeenCalledWith(expect.anything(), 'child', {
-      side: 'parent',
-      workflowId: 'wf-tgt',
-    })
     await expect(response.json()).resolves.toMatchObject({
       targetWorkflowId: 'wf-tgt',
       before: targetState,

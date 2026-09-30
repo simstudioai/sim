@@ -113,9 +113,17 @@ function MessagesDiff({ oldValue, newValue }: MessagesDiffProps) {
     index,
     old: oldMessages[index],
     next: newMessages[index],
-  })).filter(
-    (slot) => slot.old?.content !== slot.next?.content || slot.old?.role !== slot.next?.role
-  )
+  }))
+    .filter(
+      (slot) => slot.old?.content !== slot.next?.content || slot.old?.role !== slot.next?.role
+    )
+    .map((slot) => {
+      const oldText = toDiffText(slot.old?.content)
+      const newText = toDiffText(slot.next?.content)
+      /* The content changed but masking hides where, as with any other field. */
+      const maskedOnly = oldText === newText && slot.old?.content !== slot.next?.content
+      return { ...slot, oldText, newText, maskedOnly }
+    })
 
   return (
     <div className='flex flex-col gap-2'>
@@ -129,10 +137,11 @@ function MessagesDiff({ oldValue, newValue }: MessagesDiffProps) {
             {!slot.old && ' (added)'}
             {!slot.next && ' (removed)'}
           </span>
-          <TextDiff
-            oldText={toDiffText(slot.old?.content)}
-            newText={toDiffText(slot.next?.content)}
-          />
+          {slot.maskedOnly ? (
+            <span className='text-[var(--text-secondary)] text-small'>A masked value changed</span>
+          ) : (
+            <TextDiff oldText={slot.oldText} newText={slot.newText} />
+          )}
         </div>
       ))}
     </div>
