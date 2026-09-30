@@ -30,7 +30,7 @@ import type {
 } from '@/lib/mothership/tools/handlers/param-types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
 import {
-  compactLiftedBlockOutput,
+  boundRunResultForModel,
   presentWorkflowLogsForModel,
 } from '@/lib/mothership/tools/workflow-output'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
@@ -148,21 +148,27 @@ function buildExecutionOutput(
   const output = stripBinaryFields(result.output)
   const logs = stripBinaryFields(result.logs)
   const lifted = isEmptyOutput(output) ? lastBlockOutput(logs) : undefined
+  const error = result.success
+    ? undefined
+    : result.error || failedBlockError(logs) || 'Workflow execution failed'
   // A caller that names the outputs it wants gets those and nothing else: a seven-block
   // run otherwise costs ~14K chars of logs to learn one headline.
   return {
     success: result.success,
-    output: {
+    output: boundRunResultForModel(
+      {
+        executionId,
+        success: result.success,
+        ...extra,
+        output: lifted ? lifted.output : output,
+        ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
+        ...presentWorkflowLogsForModel(logs, executionId, registry, select),
+      },
+      error,
       executionId,
-      success: result.success,
-      ...extra,
-      output: lifted ? compactLiftedBlockOutput(lifted.output, executionId, registry) : output,
-      ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
-      ...presentWorkflowLogsForModel(logs, executionId, registry, select),
-    },
-    error: result.success
-      ? undefined
-      : result.error || failedBlockError(logs) || 'Workflow execution failed',
+      registry
+    ),
+    error,
     effect: executionEffect(phase, executionId),
   }
 }

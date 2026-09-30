@@ -247,6 +247,34 @@ describe('workflow client tool completion', () => {
     expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
   })
 
+  /** Parity with the server path: a final output that would push the result past a cap is replaced. */
+  it('replaces an oversized final output so a browser run still projects', async () => {
+    const rows = Array.from({ length: 20_000 }, (_, index) => ({
+      id: `row_${index}`,
+      data: { a: 'x', b: 'y', c: 'z', d: 'w' },
+    }))
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      finalOutput: { rows },
+      blockLogs: [{ blockId: 'small', blockName: 'Small', output: { count: 1 } }],
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+    })
+
+    const data = completion?.data as Record<string, unknown>
+    expect(data.output).toEqual(expect.stringContaining('logs get execution-1 --trace'))
+    expect((data.logs as Array<Record<string, unknown>>)[0]?.output).toEqual({ count: 1 })
+  })
+
   /** Parity with the server path: a `select` is resolved from raw logs before projection. */
   it('projects selected values from a large browser run instead of withholding it', async () => {
     const rows = (count: number) =>

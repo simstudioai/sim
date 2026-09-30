@@ -106,14 +106,12 @@ function compactBlockLogInputs(logs: unknown, executionId: string | undefined): 
 /**
  * Budgets for block outputs echoed to the model, a quarter of each cap the model-facing projection
  * enforces on the whole result. Reaching either cap withholds everything, including the final
- * output and error the run was for, so those keep the remaining three quarters. The value budget
+ * output and error the run was for, so those keep the rest (see {@link boundRunResultForModel}). The value budget
  * usually binds first: row-shaped outputs reach the projection's traversal cap long before its
  * byte cap.
  */
 const BLOCK_OUTPUT_VALUE_BUDGET = Math.floor(MAX_CONTENT_NODES / 4)
 const BLOCK_OUTPUT_BYTE_BUDGET = Math.floor(MAX_MODEL_CONTENT_BYTES / 4)
-const FINAL_OUTPUT_VALUE_BUDGET = MAX_CONTENT_NODES - BLOCK_OUTPUT_VALUE_BUDGET
-const FINAL_OUTPUT_BYTE_BUDGET = MAX_MODEL_CONTENT_BYTES - BLOCK_OUTPUT_BYTE_BUDGET
 
 interface BlockOutputSize {
   values: number
@@ -178,19 +176,24 @@ function compactBlockLogOutputs(logs: unknown, executionId: string | undefined):
 }
 
 /**
- * Bounds a block output lifted into a run's `output` (run_block and run_workflow_until_block stop
- * before any Response block, so the stopping block's output stands in for the run's). It is the
- * run's final output, so it keeps the final output's share beside the bounded logs, and like them it
- * is bounded only when `registry` makes the projection walk the result.
+ * Bounds a run's whole model-facing result before secret projection. When `registry` makes the
+ * projection walk the result, one past any of its caps is withheld entirely, so the final output
+ * (the only part not already bounded) is replaced with a pointer instead. The result is measured
+ * whole, envelope and error included, so the final output gets exactly the room the bounded logs
+ * leave. A block output that run_block or run_workflow_until_block lifted into `output` is the
+ * run's final output here too.
  */
-export function compactLiftedBlockOutput(
-  output: unknown,
+export function boundRunResultForModel(
+  data: Record<string, unknown>,
+  error: string | undefined,
   executionId: string | undefined,
   registry: ResolvedSecretTraceRegistry | undefined
-): unknown {
-  if (!copilotProjectionWalksContent(registry)) return output
-  const size = sizeBlockOutput(output)
-  return size.values <= FINAL_OUTPUT_VALUE_BUDGET && size.bytes <= FINAL_OUTPUT_BYTE_BUDGET
-    ? output
-    : blockOutputPointer(size.label, executionId)
+): Record<string, unknown> {
+  if (!Object.hasOwn(data, 'output') || !copilotProjectionWalksContent(registry)) return data
+  const whole = measureModelContent(
+    error === undefined ? { output: data } : { output: data, error }
+  )
+  // A result JSON cannot encode is refused whatever its size, so only one past a cap is bounded.
+  if (!whole?.exceeded) return data
+  return { ...data, output: blockOutputPointer(sizeBlockOutput(data.output).label, executionId) }
 }

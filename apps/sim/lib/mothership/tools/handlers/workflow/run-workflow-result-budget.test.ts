@@ -395,4 +395,59 @@ describe('run_workflow model-facing result budget', () => {
       expect.stringContaining(`logs get ${EXECUTION_ID} --trace`)
     )
   })
+
+  /** A Response block's output is the final output too, so it is replaced rather than voiding the run. */
+  it('replaces a final output past the projection cap instead of withholding the run', async () => {
+    const narrow = Array.from({ length: 25_000 }, (_, index) => ({
+      id: `r${index}`,
+      data: { a: 'x' },
+    }))
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { rows: narrow },
+      logs: [{ blockId: 'small', blockName: 'Small', success: true, output: { ok: true } }],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const output = projection.result.output as Record<string, unknown>
+    expect(output.output).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
+    expect((output.logs as Array<Record<string, unknown>>)[0]?.output).toEqual({ ok: true })
+  })
+
+  /**
+   * Each part can sit just inside its own share while the whole result, envelope included, passes
+   * the projection's value cap, so the result is measured whole.
+   */
+  it('replaces the final output when the whole result passes the cap at the share limits', async () => {
+    // Five values per row, two for the wrapping object and array.
+    const rows = (values: number) =>
+      Array.from({ length: Math.floor((values - 2) / 5) }, (_, index) => ({
+        id: `r${index}`,
+        data: { a: 'x', b: 'y' },
+      }))
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [
+        { blockId: 'other', blockName: 'Other', success: true, output: { rows: rows(25_000) } },
+        { blockId: 'query', blockName: 'Query', success: true, output: { rows: rows(75_000) } },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflowUntilBlock(
+      { workflowId: 'wf-1', stopAfterBlockId: 'query' },
+      context
+    )
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const output = projection.result.output as Record<string, unknown>
+    expect(output.output).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
+    expect(output.outputFrom).toEqual({ blockId: 'query', blockName: 'Query' })
+  })
 })
