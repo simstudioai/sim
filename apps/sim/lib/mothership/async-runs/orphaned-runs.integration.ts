@@ -43,10 +43,10 @@ import { randomInt } from '@sim/utils/random'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
+  LEGACY_RUN_ERROR,
   ORPHANED_RUN_ERROR,
   settleStoppedRunWithoutController,
   sweepOrphanedRuns,
-  UNLEASED_RUN_ERROR,
 } from '@/lib/mothership/async-runs/orphaned-runs'
 import { updateRunStatus } from '@/lib/mothership/async-runs/repository'
 import { abortRun } from '@/lib/mothership/request/application/controls'
@@ -119,6 +119,8 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       controllerToken?: string | null
       stopped?: boolean
       superseded?: boolean
+      /** Admitted by code predating the current tool-execution protocol. */
+      legacy?: boolean
     } = {}
   ) {
     const chatId = generateId()
@@ -144,7 +146,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       userId,
       workspaceId,
       streamId,
-      toolExecutionVersion: 2,
+      toolExecutionVersion: options.legacy ? 0 : 2,
       status: options.status ?? 'active',
       requestContext: controllerToken
         ? { requestId: generateId(), controllerToken, recovery: { kind: 'interactive_stream' } }
@@ -201,9 +203,13 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     expect(run.error).toBeTruthy()
   })
 
-  it('settles a run without a lease only after the unleased ceiling', async () => {
-    const recent = await admittedRun({ idleMinutes: 90, controllerToken: null })
-    const abandoned = await admittedRun({ idleMinutes: 25 * 60, controllerToken: null })
+  it('settles a legacy run without a lease only after the legacy ceiling', async () => {
+    const recent = await admittedRun({ idleMinutes: 90, controllerToken: null, legacy: true })
+    const abandoned = await admittedRun({
+      idleMinutes: 25 * 60,
+      controllerToken: null,
+      legacy: true,
+    })
     const [before] = await db
       .select({ updatedAt: copilotRuns.updatedAt })
       .from(copilotRuns)
@@ -217,9 +223,19 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
     /** Its retention clock keeps running from its last real write, and it reads as never finalized. */
     expect(settled.updatedAt).toEqual(before.updatedAt)
     expect(settled.completedAt).toEqual(before.updatedAt)
-    expect(settled.error).toBe(UNLEASED_RUN_ERROR)
+    expect(settled.error).toBe(LEGACY_RUN_ERROR)
     expect(settled.error).not.toBe(ORPHANED_RUN_ERROR)
     expect((await stored(recent.runId)).status).toBe('active')
+  })
+
+  it('never settles a current headless run, however long it has run', async () => {
+    /** A headless turn has no lease or heartbeat; only its own lifecycle can end it. */
+    const headless = await admittedRun({ idleMinutes: 25 * 60, controllerToken: null })
+
+    const { settledRunIds } = await sweepOrphanedRuns()
+
+    expect(settledRunIds).not.toContain(headless.runId)
+    expect((await stored(headless.runId)).status).toBe('active')
   })
 
   it('never settles a run whose stream holds its chat lock, or that is still recoverable', async () => {

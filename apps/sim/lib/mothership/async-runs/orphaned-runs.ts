@@ -17,11 +17,13 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   notInArray,
   or,
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { findStreamsWithReplay } from '@/lib/mothership/request/session/buffer'
 import { findStreamsHoldingChatLock } from '@/lib/mothership/request/session/controller-lease'
@@ -50,14 +52,16 @@ const UNFINISHED_RUN_STATUSES: CopilotRunStatus[] = [
 export const ORPHANED_RUN_GRACE_MS = 60 * 60 * 1000
 
 /**
- * Runs admitted without a chat lease (headless turns and rows from before the lease
- * protocol) have no liveness signal, so only an age far past any process lifetime
- * proves them dead.
+ * Runs admitted by code predating the current tool-execution protocol. Every run the
+ * current code admits records the current version, so once a deploy has replaced the
+ * processes that admitted these, none can be live; the age only leaves room for a
+ * rollout. A current run without a lease (a headless turn) is never swept: it has no
+ * liveness signal and its own lifecycle always settles it.
  */
-export const UNLEASED_RUN_GRACE_MS = 24 * 60 * 60 * 1000
+export const LEGACY_RUN_GRACE_MS = 24 * 60 * 60 * 1000
 
 export const ORPHANED_RUN_ERROR = 'This response was interrupted before it finished.'
-export const UNLEASED_RUN_ERROR = 'Run was never finalized (no controller lease).'
+export const LEGACY_RUN_ERROR = 'Run was never finalized (pre-lease run).'
 
 const SWEEP_BATCH_SIZE = 500
 const SWEEP_MAX_ROWS_PER_RUN = 5_000
@@ -71,8 +75,12 @@ function idleFor(ms: number): SQL {
 }
 
 const leasedRunIdle = and(isNotNull(controllerToken), idleFor(ORPHANED_RUN_GRACE_MS))
-const unleasedRunIdle = and(isNull(controllerToken), idleFor(UNLEASED_RUN_GRACE_MS))
-const orphanIdle = or(leasedRunIdle, unleasedRunIdle)
+const legacyRunIdle = and(
+  isNull(controllerToken),
+  lt(copilotRuns.toolExecutionVersion, SIM_TOOL_EXECUTION_VERSION),
+  idleFor(LEGACY_RUN_GRACE_MS)
+)
+const orphanIdle = or(leasedRunIdle, legacyRunIdle)
 
 /** The user pressed Stop on this stream; a newer turn also closes tool admission, without one. */
 const stopRequested = sql`(EXISTS (SELECT 1 FROM ${copilotRequestStops} s
@@ -105,11 +113,11 @@ const unownedRunColumns = {
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 /** A stopped run ends cancelled; the sweep ends it cancelled only if its user pressed Stop. */
-function terminalValues(reason: 'stopped' | 'orphaned' | 'unleased') {
+function terminalValues(reason: 'stopped' | 'orphaned' | 'legacy') {
   if (reason === 'stopped') {
     return { status: sql`'cancelled'::copilot_run_status`, error: sql`NULL::text` }
   }
-  const error = reason === 'orphaned' ? ORPHANED_RUN_ERROR : UNLEASED_RUN_ERROR
+  const error = reason === 'orphaned' ? ORPHANED_RUN_ERROR : LEGACY_RUN_ERROR
   return {
     status: sql`(CASE WHEN ${stopRequested} THEN 'cancelled' ELSE 'error' END)::copilot_run_status`,
     error: sql`CASE WHEN ${stopRequested} THEN NULL ELSE ${error}::text END`,
@@ -122,8 +130,8 @@ function terminalValues(reason: 'stopped' | 'orphaned' | 'unleased') {
  * which write the same row, wins or loses atomically against it.
  *
  * Chat rows are locked first, in id order, as a controller's claim does, so the two
- * never wait on each other in opposite orders. A run without a lease keeps its last
- * write as its completion and retention time. The chat marker is released without
+ * never wait on each other in opposite orders. A legacy run keeps its last write as its
+ * completion and retention time. The chat marker is released without
  * touching the chat's ordering timestamp.
  */
 async function settleRuns(
@@ -169,7 +177,7 @@ async function settleRuns(
   await apply(
     runs.filter((run) => run.controllerToken === null),
     isNull(controllerToken),
-    { ...terminalValues('unleased'), completedAt: sql`${copilotRuns.updatedAt}` }
+    { ...terminalValues('legacy'), completedAt: sql`${copilotRuns.updatedAt}` }
   )
   for (const run of runs) {
     if (run.controllerToken === null) continue
@@ -212,28 +220,28 @@ function announceSettled(runs: UnownedRun[]): void {
 /** The candidates no controller owns; leased runs are skipped when ownership is unreadable. */
 async function withoutOwners(candidates: UnownedRun[]): Promise<UnownedRun[]> {
   const leased = candidates.filter((run) => run.controllerToken !== null)
-  const unleased = candidates.filter((run) => run.controllerToken === null)
-  if (leased.length === 0) return unleased
+  const legacy = candidates.filter((run) => run.controllerToken === null)
+  if (leased.length === 0) return legacy
   try {
     const [locked, replayable] = await Promise.all([
       findStreamsHoldingChatLock(leased),
       findStreamsWithReplay(leased.map((run) => run.streamId)),
     ])
-    return unleased.concat(
+    return legacy.concat(
       leased.filter((run) => !locked.has(run.streamId) && !replayable.has(run.streamId))
     )
   } catch (error) {
     logger.warn('Chat stream ownership is unreadable; leaving leased runs for a later sweep', {
       error: getErrorMessage(error),
     })
-    return unleased
+    return legacy
   }
 }
 
 /**
  * Settles runs that no controller will ever finish: a leased run whose stream holds no
- * chat lock and has no replay buffer left, idle past the recovery window, and a run
- * without a lease idle past any process lifetime. A failed batch is logged and skipped.
+ * chat lock and has no replay buffer left, idle past the recovery window, and a legacy
+ * run from before the current protocol. A failed batch is logged and skipped.
  */
 export async function sweepOrphanedRuns(): Promise<{ settledRunIds: string[] }> {
   const settledRunIds: string[] = []
