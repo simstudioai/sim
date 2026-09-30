@@ -1,6 +1,7 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
@@ -81,12 +82,14 @@ export default async function OrganizationLayout({
             <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
               <ImpersonationBanner />
               <SessionExpired />
-              <WorkspaceChrome
-                sidebar={<OrganizationSidebar />}
-                initialSidebarCollapsed={initialSidebarCollapsed}
-              >
-                {children}
-              </WorkspaceChrome>
+              <SettingsNavigationProvider>
+                <WorkspaceChrome
+                  sidebar={<OrganizationSidebar />}
+                  initialSidebarCollapsed={initialSidebarCollapsed}
+                >
+                  {children}
+                </WorkspaceChrome>
+              </SettingsNavigationProvider>
             </div>
           </GlobalCommandsProvider>
         </OrganizationProvider>

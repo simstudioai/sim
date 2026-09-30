@@ -34,9 +34,9 @@ const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => stri
  * boundary of its own. React holds content that resolves inside a freshly committed fallback for
  * at least 300ms, so any boundary mounted with the section — a route fallback, or a page-level
  * `<Suspense>` around the code-split body — put that floor under every section switch. Without
- * one, a switch is a transition that keeps the outgoing section on screen until the incoming one
- * and its chunk are ready (immediately, when the sidebar's intent prefetch has landed), and the
- * sidebar moves its selection on click so the click still reads as acknowledged. A boundary above
+ * one, a switch is a transition: the sidebar moves its selection and the settings layout paints
+ * the incoming heading over the outgoing section, which stays mounted but invisible until the
+ * incoming section and its chunk are ready. A boundary above
  * this layout (a `settings/loading.tsx`, or a `<Suspense>` in the settings layout) would also
  * swallow the 404 and 307 above.
  *

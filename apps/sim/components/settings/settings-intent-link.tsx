@@ -80,12 +80,24 @@ function IntentAwareSettingsLink({
     prefetchTimerRef.current = null
   }, [])
 
-  const prefetchForIntent = () => {
+  /** Runs the caller's intent warmer; the route payload is left to the navigation. */
+  const warmForIntent = () => {
     cancelScheduledPrefetch()
     if (isCurrentRoute || navigationIntentRef.current) return
     navigationIntentRef.current = true
-    setShouldPrefetchRoute(true)
     onIntent?.()
+  }
+
+  /**
+   * Hover and focus land well ahead of a click, so they also prefetch the route payload. A press
+   * does not: the navigation follows within a frame or two, and a prefetch started then is a
+   * second request the navigation ends up waiting on (tree, then data) instead of its own one.
+   */
+  const prefetchForIntent = () => {
+    cancelScheduledPrefetch()
+    if (isCurrentRoute) return
+    warmForIntent()
+    setShouldPrefetchRoute(true)
   }
 
   const schedulePrefetch = () => {
@@ -127,13 +139,13 @@ function IntentAwareSettingsLink({
       onPointerDown={(event) => {
         onPointerDown?.(event)
         if (event.pointerType === 'mouse' && isUnmodifiedPrimaryPointer(event)) {
-          prefetchForIntent()
+          warmForIntent()
         }
       }}
       onPointerUp={(event) => {
         onPointerUp?.(event)
         if (event.pointerType !== 'mouse' && isUnmodifiedPrimaryPointer(event)) {
-          prefetchForIntent()
+          warmForIntent()
         }
       }}
       onPointerCancel={(event) => {
@@ -152,7 +164,7 @@ function IntentAwareSettingsLink({
           !isCurrentRoute &&
           !navigationIntentRef.current
         ) {
-          prefetchForIntent()
+          warmForIntent()
         }
       }}
     />
