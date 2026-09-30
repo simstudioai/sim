@@ -69,6 +69,13 @@ export interface RedisBudgetLimits {
  * already dropped and eventually pin the user at their ceiling until they went a full
  * window without writing. User counters therefore get a fixed window: set on
  * creation, never extended.
+ *
+ * Because a trim refunds both counters, the user counter bounds bytes HELD across a
+ * user's owners, not bytes written per hour: a single long copilot stream holds at most
+ * its ring's byte target however much it writes. Bytes of owners that ended stay counted
+ * until the window lapses. The reset is not reconciled with what is still held, so
+ * right after it a user can hold up to about twice the cap: the bytes the lapsed
+ * window counted plus a fresh cap.
  */
 const REDIS_BUDGET_TTL_SECONDS = 60 * 60
 

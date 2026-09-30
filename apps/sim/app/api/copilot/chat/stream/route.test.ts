@@ -27,6 +27,7 @@ const { getLatestRunForStream, readEvents, readFilePreviewSessions, findReplayGa
 
 vi.mock('@/lib/mothership/request/application/recover-stream', () => ({
   readChatStream: { execute: getLatestRunForStream },
+  StreamReplayHeadTrimmedError: class extends Error {},
 }))
 
 vi.mock('@/lib/mothership/request/session', () => ({

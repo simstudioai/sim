@@ -31,6 +31,12 @@ const RETRY_DELAYS_MS = [0, 50, 150] as const
 const RETAINED_BYTES_FRACTION = 0.75
 /** Existing ring members read per page while choosing which to trim. */
 const TRIM_PAGE_SIZE = 256
+/**
+ * Most members one append trims for bytes beyond what the count limit requires. A ring
+ * already past its byte target (written before byte trimming existed) catches up over
+ * several appends instead of in one long script.
+ */
+const MAX_BYTE_TRIM_MEMBERS = 16 * TRIM_PAGE_SIZE
 
 type RedisOperationMetadata = {
   operation: string
@@ -214,9 +220,10 @@ export async function scheduleBufferCleanup(
  * The ring is a sliding window bounded by count and by bytes: the lowest-ranked
  * members are trimmed until both fit, and exactly the trimmed bytes are refunded.
  * The owner counter is the ring's byte total, so a stream of any length stays under
- * its retained-bytes target and never reaches the owner ceiling. A byte trim never
- * drops a member this write adds; only the count limit can, when a replay
- * reintroduces a member below the retained ring.
+ * its retained-bytes target and never reaches the owner ceiling. A byte trim drops an
+ * incoming member only when a replay reintroduces it below a retained one, which keeps
+ * the ring contiguous; it never drops the newest, so a counter already past the
+ * ceiling still refuses rather than silently discarding the write.
  *
  * Entries already present are skipped when counting, which makes the script
  * idempotent: `withRedisRetry` may run it up to three times, and a retry after a
@@ -276,7 +283,8 @@ local next_new = 1
 local page = {}
 local page_index = 1
 local fetched = 0
-while prune_count < count_excess or pruned_bytes < byte_excess do
+local max_prune_count = count_excess + ${MAX_BYTE_TRIM_MEMBERS}
+while prune_count < count_excess or (pruned_bytes < byte_excess and prune_count < max_prune_count) do
   if page_index > #page and fetched < current_count then
     page = redis.call('ZRANGE', KEYS[1], fetched, fetched + ${TRIM_PAGE_SIZE} - 1, 'WITHSCORES')
     fetched = fetched + #page / 2
@@ -288,7 +296,7 @@ while prune_count < count_excess or pruned_bytes < byte_excess do
   end
   local incoming = new_members[next_new]
   if incoming and (not existing or ranks_before(incoming, existing)) then
-    if prune_count >= count_excess then break end
+    if not existing and prune_count >= count_excess then break end
     pruned_bytes = pruned_bytes + string.len(incoming.member)
     next_new = next_new + 1
   elseif existing then

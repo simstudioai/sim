@@ -18,6 +18,7 @@ import {
 } from '@/lib/mothership/request/http'
 import { readFilePreviewSessions } from '@/lib/mothership/request/session'
 import { readEvents } from '@/lib/mothership/request/session/buffer'
+import { startsAtReplayHead } from '@/lib/mothership/request/session/recovery'
 import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 import {
   assertActiveWorkspaceAccess,
@@ -114,15 +115,18 @@ export async function GET(req: NextRequest) {
             }),
           ])
 
-          streamSnapshot = {
-            events: events.map(toStreamBatchEvent),
-            previewSessions,
-            status:
-              typeof run?.status === 'string'
-                ? run.status
-                : events.length > 0
-                  ? 'active'
-                  : 'unknown',
+          // A trimmed head would paint a truncated turn; the resume route reports the gap.
+          if (startsAtReplayHead(events[0]?.seq)) {
+            streamSnapshot = {
+              events: events.map(toStreamBatchEvent),
+              previewSessions,
+              status:
+                typeof run?.status === 'string'
+                  ? run.status
+                  : events.length > 0
+                    ? 'active'
+                    : 'unknown',
+            }
           }
         } catch (error) {
           logger.warn('Failed to load copilot chat stream snapshot', {

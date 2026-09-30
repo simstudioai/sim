@@ -24,7 +24,10 @@ import {
 } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
+import {
+  readChatStream,
+  StreamReplayHeadTrimmedError,
+} from '@/lib/mothership/request/application/recover-stream'
 import { FatalSseEventError } from '@/lib/mothership/request/go/parser'
 import { contextFromRequestHeaders } from '@/lib/mothership/request/go/propagation'
 import { getCopilotTracer, markSpanForError } from '@/lib/mothership/request/otel'
@@ -214,11 +217,22 @@ async function handleResumeRequestBody({
   rootSpan: Span
   rootContext: Context
 }) {
+  /**
+   * Set when the run needs a new controller but recovery refused because the ring lost
+   * its head. Its view is still re-synced from the worker log; see `streamRunReplay`.
+   */
+  let recoveryRefused = false
   const readRun = () =>
-    readChatStream.execute({
-      principal,
-      input: { streamId },
-    })
+    readChatStream
+      .execute({
+        principal,
+        input: { streamId },
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof StreamReplayHeadTrimmedError)) throw error
+        recoveryRefused = true
+        return error.run
+      })
   const run = await readRun()
   logger.info('[Resume] Stream lookup', {
     streamId,
@@ -425,7 +439,8 @@ async function handleResumeRequestBody({
      * A parked run holds the response open until it resumes, so the client does not
      * replay the whole log again for every poll; any other end short of the terminal
      * (the worker's cap, a stalled run, a cut connection) ends it without one and the
-     * client re-attaches, reaching recovery through the reconnect route.
+     * client re-attaches, reaching recovery through the reconnect route. When that
+     * recovery was refused, a park or stall ends the view with an error instead.
      */
     const streamRunReplay = async (body: ReadableStream<Uint8Array>) => {
       let seq = 0
@@ -455,10 +470,24 @@ async function handleResumeRequestBody({
           return 'closed' as const
         })
         logger.info('[Resume] Run replay ended', { streamId, end, eventCount: seq })
-        while (end === 'parked' && !controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
+        while (
+          end === 'parked' &&
+          !recoveryRefused &&
+          !controllerClosed &&
+          Date.now() - startTime < MAX_STREAM_MS
+        ) {
           const current = await readRun().catch(() => null)
           if (current?.status !== 'paused_waiting_for_tool') break
           await sleep(POLL_INTERVAL_MAX_MS)
+        }
+        /* No controller drives the run and none can be rebuilt from a trimmed ring, so a
+           park or stall is final for this view; re-attaching would only replay it again. */
+        if (recoveryRefused && (end === 'parked' || end === 'stalled')) {
+          emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+            message: 'This response can no longer continue. Send a message to pick up from here.',
+            code: 'recovery_unavailable',
+            reason: 'recovery_unavailable',
+          })
         }
       } finally {
         clearInterval(keepalive)
@@ -500,6 +529,8 @@ async function handleResumeRequestBody({
           })
           return null
         })
+        /* The ring lost its head under this tail; the re-attach re-syncs from the log. */
+        if (recoveryRefused) break
         if (!currentRun) {
           emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
             message: 'The stream could not be recovered because its run metadata is unavailable.',

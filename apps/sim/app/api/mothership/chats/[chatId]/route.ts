@@ -28,6 +28,7 @@ import {
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { readEvents } from '@/lib/mothership/request/session/buffer'
 import { readFilePreviewSessions } from '@/lib/mothership/request/session/file-preview-session'
+import { startsAtReplayHead } from '@/lib/mothership/request/session/recovery'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -89,15 +90,18 @@ export const GET = withRouteHandler(
             return null
           })
 
-          liveTurnSnapshot = {
-            events: events.map(toStreamBatchEvent),
-            previewSessions,
-            status:
-              typeof run?.status === 'string'
-                ? run.status
-                : events.length > 0
-                  ? 'active'
-                  : 'unknown',
+          // A trimmed head would paint a truncated turn; the resume route reports the gap.
+          if (startsAtReplayHead(events[0]?.seq)) {
+            liveTurnSnapshot = {
+              events: events.map(toStreamBatchEvent),
+              previewSessions,
+              status:
+                typeof run?.status === 'string'
+                  ? run.status
+                  : events.length > 0
+                    ? 'active'
+                    : 'unknown',
+            }
           }
         } catch (error) {
           logger.warn('Failed to read stream snapshot for mothership chat', {

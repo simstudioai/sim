@@ -26,6 +26,16 @@ export interface ReplayGap {
 }
 
 /**
+ * Whether a ring whose first retained event has `firstSeq` still holds the stream's
+ * first event. The ring trims its oldest events, so a read from cursor 0 can start
+ * mid-stream; anything that rebuilds a turn from such a read must not, and a reader
+ * of it is re-synced from the worker's log instead ({@link findReplayGap}).
+ */
+export function startsAtReplayHead(firstSeq: number | undefined): boolean {
+  return firstSeq === undefined || firstSeq <= 1
+}
+
+/**
  * Whether the ring can serve a reader from `afterCursor`. It cannot once it has lost
  * its head: the events before its oldest are gone, and a cursor that was served from
  * the worker's log instead is not a position in the ring, so no cursor is trusted. Nor
@@ -58,7 +68,7 @@ export async function findReplayGap(
         latestSeq === null ||
         latestSeq <= 0 ||
         oldestSeq === null ||
-        (oldestSeq <= 1 && requestedAfterSeq <= latestSeq)
+        (startsAtReplayHead(oldestSeq) && requestedAfterSeq <= latestSeq)
       ) {
         span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.InRange)
         return null
