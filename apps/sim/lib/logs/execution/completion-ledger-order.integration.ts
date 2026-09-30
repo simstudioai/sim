@@ -131,19 +131,22 @@ describe('completeWorkflowExecution', () => {
         }
       })()
 
-      await executionLogger.completeWorkflowExecution({
-        executionId,
-        endedAt: new Date().toISOString(),
-        totalDurationMs: 5,
-        costSummary: calculateCostSummary([], { baseExecutionCharge: EXECUTION_FEE }),
-        finalOutput: {},
-        traceSpans: [],
-        status: 'completed',
-        actorUserId: ids.owner,
-        billingAttribution,
-      })
-      completing = false
-      await reader
+      try {
+        await executionLogger.completeWorkflowExecution({
+          executionId,
+          endedAt: new Date().toISOString(),
+          totalDurationMs: 5,
+          costSummary: calculateCostSummary([], { baseExecutionCharge: EXECUTION_FEE }),
+          finalOutput: {},
+          traceSpans: [],
+          status: 'completed',
+          actorUserId: ids.owner,
+          billingAttribution,
+        })
+      } finally {
+        completing = false
+        await reader
+      }
 
       const ledger = await buildCostLedger(executionId)
       expect(ledger?.total).toBeCloseTo(EXECUTION_FEE, 8)
