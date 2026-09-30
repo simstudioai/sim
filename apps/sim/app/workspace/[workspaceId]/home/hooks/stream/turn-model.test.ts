@@ -136,6 +136,25 @@ describe('reduceEvent — tool lifecycle', () => {
     ])
     expect(tool(m, 'tc-1').status).toBe('cancelled')
   })
+
+  it('keeps the arguments it has when a compacted call frame omitted the whole argument object', () => {
+    const m = apply([
+      envelope(1, 'tool', {
+        phase: 'call',
+        toolCallId: 'tc-1',
+        toolName: 'cli_tables_rows_query',
+        status: 'generating',
+        arguments: { operation: 'query' },
+      }),
+      envelope(2, 'tool', {
+        phase: 'call',
+        toolCallId: 'tc-1',
+        toolName: 'cli_tables_rows_query',
+        arguments: { omitted: true, bytes: 3_000_000 },
+      }),
+    ])
+    expect(tool(m, 'tc-1').args).toEqual({ operation: 'query' })
+  })
 })
 
 describe('reduceEvent — subagent lifecycle', () => {

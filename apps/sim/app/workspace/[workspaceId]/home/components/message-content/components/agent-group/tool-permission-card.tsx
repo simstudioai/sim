@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/activity-status'
 import { requestJson } from '@/lib/api/client/request'
 import { copilotToolPermissionContract } from '@/lib/api/contracts/copilot'
+import { describeOmittedStreamValues } from '@/lib/mothership/request/session/omission'
 import { generalSettingsKeys } from '@/hooks/queries/current-user-data'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
 
@@ -59,7 +60,7 @@ function isGoneError(error: unknown): boolean {
 function argsPreview(params: Record<string, unknown> | undefined): string | undefined {
   if (!params || Object.keys(params).length === 0) return undefined
   try {
-    const json = JSON.stringify(params, null, 2)
+    const json = JSON.stringify(params, describeOmittedStreamValues, 2)
     return json.length > 600 ? `${json.slice(0, 600)}…` : json
   } catch {
     return undefined
