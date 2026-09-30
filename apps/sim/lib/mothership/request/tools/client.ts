@@ -15,7 +15,7 @@ import {
   unsealClientToolContext,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
-import { compactBlockLogOutputs, presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
+import { presentWorkflowLogsForModel } from '@/lib/mothership/tools/workflow-output'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
@@ -376,10 +376,8 @@ export async function waitForWorkflowToolCompletion({
     ...(Object.hasOwn(trustedExecution, 'finalOutput')
       ? { output: trustedExecution.finalOutput }
       : {}),
-    // `select` reads full values from these logs; only logs echoed whole are bounded.
-    logs: select?.length
-      ? trustedExecution.blockLogs
-      : compactBlockLogOutputs(trustedExecution.blockLogs, executionId),
+    // Built from raw logs before projection, matching the server handler's presentation.
+    ...presentWorkflowLogsForModel(trustedExecution.blockLogs, executionId, select),
     ...(trustedExecution.error !== undefined ? { error: trustedExecution.error } : {}),
     ...(status === MothershipStreamV1ToolOutcome.cancelled
       ? { reason: 'user_cancelled', cancelledByUser: true }
@@ -397,10 +395,8 @@ export async function waitForWorkflowToolCompletion({
   )
   const projected = projection.result
   const projectedData = isPlainRecord(projected.output) ? projected.output : {}
-  const { logs, ...projectedFields } = projectedData
   const data = {
-    ...projectedFields,
-    ...(Object.hasOwn(projectedData, 'logs') ? presentWorkflowLogs(logs, select) : {}),
+    ...projectedData,
     ...createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
   }
   const message =

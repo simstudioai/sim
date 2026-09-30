@@ -6,10 +6,27 @@ import {
 } from '@/executor/utils/resolved-secret-content-projection'
 
 /** Shared presentation for server execution and trusted client execution restoration. */
-export function presentWorkflowLogs(logs: unknown, select?: string[]): Record<string, unknown> {
+function presentWorkflowLogs(logs: unknown, select?: string[]): Record<string, unknown> {
   return select?.length
     ? { selected: selectFromLogs(select, Array.isArray(logs) ? logs : []), logsOmitted: true }
     : { logs }
+}
+
+/**
+ * The model-facing log fields for one run, built from raw logs before secret projection so both the
+ * server handler and browser-run restoration present the same bounded shape: a `select` resolves
+ * against the full logs and replaces them, otherwise the echoed logs are bounded by
+ * {@link compactBlockLogOutputs}.
+ */
+export function presentWorkflowLogsForModel(
+  logs: unknown,
+  executionId: string | undefined,
+  select?: string[]
+): Record<string, unknown> {
+  return presentWorkflowLogs(
+    select?.length ? logs : compactBlockLogOutputs(logs, executionId),
+    select
+  )
 }
 
 /** The executor's block-name rule: lowercase, whitespace and dots removed. */
@@ -107,7 +124,7 @@ interface MeasuredLogOutput {
  * would disclose a secret's length. It says "inspect" rather than promising the full value, since
  * the stored trace can itself be summarized.
  */
-export function compactBlockLogOutputs(logs: unknown, executionId: string | undefined): unknown {
+function compactBlockLogOutputs(logs: unknown, executionId: string | undefined): unknown {
   if (!Array.isArray(logs)) return logs
   const reference = executionId ?? '<executionId>'
   const measured: MeasuredLogOutput[] = []

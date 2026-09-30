@@ -247,6 +247,46 @@ describe('workflow client tool completion', () => {
     expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
   })
 
+  /** Parity with the server path: a `select` is resolved from raw logs before projection. */
+  it('projects selected values from a large browser run instead of withholding it', async () => {
+    const rows = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `row_${index}`,
+        data: { a: 'x', b: 'y', c: 'z', d: 'w' },
+      }))
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      blockLogs: [
+        { blockId: 'reader', blockName: 'Reader', output: { token: 'parent-secret-value', n: 2 } },
+        ...Array.from({ length: 4 }, (_, index) => ({
+          blockId: `query-${index}`,
+          blockName: `Query ${index}`,
+          output: { rows: rows(5_000) },
+        })),
+      ],
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+      select: ['Reader.token', 'Reader.n'],
+    })
+
+    expect(completion?.data).toMatchObject({
+      output: { value: 'child read {{PARENT_SECRET}} from execution-1' },
+      selected: { 'Reader.token': '{{PARENT_SECRET}}', 'Reader.n': 2 },
+      logsOmitted: true,
+    })
+    expect(completion?.data).not.toHaveProperty('logs')
+    expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
+  })
+
   it('preserves the server-confirmed status while omitting unavailable execution content', async () => {
     const registry = createParentRegistry()
     waitForToolConfirmation.mockResolvedValue({

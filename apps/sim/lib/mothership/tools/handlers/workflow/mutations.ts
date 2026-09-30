@@ -31,8 +31,7 @@ import type {
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
 import {
   compactBlockLogInputs,
-  compactBlockLogOutputs,
-  presentWorkflowLogs,
+  presentWorkflowLogsForModel,
 } from '@/lib/mothership/tools/workflow-output'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
@@ -157,11 +156,7 @@ function buildExecutionOutput(
       ...extra,
       output: lifted ? lifted.output : output,
       ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
-      // `select` reads full values from the run's own logs, so only the echoed logs are bounded.
-      ...presentWorkflowLogs(
-        select?.length ? logs : compactBlockLogOutputs(logs, executionId),
-        select
-      ),
+      ...presentWorkflowLogsForModel(logs, executionId, select),
     },
     error: result.success
       ? undefined
