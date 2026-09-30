@@ -5,6 +5,7 @@ import {
   workflowDeploymentOperation,
   workflowDeploymentVersion,
 } from '@sim/db/schema'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
@@ -59,6 +60,15 @@ export class StaleWebhookRegistrationOperationError extends Error {
     super(message)
     this.name = 'StaleWebhookRegistrationOperationError'
   }
+}
+
+/** Preserve the SQLSTATE without retaining credential-bearing query or driver details. */
+function safeRegistrationPersistenceError(error: unknown, message: string): Error {
+  const code = getPostgresErrorCode(error)
+  if (code && /^[0-9A-Z]{5}$/.test(code)) {
+    return Object.assign(new Error(`${message} (SQLSTATE ${code}).`), { code })
+  }
+  return new Error(`${message}.`)
 }
 
 function assertOperationGeneration(generation: number): void {
@@ -411,9 +421,12 @@ export async function prepareWebhookRegistrationIntents(input: {
       return { candidates, orphanedCandidates }
     })
     .catch((error: unknown) => {
-      if (error instanceof StaleWebhookRegistrationOperationError || !findDatabaseQueryError(error))
-        throw error
-      throw new Error('Failed to persist webhook registration intent.')
+      const queryError = findDatabaseQueryError(error)
+      if (error instanceof StaleWebhookRegistrationOperationError || !queryError) throw error
+      throw safeRegistrationPersistenceError(
+        queryError,
+        'Failed to persist webhook registration intent'
+      )
     })
 }
 
@@ -492,8 +505,12 @@ export async function checkpointWebhookCandidate(input: {
     )
     .returning()
     .catch((error: unknown) => {
-      if (!findDatabaseQueryError(error)) throw error
-      throw new Error('Failed to checkpoint webhook registration state.')
+      const queryError = findDatabaseQueryError(error)
+      if (!queryError) throw error
+      throw safeRegistrationPersistenceError(
+        queryError,
+        'Failed to checkpoint webhook registration state'
+      )
     })
   if (!updated) throw new StaleWebhookRegistrationOperationError()
   return updated

@@ -123,7 +123,8 @@ async function cleanupGenerationFencedRegistration(
 async function createCandidateProviderState(
   input: PrepareStableWebhookRegistrationsInput,
   candidate: PreparedWebhookCandidate,
-  dependencies: StableWebhookRegistrationDependencies
+  dependencies: StableWebhookRegistrationDependencies,
+  captureProviderState: (config: Record<string, unknown>) => void
 ): Promise<Record<string, unknown>> {
   const webhookData = {
     ...candidate.row,
@@ -141,6 +142,8 @@ async function createCandidateProviderState(
     { signal: input.signal }
   )
   let providerConfig = externalResult.updatedProviderConfig
+  // Rollback needs the returned ID even if the first durable checkpoint fails.
+  captureProviderState(providerConfig)
 
   if (externalResult.externalSubscriptionCreated) {
     /**
@@ -169,6 +172,7 @@ async function createCandidateProviderState(
       deploymentVersionId: input.fence.deploymentVersionId,
       persistProviderConfig: async (configuredProviderConfig) => {
         persistedProviderConfig = configuredProviderConfig
+        captureProviderState(configuredProviderConfig)
         await dependencies.checkpointCandidate({
           fence: input.fence,
           webhookId: candidate.row.id,
@@ -250,7 +254,14 @@ async function prepareCandidate(
     }
 
     input.signal?.throwIfAborted()
-    preparedProviderConfig = await createCandidateProviderState(input, candidate, dependencies)
+    preparedProviderConfig = await createCandidateProviderState(
+      input,
+      candidate,
+      dependencies,
+      (config) => {
+        preparedProviderConfig = config
+      }
+    )
     input.signal?.throwIfAborted()
     await dependencies.checkpointCandidate({
       fence: input.fence,

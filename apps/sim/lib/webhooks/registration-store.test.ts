@@ -398,14 +398,18 @@ describe('registration persistence confidentiality', () => {
     )
   })
 
-  it.each(['intent', 'checkpoint'])(
-    'projects credential-bearing database errors into safe %s failures',
-    async (phase) => {
+  it.each(
+    ['intent', 'checkpoint'].flatMap((phase) =>
+      ['23505', '57014', '08006', 'fixture-secret-code'].map((code) => [phase, code])
+    )
+  )(
+    'projects credential-bearing database errors into safe %s failures with code %s',
+    async (phase, code) => {
       const credential = 'fixture-registration-secret-must-never-escape'
       const databaseError = new DrizzleQueryError(
         'insert webhook values ($1)',
         [JSON.stringify({ token: credential })],
-        new Error(credential)
+        Object.assign(new Error(credential), { code })
       )
       dbChainMockFns.transaction.mockRejectedValueOnce(databaseError)
       dbChainMockFns.returning.mockRejectedValueOnce(databaseError)
@@ -417,15 +421,22 @@ describe('registration persistence confidentiality', () => {
               webhookId: 'fixture-id',
               providerConfig: { token: credential },
             })
-      try {
-        await operation
-        expect.fail('Persistence must fail')
-      } catch (error) {
-        expect(error).not.toBe(databaseError)
-        expect(String(error)).not.toContain(credential)
-        expect(JSON.stringify(error)).not.toContain(credential)
-        expect((error as Error).cause).toBeUndefined()
-        expect((error as Error).stack).not.toContain(credential)
+      const error: unknown = await operation.then(
+        () => undefined,
+        (caught: unknown) => caught
+      )
+      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBe(databaseError)
+      expect(String(error)).not.toContain(credential)
+      expect(JSON.stringify(error)).not.toContain(credential)
+      expect((error as Error).cause).toBeUndefined()
+      expect((error as Error).stack).not.toContain(credential)
+      if (code === 'fixture-secret-code') {
+        expect(JSON.stringify(error)).not.toContain(code)
+        expect(String(error)).not.toContain(code)
+      } else {
+        expect((error as Error & { code?: string }).code).toBe(code)
+        expect(String(error)).toContain(code)
       }
     }
   )
