@@ -42,11 +42,12 @@ export async function claimServiceUsage(limit = 10) {
   })
 }
 
+/** A closed row is final, so a tool that outlived its watchdog cannot rewrite its close. */
 export async function finishServiceUsage(id: string, error?: string): Promise<void> {
   await db
     .update(copilotServiceUsage)
     .set(error ? { lastError: error } : { deliveredAt: new Date(), lastError: null })
-    .where(eq(copilotServiceUsage.id, id))
+    .where(and(eq(copilotServiceUsage.id, id), isNull(copilotServiceUsage.deliveredAt)))
 }
 
 export async function beginServiceMeter(input: {

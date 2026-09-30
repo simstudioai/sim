@@ -1,7 +1,7 @@
 /** Local SQL verifies receipt durability, concurrent claims and replay independently of tool completion. */
 
-import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { generateId } from '@sim/utils/id'
 import type { Sql } from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -68,14 +68,14 @@ describe('service receipts in SQL', () => {
   it('claims each known receipt once while preserving incomplete measurement and delivery failures', async () => {
     const client = state.client!
     const base = {
-      streamId: randomUUID(),
+      streamId: generateId(),
       toolCallId: 'tool',
       workerOrigin: 'http://127.0.0.1:8080',
     }
-    const intentId = randomUUID()
+    const intentId = generateId()
     await beginServiceMeter({ ...base, id: intentId })
     const receipt = {
-      id: randomUUID(),
+      id: generateId(),
       streamId: base.streamId,
       toolCallId: base.toolCallId,
       service: 'exa',
@@ -111,17 +111,17 @@ describe('service receipts in SQL', () => {
   it('closes each abandoned tool meter once and leaves in-flight meters and receipts open', async () => {
     const client = state.client!
     const scope = {
-      streamId: randomUUID(),
+      streamId: generateId(),
       toolCallId: 'abandoned-tool',
       workerOrigin: 'http://127.0.0.1:8080',
     }
-    const abandoned = randomUUID()
-    const failed = randomUUID()
-    const inFlight = randomUUID()
+    const abandoned = generateId()
+    const failed = generateId()
+    const inFlight = generateId()
     for (const id of [abandoned, failed, inFlight]) await beginServiceMeter({ ...scope, id })
     await finishServiceUsage(failed, 'provider pricing unavailable')
     const receipt = {
-      id: randomUUID(),
+      id: generateId(),
       streamId: scope.streamId,
       toolCallId: scope.toolCallId,
       service: 'exa',
@@ -144,6 +144,14 @@ describe('service receipts in SQL', () => {
     )
     expect(closed.every((meter) => meter.streamId === scope.streamId)).toBe(true)
     expect(await closeAbandonedServiceMeters()).toEqual([])
+    // The watchdog only stops the chat waiting, so the owner can still finish after the close.
+    await finishServiceUsage(abandoned)
+    await finishServiceUsage(failed, 'late failure')
+    const lateRows =
+      await client`SELECT id, last_error FROM copilot_service_usage WHERE id IN ${client([abandoned, failed])}`
+    expect(new Map(lateRows.map((row) => [row.id, row.last_error]))).toEqual(
+      new Map(closed.map((meter) => [meter.id, meter.lastError]))
+    )
 
     const open =
       await client`SELECT id FROM copilot_service_usage WHERE stream_id = ${scope.streamId} AND delivered_at IS NULL`
