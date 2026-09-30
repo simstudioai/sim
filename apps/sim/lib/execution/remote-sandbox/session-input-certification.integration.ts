@@ -78,9 +78,13 @@ function machine(sandboxId: string): SandboxHandle {
 const createdKeys: string[] = []
 
 afterAll(async () => {
-  const redis = getRedisClient()
-  if (redis && createdKeys.length) await redis.del(...createdKeys)
-  if (inheritedRedisUrl === undefined) process.env.REDIS_URL = undefined
+  if (redisUrl && createdKeys.length) {
+    const redis = getRedisClient()
+    if (redis) await redis.del(...createdKeys)
+  }
+  // Only restore what the hoisted setup changed; assigning undefined would store the string "undefined".
+  if (!redisUrl) return
+  if (inheritedRedisUrl === undefined) Reflect.deleteProperty(process.env, 'REDIS_URL')
   else process.env.REDIS_URL = inheritedRedisUrl
 })
 
