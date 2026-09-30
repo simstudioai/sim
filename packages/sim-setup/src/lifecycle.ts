@@ -360,6 +360,26 @@ function describeInstall(install: Install): string {
   return `Kubernetes (context ${install.context}${scope})`
 }
 
+/**
+ * What to say when no install was found. "Run npx sim-setup" reads as "install
+ * again", which is wrong in the two common cases: Docker is down (a Compose
+ * stack is invisible, not missing), or the stack was taken `down` and the
+ * command runs outside its directory, where only `--dir` can find it.
+ */
+export function noInstallHint(options: { dockerReachable: boolean; cwd: string }): string[] {
+  if (!options.dockerReachable) {
+    return [
+      'Docker is not reachable, so a Compose install cannot be detected.',
+      'Start Docker Desktop (or OrbStack), then re-run this command.',
+    ]
+  }
+  return [
+    `No Sim install found from ${options.cwd}.`,
+    `Already set up? Run this from the folder that contains your sim/ directory, or pass ${theme.command('--dir <path-to-sim>')}.`,
+    `New here? Run ${theme.command('npx sim-setup')}.`,
+  ]
+}
+
 /** One install → use it; several → let the user pick; none → null. */
 async function resolveInstall(installs: Install[]): Promise<Install | null> {
   if (installs.length <= 1) return installs[0] ?? null
@@ -656,11 +676,13 @@ async function status(): Promise<void> {
     console.log(`   ${theme.muted('start Docker Desktop (or OrbStack), then re-run this.')}\n`)
   }
   if (installs.length === 0) {
-    console.log(
-      docker
-        ? ` ${glyph.warn} No Sim install detected — run ${theme.command('npx sim-setup')}.`
-        : ` ${glyph.warn} No install detected, but that may just be Docker being down.`
-    )
+    if (!docker) {
+      console.log(` ${glyph.warn} No install detected, but that may just be Docker being down.`)
+      return
+    }
+    const [first, ...rest] = noInstallHint({ dockerReachable: true, cwd: process.cwd() })
+    console.log(` ${glyph.warn} ${first}`)
+    for (const line of rest) console.log(`   ${theme.muted(line)}`)
     return
   }
   for (const install of installs) console.log(` ${glyph.pass} ${describeInstall(install)}`)
@@ -696,7 +718,7 @@ export async function runLifecycle(command: LifecycleCommand): Promise<void> {
 
   const install = await resolveInstall(installs)
   if (!install) {
-    p.log.warn(`No Sim install detected. Run ${theme.command('npx sim-setup')} first.`)
+    p.log.warn(noInstallHint({ dockerReachable: dockerReachable(), cwd: process.cwd() }).join('\n'))
     return
   }
   switch (command) {
