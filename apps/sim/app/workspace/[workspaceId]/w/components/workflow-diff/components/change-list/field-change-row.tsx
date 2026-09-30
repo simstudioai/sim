@@ -121,7 +121,10 @@ function MessagesDiff({ oldValue, newValue }: MessagesDiffProps) {
       const oldText = toDiffText(slot.old?.content)
       const newText = toDiffText(slot.next?.content)
       /* The content changed but masking hides where, as with any other field. */
-      const maskedOnly = oldText === newText && slot.old?.content !== slot.next?.content
+      const maskedOnly =
+        Boolean(slot.old && slot.next) &&
+        oldText === newText &&
+        slot.old?.content !== slot.next?.content
       return { ...slot, oldText, newText, maskedOnly }
     })
 
