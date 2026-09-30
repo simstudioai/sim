@@ -1,13 +1,17 @@
+import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { fetchWithRetry, secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   createRetryableHttpError,
+  isRetryableError,
+  type RetryOptions,
   readBoundedHttpErrorPayload,
 } from '@/lib/knowledge/documents/utils'
 import { extractCursor } from '@/connectors/confluence/cursor'
 import { listingFailuresSchema, MAX_LISTING_FAILURE_SAMPLES } from '@/connectors/listing-failures'
 import { isAllSourceItems } from '@/connectors/selection'
+import { ConnectorSourceError } from '@/connectors/source-error'
 import type { ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
@@ -20,12 +24,20 @@ import {
   stubOrSkipBySize,
 } from '@/connectors/utils'
 
+const logger = createLogger('ConfluenceAttachments')
+
 const ATTACHMENT_PREFIX = 'attachment:'
 const CURSOR_PREFIX = 'attachments:'
 const PAGE_SIZE = 50
 const REQUESTS_PER_CALL = 5
 const MAX_CURSOR_BYTES = 512 * 1024
 const MAX_METADATA_BYTES = 2 * 1024 * 1024
+/**
+ * Consecutive parents whose attachment listing failed server-side. An isolated
+ * failure is skipped and recorded; a run of them means Atlassian itself is down,
+ * so the sync fails instead of spending the retry budget on every remaining parent.
+ */
+const MAX_CONSECUTIVE_SERVER_FAILURES = 3
 /**
  * Attachment formats listed for indexing: a deliberate subset of the shared
  * `PIPELINE_PARSED_MIME_TYPES`, limited to the headline PDF, Word, Excel and
@@ -47,6 +59,12 @@ const cursorSchema = z.object({
   parentsListed: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   parentsDone: z.boolean(),
   failures: listingFailuresSchema.optional(),
+  serverFailureStreak: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(MAX_CONSECUTIVE_SERVER_FAILURES)
+    .optional(),
 })
 const attachmentSchema = z.object({
   id: boundedId,
@@ -64,12 +82,28 @@ const attachmentPageSchema = z.object({
   results: z.array(attachmentSchema).max(250),
   _links: z.object({ next: providerCursor.optional() }).optional(),
 })
+/** Only provider-owned codes are kept from an error body; titles and details are never logged. */
+const atlassianErrorBodySchema = z.object({
+  errors: z
+    .array(
+      z.object({
+        code: z
+          .string()
+          .regex(/^[A-Za-z0-9_.-]{1,64}$/)
+          .optional()
+          .catch(undefined),
+      })
+    )
+    .max(10),
+})
+const OPAQUE_HEADER_VALUE = /^[A-Za-z0-9_.-]{1,128}$/
 const scopeMismatchSchema = z.object({
   code: z.literal(401),
   message: z.literal('Unauthorized; scope does not match'),
 })
 
 type Attachment = z.infer<typeof attachmentSchema>
+type AttachmentPage = z.infer<typeof attachmentPageSchema>
 type AttachmentCursor = z.infer<typeof cursorSchema>
 type AttachmentParent = z.infer<typeof parentSchema>
 
@@ -111,18 +145,87 @@ function apiBase(cloudId: string): string {
   return `https://api.atlassian.com/ex/confluence/${encodeURIComponent(cloudId)}/wiki`
 }
 
+function metadataServerError(status: number): ConnectorSourceError {
+  return new ConnectorSourceError(
+    `Failed to read Confluence attachment metadata: ${status}`,
+    status,
+    'provider_unavailable'
+  )
+}
+
+function opaqueHeader(response: Response, name: string): string | undefined {
+  const value = response.headers.get(name)
+  return value && OPAQUE_HEADER_VALUE.test(value) ? value : undefined
+}
+
+/** Atlassian support resolves a failure from its trace ID; the raw body may hold secrets and is never logged. */
+async function readServerErrorCodes(response: Response): Promise<string[] | undefined> {
+  const payload = await readBoundedHttpErrorPayload(response)
+  if (!payload.ok) return undefined
+  try {
+    const parsed = atlassianErrorBodySchema.safeParse(JSON.parse(payload.body))
+    return parsed.success
+      ? parsed.data.errors.flatMap((error) => (error.code ? [error.code] : []))
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Metadata reads are idempotent GETs, and Atlassian intermittently answers them
+ * with a bare 500 that the shared transient-status set omits. Raising it inside
+ * the transport lets the shared backoff retry it like a 503. Every 5xx attempt
+ * is logged with Atlassian's trace identifiers; other 5xx responses keep the
+ * shared handling, so their bodies are left for it to read.
+ */
+const METADATA_RETRY_OPTIONS: RetryOptions = {
+  fetcher: async (input, init, transport) => {
+    const response = await transport(input, init)
+    if (response.status < 500) return response
+    const retried = response.status === 500
+    logger.warn('Confluence attachment metadata request failed', {
+      status: response.status,
+      path: new URL(String(input)).pathname,
+      traceId: opaqueHeader(response, 'atl-traceid'),
+      requestId: opaqueHeader(response, 'x-arequestid'),
+      ...(retried ? { errorCodes: await readServerErrorCodes(response) } : {}),
+    })
+    if (!retried) return response
+    throw metadataServerError(response.status)
+  },
+  retryCondition: (error) =>
+    (error instanceof ConnectorSourceError && error.status === 500) || isRetryableError(error),
+}
+
 async function requestMetadata(input: AttachmentRequest, path: string): Promise<Response> {
-  return fetchWithRetry(`${apiBase(input.cloudId)}${path}`, {
-    headers: { Authorization: `Bearer ${input.accessToken}`, Accept: 'application/json' },
-    signal: signalFor(input),
-    redirect: 'error',
-  })
+  return fetchWithRetry(
+    `${apiBase(input.cloudId)}${path}`,
+    {
+      headers: { Authorization: `Bearer ${input.accessToken}`, Accept: 'application/json' },
+      signal: signalFor(input),
+      redirect: 'error',
+    },
+    METADATA_RETRY_OPTIONS
+  )
+}
+
+/** A 5xx that outlasted its retries; aborts and budget timeouts carry no status. */
+function isServerFailure(error: unknown): error is Error & { status: number } {
+  return (
+    error instanceof Error &&
+    'status' in error &&
+    typeof error.status === 'number' &&
+    error.status >= 500 &&
+    error.status <= 599
+  )
 }
 
 async function readMetadata(response: Response): Promise<unknown> {
   if (!response.ok) {
     if (response.status === 401) throw await unauthorizedAttachmentError(response)
     await response.body?.cancel()
+    if (response.status >= 500) throw metadataServerError(response.status)
     throw new Error(
       response.status === 403
         ? 'Confluence attachment access was denied. Check the parent content permissions and the read:attachment:confluence credential scope.'
@@ -210,6 +313,58 @@ function decodeCursor(cursor: string | undefined, totalFetched: unknown): Attach
   return parsed.data
 }
 
+type ParentAttachmentListing =
+  | { ok: true; page: AttachmentPage }
+  | {
+      ok: false
+      status: number
+      reason:
+        | 'attachment_scope_mismatch'
+        | 'attachment_access_denied'
+        | 'attachment_listing_unavailable'
+      error: unknown
+    }
+
+/**
+ * Reads one page of a parent's attachments. Failures scoped to that parent —
+ * a missing scope, denied or deleted content, or a server error that outlasted
+ * its retries — are returned so the caller can skip the parent; anything else
+ * (malformed bodies, rate limits, aborts) still fails the sync.
+ */
+async function listParentAttachmentPage(
+  input: AttachmentRequest,
+  parent: AttachmentParent,
+  cursor: string | undefined
+): Promise<ParentAttachmentListing> {
+  const query = new URLSearchParams({ limit: String(PAGE_SIZE), status: 'current' })
+  if (cursor) query.set('cursor', cursor)
+  let response: Response
+  try {
+    response = await requestMetadata(
+      input,
+      `/api/v2/${parent.type}s/${encodeURIComponent(parent.id)}/attachments?${query}`
+    )
+  } catch (error) {
+    if (!isServerFailure(error)) throw error
+    return { ok: false, status: error.status, reason: 'attachment_listing_unavailable', error }
+  }
+  try {
+    return { ok: true, page: attachmentPageSchema.parse(await readMetadata(response)) }
+  } catch (error) {
+    const { status } = response
+    if (error instanceof ConfluenceAttachmentScopeError) {
+      return { ok: false, status, reason: 'attachment_scope_mismatch', error }
+    }
+    if (status === 403 || status === 404) {
+      return { ok: false, status, reason: 'attachment_access_denied', error }
+    }
+    if (isServerFailure(error)) {
+      return { ok: false, status, reason: 'attachment_listing_unavailable', error }
+    }
+    throw error
+  }
+}
+
 /**
  * Visits attachment metadata beneath the already-filtered parents. The cursor
  * contains only a bounded parent queue, never bodies or binary data. Parent caps
@@ -244,32 +399,39 @@ export async function listConfluenceAttachments(
 
   for (let request = 0; state.parents.length > 0 && request < REQUESTS_PER_CALL; request++) {
     const parent = state.parents[0]
-    const query = new URLSearchParams({ limit: String(PAGE_SIZE), status: 'current' })
-    if (state.attachmentCursor) query.set('cursor', state.attachmentCursor)
-    const response = await requestMetadata(
-      input,
-      `/api/v2/${parent.type}s/${encodeURIComponent(parent.id)}/attachments?${query}`
-    )
-    let page: z.infer<typeof attachmentPageSchema>
-    try {
-      page = attachmentPageSchema.parse(await readMetadata(response))
-    } catch (error) {
-      const missingScope = error instanceof ConfluenceAttachmentScopeError
-      if (!missingScope && response.status !== 403 && response.status !== 404) throw error
+    const listing = await listParentAttachmentPage(input, parent, state.attachmentCursor)
+    if (!listing.ok) {
+      const serverFailure = listing.reason === 'attachment_listing_unavailable'
+      state.serverFailureStreak = serverFailure ? (state.serverFailureStreak ?? 0) + 1 : 0
+      if (serverFailure) {
+        logger.warn('Confluence attachment listing failed after retries', {
+          parentId: parent.id,
+          parentType: parent.type,
+          status: listing.status,
+          consecutiveFailures: state.serverFailureStreak,
+          action:
+            state.serverFailureStreak >= MAX_CONSECUTIVE_SERVER_FAILURES
+              ? 'fail_sync'
+              : 'skip_parent',
+        })
+      }
+      if (state.serverFailureStreak >= MAX_CONSECUTIVE_SERVER_FAILURES) throw listing.error
       state.failures ??= { count: 0, samples: [] }
       state.failures.count += 1
       if (state.failures.samples.length < MAX_LISTING_FAILURE_SAMPLES) {
         state.failures.samples.push({
           scope: parent.id,
           operation: 'confluence.attachments.list',
-          status: response.status,
-          reasons: [missingScope ? 'attachment_scope_mismatch' : 'attachment_access_denied'],
+          status: listing.status,
+          reasons: [listing.reason],
         })
       }
       state.parents.shift()
       state.attachmentCursor = undefined
       continue
     }
+    state.serverFailureStreak = 0
+    const { page } = listing
     for (const attachment of page.results) {
       if (attachment.status !== 'current' || !attachmentMimeType(attachment)) continue
       if (!sameParent(attachmentParent(attachment), parent)) {

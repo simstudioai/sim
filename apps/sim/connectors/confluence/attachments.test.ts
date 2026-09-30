@@ -1,3 +1,4 @@
+import { getAllMockLoggers } from '@sim/testing/mocks/logger.mock'
 import JSZip from 'jszip'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -248,6 +249,126 @@ describe('Confluence attachment listing', () => {
       expect(context.reconciliationUnsafe).toBe(true)
     }
   )
+
+  describe('server errors', () => {
+    const parents = (ids: string[]) =>
+      vi.fn(
+        async (): Promise<ExternalDocumentList> => ({
+          documents: ids.map((id) => parent(id)),
+          hasMore: false,
+        })
+      )
+
+    /** Answers a parent's attachment listing with `status` while `failing` says so. */
+    function listingFails(failing: (parentId: string) => boolean, status = 500) {
+      fetchMock.mockImplementation(async (input) => {
+        const parentId = new URL(String(input)).pathname.split('/').at(-2) ?? ''
+        if (failing(parentId)) return new Response('upstream error', { status })
+        return Response.json({ results: [file({ id: `${parentId}-file`, pageId: parentId })] })
+      })
+    }
+
+    /** Runs a listing past the shared backoff (~31 s for five retries) without real waits. */
+    async function listPastBackoff(input: Parameters<typeof listConfluenceAttachments>[0]) {
+      vi.useFakeTimers()
+      try {
+        const listing = listConfluenceAttachments(input)
+        const settled = listing.then(
+          () => undefined,
+          () => undefined
+        )
+        for (let i = 0; i < 20; i++) await vi.advanceTimersByTimeAsync(10_000)
+        await settled
+        return await listing
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it('retries a transient 500 instead of failing the listing', async () => {
+      let failed = false
+      listingFails(() => {
+        if (failed) return false
+        failed = true
+        return true
+      })
+      const result = await listPastBackoff({ ...INPUT, listParents: parents(['p1']) })
+      expect(result.documents.map((doc) => doc.externalId)).toEqual([
+        'p1',
+        'attachment:page:p1:p1-file',
+      ])
+      expect(result.listingFailures).toBeUndefined()
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('skips isolated parents whose listing keeps failing and keeps listing the rest', async () => {
+      listingFails((id) => id === 'p1' || id === 'p3' || id === 'p5')
+      const context: Record<string, unknown> = {}
+      const result = await listPastBackoff({
+        ...INPUT,
+        listParents: parents(['p1', 'p2', 'p3', 'p4', 'p5']),
+        syncContext: context,
+      })
+      expect(result.documents.map((doc) => doc.externalId)).toEqual([
+        'p1',
+        'p2',
+        'p3',
+        'p4',
+        'p5',
+        'attachment:page:p2:p2-file',
+        'attachment:page:p4:p4-file',
+      ])
+      expect(result.listingFailures).toEqual({
+        count: 3,
+        samples: ['p1', 'p3', 'p5'].map((scope) => ({
+          scope,
+          operation: 'confluence.attachments.list',
+          status: 500,
+          reasons: ['attachment_listing_unavailable'],
+        })),
+      })
+      expect(result.reconciliationSafe).toBe(false)
+      expect(context.reconciliationUnsafe).toBe(true)
+    })
+
+    it('logs Atlassian trace identifiers for a 500 but never its body', async () => {
+      let failed = false
+      fetchMock.mockImplementation(async () => {
+        if (failed) return Response.json({ results: [] })
+        failed = true
+        return Response.json(
+          {
+            errors: [{ code: 'INTERNAL_SERVER_ERROR', title: 'x', detail: 'leaked-secret-value' }],
+          },
+          {
+            status: 500,
+            headers: { 'atl-traceid': '5c1f0e2a9b7d4e1f', 'x-arequestid': 'not an id; <script>' },
+          }
+        )
+      })
+      await listPastBackoff({ ...INPUT, listParents: parents(['p1']) })
+      const logged = JSON.stringify(
+        getAllMockLoggers().flatMap((logger) =>
+          [logger.info, logger.warn, logger.error, logger.debug].flatMap((fn) => fn.mock.calls)
+        )
+      )
+      expect(logged).toContain('5c1f0e2a9b7d4e1f')
+      expect(logged).toContain('INTERNAL_SERVER_ERROR')
+      expect(logged).not.toContain('<script>')
+      expect(logged).not.toContain('leaked-secret-value')
+    })
+
+    it.each([500, 503])(
+      'fails the sync when consecutive parents answer %s, as during an outage',
+      async (status) => {
+        listingFails(() => true, status)
+        await expect(
+          listPastBackoff({ ...INPUT, listParents: parents(['p1', 'p2', 'p3', 'p4']) })
+        ).rejects.toMatchObject({ status })
+        expect(fetchMock).toHaveBeenCalledTimes(3 * 6)
+      }
+    )
+  })
 
   it('surfaces known oversized files as skipped without downloading', async () => {
     fetchMock.mockResolvedValue(
