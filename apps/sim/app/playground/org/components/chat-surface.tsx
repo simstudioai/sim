@@ -1,9 +1,24 @@
 'use client'
 
 import { useState } from 'react'
-import { Avatar, TabStrip, type TabStripItem } from '@sim/emcn'
+import {
+  Avatar,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  TabStrip,
+  TabStripAction,
+  type TabStripItem,
+  Tooltip,
+} from '@sim/emcn'
+import { Download, Globe, Link, MoreHorizontal, Send, TerminalWindow, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
-import { ChatResourcePanel } from '@/app/playground/org/components/chat-resource-panel'
+import {
+  ChatResourcePanel,
+  type PanelView,
+} from '@/app/playground/org/components/chat-resource-panel'
 import { ChatThread } from '@/app/playground/org/components/chat-thread'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
 import {
@@ -23,21 +38,54 @@ import {
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 
-/** A tab that is still browsing; opening a resource turns it into that resource's tab. */
+/** A tab that is still browsing; opening something turns it into that thing's tab. */
 interface NewTab {
   kind: 'new'
   id: string
   browseKind: PanelKind | null
 }
 
-type PanelTab = PanelResource | NewTab
+interface BrowserTab {
+  kind: 'browser'
+  id: string
+}
+
+interface TerminalTab {
+  kind: 'terminal'
+  id: string
+}
+
+type PanelTab = PanelResource | NewTab | BrowserTab | TerminalTab
 
 function tabKey(tab: PanelTab): string {
-  return tab.kind === 'new' ? `new:${tab.id}` : panelResourceKey(tab)
+  return tab.kind === 'new' || tab.kind === 'browser' || tab.kind === 'terminal'
+    ? `${tab.kind}:${tab.id}`
+    : panelResourceKey(tab)
 }
 
 function newTab(browseKind: PanelKind | null = null): NewTab {
   return { kind: 'new', id: generateShortId(8), browseKind }
+}
+
+function stripItem(tab: PanelTab, active: boolean): TabStripItem {
+  const id = tabKey(tab)
+  switch (tab.kind) {
+    case 'new':
+      return { id, title: 'New tab', active }
+    case 'browser':
+      return { id, title: 'New Tab', icon: <Globe className={RESOURCE_TAB_ICON_CLASS} />, active }
+    case 'terminal':
+      return {
+        id,
+        title: 'Terminal',
+        icon: <TerminalWindow className={RESOURCE_TAB_ICON_CLASS} />,
+        active,
+      }
+    default: {
+      const Icon = panelKindConfig(tab.kind).icon
+      return { id, title: tab.name, icon: <Icon className={RESOURCE_TAB_ICON_CLASS} />, active }
+    }
+  }
 }
 
 const noop = () => {}
@@ -67,33 +115,33 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
   const activeIndex = tabs.findIndex((tab) => tabKey(tab) === activeKey)
   const active = tabs[activeIndex]
 
-  /** Puts `tab` where the active tab is, or at the end when nothing is active. */
-  const replaceActive = (tab: PanelTab) => {
+  /** Puts `tab` where the browsing tab is, or at the end when the active tab is something else. */
+  const place = (tab: PanelTab) => {
     setTabs((prev) =>
-      activeIndex >= 0 ? prev.map((t, i) => (i === activeIndex ? tab : t)) : [...prev, tab]
+      active?.kind === 'new' ? prev.map((t, i) => (i === activeIndex ? tab : t)) : [...prev, tab]
     )
     setActiveKey(tabKey(tab))
+    setCollapsed(false)
   }
 
   const open = (resource: PanelResource) => {
     const key = panelResourceKey(resource)
-    const existing = tabs.findIndex((tab) => tabKey(tab) === key)
-    if (existing >= 0) {
+    if (tabs.some((tab) => tabKey(tab) === key)) {
       // Already open: the browsing tab that found it is spent.
       if (active?.kind === 'new') setTabs((prev) => prev.filter((_, i) => i !== activeIndex))
       setActiveKey(key)
-    } else if (active?.kind === 'new') {
-      replaceActive(resource)
-    } else {
-      setTabs((prev) => [...prev, resource])
-      setActiveKey(key)
+      return
     }
-    setCollapsed(false)
+    place(resource)
   }
 
+  /** Browses `kind` in the active tab, turning an open resource back into a browsing tab. */
   const browse = (kind: PanelKind | null) => {
-    if (active?.kind === 'new') replaceActive({ ...active, browseKind: kind })
-    else replaceActive(newTab(kind))
+    const tab = active?.kind === 'new' ? { ...active, browseKind: kind } : newTab(kind)
+    setTabs((prev) =>
+      activeIndex >= 0 ? prev.map((t, i) => (i === activeIndex ? tab : t)) : [...prev, tab]
+    )
+    setActiveKey(tabKey(tab))
   }
 
   const add = () => {
@@ -112,41 +160,45 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
     }
   }
 
-  const stripTabs: TabStripItem[] = tabs.map((tab) => {
-    if (tab.kind === 'new') {
-      return { id: tabKey(tab), title: 'New tab', active: activeKey === tabKey(tab) }
-    }
-    const Icon = panelKindConfig(tab.kind).icon
-    return {
-      id: tabKey(tab),
-      title: tab.name,
-      icon: <Icon className={RESOURCE_TAB_ICON_CLASS} />,
-      active: activeKey === tabKey(tab),
-    }
-  })
+  const view: PanelView = !active
+    ? { type: 'browse', kind: null }
+    : active.kind === 'new'
+      ? { type: 'browse', kind: active.browseKind }
+      : active.kind === 'browser' || active.kind === 'terminal'
+        ? { type: active.kind }
+        : { type: 'resource', resource: active }
 
   return (
     <ChatPanelLayout
       panel={
         <ChatPanelContent collapsed={collapsed}>
           <TabStrip
-            tabs={stripTabs}
+            tabs={tabs.map((tab) => stripItem(tab, activeKey === tabKey(tab)))}
             variant='floating'
             className={RESOURCE_HEADER_CLASSES.stripGeometry}
             onSelect={setActiveKey}
             onClose={close}
             onNew={add}
             newTabLabel='New tab'
+            endActions={
+              view.type === 'resource' ? (
+                <ResourceTabActions
+                  resource={view.resource}
+                  workspaceName={workspace?.name}
+                  onBrowse={browse}
+                />
+              ) : view.type === 'browser' ? (
+                <IconAction label='Copy Link' icon={Link} />
+              ) : null
+            }
           />
           <ChatResourcePanel
             chatId={chat.id}
             workspace={workspace}
-            view={
-              active && active.kind !== 'new'
-                ? { type: 'resource', resource: active }
-                : { type: 'browse', kind: active?.kind === 'new' ? active.browseKind : null }
-            }
+            view={view}
             onOpen={open}
+            onOpenBrowser={() => place({ kind: 'browser', id: generateShortId(8) })}
+            onOpenTerminal={() => place({ kind: 'terminal', id: generateShortId(8) })}
             onBrowse={browse}
           />
         </ChatPanelContent>
@@ -179,5 +231,68 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
         />
       </div>
     </ChatPanelLayout>
+  )
+}
+
+interface IconActionProps {
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  onClick?: () => void
+}
+
+/** One of the active tab's actions, trailing the strip like the home panel's. */
+function IconAction({ label, icon: Icon, onClick }: IconActionProps) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <TabStripAction variant='subtle' aria-label={label} onClick={onClick}>
+          <Icon className={RESOURCE_TAB_ICON_CLASS} />
+        </TabStripAction>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>{label}</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+interface ResourceTabActionsProps {
+  resource: PanelResource
+  workspaceName?: string
+  onBrowse: (kind: PanelKind | null) => void
+}
+
+/** The open resource's actions, with the path it came from behind the overflow menu. */
+function ResourceTabActions({ resource, workspaceName, onBrowse }: ResourceTabActionsProps) {
+  const config = panelKindConfig(resource.kind)
+  return (
+    <>
+      <IconAction label='Copy Link' icon={Link} />
+      <IconAction label='Download' icon={Download} />
+      <IconAction label='Share' icon={Send} />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <TabStripAction variant='subtle' aria-label='More'>
+            <MoreHorizontal className={RESOURCE_TAB_ICON_CLASS} />
+          </TabStripAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          <DropdownMenuItem onSelect={() => onBrowse(resource.kind)}>
+            <config.icon className='size-[14px] text-[var(--text-icon)]' />
+            Show in {config.label}
+          </DropdownMenuItem>
+          {workspaceName && (
+            <DropdownMenuItem onSelect={() => onBrowse(null)}>
+              Show in {workspaceName}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem>
+            <Trash className='size-[14px] text-[var(--text-icon)]' />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   )
 }

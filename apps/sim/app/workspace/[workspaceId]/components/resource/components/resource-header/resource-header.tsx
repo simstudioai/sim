@@ -135,11 +135,6 @@ interface ResourceHeaderProps {
    */
   aside?: ReactNode
   breadcrumbDrop?: BreadcrumbDropConfig
-  /**
-   * Show only the current crumb. The full path stays one hover away in its
-   * popover, so a narrow header keeps its actions.
-   */
-  compact?: boolean
 }
 
 export const ResourceHeader = memo(function ResourceHeader({
@@ -149,7 +144,6 @@ export const ResourceHeader = memo(function ResourceHeader({
   actions,
   aside,
   breadcrumbDrop,
-  compact = false,
 }: ResourceHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null)
   /**
@@ -162,15 +156,13 @@ export const ResourceHeader = memo(function ResourceHeader({
   const rootCrumb = breadcrumbs?.length === 1 ? breadcrumbs[0] : undefined
   const TitleIcon = Icon ?? rootCrumb?.icon
   const titleLabel = title ?? rootCrumb?.label
-  const crumbs: BreadcrumbItem[] =
-    hasBreadcrumbs && compact ? breadcrumbs.slice(-1) : (breadcrumbs ?? [])
   const terminalBreadcrumbIndex =
-    hasBreadcrumbs && crumbs[crumbs.length - 1].terminal ? crumbs.length - 1 : -1
+    hasBreadcrumbs && breadcrumbs[breadcrumbs.length - 1].terminal ? breadcrumbs.length - 1 : -1
   const currentResourceIndex =
     terminalBreadcrumbIndex > -1
       ? terminalBreadcrumbIndex - 1
-      : hasBreadcrumbs && crumbs.length > 2
-        ? crumbs.length - 1
+      : hasBreadcrumbs && breadcrumbs.length > 2
+        ? breadcrumbs.length - 1
         : -1
 
   return (
@@ -184,15 +176,13 @@ export const ResourceHeader = memo(function ResourceHeader({
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
           {hasBreadcrumbs ? (
-            crumbs.map((crumb, i) => {
-              const segmentClassName = compact
-                ? 'min-w-0 flex-[0_1_auto]'
-                : getBreadcrumbSegmentClassName(
-                    i,
-                    crumbs.length,
-                    currentResourceIndex,
-                    terminalBreadcrumbIndex
-                  )
+            breadcrumbs.map((crumb, i) => {
+              const segmentClassName = getBreadcrumbSegmentClassName(
+                i,
+                breadcrumbs.length,
+                currentResourceIndex,
+                terminalBreadcrumbIndex
+              )
               const LocationIcon = i === 0 ? (crumb.icon ?? Icon) : undefined
               /**
                * The first crumb on a nested page opens the hover "path" popover
@@ -228,7 +218,6 @@ export const ResourceHeader = memo(function ResourceHeader({
                     <BreadcrumbLocationPopover
                       icon={LocationIcon}
                       breadcrumbs={breadcrumbs}
-                      trigger={crumb}
                       className={segmentClassName}
                       veilBoundaryRef={headerRef}
                       drag={crumbDrag}
@@ -448,8 +437,6 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
 interface BreadcrumbLocationPopoverProps {
   icon: React.ElementType
   breadcrumbs: BreadcrumbItem[]
-  /** The crumb the trigger shows and navigates to; the root by default. */
-  trigger?: BreadcrumbItem
   className?: string
   veilBoundaryRef: React.RefObject<HTMLDivElement | null>
   drag?: BreadcrumbSegmentProps['drag']
@@ -466,14 +453,13 @@ const POPOVER_CLOSE_DELAY_MS = 120
 function BreadcrumbLocationPopover({
   icon: Icon,
   breadcrumbs,
-  trigger,
   className,
   veilBoundaryRef,
   drag,
 }: BreadcrumbLocationPopoverProps) {
   const [open, setOpen] = useState(false)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const rootBreadcrumb = trigger ?? breadcrumbs[0]
+  const rootBreadcrumb = breadcrumbs[0]
 
   const cancelScheduledClose = () => {
     if (closeTimeoutRef.current) {

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, cn } from '@sim/emcn'
-import { Download, Link, Send, Trash } from '@sim/emcn/icons'
+import { Chip, ChipInput, cn } from '@sim/emcn'
+import { Globe, TerminalWindow } from '@sim/emcn/icons'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import {
@@ -21,32 +21,38 @@ import {
   type ResourceRow,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
-type View =
+export type PanelView =
   | { type: 'browse'; kind: PanelKind | null }
   | { type: 'resource'; resource: PanelResource }
+  | { type: 'browser' }
+  | { type: 'terminal' }
 
 interface ChatResourcePanelProps {
   chatId: string
   workspace?: Workspace
-  view: View
+  view: PanelView
   onOpen: (resource: PanelResource) => void
+  onOpenBrowser: () => void
+  onOpenTerminal: () => void
   onBrowse: (kind: PanelKind | null) => void
 }
 
-/** Body of the resource panel: the new-tab browser or one open resource. */
+/** Body of the resource panel: the new-tab browser, one open resource, a browser, or a terminal. */
 export function ChatResourcePanel({
   chatId,
   workspace,
   view,
   onOpen,
+  onOpenBrowser,
+  onOpenTerminal,
   onBrowse,
 }: ChatResourcePanelProps) {
   const [projectId, setProjectId] = useState<string | null>(workspace?.id ?? null)
   const project = projectId ? WORKSPACES.find((w) => w.id === projectId) : undefined
 
-  if (view.type === 'resource') {
-    return <ResourceView workspace={project} resource={view.resource} onBrowse={onBrowse} />
-  }
+  if (view.type === 'resource') return <ResourceBody workspace={project} resource={view.resource} />
+  if (view.type === 'browser') return <BrowserView />
+  if (view.type === 'terminal') return <TerminalView workspace={project} />
   if (view.kind && project) {
     return (
       <KindList
@@ -101,6 +107,14 @@ export function ChatResourcePanel({
               </span>
             </Row>
           ))}
+          <Row onClick={onOpenBrowser}>
+            <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
+          </Row>
+          <Row onClick={onOpenTerminal}>
+            <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
+          </Row>
         </Section>
       ) : (
         <Section label='Browse a project'>
@@ -207,51 +221,59 @@ function KindList({ workspace, kind, onOpen, onBack }: KindListProps) {
   )
 }
 
-interface ResourceViewProps {
+interface ResourceBodyProps {
   workspace?: Workspace
   resource: PanelResource
-  onBrowse: (kind: PanelKind | null) => void
 }
 
-/** An open resource: the real resource header over mock content. */
-function ResourceView({ workspace, resource, onBrowse }: ResourceViewProps) {
-  const config = panelKindConfig(resource.kind)
-  const Icon = config.icon
+/** An open resource's content; its name and actions live in the tab strip. */
+function ResourceBody({ workspace, resource }: ResourceBodyProps) {
+  const issue = resource.kind === 'issues' ? issueByKey(resource.id) : undefined
   return (
-    <Resource>
-      <Resource.Header
-        compact
-        icon={Icon}
-        breadcrumbs={[
-          ...(workspace ? [{ label: workspace.name, onClick: () => onBrowse(null) }] : []),
-          { label: config.label, icon: Icon, onClick: () => onBrowse(resource.kind) },
-          { label: resource.name, icon: Icon },
-        ]}
-        actions={[
-          { icon: Link, text: 'Copy Link', onSelect: () => {} },
-          { icon: Download, text: 'Download', onSelect: () => {} },
-          { icon: Send, text: 'Share', onSelect: () => {} },
-          { icon: Trash, text: 'Delete', onSelect: () => {} },
-        ]}
-      />
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <ResourceBody workspace={workspace} resource={resource} />
-      </div>
-    </Resource>
+    <div className='min-h-0 flex-1 overflow-y-auto'>
+      {resource.kind === 'knowledge' && resource.id === 'refund-2024' ? (
+        <RefundPolicyEdit />
+      ) : issue && workspace ? (
+        <IssuePage workspace={workspace} issue={issue} />
+      ) : resource.kind === 'dashboard' && workspace ? (
+        <ProtoDashboard workspace={workspace} />
+      ) : (
+        <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>
+          {resource.name} opens here.
+        </p>
+      )}
+    </div>
   )
 }
 
-function ResourceBody({ workspace, resource }: { workspace?: Workspace; resource: PanelResource }) {
-  if (resource.kind === 'knowledge' && resource.id === 'refund-2024') return <RefundPolicyEdit />
-  if (resource.kind === 'issues' && workspace) {
-    const issue = issueByKey(resource.id)
-    if (issue) return <IssuePage workspace={workspace} issue={issue} />
-  }
-  if (resource.kind === 'dashboard' && workspace) return <ProtoDashboard workspace={workspace} />
+/** Stand-in for the desktop browser tab: an address bar over an empty page. */
+function BrowserView() {
+  const [url, setUrl] = useState('')
   return (
-    <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>
-      {resource.name} opens here.
-    </p>
+    <div className='flex min-h-0 flex-1 flex-col'>
+      <div className='shrink-0 border-[var(--border)] border-b px-3 py-2'>
+        <ChipInput
+          icon={Globe}
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder='Search or enter a URL'
+        />
+      </div>
+      <div className='flex flex-1 items-center justify-center text-[var(--text-muted)] text-small'>
+        Sim can browse here with you.
+      </div>
+    </div>
+  )
+}
+
+/** Stand-in for the desktop terminal: a prompt in the project's directory. */
+function TerminalView({ workspace }: { workspace?: Workspace }) {
+  const dir = workspace ? workspace.name.toLowerCase().replace(/\s+/g, '-') : 'acme'
+  return (
+    <div className='min-h-0 flex-1 overflow-y-auto bg-[var(--surface-1)] px-4 py-3 font-mono text-[var(--text-body)] text-caption'>
+      <span className='text-[var(--text-muted)]'>~/{dir}</span> ${' '}
+      <span className='animate-pulse'>▍</span>
+    </div>
   )
 }
 
