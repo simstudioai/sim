@@ -95,4 +95,68 @@ describe('dormant Search document processing', () => {
       .where(eq(document.id, documentId))
     expect(stored.status).toBe('pending')
   })
+
+  it('withdraws its own queued generation and refunds the charged attempt once', async () => {
+    const queuedAt = new Date('2026-09-29T00:00:00.000Z')
+    const token = generateId()
+    await db
+      .update(document)
+      .set({ processingQueueToken: token, processingQueuedAt: queuedAt, processingAttempts: 2 })
+      .where(eq(document.id, documentId))
+    const attempt = {
+      chargedAtDispatch: true,
+      processingQueueToken: token,
+      processingQueuedAt: queuedAt,
+    }
+    for (const _ of [1, 2]) {
+      expect(
+        await processDocumentAsync(
+          ids.knowledgeBaseId,
+          documentId,
+          source,
+          {},
+          undefined,
+          'pass',
+          attempt
+        )
+      ).toEqual({ outcome: 'skipped', reason: 'unavailable' })
+    }
+    const [stored] = await db
+      .select({
+        status: document.processingStatus,
+        token: document.processingQueueToken,
+        queuedAt: document.processingQueuedAt,
+        attempts: document.processingAttempts,
+      })
+      .from(document)
+      .where(eq(document.id, documentId))
+    expect(stored).toEqual({ status: 'pending', token, queuedAt: null, attempts: 1 })
+  })
+
+  it('leaves a newer queued generation untouched, even under a reused token', async () => {
+    const queuedAt = new Date('2026-09-29T01:00:00.000Z')
+    const newer = generateId()
+    await db
+      .update(document)
+      .set({ processingQueueToken: newer, processingQueuedAt: queuedAt, processingAttempts: 1 })
+      .where(eq(document.id, documentId))
+    await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
+      chargedAtDispatch: true,
+      processingQueueToken: generateId(),
+    })
+    await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
+      chargedAtDispatch: true,
+      processingQueueToken: newer,
+      processingQueuedAt: new Date('2026-09-29T00:30:00.000Z'),
+    })
+    const [stored] = await db
+      .select({
+        token: document.processingQueueToken,
+        queuedAt: document.processingQueuedAt,
+        attempts: document.processingAttempts,
+      })
+      .from(document)
+      .where(eq(document.id, documentId))
+    expect(stored).toEqual({ token: newer, queuedAt, attempts: 1 })
+  })
 })
