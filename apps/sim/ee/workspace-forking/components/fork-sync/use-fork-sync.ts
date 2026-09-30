@@ -192,6 +192,9 @@ export interface ForkSyncController {
   dependentClears: ForkClearedRef[]
   /** Deployed-workflow change list (update → create → archive, then by name). */
   workflowChanges: ForkWorkflowChange[]
+  /** The workspace the sync page is open in, and its partner on this edge. */
+  workspaceId: string
+  otherWorkspaceId?: string
   /** Names of target workflows this sync archives, for the confirm modal. */
   archivedWorkflowNames: string[]
   /**
@@ -1048,6 +1051,8 @@ export function useForkSync(params: {
     blockingRefs,
     dependentClears,
     workflowChanges,
+    workspaceId,
+    otherWorkspaceId,
     archivedWorkflowNames,
     triggerUrlChanges,
     triggerMappings,

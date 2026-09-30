@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { deployedWorkflowStateSchema } from '@/lib/api/contracts/deployments'
+import {
+  nonEmptyIdSchema,
+  workflowIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspaceSchema } from '@/lib/api/contracts/workspaces'
 import { WORKFLOW_RESOURCE_KINDS } from '@/lib/workflows/references/types'
@@ -314,6 +319,10 @@ export const forkWorkflowChangeSchema = z.object({
   currentName: z.string(),
   /** Workflow name in the sync-partner workspace (differs from `currentName` after a rename). */
   otherName: z.string(),
+  /** The deployed source workflow this sync copies; absent for an archive. */
+  sourceWorkflowId: z.string().optional(),
+  /** The workflow the sync writes or archives in the target workspace. */
+  targetWorkflowId: z.string().optional(),
 })
 
 /**
@@ -957,4 +966,36 @@ export const updateForkExcludedWorkflowsContract = defineRouteContract({
 export type UpdateForkExcludedWorkflowsBody = z.input<typeof updateForkExcludedWorkflowsBodySchema>
 export type UpdateForkExcludedWorkflowsResponse = z.output<
   typeof updateForkExcludedWorkflowsContract.response.schema
+>
+
+export const getForkWorkflowDiffQuerySchema = getForkDiffQuerySchema.extend({
+  /** The deployed source workflow to preview, as listed by the sync details. */
+  sourceWorkflowId: workflowIdSchema,
+})
+
+/**
+ * Block-level preview of what a sync would do to ONE workflow: the target's
+ * current state (`before`, null when the sync would create the workflow) and
+ * the source's deployed state re-keyed to the target's block ids (`after`), so
+ * the two compare block for block the way two versions of one workflow do.
+ */
+export const getForkWorkflowDiffContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/fork/workflow-diff',
+  params: workspaceIdParamsSchema,
+  query: getForkWorkflowDiffQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      targetWorkflowId: z.string(),
+      before: deployedWorkflowStateSchema.nullable(),
+      after: deployedWorkflowStateSchema,
+      beforeLabel: z.string(),
+      afterLabel: z.string(),
+    }),
+  },
+})
+export type GetForkWorkflowDiffQuery = z.input<typeof getForkWorkflowDiffQuerySchema>
+export type GetForkWorkflowDiffResponse = z.output<
+  typeof getForkWorkflowDiffContract.response.schema
 >

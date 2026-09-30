@@ -3,6 +3,7 @@
 import { type Dispatch, Fragment, type SetStateAction, useMemo, useState } from 'react'
 import {
   Badge,
+  Button,
   ChevronDown,
   Chip,
   ChipCombobox,
@@ -15,13 +16,14 @@ import {
   OverflowText,
   Tooltip,
 } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { ArrowRight, Columns2 } from '@sim/emcn/icons'
 import type {
   ForkCopyableUnmapped,
   ForkDependentReconfig,
   ForkMappingEntry,
   ForkResourceUsage,
   ForkTriggerMapping,
+  ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -52,6 +54,7 @@ import {
   getDisplayedDependentFields,
   isDependentConfigurationActionable,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
+import { ForkWorkflowDiffModal } from '@/ee/workspace-forking/components/fork-sync/fork-workflow-diff-modal'
 import type {
   ForkKindSummary,
   ForkMappingGroup,
@@ -806,6 +809,8 @@ interface ForkSyncViewProps {
  * blocking references. The page header's Sync action commits it (after the overwrite confirm).
  */
 export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProps) {
+  const [diffWorkflow, setDiffWorkflow] = useState<ForkWorkflowChange | null>(null)
+  const diffSourceWorkflowId = diffWorkflow?.sourceWorkflowId
   const detailsError = controller.errorMessage ?? controller.diffErrorMessage
   const headsUp =
     controller.mcpReauthCount > 0 ||
@@ -864,6 +869,21 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           deployed workflow appears here, changed or not), so the muted state nudges a deploy.
           Sync-excluded workflows list greyed at the end, with a tooltip naming where the
           exclusion lives - the sync will not touch them. */}
+      {diffWorkflow && diffSourceWorkflowId && controller.otherWorkspaceId && (
+        <ForkWorkflowDiffModal
+          key={`${controller.direction}:${diffSourceWorkflowId}`}
+          open
+          onOpenChange={(open) => {
+            if (!open) setDiffWorkflow(null)
+          }}
+          workspaceId={controller.workspaceId}
+          otherWorkspaceId={controller.otherWorkspaceId}
+          direction={controller.direction}
+          sourceWorkflowId={diffSourceWorkflowId}
+          workflowName={diffWorkflow.currentName}
+        />
+      )}
+
       {controller.hasDiff ? (
         <SettingsSection label='Deployed workflows'>
           {controller.workflowChanges.length + excludedRows.length > 0 ? (
@@ -871,6 +891,10 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
               <div className='flex flex-col gap-1'>
                 {controller.workflowChanges.map((change, index) => {
                   const renamed = change.currentName !== change.otherName
+                  const canPreview =
+                    change.action !== 'archive' &&
+                    Boolean(change.sourceWorkflowId) &&
+                    Boolean(controller.otherWorkspaceId)
                   return (
                     <div
                       key={`${change.action}:${change.currentName}:${index}`}
@@ -887,6 +911,22 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                           </span>
                         </>
                       ) : null}
+                      {canPreview && (
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              iconPadding='sm'
+                              aria-label={`View changes to ${change.currentName}`}
+                              onClick={() => setDiffWorkflow(change)}
+                              className='ml-auto shrink-0'
+                            >
+                              <Columns2 className='size-[14px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side='top'>View changes</Tooltip.Content>
+                        </Tooltip.Root>
+                      )}
                     </div>
                   )
                 })}
