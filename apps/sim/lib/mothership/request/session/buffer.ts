@@ -427,6 +427,23 @@ export async function getLatestSeq(streamId: string): Promise<number | null> {
   })
 }
 
+/** The streams among these whose replay buffer has not yet expired. */
+export async function findStreamsWithReplay(streamIds: string[]): Promise<Set<string>> {
+  const redis = getRedisClient()
+  if (!redis) throw new Error('Redis is required for mothership stream durability')
+  if (streamIds.length === 0) return new Set()
+  const pipeline = redis.pipeline()
+  for (const streamId of streamIds) pipeline.exists(getSeqKey(streamId))
+  const replies = (await pipeline.exec()) ?? []
+  const withReplay = new Set<string>()
+  streamIds.forEach((streamId, index) => {
+    const [error, count] = replies[index] ?? [new Error('Redis returned no reply')]
+    if (error) throw error
+    if (count === 1) withReplay.add(streamId)
+  })
+  return withReplay
+}
+
 export async function writeAbortMarker(streamId: string): Promise<void> {
   const ttlSeconds = getStreamConfig().ttlSeconds
   await withRedisRetry({ operation: 'write_abort_marker', streamId }, async (redis) => {

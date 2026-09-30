@@ -42,6 +42,7 @@ import {
   type AsyncTerminalStatus,
   DESKTOP_TOOL_CLAIM_OWNER,
   EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+  SIM_TOOL_EXECUTION_VERSION,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
@@ -55,7 +56,6 @@ import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-ke
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 const WORKFLOW_EXECUTION_CLAIM_PREFIX = 'workflow:'
-const SIM_TOOL_EXECUTION_VERSION = 2
 const TERMINAL_RUN_STATUSES: CopilotRunStatus[] = ['complete', 'error', 'cancelled']
 // Resolve the tracer lazily per-call to avoid capturing the NoOp tracer
 // before NodeSDK installs the global TracerProvider (Next.js 16/Turbopack
