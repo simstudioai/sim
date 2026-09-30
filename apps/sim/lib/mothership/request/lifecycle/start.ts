@@ -510,8 +510,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               await releasePendingChatStream(chatId, streamId, lease)
             }
             processResourcesReleased = true
-            // A superseded controller must not expire or clear its successor's stream.
-            if (!handedOff) {
+            // A superseded controller must not expire or clear its successor's stream,
+            // whether it handed off or lost ownership while handling another failure.
+            if (
+              !handedOff &&
+              !(abortController.signal.reason instanceof StreamControllerSupersededError)
+            ) {
               await scheduleBufferCleanup(streamId)
               await scheduleFilePreviewSessionCleanup(streamId)
               await cleanupAbortMarker(streamId)

@@ -268,11 +268,11 @@ describe('copilot go stream helpers', () => {
       'The agent service could not process this request.',
     ],
     [
-      'a worker display message',
-      409,
-      'application/json',
-      '{"error":"conflict","displayMessage":"This chat is already answering another message."}',
-      'This chat is already answering another message.',
+      'a plain-text request rejection',
+      400,
+      'text/plain',
+      'Invalid request body',
+      'The agent service could not process this request.',
     ],
   ])(
     'never shows the user the raw body of %s',
@@ -298,7 +298,9 @@ describe('copilot go stream helpers', () => {
         contentBlocks: [],
         toolCalls: [],
       })
-      expect(JSON.stringify(persisted)).not.toMatch(/<html|Bad Gateway|userId required/)
+      expect(JSON.stringify(persisted)).not.toMatch(
+        /<html|Bad Gateway|userId required|Invalid request body/
+      )
     }
   )
 

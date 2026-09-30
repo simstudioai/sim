@@ -91,6 +91,7 @@ import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-
 import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
+import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import { acquirePendingChatStream } from '@/lib/mothership/request/session/abort'
 import { readEvents } from '@/lib/mothership/request/session/buffer'
@@ -482,26 +483,108 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     expect(controllerRun.sinkErrors[0]).toBeInstanceOf(StreamReplayBudgetExhaustedError)
   })
 
-  it("leaves its successor's stream untouched when a superseded controller is refused an oversized frame", async () => {
-    const successorToken = `successor\n${generateId()}`
-    const { streamId, runId, frames } = await runTurn([
-      async () => {
-        await redis().set(chatStreamLockKey(chatId), successorToken, 'EX', 60)
-      },
+  it.each([
+    [
+      'is refused an oversized frame',
       toolCall('call-oversized', 'run_workflow', {
         workflowId: generateId(),
         input: 'w'.repeat(1.5 * MB),
       }),
-    ])
+    ],
+    [
+      'fails its worker leg',
+      async () => {
+        throw new Error('worker leg failed')
+      },
+    ],
+  ])(
+    "leaves its successor's stream untouched when a superseded controller %s",
+    async (_label, step) => {
+      const successorToken = `successor\n${generateId()}`
+      const { streamId, runId, frames } = await runTurn([
+        async () => {
+          await redis().set(chatStreamLockKey(chatId), successorToken, 'EX', 60)
+        },
+        step,
+      ])
 
-    expect(frames.map((frame) => frame.type)).toEqual(['session'])
-    /** The client stream closes before the controller's teardown; let teardown finish. */
-    await sleep(500)
-    expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
-    expect(await redis().get(chatStreamLockKey(chatId))).toBe(successorToken)
+      expect(frames.map((frame) => frame.type)).toEqual(['session'])
+      /** The client stream closes before the controller's teardown; let teardown finish. */
+      await sleep(500)
+      expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
+      expect(await redis().get(chatStreamLockKey(chatId))).toBe(successorToken)
+      const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+      expect(stored.status).toBe('active')
+      expect(worker.abortRequests).toEqual([])
+      await redis().del(chatStreamLockKey(chatId))
+    }
+  )
+
+  it('marks its run terminal even when the final events cannot be published', async () => {
+    const streamId = generateId()
+    const runId = generateId()
+    const controllerToken = `${streamId}\n${generateId()}`
+    await db.insert(copilotRuns).values({
+      id: runId,
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+      status: 'paused_waiting_for_tool',
+      requestContext: { requestId: generateId(), controllerToken },
+    })
+    /** No chat lock holds this lease, so publishing the terminal events throws. */
+    const lease = { key: chatStreamLockKey(generateId()), value: controllerToken }
+    const publisher = new StreamWriter({ streamId, requestId: generateId(), lease })
+
+    await expect(
+      finalizeStream(
+        {
+          success: false,
+          error: 'The agent service is temporarily unavailable. Please try again.',
+          content: '',
+          contentBlocks: [],
+          toolCalls: [],
+        },
+        publisher,
+        runId,
+        'error',
+        generateId()
+      )
+    ).rejects.toBeInstanceOf(StreamControllerSupersededError)
+
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
-    expect(stored.status).toBe('active')
-    expect(worker.abortRequests).toEqual([])
-    await redis().del(chatStreamLockKey(chatId))
+    expect(stored.status).toBe('error')
+  })
+
+  it('does not settle a run another controller has claimed', async () => {
+    const streamId = generateId()
+    const runId = generateId()
+    await db.insert(copilotRuns).values({
+      id: runId,
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+      status: 'paused_waiting_for_tool',
+      requestContext: { requestId: generateId(), controllerToken: `successor\n${generateId()}` },
+    })
+    const lease = { key: chatStreamLockKey(generateId()), value: `stale\n${generateId()}` }
+    const publisher = new StreamWriter({ streamId, requestId: generateId(), lease })
+
+    await expect(
+      finalizeStream(
+        { success: false, error: 'failed', content: '', contentBlocks: [], toolCalls: [] },
+        publisher,
+        runId,
+        'error',
+        generateId()
+      )
+    ).rejects.toBeInstanceOf(StreamControllerSupersededError)
+
+    const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+    expect(stored.status).toBe('paused_waiting_for_tool')
   })
 })

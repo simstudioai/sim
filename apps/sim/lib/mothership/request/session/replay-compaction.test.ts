@@ -44,7 +44,7 @@ describe('compactStreamEvent', () => {
           exitCode: 0,
           resources,
           citations,
-          reason: 'r'.repeat(20_000),
+          reason: 'user_cancelled',
         },
       },
     }
@@ -59,7 +59,7 @@ describe('compactStreamEvent', () => {
     expect(output.stderr).toBe(
       `${'e'.repeat(STREAM_STRING_PREVIEW_UNITS)}…[truncated, 300 KB total]`
     )
-    expect(output).toMatchObject({ exitCode: 0, resources, citations, reason: 'r'.repeat(20_000) })
+    expect(output).toMatchObject({ exitCode: 0, resources, citations, reason: 'user_cancelled' })
     expect(Object.keys(output)).toEqual(Object.keys(toRecord(payloadOf(event).output)))
     expect(payloadOf(compacted)).toMatchObject({
       toolCallId: 'call-1',
@@ -67,6 +67,40 @@ describe('compactStreamEvent', () => {
       phase: 'result',
       success: true,
       status: 'success',
+    })
+  })
+
+  it('cuts long text even under keys the UI reads, keeping its head', () => {
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      id: `row-${index}`,
+      description: `row ${index} ${'d'.repeat(700 * 1024)}`,
+    }))
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_tables_rows_query',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: false,
+        status: 'error',
+        error: `Query failed: ${'e'.repeat(2 * MB)}`,
+        output: { error: `Query failed: ${'e'.repeat(2 * MB)}`, rows },
+      },
+    }
+
+    const compacted = payloadOf(compactStreamEvent(event))
+    const output = toRecord(compacted.output)
+
+    expect(Buffer.byteLength(JSON.stringify(compacted))).toBeLessThan(
+      STREAM_EVENT_COMPACTION_THRESHOLD_BYTES
+    )
+    expect(compacted.error).toMatch(/^Query failed: e+…\[truncated, 2 MB total\]$/)
+    expect(output.error).toMatch(/^Query failed: e+…\[truncated, 2 MB total\]$/)
+    expect((output.rows as Array<{ id: string; description: string }>)[2]).toEqual({
+      id: 'row-2',
+      description: `row 2 ${'d'.repeat(STREAM_STRING_PREVIEW_UNITS - 6)}…[truncated, 700 KB total]`,
     })
   })
 

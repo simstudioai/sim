@@ -1,7 +1,6 @@
 import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { toRecordOrNull } from '@sim/utils/object'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
@@ -73,20 +72,10 @@ const BACKEND_REJECTED_MESSAGE = 'The agent service could not process this reque
 /**
  * What the user is told about a failed backend response. The body is upstream
  * detail (a proxy's HTML page, an internal validation error) and stays on the
- * error for logs; only a worker-supplied `displayMessage` is meant for users.
+ * error for logs only.
  */
-function backendErrorMessage(status: number, body: string): string {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(body)
-  } catch {
-    return BACKEND_UNAVAILABLE_MESSAGE
-  }
-  if (status >= 500) return BACKEND_UNAVAILABLE_MESSAGE
-  const displayMessage = toRecordOrNull(parsed)?.displayMessage
-  return typeof displayMessage === 'string' && displayMessage.trim()
-    ? displayMessage.trim()
-    : BACKEND_REJECTED_MESSAGE
+function backendErrorMessage(status: number): string {
+  return status >= 500 ? BACKEND_UNAVAILABLE_MESSAGE : BACKEND_REJECTED_MESSAGE
 }
 
 export class BillingLimitError extends Error {
@@ -199,7 +188,7 @@ export async function runStreamLoop(
       throw new BillingLimitError(execContext.userId)
     }
 
-    throw new CopilotBackendError(backendErrorMessage(response.status, errorText), {
+    throw new CopilotBackendError(backendErrorMessage(response.status), {
       status: response.status,
       body: errorText || response.statusText,
     })

@@ -13,45 +13,8 @@ export const STREAM_EVENT_COMPACTION_THRESHOLD_BYTES = 256 * 1024
 /** UTF-16 units kept at the head of a long string. */
 export const STREAM_STRING_PREVIEW_UNITS = 8 * 1024
 
-/** Identity fields and the keys the UI reads from arguments and outputs; kept whole at any depth. */
-const PRESERVED_KEYS: ReadonlySet<string> = new Set([
-  'activity',
-  'activityDescription',
-  'agent',
-  'cancelledByUser',
-  'channel',
-  'description',
-  'elementId',
-  'error',
-  'event',
-  'execName',
-  'executor',
-  'fileName',
-  'kind',
-  'mode',
-  'op',
-  'operation',
-  'partial',
-  'path',
-  'pattern',
-  'phase',
-  'reason',
-  'replay',
-  'resource',
-  'status',
-  'success',
-  'targetWorkspaceId',
-  'terminalId',
-  'timeoutMs',
-  'title',
-  'toolCallId',
-  'toolId',
-  'toolName',
-  'ui',
-  'url',
-  'workflowId',
-  'workspaceId',
-])
+const NO_KEYS: ReadonlySet<string> = new Set()
+const ARGUMENTS_KEY: ReadonlySet<string> = new Set(['arguments'])
 
 /** Its live result is the only place the plaintext key reaches the browser. */
 const GENERATE_API_KEY_TOOL = 'generate_api_key'
@@ -65,8 +28,13 @@ function stringUnits(value: unknown): number {
   return sum
 }
 
-/** Cuts long strings to a head with a readable size note, copying only what changes. */
-function truncateStrings(value: unknown, skipKeys: ReadonlySet<string>): unknown {
+/**
+ * Cuts long strings to a head with a readable size note, copying only what
+ * changes. Every string the UI reads for identity, status, titles, or targets is
+ * far shorter than the cut, and text fields keep their head, so nothing but the
+ * named top-level keys is exempt.
+ */
+function truncateStrings(value: unknown, skipKeys: ReadonlySet<string> = NO_KEYS): unknown {
   if (typeof value === 'string') {
     if (value.length <= STREAM_STRING_PREVIEW_UNITS) return value
     const end = STREAM_STRING_PREVIEW_UNITS
@@ -78,7 +46,7 @@ function truncateStrings(value: unknown, skipKeys: ReadonlySet<string>): unknown
   if (Array.isArray(value)) {
     let copy: unknown[] | undefined
     value.forEach((item, index) => {
-      const next = truncateStrings(item, PRESERVED_KEYS)
+      const next = truncateStrings(item)
       if (next !== item) (copy ??= [...value])[index] = next
     })
     return copy ?? value
@@ -87,7 +55,7 @@ function truncateStrings(value: unknown, skipKeys: ReadonlySet<string>): unknown
   let copy: Record<string, unknown> | undefined
   for (const [key, field] of Object.entries(value)) {
     if (skipKeys.has(key)) continue
-    const next = truncateStrings(field, PRESERVED_KEYS)
+    const next = truncateStrings(field)
     if (next !== field) (copy ??= { ...value })[key] = next
   }
   return copy ?? value
@@ -97,8 +65,8 @@ function truncateStrings(value: unknown, skipKeys: ReadonlySet<string>): unknown
  * Bounds an outgoing stream event so the replay buffer can persist it. Applied
  * only to the copy the writer delivers and persists; the caller keeps the full
  * event for dispatch. Long strings are cut to their head in place, so every
- * object keeps its shape. File previews, `generate_api_key` results, preserved
- * keys, and the arguments of calls the browser executes are never cut; an event
+ * object keeps its shape. File previews, `generate_api_key` results, and the
+ * arguments of calls the browser executes are never cut; an event
  * still too large is refused by the buffer, which ends the turn with an error.
  */
 export function compactStreamEvent(event: StreamEvent): StreamEvent {
@@ -112,8 +80,8 @@ export function compactStreamEvent(event: StreamEvent): StreamEvent {
   const args = isRecordLike(payload.arguments) ? payload.arguments : undefined
   const skipKeys =
     payload.phase === MothershipStreamV1ToolPhase.call && isClientExecutedToolCall(toolName, args)
-      ? new Set([...PRESERVED_KEYS, 'arguments'])
-      : PRESERVED_KEYS
+      ? ARGUMENTS_KEY
+      : NO_KEYS
   const compacted = truncateStrings(payload, skipKeys)
   return compacted === payload ? event : ({ ...event, payload: compacted } as StreamEvent)
 }
