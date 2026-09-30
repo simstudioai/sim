@@ -13,7 +13,7 @@ import { eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
-import { getSharedHubSpotMcpClient } from '@/lib/mcp/oauth/shared-clients'
+import { getSharedHubSpotMcpClient, getSharedZoomMcpClient } from '@/lib/mcp/oauth/shared-clients'
 import {
   clearClient,
   clearState,
@@ -39,6 +39,8 @@ export interface PreregisteredClient {
   clientId: string
   clientSecret?: string
   configurationFingerprint?: string
+  scope?: string
+  tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post'
 }
 
 interface SimMcpOauthProviderInit {
@@ -58,7 +60,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
 
   constructor({ row, scope, preregistered }: SimMcpOauthProviderInit) {
     this.row = row
-    this.scope = scope
+    this.scope = preregistered?.scope ?? scope
     this.preregistered = preregistered
   }
 
@@ -72,7 +74,9 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
       redirect_uris: [this.redirectUrl],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      token_endpoint_auth_method: this.preregistered?.clientSecret ? 'client_secret_post' : 'none',
+      token_endpoint_auth_method:
+        this.preregistered?.tokenEndpointAuthMethod ??
+        (this.preregistered?.clientSecret ? 'client_secret_post' : 'none'),
     }
     if (this.scope) meta.scope = this.scope
     return meta
@@ -93,7 +97,9 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
         redirect_uris: [this.redirectUrl],
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
-        token_endpoint_auth_method: this.preregistered.clientSecret ? 'client_secret_post' : 'none',
+        token_endpoint_auth_method:
+          this.preregistered.tokenEndpointAuthMethod ??
+          (this.preregistered.clientSecret ? 'client_secret_post' : 'none'),
       }
     }
     return undefined
@@ -171,6 +177,24 @@ export async function loadPreregisteredClient(
     .where(eq(mcpServers.id, serverId))
     .limit(1)
   if (!row) return undefined
+  if (row.connectorId === 'zoom') {
+    if (
+      row.url !== MANAGED_MCP_CONNECTORS.zoom.url ||
+      row.authType !== 'oauth' ||
+      !row.groupId ||
+      !row.enabled ||
+      row.deletedAt
+    )
+      return undefined
+    if (row.clientId || row.clientSecret)
+      throw new Error('Zoom Search uses the deployment OAuth registration')
+    const shared = getSharedZoomMcpClient()
+    if (!shared)
+      throw new Error(
+        'Zoom sign-in is not configured. Ask your Sim administrator to configure the Zoom MCP OAuth client.'
+      )
+    return shared
+  }
   if (row.connectorId === 'hubspot') {
     if (
       row.url !== MANAGED_MCP_CONNECTORS.hubspot.url ||

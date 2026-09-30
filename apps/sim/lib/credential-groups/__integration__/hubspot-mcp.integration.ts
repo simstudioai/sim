@@ -1,6 +1,5 @@
-/** Real storage, encryption, and runtime grant binding for the shared HubSpot client. */
+/** Real storage, encryption, SDK exchange, and runtime binding for shared MCP clients. */
 
-import { auth } from '@modelcontextprotocol/sdk/client/auth.js'
 import { db } from '@sim/db'
 import {
   credential,
@@ -28,21 +27,44 @@ import {
   loadScopedManagedMcpRuntimeCredential,
   saveManagedMcpRuntimeTokens,
 } from '@/lib/credentials/managed-mcp'
+import { createManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
 import * as oauth from '@/lib/mcp/oauth/auth'
-import { loadPreregisteredClient } from '@/lib/mcp/oauth/provider'
+import { createCoordinatedMcpOauthFetch } from '@/lib/mcp/oauth/coordinated-fetch'
+import { loadPreregisteredClient, McpOauthRedirectRequired } from '@/lib/mcp/oauth/provider'
 import { getOrCreateOauthRow, saveClientInformation } from '@/lib/mcp/oauth/storage'
 import { mcpService } from '@/lib/mcp/service'
 
 const SECRET = 'isolated-shared-client-secret'
-describe('HubSpot shared member connector', () => {
+const SHARED_CLIENTS = [
+  {
+    id: 'hubspot',
+    name: 'HubSpot',
+    clientIdKey: 'HUBSPOT_MCP_CLIENT_ID',
+    clientSecretKey: 'HUBSPOT_MCP_CLIENT_SECRET',
+    url: 'https://mcp.hubspot.com',
+    tokenAuthMethod: 'client_secret_post',
+    scope: undefined,
+  },
+  {
+    id: 'zoom',
+    name: 'Zoom',
+    clientIdKey: 'ZOOM_MCP_CLIENT_ID',
+    clientSecretKey: 'ZOOM_MCP_CLIENT_SECRET',
+    url: 'https://mcp.zoom.us/mcp/meeting/streamable',
+    tokenAuthMethod: 'client_secret_basic',
+    scope: 'meeting:read:search meeting:read:assets',
+  },
+] as const
+
+describe.each(SHARED_CLIENTS)('$name shared member connector', (connector) => {
   let owner: string
   let org: string
   let group: string
   beforeEach(async () => {
     Object.assign(env, {
       REDIS_URL: readTestRedisUrl(),
-      HUBSPOT_MCP_CLIENT_ID: 'fixture-shared-client',
-      HUBSPOT_MCP_CLIENT_SECRET: SECRET,
+      [connector.clientIdKey]: 'fixture-shared-client',
+      [connector.clientSecretKey]: SECRET,
     })
     owner = generateId()
     org = generateId()
@@ -69,7 +91,7 @@ describe('HubSpot shared member connector', () => {
       organizationId: org,
       credentialGroupId: group,
       userId: owner,
-      input: { connectorId: 'hubspot' },
+      input: { connectorId: connector.id },
     })
   const stored = async (id: string) => {
     const [row] = await db.select().from(mcpServers).where(eq(mcpServers.id, id))
@@ -125,13 +147,15 @@ describe('HubSpot shared member connector', () => {
       clientSecret: SECRET,
     })
   })
-  it('rejects incomplete shared configuration instead of falling back to the ordinary OAuth app', async () => {
+  it('rejects incomplete shared configuration before persisting a server', async () => {
     Object.assign(env, {
-      HUBSPOT_MCP_CLIENT_SECRET: undefined,
+      [connector.clientSecretKey]: undefined,
       HUBSPOT_CLIENT_ID: 'rest-client',
       HUBSPOT_CLIENT_SECRET: 'rest-secret',
+      ZOOM_CLIENT_ID: 'workflow-client',
+      ZOOM_CLIENT_SECRET: 'workflow-secret',
     })
-    await expect(create()).rejects.toThrow(/HubSpot.*configured/i)
+    await expect(create()).rejects.toThrow(new RegExp(`${connector.name}.*configured`, 'i'))
     expect(
       await db.select().from(mcpServers).where(eq(mcpServers.credentialGroupId, group))
     ).toEqual([])
@@ -159,37 +183,39 @@ describe('HubSpot shared member connector', () => {
         .where(eq(mcpServers.id, mcpServer.id))
     }
   })
-  it('retains saved registrations and rejects partial or corrupt saved data without switching clients', async () => {
-    const { mcpServer } = await create()
-    const encrypted = (await encryptSecret('saved-secret')).encrypted
-    await db
-      .update(mcpServers)
-      .set({ oauthClientId: 'saved-client', oauthClientSecret: encrypted })
-      .where(eq(mcpServers.id, mcpServer.id))
-    Object.assign(env, { HUBSPOT_MCP_CLIENT_ID: undefined, HUBSPOT_MCP_CLIENT_SECRET: undefined })
-    const existingGrant = await grant(mcpServer.id)
-    expect((await runtime(existingGrant)).tokens.access_token).toBe('fixture-access')
-    expect(await loadPreregisteredClient(mcpServer.id)).toEqual({
-      clientId: 'saved-client',
-      clientSecret: 'saved-secret',
+  if (connector.id === 'hubspot') {
+    it('retains saved registrations and rejects partial or corrupt saved data without switching clients', async () => {
+      const { mcpServer } = await create()
+      const encrypted = (await encryptSecret('saved-secret')).encrypted
+      await db
+        .update(mcpServers)
+        .set({ oauthClientId: 'saved-client', oauthClientSecret: encrypted })
+        .where(eq(mcpServers.id, mcpServer.id))
+      Object.assign(env, { HUBSPOT_MCP_CLIENT_ID: undefined, HUBSPOT_MCP_CLIENT_SECRET: undefined })
+      const existingGrant = await grant(mcpServer.id)
+      expect((await runtime(existingGrant)).tokens.access_token).toBe('fixture-access')
+      expect(await loadPreregisteredClient(mcpServer.id)).toEqual({
+        clientId: 'saved-client',
+        clientSecret: 'saved-secret',
+      })
+      for (const change of [
+        { oauthClientId: null, oauthClientSecret: encrypted },
+        { oauthClientId: 'saved-client', oauthClientSecret: null },
+        { oauthClientId: 'saved-client', oauthClientSecret: 'corrupt' },
+      ]) {
+        await db.update(mcpServers).set(change).where(eq(mcpServers.id, mcpServer.id))
+        await expect(loadPreregisteredClient(mcpServer.id)).rejects.toThrow()
+      }
     })
-    for (const change of [
-      { oauthClientId: null, oauthClientSecret: encrypted },
-      { oauthClientId: 'saved-client', oauthClientSecret: null },
-      { oauthClientId: 'saved-client', oauthClientSecret: 'corrupt' },
-    ]) {
-      await db.update(mcpServers).set(change).where(eq(mcpServers.id, mcpServer.id))
-      await expect(loadPreregisteredClient(mcpServer.id)).rejects.toThrow()
-    }
-  })
+  }
   it('rejects a grant after shared client rotation and rejects an unbound platform grant', async () => {
     const { mcpServer } = await create()
     const client = await loadPreregisteredClient(mcpServer.id)
     const id = await grant(mcpServer.id, client?.configurationFingerprint)
     expect((await runtime(id)).tokens.access_token).toBe('fixture-access')
-    Object.assign(env, { HUBSPOT_MCP_CLIENT_SECRET: 'rotated-secret' })
+    Object.assign(env, { [connector.clientSecretKey]: 'rotated-secret' })
     await expect(runtime(id)).rejects.toThrow(/authorization/)
-    Object.assign(env, { HUBSPOT_MCP_CLIENT_SECRET: SECRET })
+    Object.assign(env, { [connector.clientSecretKey]: SECRET })
     await db
       .update(credential)
       .set({
@@ -219,7 +245,7 @@ describe('HubSpot shared member connector', () => {
         before.tokenVersion
       )
     ).rejects.toThrow(/changed/)
-    Object.assign(env, { HUBSPOT_MCP_CLIENT_SECRET: 'rotated-secret' })
+    Object.assign(env, { [connector.clientSecretKey]: 'rotated-secret' })
     await expect(runtime(id)).rejects.toThrow(/authorization/)
   })
   it('binds the public OAuth round trip to the shared client and rejects rotation before exchange', async () => {
@@ -259,10 +285,20 @@ describe('HubSpot shared member connector', () => {
       const url = new URL(
         typeof request === 'string' ? request : request instanceof URL ? request : request.url
       )
+      if (url.href === connector.url)
+        return new Response(null, {
+          status: 403,
+          headers: {
+            'www-authenticate': 'Bearer error="insufficient_scope", scope="meeting:write:meeting"',
+          },
+        })
       if (url.pathname.includes('oauth-protected-resource'))
         return Response.json({
-          resource: 'https://mcp.hubspot.com',
+          resource: connector.url,
           authorization_servers: [issuer],
+          ...(connector.scope
+            ? { scopes_supported: [...connector.scope.split(' '), 'meeting:write:meeting'] }
+            : {}),
         })
       if (
         url.pathname.includes('oauth-authorization-server') ||
@@ -274,13 +310,24 @@ describe('HubSpot shared member connector', () => {
           token_endpoint: `${issuer}/token`,
           response_types_supported: ['code'],
           code_challenge_methods_supported: ['S256'],
-          token_endpoint_auth_methods_supported: ['client_secret_post'],
+          token_endpoint_auth_methods_supported: [connector.tokenAuthMethod],
+          ...(connector.scope
+            ? { scopes_supported: [...connector.scope.split(' '), 'meeting:write:meeting'] }
+            : {}),
         })
       if (url.href === `${issuer}/token`) {
         exchanges++
         const body = new URLSearchParams(String(init?.body))
-        expect(body.get('client_id')).toBe('fixture-shared-client')
-        expect(body.get('client_secret')).toBe(SECRET)
+        if (connector.tokenAuthMethod === 'client_secret_basic') {
+          expect(new Headers(init?.headers).get('Authorization')).toBe(
+            `Basic ${Buffer.from(`fixture-shared-client:${SECRET}`).toString('base64')}`
+          )
+          expect(body.has('client_id')).toBe(false)
+          expect(body.has('client_secret')).toBe(false)
+        } else {
+          expect(body.get('client_id')).toBe('fixture-shared-client')
+          expect(body.get('client_secret')).toBe(SECRET)
+        }
         expect(
           Buffer.from(sha256Hex(body.get('code_verifier') ?? ''), 'hex').toString('base64url')
         ).toBe(challenge)
@@ -292,8 +339,9 @@ describe('HubSpot shared member connector', () => {
       }
       throw new Error(`Unexpected OAuth fixture request: ${url.origin}${url.pathname}`)
     }
+    const authenticate = oauth.mcpAuthGuarded
     vi.spyOn(oauth, 'mcpAuthGuarded').mockImplementation((provider, options) =>
-      auth(provider, { ...options, fetchFn })
+      authenticate(provider, { ...options, fetchFn })
     )
     vi.spyOn(mcpService, 'discoverManagedMcpTools').mockResolvedValue([])
     const start = async () => {
@@ -303,6 +351,7 @@ describe('HubSpot shared member connector', () => {
       })
       const url = new URL(result.authorizationUrl)
       expect(url.searchParams.get('client_id')).toBe('fixture-shared-client')
+      if (connector.scope) expect(url.searchParams.get('scope')).toBe(connector.scope)
       expect(url.searchParams.get('code_challenge_method')).toBe('S256')
       challenge = url.searchParams.get('code_challenge')
       expect(challenge).toBeTruthy()
@@ -321,8 +370,30 @@ describe('HubSpot shared member connector', () => {
       .where(eq(credential.credentialGroupEnrollmentId, enrollmentId))
     expect((await runtime(saved!.id)).tokens.access_token).toBe('exchanged-token')
     expect(exchanges).toBe(1)
+    if (connector.scope) {
+      const current = await runtime(saved!.id)
+      await saveManagedMcpRuntimeTokens(
+        saved!.id,
+        { access_token: 'exchanged-token', token_type: 'Bearer' },
+        current.tokenVersion
+      )
+      const loadProvider = async () => createManagedMcpAuthProvider(await runtime(saved!.id))
+      const request = createCoordinatedMcpOauthFetch(
+        { credentialId: saved!.id, loadProvider, initialProvider: await loadProvider() },
+        { serverUrl: connector.url, fetch: fetchFn }
+      )
+      try {
+        await request(connector.url, { method: 'POST' })
+        throw new Error('Expected the scope challenge to require authorization')
+      } catch (error) {
+        if (!(error instanceof McpOauthRedirectRequired)) throw error
+        const authorization = new URL(error.authorizationUrl)
+        expect(authorization.searchParams.get('scope')).toBe(connector.scope)
+        expect(authorization.searchParams.get('code_challenge_method')).toBe('S256')
+      }
+    }
     const next = await start()
-    Object.assign(env, { HUBSPOT_MCP_CLIENT_SECRET: 'rotated-secret' })
+    Object.assign(env, { [connector.clientSecretKey]: 'rotated-secret' })
     await expect(
       completePublicCredentialGroupMcpOAuth.execute({
         principal,

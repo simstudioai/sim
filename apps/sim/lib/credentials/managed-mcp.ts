@@ -287,7 +287,9 @@ export async function loadScopedManagedMcpRuntimeCredential(
     throw new ManagedMcpCredentialError('Managed MCP grant version is missing', 500)
   const envelope = await decryptManagedMcpEnvelope(row.encryptedTokens)
   const client =
-    connector.id === 'hubspot' ? await loadPreregisteredClient(row.mcpServerId) : undefined
+    connector.id === 'hubspot' || connector.id === 'zoom'
+      ? await loadPreregisteredClient(row.mcpServerId)
+      : undefined
   if (envelope.configurationFingerprint !== client?.configurationFingerprint)
     throw new ManagedMcpCredentialError(
       'Managed MCP credential needs authorization after app configuration changed',

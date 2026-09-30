@@ -58,32 +58,43 @@ import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const hubspotContinuationSchema = z
+const boundContinuationSchema = z
   .object({
     v: z.literal(1),
     scope: z.string().regex(/^[A-Za-z0-9_-]{22}$/),
-    cursor: z.string().regex(/^[1-9]\d{0,3}$/),
+    cursor: z.string().min(1).max(2048),
     listingEndDate: z.string().datetime({ offset: true }).optional(),
   })
   .strict()
-type HubSpotContinuation = z.output<typeof hubspotContinuationSchema>
+type BoundContinuation = z.output<typeof boundContinuationSchema>
 
-function readHubSpotContinuation(value: string): HubSpotContinuation {
+function readBoundContinuation(provider: 'hubspot' | 'zoom', value: string): BoundContinuation {
   try {
-    if (!value.startsWith('hubspot:') || value.length > 512) throw new Error('Invalid continuation')
-    return hubspotContinuationSchema.parse(
-      JSON.parse(Buffer.from(value.slice(8), 'base64url').toString('utf8'))
+    const prefix = `${provider}:`
+    if (!value.startsWith(prefix) || value.length > (provider === 'hubspot' ? 512 : 4000))
+      throw new Error('Invalid continuation')
+    const continuation = boundContinuationSchema.parse(
+      JSON.parse(Buffer.from(value.slice(prefix.length), 'base64url').toString('utf8'))
     )
+    if (provider === 'hubspot' && !/^[1-9]\d{0,3}$/.test(continuation.cursor))
+      throw new Error('Invalid HubSpot continuation')
+    return continuation
   } catch {
     throw new NativeSearchError(
       'unavailable',
-      'Invalid HubSpot cursor. Restart this search without a cursor.'
+      `Invalid ${provider === 'zoom' ? 'Zoom' : 'HubSpot'} cursor. Restart this search without a cursor.`
     )
   }
 }
 
-function writeHubSpotContinuation(value: HubSpotContinuation): string {
-  return `hubspot:${Buffer.from(JSON.stringify(hubspotContinuationSchema.parse(value))).toString('base64url')}`
+function writeBoundContinuation(provider: 'hubspot' | 'zoom', value: BoundContinuation): string {
+  const cursor = `${provider}:${Buffer.from(JSON.stringify(boundContinuationSchema.parse(value))).toString('base64url')}`
+  if (cursor.length > 4000)
+    throw new NativeSearchError(
+      'unavailable',
+      'The provider continuation is too large. Narrow the query and restart without a cursor.'
+    )
+  return cursor
 }
 
 const referenceSchema = z
@@ -397,12 +408,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     ): Promise<SearchedQuery> => {
       let queryFilters = filters
       let queryNative = native
-      let hubspotScope: string | undefined
+      let continuationScope: string | undefined
       let listingEndDate: string | undefined
-      if (account.provider === 'hubspot') {
-        hubspotScope = fingerprint(
+      if (account.provider === 'hubspot' || account.provider === 'zoom') {
+        continuationScope = fingerprint(
           canonicalJson({
-            provider: 'hubspot',
+            provider: account.provider,
             user: userId,
             owner: resourceScopeKey(resourceScopeFromOwner(input)),
             account: account.id,
@@ -419,17 +430,17 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           })
         )
         if (native?.cursor) {
-          const continuation = readHubSpotContinuation(native.cursor)
+          const continuation = readBoundContinuation(account.provider, native.cursor)
           const allowsListingBound =
             Boolean(dateSortDirection(requestedFilters)) && !hasDateBounds(requestedFilters)
           if (
-            continuation.scope !== hubspotScope ||
+            continuation.scope !== continuationScope ||
             (continuation.listingEndDate && !allowsListingBound) ||
             (allowsListingBound && !native.query && !continuation.listingEndDate)
           )
             throw new NativeSearchError(
               'unavailable',
-              'HubSpot cursor does not match this account, query, kind, or filters. Restart without a cursor.'
+              'The cursor does not match this account, query, kind, or filters. Restart without a cursor.'
             )
           listingEndDate = continuation.listingEndDate
           queryFilters = listingEndDate
@@ -519,10 +530,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               : undefined,
           ]),
           nextCursor:
-            page.nextCursor && hubspotScope
-              ? writeHubSpotContinuation({
+            page.nextCursor &&
+            continuationScope &&
+            (account.provider === 'hubspot' || account.provider === 'zoom')
+              ? writeBoundContinuation(account.provider, {
                   v: 1,
-                  scope: hubspotScope,
+                  scope: continuationScope,
                   cursor: page.nextCursor,
                   ...(listingEndDate ? { listingEndDate } : {}),
                 })

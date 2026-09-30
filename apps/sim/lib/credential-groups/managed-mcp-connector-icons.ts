@@ -6,6 +6,7 @@ import {
   HubspotIcon,
   LucidIcon,
   NotionIcon,
+  ZoomIcon,
 } from '@/components/icons'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 
@@ -14,6 +15,7 @@ export const MANAGED_MCP_CONNECTOR_ICONS = {
   granola: GranolaIcon,
   hubspot: HubspotIcon,
   lucid: LucidIcon,
+  zoom: ZoomIcon,
   coda: CodaIcon,
   notion: NotionIcon,
   databricks: DatabricksIcon,

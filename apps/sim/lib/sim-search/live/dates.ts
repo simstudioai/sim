@@ -3,7 +3,9 @@ import type { NativeDocument, NativeSearchInput } from '@/lib/sim-search/live/ty
 
 /** The generic date range uses the source's useful timeline; update filters stay independent. */
 export function sourceDate(document: NativeDocument, provider: string): string | undefined {
-  const value = ['google_calendar', 'fireflies', 'granola'].includes(provider)
+  const value = ['google_calendar', 'google_meet', 'zoom', 'fireflies', 'granola'].includes(
+    provider
+  )
     ? document.eventStartAt
     : document.modifiedAt
   return value && Number.isFinite(Date.parse(value)) ? value : undefined
@@ -13,7 +15,7 @@ export function sourceDateType(
   provider: string,
   document: NativeDocument
 ): 'event_start' | 'message' | 'modified' {
-  return ['google_calendar', 'fireflies', 'granola'].includes(provider)
+  return ['google_calendar', 'google_meet', 'zoom', 'fireflies', 'granola'].includes(provider)
     ? 'event_start'
     : provider === 'gmail' || (provider === 'slack' && document.kind !== 'file')
       ? 'message'

@@ -16,6 +16,16 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
     credentialProviderIds: ['google-email', 'gmail'],
     modes: ['member', 'service_account'],
   },
+  google_meet: {
+    origin: 'https://meet.googleapis.com',
+    credentialProviderIds: ['google-meet'],
+    modes: ['member'],
+  },
+  zoom: {
+    origin: 'https://mcp.zoom.us',
+    credentialProviderIds: ['mcp:zoom'],
+    modes: ['member'],
+  },
   google_calendar: {
     origin: 'https://www.googleapis.com',
     credentialProviderIds: ['google-calendar'],

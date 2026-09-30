@@ -87,7 +87,7 @@ export function LiveSearchSettings() {
       type,
       meta,
       availabilityStatus:
-        type !== 'hubspot' || accounts.isSuccess
+        (type !== 'hubspot' && type !== 'zoom') || accounts.isSuccess
           ? undefined
           : accounts.isError
             ? ('error' as const)
