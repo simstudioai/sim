@@ -1,4 +1,5 @@
-import { parseAsString } from 'nuqs/server'
+import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { RESOURCE_TAB_IDS } from '@/app/playground/org/components/environments/mapping-model'
 
 export const protoParsers = {
   /** Chat open in the slide-in panel next to the project; `new` before the first message. */
@@ -9,4 +10,6 @@ export const protoParsers = {
   dashboard: parseAsString.withDefault(''),
   /** First message handed from the home composer to a project's new chat; sent once, then cleared. */
   q: parseAsString.withDefault(''),
+  /** Resource type shown in the project's Environments tab: workflows, then the mapping kinds. */
+  resource: parseAsStringLiteral(RESOURCE_TAB_IDS).withDefault('workflow'),
 }
