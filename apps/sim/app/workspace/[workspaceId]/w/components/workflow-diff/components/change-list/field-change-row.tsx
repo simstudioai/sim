@@ -129,7 +129,10 @@ function MessagesDiff({ oldValue, newValue }: MessagesDiffProps) {
             {!slot.old && ' (added)'}
             {!slot.next && ' (removed)'}
           </span>
-          <TextDiff oldText={slot.old?.content ?? ''} newText={slot.next?.content ?? ''} />
+          <TextDiff
+            oldText={toDiffText(slot.old?.content)}
+            newText={toDiffText(slot.next?.content)}
+          />
         </div>
       ))}
     </div>
