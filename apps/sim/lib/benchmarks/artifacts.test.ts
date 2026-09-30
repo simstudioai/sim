@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { applyBenchmarkPatch, validateBenchmarkRedaction } from '@/lib/benchmarks/artifacts'
+import {
+  applyBenchmarkPatch,
+  redactBenchmarkSpec,
+  validateBenchmarkRedaction,
+} from '@/lib/benchmarks/artifacts'
 import type { BenchmarkArtifacts } from '@/lib/benchmarks/types'
 
 const artifacts: BenchmarkArtifacts = {
@@ -14,6 +18,32 @@ const artifacts: BenchmarkArtifacts = {
 }
 
 describe('benchmark reference integrity', () => {
+  it('builds masks from exact selected passages without rewriting the reference', () => {
+    const referenceSpec = 'Queue: Ops [L2].\nNotify Ops [L2] and team+$ at $5.\n'
+    expect(
+      redactBenchmarkSpec(referenceSpec, [
+        { id: 'queue', answer: 'Ops [L2]' },
+        { id: 'team', answer: 'team+$' },
+      ])
+    ).toBe('Queue: [[BLANK:queue]].\nNotify [[BLANK:queue]] and [[BLANK:team]] at $5.\n')
+  })
+
+  it('rejects missing, duplicate, or overlapping passages that cannot produce every blank', () => {
+    for (const blanks of [
+      [{ id: 'missing', answer: 'Elsewhere' }],
+      [
+        { id: 'first', answer: 'Support' },
+        { id: 'second', answer: 'Support' },
+      ],
+      [
+        { id: 'short', answer: 'Support' },
+        { id: 'long', answer: 'Support team' },
+      ],
+    ]) {
+      expect(() => redactBenchmarkSpec('Support team owns follow-up.', blanks)).toThrow()
+    }
+  })
+
   it('accepts repeated masks for one requirement without changing surviving reference text', () => {
     expect(() => validateBenchmarkRedaction(artifacts)).not.toThrow()
   })

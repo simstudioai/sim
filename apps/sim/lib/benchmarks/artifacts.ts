@@ -1,9 +1,28 @@
+import { escapeRegExp } from '@sim/utils/string'
 import {
   type BenchmarkArtifacts,
   type BenchmarkEditablePatch,
   benchmarkArtifactsSchema,
 } from '@/lib/benchmarks/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+
+/** Replace selected passages in one pass so markers and surviving text cannot be rewritten. */
+export function redactBenchmarkSpec(
+  referenceSpec: string,
+  blanks: BenchmarkArtifacts['blanks']
+): string {
+  if (!blanks.length || blanks.some((blank) => !blank.answer)) {
+    throw new OrchestrationError('validation', 'Select at least one nonempty passage to redact')
+  }
+  const ids = new Map(blanks.map((blank) => [blank.answer, blank.id]))
+  const passages = [...ids.keys()].sort((left, right) => right.length - left.length)
+  const redactedSpec = referenceSpec.replace(
+    new RegExp(passages.map(escapeRegExp).join('|'), 'g'),
+    (answer) => `[[BLANK:${ids.get(answer)}]]`
+  )
+  validateBenchmarkRedaction({ referenceSpec, redactedSpec, blanks })
+  return redactedSpec
+}
 
 /** Every mask must restore the exact reference, including repeated occurrences. */
 export function validateBenchmarkRedaction(

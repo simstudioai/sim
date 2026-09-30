@@ -14,13 +14,13 @@ function messages(instruction: string, data: unknown): ExecuteMessage[] {
 export function distillationMessages(taskBrief: string): ExecuteMessage[] {
   return messages(
     'Explore the selected workspace using the read-only workspace CLI and describe its implemented behavior as a detailed, self-contained reference specification. Begin by listing all active workflows, follow list pagination, inspect each workflow and its referenced workspace resources, and follow large-output continuations. Cover exact triggers and input shapes, conditions, ownership, field mappings, prompts and code behavior, actions, destinations, cross-workflow relationships, outputs and failure/recovery behavior. Preserve concrete names, values and business rules; do not compress them into a high-level overview. Distinguish implemented behavior from unresolved configuration or inferred intent. Do not invent missing values. Omit editor layout and credential values. Also draft a short taskBrief expressing the business goal a user would originally request, without disclosing the enterprise-specific answers. If a taskBrief was supplied, preserve it. The reference is for human review before evaluation. Use tools to inspect; return the final JSON only when inspection is complete.',
-    { taskBrief }
+    taskBrief.trim() ? { taskBrief } : {}
   )
 }
 
 export function redactionMessages(referenceSpec: string): ExecuteMessage[] {
   return messages(
-    'Select 5 to 15 meaningful enterprise-specific facts from this reference specification that an agent should discover from enterprise context. Prefer ownership, conditions, mappings, existing mechanisms and business destinations. Exclude arbitrary implementation choices or details unlikely to exist outside this completed workflow. Produce redactedSpec by replacing exact passages with [[BLANK:id]] markers and blanks containing each id and its exact original answer. Preserve every other character of the reference, including whitespace and punctuation. Use the same marker for repeated identical answers and redact all occurrences that reveal an answer. Use short meaningful IDs. Do not paraphrase or add text. Return at least one blank; the human will review whether each is discoverable.',
+    'Select 5 to 15 meaningful enterprise-specific facts from this reference specification that an agent should discover from enterprise context. Prefer ownership, conditions, mappings, existing mechanisms and business destinations. Exclude arbitrary implementation choices or details unlikely to exist outside this completed workflow. Return blanks containing a short meaningful id and an answer copied as an exact contiguous passage of the reference. Select distinct, non-overlapping answers; the server replaces every exact occurrence with the same marker and preserves all other text. Avoid facts whose answer is revealed by a different surviving passage. Do not paraphrase or return a rewritten reference. Return at least one blank; the human will review whether each is discoverable.',
     { referenceSpec }
   )
 }

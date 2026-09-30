@@ -10,7 +10,11 @@ import {
   BENCHMARK_LEASE_MS,
   withBenchmarkStageLease,
 } from '@/lib/benchmarks/application/stage-lease'
-import { applyBenchmarkPatch, validateBenchmarkRedaction } from '@/lib/benchmarks/artifacts'
+import {
+  applyBenchmarkPatch,
+  redactBenchmarkSpec,
+  validateBenchmarkRedaction,
+} from '@/lib/benchmarks/artifacts'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import { gradeReconstruction, validateReconstruction } from '@/lib/benchmarks/evaluation'
 import {
@@ -44,7 +48,6 @@ const distillationSchema = z
   .strict()
 const redactionSchema = z
   .object({
-    redactedSpec: benchmarkSpecSchema.min(1),
     blanks: z.array(benchmarkBlankSchema).min(1),
   })
   .strict()
@@ -110,7 +113,12 @@ async function performStage(
         schema: redactionSchema,
         messages: redactionMessages(artifacts.referenceSpec),
       })
-      return { artifacts: applyBenchmarkPatch(artifacts, result) }
+      return {
+        artifacts: applyBenchmarkPatch(artifacts, {
+          ...result,
+          redactedSpec: redactBenchmarkSpec(artifacts.referenceSpec, result.blanks),
+        }),
+      }
     }
     case 'plan': {
       const result = await executeBenchmarkPlan({ principal, benchmark, signal })
