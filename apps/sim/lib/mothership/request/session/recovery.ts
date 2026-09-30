@@ -18,88 +18,119 @@ export interface ReplayGapResult {
   envelopes: ReturnType<typeof createEvent>[]
 }
 
-export async function checkForReplayGap(
+/** Where the replay ring stands relative to a reader's cursor; 0 marks an empty ring. */
+export interface RingPosition {
+  requestedAfterSeq: number
+  oldestSeq: number
+  latestSeq: number
+}
+
+/**
+ * Whether a ring whose first retained event has `firstSeq` still holds the stream's
+ * first event. The ring trims its oldest events, so a read from cursor 0 can start
+ * mid-stream; anything that rebuilds a turn from such a read must not, and a reader
+ * of it is re-synced from the worker's log instead ({@link findReplayGap}).
+ */
+export function startsAtReplayHead(firstSeq: number | undefined): boolean {
+  return firstSeq === undefined || firstSeq <= 1
+}
+
+export async function readRingPosition(
+  streamId: string,
+  afterCursor: string
+): Promise<RingPosition> {
+  const [oldestSeq, latestSeq] = await Promise.all([getOldestSeq(streamId), getLatestSeq(streamId)])
+  return {
+    requestedAfterSeq: Number(afterCursor || '0'),
+    oldestSeq: oldestSeq ?? 0,
+    latestSeq: latestSeq ?? 0,
+  }
+}
+
+/**
+ * Whether the ring can serve a reader from its cursor. It cannot once it has lost its
+ * head: the events before its oldest are gone, and a cursor that was served from the
+ * worker's log instead is not a position in the ring, so no cursor is trusted. Nor can
+ * it serve a cursor ahead of its latest event, which only a buffer whose numbering
+ * restarted after it expired produces, nor any cursor from a buffer that expired.
+ */
+export function ringCanServe({ requestedAfterSeq, oldestSeq, latestSeq }: RingPosition): boolean {
+  if (latestSeq <= 0) return requestedAfterSeq <= 0
+  return startsAtReplayHead(oldestSeq) && requestedAfterSeq <= latestSeq
+}
+
+/** The ring's position when it cannot serve `afterCursor` (see {@link ringCanServe}). */
+export async function findReplayGap(
   streamId: string,
   afterCursor: string,
   requestId?: string
-): Promise<ReplayGapResult | null> {
-  const requestedAfterSeq = Number(afterCursor || '0')
-  if (requestedAfterSeq <= 0) {
-    // Fast path: no cursor → nothing to check. Skip the span to avoid
-    // emitting zero-work spans on every stream connect.
-    return null
-  }
-
+): Promise<RingPosition | null> {
   return withCopilotSpan(
     TraceSpan.CopilotRecoveryCheckReplayGap,
     {
       [TraceAttr.StreamId]: streamId,
-      [TraceAttr.CopilotRecoveryRequestedAfterSeq]: requestedAfterSeq,
+      [TraceAttr.CopilotRecoveryRequestedAfterSeq]: Number(afterCursor || '0'),
       ...(requestId ? { [TraceAttr.RequestId]: requestId } : {}),
     },
     async (span) => {
-      const oldestSeq = await getOldestSeq(streamId)
-      const latestSeq = await getLatestSeq(streamId)
+      const position = await readRingPosition(streamId, afterCursor)
       span.setAttributes({
-        [TraceAttr.CopilotRecoveryOldestSeq]: oldestSeq ?? -1,
-        [TraceAttr.CopilotRecoveryLatestSeq]: latestSeq ?? -1,
+        [TraceAttr.CopilotRecoveryOldestSeq]: position.oldestSeq,
+        [TraceAttr.CopilotRecoveryLatestSeq]: position.latestSeq,
       })
-
-      /* Trimmed below the ring, or ahead of a buffer whose numbering restarted after it
-         expired: either way the events after the cursor are not the ones it names. */
-      if (
-        latestSeq !== null &&
-        latestSeq > 0 &&
-        oldestSeq !== null &&
-        (requestedAfterSeq < oldestSeq - 1 || requestedAfterSeq > latestSeq)
-      ) {
-        const resolvedRequestId = await resolveReplayGapRequestId(streamId, latestSeq, requestId)
-        logger.warn('Replay gap detected: requested cursor is outside the retained events', {
-          streamId,
-          requestedAfterSeq,
-          oldestAvailableSeq: oldestSeq,
-          latestSeq,
-        })
-        span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.GapDetected)
-
-        const gapEnvelope = createEvent({
-          streamId,
-          cursor: String(latestSeq + 1),
-          seq: latestSeq + 1,
-          requestId: resolvedRequestId,
-          type: MothershipStreamV1EventType.error,
-          payload: {
-            message: 'Replay history is no longer available. Some events may have been lost.',
-            code: 'replay_gap',
-            data: {
-              oldestAvailableSeq: oldestSeq,
-              requestedAfterSeq,
-            },
-          },
-        })
-
-        const terminalEnvelope = createEvent({
-          streamId,
-          cursor: String(latestSeq + 2),
-          seq: latestSeq + 2,
-          requestId: resolvedRequestId,
-          type: MothershipStreamV1EventType.complete,
-          payload: {
-            status: MothershipStreamV1CompletionStatus.error,
-            reason: 'replay_gap',
-          },
-        })
-
-        return {
-          gapDetected: true,
-          envelopes: [gapEnvelope, terminalEnvelope],
-        }
+      if (ringCanServe(position)) {
+        span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.InRange)
+        return null
       }
-
-      span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.InRange)
-      return null
+      logger.warn('Replay gap detected: the ring cannot serve the requested cursor', {
+        streamId,
+        ...position,
+      })
+      span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.GapDetected)
+      return position
     }
   )
+}
+
+/**
+ * Ends a reader's view with `replay_gap` when nothing can re-sync it, numbered past
+ * both the ring and the reader's cursor so the reader cannot drop it as already seen.
+ */
+export async function replayGapTerminal(
+  streamId: string,
+  position: RingPosition,
+  requestId?: string
+): Promise<ReplayGapResult> {
+  const { latestSeq, oldestSeq, requestedAfterSeq } = position
+  const baseSeq = Math.max(latestSeq, requestedAfterSeq)
+  const resolvedRequestId = await resolveReplayGapRequestId(streamId, latestSeq, requestId)
+  const gapEnvelope = createEvent({
+    streamId,
+    cursor: String(baseSeq + 1),
+    seq: baseSeq + 1,
+    requestId: resolvedRequestId,
+    type: MothershipStreamV1EventType.error,
+    payload: {
+      message: 'Replay history is no longer available. Some events may have been lost.',
+      code: 'replay_gap',
+      data: {
+        oldestAvailableSeq: oldestSeq,
+        requestedAfterSeq,
+      },
+    },
+  })
+  const terminalEnvelope = createEvent({
+    streamId,
+    cursor: String(baseSeq + 2),
+    seq: baseSeq + 2,
+    requestId: resolvedRequestId,
+    type: MothershipStreamV1EventType.complete,
+    payload: {
+      status: MothershipStreamV1CompletionStatus.error,
+      reason: 'replay_gap',
+    },
+  })
+  return { gapDetected: true, envelopes: [gapEnvelope, terminalEnvelope] }
 }
 
 async function resolveReplayGapRequestId(

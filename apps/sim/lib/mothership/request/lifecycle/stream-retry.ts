@@ -32,7 +32,8 @@ const HEALTHY_STREAM_REPLENISH_MS = 5 * 60_000
  * Recovery is bounded independently of the healthy leg's lifetime, by two
  * budgets that never share state: an unreachable worker gets a two-minute
  * window from the moment it stopped answering, and any failure of a worker that
- * did answer gets three retries within 30 s, replenished only after
+ * did answer gets three retries, each burst of them within 30 s of its first
+ * failure, replenished only after
  * {@link HEALTHY_STREAM_REPLENISH_MS} of healthy streaming. A leg has no deadline
  * unless the caller sets one.
  */
@@ -63,9 +64,13 @@ export class StreamRetryWindow {
     return remaining
   }
 
-  /** The worker delivered an event, so a later loss of it starts a fresh unreachable window. */
+  /**
+   * The worker delivered an event: a later loss starts a fresh unreachable window, and
+   * a fresh 30 s reachable window. Only the three reachable retries carry over.
+   */
   recovered(): void {
     this.resetUnreachable()
+    this.firstFailureAt = undefined
     this.lastEventAt = Date.now()
     this.streamingSince ??= this.lastEventAt
   }

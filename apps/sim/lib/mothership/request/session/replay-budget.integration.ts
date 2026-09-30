@@ -13,10 +13,27 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
   const { createServer: createHttpServer } = await import('node:http')
   const abortRequests: Array<Record<string, unknown>> = []
-  const hooks = { onAbort: undefined as (() => Promise<void>) | undefined }
+  const hooks = {
+    onAbort: undefined as (() => Promise<void>) | undefined,
+    /** The read-only replay's answer; a worker that does not know the run by default. */
+    replay: { status: 404, frames: [] as unknown[] },
+  }
+  const replayRequests: Array<Record<string, unknown>> = []
   const server = createHttpServer(async (request, response) => {
     let body = ''
     for await (const chunk of request) body += chunk
+    if (request.url === '/api/streams/replay') {
+      replayRequests.push(JSON.parse(body))
+      if (hooks.replay.status !== 200) {
+        response.writeHead(hooks.replay.status, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: 'Run not found' }))
+        return
+      }
+      response.writeHead(200, { 'content-type': 'text/event-stream' })
+      for (const frame of hooks.replay.frames) response.write(`data: ${JSON.stringify(frame)}\n\n`)
+      response.end('data: [DONE]\n\n')
+      return
+    }
     if (request.url === '/api/streams/explicit-abort') {
       abortRequests.push(JSON.parse(body))
       await hooks.onAbort?.()
@@ -40,11 +57,16 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
     worker: {
       server,
       abortRequests,
+      replayRequests,
       hooks,
       /** Events, or steps to run between them, that the scripted worker streams in order. */
       script: [] as unknown[],
       /** Controller lifecycles started, and what each sink call threw. */
-      runs: [] as Array<{ dispatched: unknown[]; sinkErrors: unknown[] }>,
+      runs: [] as Array<{
+        dispatched: unknown[]
+        sinkErrors: unknown[]
+        recoveredEvents?: unknown[]
+      }>,
     },
   }
 })
@@ -57,9 +79,17 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
    */
   runCopilotLifecycle: async (
     _payload: unknown,
-    options: { onEvent?: (event: unknown) => Promise<void>; abortSignal?: AbortSignal }
+    options: {
+      onEvent?: (event: unknown) => Promise<void>
+      abortSignal?: AbortSignal
+      recovery?: { events: unknown[] }
+    }
   ) => {
-    const run = { dispatched: [] as unknown[], sinkErrors: [] as unknown[] }
+    const run = {
+      dispatched: [] as unknown[],
+      sinkErrors: [] as unknown[],
+      recoveredEvents: options.recovery?.events,
+    }
     worker.runs.push(run)
     for (const event of worker.script) {
       if (typeof event === 'function') {
@@ -105,13 +135,13 @@ import {
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import { acquirePendingChatStream } from '@/lib/mothership/request/session/abort'
-import { readEvents } from '@/lib/mothership/request/session/buffer'
+import { appendEvents, readEvents } from '@/lib/mothership/request/session/buffer'
 import {
   type ChatStreamLease,
   chatStreamLockKey,
   StreamControllerSupersededError,
 } from '@/lib/mothership/request/session/controller-lease'
-import { eventToStreamEvent } from '@/lib/mothership/request/session/event'
+import { createEvent, eventToStreamEvent } from '@/lib/mothership/request/session/event'
 import {
   REPLAY_BUDGET_EXHAUSTED_CODE,
   StreamReplayBudgetExhaustedError,
@@ -124,7 +154,9 @@ import {
   type PendingFileIntent,
   storeFileIntent,
 } from '@/lib/mothership/tools/server/files/file-intent-store'
+import { GET as copilotChatGET } from '@/app/api/copilot/chat/queries'
 import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as mothershipChatGET } from '@/app/api/mothership/chats/[chatId]/route'
 
 const MB = 1024 * 1024
 
@@ -341,6 +373,72 @@ describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => 
     await expect(published).rejects.toBeInstanceOf(StreamControllerSupersededError)
     await expect(writer.close()).rejects.toBeInstanceOf(StreamControllerSupersededError)
     expect(await frames()).toEqual([])
+  })
+})
+
+describe.runIf(Boolean(redisUrl))('the replay ring trimmed past its byte target', () => {
+  /** A ring whose counter is already past the byte target, as after a long run. */
+  async function overTargetRing(seqs: number[]) {
+    const streamId = generateId()
+    const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
+    const persisted = await appendEvents(
+      seqs.map((seq) => textEvent(streamId, seq)),
+      { streamId }
+    )
+    expect(persisted).toEqual({ persisted: true })
+    const { maxOwnerBytes } = getRedisBudgetLimits('copilot_stream')
+    await redis().set(ownerBudgetKey, maxOwnerBytes - MB, 'EX', 3600)
+    return { streamId, ownerBudgetKey }
+  }
+
+  function textEvent(streamId: string, seq: number) {
+    return createEvent({
+      streamId,
+      cursor: String(seq),
+      seq,
+      requestId: 'replay-trim',
+      type: 'text',
+      payload: { channel: 'assistant', text: `part ${String(seq).padStart(6, '0')}` },
+    })
+  }
+
+  const seqsOf = async (streamId: string) =>
+    (await storedMembers(streamId)).map((member) => JSON.parse(member).seq as number)
+  const bytesOf = (members: string[]) =>
+    members.reduce((sum, member) => sum + Buffer.byteLength(member), 0)
+
+  it('trims a replayed member below the ring with it, leaving a contiguous tail', async () => {
+    const { streamId, ownerBudgetKey } = await overTargetRing([2, 3])
+    const before = Number(await redis().get(ownerBudgetKey))
+    const dropped = await storedMembers(streamId)
+    const newest = textEvent(streamId, 4)
+
+    expect(await appendEvents([textEvent(streamId, 1), newest], { streamId })).toEqual({
+      persisted: true,
+    })
+
+    expect(await seqsOf(streamId)).toEqual([4])
+    expect(Number(await redis().get(ownerBudgetKey))).toBe(
+      before + Buffer.byteLength(JSON.stringify(newest)) - bytesOf(dropped)
+    )
+  })
+
+  it('catches an oversized ring up over several appends', async () => {
+    const seqs = Array.from({ length: 6000 }, (_, index) => index + 1)
+    const { streamId, ownerBudgetKey } = await overTargetRing(seqs)
+
+    await appendEvents([textEvent(streamId, 6001)], { streamId })
+    const afterFirst = await seqsOf(streamId)
+    expect(afterFirst.length).toBeGreaterThan(1)
+    expect(afterFirst).toEqual(
+      Array.from({ length: afterFirst.length }, (_, index) => 6001 - afterFirst.length + 1 + index)
+    )
+
+    await appendEvents([textEvent(streamId, 6002)], { streamId })
+    expect(await seqsOf(streamId)).toEqual([6002])
+    expect(Number(await redis().get(ownerBudgetKey))).toBeLessThan(
+      getRedisBudgetLimits('copilot_stream').maxOwnerBytes - MB
+    )
   })
 })
 
@@ -665,6 +763,223 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     )
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored.status).toBe('complete')
+  })
+
+  it('streams far past the owner budget without refusing, retaining a bounded contiguous tail', async () => {
+    const { maxOwnerBytes, maxUserBytes } = getRedisBudgetLimits('copilot_stream')
+    const chunk = 'x'.repeat(4 * 1024)
+    const eventCount = Math.ceil((maxOwnerBytes * 1.3) / chunk.length)
+    const { streamId, runId, frames } = await runTurn(
+      Array.from({ length: eventCount }, (_, index) => text(`${index}:${chunk}`))
+    )
+
+    expect(frames.map((frame) => frame.type)).not.toContain('error')
+    expect(frames.at(-1)).toMatchObject({ type: 'complete', payload: { status: 'complete' } })
+    const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+    expect(stored.status).toBe('complete')
+
+    const members = await storedMembers(streamId)
+    const retainedBytes = members.reduce((sum, member) => sum + Buffer.byteLength(member), 0)
+    const [ownerBudgetKey, userBudgetKey] = getRedisBudgetKeys({
+      kind: 'copilot_stream',
+      id: streamId,
+      userId,
+    })
+    expect(Number(await redis().get(ownerBudgetKey))).toBe(retainedBytes)
+    expect(retainedBytes).toBeLessThan(maxOwnerBytes)
+    expect(Number(await redis().get(userBudgetKey))).toBeLessThan(maxUserBytes)
+
+    const seqs = members.map((member) => JSON.parse(member).seq as number)
+    const oldestSeq = seqs[0]
+    const latestSeq = seqs.at(-1)!
+    expect(oldestSeq).toBeGreaterThan(1)
+    expect(seqs).toEqual(Array.from({ length: seqs.length }, (_, index) => oldestSeq + index))
+
+    const reconnect = async (after: number) =>
+      dataFrames(
+        await (
+          await streamGET(
+            new NextRequest(
+              `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=${after}`
+            ),
+            { params: Promise.resolve({}) }
+          )
+        ).text()
+      )
+    // A headless ring is re-synced from the log; this worker lacks the run, so replay_gap.
+    worker.replayRequests.length = 0
+    const inRange = await reconnect(oldestSeq - 1)
+    expect(
+      inRange.map((frame) => [frame.type, frame.payload.code ?? frame.payload.reason])
+    ).toEqual([
+      ['error', 'replay_gap'],
+      ['complete', 'replay_gap'],
+    ])
+    const behind = await reconnect(oldestSeq - 2)
+    expect(behind.map((frame) => [frame.type, frame.payload.code ?? frame.payload.reason])).toEqual(
+      [
+        ['error', 'replay_gap'],
+        ['complete', 'replay_gap'],
+      ]
+    )
+    expect(behind[0].payload.data).toEqual({
+      oldestAvailableSeq: oldestSeq,
+      requestedAfterSeq: oldestSeq - 2,
+    })
+    expect(behind[0].seq).toBe(latestSeq + 1)
+    expect(worker.replayRequests).toEqual([
+      { streamId, chatId, userId },
+      { streamId, chatId, userId },
+    ])
+  }, 180_000)
+
+  /**
+   * An unfinished run with no live controller whose ring a byte trim has advanced past
+   * its head: seqs 1–2 are gone and 3–4 remain.
+   */
+  async function trimmedRecoverableStream() {
+    const streamId = generateId()
+    const request = {
+      message: 'Summarize the logs',
+      userId,
+      messageId: streamId,
+      chatId,
+      workspaceId,
+    }
+    await db.insert(copilotRuns).values({
+      id: generateId(),
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+      requestContext: {
+        requestId: generateId(),
+        controllerToken: `dead\n${generateId()}`,
+        recovery: {
+          kind: 'interactive_stream',
+          request,
+          goRoute: '/api/mothership',
+          clientToolPickupExpected: false,
+        },
+      },
+    })
+    await db
+      .update(copilotChats)
+      .set({ conversationId: streamId })
+      .where(eq(copilotChats.id, chatId))
+    const persisted = await appendEvents(
+      [1, 2, 3, 4].map((seq) =>
+        createEvent({
+          streamId,
+          cursor: String(seq),
+          seq,
+          requestId: generateId(),
+          type: 'text',
+          payload: { channel: 'assistant', text: `part ${seq} ` },
+        })
+      ),
+      { streamId }
+    )
+    expect(persisted).toEqual({ persisted: true })
+    await redis().zremrangebyrank(`mothership_stream:${streamId}:events`, 0, 1)
+    worker.runs.length = 0
+    worker.script = []
+    return streamId
+  }
+
+  const resume = async (streamId: string, query: string) =>
+    streamGET(
+      new NextRequest(
+        `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&${query}`
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+  describe('when a byte trim has removed the head of an unfinished turn', () => {
+    afterAll(async () => {
+      await db.update(copilotChats).set({ conversationId: null }).where(eq(copilotChats.id, chatId))
+      await redis().del(chatStreamLockKey(chatId))
+    })
+
+    it.each(['after=4', 'after=0'])(
+      'recovers from an empty context, not the tail, and shows the full turn from the log (%s)',
+      async (query) => {
+        const streamId = await trimmedRecoverableStream()
+        worker.hooks.replay = {
+          status: 200,
+          frames: [
+            {
+              v: 1,
+              type: 'text',
+              seq: 1,
+              ts: new Date().toISOString(),
+              stream: { streamId, chatId },
+              payload: {
+                channel: 'assistant',
+                text: 'part 1 part 2 part 3 part 4 ',
+                textOffset: 0,
+              },
+            },
+            {
+              v: 1,
+              type: 'run',
+              seq: 2,
+              ts: new Date().toISOString(),
+              stream: { streamId, chatId },
+              payload: { kind: 'replay_end', reason: 'stalled', textLength: 28 },
+            },
+          ],
+        }
+        try {
+          const frames = dataFrames(await (await resume(streamId, query)).text())
+
+          expect(frames.map((frame) => frame.type)).toEqual(['text'])
+          expect(frames[0].payload.text).toBe('part 1 part 2 part 3 part 4 ')
+          expect(worker.runs.map((run) => run.recoveredEvents)).toEqual([[]])
+        } finally {
+          worker.hooks.replay = { status: 404, frames: [] }
+        }
+      }
+    )
+
+    it('serves a batch reconnect no tail events', async () => {
+      const streamId = await trimmedRecoverableStream()
+
+      const batch = await (await resume(streamId, 'after=0&batch=true')).json()
+
+      expect(batch.events).toEqual([])
+      expect(worker.runs.map((run) => run.recoveredEvents)).toEqual([[]])
+    })
+
+    it.each([
+      [
+        'mothership chat',
+        () =>
+          mothershipChatGET(
+            new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}`),
+            {
+              params: Promise.resolve({ chatId }),
+            }
+          ),
+      ],
+      [
+        'copilot chat',
+        () =>
+          copilotChatGET(
+            new NextRequest(`http://localhost:3000/api/copilot/chat?chatId=${chatId}`)
+          ),
+      ],
+    ])('leaves the %s snapshot to the resume route', async (_label, load) => {
+      const streamId = await trimmedRecoverableStream()
+
+      const body = await (await load()).json()
+
+      expect(body.success).toBe(true)
+      expect(body.chat.streamSnapshot).toBeUndefined()
+      expect(JSON.stringify(body.chat.messages)).not.toContain('part 3')
+      expect(await storedMembers(streamId)).toHaveLength(2)
+    })
   })
 
   it("leaves its successor's stream untouched when the lease is lost while ending a refused turn", async () => {

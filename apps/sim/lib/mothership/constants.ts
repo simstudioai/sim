@@ -67,6 +67,13 @@ export const STREAM_STORAGE_KEY = 'copilot_active_stream'
 /** POST — send a chat message through the unified mothership chat surface. */
 export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
 
+/**
+ * Set to `log` on a reconnect response the replay ring could not serve: the turn is
+ * re-sent from the worker's durable log with cursors restarting at 1, so the client
+ * rebuilds it from an empty response.
+ */
+export const MOTHERSHIP_STREAM_REPLAY_HEADER = 'x-mothership-stream-replay'
+
 /** Durable chat identity returned after the send transaction commits, before SSE delivery. */
 export const MOTHERSHIP_CHAT_ID_HEADER = 'x-mothership-chat-id'
 

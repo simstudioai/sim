@@ -16,13 +16,14 @@ import { CopilotResumeOutcome } from '@/lib/mothership/generated/trace-attribute
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 
-const { getLatestRunForStream, readEvents, readFilePreviewSessions, checkForReplayGap } =
-  vi.hoisted(() => ({
+const { getLatestRunForStream, readEvents, readFilePreviewSessions, findReplayGap } = vi.hoisted(
+  () => ({
     getLatestRunForStream: vi.fn(),
     readEvents: vi.fn(),
     readFilePreviewSessions: vi.fn(),
-    checkForReplayGap: vi.fn(),
-  }))
+    findReplayGap: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/mothership/request/application/recover-stream', () => ({
   readChatStream: { execute: getLatestRunForStream },
@@ -33,7 +34,10 @@ vi.mock('@/lib/mothership/request/session', () => ({
     status === 'complete' || status === 'error' || status === 'cancelled',
   readEvents,
   readFilePreviewSessions,
-  checkForReplayGap,
+  findReplayGap,
+  readRingPosition: async () => ({ requestedAfterSeq: 0, oldestSeq: 0, latestSeq: 0 }),
+  ringCanServe: () => true,
+  replayGapTerminal: async () => ({ gapDetected: true, envelopes: [] }),
   createEvent: (event: Record<string, unknown>) => ({
     stream: {
       streamId: event.streamId,
@@ -82,7 +86,7 @@ describe('copilot chat stream replay route', () => {
     })
     readEvents.mockResolvedValue([])
     readFilePreviewSessions.mockResolvedValue([])
-    checkForReplayGap.mockResolvedValue(null)
+    findReplayGap.mockResolvedValue(null)
   })
 
   it('refuses replay after organization membership is removed', async () => {
@@ -214,5 +218,82 @@ describe('copilot chat stream replay route', () => {
       CopilotResumeOutcome.EndedWithoutTerminal
     )
     trace.disable()
+  })
+
+  it('never delivers a ring read that starts past the reader cursor, and ends without a terminal', async () => {
+    getLatestRunForStream.mockResolvedValue({
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
+    readEvents.mockResolvedValue([
+      {
+        stream: { streamId: 'stream-1', cursor: '5' },
+        seq: 5,
+        trace: { requestId: 'req-1' },
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: 'assistant', text: 'the middle of the turn' },
+      },
+    ])
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+    )
+    const text = (await readAllChunks(response)).join('')
+
+    expect(text).not.toContain('the middle of the turn')
+    expect(text).not.toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
+  })
+
+  it('serves a batch read that starts past the reader cursor no events', async () => {
+    getLatestRunForStream.mockResolvedValue({
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
+    readEvents.mockResolvedValue([
+      {
+        stream: { streamId: 'stream-1', cursor: '5' },
+        seq: 5,
+        trace: { requestId: 'req-1' },
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: 'assistant', text: 'the middle of the turn' },
+      },
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0&batch=true'
+      )
+    )
+
+    await expect(response.json()).resolves.toMatchObject({ success: true, events: [] })
+  })
+
+  it('ends a live tail without a terminal when the ring trims past its cursor mid-tail', async () => {
+    getLatestRunForStream.mockResolvedValue({
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
+    const event = (seq: number, text: string) => ({
+      stream: { streamId: 'stream-1', cursor: String(seq) },
+      seq,
+      trace: { requestId: 'req-1' },
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: 'assistant', text },
+    })
+    readEvents
+      .mockResolvedValueOnce([event(1, 'the start of the turn')])
+      .mockResolvedValue([event(5, 'past a trimmed gap')])
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+    )
+    const text = (await readAllChunks(response)).join('')
+
+    expect(text).toContain('the start of the turn')
+    expect(text).not.toContain('past a trimmed gap')
+    expect(text).not.toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
   })
 })

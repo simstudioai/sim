@@ -25,15 +25,19 @@ function createParseFailure(message: string, preview: string): FatalSseEventErro
  * all come from the shared engine.
  *
  * @param onEvent Called per parsed event. Return true to stop processing.
+ * @param idleTimeoutMs Fails the read once the stream sends nothing, comments included,
+ *   for this long.
  */
 export async function processSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   abortSignal: AbortSignal | undefined,
-  onEvent: (event: unknown) => boolean | undefined | Promise<boolean | undefined>
+  onEvent: (event: unknown) => boolean | undefined | Promise<boolean | undefined>,
+  idleTimeoutMs?: number
 ): Promise<void> {
   try {
     await readSSELines(reader, {
       signal: abortSignal,
+      idleTimeoutMs,
       onData: async (jsonStr) => {
         let parsed: unknown
         try {

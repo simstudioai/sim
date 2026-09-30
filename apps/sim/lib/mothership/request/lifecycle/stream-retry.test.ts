@@ -216,4 +216,18 @@ describe('stream recovery budget', () => {
     vi.advanceTimersByTime(30 * 60_000)
     expect(retry.nextDelay(error)).toBeNull()
   })
+
+  it('retries a leg that fails again minutes after it re-attached and delivered events', () => {
+    vi.useFakeTimers()
+    const error = new WorkerStreamInterruptedError(new Error('socket closed'))
+    const retry = new StreamRetryWindow()
+    const first = retry.nextDelay(error)
+    expect(first).not.toBeNull()
+    vi.advanceTimersByTime(first ?? 0)
+    for (let second = 0; second < 120; second += 10) {
+      retry.recovered()
+      vi.advanceTimersByTime(10_000)
+    }
+    expect(retry.nextDelay(error)).not.toBeNull()
+  })
 })
