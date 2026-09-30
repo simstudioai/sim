@@ -3,6 +3,8 @@
 import { memo } from 'react'
 import { SubflowNodeView } from '@sim/workflow-renderer'
 import type { Node, NodeProps } from '@xyflow/react'
+import type { BlockDiffStatus } from '@/lib/workflows/comparison'
+import { DiffStatusLabel } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
 
 /** Execution status for subflows in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
@@ -19,6 +21,8 @@ interface WorkflowPreviewSubflowData extends Record<string, unknown> {
   isPreviewSelected?: boolean
   /** Execution status for highlighting the subflow container */
   executionStatus?: ExecutionStatus
+  /** Comparison status when previewing a version diff */
+  diffStatus?: BlockDiffStatus
   /** Skips expensive computations for thumbnails/template previews (unused in subflow, for consistency) */
   lightweight?: boolean
 }
@@ -31,7 +35,7 @@ interface WorkflowPreviewSubflowData extends Record<string, unknown> {
 type WorkflowPreviewSubflowNode = Node<WorkflowPreviewSubflowData, 'subflowNode'>
 
 function WorkflowPreviewSubflowInner({ data, id }: NodeProps<WorkflowPreviewSubflowNode>) {
-  return (
+  const view = (
     <SubflowNodeView
       id={id}
       data={{ ...data, isPreview: true }}
@@ -39,10 +43,21 @@ function WorkflowPreviewSubflowInner({ data, id }: NodeProps<WorkflowPreviewSubf
       isEnabled={data.enabled ?? true}
       isLocked={false}
       isFocused={false}
+      diffStatus={
+        data.diffStatus === 'added' ? 'new' : data.diffStatus === 'modified' ? 'edited' : undefined
+      }
       nestingLevel={0}
       canEditWorkflow={false}
       onSelect={() => undefined}
     />
+  )
+  if (data.diffStatus !== 'removed') return view
+  /* A removed container fades like a removed card; its children ghost themselves. */
+  return (
+    <div className='relative opacity-45'>
+      <DiffStatusLabel status='removed' />
+      {view}
+    </div>
   )
 }
 

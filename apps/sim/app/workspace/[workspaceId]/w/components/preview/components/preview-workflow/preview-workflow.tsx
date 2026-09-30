@@ -29,6 +29,7 @@ import {
   useCanvasColorMode,
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
+import type { BlockDiffStatus, EdgeDiffStatus } from '@/lib/workflows/comparison'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
   estimateBlockDimensions,
@@ -168,6 +169,12 @@ interface PreviewWorkflowProps {
   selectedBlockId?: string | null
   /** Skips expensive subblock computations for thumbnails/template previews */
   lightweight?: boolean
+  /** Per-block comparison status, keyed by block id, when previewing a version diff */
+  blockDiffStatus?: Record<string, BlockDiffStatus>
+  /** Per-edge comparison status, keyed by edge id, when previewing a version diff */
+  edgeDiffStatus?: Record<string, EdgeDiffStatus>
+  /** Sub-block ids that changed on a modified block, keyed by block id */
+  changedFieldsByBlock?: Record<string, string[]>
 }
 
 /** Preview node types using minimal, hook-free components. */
@@ -246,6 +253,9 @@ export function PreviewWorkflow({
   executedBlocks,
   selectedBlockId,
   lightweight = false,
+  blockDiffStatus,
+  edgeDiffStatus,
+  changedFieldsByBlock,
 }: PreviewWorkflowProps) {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = propWorkspaceId ?? params.workspaceId
@@ -444,6 +454,7 @@ export function PreviewWorkflow({
             enabled: block.enabled ?? true,
             isPreviewSelected: isSelected,
             executionStatus: subflowExecutionStatus,
+            diffStatus: blockDiffStatus?.[blockId],
             lightweight,
           },
         })
@@ -493,6 +504,8 @@ export function PreviewWorkflow({
           errorEnabled: block.errorEnabled === true,
           hasErrorConnection: blocksWithErrorEdge.has(blockId),
           lightweight,
+          diffStatus: blockDiffStatus?.[blockId],
+          changedFields: changedFieldsByBlock?.[blockId],
         },
       })
     })
@@ -511,6 +524,8 @@ export function PreviewWorkflow({
     workflowLabelsReady,
     errorSourceBlockKey,
     lightweight,
+    blockDiffStatus,
+    changedFieldsByBlock,
   ])
 
   const edges: Edge[] = useMemo(() => {
@@ -573,8 +588,15 @@ export function PreviewWorkflow({
     return normalizeWorkflowEdgeHandles(workflowState.edges).map((edge) => {
       const status = getEdgeExecutionStatus(edge)
       const isErrorEdge = edge.sourceHandle === 'error'
-      const baseZIndex =
-        status === 'success' ? EDGE_Z_MAX : isErrorEdge ? EDGE_Z_BASE + 2 : EDGE_Z_BASE
+      const isGhost = edgeDiffStatus?.[edge.id] === 'removed'
+      /* A ghost sits under every live line so a rewired port shows the new edge on top. */
+      const baseZIndex = isGhost
+        ? EDGE_Z_BASE - 1
+        : status === 'success'
+          ? EDGE_Z_MAX
+          : isErrorEdge
+            ? EDGE_Z_BASE + 2
+            : EDGE_Z_BASE
       const targetBlock = workflowState.blocks[edge.target]
       const targetContainerZIndex =
         targetBlock?.type === 'loop' || targetBlock?.type === 'parallel'
@@ -589,6 +611,7 @@ export function PreviewWorkflow({
         targetHandle: edge.targetHandle,
         data: {
           ...(status ? { executionStatus: status } : {}),
+          ...(edgeDiffStatus?.[edge.id] ? { diffStatus: edgeDiffStatus[edge.id] } : {}),
           sourceHandle: edge.sourceHandle,
         },
         /* Inside the shared edge band, so a line clears the opaque container it
@@ -606,6 +629,7 @@ export function PreviewWorkflow({
     isValidWorkflowState,
     blockExecutionMap,
     getBlockExecutionStatus,
+    edgeDiffStatus,
   ])
 
   if (!isValidWorkflowState) {
