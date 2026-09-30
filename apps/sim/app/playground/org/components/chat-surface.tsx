@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Avatar, TabStrip, type TabStripItem } from '@sim/emcn'
+import { generateShortId } from '@sim/utils/id'
 import { ChatResourcePanel } from '@/app/playground/org/components/chat-resource-panel'
 import { ChatThread } from '@/app/playground/org/components/chat-thread'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
@@ -22,12 +23,22 @@ import {
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 
-/** What the panel shows: the resource browser, or one open resource. */
-export type PanelView =
-  | { type: 'browse'; kind: PanelKind | null }
-  | { type: 'resource'; key: string }
+/** A tab that is still browsing; opening a resource turns it into that resource's tab. */
+interface NewTab {
+  kind: 'new'
+  id: string
+  browseKind: PanelKind | null
+}
 
-const BROWSE: PanelView = { type: 'browse', kind: null }
+type PanelTab = PanelResource | NewTab
+
+function tabKey(tab: PanelTab): string {
+  return tab.kind === 'new' ? `new:${tab.id}` : panelResourceKey(tab)
+}
+
+function newTab(browseKind: PanelKind | null = null): NewTab {
+  return { kind: 'new', id: generateShortId(8), browseKind }
+}
 
 const noop = () => {}
 
@@ -47,43 +58,72 @@ interface ChatSurfaceProps {
 export function ChatSurface({ chat }: ChatSurfaceProps) {
   const workspace = chat.workspaceId ? workspaceById(chat.workspaceId) : undefined
   const [collapsed, setCollapsed] = useState(false)
-  const [tabs, setTabs] = useState<PanelResource[]>(() => mentionedIn(chat.id))
-  const [view, setView] = useState<PanelView>(() => {
+  const [tabs, setTabs] = useState<PanelTab[]>(() => mentionedIn(chat.id))
+  const [activeKey, setActiveKey] = useState<string | null>(() => {
     const first = mentionedIn(chat.id)[0]
-    return first ? { type: 'resource', key: panelResourceKey(first) } : BROWSE
+    return first ? panelResourceKey(first) : null
   })
+
+  const activeIndex = tabs.findIndex((tab) => tabKey(tab) === activeKey)
+  const active = tabs[activeIndex]
+
+  /** Puts `tab` where the active tab is, or at the end when nothing is active. */
+  const replaceActive = (tab: PanelTab) => {
+    setTabs((prev) =>
+      activeIndex >= 0 ? prev.map((t, i) => (i === activeIndex ? tab : t)) : [...prev, tab]
+    )
+    setActiveKey(tabKey(tab))
+  }
 
   const open = (resource: PanelResource) => {
     const key = panelResourceKey(resource)
-    setTabs((prev) =>
-      prev.some((tab) => panelResourceKey(tab) === key) ? prev : [...prev, resource]
-    )
-    setView({ type: 'resource', key })
+    const existing = tabs.findIndex((tab) => tabKey(tab) === key)
+    if (existing >= 0) {
+      // Already open: the browsing tab that found it is spent.
+      if (active?.kind === 'new') setTabs((prev) => prev.filter((_, i) => i !== activeIndex))
+      setActiveKey(key)
+    } else if (active?.kind === 'new') {
+      replaceActive(resource)
+    } else {
+      setTabs((prev) => [...prev, resource])
+      setActiveKey(key)
+    }
     setCollapsed(false)
   }
 
+  const browse = (kind: PanelKind | null) => {
+    if (active?.kind === 'new') replaceActive({ ...active, browseKind: kind })
+    else replaceActive(newTab(kind))
+  }
+
+  const add = () => {
+    const tab = newTab()
+    setTabs((prev) => [...prev, tab])
+    setActiveKey(tabKey(tab))
+  }
+
   const close = (key: string) => {
-    const index = tabs.findIndex((tab) => panelResourceKey(tab) === key)
-    const next = tabs.filter((tab) => panelResourceKey(tab) !== key)
+    const index = tabs.findIndex((tab) => tabKey(tab) === key)
+    const next = tabs.filter((tab) => tabKey(tab) !== key)
     setTabs(next)
-    if (view.type === 'resource' && view.key === key) {
+    if (activeKey === key) {
       const neighbour = next[index] ?? next[index - 1]
-      setView(neighbour ? { type: 'resource', key: panelResourceKey(neighbour) } : BROWSE)
+      setActiveKey(neighbour ? tabKey(neighbour) : null)
     }
   }
 
   const stripTabs: TabStripItem[] = tabs.map((tab) => {
+    if (tab.kind === 'new') {
+      return { id: tabKey(tab), title: 'New tab', active: activeKey === tabKey(tab) }
+    }
     const Icon = panelKindConfig(tab.kind).icon
     return {
-      id: panelResourceKey(tab),
+      id: tabKey(tab),
       title: tab.name,
       icon: <Icon className={RESOURCE_TAB_ICON_CLASS} />,
-      active: view.type === 'resource' && view.key === panelResourceKey(tab),
+      active: activeKey === tabKey(tab),
     }
   })
-
-  const active =
-    view.type === 'resource' ? tabs.find((tab) => panelResourceKey(tab) === view.key) : undefined
 
   return (
     <ChatPanelLayout
@@ -93,21 +133,21 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
             tabs={stripTabs}
             variant='floating'
             className={RESOURCE_HEADER_CLASSES.stripGeometry}
-            onSelect={(id) => setView({ type: 'resource', key: id })}
+            onSelect={setActiveKey}
             onClose={close}
-            onNew={() => setView(BROWSE)}
-            newTabLabel='Browse resources'
+            onNew={add}
+            newTabLabel='New tab'
           />
           <ChatResourcePanel
             chatId={chat.id}
             workspace={workspace}
             view={
-              active
+              active && active.kind !== 'new'
                 ? { type: 'resource', resource: active }
-                : { type: 'browse', kind: view.type === 'browse' ? view.kind : null }
+                : { type: 'browse', kind: active?.kind === 'new' ? active.browseKind : null }
             }
             onOpen={open}
-            onBrowse={(kind) => setView({ type: 'browse', kind })}
+            onBrowse={browse}
           />
         </ChatPanelContent>
       }
