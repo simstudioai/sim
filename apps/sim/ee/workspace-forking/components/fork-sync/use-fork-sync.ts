@@ -60,7 +60,8 @@ import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/syn
 export type MappableMappingKind = Exclude<ForkMappingEntry['kind'], 'knowledge-document'>
 
 /** Section label + display order per mapping kind (one mapping group per kind). */
-const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: number }> = {
+/** Label and display order per mapping kind; the project Environments tab reads the same order. */
+export const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: number }> = {
   sandbox: { label: 'Sandboxes', order: 12 },
   credential: { label: 'Credentials', order: 0 },
   'env-var': { label: 'Secrets', order: 1 },

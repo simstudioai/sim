@@ -46,6 +46,8 @@ export function organizationRoutes(organizationId: string) {
       `${root}/settings/integrations/sources/${encodeURIComponent(connectorId)}`,
     settingsSection: (section: string) => `${root}/settings/${section}`,
     chat: (chatId: string) => `${root}/chat/${chatId}`,
+    /** One section of a project's main view; a project is the fork lineage of a workspace. */
+    project: (workspaceId: string, section = 'dashboard') => `${root}/p/${workspaceId}/${section}`,
   } as const
 }
 

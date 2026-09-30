@@ -6,9 +6,11 @@ import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
+import { isOrgProjectViewEnabled } from '@/lib/projects/feature-flag'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
+import { ProjectBuildSidebar } from '@/app/workspace/[workspaceId]/components/project-build-sidebar'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
@@ -60,6 +62,7 @@ export default async function WorkspaceLayout({
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
+    orgProjectViewEnabled,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -77,6 +80,7 @@ export default async function WorkspaceLayout({
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
+    isOrgProjectViewEnabled(hostContext.hostOrganizationId),
     prefetchWorkspaceAccess(queryClient, workspaceId, {
       kind: 'session',
       userId: session.user.id,
@@ -93,6 +97,7 @@ export default async function WorkspaceLayout({
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
+          'org-project-view': orgProjectViewEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>
@@ -113,7 +118,13 @@ export default async function WorkspaceLayout({
                 <WorkspacePermissionsProvider>
                   <WorkspaceScopeSync />
                   <WorkspaceChrome
-                    sidebar={<Sidebar organizationHref={organizationHref} />}
+                    sidebar={
+                      orgProjectViewEnabled ? (
+                        <ProjectBuildSidebar organizationHref={organizationHref} />
+                      ) : (
+                        <Sidebar organizationHref={organizationHref} />
+                      )
+                    }
                     initialSidebarCollapsed={initialSidebarCollapsed}
                   >
                     {children}

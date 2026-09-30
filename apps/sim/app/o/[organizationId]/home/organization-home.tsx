@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -52,10 +52,26 @@ import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'
 
+/** What a host surface adds to the empty Home for one mode. */
+interface OrganizationHomeLanding {
+  heading?: string
+  /** Rendered above the composer, such as a picker that scopes the next message. */
+  accessory?: ReactNode
+}
+
 interface OrganizationHomeProps {
   userName?: string
   chatId?: string
   requestMode?: ChatRequestMode
+  /** Lets a host surface change the empty Home's heading and add a control, per mode. */
+  landing?: (requestMode: ChatRequestMode) => OrganizationHomeLanding | undefined
+  /**
+   * Called with the first message of a new chat before it is sent here; returning true means
+   * the host sent it elsewhere, so this Home clears the draft and sends nothing.
+   */
+  onBeforeSend?: (message: string, requestMode: ChatRequestMode) => boolean
+  /** False keeps the address bar where it is when the chat gets its id. */
+  syncChatUrl?: boolean
 }
 
 const subscribeToClient = () => () => {}
@@ -82,6 +98,9 @@ function OrganizationHomeContent({
   userName,
   chatId,
   requestMode: savedMode,
+  landing,
+  onBeforeSend,
+  syncChatUrl,
 }: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
@@ -114,6 +133,7 @@ function OrganizationHomeContent({
       requestMode,
       onResourceEvent: controller.onResourceEvent,
       activeResourceState: controller.activeResourceState,
+      ...(syncChatUrl === false ? { syncChatUrl } : {}),
     })
   )
   const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
@@ -296,6 +316,11 @@ function OrganizationHomeContent({
         path: file.path,
       }))
     if (!message && !attachments.length) return
+    if (!hasChat && message && onBeforeSend?.(message, requestMode)) {
+      useMothershipDraftsStore.getState().clearDraft(draftKey)
+      files.clearAttachedFiles()
+      return
+    }
     useMothershipDraftsStore.getState().clearDraft(draftKey)
     send(message, attachments.length ? attachments : undefined, contexts)
     setRestoredContexts([])
@@ -334,6 +359,7 @@ function OrganizationHomeContent({
       />
     )
 
+  const hostLanding = hasChat ? undefined : landing?.(requestMode)
   const content = (
     <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
       {hasChat ? (
@@ -399,13 +425,15 @@ function OrganizationHomeContent({
       ) : (
         <OrganizationLanding
           heading={
-            requestMode === 'assistant'
+            hostLanding?.heading ??
+            (requestMode === 'assistant'
               ? `Search ${organization.name}`
               : requestMode === 'plan'
                 ? `What should we understand and plan${firstName ? `, ${firstName}` : ''}?`
-                : `What should we get done${firstName ? `, ${firstName}` : ''}?`
+                : `What should we get done${firstName ? `, ${firstName}` : ''}?`)
           }
         >
+          {hostLanding?.accessory}
           {composer}
           <div className='absolute inset-x-0 top-full'>
             {requestMode === 'agent' ? (
