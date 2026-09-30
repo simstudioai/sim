@@ -16,10 +16,8 @@ import {
 import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import { getNewestRunningTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
-import {
-  getSearchActivitySources,
-  SearchActivityDetails,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'
+import { getSearchActivitySources } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'
+import { SearchActivityResults } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-results'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import {
   getActivityAttentionKey,
@@ -276,7 +274,7 @@ export function ToolActivityGroup({
                   <ToolCallComponent {...tool} toolCallId={tool.id} />
                 )}
                 {sources && (
-                  <SearchActivityDetails
+                  <SearchActivityResults
                     sources={sources}
                     label={`Search results for step ${index + 1}: ${getToolTitle(tool)}`}
                   />
