@@ -1,11 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { encodeSSEComment } from '@/lib/core/utils/sse'
-import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/mothership/generated/mothership-stream-v1'
 import { appendEvents } from './buffer'
 import type { PersistedStreamEventEnvelope } from './contract'
 import type { ChatStreamLease } from './controller-lease'
 import { createEvent } from './event'
+import { StreamReplayBudgetExhaustedError } from './replay-budget'
+import {
+  compactStreamEventForReplay,
+  TOOL_ARGS_DELTA_FORWARD_LIMIT_UNITS,
+} from './replay-compaction'
 import { encodeSSEEnvelope } from './sse'
 import type { StreamEvent } from './types'
 
@@ -24,6 +32,18 @@ export interface StreamWriterOptions {
   keepaliveMs?: number
   lease?: ChatStreamLease
   initialSeq?: number
+}
+
+/** The turn's closing verdict, which a refused writer still owes its live client. */
+function isTurnTerminalEvent(event: StreamEvent): boolean {
+  return (
+    event.type === MothershipStreamV1EventType.error ||
+    event.type === MothershipStreamV1EventType.complete
+  )
+}
+
+function ignoreReplayBudgetRefusal(error: unknown): void {
+  if (!(error instanceof StreamReplayBudgetExhaustedError)) throw error
 }
 
 /** Result used when the soft stop is already latched, so no further append is attempted. */
@@ -48,6 +68,8 @@ export class StreamWriter {
   private pendingEnvelopes: PersistedStreamEventEnvelope[] = []
   private persistenceTail: Promise<void> = Promise.resolve()
   private lastPersistenceError: Error | null = null
+  private replayBudgetError: StreamReplayBudgetExhaustedError | null = null
+  private readonly forwardedArgsDeltaUnits = new Map<string, number>()
   private readonly lease?: ChatStreamLease
 
   constructor(options: StreamWriterOptions) {
@@ -77,7 +99,8 @@ export class StreamWriter {
 
   /**
    * The replay buffer stopped accepting writes because this stream exhausted its byte
-   * budget. Leased delivery stops before the refused event; unleased delivery continues.
+   * budget. Leased delivery stops before the refused event (only the terminal verdict
+   * still reaches the client); unleased delivery continues.
    */
   get persistenceStopped(): boolean {
     return this._persistenceStopped
@@ -114,29 +137,57 @@ export class StreamWriter {
     }
   }
 
+  /**
+   * Delivers an event and records it for replay. Oversized events are compacted
+   * first ({@link compactStreamEventForReplay}); the compacted copy is what both
+   * the client and the replay buffer receive, while the caller keeps the full
+   * event for dispatch.
+   *
+   * A leased writer persists before delivering. When the buffer refuses, the
+   * publish rejects with {@link StreamReplayBudgetExhaustedError}, and every later
+   * publish rejects the same way — except the turn's terminal `error`/`complete`,
+   * which are delivered unpersisted: the run row records that terminal state, and
+   * a reconnect replays it from there.
+   */
   publish(event: StreamEvent): void | Promise<void> {
-    const envelope = this.createEnvelope(event)
+    const forwarded = this.limitArgsDelta(event)
+    if (!forwarded) return
+    const envelopes = compactStreamEventForReplay(forwarded).map((compacted) =>
+      this.createEnvelope(compacted)
+    )
     if (this.lease) {
+      const lease = this.lease
       // A replacement must see every event the browser has received. Fence
       // persistence before delivery, and before dispatching the event's tool.
-      const delivery = this.persistenceTail.then(async () => {
+      const persistThenDeliver = async () => {
+        if (this.replayBudgetError) {
+          if (!isTurnTerminalEvent(event)) throw this.replayBudgetError
+          this.deliver(envelopes, event)
+          return
+        }
         const result = await appendEvents(
-          [envelope],
+          envelopes,
           { streamId: this.streamId, ...(this.userId ? { userId: this.userId } : {}) },
-          this.lease
+          lease
         )
         if (!result.persisted) {
           this._persistenceStopped = true
-          throw new Error('Stream replay byte budget exhausted')
+          this.replayBudgetError = new StreamReplayBudgetExhaustedError(result.refusal)
+          if (!isTurnTerminalEvent(event)) throw this.replayBudgetError
         }
-        this.enqueue(envelope)
-        if (event.type === MothershipStreamV1EventType.complete) this._sawComplete = true
+        this.deliver(envelopes, event)
+      }
+      const delivery = this.persistenceTail.then(persistThenDeliver, (error: unknown) => {
+        ignoreReplayBudgetRefusal(error)
+        return persistThenDeliver()
       })
       this.persistenceTail = delivery
       return delivery
     }
-    this.enqueue(envelope)
-    this.queuePersistence(envelope)
+    for (const envelope of envelopes) {
+      this.enqueue(envelope)
+      this.queuePersistence(envelope)
+    }
     if (event.type === MothershipStreamV1EventType.complete) {
       this._sawComplete = true
     }
@@ -148,7 +199,9 @@ export class StreamWriter {
 
   async flush(): Promise<void> {
     this.flushPendingPersistence()
-    await this.persistenceTail
+    // A refusal belongs to the publish it refused; later publishes consult
+    // `replayBudgetError`, and the finalizer's flush must not rethrow it.
+    await this.persistenceTail.catch(ignoreReplayBudgetRefusal)
     if (this.lastPersistenceError) {
       const error = this.lastPersistenceError
       this.lastPersistenceError = null
@@ -169,6 +222,31 @@ export class StreamWriter {
       }
       this.controller = null
     }
+  }
+
+  /**
+   * Forwards the head of each tool call's argument deltas and drops the rest:
+   * they only feed a progressive title, and the call frame supersedes them.
+   */
+  private limitArgsDelta(event: StreamEvent): StreamEvent | undefined {
+    if (event.type !== MothershipStreamV1EventType.tool || !('phase' in event.payload)) {
+      return event
+    }
+    const payload = event.payload
+    if (payload.phase !== MothershipStreamV1ToolPhase.args_delta) return event
+    const forwarded = this.forwardedArgsDeltaUnits.get(payload.toolCallId) ?? 0
+    const remaining = TOOL_ARGS_DELTA_FORWARD_LIMIT_UNITS - forwarded
+    if (remaining <= 0) return undefined
+    const argumentsDelta = payload.argumentsDelta.slice(0, remaining)
+    this.forwardedArgsDeltaUnits.set(payload.toolCallId, forwarded + argumentsDelta.length)
+    return argumentsDelta === payload.argumentsDelta
+      ? event
+      : { ...event, payload: { ...payload, argumentsDelta } }
+  }
+
+  private deliver(envelopes: PersistedStreamEventEnvelope[], event: StreamEvent): void {
+    for (const envelope of envelopes) this.enqueue(envelope)
+    if (event.type === MothershipStreamV1EventType.complete) this._sawComplete = true
   }
 
   private enqueue(envelope: PersistedStreamEventEnvelope): void {

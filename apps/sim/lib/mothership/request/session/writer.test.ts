@@ -13,6 +13,9 @@ vi.mock('@/lib/mothership/request/session/buffer', () => ({
   appendEvents,
 }))
 
+import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
+import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
+import { TOOL_ARGS_DELTA_FORWARD_LIMIT_UNITS } from '@/lib/mothership/request/session/replay-compaction'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 
 function decodeChunk(value: Uint8Array): string {
@@ -77,7 +80,7 @@ describe('StreamWriter', () => {
     expect(controller.close).toHaveBeenCalledOnce()
   })
 
-  it('does not deliver unreplayable events when an owned controller exhausts its byte budget', async () => {
+  it('ends delivery with a budget error, not a handoff, and still delivers the terminal verdict', async () => {
     appendEvents.mockResolvedValueOnce({
       persisted: false,
       refusal: {
@@ -93,14 +96,76 @@ describe('StreamWriter', () => {
       userId: 'user-1',
       lease: { key: 'chat-lock', value: 'current-controller' },
     })
-    const controller = { enqueue: vi.fn(), close: vi.fn() }
+    const delivered: string[] = []
+    const controller = {
+      enqueue: (value: Uint8Array) => delivered.push(decodeChunk(value)),
+      close: () => {},
+    }
     writer.attach(controller as unknown as ReadableStreamDefaultController)
+
+    const refused = writer.publish({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'unsaved' },
+    })
+    await expect(refused).rejects.toBeInstanceOf(StreamReplayBudgetExhaustedError)
+    await expect(refused).rejects.not.toBeInstanceOf(StreamControllerSupersededError)
     await expect(
-      writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'unsaved' } })
-    ).rejects.toThrow('Stream replay byte budget exhausted')
-    expect(controller.enqueue).not.toHaveBeenCalled()
+      writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'later' } })
+    ).rejects.toBeInstanceOf(StreamReplayBudgetExhaustedError)
+    expect(delivered).toEqual([])
     expect(writer.persistenceStopped).toBe(true)
-    await expect(writer.close()).rejects.toThrow('Stream replay byte budget exhausted')
+    await expect(writer.flush()).resolves.toBeUndefined()
+
+    await writer.publish({
+      type: 'error',
+      payload: { message: 'stopped', code: 'replay_budget_exhausted' },
+    })
+    await writer.publish({ type: 'complete', payload: { status: 'error' } })
+    await expect(writer.close()).resolves.toBeUndefined()
+    expect(delivered.map((frame) => JSON.parse(frame.replace(/^data: /, '')).type)).toEqual([
+      'error',
+      'complete',
+    ])
+    expect(writer.sawComplete).toBe(true)
+  })
+
+  it("forwards only the head of a tool call's argument deltas", async () => {
+    const writer = new StreamWriter({ streamId: 'stream-1', requestId: 'req-1' })
+    const delivered: string[] = []
+    writer.attach({
+      enqueue: (value: Uint8Array) => delivered.push(decodeChunk(value)),
+      close: () => {},
+    } as unknown as ReadableStreamDefaultController)
+    const delta = (toolCallId: string, argumentsDelta: string): StreamEvent => ({
+      type: 'tool',
+      payload: {
+        toolCallId,
+        toolName: 'sim_cli',
+        executor: 'go',
+        mode: 'async',
+        phase: 'args_delta',
+        argumentsDelta,
+      },
+    })
+    const streamed = `{"argv":["logs","get"],"stdin":"${'x'.repeat(100_000)}"}`
+
+    for (let index = 0; index < streamed.length; index += 30_000) {
+      await writer.publish(delta('call-1', streamed.slice(index, index + 30_000)))
+    }
+    await writer.publish(delta('call-2', '{"argv":["blocks"]}'))
+    await writer.close()
+
+    const forwarded = delivered.map((frame) => JSON.parse(frame.replace(/^data: /, '')).payload)
+    expect(
+      forwarded
+        .filter((payload) => payload.toolCallId === 'call-1')
+        .map((payload) => payload.argumentsDelta)
+        .join('')
+    ).toBe(streamed.slice(0, TOOL_ARGS_DELTA_FORWARD_LIMIT_UNITS))
+    expect(forwarded.at(-1)).toMatchObject({
+      toolCallId: 'call-2',
+      argumentsDelta: '{"argv":["blocks"]}',
+    })
   })
 
   it('enqueues before persistence completes and flushes pending writes on close', async () => {

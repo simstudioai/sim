@@ -298,6 +298,8 @@ export interface OrchestratorResult {
   chatId?: string
   requestId?: string
   error?: string
+  /** Machine-readable cause of `error`, forwarded as the stream error event's `code`. */
+  errorCode?: string
   errors?: string[]
   usage?: { prompt: number; completion: number }
   cost?: { input: number; output: number; total: number }

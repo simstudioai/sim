@@ -146,6 +146,7 @@ async function handleError(
       message: errorMessage,
       error: errorMessage,
       displayMessage: errorMessage,
+      ...(result.errorCode ? { code: result.errorCode } : {}),
       data: { displayMessage: errorMessage },
     },
   })
