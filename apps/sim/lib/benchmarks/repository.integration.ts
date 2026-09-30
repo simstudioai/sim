@@ -190,6 +190,7 @@ describe('private benchmark persistence and attempt fencing', () => {
     await connection`TRUNCATE mothership_benchmark_runs, mothership_benchmarks, permissions, copilot_runs, copilot_chats`
     await connection`UPDATE "user" SET role = CASE WHEN id IN ('owner', 'peer') THEN 'admin' ELSE 'user' END, banned = false`
     await connection`UPDATE settings SET super_user_mode_enabled = true`
+    await connection`UPDATE member SET role = 'member' WHERE id = 'owner-member'`
     await connection`INSERT INTO member (id, organization_id, user_id, role) VALUES ('owner-member', 'org', 'owner', 'member'), ('target-member', 'org', 'target', 'member') ON CONFLICT (id) DO UPDATE SET organization_id = 'org'`
     await connection`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type) VALUES ('owner-read', 'owner', 'workspace', 'workspace', 'read'), ('peer-read', 'peer', 'workspace', 'workspace', 'read'), ('target-read', 'target', 'workspace', 'workspace', 'read')`
     await createBenchmarkRecord({
@@ -232,7 +233,7 @@ describe('private benchmark persistence and attempt fencing', () => {
         schema: z.object({ ok: z.literal(true) }),
         signal: new AbortController().signal,
       }
-      expect(await executeBenchmarkJson(input)).toEqual({ ok: true })
+      expect(await executeBenchmarkJson(input)).toMatchObject({ data: { ok: true } })
     }
     const runs =
       await connection`SELECT r.status, r.user_id, c.user_id AS chat_user_id, c.config FROM copilot_runs r JOIN copilot_chats c ON c.id = r.chat_id`
@@ -252,6 +253,43 @@ describe('private benchmark persistence and attempt fencing', () => {
         useConversationHistory: false,
         messages: [{ role: 'user', content: 'Return the fixture result.' }],
       })
+  })
+
+  it('runs reference recovery in a fresh target-owned organization conversation without the source workspace', async () => {
+    await connection`UPDATE member SET role = 'owner' WHERE id = 'owner-member'`
+    const { benchmark } = await createBenchmark.execute({
+      principal,
+      input: {
+        organizationId: 'org',
+        sourceWorkspaceId: 'workspace',
+        runAsUserId: 'target',
+        name: 'Reference recovery',
+      },
+    })
+    database.requests.length = 0
+    expect(
+      await executeBenchmarkJson({
+        principal,
+        benchmark,
+        signal: new AbortController().signal,
+        messages: [{ role: 'user', content: 'Repository: [[BLANK:repo]].' }],
+        profile: { stage: 'resolve', spec: 'Use the Sim repository.' },
+        schema: z.object({ ok: z.literal(true) }),
+      })
+    ).toMatchObject({ data: { ok: true } })
+    const [request] = database.requests
+    expect(request).toMatchObject({
+      userId: 'target',
+      organizationId: 'org',
+      mode: 'plan',
+      benchmark: { stage: 'resolve', spec: 'Use the Sim repository.' },
+      useConversationHistory: false,
+    })
+    expect(request).not.toHaveProperty('workspaceId')
+    if (typeof request?.chatId !== 'string') throw new Error('Missing recovery conversation')
+    const [chat] =
+      await connection`SELECT user_id, organization_id, workspace_id FROM copilot_chats WHERE id = ${request.chatId}`
+    expect(chat).toEqual({ user_id: 'target', organization_id: 'org', workspace_id: null })
   })
 
   it('requires a current superuser role and enabled toggle even when the deployment flag is on', async () => {

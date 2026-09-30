@@ -16,6 +16,7 @@ import {
 } from '@/lib/benchmarks/artifacts'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import { gradeReconstruction, validateReconstruction } from '@/lib/benchmarks/evaluation'
+import { verifyRecoveryEvidence } from '@/lib/benchmarks/evidence'
 import {
   distillationMessages,
   gradingMessages,
@@ -35,6 +36,7 @@ import {
   benchmarkBriefSchema,
   benchmarkGradeSchema,
   benchmarkReconstructionSchema,
+  benchmarkSourceSchema,
   benchmarkSpecSchema,
 } from '@/lib/benchmarks/types'
 import { executeBenchmarkJson, executeBenchmarkPlan } from '@/lib/benchmarks/worker'
@@ -58,9 +60,19 @@ const redactionSchema = z
   })
   .strict()
 const reconstructionSchema = z
-  .object({ answers: z.array(benchmarkReconstructionSchema).min(1) })
+  .object({
+    answers: z
+      .array(
+        benchmarkReconstructionSchema.pick({ id: true, answer: true, support: true }).extend({
+          sources: z.array(benchmarkSourceSchema.pick({ citationId: true, quote: true })),
+        })
+      )
+      .min(1),
+  })
   .strict()
-const gradingSchema = z.object({ judgments: z.array(benchmarkGradeSchema).min(1) }).strict()
+const gradingSchema = z
+  .object({ judgments: z.array(benchmarkGradeSchema.required({ basis: true })).min(1) })
+  .strict()
 
 interface RunBenchmarkStageInput {
   organizationId: string
@@ -97,7 +109,7 @@ async function performStage(
   const artifacts = benchmark.artifacts
   switch (stage) {
     case 'distill': {
-      const result = await executeBenchmarkJson({
+      const { data: result } = await executeBenchmarkJson({
         principal,
         benchmark,
         signal,
@@ -108,7 +120,7 @@ async function performStage(
       return { artifacts: applyBenchmarkPatch(artifacts, result), plannerChatId: null }
     }
     case 'redact': {
-      const result = await executeBenchmarkJson({
+      const { data: result } = await executeBenchmarkJson({
         principal,
         benchmark,
         signal,
@@ -135,19 +147,26 @@ async function performStage(
       }
     }
     case 'reconstruct': {
-      const result = await executeBenchmarkJson({
+      const { data: result, toolCalls } = await executeBenchmarkJson({
         principal,
         benchmark,
         signal,
         schema: reconstructionSchema,
         messages: reconstructionMessages(artifacts.redactedSpec),
-        profile: { stage: 'reconstruct', spec: artifacts.generatedSpec! },
+        profile: { stage: 'resolve', spec: artifacts.generatedSpec! },
       })
       validateReconstruction(artifacts.blanks, result.answers)
-      return { artifacts: { ...artifacts, reconstruction: result.answers, grade: null } }
+      const reconstruction = verifyRecoveryEvidence(
+        artifacts.generatedSpec!,
+        result.answers,
+        toolCalls
+      )
+      return {
+        artifacts: { ...artifacts, recoveryMode: 'references', reconstruction, grade: null },
+      }
     }
     case 'grade': {
-      const result = await executeBenchmarkJson({
+      const { data: result } = await executeBenchmarkJson({
         principal,
         benchmark,
         signal,

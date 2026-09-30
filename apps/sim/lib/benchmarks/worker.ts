@@ -21,7 +21,7 @@ import type {
 import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
-import type { OrchestratorResult } from '@/lib/mothership/request/types'
+import type { OrchestratorResult, ToolCallSummary } from '@/lib/mothership/request/types'
 
 const logger = createLogger('BenchmarkWorker')
 
@@ -65,36 +65,47 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
   schema: S
   signal: AbortSignal
   profile?: BenchmarkExecution
-}): Promise<z.output<S>> {
+}): Promise<{ data: z.output<S>; toolCalls: ToolCallSummary[] }> {
   getBenchmarkMothershipUrl()
   input.signal.throwIfAborted()
-  const target = await prepareBenchmarkExecution.execute({
+  const resolvesReferences = input.profile?.stage === 'resolve'
+  const prepare = resolvesReferences ? prepareBenchmarkPlan : prepareBenchmarkExecution
+  const target = await prepare.execute({
     principal: input.principal,
     input: { organizationId: input.benchmark.organizationId, benchmarkId: input.benchmark.id },
   })
   input.signal.throwIfAborted()
   const executionUserId = target.userId
   const messageId = generateId()
+  const scope = resolvesReferences
+    ? { organizationId: input.benchmark.organizationId }
+    : { workspaceId: input.benchmark.sourceWorkspaceId }
   const payload: ExecuteRequest = {
     protocolVersion: PROTOCOL_VERSION,
     messageId,
     chatId: target.chatId,
     benchmark: input.profile,
     userId: executionUserId,
-    workspaceId: input.benchmark.sourceWorkspaceId,
+    ...scope,
+    ...(resolvesReferences ? { mode: 'plan' as const } : {}),
     messages: input.messages,
     useConversationHistory: false,
     responseFormat: z.toJSONSchema(input.schema),
   }
-  const billingAttribution = await resolveBillingAttribution({
-    actorUserId: executionUserId,
-    workspaceId: input.benchmark.sourceWorkspaceId,
-  })
-  const environmentContext = await prepareCopilotEnvironmentContext(
-    executionUserId,
-    input.benchmark.sourceWorkspaceId,
-    { includeSecrets: false }
-  )
+  const billingAttribution = resolvesReferences
+    ? await resolveOrganizationBillingAttribution({
+        actorUserId: executionUserId,
+        organizationId: input.benchmark.organizationId,
+      })
+    : await resolveBillingAttribution({
+        actorUserId: executionUserId,
+        workspaceId: input.benchmark.sourceWorkspaceId,
+      })
+  const environmentContext = resolvesReferences
+    ? undefined
+    : await prepareCopilotEnvironmentContext(executionUserId, input.benchmark.sourceWorkspaceId, {
+        includeSecrets: false,
+      })
   let result: OrchestratorResult | undefined
   try {
     result = await runHeadlessCopilotLifecycle(
@@ -103,7 +114,7 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
         benchmark: input.profile?.stage ?? 'tool-free',
         goRoute: '/api/mothership/execute',
         userId: executionUserId,
-        workspaceId: input.benchmark.sourceWorkspaceId,
+        ...scope,
         chatId: payload.chatId,
         billingAttribution,
         environmentContext,
@@ -122,7 +133,7 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
       ? text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```$/, '')
       : text
     try {
-      return input.schema.parse(JSON.parse(json))
+      return { data: input.schema.parse(JSON.parse(json)), toolCalls: result.toolCalls }
     } catch {
       throw new OrchestrationError(
         'validation',

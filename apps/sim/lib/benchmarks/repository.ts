@@ -309,7 +309,7 @@ export async function completeBenchmarkStage(
         evaluationKey: createHash('sha256')
           .update(
             JSON.stringify([
-              2,
+              artifacts.recoveryMode === 'references' ? 3 : 2,
               benchmark.organizationId,
               benchmark.runAsUserId ?? benchmark.userId,
               benchmark.sourceWorkspaceId,

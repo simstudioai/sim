@@ -25,7 +25,7 @@ export function validateReconstruction(
   requireMatchingIds(blanks, values)
 }
 
-/** Correct guesses earn credit only when the reader quotes the submitted plan as evidence. */
+/** Source lookups may resolve references, but cannot supply mechanics absent from the plan. */
 export function gradeReconstruction(input: {
   blanks: BenchmarkArtifacts['blanks']
   reconstruction: Reconstruction
@@ -39,6 +39,7 @@ export function gradeReconstruction(input: {
   return input.blanks.map(({ id }) => {
     const answer = answers.get(id)!
     const judgment = judgments.get(id)!
+    if (answer.evidenceError) return { ...judgment, correct: false, reason: answer.evidenceError }
     if (
       !answer.answer.trim() ||
       !answer.support.trim() ||
@@ -48,6 +49,14 @@ export function gradeReconstruction(input: {
         id,
         correct: false,
         reason: 'No exact supporting passage was provided from the generated spec.',
+      }
+    }
+    if (judgment.basis === 'missing') return { ...judgment, correct: false }
+    if (judgment.basis === 'reference' && !answer.sources?.length) {
+      return {
+        ...judgment,
+        correct: false,
+        reason: 'No verified source evidence was provided for this reference.',
       }
     }
     return judgment

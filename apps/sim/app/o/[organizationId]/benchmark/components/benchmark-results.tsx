@@ -43,6 +43,14 @@ export function BenchmarkResults({
                   {review ? ' · Human reviewed' : ''}
                 </span>
               )}
+              {!result && answer?.evidenceError && (
+                <div>
+                  <dt className='text-[var(--text-muted)]'>Evidence needs review</dt>
+                  <dd className='mt-1 whitespace-pre-wrap break-words text-[var(--text-body)]'>
+                    {answer.evidenceError}
+                  </dd>
+                </div>
+              )}
             </div>
             <dl className='flex flex-col gap-3 text-small'>
               {showGrade && (
@@ -54,7 +62,7 @@ export function BenchmarkResults({
                 </div>
               )}
               <div>
-                <dt className='text-[var(--text-muted)]'>Answer from the generated spec</dt>
+                <dt className='text-[var(--text-muted)]'>Recovered answer</dt>
                 <dd className='mt-1 whitespace-pre-wrap break-words text-[var(--text-body)]'>
                   {answer?.answer || 'No answer returned'}
                 </dd>
@@ -67,10 +75,37 @@ export function BenchmarkResults({
                   {answer?.support || 'No supporting passage'}
                 </dd>
               </div>
+              {answer?.sources?.map((source, index) => (
+                <div key={`${source.citationId}-${index}`}>
+                  <dt className='text-[var(--text-muted)]'>
+                    Resolved reference ·{' '}
+                    {source.url ? (
+                      <a
+                        href={source.url}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='underline'
+                      >
+                        {source.title || source.citationId}
+                      </a>
+                    ) : (
+                      source.title || source.citationId
+                    )}
+                  </dt>
+                  <dd className='mt-1 whitespace-pre-wrap break-words text-[var(--text-body)]'>
+                    {source.quote}
+                  </dd>
+                </div>
+              ))}
               {result && (
                 <div>
                   <dt className='text-[var(--text-muted)]'>
                     AI assessment
+                    {result.basis === 'missing'
+                      ? ' · Missing from plan'
+                      : result.basis === 'reference'
+                        ? ' · Reference resolved'
+                        : ''}
                     {review ? ` · ${result.correct ? 'Recovered' : 'Not recovered'}` : ''}
                   </dt>
                   <dd className='mt-1 whitespace-pre-wrap break-words text-[var(--text-body)]'>

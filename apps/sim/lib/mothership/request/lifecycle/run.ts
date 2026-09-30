@@ -204,7 +204,7 @@ function resultContent(context: StreamingContext, options: CopilotLifecycleOptio
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
   /** Internal benchmark runner policy, independent of browser and model payloads. */
-  benchmark?: 'plan' | 'tool-free' | 'distill' | 'reconstruct'
+  benchmark?: 'plan' | 'tool-free' | 'distill' | 'reconstruct' | 'resolve'
   /** Trusted entry point for Search metering; never read from model arguments. */
   searchSurface?: 'copilot' | 'slack'
   mcpBlockId?: string

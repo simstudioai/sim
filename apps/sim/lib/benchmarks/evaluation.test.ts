@@ -43,6 +43,19 @@ describe('benchmark reconstruction grading', () => {
     expect(result.every(({ correct }) => !correct)).toBe(true)
   })
 
+  it('keeps an answer available for review without crediting unverified source evidence', () => {
+    const result = gradeReconstruction({
+      blanks,
+      reconstruction: reconstructed.map((answer) => ({
+        ...answer,
+        evidenceError: 'Source quote was not retrieved.',
+      })),
+      generatedSpec: 'Support owns the escalation.',
+      judgments: blanks.map(({ id }) => ({ id, correct: true, reason: 'Equivalent answer.' })),
+    })
+    expect(result[0]).toMatchObject({ correct: false, reason: 'Source quote was not retrieved.' })
+  })
+
   it('rejects an incomplete judge response instead of silently passing ungraded answers', () => {
     expect(() =>
       gradeReconstruction({
@@ -52,5 +65,30 @@ describe('benchmark reconstruction grading', () => {
         judgments: [{ id: 'owner', correct: true, reason: 'Equivalent answer.' }],
       })
     ).toThrow()
+  })
+
+  it('rejects a missing mechanic even when an external source supplies the expected answer', () => {
+    const spec = 'Use the Sim repository for issue intake.'
+    const result = gradeReconstruction({
+      blanks: [{ id: 'handoff', answer: 'Engineering accepts the case' }],
+      reconstruction: [
+        {
+          id: 'handoff',
+          answer: 'Engineering accepts the case',
+          support: spec,
+          sources: [{ citationId: 'repo', quote: 'Engineering accepts the case' }],
+        },
+      ],
+      generatedSpec: spec,
+      judgments: [
+        {
+          id: 'handoff',
+          correct: true,
+          basis: 'missing',
+          reason: 'The repository document describes the handoff, but the plan omits it.',
+        },
+      ],
+    })
+    expect(result[0].correct).toBe(false)
   })
 })

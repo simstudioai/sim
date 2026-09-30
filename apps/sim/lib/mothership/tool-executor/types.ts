@@ -7,7 +7,7 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 export interface ToolExecutionContext {
   /** Trusted server-selected benchmark policy; never populated from model tool arguments. */
-  benchmark?: 'plan' | 'tool-free' | 'distill' | 'reconstruct'
+  benchmark?: 'plan' | 'tool-free' | 'distill' | 'reconstruct' | 'resolve'
   /** Worker endpoint chosen at turn admission; retained for cost delivery. */
   mothershipBaseURL?: string
   /** Trusted entry point for Search metering; never read from model arguments. */
