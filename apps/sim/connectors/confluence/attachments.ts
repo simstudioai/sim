@@ -163,7 +163,7 @@ const METADATA_RETRY_OPTIONS: RetryOptions = {
       requestId: opaqueHeader(response, 'x-arequestid'),
     })
     if (response.status !== 500) return response
-    await response.body?.cancel()
+    await response.body?.cancel().catch(() => undefined)
     throw metadataServerError(response.status)
   },
   retryCondition: (error) =>
@@ -196,7 +196,7 @@ function isServerFailure(error: unknown): error is Error & { status: number } {
 async function readMetadata(response: Response): Promise<unknown> {
   if (!response.ok) {
     if (response.status === 401) throw await unauthorizedAttachmentError(response)
-    await response.body?.cancel()
+    await response.body?.cancel().catch(() => undefined)
     if (response.status >= 500) throw metadataServerError(response.status)
     throw new Error(
       response.status === 403

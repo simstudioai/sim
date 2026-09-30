@@ -288,6 +288,13 @@ describe('Confluence attachment listing', () => {
     it.each([
       ['a complete body', () => 'upstream error'],
       ['a body that never finishes', () => new ReadableStream<Uint8Array>()],
+      [
+        'a body stream that already errored',
+        () =>
+          new ReadableStream<Uint8Array>({
+            start: (controller) => controller.error(new Error('connection reset')),
+          }),
+      ],
     ])('retries a transient 500 with %s instead of failing the listing', async (_, body) => {
       let failed = false
       fetchMock.mockImplementation(async () => {
