@@ -6,9 +6,9 @@ import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 
-/** Source reads use an owned workspace chat, separate from the planner's enterprise discovery context. */
-export const prepareBenchmarkReference = defineAuthorizedBenchmarkUseCase({
-  operation: benchmarkOperations.prepareReference,
+/** Each JSON execution uses a fresh owned workspace chat, separate from the planner's enterprise discovery context. */
+export const prepareBenchmarkExecution = defineAuthorizedBenchmarkUseCase({
+  operation: benchmarkOperations.prepareExecution,
   async execute({
     principal,
     input,
@@ -32,7 +32,7 @@ export const prepareBenchmarkReference = defineAuthorizedBenchmarkUseCase({
         lastSeenAt: new Date(),
       })
       .returning({ id: copilotChats.id })
-    if (!chat) throw new Error('Failed to create benchmark reference conversation')
+    if (!chat) throw new Error('Failed to create benchmark execution conversation')
     return { chatId: chat.id, userId }
   },
 })

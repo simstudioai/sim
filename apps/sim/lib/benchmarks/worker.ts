@@ -2,6 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { z } from 'zod'
+import { prepareBenchmarkExecution } from '@/lib/benchmarks/application/prepare-execution'
 import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import type { BenchmarkCase } from '@/lib/benchmarks/types'
@@ -58,20 +59,26 @@ async function stopIncompleteRun(
 
 /** Each invocation uses a fresh conversation; optional profiles expose only the stage's permitted reads. */
 export async function executeBenchmarkJson<S extends z.ZodType>(input: {
+  principal: Principal
   benchmark: BenchmarkCase
   messages: ExecuteMessage[]
   schema: S
   signal: AbortSignal
   profile?: BenchmarkExecution
-  chatId?: string
 }): Promise<z.output<S>> {
   getBenchmarkMothershipUrl()
-  const executionUserId = input.benchmark.runAsUserId ?? input.benchmark.userId
+  input.signal.throwIfAborted()
+  const target = await prepareBenchmarkExecution.execute({
+    principal: input.principal,
+    input: { organizationId: input.benchmark.organizationId, benchmarkId: input.benchmark.id },
+  })
+  input.signal.throwIfAborted()
+  const executionUserId = target.userId
   const messageId = generateId()
   const payload: ExecuteRequest = {
     protocolVersion: PROTOCOL_VERSION,
     messageId,
-    chatId: input.chatId ?? generateId(),
+    chatId: target.chatId,
     benchmark: input.profile,
     userId: executionUserId,
     workspaceId: input.benchmark.sourceWorkspaceId,
