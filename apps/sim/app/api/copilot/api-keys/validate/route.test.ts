@@ -836,6 +836,35 @@ describe('validation lifecycle purposes', () => {
     expect(mockCheckUsageStatus).not.toHaveBeenCalled()
   })
 
+  it('judges a direct-v1 reporting-window run against its admitted window after it ends', async () => {
+    const admittedWindow = {
+      ...ACCOUNT_BILLING_DECISION,
+      billingPeriod: {
+        start: '2026-06-01T00:00:00.000Z',
+        end: '2026-07-01T00:00:00.000Z',
+        source: 'reporting' as const,
+      },
+    }
+    mockCheckUsageStatus.mockImplementation(
+      async (
+        _userId: string,
+        _subscription: unknown,
+        context?: { billingPeriod: { start: Date } }
+      ) => ({
+        isExceeded:
+          context?.billingPeriod.start.toISOString() === admittedWindow.billingPeriod.start,
+        currentUsage: 12,
+        limit: 10,
+      })
+    )
+
+    const response = await POST(
+      request(body, { ...directHeaders, 'x-sim-billing-account-decision': encode(admittedWindow) })
+    )
+
+    expect(response.status).toBe(402)
+  })
+
   it('judges a direct-v1 organization payer without a subscription as that organization', async () => {
     mockGetOrganizationSubscription.mockResolvedValue(null)
     mockCheckUsageStatus.mockImplementation(

@@ -74,6 +74,11 @@ async function currentAttribution(
   return current
 }
 
+/** Mirrors the cost callback's rollover gate: only a Stripe period rolls forward. */
+function rollsIntoCurrentPeriod(period: { source?: string }): boolean {
+  return period.source === 'stripe'
+}
+
 function periodHasEnded(attribution: BillingAttributionSnapshot): boolean {
   return Date.now() >= new Date(attribution.billingPeriod.end).getTime()
 }
@@ -102,16 +107,19 @@ async function readGateVerdict(
 }
 
 /**
- * Judges a run against its admitted payer's CURRENT subscription period, never the period it was
- * admitted in: charges land in whatever period the subscription is in now (a rollover or an
- * early anchor reset included), so that is the allowance they count against. A read that
- * straddles the end of that period is judged again against the next one. If the current period
- * cannot be read the verdict is unknown, and the run continues.
+ * Judges a run against the period its charges land in. A Stripe-period payer's charges roll into
+ * whatever period the subscription is in now (a rollover or an early anchor reset included), so
+ * such a run is judged against the payer's CURRENT period: a read that straddles the end of that
+ * period is judged again against the next one, and a current period that cannot be read makes
+ * the verdict unknown, so the run continues. Any other payer's charges stay in the admitted
+ * period (a reporting window, or the open default one), so that period is judged, even after it
+ * ends.
  */
 export async function readMidRunUsageVerdict(
   attribution: BillingAttributionSnapshot
 ): Promise<MidRunUsageVerdict> {
   if (!isHosted || !isBillingEnabled) return { status: 'within' }
+  if (!rollsIntoCurrentPeriod(attribution.billingPeriod)) return readGateVerdict(attribution)
   for (let attempt = 0; attempt < 2; attempt++) {
     let judged: BillingAttributionSnapshot
     try {
@@ -144,7 +152,7 @@ const accountVerdictCache = new LRUCache<string, MidRunUsageVerdict>({
  * The same verdict for a direct-v1 run billed to an account decision rather than an attributed
  * payer, in the gate's order: a blocked actor or payer first, then the payer's spend. The payer
  * is the one saved in the decision at admission, never re-selected from the actor's current
- * memberships, judged against that payer's current subscription period.
+ * memberships, and the period judged is the one its charges land in, as for attributed runs.
  */
 export async function readMidRunAccountUsageVerdict(
   decision: AccountBillingDecision
@@ -156,10 +164,16 @@ export async function readMidRunAccountUsageVerdict(
       payer.type === 'organization'
         ? await getOrganizationSubscription(payer.id, { onError: 'throw' })
         : await getHighestPriorityPersonalSubscription(payer.id, { onError: 'throw' })
-    const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
-      ...defaultBillingPeriod(),
-      source: 'default' as const,
-    }
+    const billingPeriod = rollsIntoCurrentPeriod(decision.billingPeriod)
+      ? (resolveSubscriptionUsagePeriod(subscription) ?? {
+          ...defaultBillingPeriod(),
+          source: 'default' as const,
+        })
+      : {
+          start: new Date(decision.billingPeriod.start),
+          end: new Date(decision.billingPeriod.end),
+          source: decision.billingPeriod.source ?? ('default' as const),
+        }
     const key = [
       payer.type,
       payer.id,

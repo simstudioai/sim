@@ -880,9 +880,18 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
 
 describe('POST /api/billing/update-cost — mid-run usage gate', () => {
   let callbackSequence = 0
+  /** A Stripe-period payer admitted in a period that has since ended. */
+  const STRIPE_ATTRIBUTION = {
+    ...ATTRIBUTION,
+    billingPeriod: { ...ATTRIBUTION.billingPeriod, source: 'stripe' as const },
+  }
   const CURRENT_ATTRIBUTION = {
     ...ATTRIBUTION,
-    billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
+    billingPeriod: {
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2099-01-01T00:00:00.000Z',
+      source: 'stripe' as const,
+    },
   }
 
   function attributedCallback() {
@@ -1192,7 +1201,7 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
   }
 
   it('judges a run past its admitted period against the payer current period', async () => {
-    mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
+    mockRequireBillingAttributionHeader.mockReturnValue(STRIPE_ATTRIBUTION)
     mockRefreshAttributionPeriod.mockResolvedValue(CURRENT_ATTRIBUTION)
     refuseOnlyCurrentPeriod()
 
@@ -1217,8 +1226,28 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect(body.usageExceeded).toBe(true)
   })
 
+  it('judges a reporting-window run against its admitted window after that window ends', async () => {
+    const admitted = {
+      ...ATTRIBUTION,
+      billingPeriod: { ...ATTRIBUTION.billingPeriod, source: 'reporting' as const },
+    }
+    mockRequireBillingAttributionHeader.mockReturnValue(admitted)
+    mockRefreshAttributionPeriod.mockResolvedValue({
+      ...CURRENT_ATTRIBUTION,
+      billingPeriod: { ...CURRENT_ATTRIBUTION.billingPeriod, source: 'reporting' as const },
+    })
+    mockCheckAttributedUsageLimits.mockImplementation(async (attribution: typeof admitted) => ({
+      isExceeded: attribution.billingPeriod.end === admitted.billingPeriod.end,
+      scope: 'payer',
+    }))
+
+    const body = await (await POST(attributedCallback())).json()
+
+    expect(body.usageExceeded).toBe(true)
+  })
+
   it('keeps a run going when its current period cannot be read', async () => {
-    mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
+    mockRequireBillingAttributionHeader.mockReturnValue(STRIPE_ATTRIBUTION)
     mockRefreshAttributionPeriod.mockRejectedValue(new Error('subscription read timed out'))
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
 

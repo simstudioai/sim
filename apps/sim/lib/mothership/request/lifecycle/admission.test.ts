@@ -137,7 +137,11 @@ describe('continuation admission', () => {
   it('judges a leg past its admitted period against the payer current period', async () => {
     const ended = {
       ...attribution,
-      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+        source: 'stripe' as const,
+      },
     }
     mockGetOrganizationSubscription.mockResolvedValue({
       id: 'sub-org',
