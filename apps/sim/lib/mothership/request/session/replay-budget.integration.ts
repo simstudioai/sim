@@ -13,10 +13,14 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
   const { createServer: createHttpServer } = await import('node:http')
   const abortRequests: Array<Record<string, unknown>> = []
+  const hooks = { onAbort: undefined as (() => Promise<void>) | undefined }
   const server = createHttpServer(async (request, response) => {
     let body = ''
     for await (const chunk of request) body += chunk
-    if (request.url === '/api/streams/explicit-abort') abortRequests.push(JSON.parse(body))
+    if (request.url === '/api/streams/explicit-abort') {
+      abortRequests.push(JSON.parse(body))
+      await hooks.onAbort?.()
+    }
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify({ settled: true }))
   })
@@ -36,7 +40,7 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
     worker: {
       server,
       abortRequests,
-      /** Events the scripted worker streams through the controller's sink, in order. */
+      hooks,
       /** Events, or steps to run between them, that the scripted worker streams in order. */
       script: [] as unknown[],
       /** Controller lifecycles started, and what each sink call threw. */
@@ -80,14 +84,17 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   },
 }))
 
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { db } from '@sim/db'
 import { copilotChats, copilotRuns, permissions, user, workspace } from '@sim/db/schema'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
@@ -257,7 +264,6 @@ describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => 
         stdout: `${'r'.repeat(STREAM_STRING_PREVIEW_UNITS)}…[truncated, 1.6 MB total]`,
       },
     })
-    expect(writer.persistenceStopped).toBe(false)
   })
 
   it('restores the same tool calls, text, and activity from a compacted buffer as from the full events, without dispatching', async () => {
@@ -379,8 +385,33 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   })
 
   /** Admits a turn the way the chat POST does, runs its controller, and returns its frames. */
+  /** Resolves when a controller's root span ends, the last step of its teardown. */
+  const teardowns = new Map<string, () => void>()
+  beforeAll(() => {
+    trace.disable()
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({
+        spanProcessors: [
+          {
+            onStart: () => {},
+            onEnd: (span) => {
+              const streamId = span.attributes[TraceAttr.StreamId]
+              if (span.name === TraceSpan.GenAiAgentExecute && typeof streamId === 'string') {
+                teardowns.get(streamId)?.()
+              }
+            },
+            forceFlush: async () => {},
+            shutdown: async () => {},
+          },
+        ],
+      })
+    )
+  })
+  afterAll(() => trace.disable())
+
   async function runTurn(script: unknown[], prepare?: (streamId: string) => Promise<void>) {
     const streamId = generateId()
+    const teardown = new Promise<void>((resolve) => teardowns.set(streamId, resolve))
     const runId = generateId()
     expect(await acquirePendingChatStream(chatId, streamId, 0)).toBe(true)
     const controllerToken = (await redis().get(chatStreamLockKey(chatId)))!
@@ -431,7 +462,9 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       admittedRun: run,
       orchestrateOptions: { userId, workspaceId, chatId, runId, interactive: true },
     })
-    return { streamId, runId, frames: dataFrames(await new Response(response).text()) }
+    const frames = dataFrames(await new Response(response).text())
+    await teardown
+    return { streamId, runId, frames }
   }
 
   it('ends as an error, marks its run terminal, stops the worker, and starts no recovery controller', async () => {
@@ -509,8 +542,6 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       ])
 
       expect(frames.map((frame) => frame.type)).toEqual(['session'])
-      /** The client stream closes before the controller's teardown; let teardown finish. */
-      await sleep(500)
       expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
       expect(await redis().get(chatStreamLockKey(chatId))).toBe(successorToken)
       const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
@@ -520,10 +551,33 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     }
   )
 
-  it('marks its run terminal even when the final events cannot be published', async () => {
+  it("leaves its successor's stream untouched when the lease is lost while ending a refused turn", async () => {
+    const successorToken = `successor\n${generateId()}`
+    worker.hooks.onAbort = async () => {
+      await redis().set(chatStreamLockKey(chatId), successorToken, 'EX', 60)
+    }
+    try {
+      const { streamId, frames } = await runTurn(
+        [toolCall('call-refused', 'cli_blocks_get', { command: `blocks get ${'b'.repeat(1024)}` })],
+        async (streamId) => {
+          const { maxOwnerBytes } = getRedisBudgetLimits('copilot_stream')
+          const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
+          await redis().set(ownerBudgetKey, String(maxOwnerBytes - 512), 'EX', 3600)
+        }
+      )
+
+      expect(frames.map((frame) => frame.type)).toEqual(['session', 'error', 'complete'])
+      expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
+      expect(await redis().get(chatStreamLockKey(chatId))).toBe(successorToken)
+    } finally {
+      worker.hooks.onAbort = undefined
+      await redis().del(chatStreamLockKey(chatId))
+    }
+  })
+
+  async function pausedRun(controllerToken: string) {
     const streamId = generateId()
     const runId = generateId()
-    const controllerToken = `${streamId}\n${generateId()}`
     await db.insert(copilotRuns).values({
       id: runId,
       executionId: generateId(),
@@ -534,28 +588,55 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       status: 'paused_waiting_for_tool',
       requestContext: { requestId: generateId(), controllerToken },
     })
-    /** No chat lock holds this lease, so publishing the terminal events throws. */
+    return { streamId, runId }
+  }
+
+  async function finalizeAsError(publisher: StreamWriter, runId: string) {
+    return finalizeStream(
+      {
+        success: false,
+        error: 'The agent service is temporarily unavailable. Please try again.',
+        content: '',
+        contentBlocks: [],
+        toolCalls: [],
+      },
+      publisher,
+      runId,
+      'error',
+      generateId()
+    )
+  }
+
+  it('marks its run terminal even when the final events cannot be published', async () => {
+    const controllerToken = `owner\n${generateId()}`
+    const { streamId, runId } = await pausedRun(controllerToken)
+    const lease = { key: chatStreamLockKey(generateId()), value: controllerToken }
+    await redis().set(lease.key, lease.value, 'EX', 60)
+    /** A corrupt buffer key makes every append fail while the lease is still held. */
+    await redis().set(`mothership_stream:${streamId}:events`, 'not a sorted set', 'EX', 60)
+    const publisher = new StreamWriter({ streamId, requestId: generateId(), lease })
+
+    const failure = await finalizeAsError(publisher, runId).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(StreamControllerSupersededError)
+    const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+    expect(stored.status).toBe('error')
+    await redis().del(lease.key)
+  })
+
+  it('leaves its run for a successor when it lost the lease while publishing', async () => {
+    const controllerToken = `stale\n${generateId()}`
+    const { streamId, runId } = await pausedRun(controllerToken)
     const lease = { key: chatStreamLockKey(generateId()), value: controllerToken }
     const publisher = new StreamWriter({ streamId, requestId: generateId(), lease })
 
-    await expect(
-      finalizeStream(
-        {
-          success: false,
-          error: 'The agent service is temporarily unavailable. Please try again.',
-          content: '',
-          contentBlocks: [],
-          toolCalls: [],
-        },
-        publisher,
-        runId,
-        'error',
-        generateId()
-      )
-    ).rejects.toBeInstanceOf(StreamControllerSupersededError)
+    await expect(finalizeAsError(publisher, runId)).rejects.toBeInstanceOf(
+      StreamControllerSupersededError
+    )
 
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
-    expect(stored.status).toBe('error')
+    expect(stored.status).toBe('paused_waiting_for_tool')
   })
 
   it('does not settle a run another controller has claimed', async () => {

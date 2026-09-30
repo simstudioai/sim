@@ -112,7 +112,6 @@ describe('StreamWriter', () => {
       writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'later' } })
     ).rejects.toBeInstanceOf(StreamReplayBudgetExhaustedError)
     expect(delivered).toEqual([])
-    expect(writer.persistenceStopped).toBe(true)
     await expect(writer.flush()).resolves.toBeUndefined()
 
     await writer.publish({

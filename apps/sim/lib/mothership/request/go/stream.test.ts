@@ -78,7 +78,6 @@ vi.mock('@/lib/mothership/tools/server/files/file-preview', async () => {
   }
 })
 
-import { buildPersistedAssistantMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   buildPreviewContentUpdate,
   CopilotBackendError,
@@ -261,7 +260,36 @@ describe('copilot go stream helpers', () => {
       'The agent service is temporarily unavailable. Please try again.',
     ],
     [
-      'an internal JSON error',
+      "the worker's internal error",
+      500,
+      'application/json',
+      '{"error":"Internal error"}',
+      'The agent service is temporarily unavailable. Please try again.',
+    ],
+    ['a rate limit', 429, 'application/json', '{"error":"Too many requests"}', 'Too many requests'],
+    [
+      'an enterprise-only request',
+      403,
+      'application/json',
+      '{"error":"Enterprise BYOK required"}',
+      'Enterprise BYOK required',
+    ],
+    [
+      'a model selection problem',
+      400,
+      'application/json',
+      '{"error":"This workspace uses an Anthropic API key. Select Opus 5.5 to continue."}',
+      'This workspace uses an Anthropic API key. Select Opus 5.5 to continue.',
+    ],
+    [
+      'protocol skew',
+      426,
+      'application/json',
+      '{"error":"protocol_version_mismatch","expected":3,"got":2,"message":"This Sim build speaks a different mothership protocol version. Update the older side."}',
+      'This Sim build speaks a different mothership protocol version. Update the older side.',
+    ],
+    [
+      'an internal validation detail',
       400,
       'application/json',
       '{"error":"Bad Request","message":"userId required for internal API key"}',
@@ -275,7 +303,7 @@ describe('copilot go stream helpers', () => {
       'The agent service could not process this request.',
     ],
   ])(
-    'never shows the user the raw body of %s',
+    'tells the user about %s without the raw body',
     async (_label, status, contentType, body, userMessage) => {
       vi.mocked(fetch).mockResolvedValueOnce(
         new Response(body, { status, headers: { 'Content-Type': contentType } })
@@ -291,16 +319,6 @@ describe('copilot go stream helpers', () => {
 
       expect(error).toBeInstanceOf(CopilotBackendError)
       expect(error).toMatchObject({ message: userMessage, status, body })
-      const persisted = buildPersistedAssistantMessage({
-        success: false,
-        error: (error as Error).message,
-        content: '',
-        contentBlocks: [],
-        toolCalls: [],
-      })
-      expect(JSON.stringify(persisted)).not.toMatch(
-        /<html|Bad Gateway|userId required|Invalid request body/
-      )
     }
   )
 

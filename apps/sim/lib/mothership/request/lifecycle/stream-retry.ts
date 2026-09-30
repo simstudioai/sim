@@ -8,8 +8,10 @@ import {
 
 const MAX_STREAM_RETRIES = 3
 const STREAM_RECOVERY_WINDOW_MS = 30_000
+/** The load balancer's answers while no worker task is registered behind it. */
+const GATEWAY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504])
 /**
- * While the worker cannot be reached at all (a 5xx from the load balancer, or no
+ * While the worker cannot be reached at all (a gateway error page, or no
  * connection), retries continue for this long from the first failure: long
  * enough to outlast a worker task replacement (about 70 s of 502/504). Every
  * attempt re-sends the same message identity, which the worker treats as a
@@ -34,6 +36,12 @@ export class StreamRetryWindow {
     return remaining
   }
 
+  /** A retry reconnected and made progress; a later outage gets a fresh budget. */
+  recovered(): void {
+    this.attempt = 0
+    this.firstFailureAt = undefined
+  }
+
   nextDelay(error: unknown, signal?: AbortSignal): number | null {
     if (signal?.aborted || !isRetryableStreamError(error)) return null
     this.firstFailureAt ??= Date.now()
@@ -48,12 +56,26 @@ export class StreamRetryWindow {
   }
 }
 
-/** No worker answered: the load balancer's 5xx, or no connection at all. */
+/**
+ * No worker answered: a gateway error page from the load balancer, or no
+ * connection at all. A JSON 5xx comes from a reachable worker, so it gets the
+ * short recovery budget instead.
+ */
 function isWorkerUnreachable(error: unknown): boolean {
   if (error instanceof CopilotBackendError) {
-    return error.status !== undefined && error.status >= 500
+    return error.status !== undefined && GATEWAY_STATUSES.has(error.status) && !isJson(error.body)
   }
   return error instanceof TypeError
+}
+
+function isJson(body: string | undefined): boolean {
+  if (!body) return false
+  try {
+    JSON.parse(body)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** Initial sends and resumes both replay one durable identity after an ambiguous response. */
@@ -62,5 +84,8 @@ function isRetryableStreamError(error: unknown): boolean {
   if (error instanceof StreamEndedWithoutTerminalError || error instanceof StreamContinuityError) {
     return true
   }
-  return isWorkerUnreachable(error)
+  if (error instanceof CopilotBackendError) {
+    return error.status !== undefined && error.status >= 500
+  }
+  return error instanceof TypeError
 }

@@ -1,5 +1,8 @@
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
-import { MothershipStreamV1ToolPhase } from '@/lib/mothership/generated/mothership-stream-v1'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/mothership/generated/mothership-stream-v1'
 import { isClientExecutedToolCall } from '@/lib/mothership/tools/client-executed-tools'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import type { StreamEvent } from './types'
@@ -19,12 +22,17 @@ const ARGUMENTS_KEY: ReadonlySet<string> = new Set(['arguments'])
 /** Its live result is the only place the plaintext key reaches the browser. */
 const GENERATE_API_KEY_TOOL = 'generate_api_key'
 
-function stringUnits(value: unknown): number {
-  if (typeof value === 'string') return value.length
-  if (Array.isArray(value)) return value.reduce<number>((sum, item) => sum + stringUnits(item), 0)
-  if (!isRecordLike(value)) return 0
-  let sum = 0
-  for (const key in value) sum += key.length + stringUnits(value[key])
+/** Items kept at the head of an array that string cuts alone could not bound. */
+export const STREAM_ARRAY_HEAD_ITEMS = 100
+
+/** An upper bound on a value's serialized size, without serializing it. */
+function estimateBytes(value: unknown): number {
+  if (typeof value === 'string') return value.length * 3 + 2
+  if (Array.isArray(value))
+    return value.reduce<number>((sum, item) => sum + estimateBytes(item) + 1, 2)
+  if (!isRecordLike(value)) return 24
+  let sum = 2
+  for (const key in value) sum += key.length * 3 + 4 + estimateBytes(value[key])
   return sum
 }
 
@@ -35,27 +43,56 @@ function stringUnits(value: unknown): number {
  * named top-level keys is exempt.
  */
 function truncateStrings(value: unknown, skipKeys: ReadonlySet<string> = NO_KEYS): unknown {
-  if (typeof value === 'string') {
-    if (value.length <= STREAM_STRING_PREVIEW_UNITS) return value
+  return mapLeaves(value, skipKeys, (leaf) => {
+    if (typeof leaf !== 'string' || leaf.length <= STREAM_STRING_PREVIEW_UNITS) return leaf
     const end = STREAM_STRING_PREVIEW_UNITS
-    const lastUnit = value.charCodeAt(end - 1)
+    const lastUnit = leaf.charCodeAt(end - 1)
     const cut = lastUnit >= 0xd800 && lastUnit <= 0xdbff ? end - 1 : end
-    const size = formatFileSize(Buffer.byteLength(value, 'utf8'))
-    return `${value.slice(0, cut)}…[truncated, ${size} total]`
-  }
+    const size = formatFileSize(Buffer.byteLength(leaf, 'utf8'))
+    return `${leaf.slice(0, cut)}…[truncated, ${size} total]`
+  })
+}
+
+/** Keeps the head of every long array, with a note of how many items were dropped. */
+function trimArrays(value: unknown, skipKeys: ReadonlySet<string>): unknown {
+  return mapLeaves(
+    value,
+    skipKeys,
+    (leaf) => leaf,
+    (items) =>
+      items.length <= STREAM_ARRAY_HEAD_ITEMS
+        ? items
+        : [
+            ...items.slice(0, STREAM_ARRAY_HEAD_ITEMS),
+            `…[truncated, ${items.length - STREAM_ARRAY_HEAD_ITEMS} more items]`,
+          ]
+  )
+}
+
+/**
+ * Rebuilds a value with `leaf` applied to every non-container and `array` to
+ * every array, copying only what changes. `skipKeys` exempts top-level fields.
+ */
+function mapLeaves(
+  value: unknown,
+  skipKeys: ReadonlySet<string>,
+  leaf: (value: unknown) => unknown,
+  array: (items: unknown[]) => unknown[] = (items) => items
+): unknown {
   if (Array.isArray(value)) {
-    let copy: unknown[] | undefined
-    value.forEach((item, index) => {
-      const next = truncateStrings(item)
-      if (next !== item) (copy ??= [...value])[index] = next
+    const items = array(value)
+    let copy: unknown[] | undefined = items === value ? undefined : [...items]
+    items.forEach((item, index) => {
+      const next = mapLeaves(item, NO_KEYS, leaf, array)
+      if (next !== item) (copy ??= [...items])[index] = next
     })
     return copy ?? value
   }
-  if (!isRecordLike(value)) return value
+  if (!isRecordLike(value)) return leaf(value)
   let copy: Record<string, unknown> | undefined
   for (const [key, field] of Object.entries(value)) {
     if (skipKeys.has(key)) continue
-    const next = truncateStrings(field)
+    const next = mapLeaves(field, NO_KEYS, leaf, array)
     if (next !== field) (copy ??= { ...value })[key] = next
   }
   return copy ?? value
@@ -65,14 +102,18 @@ function truncateStrings(value: unknown, skipKeys: ReadonlySet<string> = NO_KEYS
  * Bounds an outgoing stream event so the replay buffer can persist it. Applied
  * only to the copy the writer delivers and persists; the caller keeps the full
  * event for dispatch. Long strings are cut to their head in place, so every
- * object keeps its shape. File previews, `generate_api_key` results, and the
- * arguments of calls the browser executes are never cut; an event
+ * object keeps its shape; if that is not enough, long arrays keep their head.
+ * Assistant text, file previews, `generate_api_key` results, and the arguments
+ * of calls the browser executes are never cut; an event
  * still too large is refused by the buffer, which ends the turn with an error.
  */
 export function compactStreamEvent(event: StreamEvent): StreamEvent {
   const payload = toRecordOrNull(event.payload)
-  if (!payload || 'previewPhase' in payload) return event
-  if (stringUnits(payload) * 3 <= STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) return event
+  // Text length is part of the receipt the worker and a replacement check.
+  if (!payload || event.type === MothershipStreamV1EventType.text || 'previewPhase' in payload) {
+    return event
+  }
+  if (estimateBytes(payload) <= STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) return event
   const toolName = typeof payload.toolName === 'string' ? payload.toolName : ''
   if (payload.phase === MothershipStreamV1ToolPhase.result && toolName === GENERATE_API_KEY_TOOL) {
     return event
@@ -82,6 +123,9 @@ export function compactStreamEvent(event: StreamEvent): StreamEvent {
     payload.phase === MothershipStreamV1ToolPhase.call && isClientExecutedToolCall(toolName, args)
       ? ARGUMENTS_KEY
       : NO_KEYS
-  const compacted = truncateStrings(payload, skipKeys)
+  let compacted = truncateStrings(payload, skipKeys)
+  if (Buffer.byteLength(JSON.stringify(compacted)) > STREAM_EVENT_COMPACTION_THRESHOLD_BYTES) {
+    compacted = trimArrays(compacted, skipKeys)
+  }
   return compacted === payload ? event : ({ ...event, payload: compacted } as StreamEvent)
 }

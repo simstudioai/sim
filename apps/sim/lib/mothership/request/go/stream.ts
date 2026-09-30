@@ -1,6 +1,7 @@
 import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecordOrNull } from '@sim/utils/object'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
@@ -70,12 +71,35 @@ const BACKEND_UNAVAILABLE_MESSAGE =
 const BACKEND_REJECTED_MESSAGE = 'The agent service could not process this request.'
 
 /**
- * What the user is told about a failed backend response. The body is upstream
- * detail (a proxy's HTML page, an internal validation error) and stays on the
- * error for logs only.
+ * A worker rejection message the user can act on: short, one line, plain text,
+ * and free of identifiers (`userId`, `protocol_version_mismatch`) that only mean
+ * something to the code that raised them.
  */
-function backendErrorMessage(status: number): string {
-  return status >= 500 ? BACKEND_UNAVAILABLE_MESSAGE : BACKEND_REJECTED_MESSAGE
+function userFacingRejection(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const message = value.trim()
+  if (!message || message.length > 200 || /[<\n]/.test(message)) return undefined
+  if (/\b\w*[a-z][A-Z]\w*\b|\b\w+_\w+\b/.test(message)) return undefined
+  return message
+}
+
+/**
+ * What the user is told about a failed backend response. A 5xx or a gateway page
+ * is upstream detail and stays on the error for logs; a 4xx may carry the
+ * worker's own reason, which is shown when it is safe to.
+ */
+function backendErrorMessage(status: number, body: string): string {
+  if (status >= 500) return BACKEND_UNAVAILABLE_MESSAGE
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return BACKEND_REJECTED_MESSAGE
+  }
+  // The worker puts its reason in `error`, or a code there and the reason in `message`.
+  const record = toRecordOrNull(parsed)
+  const reason = record && 'message' in record ? record.message : record?.error
+  return userFacingRejection(reason) ?? BACKEND_REJECTED_MESSAGE
 }
 
 export class BillingLimitError extends Error {
@@ -188,7 +212,7 @@ export async function runStreamLoop(
       throw new BillingLimitError(execContext.userId)
     }
 
-    throw new CopilotBackendError(backendErrorMessage(response.status), {
+    throw new CopilotBackendError(backendErrorMessage(response.status, errorText), {
       status: response.status,
       body: errorText || response.statusText,
     })

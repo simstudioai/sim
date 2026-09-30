@@ -845,6 +845,14 @@ async function runResumeLegWithRetry(
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
   const retry = new StreamRetryWindow(options.timeout)
+  /** A leg that streams again has recovered; a later outage gets its own budget. */
+  const legOptions: CopilotLifecycleOptions = {
+    ...options,
+    onEvent: async (event) => {
+      retry.recovered()
+      await options.onEvent?.(event)
+    },
+  }
   for (;;) {
     options.abortSignal?.throwIfAborted()
     const errorsBeforeAttempt = leg.errors.length
@@ -859,7 +867,7 @@ async function runResumeLegWithRetry(
         },
         leg,
         execContext,
-        { ...options, timeout: retry.remainingMs() }
+        { ...legOptions, timeout: retry.remainingMs() }
       )
       return
     } catch (error) {
@@ -1137,6 +1145,7 @@ async function runCheckpointLoop(
          has an HTTP buffer worth a per-event macrotask flush. */
       flushAfterEvent: options.flushAfterEvent ?? Boolean(callerOnEvent),
       onEvent: async (event: StreamEvent) => {
+        retry?.recovered()
         if (
           event.type === MothershipStreamV1EventType.run &&
           event.payload.kind === MothershipStreamV1RunKind.checkpoint_pause &&

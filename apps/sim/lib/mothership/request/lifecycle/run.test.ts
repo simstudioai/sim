@@ -196,6 +196,7 @@ vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
   resolveEnterpriseByokKey: mockResolveEnterpriseByokKey,
 }))
 
+import { buildPersistedAssistantMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
@@ -2875,6 +2876,93 @@ describe('runCopilotLifecycle', () => {
     expect(result).toEqual(
       expect.objectContaining({ success: true, cancelled: false, errors: undefined })
     )
+  })
+
+  it('persists a failed backend response without its upstream body', async () => {
+    const body = '<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>'
+    mockRunStreamLoop.mockRejectedValueOnce(
+      Object.assign(
+        new CopilotBackendError('The agent service is temporarily unavailable. Please try again.', {
+          status: 400,
+        }),
+        { body }
+      )
+    )
+    let persisted: unknown
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-backend-error' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        },
+        onError: async (_error, result) => {
+          persisted = result && buildPersistedAssistantMessage(result)
+        },
+      }
+    )
+
+    expect(JSON.stringify(persisted)).toContain('The agent service is temporarily unavailable.')
+    expect(JSON.stringify(persisted)).not.toMatch(/<html|Bad Gateway|nginx/)
+  })
+
+  it('gives each outage its own retry budget once a reconnect streams again', async () => {
+    vi.useFakeTimers()
+    try {
+      let attempts = 0
+      mockRunStreamLoop.mockImplementation(
+        async (
+          _url: string,
+          _init: RequestInit,
+          context: StreamingContext,
+          _exec: ExecutionContext,
+          options: { onEvent?: (event: unknown) => Promise<void> }
+        ): Promise<void> => {
+          attempts++
+          if (attempts < 6) {
+            await options.onEvent?.({
+              type: 'text',
+              payload: { channel: 'assistant', text: `part ${attempts} ` },
+            })
+            context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+            throw new StreamEndedWithoutTerminalError('/api/mothership')
+          }
+          context.streamComplete = true
+          context.completionStatus = MothershipStreamV1CompletionStatus.complete
+        }
+      )
+
+      const pending = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-repeated-outages' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(await pending).toEqual(expect.objectContaining({ success: true }))
+      expect(attempts).toBe(6)
+    } finally {
+      mockRunStreamLoop.mockReset()
+      vi.useRealTimers()
+    }
   })
 
   describe('when the worker task is being replaced', () => {

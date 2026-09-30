@@ -92,11 +92,10 @@ export class StreamWriter {
 
   /**
    * The replay buffer stopped accepting writes because this stream exhausted its byte
-   * budget. Leased delivery stops before the refused event (only the terminal verdict
-   * still reaches the client); unleased delivery continues.
+   * budget. Leased delivery stops before the refused event; unleased delivery continues.
    */
   get persistenceStopped(): boolean {
-    return this._persistenceStopped || this.replayBudgetError !== null
+    return this._persistenceStopped
   }
 
   updateRequestId(id: string): void {
@@ -155,6 +154,7 @@ export class StreamWriter {
             lease
           )
           if (!result.persisted) {
+            this._persistenceStopped = true
             this.replayBudgetError = new StreamReplayBudgetExhaustedError(result.refusal)
           }
         }

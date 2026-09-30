@@ -212,4 +212,42 @@ describe('compactStreamEvent', () => {
 
     expect(cut.startsWith(`${'a'.repeat(STREAM_STRING_PREVIEW_UNITS - 1)}…`)).toBe(true)
   })
+
+  it('never cuts assistant text, whose length is part of the text receipt', () => {
+    const event: StreamEvent = {
+      type: 'text',
+      payload: { channel: 'assistant', text: 'a'.repeat(MB), textOffset: 0 },
+    }
+
+    expect(compactStreamEvent(event)).toBe(event)
+  })
+
+  it('keeps the head of a long array of short items when strings alone cannot bound it', () => {
+    const rows = Array.from({ length: 40_000 }, (_, index) => ({ id: index, name: 'row' }))
+    const citations = [{ index: 1, title: 'Runbook', url: 'https://docs.example/runbook' }]
+    const event: StreamEvent = {
+      type: 'tool',
+      payload: {
+        toolCallId: 'c',
+        toolName: 'cli_tables_rows_query',
+        executor: 'sim',
+        mode: 'async',
+        phase: 'result',
+        success: true,
+        output: { rows, data: { results: citations } },
+      },
+    }
+
+    const compacted = compactStreamEvent(event)
+    const output = toRecord(payloadOf(compacted).output)
+    const kept = output.rows as unknown[]
+
+    expect(Buffer.byteLength(JSON.stringify(compacted.payload))).toBeLessThan(
+      STREAM_EVENT_COMPACTION_THRESHOLD_BYTES
+    )
+    expect(kept.slice(0, 2)).toEqual([rows[0], rows[1]])
+    expect(kept.at(-1)).toMatch(/^…\[truncated, \d+ more items\]$/)
+    expect(output.data).toEqual({ results: citations })
+    expect(toRecord(payloadOf(event).output).rows).toHaveLength(40_000)
+  })
 })

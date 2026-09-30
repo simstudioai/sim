@@ -56,6 +56,17 @@ type ParsedWorkspaceFileArgs = {
 
 const PATCH_PREVIEW_SNAPSHOT_INTERVAL_MS = 80
 const DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS = 1000
+/**
+ * Full snapshots of one file's preview are spaced so they stream at most about
+ * this many characters per second. Small files keep the base intervals; a large
+ * file's snapshots slow down instead of filling the stream's replay budget.
+ */
+const PREVIEW_SNAPSHOT_CHARS_PER_SECOND = 256 * 1024
+
+/** The minimum gap between full snapshots of a preview this long. */
+function snapshotIntervalMs(baseMs: number, previewText: string): number {
+  return Math.max(baseMs, (previewText.length / PREVIEW_SNAPSHOT_CHARS_PER_SECOND) * 1000)
+}
 
 function asJsonRecord(value: unknown): JsonRecord | undefined {
   return isRecordLike(value) ? (value as JsonRecord) : undefined
@@ -326,7 +337,7 @@ export function buildPreviewContentUpdate(
     previousText.length === 0 ||
     !nextText.startsWith(previousText) ||
     operation === 'patch' ||
-    now - lastSnapshotAt >= DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS
+    now - lastSnapshotAt >= snapshotIntervalMs(DELTA_PREVIEW_CHECKPOINT_INTERVAL_MS, nextText)
 
   if (shouldForceSnapshot) {
     return {
@@ -691,7 +702,8 @@ export async function processFilePreviewStreamEvent(input: {
 
           if (
             nextSession.operation === 'patch' &&
-            now - currentPreview.lastSnapshotAt < PATCH_PREVIEW_SNAPSHOT_INTERVAL_MS
+            now - currentPreview.lastSnapshotAt <
+              snapshotIntervalMs(PATCH_PREVIEW_SNAPSHOT_INTERVAL_MS, nextSession.previewText)
           ) {
             filePreviewState.set(editIntent.toolCallId, {
               session: nextSession,

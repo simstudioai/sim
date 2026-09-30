@@ -1,5 +1,5 @@
 import { flushMicrotasks } from '@sim/testing/helpers/async'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolExecutor,
@@ -160,6 +160,71 @@ describe('processFilePreviewStreamEvent — preview content emission', () => {
     expect(combined).toContain('Base.')
     expect(combined).toContain('Hello')
     expect(combined).toContain('world')
+  })
+})
+
+describe('processFilePreviewStreamEvent — preview byte rate', () => {
+  const execContext: ExecutionContext = {
+    userId: 'user-1',
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    chatId: 'chat-1',
+    messageId: 'msg-1',
+  }
+
+  afterEach(() => vi.useRealTimers())
+
+  it('streams a 300 KB patch for 10 s well under the stream budget and ends on its final content', async () => {
+    vi.useFakeTimers()
+    const base = `ANCHOR\n${'line of existing file content\n'.repeat(10_000)}`
+    const edit = { strategy: 'anchored', mode: 'insert_after', anchor: 'ANCHOR' }
+    peekFileIntentMock.mockResolvedValue({ existingContent: base, edit })
+    const state = createFilePreviewAdapterState()
+    const intent = {
+      ...makeIntent({ operation: 'patch', fileId: 'file-big', fileName: 'big.md' }),
+      edit,
+    }
+    const payloads: Array<Record<string, unknown>> = []
+    const drive = async (streamEvent: StreamEvent) => {
+      const context = createStreamingContext()
+      context.activeFileIntents.set('', intent)
+      await processFilePreviewStreamEvent({
+        streamId: STREAM_ID,
+        streamEvent,
+        context,
+        execContext,
+        options: {
+          onEvent: (event) => {
+            payloads.push((event as { payload: Record<string, unknown> }).payload)
+          },
+        },
+        state,
+      })
+    }
+
+    let streamed = ''
+    await drive(editContentDelta('{"content":"'))
+    for (let tick = 0; tick < 625; tick++) {
+      vi.advanceTimersByTime(16)
+      streamed += `word${tick} `
+      await drive(editContentDelta(`word${tick} `))
+    }
+    await drive(
+      toolEvent({
+        toolCallId: EDIT_TOOL_CALL_ID,
+        toolName: 'apply_file_edit',
+        phase: MothershipStreamV1ToolPhase.result,
+        success: true,
+      })
+    )
+
+    const contents = payloads.filter((payload) => payload.previewPhase === 'file_preview_content')
+    const streamedBytes = contents.reduce(
+      (sum, payload) => sum + Buffer.byteLength(String(payload.content)),
+      0
+    )
+    expect(streamedBytes).toBeLessThan(8 * 1024 * 1024)
+    expect(contents.at(-1)?.content).toBe(base.replace('ANCHOR\n', `ANCHOR\n${streamed}\n`))
   })
 })
 

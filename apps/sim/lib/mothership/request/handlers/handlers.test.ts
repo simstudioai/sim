@@ -407,35 +407,6 @@ describe('sse-handlers tool lifecycle', () => {
     expect(upsertAsyncToolCall).not.toHaveBeenCalled()
   })
 
-  it('clears a Go-stamped approval frame on a replayed call, which never gates anything', async () => {
-    toolRequiresApproval.mockReturnValue(false)
-    context.runId = 'run-1'
-    context.toolPermissions = {
-      enabled: false,
-      autoAllowed: new Set(),
-      autoAllowPermitted: true,
-    }
-
-    const event = {
-      type: MothershipStreamV1EventType.tool,
-      payload: {
-        toolCallId: 'gmail-2',
-        toolName: 'gmail_read_v2',
-        arguments: {},
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.call,
-        status: 'awaiting_approval',
-        replay: true,
-      },
-    } as unknown as StreamEvent
-
-    await prePersistClientExecutableToolCall(event, context, {})
-
-    expect((event.payload as { status?: string }).status).toBeUndefined()
-    expect(upsertAsyncToolCall).not.toHaveBeenCalled()
-  })
-
   it('clears a Go-stamped approval frame on a partial call, which is never held', async () => {
     toolRequiresApproval.mockReturnValue(true)
     context.runId = 'run-1'

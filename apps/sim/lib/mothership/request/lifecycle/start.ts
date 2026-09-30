@@ -57,6 +57,7 @@ import { getLocalChatStreamLease } from '@/lib/mothership/request/session/abort'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import {
   assertChatStreamLease,
+  holdsChatStreamLease,
   StreamControllerSupersededError,
 } from '@/lib/mothership/request/session/controller-lease'
 import {
@@ -208,7 +209,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   }
 
   const collector = new TraceCollector()
-  let handedOff = false
 
   /**
    * The replay refusal that ends this turn. Once the controller is aborted its
@@ -453,7 +453,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               abortController.signal.reason instanceof StreamControllerSupersededError
             ) {
               logger.info('Stream controller handed off; leaving its run recoverable', { streamId })
-              handedOff = true
               return
             }
             await assertControllerOwnership()
@@ -506,20 +505,21 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               })
             }
             unregisterActiveStream(streamId, abortController)
-            if (chatId) {
-              await releasePendingChatStream(chatId, streamId, lease)
-            }
-            processResourcesReleased = true
-            // A superseded controller must not expire or clear its successor's stream,
-            // whether it handed off or lost ownership while handling another failure.
-            if (
-              !handedOff &&
-              !(abortController.signal.reason instanceof StreamControllerSupersededError)
-            ) {
+            /*
+              The stream's buffer and abort marker belong to whoever holds the chat
+              lock now. Clean them up only while this controller still holds it, and
+              before releasing it, so a successor's stream is never expired and its
+              Stop is never cleared.
+            */
+            if (!chatId || (lease && (await holdsChatStreamLease(lease)))) {
               await scheduleBufferCleanup(streamId)
               await scheduleFilePreviewSessionCleanup(streamId)
               await cleanupAbortMarker(streamId)
             }
+            if (chatId) {
+              await releasePendingChatStream(chatId, streamId, lease)
+            }
+            processResourcesReleased = true
 
             rootOutcome = outcome
             if (lifecycleResult?.usage) {

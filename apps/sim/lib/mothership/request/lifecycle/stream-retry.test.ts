@@ -22,23 +22,60 @@ describe('stream recovery budget', () => {
     expect(retry.remainingMs()).toBeGreaterThan(3_500_000)
   })
 
-  it.each([new TypeError('fetch failed'), new CopilotBackendError('Unavailable', { status: 502 })])(
-    'keeps retrying an unreachable worker for two minutes from the first failure: %s',
-    (error) => {
-      vi.useFakeTimers()
-      const retry = new StreamRetryWindow()
-      vi.advanceTimersByTime(600_000)
-      const firstFailure = Date.now()
-      for (;;) {
-        const delay = retry.nextDelay(error)
-        if (delay === null) break
-        vi.advanceTimersByTime(delay)
-      }
-      expect(Date.now() - firstFailure).toBeGreaterThan(110_000)
-      expect(Date.now() - firstFailure).toBeLessThanOrEqual(120_000)
-      expect(retry.remainingMs()).toBeGreaterThan(2_800_000)
+  it.each([
+    new CopilotBackendError('Unavailable', { status: 500, body: '{"error":"Internal error"}' }),
+    new CopilotBackendError('Unavailable', {
+      status: 503,
+      body: '{"error":"Account admission is unavailable"}',
+    }),
+  ])('gives a reachable worker that answers with a 5xx only three retries: %s', (error) => {
+    vi.useFakeTimers()
+    const retry = new StreamRetryWindow()
+    for (let index = 0; index < 3; index++) {
+      const delay = retry.nextDelay(error)
+      expect(delay).not.toBeNull()
+      vi.advanceTimersByTime(delay ?? 0)
     }
-  )
+    expect(retry.nextDelay(error)).toBeNull()
+  })
+
+  it('starts a fresh recovery budget once a retry reconnects', () => {
+    vi.useFakeTimers()
+    const error = new StreamEndedWithoutTerminalError('/api/mothership')
+    const retry = new StreamRetryWindow()
+    for (let outage = 0; outage < 2; outage++) {
+      for (let index = 0; index < 3; index++) {
+        const delay = retry.nextDelay(error)
+        expect(delay).not.toBeNull()
+        vi.advanceTimersByTime(delay ?? 0)
+      }
+      retry.recovered()
+      vi.advanceTimersByTime(60_000)
+    }
+    expect(retry.nextDelay(error)).not.toBeNull()
+  })
+
+  it.each([
+    new TypeError('fetch failed'),
+    new CopilotBackendError('Unavailable', { status: 502 }),
+    new CopilotBackendError('Unavailable', {
+      status: 504,
+      body: '<html><body><h1>504 Gateway Time-out</h1></body></html>',
+    }),
+  ])('keeps retrying an unreachable worker for two minutes from the first failure: %s', (error) => {
+    vi.useFakeTimers()
+    const retry = new StreamRetryWindow()
+    vi.advanceTimersByTime(600_000)
+    const firstFailure = Date.now()
+    for (;;) {
+      const delay = retry.nextDelay(error)
+      if (delay === null) break
+      vi.advanceTimersByTime(delay)
+    }
+    expect(Date.now() - firstFailure).toBeGreaterThan(110_000)
+    expect(Date.now() - firstFailure).toBeLessThanOrEqual(120_000)
+    expect(retry.remainingMs()).toBeGreaterThan(2_800_000)
+  })
 
   it('never extends the original execution deadline', () => {
     vi.useFakeTimers()

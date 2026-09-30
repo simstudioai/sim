@@ -14,6 +14,7 @@ import { CopilotFinalizeOutcome } from '@/lib/mothership/generated/trace-attribu
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import type { StreamWriter } from '@/lib/mothership/request/session'
+import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 const logger = createLogger('CopilotStreamFinalize')
@@ -204,8 +205,8 @@ async function handleSuccess(
 
 /**
  * Publishes the terminal events, then records the run's terminal status even if
- * publishing failed: nothing else settles a run, and the status write is scoped
- * to this controller's token, so it never settles a run a successor has claimed.
+ * publishing failed, since nothing else settles a run. A controller superseded
+ * while publishing leaves the run to its successor instead.
  */
 async function publishThenSettle(
   publisher: StreamWriter,
@@ -215,9 +216,11 @@ async function publishThenSettle(
   try {
     await publish()
     await publisher.flush()
-  } finally {
-    await settle()
+  } catch (error) {
+    if (!(error instanceof StreamControllerSupersededError)) await settle()
+    throw error
   }
+  await settle()
 }
 
 async function loggedRunStatusUpdate(
