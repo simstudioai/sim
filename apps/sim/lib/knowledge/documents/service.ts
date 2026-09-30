@@ -1673,6 +1673,27 @@ export async function processDocumentAsync(
       .limit(1)
 
     if (contextRows[0] && !requiresConnectorIndexing(contextRows[0].isSearchIndex)) {
+      /**
+       * A generation queued before its KB went dormant (e.g. legacy index adoption) gives back its
+       * stamp and charged attempt, as `clearDocumentsQueued` does; the token stays as the owner.
+       */
+      if (attemptContext?.processingQueueToken || attemptContext?.processingQueuedAt) {
+        await db
+          .update(document)
+          .set({
+            processingQueuedAt: null,
+            ...(attemptContext.chargedAtDispatch
+              ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+              : {}),
+          })
+          .where(
+            and(
+              eq(document.id, documentId),
+              eq(document.processingStatus, 'pending'),
+              ...queueGenerationConditions(attemptContext)
+            )
+          )
+      }
       return { outcome: 'skipped', reason: 'unavailable' }
     }
     if (contextRows.length === 0) {

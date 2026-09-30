@@ -95,4 +95,52 @@ describe('dormant Search document processing', () => {
       .where(eq(document.id, documentId))
     expect(stored.status).toBe('pending')
   })
+
+  it('withdraws its own queued generation and refunds the charged attempt', async () => {
+    const queuedAt = new Date('2026-09-29T00:00:00.000Z')
+    const token = generateId()
+    await db
+      .update(document)
+      .set({ processingQueueToken: token, processingQueuedAt: queuedAt, processingAttempts: 1 })
+      .where(eq(document.id, documentId))
+    expect(
+      await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
+        chargedAtDispatch: true,
+        processingQueueToken: token,
+        processingQueuedAt: queuedAt,
+      })
+    ).toEqual({ outcome: 'skipped', reason: 'unavailable' })
+    const [stored] = await db
+      .select({
+        status: document.processingStatus,
+        token: document.processingQueueToken,
+        queuedAt: document.processingQueuedAt,
+        attempts: document.processingAttempts,
+      })
+      .from(document)
+      .where(eq(document.id, documentId))
+    expect(stored).toEqual({ status: 'pending', token, queuedAt: null, attempts: 0 })
+  })
+
+  it('leaves a newer queued generation untouched', async () => {
+    const queuedAt = new Date('2026-09-29T01:00:00.000Z')
+    const newer = generateId()
+    await db
+      .update(document)
+      .set({ processingQueueToken: newer, processingQueuedAt: queuedAt, processingAttempts: 1 })
+      .where(eq(document.id, documentId))
+    await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
+      chargedAtDispatch: true,
+      processingQueueToken: generateId(),
+    })
+    const [stored] = await db
+      .select({
+        token: document.processingQueueToken,
+        queuedAt: document.processingQueuedAt,
+        attempts: document.processingAttempts,
+      })
+      .from(document)
+      .where(eq(document.id, documentId))
+    expect(stored).toEqual({ token: newer, queuedAt, attempts: 1 })
+  })
 })
