@@ -23,8 +23,6 @@ interface ChatThreadProps {
   attachments?: React.ReactNode
   /** Called with each message the person sends. */
   onSend?: (text: string) => void
-  /** Shown in place of messages while there are none. */
-  emptyTitle?: string
   className?: string
 }
 
@@ -34,18 +32,12 @@ export function ChatThread({
   seed = SEED,
   attachments,
   onSend,
-  emptyTitle,
   className,
 }: ChatThreadProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(seed)
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
       <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4'>
-        {messages.length === 0 && emptyTitle && (
-          <h1 className='m-auto max-w-chat text-balance text-center font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em]'>
-            {emptyTitle}
-          </h1>
-        )}
         {messages.map((message, index) =>
           message.role === 'user' ? (
             <div

@@ -23,6 +23,7 @@ import {
 } from '@/app/playground/org/components/chat-resource-panel'
 import { type ChatMessage, ChatThread } from '@/app/playground/org/components/chat-thread'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
+import { HomeView } from '@/app/playground/org/components/home-view'
 import {
   isPanelKind,
   mentionedIn,
@@ -33,7 +34,7 @@ import {
   resolvePanelResource,
 } from '@/app/playground/org/lib/chat-resources'
 import { useProtoChats } from '@/app/playground/org/lib/chat-store'
-import { type Chat, PEOPLE, WORKSPACES, workspaceById } from '@/app/playground/org/lib/mock-data'
+import { type Chat, WORKSPACES, workspaceById } from '@/app/playground/org/lib/mock-data'
 import type { ProjectSection } from '@/app/playground/org/lib/routes'
 import { WORKSPACE_SECTIONS } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
@@ -289,19 +290,20 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
           </span>
           {chat.id === 'c15' && <RunningDot />}
         </header>
-        <ChatThread
-          placeholder={fresh ? 'Do anything' : 'Reply to Sim…'}
-          seed={fresh ? NO_MESSAGES : chat.id === 'c15' ? SEED : undefined}
-          emptyTitle={
-            fresh ? `What should we get done, ${PEOPLE.teddy.name.split(' ')[0]}?` : undefined
-          }
-          onSend={
-            fresh && chat.title === 'New chat'
-              ? (text) => renameChat(chat.id, truncate(text, 48))
-              : undefined
-          }
-          className='mx-auto w-full max-w-[760px]'
-        />
+        {chat.id === 'new' ? (
+          <HomeView />
+        ) : (
+          <ChatThread
+            placeholder={fresh ? 'Do anything' : 'Reply to Sim…'}
+            seed={fresh ? NO_MESSAGES : chat.id === 'c15' ? SEED : undefined}
+            onSend={
+              fresh && chat.title === 'New chat'
+                ? (text) => renameChat(chat.id, truncate(text, 48))
+                : undefined
+            }
+            className='mx-auto w-full max-w-[760px]'
+          />
+        )}
       </div>
     </ChatPanelLayout>
   )
