@@ -153,6 +153,7 @@ vi.mock('@/lib/function-execution/sandbox-mounts', () => ({
   }) => ({
     contributingFiles: mockMountContributors(),
     renderedContributingFiles: mockRenderedMountContributors(),
+    unprovenancedMountCount: mockMountContributors() ? 0 : planned.length,
     sandboxFiles: planned.map(({ mountPath }) => ({
       type: 'url' as const,
       path: mountPath,
@@ -2558,6 +2559,32 @@ describe('Function execution request', () => {
       expect(response.status).toBe(400)
       expect((await response.json()).error).toContain('workflow, and execution context')
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['a mount with no provenance source', true],
+      ['no mounts', false],
+    ] as const)('withholds workbench certification for %s', async (_label, mounted) => {
+      envFlagsMock.isMothershipSandboxEnabled = true
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'x',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          sandboxSessionKey: 'chat-session',
+          ...(mounted ? { contextVariables: { doc: MOUNT_REF } } : {}),
+        })
+      )
+      expect(response.status).toBe(200)
+      const session = mockExecuteInSandbox.mock.calls.at(-1)?.[0].session
+      expect(session.key).toBe('chat-session')
+      expect(session.unprovenancedInputs === true).toBe(mounted)
     })
 
     it('gives overlapping calls in one persistent workbench distinct automatic export directories', async () => {

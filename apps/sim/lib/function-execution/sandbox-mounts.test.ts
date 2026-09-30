@@ -214,6 +214,42 @@ describe('resolveUserFileMounts', () => {
     expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
   })
 
+  /**
+   * A persistent workbench certifies its machine from these counts: a mount whose bytes have no
+   * provenance source can hold resolved secret plaintext nobody recorded, so it must be reported.
+   */
+  it.each([
+    ['has no metadata record', null, 1],
+    ['has a canonical metadata record', 'recorded', 0],
+  ] as const)('reports a mounted file whose key %s', async (_label, metadata, expected) => {
+    const file = executionFile()
+    mockGetFileMetadataByKey.mockResolvedValue(
+      metadata
+        ? {
+            id: 'canonical-file-id',
+            key: file.key,
+            context: 'execution',
+            workspaceId: WORKSPACE_ID,
+            userId: 'user-1',
+            contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+          }
+        : null
+    )
+    const result = await resolveUserFileMounts({
+      planned: planUserFileMounts([file]),
+      context: { ...executionContext, principal: createSessionPrincipal() },
+    })
+    expect(result.unprovenancedMountCount).toBe(expected)
+  })
+
+  it('reports every mount as unprovenanced when no principal can bind its source', async () => {
+    const result = await resolveUserFileMounts({
+      planned: planUserFileMounts([executionFile()]),
+      context: executionContext,
+    })
+    expect(result.unprovenancedMountCount).toBe(1)
+  })
+
   it('preserves contributors introduced when an inline mount renders generated source', async () => {
     const contributor = {
       fileId: 'image-file',
