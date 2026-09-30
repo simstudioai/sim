@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Chip, ChipInput, cn } from '@sim/emcn'
 import { Globe, TerminalWindow } from '@sim/emcn/icons'
+import { BrowseRow, BrowseSection } from '@/app/playground/org/components/browse-rows'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import {
@@ -69,11 +70,11 @@ export function ChatResourcePanel({
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-4'>
       {mentionedIn(chatId).length > 0 && (
-        <Section label='Mentioned in this chat'>
+        <BrowseSection label='Mentioned in this chat'>
           {mentionedIn(chatId).map((resource) => {
             const Icon = panelKindConfig(resource.kind).icon
             return (
-              <Row key={panelResourceKey(resource)} onClick={() => onOpen(resource)}>
+              <BrowseRow key={panelResourceKey(resource)} onClick={() => onOpen(resource)}>
                 <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                 <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
                   {resource.name}
@@ -81,13 +82,13 @@ export function ChatResourcePanel({
                 {resource.status && (
                   <span className='text-[var(--text-muted)] text-caption'>{resource.status}</span>
                 )}
-              </Row>
+              </BrowseRow>
             )
           })}
-        </Section>
+        </BrowseSection>
       )}
       {project ? (
-        <Section
+        <BrowseSection
           label={`Browse ${project.name}`}
           trailing={
             <button
@@ -100,78 +101,43 @@ export function ChatResourcePanel({
           }
         >
           {PANEL_KINDS.map((kind) => (
-            <Row key={kind.id} onClick={() => onBrowse(project.id, kind.id)}>
+            <BrowseRow key={kind.id} onClick={() => onBrowse(project.id, kind.id)}>
               <kind.icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{kind.label}</span>
               <span className='text-[var(--text-muted)] text-caption'>
                 {resourcesOfKind(project, kind.id).length}
               </span>
-            </Row>
+            </BrowseRow>
           ))}
-          <Row onClick={onOpenBrowser}>
+          <BrowseRow onClick={onOpenBrowser}>
             <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
             <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
-          </Row>
-          <Row onClick={onOpenTerminal}>
+          </BrowseRow>
+          <BrowseRow onClick={onOpenTerminal}>
             <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
             <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
-          </Row>
-        </Section>
+          </BrowseRow>
+        </BrowseSection>
       ) : (
-        <Section label={`Browse ${ORGANIZATION.name}`}>
+        <BrowseSection label={`Browse ${ORGANIZATION.name}`}>
           {WORKSPACES.map((candidate) => (
-            <Row key={candidate.id} onClick={() => onBrowse(candidate.id, null)}>
+            <BrowseRow key={candidate.id} onClick={() => onBrowse(candidate.id, null)}>
               <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
                 {candidate.name}
               </span>
-            </Row>
+            </BrowseRow>
           ))}
-          <Row onClick={onOpenBrowser}>
+          <BrowseRow onClick={onOpenBrowser}>
             <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
             <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
-          </Row>
-          <Row onClick={onOpenTerminal}>
+          </BrowseRow>
+          <BrowseRow onClick={onOpenTerminal}>
             <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
             <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
-          </Row>
-        </Section>
+          </BrowseRow>
+        </BrowseSection>
       )}
     </div>
-  )
-}
-
-interface SectionProps {
-  label: string
-  trailing?: React.ReactNode
-  children: React.ReactNode
-}
-
-function Section({ label, trailing, children }: SectionProps) {
-  return (
-    <section className='flex flex-col gap-1'>
-      <div className='flex h-[24px] items-center justify-between px-2'>
-        <span className='text-[var(--text-muted)] text-caption'>{label}</span>
-        {trailing}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-interface RowProps {
-  onClick: () => void
-  children: React.ReactNode
-}
-
-function Row({ onClick, children }: RowProps) {
-  return (
-    <button
-      type='button'
-      onClick={onClick}
-      className='flex h-[30px] w-full items-center gap-2 rounded-lg px-2 text-left text-small transition-colors hover-hover:bg-[var(--surface-hover)]'
-    >
-      {children}
-    </button>
   )
 }
 

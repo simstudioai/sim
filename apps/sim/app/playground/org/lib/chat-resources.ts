@@ -22,7 +22,7 @@ const PANEL_KIND_IDS: readonly PanelKind[] = [
   'knowledge',
 ]
 
-function isPanelKind(id: string): id is PanelKind {
+export function isPanelKind(id: string): id is PanelKind {
   return (PANEL_KIND_IDS as readonly string[]).includes(id)
 }
 

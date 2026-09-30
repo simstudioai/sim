@@ -29,14 +29,22 @@ export const WORKSPACE_SECTIONS = [
 
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]['id']
 
+/** Tabs on the project page; every other section lives under Resources. */
+export const MAIN_SECTION_IDS: readonly WorkspaceSection[] = ['dashboard', 'changelog', 'issues']
+export const MAIN_SECTIONS = WORKSPACE_SECTIONS.filter((s) => MAIN_SECTION_IDS.includes(s.id))
+export const RESOURCE_SECTIONS = WORKSPACE_SECTIONS.filter((s) => !MAIN_SECTION_IDS.includes(s.id))
+
+/** A section of the project page, or the Resources tab listing the rest. */
+export type ProjectSection = WorkspaceSection | 'resources'
+
 export const protoRoutes = {
   home: PROTO_BASE,
   search: `${PROTO_BASE}/search`,
   connectors: `${PROTO_BASE}/connectors`,
   /** Every chat opens on its own page with the resource panel beside it; the page 404s an unknown id. */
   chat: (chatId: string) => `${PROTO_BASE}/chat/${chatId}`,
-  /** The project page: every section is a tab. */
-  workspace: (workspaceId: string, section: WorkspaceSection = 'dashboard') =>
+  /** The project page: dashboard, changelog, issues, and resources as tabs; a resource kind sits under Resources. */
+  workspace: (workspaceId: string, section: ProjectSection = 'dashboard') =>
     section === 'settings'
       ? protoRoutes.settings(workspaceId)
       : `${PROTO_BASE}/p/${workspaceId}/${section}`,
@@ -51,7 +59,7 @@ export type ProtoRoute =
   | { kind: 'search' }
   | { kind: 'connectors' }
   | { kind: 'chat'; chatId: string }
-  | { kind: 'workspace'; workspaceId: string; section: WorkspaceSection; settingsSection?: string }
+  | { kind: 'workspace'; workspaceId: string; section: ProjectSection; settingsSection?: string }
   | { kind: 'issue'; workspaceId: string; issueKey: string }
 
 export function parseProtoRoute(slug: string[] | undefined): ProtoRoute | null {
@@ -67,6 +75,7 @@ export function parseProtoRoute(slug: string[] | undefined): ProtoRoute | null {
       if (!SETTINGS_NAV.some((item) => item.id === settingsSection)) return null
       return { kind: 'workspace', workspaceId: a, section: 'settings', settingsSection }
     }
+    if (b === 'resources' && !c) return { kind: 'workspace', workspaceId: a, section: 'resources' }
     const section = WORKSPACE_SECTIONS.find((s) => s.id === (b ?? 'dashboard'))
     if (section && !c) return { kind: 'workspace', workspaceId: a, section: section.id }
   }
