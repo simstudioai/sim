@@ -2,11 +2,13 @@ import {
   apiClientRequestMock,
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 vi.mock('react', () => ({ useEffect: vi.fn() }))
+vi.mock('@sim/emcn', () => emcnMock)
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 

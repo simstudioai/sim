@@ -39,6 +39,8 @@ import {
   updateOrganizationAccountsContract,
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
@@ -49,9 +51,16 @@ import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
 
 export function useReconnectPersonalOrganizationAccount() {
+  const client = useQueryClient()
   return useMutation({
-    mutationFn: (credentialId: string) =>
-      requestJson(reconnectPersonalOrganizationAccountContract, { params: { credentialId } }),
+    mutationFn: async (credentialId: string) => {
+      if (isDesktopApp()) {
+        await connectDesktopSource({ kind: 'reconnect-account', credentialId })
+        return null
+      }
+      return requestJson(reconnectPersonalOrganizationAccountContract, { params: { credentialId } })
+    },
+    onSettled: () => refreshAccounts(client),
   })
 }
 
@@ -194,16 +203,32 @@ export function useUpdateOrganizationAccounts() {
   })
 }
 
+async function refreshAccounts(client: ReturnType<typeof useQueryClient>) {
+  await Promise.all([
+    client.invalidateQueries({ queryKey: organizationAccountsKeys.all }),
+    client.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+    client.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+    invalidateSelectorQueries(client),
+  ])
+}
+
 export function useConnectOrganizationAccount() {
+  const client = useQueryClient()
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       organizationId,
       ...body
-    }: { organizationId: string } & StartOrganizationAccountConnectionBody) =>
-      requestJson(startOrganizationAccountConnectionContract, {
+    }: { organizationId: string } & StartOrganizationAccountConnectionBody) => {
+      if (isDesktopApp()) {
+        await connectDesktopSource({ kind: 'organization-account', organizationId, body })
+        return null
+      }
+      return requestJson(startOrganizationAccountConnectionContract, {
         params: { id: organizationId },
         body,
-      }),
+      })
+    },
+    onSettled: () => refreshAccounts(client),
   })
 }
 
