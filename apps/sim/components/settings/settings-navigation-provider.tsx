@@ -30,6 +30,10 @@ interface SettingsNavigationState {
 
 const SettingsNavigationContext = createContext<SettingsNavigationState | null>(null)
 
+interface SettingsNavigationProviderProps {
+  children: ReactNode
+}
+
 /**
  * Shares an in-flight settings section navigation between the sidebar that starts it and the
  * content area that previews it.
@@ -40,7 +44,7 @@ const SettingsNavigationContext = createContext<SettingsNavigationState | null>(
  * settles — on commit, and equally when the server redirects back or the navigation fails — and
  * because it is state rather than a Suspense fallback, the incoming section is never held back.
  */
-export function SettingsNavigationProvider({ children }: { children: ReactNode }) {
+export function SettingsNavigationProvider({ children }: SettingsNavigationProviderProps) {
   const router = useRouter()
   const [pendingSection, setPendingSection] = useOptimistic<string | null>(null)
   const [, startTransition] = useTransition()

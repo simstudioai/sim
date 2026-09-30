@@ -114,7 +114,8 @@ export function ForkSyncDetailView({
       >
         <ForkSyncView
           controller={controller}
-          onDirectionChange={(next) => void setDirection(next)}
+          // A direction switch drops the in-session mapping choices, so unsaved edits confirm first.
+          onDirectionChange={(next) => guard.guardBack(() => void setDirection(next))}
         />
       </SettingsPanel>
 

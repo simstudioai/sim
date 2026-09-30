@@ -26,8 +26,8 @@ const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => stri
  * the shell instead of waiting on the body's lazily-loaded chunk.
  *
  * Whether a segment names a section at all is decided here too, before the shell renders, so a
- * bad or legacy URL loaded directly answers 404 or 307 without touching the database. Whether
- * the *viewer* may open a section is a different question and stays in the page, where it
+ * bad or legacy URL loaded directly answers 404 or 307 without running section authorization.
+ * Whether the *viewer* may open a section is a different question and stays in the page, where it
  * belongs; those checks need the database and are reached almost entirely by client navigation.
  *
  * There is deliberately no sibling `loading.tsx`, and the page renders its body under no Suspense
@@ -36,9 +36,9 @@ const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => stri
  * `<Suspense>` around the code-split body — put that floor under every section switch. Without
  * one, a switch is a transition: the sidebar moves its selection and the settings layout paints
  * the incoming heading over the outgoing section, which stays mounted but invisible until the
- * incoming section and its chunk are ready. A boundary above
- * this layout (a `settings/loading.tsx`, or a `<Suspense>` in the settings layout) would also
- * swallow the 404 and 307 above.
+ * incoming section and its chunk are ready. A boundary above this layout (a
+ * `settings/loading.tsx`, or a `<Suspense>` in the settings layout) would also swallow the 404
+ * and 307 above.
  *
  * Authentication is already enforced by the ancestor workspace layout, so this runs only for a
  * signed-in viewer.
