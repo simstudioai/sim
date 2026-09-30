@@ -71,14 +71,14 @@ describe('fork workflow-diff route', () => {
     })
     mocks.loadForkBlockMap.mockResolvedValue({ parentToChild: new Map(), childToParent: new Map() })
     mocks.loadSourceDeployedWorkflow.mockImplementation(async (_ws: string, id: string) =>
-      id === 'wf-src' ? { summary: { id, name: 'Ask Biz' }, state: emptyState } : null
+      id === 'wf-src' ? { summary: { id, name: 'Support Agent' }, state: emptyState } : null
     )
     mocks.resolveForkPlanItem.mockResolvedValue({
       sourceWorkflowId: 'wf-src',
       targetWorkflowId: 'wf-tgt',
       targetName: null,
       mode: 'create',
-      sourceMeta: { name: 'Ask Biz' },
+      sourceMeta: { name: 'Support Agent' },
     })
   })
 
@@ -138,8 +138,8 @@ describe('fork workflow-diff route', () => {
       targetWorkflowId: null,
       before: null,
       after: emptyState,
-      beforeLabel: 'Ask Biz (current)',
-      afterLabel: 'Ask Biz (deployed)',
+      beforeLabel: 'Support Agent (current)',
+      afterLabel: 'Support Agent (deployed)',
     })
   })
   it('maps a workflow whose target is excluded from sync to 404', async () => {
@@ -161,9 +161,9 @@ describe('fork workflow-diff route', () => {
     mocks.resolveForkPlanItem.mockResolvedValue({
       sourceWorkflowId: 'wf-src',
       targetWorkflowId: 'wf-tgt',
-      targetName: 'Ask Biz prod',
+      targetName: 'Support Agent prod',
       mode: 'replace',
-      sourceMeta: { name: 'Ask Biz' },
+      sourceMeta: { name: 'Support Agent' },
     })
     mocks.loadTargetDraftState.mockResolvedValue(targetState)
 
@@ -181,7 +181,7 @@ describe('fork workflow-diff route', () => {
     await expect(response.json()).resolves.toMatchObject({
       targetWorkflowId: 'wf-tgt',
       before: targetState,
-      beforeLabel: 'Ask Biz prod (current)',
+      beforeLabel: 'Support Agent prod (current)',
     })
   })
 })
