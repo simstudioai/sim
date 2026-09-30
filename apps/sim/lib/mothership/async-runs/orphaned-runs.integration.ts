@@ -4,7 +4,7 @@
  * use case are production code. A local HTTP server stands in for the worker's abort
  * endpoint.
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
@@ -68,8 +68,16 @@ function redis() {
   return client
 }
 
+/** The sweep's resume point lives in shared Redis; each test and the next suite start fresh. */
+async function resetSweepCursor() {
+  await getRedisClient()?.del('copilot:orphaned-runs:sweep-cursor')
+}
+
+beforeEach(resetSweepCursor)
+
 afterAll(async () => {
   chatPubSub?.dispose()
+  await resetSweepCursor()
   await closeRedisConnection()
   await new Promise<void>((resolve) => worker.server.close(() => resolve()))
   for (const [key, value] of Object.entries(inheritedEnv)) {

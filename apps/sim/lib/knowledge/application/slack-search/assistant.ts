@@ -3,7 +3,7 @@ import type {
   SlackInstallationPrincipal,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/billing-attribution'
@@ -318,20 +318,6 @@ export async function runSlackSearchAssistant(
     clearInterval(accessPoller)
     clearInterval(abortPoller)
     try {
-      if (runId) {
-        /** This turn admitted its own run, so it records the terminal status no other path will. */
-        const cancelled =
-          failed &&
-          (isExplicitStopReason(controller.signal.reason) ||
-            (await wasSlackSearchTurnStopped(turnId, leaseId)))
-        await updateRunStatus(runId, failed ? (cancelled ? 'cancelled' : 'error') : 'complete')
-      }
-    } catch (error) {
-      failure = failure
-        ? new AggregateError([failure, error], 'Slack turn run status could not be recorded')
-        : toError(error)
-    }
-    try {
       if (questionPersisted) {
         const stopped = failed && (await wasSlackSearchTurnStopped(turnId, leaseId))
         const terminalResult: OrchestratorResult = result ?? {
@@ -392,6 +378,31 @@ export async function runSlackSearchAssistant(
         ? new AggregateError([failure, error], 'Slack turn and history persistence failed')
         : toError(error)
     } finally {
+      if (runId) {
+        /**
+         * This turn admitted its own run, so it records the one terminal status no other
+         * path will, after its outcome and response were saved: any failure, including
+         * a failed save, ends it as an error unless its user stopped it.
+         */
+        let cancelled = failed && isExplicitStopReason(controller.signal.reason)
+        if (failed && !cancelled) {
+          try {
+            cancelled = await wasSlackSearchTurnStopped(turnId, leaseId)
+          } catch (error) {
+            logger.warn('Slack turn Stop could not be read; recording its run as an error', {
+              turnId,
+              error: getErrorMessage(error),
+            })
+          }
+        }
+        try {
+          await updateRunStatus(runId, !failure ? 'complete' : cancelled ? 'cancelled' : 'error')
+        } catch (error) {
+          failure = failure
+            ? new AggregateError([failure, error], 'Slack turn run status could not be recorded')
+            : toError(error)
+        }
+      }
       unregisterActiveStream(messageId)
       await releasePendingChatStream(chat.id, messageId)
       await cleanupAbortMarker(messageId)

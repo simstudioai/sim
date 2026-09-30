@@ -22,6 +22,8 @@ const hoisted = vi.hoisted(() => ({
   /** The turn's own controller, which a Stop aborts through its registered stream. */
   controller: new AbortController(),
   stopped: vi.fn(async () => false),
+  outcome: vi.fn(async () => undefined),
+  finalize: vi.fn(async () => ({ appendedAssistant: true })),
 }))
 vi.mock('@/lib/knowledge/application/slack-search/authorization', () => ({
   authorizeSlackSearchInstallation: async () => ({
@@ -46,7 +48,7 @@ vi.mock('@/lib/knowledge/application/operations', () => ({
   knowledgeOperations: { search: { organizationOperation: { id: 'knowledge.search' } } },
 }))
 vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
-  recordSlackSearchOutcome: async () => undefined,
+  recordSlackSearchOutcome: hoisted.outcome,
 }))
 vi.mock('@/lib/knowledge/application/slack-search/turns', () => ({
   requireSlackSearchTurnLease: async () => undefined,
@@ -64,7 +66,7 @@ vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
 }))
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/chat/terminal-state', () => ({
-  finalizeAssistantTurn: async () => ({ appendedAssistant: true }),
+  finalizeAssistantTurn: hoisted.finalize,
 }))
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
@@ -192,7 +194,16 @@ describe('Slack Assistant run record', () => {
 
   beforeEach(() => {
     hoisted.stopped.mockResolvedValue(false)
+    hoisted.outcome.mockResolvedValue(undefined)
+    hoisted.finalize.mockResolvedValue({ appendedAssistant: true })
   })
+
+  const answered = {
+    success: true,
+    content: 'Answer',
+    contentBlocks: [],
+    toolCalls: [],
+  }
 
   it('records a completed turn as complete', async () => {
     hoisted.lifecycle.mockResolvedValueOnce({
@@ -231,6 +242,42 @@ describe('Slack Assistant run record', () => {
       contentBlocks: [],
       toolCalls: [],
     })
+
+    const { run, outcome } = await slackTurn()
+
+    expect(outcome).toBeInstanceOf(Error)
+    expect(run.status).toBe('error')
+  })
+
+  it('records a failed turn as an error even when its Stop cannot be looked up', async () => {
+    hoisted.stopped.mockRejectedValue(new Error('database unavailable'))
+    hoisted.lifecycle.mockResolvedValueOnce({
+      success: false,
+      error: 'worker failed',
+      content: '',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+
+    const { run, outcome } = await slackTurn()
+
+    expect(outcome).toBeInstanceOf(Error)
+    expect(run.status).toBe('error')
+  })
+
+  it('records an answered turn as an error when its response is not saved', async () => {
+    hoisted.lifecycle.mockResolvedValueOnce(answered)
+    hoisted.finalize.mockResolvedValue({ appendedAssistant: false })
+
+    const { run, outcome } = await slackTurn()
+
+    expect(outcome).toBeInstanceOf(Error)
+    expect(run.status).toBe('error')
+  })
+
+  it('records an answered turn as an error when its outcome is not saved', async () => {
+    hoisted.lifecycle.mockResolvedValueOnce(answered)
+    hoisted.outcome.mockRejectedValueOnce(new Error('outcome write failed'))
 
     const { run, outcome } = await slackTurn()
 
