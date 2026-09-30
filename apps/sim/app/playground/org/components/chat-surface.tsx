@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import {
-  ChipTag,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,6 +15,7 @@ import {
 import { Download, Globe, Link, MoreHorizontal, Send, TerminalWindow, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryStates } from 'nuqs'
+import { AttachedResource } from '@/app/playground/org/components/attached-resource'
 import {
   ChatResourcePanel,
   type PanelView,
@@ -235,17 +235,6 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
         />
       </div>
     </ChatPanelLayout>
-  )
-}
-
-/** A resource attached to the message being written, as the real composer shows dropped context. */
-function AttachedResource({ resource }: { resource: PanelResource }) {
-  const Icon = panelKindConfig(resource.kind).icon
-  return (
-    <ChipTag variant='gray'>
-      <Icon className='size-[12px] text-[var(--text-icon)]' />
-      {resource.name}
-    </ChipTag>
   )
 }
 

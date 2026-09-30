@@ -16,6 +16,7 @@ import {
   X,
 } from '@sim/emcn/icons'
 import Link from 'next/link'
+import { useQueryStates } from 'nuqs'
 import { DelegateAvatar, delegateIcon } from '@/app/playground/org/components/delegate-avatar'
 import {
   AgentStateIcon,
@@ -43,6 +44,7 @@ import {
   type Workspace,
 } from '@/app/playground/org/lib/mock-data'
 import { protoRoutes } from '@/app/playground/org/lib/routes'
+import { protoParsers } from '@/app/playground/org/lib/search-params'
 
 const RESOURCE_ICONS = {
   table: Table,
@@ -65,6 +67,7 @@ export function IssuePage({ workspace, issue }: IssuePageProps) {
   const release = RELEASES.find((r) => r.id === issue.releaseId)
   const tickets = linkedTickets(issue)
   const chats = chatsForIssue(issue.key)
+  const [, setParams] = useQueryStates(protoParsers)
 
   return (
     <div className='relative flex h-full min-h-0 flex-col'>
@@ -74,17 +77,13 @@ export function IssuePage({ workspace, issue }: IssuePageProps) {
         </ChipLink>
         <span className='text-[var(--text-muted)] text-small'>/</span>
         <span className='min-w-0 flex-1 text-[var(--text-body)] text-small'>{issue.key}</span>
-        <ChipLink
-          href={protoRoutes.chatAbout({
-            kind: 'issues',
-            id: issue.key,
-            workspaceId: workspace.id,
-            name: issue.title,
-          })}
+        <Chip
           leftIcon={MessageSquareText}
-        >
-          Chat about this
-        </ChipLink>
+          aria-label='Chat about this'
+          onClick={() =>
+            void setParams({ chat: 'new', open: `issues:${workspace.id}:${issue.key}` })
+          }
+        />
       </header>
       {issue.agent?.state === 'error' && (
         <Banner

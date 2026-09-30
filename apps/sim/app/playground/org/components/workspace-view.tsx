@@ -1,15 +1,15 @@
 'use client'
 
-import { ChipLink, cn } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn'
 import { MessageSquareText } from '@sim/emcn/icons'
 import Link from 'next/link'
+import { useQueryStates } from 'nuqs'
 import { Changelog } from '@/app/playground/org/components/changelog'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import { ResourceKinds } from '@/app/playground/org/components/resource-kinds'
 import { ResourceSection } from '@/app/playground/org/components/resource-section'
-import { MOCK_DASHBOARDS } from '@/app/playground/org/lib/dashboards'
 import type { Workspace } from '@/app/playground/org/lib/mock-data'
 import {
   MAIN_SECTION_IDS,
@@ -17,6 +17,7 @@ import {
   type ProjectSection,
   protoRoutes,
 } from '@/app/playground/org/lib/routes'
+import { protoParsers } from '@/app/playground/org/lib/search-params'
 import { DEFAULT_SETTINGS_SECTION } from '@/app/playground/org/lib/settings-nav'
 
 const TABS = [
@@ -35,6 +36,7 @@ interface WorkspaceViewProps {
  * other kind underneath; opening one keeps the page and the tab, and swaps what is below.
  */
 export function WorkspaceView({ workspace, section, settingsSection }: WorkspaceViewProps) {
+  const [, setParams] = useQueryStates(protoParsers)
   const activeTab: ProjectSection = MAIN_SECTION_IDS.includes(section as never)
     ? section
     : 'resources'
@@ -43,24 +45,26 @@ export function WorkspaceView({ workspace, section, settingsSection }: Workspace
       <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
         <div className='flex items-start gap-3'>
           <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-            <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
-              {workspace.name}
-            </h1>
+            <div className='flex items-center gap-1.5'>
+              <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
+                {workspace.name}
+              </h1>
+              <Chip
+                leftIcon={MessageSquareText}
+                aria-label='Chat about this'
+                onClick={() =>
+                  void setParams({
+                    chat: 'new',
+                    open:
+                      section === 'dashboard' && workspace.dashboards[0]
+                        ? `dashboard:${workspace.id}:${workspace.dashboards[0]}`
+                        : null,
+                  })
+                }
+              />
+            </div>
             <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
           </div>
-          {section === 'dashboard' && workspace.dashboards[0] && (
-            <ChipLink
-              href={protoRoutes.chatAbout({
-                kind: 'dashboard',
-                id: workspace.dashboards[0],
-                workspaceId: workspace.id,
-                name: MOCK_DASHBOARDS[workspace.dashboards[0]].title,
-              })}
-              leftIcon={MessageSquareText}
-            >
-              Chat about this
-            </ChipLink>
-          )}
         </div>
         <nav
           aria-label='Project sections'

@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import { Chip, ChipTag } from '@sim/emcn'
 import { Database, Files, Integration, Library, Plus, Table, Workflow } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { isPanelKind } from '@/app/playground/org/lib/chat-resources'
 import { RESOURCES, type Workspace } from '@/app/playground/org/lib/mock-data'
-import { protoRoutes } from '@/app/playground/org/lib/routes'
+import { protoParsers } from '@/app/playground/org/lib/search-params'
 import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
 import {
   Resource,
@@ -47,7 +47,7 @@ interface ResourceSectionProps {
 
 /** The existing Resource list over static rows; opening a row starts a chat with it in a tab. */
 export function ResourceSection({ workspace, section }: ResourceSectionProps) {
-  const router = useRouter()
+  const [, setParams] = useQueryStates(protoParsers)
   const config = CONFIG[section]
   const [search, setSearch] = useState('')
   const Icon = config.icon
@@ -88,14 +88,7 @@ export function ResourceSection({ workspace, section }: ResourceSectionProps) {
             ? (id) => {
                 const item = RESOURCES[section].find((candidate) => candidate.id === id)
                 if (!item) throw new Error(`Unknown ${section} row ${id}`)
-                router.push(
-                  protoRoutes.chatAbout({
-                    kind: section,
-                    id,
-                    workspaceId: workspace.id,
-                    name: item.name,
-                  })
-                )
+                void setParams({ chat: 'new', open: `${section}:${workspace.id}:${id}` })
               }
             : undefined
         }
