@@ -59,6 +59,15 @@ const RING_CHECK_EVERY_BUSY_POLLS = 8
  */
 const MAX_STREAM_MS = 60 * 60 * 1000 - 60_000
 
+/**
+ * Whether ring events read after `cursor` start right after it. The ring can trim its
+ * head between a gap check and the read, and a read that starts later would silently
+ * skip part of the turn.
+ */
+function startsAfterCursor(events: readonly { seq: number }[], cursor: string): boolean {
+  return events.length === 0 || events[0].seq <= Number(cursor || '0') + 1
+}
+
 function extractCanonicalRequestId(value: unknown): string {
   return typeof value === 'string' && value.length > 0 ? value : ''
 }
@@ -253,8 +262,10 @@ async function handleResumeRequestBody({
         return []
       }),
     ])
-    // A reader the ring cannot serve is re-synced from the worker log by the live tail.
-    const batchEvents = fromLog || gap ? [] : events.map(toStreamBatchEvent)
+    // A reader the ring cannot serve, or whose next event it trimmed after the gap check,
+    // is re-synced from the worker log by the live tail.
+    const batchEvents =
+      fromLog || gap || !startsAfterCursor(events, afterSeq) ? [] : events.map(toStreamBatchEvent)
     logger.info('[Resume] Batch response', {
       streamId,
       afterCursor: afterSeq,
@@ -287,9 +298,12 @@ async function handleResumeRequestBody({
    * no shared position to join on. The header tells the client to rebuild the turn
    * from an empty response, since the replay's cursors restart at 1.
    */
-  const gap = fromLog
+  const ringGap = fromLog
     ? null
     : await findReplayGap(streamId, afterCursor || '0', extractRunRequestId(run))
+  // A finished run whose buffer expired answers its terminal; its transcript is persisted.
+  const gap =
+    ringGap && !(ringGap.latestSeq <= 0 && isTerminalStreamStatus(run.status)) ? ringGap : null
   const resyncFromLog = fromLog || gap !== null
   let replayBody: ReadableStream<Uint8Array> | null = null
   /** Releases the worker's replay once this response ends; the request signal may never fire. */
@@ -380,8 +394,13 @@ async function handleResumeRequestBody({
     }
     request.signal.addEventListener('abort', abortListener, { once: true })
 
-    const flushEvents = async (): Promise<number> => {
+    /** Delivers the ring's events after the cursor, or returns null if it trimmed the next one. */
+    const flushEvents = async (): Promise<number | null> => {
       const events = await readEvents(streamId, cursor)
+      if (!startsAfterCursor(events, cursor)) {
+        logger.warn('Replay ring trimmed past a reader cursor', { streamId, cursor })
+        return null
+      }
       if (events.length > 0) {
         logger.debug('[Resume] Flushing events', {
           streamId,
@@ -482,6 +501,7 @@ async function handleResumeRequestBody({
       }
 
       let lastFlushed = await flushEvents()
+      if (lastFlushed === null) return
 
       let pollDelayMs = POLL_INTERVAL_MS
       while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
@@ -493,14 +513,6 @@ async function handleResumeRequestBody({
           })
           return null
         })
-        // The ring lost its head or restarted under this tail; the re-attach re-syncs. Only a
-        // quiet ring can have restarted or have a dead controller that recovery re-sends
-        // under, so a busy tail checks every few polls rather than on each one.
-        const checkRing = lastFlushed === 0 || pollIterations % RING_CHECK_EVERY_BUSY_POLLS === 0
-        if (checkRing && !ringCanServe(await readRingPosition(streamId, cursor))) {
-          logger.warn('Replay ring can no longer serve a live tail', { streamId, cursor })
-          break
-        }
         if (!currentRun) {
           emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
             message: 'The stream could not be recovered because its run metadata is unavailable.',
@@ -509,10 +521,23 @@ async function handleResumeRequestBody({
           })
           break
         }
+        // The ring lost its head, restarted or expired under this live tail; the re-attach
+        // re-syncs, and a finished run answers its terminal instead. Only a quiet ring can
+        // restart or be re-sent into by a recovery, so a busy tail checks every few polls.
+        const checkRing = lastFlushed === 0 || pollIterations % RING_CHECK_EVERY_BUSY_POLLS === 0
+        if (
+          checkRing &&
+          !isTerminalStreamStatus(currentRun.status) &&
+          !ringCanServe(await readRingPosition(streamId, cursor))
+        ) {
+          logger.warn('Replay ring can no longer serve a live tail', { streamId, cursor })
+          break
+        }
 
         currentRequestId = extractRunRequestId(currentRun) || currentRequestId
 
         const flushed = await flushEvents()
+        if (flushed === null) break
         lastFlushed = flushed
         /* Adaptive tail: 4 Hz only while events are actually flowing; a quiet stream
            decays toward the cap so an attached client doesn't hammer Postgres + Redis

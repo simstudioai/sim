@@ -52,10 +52,11 @@ export async function readRingPosition(
  * head: the events before its oldest are gone, and a cursor that was served from the
  * worker's log instead is not a position in the ring, so no cursor is trusted. Nor can
  * it serve a cursor ahead of its latest event, which only a buffer whose numbering
- * restarted after it expired produces.
+ * restarted after it expired produces, nor any cursor from a buffer that expired.
  */
 export function ringCanServe({ requestedAfterSeq, oldestSeq, latestSeq }: RingPosition): boolean {
-  return latestSeq <= 0 || (startsAtReplayHead(oldestSeq) && requestedAfterSeq <= latestSeq)
+  if (latestSeq <= 0) return requestedAfterSeq <= 0
+  return startsAtReplayHead(oldestSeq) && requestedAfterSeq <= latestSeq
 }
 
 /** The ring's position when it cannot serve `afterCursor` (see {@link ringCanServe}). */

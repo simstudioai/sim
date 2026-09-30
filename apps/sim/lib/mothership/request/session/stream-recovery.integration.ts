@@ -175,6 +175,15 @@ async function assistantMessages(chatId: string) {
   return rows.map((row) => toRecord(row.content)).filter((message) => message.role === 'assistant')
 }
 
+/** Runs whether or not the suite does, so a skipped suite never leaks the worker or env. */
+afterAll(async () => {
+  await new Promise<void>((resolve) => worker.server.close(() => resolve()))
+  for (const [key, value] of Object.entries(inheritedEnv)) {
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+})
+
 describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', () => {
   beforeAll(async () => {
     const now = new Date()
@@ -215,11 +224,6 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
     await db.delete(workspace).where(eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await closeRedisConnection()
-    await new Promise<void>((resolve) => worker.server.close(() => resolve()))
-    for (const [key, value] of Object.entries(inheritedEnv)) {
-      if (value === undefined) delete process.env[key]
-      else process.env[key] = value
-    }
   })
 
   it('recovers from an empty context and persists the whole turn once', async () => {

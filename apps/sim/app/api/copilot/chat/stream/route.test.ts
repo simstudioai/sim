@@ -219,4 +219,54 @@ describe('copilot chat stream replay route', () => {
     )
     trace.disable()
   })
+
+  it('never delivers a ring read that starts past the reader cursor, and ends without a terminal', async () => {
+    getLatestRunForStream.mockResolvedValue({
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
+    readEvents.mockResolvedValue([
+      {
+        stream: { streamId: 'stream-1', cursor: '5' },
+        seq: 5,
+        trace: { requestId: 'req-1' },
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: 'assistant', text: 'the middle of the turn' },
+      },
+    ])
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+    )
+    const text = (await readAllChunks(response)).join('')
+
+    expect(text).not.toContain('the middle of the turn')
+    expect(text).not.toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
+  })
+
+  it('serves a batch read that starts past the reader cursor no events', async () => {
+    getLatestRunForStream.mockResolvedValue({
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
+    readEvents.mockResolvedValue([
+      {
+        stream: { streamId: 'stream-1', cursor: '5' },
+        seq: 5,
+        trace: { requestId: 'req-1' },
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: 'assistant', text: 'the middle of the turn' },
+      },
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0&batch=true'
+      )
+    )
+
+    await expect(response.json()).resolves.toMatchObject({ success: true, events: [] })
+  })
 })

@@ -134,6 +134,15 @@ function fullResponse(streamId: string) {
   ]
 }
 
+/** Runs whether or not the suite does, so a skipped suite never leaks the worker or env. */
+afterAll(async () => {
+  await new Promise<void>((resolve) => worker.server.close(() => resolve()))
+  for (const [key, value] of Object.entries(inheritedEnv)) {
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+})
+
 describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
   beforeAll(async () => {
     const now = new Date()
@@ -177,11 +186,6 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
     await db.delete(workspace).where(eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await closeRedisConnection()
-    await new Promise<void>((resolve) => worker.server.close(() => resolve()))
-    for (const [key, value] of Object.entries(inheritedEnv)) {
-      if (value === undefined) delete process.env[key]
-      else process.env[key] = value
-    }
   })
 
   it.each([
@@ -373,6 +377,47 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
 
     expect(frames.map((frame) => frame.type)).not.toContain('complete')
     expect(response.headers.get(MOTHERSHIP_STREAM_REPLAY_HEADER)).toBeNull()
+  })
+
+  it('re-syncs a live run whose buffer expired under a reader cursor', async () => {
+    const streamId = generateId()
+    await db.insert(copilotRuns).values({
+      id: generateId(),
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+    })
+    worker.reply.frames = fullResponse(streamId)
+
+    const response = await reconnect(streamId, '6')
+    const frames = dataFrames(await response.text())
+
+    expect(response.headers.get(MOTHERSHIP_STREAM_REPLAY_HEADER)).toBe('log')
+    expect(frames.map((frame) => frame.type)).toEqual(['session', 'text', 'complete'])
+  })
+
+  it('answers a finished run whose buffer expired with its terminal, not a replay', async () => {
+    const streamId = generateId()
+    await db.insert(copilotRuns).values({
+      id: generateId(),
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+      status: 'complete',
+    })
+
+    const response = await reconnect(streamId, '6')
+    const frames = dataFrames(await response.text())
+
+    expect(response.headers.get(MOTHERSHIP_STREAM_REPLAY_HEADER)).toBeNull()
+    expect(frames.map((frame) => [frame.type, frame.payload.status])).toEqual([
+      ['complete', 'complete'],
+    ])
+    expect(worker.requests).toEqual([])
   })
 
   it('serves no ring events to a batch read the ring can no longer serve', async () => {

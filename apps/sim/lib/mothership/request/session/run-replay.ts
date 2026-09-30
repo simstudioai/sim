@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { z } from 'zod'
+import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { type StreamReplayEnd, StreamReplayRequest } from '@/lib/mothership/generated/protocol'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
@@ -52,13 +53,18 @@ export async function openRunReplay(params: {
 }): Promise<ReadableStream<Uint8Array> | null> {
   const { streamId, chatId, userId, signal } = params
   const baseUrl = await getMothershipBaseURL({ userId })
+  const unanswered = new AbortController()
+  const headersTimer = setTimeout(
+    () => unanswered.abort(new Error('The worker did not answer the replay request')),
+    WORKER_STREAM_IDLE_TIMEOUT_MS
+  )
   let response: Response
   try {
     response = await fetchGo(`${baseUrl}${REPLAY_PATH}`, {
       method: 'POST',
       headers: mothershipRequestHeaders(),
       body: JSON.stringify(StreamReplayRequest.parse({ streamId, chatId, userId })),
-      signal,
+      signal: AbortSignal.any([signal, unanswered.signal]),
       spanName: `sim → go ${REPLAY_PATH}`,
       operation: 'stream_replay',
       attributes: { [TraceAttr.StreamId]: streamId, [TraceAttr.ChatId]: chatId },
@@ -66,6 +72,8 @@ export async function openRunReplay(params: {
   } catch (error) {
     if (signal.aborted) throw error
     throw new RunReplayUnavailableError('The run replay could not be reached', { cause: error })
+  } finally {
+    clearTimeout(headersTimer)
   }
   if (REPLAY_REFUSED_STATUSES.has(response.status)) {
     await response.body?.cancel().catch(() => {})
@@ -76,6 +84,36 @@ export async function openRunReplay(params: {
     throw new RunReplayUnavailableError(`The run replay failed with status ${response.status}`)
   }
   return response.body
+}
+
+/**
+ * A replay reader that ends, as a cut connection does, once the worker sends nothing,
+ * not even a keepalive, for {@link WORKER_STREAM_IDLE_TIMEOUT_MS}.
+ */
+function idleBoundedReader(
+  reader: ReadableStreamDefaultReader<Uint8Array>
+): ReadableStreamDefaultReader<Uint8Array> {
+  return {
+    async read() {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const silent = new Promise<ReadableStreamReadResult<Uint8Array>>((resolve) => {
+        timer = setTimeout(() => {
+          reader.cancel().catch(() => {})
+          resolve({ done: true, value: undefined })
+        }, WORKER_STREAM_IDLE_TIMEOUT_MS)
+      })
+      try {
+        return await Promise.race([reader.read(), silent])
+      } finally {
+        clearTimeout(timer)
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+    releaseLock: () => reader.releaseLock(),
+    get closed() {
+      return reader.closed
+    },
+  }
 }
 
 /** Every reason the worker may end a replay with; a reason added to the contract fails here. */
@@ -121,7 +159,7 @@ async function readRunReplay(
   onEvent: (event: PersistedStreamEventEnvelope) => boolean
 ): Promise<RunReplayEnd> {
   let end: RunReplayEnd = 'closed'
-  await processSSEStream(body.getReader(), signal, (raw) => {
+  await processSSEStream(idleBoundedReader(body.getReader()), signal, (raw) => {
     const control = replayEnd(raw)
     if (control) {
       end = control

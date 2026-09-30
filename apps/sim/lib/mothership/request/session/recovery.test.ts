@@ -12,7 +12,11 @@ vi.mock('./buffer', () => ({
   readEvents,
 }))
 
-import { findReplayGap, replayGapTerminal } from '@/lib/mothership/request/session/recovery'
+import {
+  findReplayGap,
+  replayGapTerminal,
+  ringCanServe,
+} from '@/lib/mothership/request/session/recovery'
 
 describe('replay gap', () => {
   it('uses the latest buffered request id when run metadata is missing it', async () => {
@@ -32,5 +36,10 @@ describe('replay gap', () => {
     expect(result?.gapDetected).toBe(true)
     expect(result?.envelopes[0].trace.requestId).toBe('req-live-123')
     expect(result?.envelopes[1].trace.requestId).toBe('req-live-123')
+  })
+
+  it('cannot serve a reader that holds a cursor from an empty ring', () => {
+    expect(ringCanServe({ requestedAfterSeq: 12, oldestSeq: 0, latestSeq: 0 })).toBe(false)
+    expect(ringCanServe({ requestedAfterSeq: 0, oldestSeq: 0, latestSeq: 0 })).toBe(true)
   })
 })
