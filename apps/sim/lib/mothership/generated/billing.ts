@@ -81,10 +81,13 @@ export const BillingCallbackResult = z.object({
   usageUpgrade: UsageUpgrade.optional().catch(undefined),
 });
 
-/** A continuation refused for the usage limit. A body-less 402 is a blocked account instead. */
+/**
+ * A continuation refused for the usage limit. A body-less 402 is a blocked account instead.
+ * The code decides; a malformed card falls back to the default one.
+ */
 export const UsageLimitRefusal = z.object({
   code: z.literal("USAGE_LIMIT_EXCEEDED"),
-  usageUpgrade: UsageUpgrade,
+  usageUpgrade: UsageUpgrade.optional().catch(undefined),
 });
 export const BillingDuplicateCode = "DUPLICATE_BILLING_EVENT";
 
