@@ -575,6 +575,16 @@ export const GENERATED_SCHEMA_TABLES = {
     'deletedAt',
     'uploadedAt',
   ],
+  dashboard: [
+    'id',
+    'workspaceId',
+    'content',
+    'revision',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ],
   workspaceFiles: [
     'id',
     'key',

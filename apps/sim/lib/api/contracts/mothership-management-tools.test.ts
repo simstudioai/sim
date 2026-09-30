@@ -32,6 +32,11 @@ const examples = {
     { action: 'setup', connectorType: 'google_drive', accessMode: 'admin' },
     { action: 'approve', connectorType: 'google_drive', approved: true },
   ],
+  dashboards: [
+    { action: 'get' },
+    { action: 'set', content: 'title: Support\nblocks: []' },
+    { action: 'set', content: 'title: Support', expectedRevision: 'r1' },
+  ],
 }
 
 describe('management tool provider contract', () => {

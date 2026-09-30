@@ -758,6 +758,14 @@ export const v2ListFilesContract = defineRouteContract({
   },
 })
 
+export const v2CreatedFileSchema = v2FileSchema
+  .extend({ revision: writtenFileRevisionSchema })
+  .meta({
+    id: 'V2CreatedFile',
+    title: 'Created file',
+    description: 'A newly created workspace file, with the revision it produced.',
+  })
+
 export const v2CreateFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files',
@@ -765,7 +773,7 @@ export const v2CreateFileContract = defineRouteContract({
   body: v2CreateFileBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
+    schema: v2DataResponse(v2CreatedFileSchema),
     status: 201,
   },
 })

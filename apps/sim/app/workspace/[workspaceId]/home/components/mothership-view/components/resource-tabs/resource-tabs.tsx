@@ -203,7 +203,7 @@ function useResourceNameLookup(
           map.set(`workflow:${workflow.id}`, workflow.name)
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
+    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
