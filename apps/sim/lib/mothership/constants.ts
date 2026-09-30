@@ -14,9 +14,9 @@ export const SIM_AGENT_API_URL =
  * How long a worker SSE leg may stay silent before Sim treats the connection as
  * lost and re-attaches. The worker writes a keepalive comment whenever a leg has
  * been quiet for 10 s (checked every 15 s), independent of model or tool progress,
- * so a healthy leg is never silent for more than about 25 s. This must stay under
- * the NAT's fixed 350 s idle timeout, which drops a silent connection without
- * closing it.
+ * so a healthy leg is never silent for more than about 25 s. It stays well under
+ * the idle timeouts of network intermediaries, which can drop a silent connection
+ * without closing it.
  */
 export const WORKER_STREAM_IDLE_TIMEOUT_MS = 120_000
 

@@ -2,8 +2,9 @@ import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/au
 import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 
 /**
- * Delegated authority is minted per operation, so it must outlive the longest
- * single tool call it authorizes, never the whole run.
+ * Delegated authority is minted per operation and must outlive the longest single
+ * tool call it authorizes, never the whole run, so it reuses the long-running tool
+ * watchdog's cap rather than a lifetime of its own.
  */
 export const COPILOT_APPLICATION_DELEGATION_TTL_MS = TOOL_WATCHDOG_LONG_RUNNING_MS
 

@@ -1027,7 +1027,8 @@ describe('copilot go stream helpers', () => {
   })
 
   describe('worker stream liveness without a caller deadline', () => {
-    const NAT_IDLE_MS = 350_000
+    /** Well past the idle timeout, and under common intermediary idle cuts. */
+    const INTERMEDIARY_IDLE_MS = 300_000
     const encoder = new TextEncoder()
     const frame = (event: unknown) => encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
     const firstText = createEvent({
@@ -1112,7 +1113,7 @@ describe('copilot go stream helpers', () => {
       expect(context.streamComplete).toBe(true)
     })
 
-    it('fails a silent leg as a retryable interruption before the NAT drops it', async () => {
+    it('fails a silent leg as a retryable interruption before an intermediary drops it', async () => {
       vi.useFakeTimers()
       vi.mocked(fetch).mockResolvedValueOnce(
         new Response(
@@ -1136,13 +1137,13 @@ describe('copilot go stream helpers', () => {
 
       await vi.advanceTimersByTimeAsync(60_000)
       expect(state.done).toBe(false)
-      await vi.advanceTimersByTimeAsync(NAT_IDLE_MS - 60_000)
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS - 60_000)
 
       expect(state.done).toBe(true)
       expect(state.error).toBeInstanceOf(WorkerStreamInterruptedError)
     })
 
-    it('fails a worker that never answers as unreachable before the NAT drops it', async () => {
+    it('fails a worker that never answers as unreachable before an intermediary drops it', async () => {
       vi.useFakeTimers()
       vi.mocked(fetch).mockImplementationOnce(
         (_url, options) =>
@@ -1163,7 +1164,7 @@ describe('copilot go stream helpers', () => {
         )
       )
 
-      await vi.advanceTimersByTimeAsync(NAT_IDLE_MS)
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS)
 
       expect(state.done).toBe(true)
       expect(state.error).toBeInstanceOf(WorkerUnreachableError)

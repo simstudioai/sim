@@ -42,6 +42,11 @@ function getAbortKey(streamId: string) {
   return `${STREAM_OUTBOX_PREFIX}${streamId}:abort`
 }
 
+/** Marks a stream whose cleanup is scheduled, so a late heartbeat cannot revive it. */
+function getClosedKey(streamId: string) {
+  return `${STREAM_OUTBOX_PREFIX}${streamId}:closed`
+}
+
 export type StreamConfig = {
   ttlSeconds: number
   eventLimit: number
@@ -127,23 +132,46 @@ export async function clearBuffer(streamId: string, operation = 'clear_outbox'):
       getEventsKey(streamId),
       getSeqKey(streamId),
       getAbortKey(streamId),
+      getClosedKey(streamId),
       ownerBudgetKey
     )
   })
 }
 
 /**
- * Slides a live stream's replay TTLs without an append. The TTLs otherwise move only
- * when an event lands, so a run parked on a long tool call or approval would lose its
- * replay history and restart its numbering while it is still running.
+ * KEYS: [events, seq, ownerBudget, closed]
+ * ARGV: [ttlSeconds, budgetTtlSeconds]
+ */
+const REFRESH_BUFFER_TTL_SCRIPT = `
+if redis.call('EXISTS', KEYS[4]) == 1 then return 0 end
+redis.call('EXPIRE', KEYS[1], ARGV[1])
+redis.call('EXPIRE', KEYS[2], ARGV[1])
+redis.call('EXPIRE', KEYS[3], ARGV[2])
+return 1
+`
+
+/**
+ * Slides a live stream's replay TTLs, and its byte counter's, without an append. They
+ * otherwise move only when an event lands, so a run parked on a long tool call or
+ * approval would lose its replay history and restart its numbering while it still
+ * runs, or keep its history after the counter that accounts for it expired. A stream
+ * whose cleanup is already scheduled is left to expire.
  */
 export async function refreshBufferTtl(streamId: string): Promise<void> {
   const { ttlSeconds } = getStreamConfig()
+  const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
+  const budgetTtlSeconds = Math.max(getRedisBudgetLimits('copilot_stream').ttlSeconds, ttlSeconds)
   await withRedisRetry({ operation: 'refresh_outbox_ttl', streamId }, async (redis) => {
-    const pipeline = redis.pipeline()
-    pipeline.expire(getEventsKey(streamId), ttlSeconds)
-    pipeline.expire(getSeqKey(streamId), ttlSeconds)
-    await pipeline.exec()
+    await redis.eval(
+      REFRESH_BUFFER_TTL_SCRIPT,
+      4,
+      getEventsKey(streamId),
+      getSeqKey(streamId),
+      ownerBudgetKey,
+      getClosedKey(streamId),
+      ttlSeconds,
+      budgetTtlSeconds
+    )
   })
 }
 
@@ -157,6 +185,7 @@ export async function scheduleBufferCleanup(
       pipeline.expire(getEventsKey(streamId), ttlSeconds)
       pipeline.expire(getSeqKey(streamId), ttlSeconds)
       pipeline.expire(getAbortKey(streamId), ttlSeconds)
+      pipeline.set(getClosedKey(streamId), '1', 'EX', ttlSeconds)
       await pipeline.exec()
     })
   } catch (error) {
