@@ -23,7 +23,10 @@ selected KBs have no remaining chunks or unretired documents and index maintenan
 On upgrading a legacy single-KB checkpoint, the snapshot and cursor reset commit atomically. The
 scan starts at the beginning once so it includes other KBs behind the old cursor; previous deletes
 remain committed. Maintenance checkpoints also reset once because the expanded cleanup creates new
-dead entries. Subsequent retries resume the saved scope, phase, cursor and maintenance checkpoints.
+dead entries. A completed legacy checkpoint does not require its former KB to still exist or remain
+Search-marked; the new snapshot selects current Search KBs and preserves any KB now marked ordinary.
+An unfinished legacy checkpoint still requires its target to remain Search-marked. Subsequent retries
+resume the saved scope, phase, cursor and maintenance checkpoints.
 The existing maintenance implementation rebuilds HNSW indexes and vacuums affected tables before
 deployment continues.
 
@@ -62,7 +65,10 @@ updated. Each page locks and rechecks the Search markers for its target KBs befo
 fails atomically if any target changed to an ordinary KB. This avoids a separate full-table scan
 per KB or sorting a whole KB when no suitable composite cleanup index exists. Resumption continues the saved scan, including across pages containing only
 unrelated rows. Before completion, the cleanup checks for unretired documents and remaining chunks
-behind either cursor and restarts the affected phase if needed. Keep target writers stopped and
+behind either cursor and restarts the affected phase if needed. A final bounded pass validates all
+captured KB markers, including empty KBs and KBs whose rows were already scanned, holding shared
+marker locks until the completion checkpoint commits. Resuming a completed cleanup before maintenance
+also revalidates the captured set. Keep target writers stopped and
 do not change their Search markers during the pass.
 
 Inspect progress with:

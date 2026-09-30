@@ -2,7 +2,7 @@ import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { retryOnLockTimeout } from '@sim/db/scripts/lock-timeout-retry'
 import { createLogger } from '@sim/logger'
-import postgres, { type Sql } from 'postgres'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
 
 const logger = createLogger('RetireSearchEmbeddings')
 const BATCH_SIZE = 25_000
@@ -34,7 +34,7 @@ export const retireSearchEmbeddingsMigration: ScriptMigration = {
       const [snapshot] =
         await tx`SELECT to_regclass('search_embedding_cleanup_targets') AS relation`
       if (snapshot.relation) return Boolean(existing)
-      if (existing) {
+      if (existing && existing.phase !== 'done') {
         const [target] = await tx`SELECT id FROM knowledge_base
           WHERE id = ${existing.knowledge_base_id} AND is_search_index FOR SHARE`
         if (!target) throw new Error('Cleanup target is no longer a Search knowledge base')
@@ -62,8 +62,9 @@ export const retireSearchEmbeddingsMigration: ScriptMigration = {
         ADD COLUMN IF NOT EXISTS reindexed_through text NOT NULL DEFAULT '',
         ADD COLUMN IF NOT EXISTS vacuumed_tables integer NOT NULL DEFAULT 0`
       await tx`INSERT INTO search_embedding_cleanup_progress (id, knowledge_base_id, phase, after_id)
-        VALUES (1, ${existing?.knowledge_base_id ?? first.knowledge_base_id}, 'documents', '')
-        ON CONFLICT (id) DO UPDATE SET phase = 'documents', after_id = '',
+        VALUES (1, ${first.knowledge_base_id}, 'documents', '')
+        ON CONFLICT (id) DO UPDATE SET knowledge_base_id = EXCLUDED.knowledge_base_id,
+          phase = 'documents', after_id = '',
           reindexed_through = '', vacuumed_tables = 0`
       return true
     })
@@ -95,7 +96,10 @@ async function retirePage(sql: Sql): Promise<boolean> {
         await tx`SET LOCAL lock_timeout = '1s'`
         const [progress] = await tx<Progress[]>`
           SELECT knowledge_base_id, phase, after_id FROM search_embedding_cleanup_progress WHERE id = 1 FOR UPDATE`
-        if (progress.phase === 'done') return true
+        if (progress.phase === 'done') {
+          await validateTargetMarkers(tx)
+          return true
+        }
 
         if (progress.phase === 'documents') {
           const [page] = await tx<{ after_id: string | null; invalid_target: boolean }[]>`
@@ -179,6 +183,7 @@ async function retirePage(sql: Sql): Promise<boolean> {
             await tx`UPDATE search_embedding_cleanup_progress SET after_id = '' WHERE id = 1`
             return false
           }
+          await validateTargetMarkers(tx)
           await tx`UPDATE search_embedding_cleanup_progress SET phase = 'done' WHERE id = 1`
           return true
         }
@@ -195,6 +200,27 @@ async function retirePage(sql: Sql): Promise<boolean> {
         }),
     }
   )
+}
+
+/** Validate even empty or fully scanned KBs, holding marker locks until completion commits. */
+async function validateTargetMarkers(tx: TransactionSql): Promise<void> {
+  let afterId = ''
+  for (;;) {
+    const [page] = await tx<{ after_id: string | null; invalid_target: boolean }[]>`
+      WITH target_page AS MATERIALIZED (
+        SELECT knowledge_base_id FROM search_embedding_cleanup_targets
+        WHERE knowledge_base_id > ${afterId} ORDER BY knowledge_base_id LIMIT ${BATCH_SIZE}
+      ), locked_targets AS MATERIALIZED (
+        SELECT kb.id, kb.is_search_index FROM knowledge_base kb
+        WHERE kb.id IN (SELECT knowledge_base_id FROM target_page)
+        ORDER BY kb.id FOR SHARE OF kb
+      ) SELECT max(p.knowledge_base_id) AS after_id,
+          coalesce(bool_or(kb.id IS NULL OR NOT kb.is_search_index), false) AS invalid_target
+        FROM target_page p LEFT JOIN locked_targets kb ON kb.id = p.knowledge_base_id`
+    if (page.invalid_target) throw new Error('Cleanup target is no longer a Search knowledge base')
+    if (page.after_id === null) return
+    afterId = page.after_id
+  }
 }
 
 /** The standalone entry resumes the deployment cursor and journals only a completed retirement. */

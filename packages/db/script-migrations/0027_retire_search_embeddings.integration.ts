@@ -127,14 +127,23 @@ describe('retiring dormant Search embeddings', () => {
     expect(await pass()).toBe(true)
   })
 
-  it.each(['documents', 'embeddings', 'done'] as const)(
-    'upgrades a legacy %s checkpoint and cleans every Search KB before maintenance',
-    async (phase) => {
-      await sql`INSERT INTO knowledge_base VALUES ('second-search', true)`
-      await sql`INSERT INTO document (id, knowledge_base_id)
-        VALUES ('aaa-second-doc', 'second-search')`
-      await sql`INSERT INTO embedding VALUES ('00000', 'second-search', 'aaa-second-doc')`
-      await sql`INSERT INTO embedding_search (id) VALUES ('00000')`
+  it.each([
+    { phase: 'documents', legacy: 'present', otherSearch: true },
+    { phase: 'embeddings', legacy: 'present', otherSearch: true },
+    { phase: 'done', legacy: 'present', otherSearch: true },
+    { phase: 'done', legacy: 'deleted', otherSearch: true },
+    { phase: 'done', legacy: 'ordinary', otherSearch: true },
+    { phase: 'done', legacy: 'deleted', otherSearch: false },
+  ] as const)(
+    'upgrades a legacy $phase checkpoint with a $legacy KB (other Search KBs: $otherSearch)',
+    async ({ phase, legacy, otherSearch }) => {
+      if (otherSearch) {
+        await sql`INSERT INTO knowledge_base VALUES ('second-search', true)`
+        await sql`INSERT INTO document (id, knowledge_base_id)
+          VALUES ('aaa-second-doc', 'second-search')`
+        await sql`INSERT INTO embedding VALUES ('00000', 'second-search', 'aaa-second-doc')`
+        await sql`INSERT INTO embedding_search (id) VALUES ('00000')`
+      }
       await sql`UPDATE document SET user_excluded = true, enabled = false,
         processing_queue_token = NULL WHERE knowledge_base_id = 'search'`
       await sql`CREATE TABLE search_embedding_cleanup_progress (
@@ -155,6 +164,16 @@ describe('retiring dormant Search embeddings', () => {
         await sql`INSERT INTO script_migrations (name)
           VALUES ('0027_retire_search_embeddings'), ('0028_maintain_search_retirement')`
       }
+      if (legacy === 'deleted') {
+        await sql`DELETE FROM document WHERE knowledge_base_id = 'search'`
+        await sql`DELETE FROM knowledge_base WHERE id = 'search'`
+      } else if (legacy === 'ordinary') {
+        await sql`UPDATE knowledge_base SET is_search_index = false WHERE id = 'search'`
+        await sql`UPDATE document SET user_excluded = false, enabled = true,
+          processing_queue_token = 'keep-dispatch' WHERE id = 'search-doc'`
+        await sql`INSERT INTO embedding VALUES ('new-ordinary-chunk', 'search', 'search-doc')`
+        await sql`INSERT INTO embedding_search (id) VALUES ('new-ordinary-chunk')`
+      }
       const migrations = scriptMigrations.filter((migration) =>
         [
           '0027_retire_search_embeddings',
@@ -164,13 +183,28 @@ describe('retiring dormant Search embeddings', () => {
       )
       try {
         await runScriptMigrations(sql, migrations)
-        expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(501)
-        expect((await sql`SELECT count(*)::int AS n FROM embedding_search`)[0].n).toBe(501)
-        expect(
-          (await sql`SELECT user_excluded, enabled FROM document WHERE id = 'aaa-second-doc'`)[0]
-        ).toEqual({ user_excluded: true, enabled: false })
+        const preserved = legacy === 'ordinary' ? 502 : 501
+        expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(preserved)
+        expect((await sql`SELECT count(*)::int AS n FROM embedding_search`)[0].n).toBe(preserved)
+        if (otherSearch) {
+          expect(
+            (await sql`SELECT user_excluded, enabled FROM document WHERE id = 'aaa-second-doc'`)[0]
+          ).toEqual({ user_excluded: true, enabled: false })
+        }
+        if (legacy === 'ordinary') {
+          expect(
+            (
+              await sql`SELECT user_excluded, enabled, processing_queue_token FROM document WHERE id = 'search-doc'`
+            )[0]
+          ).toEqual({
+            user_excluded: false,
+            enabled: true,
+            processing_queue_token: 'keep-dispatch',
+          })
+        }
         const [rebuilt] = await sql`SELECT to_regclass('legacy_hnsw_idx')::oid AS oid`
-        expect(rebuilt.oid).not.toBe(original.oid)
+        if (otherSearch) expect(rebuilt.oid).not.toBe(original.oid)
+        else expect(rebuilt.oid).toBe(original.oid)
         expect(
           await sql`SELECT name FROM script_migrations WHERE name = '0029_retire_all_search_embeddings'`
         ).toHaveLength(1)
@@ -180,6 +214,37 @@ describe('retiring dormant Search embeddings', () => {
         )
       } finally {
         await sql`DROP INDEX legacy_hnsw_idx`
+      }
+    }
+  )
+
+  it.each(['embeddings', 'done'] as const)(
+    'rejects changed markers outside the current page when resuming %s',
+    async (phase) => {
+      await sql`INSERT INTO knowledge_base VALUES ('empty-search', true)`
+      if (phase === 'done') {
+        await pass()
+        await sql`DELETE FROM script_migrations`
+        await sql`UPDATE knowledge_base SET is_search_index = false WHERE id = 'empty-search'`
+      }
+      await sql`CREATE FUNCTION change_empty_search_marker() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          UPDATE knowledge_base SET is_search_index = false WHERE id = 'empty-search';
+          RETURN NULL;
+        END $$`
+      await sql`CREATE TRIGGER change_empty_search_marker AFTER DELETE ON embedding
+        FOR EACH STATEMENT EXECUTE FUNCTION change_empty_search_marker()`
+      try {
+        await expect(pass()).rejects.toThrow('no longer a Search knowledge base')
+        expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+        expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(501)
+        await sql`DROP TRIGGER change_empty_search_marker ON embedding`
+        await sql`UPDATE knowledge_base SET is_search_index = true WHERE id = 'empty-search'`
+        expect(await pass()).toBe(true)
+        expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(501)
+      } finally {
+        await sql`DROP TRIGGER IF EXISTS change_empty_search_marker ON embedding`
+        await sql`DROP FUNCTION change_empty_search_marker()`
       }
     }
   )
