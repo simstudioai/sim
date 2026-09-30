@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { type RefObject, useEffect, useRef } from 'react'
 import type { BrowserPageIssue } from '@sim/browser-protocol'
 import { Chip } from '@sim/emcn'
 import { CircleAlert, Globe, RefreshCw } from '@sim/emcn/icons'
@@ -7,6 +7,8 @@ interface BrowserPageIssueProps {
   issue: BrowserPageIssue
   onReload: () => void
   focusRecovery: boolean
+  /** The browser panel; focus anywhere else in Sim is never taken for recovery. */
+  panelRef: RefObject<HTMLElement | null>
 }
 
 interface BrowserPageIssueCopy {
@@ -125,29 +127,31 @@ export function browserPageIssueCopy(issue: BrowserPageIssue): BrowserPageIssueC
   }
 }
 
-function isEditingOutside(heading: HTMLElement | null): boolean {
+/**
+ * Whether the user's focus is somewhere in Sim other than the browser.
+ * `document.activeElement` survives a window blur, so a caret left in chat
+ * still counts as elsewhere.
+ */
+function isFocusElsewhere(panel: HTMLElement | null): boolean {
   const active = document.activeElement
-  // activeElement survives a window blur, so a caret left in chat still counts.
-  if (!(active instanceof HTMLElement)) return false
-  const section = heading?.closest('section')
-  if (section?.contains(active)) return false
-  return (
-    active.isContentEditable ||
-    active instanceof HTMLInputElement ||
-    active instanceof HTMLTextAreaElement
-  )
+  if (!(active instanceof HTMLElement) || active === document.body) return false
+  return !panel?.contains(active)
 }
 
 /** Replaces a hidden native page and optionally claims renderer focus for keyboard recovery. */
-export function BrowserPageIssueView({ issue, onReload, focusRecovery }: BrowserPageIssueProps) {
+export function BrowserPageIssueView({
+  issue,
+  onReload,
+  focusRecovery,
+  panelRef,
+}: BrowserPageIssueProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const copy = browserPageIssueCopy(issue)
 
   useEffect(() => {
-    // Keyboard recovery for someone who was in the page; a caret in chat or
-    // any other Sim field stays where it is.
-    if (focusRecovery && !isEditingOutside(headingRef.current)) headingRef.current?.focus()
-  }, [focusRecovery, issue])
+    // Keyboard recovery for someone who was in the browser.
+    if (focusRecovery && !isFocusElsewhere(panelRef.current)) headingRef.current?.focus()
+  }, [focusRecovery, issue, panelRef])
 
   const Icon = issue.kind === 'load-error' ? Globe : CircleAlert
 
