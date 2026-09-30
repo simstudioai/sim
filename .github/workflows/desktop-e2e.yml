@@ -14,6 +14,13 @@ on:
       - 'apps/sim/app/layout.tsx'
       - 'apps/sim/hooks/use-desktop-update-state.ts'
       - 'apps/sim/lib/desktop/**'
+      - 'apps/sim/app/desktop/connect/**'
+      - 'apps/sim/app/credential-groups/**'
+      - 'apps/sim/hooks/queries/slack-search.ts'
+      - 'apps/sim/hooks/use-github-installation-setup.ts'
+      - 'apps/sim/app/o/**/integrations/indexed/use-member-enrollment.ts'
+      - 'apps/sim/lib/api/contracts/desktop-source-connect.ts'
+      - 'apps/sim/scripts/fixtures/desktop-source-connect.tsx'
       - 'apps/sim/app/workspace/**/browser-session/**'
       - 'apps/sim/app/_styles/**'
       - 'apps/sim/lib/postcss/**'
@@ -61,6 +68,10 @@ jobs:
         working-directory: apps/desktop
         run: bun run build
 
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
+
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
         run: bunx playwright test
@@ -97,6 +108,10 @@ jobs:
       - name: Bundle main and preload
         working-directory: apps/desktop
         run: bun run build
+
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop

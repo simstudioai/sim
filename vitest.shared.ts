@@ -37,6 +37,6 @@ export const integrationTestConfig = defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     reporters: ['default', 'json'],
-    outputFile: { json: 'test-results/integration.json' },
+    outputFile: { json: process.env.INTEGRATION_REPORT_PATH ?? 'test-results/integration.json' },
   },
 })
