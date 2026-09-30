@@ -14,7 +14,7 @@ import {
 import { createDeferred } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
@@ -146,10 +146,6 @@ beforeAll(async () => {
   })
 })
 
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
 afterAll(async () => {
   // Deleting a paused execution cascades to its resume queue entries.
   await db.delete(pausedExecutions).where(eq(pausedExecutions.workflowId, ids.workflow))
@@ -173,19 +169,25 @@ describe('handlePostExecutionPauseState', () => {
 
     const persistPauseResult = PauseResumeManager.persistPauseResult
     const logFinalizedAtPublish: boolean[] = []
-    vi.spyOn(PauseResumeManager, 'persistPauseResult').mockImplementation((args) => {
-      logFinalizedAtPublish.push(loggingSession.hasCompleted())
-      return persistPauseResult.call(PauseResumeManager, args)
-    })
+    const publishSpy = vi
+      .spyOn(PauseResumeManager, 'persistPauseResult')
+      .mockImplementation((args) => {
+        logFinalizedAtPublish.push(loggingSession.hasCompleted())
+        return persistPauseResult.call(PauseResumeManager, args)
+      })
 
-    const publish = handlePostExecutionPauseState({
-      result,
-      workflowId: ids.workflow,
-      executionId,
-      loggingSession,
-    })
-    finalizer.resolve()
-    await publish
+    try {
+      const publish = handlePostExecutionPauseState({
+        result,
+        workflowId: ids.workflow,
+        executionId,
+        loggingSession,
+      })
+      finalizer.resolve()
+      await publish
+    } finally {
+      publishSpy.mockRestore()
+    }
 
     expect(logFinalizedAtPublish).toEqual([true])
     expect(await logStatus(executionId)).toBe('pending')
