@@ -761,3 +761,66 @@ describe('stripToolResultOutput', () => {
     expect(JSON.stringify(blocks)).not.toContain('file contents')
   })
 })
+
+describe('buildPersistedAssistantMessage on an errored turn', () => {
+  it.each(['pending', 'executing'] as const)(
+    'settles a %s tool row as errored so it does not reload as a spinner',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: false,
+        error: 'The agent service is temporarily unavailable. Please try again.',
+        content: '',
+        toolCalls: [],
+        contentBlocks: [
+          {
+            type: 'tool_call',
+            timestamp: 1,
+            toolCall: { id: 'call-1', name: 'gmail_read_v2', status },
+          },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall?.state).toBe('error')
+    }
+  )
+})
+
+describe('buildPersistedAssistantMessage on a completed turn', () => {
+  it.each(['pending', 'executing'] as const)(
+    'settles a %s tool row the way the live view settled it',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: true,
+        content: 'Done.',
+        toolCalls: [],
+        contentBlocks: [
+          { type: 'tool_call', timestamp: 1, toolCall: { id: 'call-1', name: 'read', status } },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall?.state).toBe('success')
+    }
+  )
+})
+
+describe('buildPersistedAssistantMessage on a cancelled turn', () => {
+  it.each(['pending', 'executing', 'awaiting_approval'] as const)(
+    'settles a %s tool row as stopped for a caller that persists the result directly',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: false,
+        cancelled: true,
+        content: 'Partial answer',
+        toolCalls: [],
+        contentBlocks: [
+          { type: 'tool_call', timestamp: 1, toolCall: { id: 'call-1', name: 'read', status } },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall).toMatchObject({
+        state: 'cancelled',
+        display: { title: 'Stopped by user' },
+      })
+    }
+  )
+})

@@ -1,5 +1,5 @@
 import { flushMicrotasks } from '@sim/testing/helpers/async'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolExecutor,
@@ -25,9 +25,11 @@ import { createStreamingContext } from '@/lib/mothership/request/context/request
 import {
   createFilePreviewAdapterState,
   type FilePreviewAdapterState,
+  PREVIEW_TURN_CONTENT_BYTES,
   processFilePreviewStreamEvent,
 } from '@/lib/mothership/request/go/file-preview-adapter'
 import { createEvent, eventToStreamEvent } from '@/lib/mothership/request/session'
+import { STREAM_EVENT_MAX_PAYLOAD_BYTES } from '@/lib/mothership/request/session/replay-compaction'
 import type {
   ActiveFileIntent,
   ExecutionContext,
@@ -160,6 +162,122 @@ describe('processFilePreviewStreamEvent — preview content emission', () => {
     expect(combined).toContain('Base.')
     expect(combined).toContain('Hello')
     expect(combined).toContain('world')
+  })
+})
+
+describe('processFilePreviewStreamEvent — preview byte rate', () => {
+  const execContext: ExecutionContext = {
+    userId: 'user-1',
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    chatId: 'chat-1',
+    messageId: 'msg-1',
+  }
+
+  afterEach(() => vi.useRealTimers())
+
+  /** One turn's adapter state and streaming context, shared by all of its edits. */
+  function newTurn() {
+    return { state: createFilePreviewAdapterState(), context: createStreamingContext() }
+  }
+
+  /** Streams one anchored patch of a file of `baseLines` lines through `turn`, then completes it. */
+  async function streamPatch(
+    durationMs: number,
+    tickMs: number,
+    { turn = newTurn(), edit = 0, baseLines = 10_000 } = {}
+  ) {
+    vi.useFakeTimers()
+    const base = `ANCHOR\n${'line of existing file content\n'.repeat(baseLines)}`
+    const anchoredEdit = { strategy: 'anchored', mode: 'insert_after', anchor: 'ANCHOR' }
+    peekFileIntentMock.mockResolvedValue({ existingContent: base, edit: anchoredEdit })
+    const editToolCallId = `${EDIT_TOOL_CALL_ID}-${edit}`
+    const intent = {
+      ...makeIntent({ operation: 'patch', fileId: `file-big-${edit}`, fileName: 'big.md' }),
+      toolCallId: `${WORKSPACE_FILE_TOOL_CALL_ID}-${edit}`,
+      edit: anchoredEdit,
+    }
+    const payloads: Array<Record<string, unknown>> = []
+    const drive = async (streamEvent: StreamEvent) => {
+      turn.context.activeFileIntents.set('', intent)
+      await processFilePreviewStreamEvent({
+        streamId: STREAM_ID,
+        streamEvent,
+        context: turn.context,
+        execContext,
+        options: {
+          onEvent: (event) => {
+            payloads.push((event as { payload: Record<string, unknown> }).payload)
+          },
+        },
+        state: turn.state,
+      })
+    }
+    const delta = (argumentsDelta: string) =>
+      toolEvent({
+        toolCallId: editToolCallId,
+        toolName: 'apply_file_edit',
+        phase: MothershipStreamV1ToolPhase.args_delta,
+        argumentsDelta,
+      })
+
+    let streamed = ''
+    await drive(delta('{"content":"'))
+    for (let elapsed = 0; elapsed < durationMs; elapsed += tickMs) {
+      vi.advanceTimersByTime(tickMs)
+      streamed += `word${elapsed} `
+      await drive(delta(`word${elapsed} `))
+    }
+    await drive(
+      toolEvent({
+        toolCallId: editToolCallId,
+        toolName: 'apply_file_edit',
+        phase: MothershipStreamV1ToolPhase.result,
+        success: true,
+      })
+    )
+
+    const contents = payloads.filter((payload) => payload.previewPhase === 'file_preview_content')
+    return {
+      payloads,
+      finalContent: base.replace('ANCHOR\n', `ANCHOR\n${streamed}\n`),
+      lastContent: contents.at(-1)?.content,
+      completed: payloads.some((payload) => payload.previewPhase === 'file_preview_complete'),
+      contentBytes: contents.reduce(
+        (sum, payload) => sum + Buffer.byteLength(String(payload.content)),
+        0
+      ),
+    }
+  }
+
+  it('streams a 300 KB patch for 10 s well under the stream budget and ends on its final content', async () => {
+    const { finalContent, lastContent, contentBytes } = await streamPatch(10_000, 16)
+
+    expect(contentBytes).toBeLessThan(8 * 1024 * 1024)
+    expect(lastContent).toBe(finalContent)
+  })
+
+  it('never sends a preview frame over the replay write ceiling, and still completes the edit', async () => {
+    const { payloads, completed } = await streamPatch(2_000, 200, { baseLines: 45_000 })
+
+    for (const payload of payloads) {
+      expect(Buffer.byteLength(JSON.stringify(payload))).toBeLessThanOrEqual(
+        STREAM_EVENT_MAX_PAYLOAD_BYTES
+      )
+    }
+    expect(completed).toBe(true)
+  })
+
+  it('bounds all preview content in a turn of four long patches, and still completes each', async () => {
+    const turn = newTurn()
+    let contentBytes = 0
+    for (let edit = 0; edit < 4; edit++) {
+      const result = await streamPatch(120_000, 200, { turn, edit })
+      expect(result.completed).toBe(true)
+      contentBytes += result.contentBytes
+    }
+
+    expect(contentBytes).toBeLessThanOrEqual(PREVIEW_TURN_CONTENT_BYTES)
   })
 })
 
