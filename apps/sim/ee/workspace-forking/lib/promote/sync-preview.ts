@@ -1,11 +1,20 @@
+import { createLogger } from '@sim/logger'
 import { generateWorkflowDiffSummary, omitPresentationChanges } from '@/lib/workflows/comparison'
 import {
   remapVariableIdsInSubBlocks,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
+import {
+  forEachTargetDraft,
+  MAX_FORK_STATE_BYTES,
+  measureTargetDraftBytes,
+} from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import type { ForkPromotePlanItem } from '@/ee/workspace-forking/lib/promote/promote-plan'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { remapWorkflowStateBlockIds } from '@/ee/workspace-forking/lib/remap/remap-state-block-ids'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
+
+const logger = createLogger('WorkspaceForkSyncPreview')
 
 /** Names carried by exactly one variable on a side, so a name can stand in for an id. */
 function uniqueNames(variables: Record<string, Variable> | undefined): Map<string, string> {
@@ -88,4 +97,43 @@ export function projectSyncSource(
 export function syncChangesWorkflow(before: WorkflowState | null, after: WorkflowState): boolean {
   if (!before) return true
   return omitPresentationChanges(generateWorkflowDiffSummary(after, before)).hasChanges
+}
+
+/**
+ * The source workflows a sync would replace without changing anything in the
+ * target's draft, so their rows need no comparison. Drafts are read a few at a
+ * time and dropped after comparing. When the drafts together exceed the fork
+ * state limit, none are read and every workflow counts as changed: the rows
+ * then all offer a comparison, which is the safe way to be wrong.
+ */
+export async function listUnchangedSyncSources(params: {
+  items: ForkPromotePlanItem[]
+  sourceStates: ReadonlyMap<string, WorkflowState>
+  targetWorkspaceId: string
+  resolveBlockId: ForkBlockIdResolver
+}): Promise<Set<string>> {
+  const { items, sourceStates, targetWorkspaceId, resolveBlockId } = params
+  const unchanged = new Set<string>()
+  const replaced = items.filter(
+    (item) => item.mode === 'replace' && sourceStates.has(item.sourceWorkflowId)
+  )
+  if (replaced.length === 0) return unchanged
+  const targetIds = replaced.map((item) => item.targetWorkflowId)
+  const bytes = await measureTargetDraftBytes(targetIds)
+  if (bytes > MAX_FORK_STATE_BYTES) {
+    logger.info('Skipping per-workflow change check: target drafts exceed the fork state limit', {
+      workflows: targetIds.length,
+      bytes,
+    })
+    return unchanged
+  }
+  const itemByTarget = new Map(replaced.map((item) => [item.targetWorkflowId, item]))
+  await forEachTargetDraft(targetIds, targetWorkspaceId, (targetWorkflowId, before) => {
+    const item = itemByTarget.get(targetWorkflowId)
+    const sourceState = item && sourceStates.get(item.sourceWorkflowId)
+    if (!item || !sourceState) return
+    const after = projectSyncSource(sourceState, before, targetWorkflowId, resolveBlockId)
+    if (!syncChangesWorkflow(before, after)) unchanged.add(item.sourceWorkflowId)
+  })
+  return unchanged
 }

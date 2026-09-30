@@ -17,7 +17,6 @@ import '@xyflow/react/dist/style.css'
 import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import {
-  BLOCK_DIMENSIONS,
   BLOCK_Z_BASE,
   CANVAS_Z_INDEX_MODE,
   CONTAINER_CHILD_Z_BASE,
@@ -31,40 +30,15 @@ import {
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import type { BlockDiffStatus, EdgeDiffStatus } from '@/lib/workflows/comparison'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
-import {
-  estimateBlockDimensions,
-  SUBFLOW_CHILD_NODE_CLASS,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import { SUBFLOW_CHILD_NODE_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
+import { getPreviewBlockDimensions } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-dimensions'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.css'
 
 const logger = createLogger('PreviewWorkflow')
-
-/** Gets block dimensions, using stored values or defaults. */
-function getPreviewBlockDimensions(block: BlockState): { width: number; height: number } {
-  if (block.type === 'loop' || block.type === 'parallel') {
-    return {
-      width: block.data?.width
-        ? Math.max(block.data.width, CONTAINER_DIMENSIONS.MIN_WIDTH)
-        : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-      height: block.data?.height
-        ? Math.max(block.data.height, CONTAINER_DIMENSIONS.MIN_HEIGHT)
-        : CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-    }
-  }
-
-  if (block.height) {
-    return {
-      width: BLOCK_DIMENSIONS.FIXED_WIDTH,
-      height: Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
-    }
-  }
-
-  return estimateBlockDimensions(block.type)
-}
 
 /** Calculates container dimensions from child block positions. */
 function calculateContainerDimensions(

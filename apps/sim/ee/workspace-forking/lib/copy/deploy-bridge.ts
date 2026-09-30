@@ -1,5 +1,5 @@
 import { db, runOutsideTransactionContext } from '@sim/db'
-import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import { webhook, workflow, workflowBlocks, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, exists, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
@@ -391,23 +391,39 @@ export async function loadTargetDraftState(
 }
 
 /**
- * {@link loadTargetDraftState} for many workflows, a few at a time. A workflow
- * that is not in `workspaceId` is left out of the result.
+ * Serialized size of the blocks in these workflows' drafts, from one query, so
+ * a caller can decide whether reading the drafts in full is affordable before
+ * it reads any of them.
  */
-export async function loadTargetDraftStates(
+export async function measureTargetDraftBytes(workflowIds: string[]): Promise<number> {
+  if (workflowIds.length === 0) return 0
+  const [row] = await db
+    .select({
+      bytes: sql<string>`coalesce(sum(octet_length(${workflowBlocks.subBlocks}::text)), 0)`,
+    })
+    .from(workflowBlocks)
+    .where(inArray(workflowBlocks.workflowId, workflowIds))
+  return Number(row?.bytes ?? 0)
+}
+
+/**
+ * {@link loadTargetDraftState} for many workflows, a few at a time, handing
+ * each draft to `visit` and keeping none of them, so memory stays at one batch
+ * however many workflows there are. A workflow not in `workspaceId` is skipped.
+ */
+export async function forEachTargetDraft(
   workflowIds: string[],
-  workspaceId: string
-): Promise<Map<string, WorkflowState>> {
-  const states = new Map<string, WorkflowState>()
+  workspaceId: string,
+  visit: (workflowId: string, draft: WorkflowState) => void
+): Promise<void> {
   for (let i = 0; i < workflowIds.length; i += READ_CONCURRENCY) {
     const batch = workflowIds.slice(i, i + READ_CONCURRENCY)
     const loaded = await Promise.all(batch.map((id) => loadTargetDraftState(id, workspaceId)))
     batch.forEach((id, index) => {
-      const state = loaded[index]
-      if (state) states.set(id, state)
+      const draft = loaded[index]
+      if (draft) visit(id, draft)
     })
   }
-  return states
 }
 
 /**

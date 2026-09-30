@@ -16,6 +16,7 @@ import {
   omitPresentationChanges,
 } from '@/lib/workflows/comparison'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { getPreviewBlockDimensions } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-dimensions'
 import { ChangeList } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -69,7 +70,7 @@ export function WorkflowDiffView({
     [targetState, baseState]
   )
   const overlay = useMemo(
-    () => buildWorkflowDiffOverlay(summary, baseState, targetState),
+    () => buildWorkflowDiffOverlay(summary, baseState, targetState, getPreviewBlockDimensions),
     [summary, baseState, targetState]
   )
   const containers = useMemo(

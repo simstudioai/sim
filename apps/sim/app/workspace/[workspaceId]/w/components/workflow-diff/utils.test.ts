@@ -340,6 +340,26 @@ describe('maskSecretsDeep', () => {
     )
   })
 
+  it('masks keys with a secret word anywhere in them and keeps credential references readable', () => {
+    expect(
+      maskSecretsDeep({
+        secretValue: 'a',
+        awsSecretAccessKey: 'b',
+        aws_secret_access_key: 'c',
+        passwordHash: 'd',
+        credentialId: 'cred-1',
+        secretaryName: 'Ada',
+      })
+    ).toEqual({
+      secretValue: '•••',
+      awsSecretAccessKey: '•••',
+      aws_secret_access_key: '•••',
+      passwordHash: '•••',
+      credentialId: 'cred-1',
+      secretaryName: 'Ada',
+    })
+  })
+
   it('masks inside a JSON-encoded string the way tool params are stored', () => {
     const encoded = JSON.stringify({ Authorization: 'Bearer x', Accept: 'json' })
     expect(maskSecretsDeep({ headers: encoded })).toEqual({
