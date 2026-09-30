@@ -110,7 +110,6 @@ function run(
 
 describe('getWorkspaceSyncWorkflowDiff', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
     permissionsMockFns.mockGetWorkspaceWithOwner.mockImplementation(async (id: string) => ({
       id,

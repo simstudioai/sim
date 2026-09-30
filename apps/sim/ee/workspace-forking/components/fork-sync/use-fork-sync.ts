@@ -122,6 +122,11 @@ export interface ForkSyncController {
   diffErrorMessage: string | null
   /** True once the diff payload for ANY direction is present (placeholder included). */
   hasDiff: boolean
+  /**
+   * The diff on screen is still the previous direction's placeholder, so its rows name
+   * workflows that are not part of the sync now selected.
+   */
+  diffIsStale: boolean
   /** True once the mapping payload is present (placeholder included), gating the Mappings section. */
   hasMapping: boolean
   groups: ForkMappingGroup[]
@@ -1022,6 +1027,7 @@ export function useForkSync(params: {
       ? getErrorMessage(diff.error, "Couldn't load sync details. Reload the page to retry.")
       : null,
     hasDiff: Boolean(diff.data),
+    diffIsStale: diff.isPlaceholderData,
     hasMapping: Boolean(mapping.data),
     groups,
     kindSummaries,

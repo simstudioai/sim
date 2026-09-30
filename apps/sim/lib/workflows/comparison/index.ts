@@ -1,8 +1,10 @@
 export {
   type ContainerChange,
   type ContainerConfigField,
+  containerConfigFields,
   generateWorkflowDiffSummary,
   hasWorkflowChanged,
+  omitPresentationChanges,
   summaryHasChanges,
   type WorkflowDiffSummary,
 } from './compare'

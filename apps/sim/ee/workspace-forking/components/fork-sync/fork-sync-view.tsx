@@ -916,14 +916,19 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
               <div className='flex flex-col gap-1'>
                 {controller.workflowChanges.map((change, index) => {
                   const renamed = change.currentName !== change.otherName
+                  /* Only a row the sync changes has something to compare, and only once it is this direction's. */
                   const preview: ForkWorkflowPreviewChange | null =
-                    change.action !== 'archive' && change.sourceWorkflowId
+                    change.action !== 'archive' &&
+                    change.hasChanges &&
+                    change.sourceWorkflowId &&
+                    !controller.diffIsStale
                       ? { ...change, sourceWorkflowId: change.sourceWorkflowId }
                       : null
+                  const unchanged = change.action === 'update' && !change.hasChanges
                   return (
                     <div
                       key={`${change.action}:${change.currentName}:${index}`}
-                      className='flex min-w-0 items-center gap-1.5'
+                      className='flex min-h-[22px] min-w-0 items-center gap-1.5'
                     >
                       <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
                         {change.currentName}
@@ -936,6 +941,11 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                           </span>
                         </>
                       ) : null}
+                      {unchanged && (
+                        <span className='ml-auto shrink-0 pr-1 text-[var(--text-muted)] text-small'>
+                          No changes
+                        </span>
+                      )}
                       {preview && controller.otherWorkspaceId && (
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>

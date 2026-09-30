@@ -96,6 +96,10 @@ export function markWordChanges(lines: DiffLine[]): DiffLine[] {
   return out
 }
 
+function normalizeLineEndings(value: string): string {
+  return value.replace(/\r\n?/g, '\n')
+}
+
 export function splitLines(value: string): string[] {
   const lines = value.split('\n')
   if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop()
@@ -158,7 +162,10 @@ export function capOneSided(lines: DiffLine[]): DiffRow[] {
  * the one-sided cap, or a single summary row when the bodies are too long to
  * diff inline.
  */
-export function buildDiffRows(oldText: string, newText: string): DiffRow[] {
+export function buildDiffRows(rawOld: string, rawNew: string): DiffRow[] {
+  /* Stored text may carry CRLF or bare CR endings; diff them as the lines they display as. */
+  const oldText = normalizeLineEndings(rawOld)
+  const newText = normalizeLineEndings(rawNew)
   const oldLines = splitLines(oldText).length
   const newLines = splitLines(newText).length
   if (oldLines + newLines > MAX_DIFF_LINES) return [{ type: 'oversized', oldLines, newLines }]

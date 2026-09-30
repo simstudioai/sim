@@ -2,13 +2,13 @@ import { isContainerType } from '@/lib/workflows/autolayout'
 import {
   type BlockDiffStatus,
   type ContainerConfigField,
-  summaryHasChanges,
+  containerConfigFields,
   type WorkflowDiffSummary,
 } from '@/lib/workflows/comparison'
 import { formatValueForDisplay } from '@/lib/workflows/comparison/resolve-values'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import type { BlockState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** How a changed value should be rendered in the change list. */
 type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle' | 'messages' | 'list'
@@ -148,6 +148,17 @@ export function pairListItems(
   return rows
 }
 
+/**
+ * Whether two item lists hold the same items in a different order. Pairing
+ * reports nothing for a list that only moved, so this tells a reorder apart
+ * from a change the item view cannot see (the same items stored differently).
+ */
+export function listOrderChanged(oldItems: ListItemView[], newItems: ListItemView[]): boolean {
+  if (oldItems.length !== newItems.length) return false
+  const identity = (item: ListItemView) => `${item.key}\u0000${item.signature ?? item.text}`
+  return oldItems.some((item, index) => identity(item) !== identity(newItems[index]))
+}
+
 /** Tool item fields, beyond its params, that change what the tool may do or how it runs. */
 const TOOL_EXECUTION_FIELDS = [
   'operation',
@@ -249,13 +260,19 @@ export function describeListItems(
       const name = readString(item, ['name']) ?? `Field ${index + 1}`
       const fieldType = readString(item, ['type'])
       const description = readString(item, ['description'])
-      const defaultValue = isBlankValue(item.value)
-        ? undefined
-        : `default ${toDiffText(item.value)}`
+      const hasDefault = !isBlankValue(item.value)
+      const describe = (defaultText: string | undefined) =>
+        [fieldType, description, defaultText].filter(Boolean).join(' · ')
+      const text = describe(hasDefault ? `default ${toDiffText(item.value)}` : undefined)
+      const rawDefault =
+        typeof item.value === 'string' ? item.value : JSON.stringify(item.value, null, 2)
+      /* Unmasked, so a default that differs only inside a secret still reads as changed. */
+      const signature = describe(hasDefault ? `default ${rawDefault}` : undefined)
       return {
         key: id ?? name,
         label: name,
-        text: [fieldType, description, defaultValue].filter(Boolean).join(' · '),
+        text,
+        ...(signature !== text ? { signature } : {}),
       }
     }
     const label = readString(item, ['title', 'name', 'label', 'id']) ?? `Item ${index + 1}`
@@ -472,7 +489,7 @@ export function formatScalar(blockType: string, field: string, value: unknown): 
     if (match?.label) return match.label
   }
   /* A comparison must show the whole value: a difference at character 55 is still a difference. */
-  if (typeof value === 'string') return value || formatValueForDisplay(value)
+  if (typeof value === 'string') return maskEncodedSecrets(value) || formatValueForDisplay(value)
   return formatValueForDisplay(maskSecretsDeep(value))
 }
 
@@ -482,7 +499,8 @@ export function formatScalar(blockType: string, field: string, value: unknown): 
  */
 export function toDiffText(value: unknown): string {
   if (value === null || value === undefined) return ''
-  if (typeof value === 'string') return value
+  /* Structured values are often stored as JSON text, so a string is masked the same way. */
+  if (typeof value === 'string') return maskEncodedSecrets(value)
   return JSON.stringify(maskSecretsDeep(value), null, 2)
 }
 
@@ -612,33 +630,6 @@ export function listOneSidedFields(block: BlockState, side: 'added' | 'removed')
   return out
 }
 
-/**
- * Fields the comparison engine counts but a reviewer never needs to see: pure
- * canvas presentation. They still drive "needs redeploy", so they are hidden
- * here rather than in the engine. The basic/advanced mode memory is NOT one of
- * them: with both values stored, the mode decides which one executes.
- */
-const PRESENTATION_FIELDS = new Set(['horizontalHandles'])
-
-/**
- * The summary with presentation-only field changes removed, and any block that
- * only had those dropped from the modified list, so the canvas and the list
- * agree on what counts as a change.
- */
-export function omitPresentationChanges(summary: WorkflowDiffSummary): WorkflowDiffSummary {
-  const modifiedBlocks = summary.modifiedBlocks
-    .map((block) => ({
-      ...block,
-      changes: block.changes.filter(
-        (change) => !PRESENTATION_FIELDS.has(change.field) && !change.field.endsWith('.properties')
-      ),
-    }))
-    .filter((block) => block.changes.length > 0)
-  const next = { ...summary, modifiedBlocks }
-  next.hasChanges = summaryHasChanges(next)
-  return next
-}
-
 /** One block listed under a container's "Blocks inside". */
 export interface MembershipRow {
   name: string
@@ -701,7 +692,12 @@ function childrenByParent(blocks: Record<string, BlockState>): Map<string, strin
 export function listBlockChanges(
   summary: WorkflowDiffSummary,
   baseBlocks: Record<string, BlockState>,
-  targetBlocks: Record<string, BlockState>
+  targetBlocks: Record<string, BlockState>,
+  /** Each side's loop and parallel configs, so an added or removed container shows what it runs */
+  containers?: {
+    base: Pick<WorkflowState, 'loops' | 'parallels'>
+    target: Pick<WorkflowState, 'loops' | 'parallels'>
+  }
 ): BlockChangeEntry[] {
   const blocks = { ...baseBlocks, ...targetBlocks }
   const modified = new Map<string, BlockChangeEntry>()
@@ -771,17 +767,27 @@ export function listBlockChanges(
     list: WorkflowDiffSummary['addedBlocks'],
     status: 'added' | 'removed',
     sameStatus: Set<string>,
-    side: Record<string, BlockState>
+    side: Record<string, BlockState>,
+    sideContainers: Pick<WorkflowState, 'loops' | 'parallels'> | undefined
   ): BlockChangeEntry[] => {
     const entries = new Map<string, BlockChangeEntry>()
     const children = childrenByParent(side)
     for (const block of list) {
+      /* A container's iteration settings live beside its block, not in its sub-blocks. */
+      const config =
+        sideContainers && isContainerType(block.type)
+          ? containerConfigFields(sideContainers, block.id)
+          : []
       entries.set(block.id, {
         id: block.id,
         type: block.type,
         name: block.name || block.type,
         status,
-        changes: [],
+        changes: config.map(({ field, value }) => ({
+          field,
+          oldValue: status === 'removed' ? value : null,
+          newValue: status === 'added' ? value : null,
+        })),
         children: [],
       })
     }
@@ -808,7 +814,7 @@ export function listBlockChanges(
 
   return [
     ...modified.values(),
-    ...nest(summary.addedBlocks, 'added', added, targetBlocks),
-    ...nest(summary.removedBlocks, 'removed', removed, baseBlocks),
+    ...nest(summary.addedBlocks, 'added', added, targetBlocks, containers?.target),
+    ...nest(summary.removedBlocks, 'removed', removed, baseBlocks, containers?.base),
   ]
 }

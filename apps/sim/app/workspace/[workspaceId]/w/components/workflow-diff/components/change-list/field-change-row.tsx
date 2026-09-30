@@ -44,6 +44,20 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
     : (ENGINE_FIELD_LABELS[field] ?? resolveFieldLabel(blockType, field))
   /* A field its definition never titled comes back as the raw id; humanize it. */
   const label = resolvedLabel === field ? formatParameterLabel(field) : resolvedLabel
+  const textual = kind === 'text' || kind === 'json'
+  const scalar = kind === 'scalar' || kind === 'toggle'
+  const oldText = textual
+    ? toDiffText(oldValue)
+    : scalar
+      ? formatScalar(blockType, field, oldValue)
+      : ''
+  const newText = textual
+    ? toDiffText(newValue)
+    : scalar
+      ? formatScalar(blockType, field, newValue)
+      : ''
+  /* The summary saw a change the masked text cannot show, so the change is inside a secret. */
+  const maskedOnly = (textual || (scalar && !oneSided)) && oldText === newText
 
   return (
     <div className='flex flex-col gap-1.5'>
@@ -53,9 +67,10 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
           {isBlankValue(oldValue) ? 'Set' : isBlankValue(newValue) ? 'Cleared' : 'Value changed'}
         </span>
       )}
-      {(kind === 'text' || kind === 'json') && (
-        <TextDiff oldText={toDiffText(oldValue)} newText={toDiffText(newValue)} />
+      {maskedOnly && (
+        <span className='text-[var(--text-secondary)] text-small'>A masked value changed</span>
       )}
+      {textual && !maskedOnly && <TextDiff oldText={oldText} newText={newText} />}
       {kind === 'messages' && <MessagesDiff oldValue={oldValue} newValue={newValue} />}
       {kind === 'list' && (
         <KeyedListDiff
@@ -65,22 +80,17 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
           newValue={newValue}
         />
       )}
-      {(kind === 'scalar' || kind === 'toggle') &&
+      {scalar &&
+        !maskedOnly &&
         (oneSided ? (
           <ValueChip
             tone={isBlankValue(oldValue) ? 'added' : 'removed'}
             text={formatScalar(blockType, field, isBlankValue(oldValue) ? newValue : oldValue)}
           />
         ) : wordDiff ? (
-          <InlineDiff
-            oldText={formatScalar(blockType, field, oldValue)}
-            newText={formatScalar(blockType, field, newValue)}
-          />
+          <InlineDiff oldText={oldText} newText={newText} />
         ) : (
-          <OldNewPair
-            oldText={formatScalar(blockType, field, oldValue)}
-            newText={formatScalar(blockType, field, newValue)}
-          />
+          <OldNewPair oldText={oldText} newText={newText} />
         ))}
     </div>
   )
@@ -112,7 +122,10 @@ function MessagesDiff({ oldValue, newValue }: MessagesDiffProps) {
       {slots.map((slot) => (
         <div key={slot.index} className='flex flex-col gap-1'>
           <span className='text-[var(--text-muted)] text-caption capitalize'>
-            {slot.next?.role ?? slot.old?.role} message
+            {slot.old && slot.next && slot.old.role !== slot.next.role
+              ? `${slot.old.role} → ${slot.next.role}`
+              : (slot.next?.role ?? slot.old?.role)}{' '}
+            message
             {!slot.old && ' (added)'}
             {!slot.next && ' (removed)'}
           </span>

@@ -26,6 +26,13 @@ const logger = createLogger('WorkspaceForkDeployBridge')
  */
 export const MAX_FORK_DEPLOYED_WORKFLOWS = 1000
 
+/**
+ * Workflow states read at once from the global pool: keeps concurrent checkouts
+ * well under the pool max even at the workflow ceiling. Callers run these reads
+ * before any transaction.
+ */
+const READ_CONCURRENCY = 5
+
 /** Aggregate serialized source state admitted before any graph materialization. */
 export const MAX_FORK_STATE_BYTES = 64 * 1024 * 1024
 
@@ -294,7 +301,6 @@ export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promi
   // under the pool max even at the workflow ceiling, and this runs BEFORE any transaction.
   const sourceStates = new Map<string, WorkflowState>()
   let materializedBytes = 0
-  const READ_CONCURRENCY = 5
   for (let i = 0; i < deployedWorkflows.length; i += READ_CONCURRENCY) {
     const batch = deployedWorkflows.slice(i, i + READ_CONCURRENCY)
     const states = await Promise.all(
@@ -382,6 +388,26 @@ export async function loadTargetDraftState(
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' }
   )
+}
+
+/**
+ * {@link loadTargetDraftState} for many workflows, a few at a time. A workflow
+ * that is not in `workspaceId` is left out of the result.
+ */
+export async function loadTargetDraftStates(
+  workflowIds: string[],
+  workspaceId: string
+): Promise<Map<string, WorkflowState>> {
+  const states = new Map<string, WorkflowState>()
+  for (let i = 0; i < workflowIds.length; i += READ_CONCURRENCY) {
+    const batch = workflowIds.slice(i, i + READ_CONCURRENCY)
+    const loaded = await Promise.all(batch.map((id) => loadTargetDraftState(id, workspaceId)))
+    batch.forEach((id, index) => {
+      const state = loaded[index]
+      if (state) states.set(id, state)
+    })
+  }
+  return states
 }
 
 /**

@@ -73,7 +73,11 @@ export function TextDiff({ oldText, newText }: TextDiffProps) {
       {foldCount > MANY_FOLDS && (
         <button
           type='button'
-          onClick={() => setExpandedAll((value) => !value)}
+          onClick={() => {
+            /* One switch for every fold: collapsing must also close folds opened one by one. */
+            setExpanded(new Set())
+            setExpandedAll((value) => !value)
+          }}
           className='flex w-full items-center justify-between border-[var(--border)] border-b bg-[var(--surface-2)] px-2 py-0.5 text-left font-sans text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-secondary)] focus-visible:bg-[var(--surface-4)] focus-visible:outline-none'
         >
           <span>

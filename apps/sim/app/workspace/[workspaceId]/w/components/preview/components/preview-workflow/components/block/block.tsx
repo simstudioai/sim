@@ -632,6 +632,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
                 value={lightweight ? undefined : getDisplayValue(rawValues.context)}
                 workflowMap={workflowMap}
                 workflowLabelsReady={workflowLabelsReady}
+                changed={changedFieldSet.has('context')}
               />
               {routerRows.map((route, index) => (
                 <SubBlockRow

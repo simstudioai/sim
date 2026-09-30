@@ -62,7 +62,6 @@ function request(query: Record<string, string>) {
 
 describe('fork workflow-diff route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
     workspaceForkingLineageMockFns.mockResolveForkEdge.mockResolvedValue({

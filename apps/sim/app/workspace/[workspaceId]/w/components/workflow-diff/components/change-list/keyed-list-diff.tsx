@@ -9,6 +9,7 @@ import { TextDiff } from '@/app/workspace/[workspaceId]/w/components/workflow-di
 import {
   describeListItems,
   isPositionalListField,
+  listOrderChanged,
   pairListItems,
   toItemList,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
@@ -29,11 +30,14 @@ export function KeyedListDiff({ blockType, field, oldValue, newValue }: KeyedLis
   const oldItems = describeListItems(blockType, field, toItemList(oldValue) ?? [])
   const newItems = describeListItems(blockType, field, toItemList(newValue) ?? [])
   const rows = pairListItems(oldItems, newItems, isPositionalListField(blockType, field))
+  const reordered = rows.length === 0 && listOrderChanged(oldItems, newItems)
 
   return (
     <div className='flex flex-col gap-1.5'>
       {rows.length === 0 && (
-        <span className='text-[var(--text-tertiary)] text-small'>Order changed</span>
+        <span className='text-[var(--text-tertiary)] text-small'>
+          {reordered ? 'Order changed' : 'Same items, stored differently'}
+        </span>
       )}
       {rows.map((row, index) => (
         <div key={`${row.kind}-${row.label}-${index}`} className='flex items-start gap-2'>
