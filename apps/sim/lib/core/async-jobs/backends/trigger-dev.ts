@@ -551,16 +551,20 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
     try {
       if (binding.rootJobId) {
-        const root = await this.getJob(binding.rootJobId)
-        if (
-          root &&
-          (allowedTaskIdentifiers as readonly string[]).includes(root.type) &&
-          (root.status === JOB_STATUS.PENDING || root.status === JOB_STATUS.PROCESSING) &&
-          payloadMatchesExecution(root.payload, binding)
-        ) {
-          await this.cancelJob(root.id)
-          cancelledRootRunId = root.id
-          state.cancelledJobs += 1
+        try {
+          const root = await this.getJob(binding.rootJobId)
+          if (
+            root &&
+            (allowedTaskIdentifiers as readonly string[]).includes(root.type) &&
+            (root.status === JOB_STATUS.PENDING || root.status === JOB_STATUS.PROCESSING) &&
+            payloadMatchesExecution(root.payload, binding)
+          ) {
+            await this.cancelJob(root.id)
+            cancelledRootRunId = root.id
+            state.cancelledJobs += 1
+          }
+        } catch (error) {
+          recordCancellationCandidateFailure(state, error)
         }
       }
 

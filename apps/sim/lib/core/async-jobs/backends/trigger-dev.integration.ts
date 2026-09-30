@@ -17,6 +17,7 @@ const runs = new Map<
 >()
 
 beforeEach(() => {
+  triggerSdkMockFns.mockRunsList.mockReset()
   runs.clear()
   triggerSdkMockFns.mockTasksTrigger.mockImplementation(async (type, payload) => {
     const id = `run_${generateId()}`
