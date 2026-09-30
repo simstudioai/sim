@@ -16,5 +16,9 @@ export default {
     url: process.env.DATABASE_URL!,
   },
   /** Runner-owned journals and resumable cleanup cursors must survive a development schema push. */
-  tablesFilter: ['!script_migrations', '!search_embedding_cleanup_progress'],
+  tablesFilter: [
+    '!script_migrations',
+    '!search_embedding_cleanup_progress',
+    '!search_embedding_cleanup_targets',
+  ],
 } satisfies Config
