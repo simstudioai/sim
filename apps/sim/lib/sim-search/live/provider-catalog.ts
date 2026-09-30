@@ -51,6 +51,11 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
     credentialProviderIds: ['linear'],
     modes: ['member'],
   },
+  lucid: {
+    origin: 'https://mcp.lucid.app',
+    credentialProviderIds: ['mcp:lucid'],
+    modes: ['member'],
+  },
   hubspot: {
     origin: 'https://mcp.hubspot.com',
     credentialProviderIds: ['mcp:hubspot'],

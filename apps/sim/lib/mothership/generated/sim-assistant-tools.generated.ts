@@ -13,6 +13,7 @@ export const liveSearchProviderSchema = z.enum([
   'github',
   'gitlab',
   'linear',
+  'lucid',
   'hubspot',
   'fireflies',
   'granola',
@@ -41,6 +42,7 @@ const PROVIDER_KIND_SCHEMAS = {
   github: z.enum(['issues', 'code', 'repositories', 'commits']),
   gitlab: z.enum(['issues', 'code', 'merge_requests', 'wiki']),
   hubspot: z.enum(['contacts', 'companies', 'deals', 'tickets']),
+  lucid: z.enum(['lucidchart', 'lucidspark']),
 } as const
 
 function hasSearchKinds(
@@ -53,6 +55,7 @@ const nativeSearchKindSchema = z.enum([
   ...PROVIDER_KIND_SCHEMAS.github.options,
   ...PROVIDER_KIND_SCHEMAS.gitlab.options,
   ...PROVIDER_KIND_SCHEMAS.hubspot.options,
+  ...PROVIDER_KIND_SCHEMAS.lucid.options,
 ])
 
 /** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */
@@ -123,7 +126,7 @@ export const nativeSearchQueriesSchema = z
         earlier.some((previous) => !previous.kind || !query.kind)
       )
         addIssue(
-          'A GitHub, GitLab, or HubSpot query without a kind already searches every kind; give each query on this account a kind.'
+          'A GitHub, GitLab, HubSpot, or Lucid query without a kind already searches its default kinds; give each query on this account a kind.'
         )
       else if (busiestAccountLoad(earlier) >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
         addIssue(
@@ -205,7 +208,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion always requires search terms. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; ownership filters are unsupported. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
+        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion and Lucid always require search terms. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Both reject ownership filters. Lucid searches titles with no search continuation; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
       ),
     query: z
       .string()
