@@ -23,9 +23,15 @@ const SCAN_ROWS_PER_MUTATION = 4
 const ROW_LIMIT = { initial: 2_000, min: 25, max: 8_000 } as const
 /** A page slower than this halves the row limit. */
 const SLOW_PAGE_MS = 30_000
-/** A page faster than this doubles the row limit, widening its scan window with it. */
+/**
+ * A page faster than this doubles the row limit, widening its scan window with it, but never back
+ * to a size that timed out.
+ */
 const FAST_PAGE_MS = SLOW_PAGE_MS / 4
-/** Each page is followed by a pause as long as the page, up to this, to leave the primary headroom. */
+/**
+ * Each page, committed or timed out, is followed by a pause as long as the page, up to this, to
+ * leave the primary headroom.
+ */
 const MAX_PAGE_PAUSE_MS = 5_000
 const LOCK_RETRY_BUDGET_MS = 60_000
 
@@ -135,6 +141,8 @@ export const retireSearchEmbeddingsMigration: ScriptMigration = {
     let batches = 0
     let mutated = 0
     let rowLimit: number = ROW_LIMIT.initial
+    /** The largest limit the run may still try: half of the smallest limit that timed out. */
+    let ceiling: number = ROW_LIMIT.max
     for (;;) {
       /** Timed around the whole call, so the synchronous-replication wait at commit counts. */
       const pageStartedAt = performance.now()
@@ -145,8 +153,10 @@ export const retireSearchEmbeddingsMigration: ScriptMigration = {
         if (!(error instanceof PageMutationTimeout)) throw error
         /** The timed-out page rolled back with its cursor, so it is retried with fewer rows. */
         if (rowLimit <= ROW_LIMIT.min) throw error.timeout
-        rowLimit = halve(rowLimit)
+        ceiling = halve(rowLimit)
+        rowLimit = ceiling
         logger.warn('Search retirement page timed out; retrying with fewer rows', { rowLimit })
+        await sleep(Math.min(performance.now() - pageStartedAt, MAX_PAGE_PAUSE_MS))
         continue
       }
       if (page.done) break
@@ -167,7 +177,7 @@ export const retireSearchEmbeddingsMigration: ScriptMigration = {
           rowLimit,
         })
       } else if (pageMs < FAST_PAGE_MS) {
-        rowLimit = Math.min(ROW_LIMIT.max, rowLimit * 2)
+        rowLimit = Math.min(ceiling, rowLimit * 2)
       }
       if (batches % 10 === 0) {
         logger.info('Search embedding retirement progress', {

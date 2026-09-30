@@ -332,12 +332,15 @@ describe('retiring dormant Search embeddings', () => {
         CASE WHEN i % 3 = 0 THEN 'ordinary-doc' ELSE 'search-doc' END
       FROM generate_series(1003, 5002) i`
     await sql`CREATE TABLE committed_statement (rows integer NOT NULL)`
+    /** Sequences are not transactional, so this counts the timed-out statements that rolled back. */
+    await sql`CREATE SEQUENCE timed_out_statement`
     /** Stands in for write cost: a statement touching more than `bound` rows times out and rolls back. */
     await sql.unsafe(`CREATE FUNCTION bound_statement_rows() RETURNS trigger LANGUAGE plpgsql AS $$
       DECLARE touched integer;
       BEGIN
         SELECT count(*) INTO touched FROM changed_rows;
         IF touched > ${bound} THEN
+          PERFORM nextval('timed_out_statement');
           RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = 'query_canceled';
         END IF;
         INSERT INTO committed_statement VALUES (touched);
@@ -353,6 +356,13 @@ describe('retiring dormant Search embeddings', () => {
         sum(rows)::int AS total FROM committed_statement`
       expect(largest).toBeLessThanOrEqual(bound)
       expect(largest).toBeGreaterThan(0)
+      /**
+       * The limit halves 2,000 → 1,000 → 500 → 250 on the first document page and never grows back
+       * to a size that timed out, in either phase: exactly three rolled-back statements. A page
+       * that read past its row limit in either phase would time out again.
+       */
+      const [{ timeouts }] = await sql`SELECT last_value::int AS timeouts FROM timed_out_statement`
+      expect(timeouts).toBe(3)
       /**
        * Documents: i % 3 <> 0 gives 2,667 Search rows, of which i % 7 = 0 leaves 381 retired, so
        * 2,286 are updated, plus `search-doc`. Chunks: 501 Search rows from the fixture plus the
@@ -387,6 +397,7 @@ describe('retiring dormant Search embeddings', () => {
       await sql`DROP TRIGGER IF EXISTS bound_embedding_delete ON embedding`
       await sql`DROP FUNCTION bound_statement_rows()`
       await sql`DROP TABLE committed_statement`
+      await sql`DROP SEQUENCE timed_out_statement`
     }
   }, 60_000)
 
@@ -423,9 +434,9 @@ describe('retiring dormant Search embeddings', () => {
       expect(await pass()).toBe(true)
       const reads = (await documentReads()) - before
       /**
-       * About 120 pages retire the 3,001 documents 25 at a time, each after one rolled-back attempt
-       * at 50 rows. A window of four IDs per row reads about 300 IDs and 75 update lookups per page,
-       * roughly 15 reads per document, plus the chunk phase and completion rechecks. A fixed
+       * About 120 pages retire the 3,001 documents 25 at a time once the limit has halved down to
+       * its floor. A window of four IDs per row reads about 100 IDs and 25 update lookups per page,
+       * roughly 5 reads per document, plus the chunk phase and completion rechecks. A fixed
        * 25,000-ID window re-reads the rest of the table on every attempt, over 100 per document.
        */
       expect(reads).toBeLessThan(30 * docs)

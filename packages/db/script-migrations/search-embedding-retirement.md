@@ -48,8 +48,9 @@ also widens the scan window, so sparse stretches are not crawled in small window
 Materialized SQL pages keep the IDs inside PostgreSQL; the migration process receives only a cursor
 and a validation result. Each page uses a two-minute statement timeout and a one-second lock
 timeout. If a page's mutating statement exceeds the statement timeout, the page rolls back with its
-cursor and is retried with half the row limit; one that still times out at 25 rows fails the
-migration. Any other statement timeout fails the migration at once, because a smaller page cannot
+cursor and is retried with half the row limit after the usual pause. From then on, fast pages grow
+the limit only up to that halved size, so a size that timed out is never tried again. A page that
+still times out at 25 rows fails the migration. Any other statement timeout fails the migration at once, because a smaller page cannot
 speed it up. The completion rechecks, which walk every captured KB once, run with a 30-minute
 timeout. Brief lock timeouts retry the rolled-back page with bounded backoff for up to one minute.
 Other errors, or exhausted lock retries, fail the migration without a completion receipt.
