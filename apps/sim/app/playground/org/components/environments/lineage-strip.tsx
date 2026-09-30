@@ -212,6 +212,7 @@ export function LineageStrip({ project, columns, lineageByEnv, canManage }: Line
           onOpenChange={setForkModalOpen}
           sourceWorkspaceId={project.id}
           sourceWorkspaceName={current?.name || project.name}
+          sources={columns.map((column) => ({ id: column.id, name: column.name }))}
           canFork={creationPolicy?.canCreate ?? true}
           onUpgrade={() => {
             if (billingEnabled) navigateToSettings({ section: 'billing' })

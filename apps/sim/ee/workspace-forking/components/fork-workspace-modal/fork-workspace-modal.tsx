@@ -9,6 +9,7 @@ import {
   ChipModalError,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
   toast,
 } from '@sim/emcn'
 import { TriangleAlert } from '@sim/emcn/icons'
@@ -26,6 +27,11 @@ interface ForkWorkspaceModalProps {
   onOpenChange: (open: boolean) => void
   sourceWorkspaceId: string
   sourceWorkspaceName: string
+  /**
+   * Other workspaces the fork may be taken from, such as the environments of a project. With
+   * more than one, "Forking from" becomes a picker that starts on `sourceWorkspaceId`.
+   */
+  sources?: readonly { id: string; name: string }[]
   /** Whether the user is under their workspace cap; creating a fork is gated on this. */
   canFork: boolean
   /** Sends the user to upgrade (billing) when they try to fork at the cap. */
@@ -75,12 +81,15 @@ export function ForkWorkspaceModal({
   onOpenChange,
   sourceWorkspaceId,
   sourceWorkspaceName,
+  sources,
   canFork,
   onUpgrade,
 }: ForkWorkspaceModalProps) {
   const router = useRouter()
   const forkWorkspace = useForkWorkspace()
-  const resources = useForkResources(sourceWorkspaceId, open)
+  const [sourceId, setSourceId] = useState(sourceWorkspaceId)
+  const sourceName = sources?.find((source) => source.id === sourceId)?.name ?? sourceWorkspaceName
+  const resources = useForkResources(sourceId, open)
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<ResourceSelection>(emptySelection)
   const [defaulted, setDefaulted] = useState(false)
@@ -88,12 +97,23 @@ export function ForkWorkspaceModal({
 
   useEffect(() => {
     if (open) {
-      setName(`${sourceWorkspaceName} (fork)`)
+      setSourceId(sourceWorkspaceId)
       setSelected(emptySelection())
       setDefaulted(false)
       setError(null)
     }
-  }, [open, sourceWorkspaceName])
+  }, [open, sourceWorkspaceId])
+
+  /** The default name follows the chosen source until the user types one of their own. */
+  useEffect(() => {
+    if (open) setName(`${sourceName} (fork)`)
+  }, [open, sourceName])
+
+  const handleSourceChange = (nextSourceId: string) => {
+    setSourceId(nextSourceId)
+    setSelected(emptySelection())
+    setDefaulted(false)
+  }
 
   useEffect(() => {
     if (!open || !resources.data || defaulted) return
@@ -141,7 +161,7 @@ export function ForkWorkspaceModal({
       RESOURCE_KINDS.map((kind) => [kind.key, Array.from(selected[kind.key])])
     )
     forkWorkspace.mutate(
-      { workspaceId: sourceWorkspaceId, body: { name: trimmed, copy } },
+      { workspaceId: sourceId, body: { name: trimmed, copy } },
       {
         onSuccess: (result) => {
           // The copy job's progress lands in the page's Activity log; the toast action
@@ -165,7 +185,20 @@ export function ForkWorkspaceModal({
       <ChipModalBody>
         <div className='flex flex-col gap-7 px-2'>
           <SettingsSection label='Forking from'>
-            <ChipCopyInput value={sourceWorkspaceName} aria-label='Forking from' />
+            {sources && sources.length > 1 ? (
+              <ChipSelect
+                aria-label='Forking from'
+                align='start'
+                fullWidth
+                dropdownWidth='trigger'
+                value={sourceId}
+                onChange={handleSourceChange}
+                disabled={isForking}
+                options={sources.map((source) => ({ value: source.id, label: source.name }))}
+              />
+            ) : (
+              <ChipCopyInput value={sourceName} aria-label='Forking from' />
+            )}
           </SettingsSection>
 
           <SettingsSection

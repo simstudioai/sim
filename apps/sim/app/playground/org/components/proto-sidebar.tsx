@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react'
 import {
-  Avatar,
   Chip,
   ChipLink,
   chipVariants,
@@ -19,15 +18,16 @@ import {
   PanelLeft,
   Plus,
   Search,
-  Settings,
   SquarePen,
 } from '@sim/emcn/icons'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { useActiveOrganization, useSession } from '@/lib/auth/auth-client'
+import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
 import { ProjectRow } from '@/app/playground/org/components/project-row'
 import { type Project, useProjects } from '@/app/playground/org/lib/project'
@@ -51,7 +51,9 @@ import {
 import { type ProjectDragProps, useProjectOrder } from '@/app/playground/org/lib/use-project-order'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
+  HelpModal,
   isNavItemActive,
+  SidebarFooter,
   SidebarNavChip,
   type SidebarNavItemData,
   SidebarSection,
@@ -121,6 +123,8 @@ export function ProtoSidebar() {
   const [{ chat: openChat }] = useQueryStates(protoParsers)
   const { projects, roots } = useProjects()
   const { projects: orderedProjects, dragProps, isAnyDragActive } = useProjectOrder(roots)
+  const router = useRouter()
+  const [helpOpen, setHelpOpen] = useState(false)
   const { data: organization } = useActiveOrganization()
   const { data: session } = useSession()
   /** Only a mock project has a full view here; a real project's Build is its workspace pages. */
@@ -129,6 +133,10 @@ export function ProtoSidebar() {
   )
   const inSettings = Boolean(fullProject && settingsProject(pathname))
   const organizationId = projects.find((project) => project.organizationId)?.organizationId
+  /** The organization's settings; without an organization, the viewer's workspace settings. */
+  const accountSettingsHref = organizationId
+    ? organizationRoutes(organizationId).settingsSection('general')
+    : WORKSPACE_SETTINGS_PATH
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
@@ -275,24 +283,19 @@ export function ProtoSidebar() {
           </div>
         </div>
 
-        <div
-          className={cn(
-            'flex shrink-0 items-center gap-[1px] border-t px-2 py-2 transition-colors',
-            !scrollEdges.bottom && 'border-transparent'
-          )}
-        >
-          <div className='min-w-0 flex-1'>
-            <Chip
-              fullWidth
-              className={SIDEBAR_RAIL_CHIP_CLASS}
-              leftAdornment={<Avatar size='xs' name={userName} />}
-            >
-              {userName}
-            </Chip>
-          </div>
-          {!isCollapsed && <Chip leftIcon={Settings} aria-label='Settings' />}
-        </div>
+        <SidebarFooter
+          showDivider={scrollEdges.bottom}
+          isCollapsed={isCollapsed}
+          showCollapsedTooltips={isCollapsed}
+          accountSettingsHref={accountSettingsHref}
+          onOpenAccountSettings={() => router.push(accountSettingsHref)}
+          navigationLinks={[]}
+          onOpenDocs={() => window.open(DOCS_URL, '_blank', 'noopener,noreferrer')}
+          onJoinSlack={() => window.open(SLACK_COMMUNITY_URL, '_blank', 'noopener,noreferrer')}
+          onContactSupport={() => setHelpOpen(true)}
+        />
       </div>
+      <HelpModal open={helpOpen} onOpenChange={setHelpOpen} />
     </aside>
   )
 }
