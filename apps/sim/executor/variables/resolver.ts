@@ -91,8 +91,11 @@ interface LocatedLargeValue {
   size: number
 }
 
-/** An object key a reference can reach with `.key`: no whitespace, path, or operator characters. */
-const REFERENCEABLE_KEY = /^[^\s.[\]+*/=<>!&|]+$/
+/**
+ * An object key a reference can reach with `.key`: no whitespace, path, or operator characters,
+ * and not digits alone, which path navigation reads as an array index.
+ */
+const REFERENCEABLE_KEY = /^(?!\d+$)[^\s.[\]+*/=<>!&|]+$/
 
 /** How to use a large value in a runtime that cannot load one on demand. */
 const LARGE_VALUE_RUNTIME_HINT = 'Select a smaller field, or read it in JavaScript without imports.'

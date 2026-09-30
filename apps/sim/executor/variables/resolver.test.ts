@@ -1048,17 +1048,20 @@ describe('VariableResolver function block inputs', () => {
       )
     })
 
-    it('omits a field reference that a key cannot be written as', async () => {
-      await expect(
-        resolveAgainstProducer(
-          'javascript',
-          { result: { 'report.txt': largeRef(10.5 * 1024 * 1024) } },
-          'return <Producer.result>'
+    it.each(['report.txt', '0'])(
+      'omits a field reference that the key %s cannot be written as',
+      async (key) => {
+        await expect(
+          resolveAgainstProducer(
+            'javascript',
+            { result: { [key]: largeRef(10.5 * 1024 * 1024) } },
+            'return <Producer.result>'
+          )
+        ).rejects.toThrow(
+          '<Producer.result> contains a 10.5 MB value. Reference the field you need directly.'
         )
-      ).rejects.toThrow(
-        '<Producer.result> contains a 10.5 MB value. Reference the field you need directly.'
-      )
-    })
+      }
+    )
   })
 
   it('breaks JavaScript string literals around quoted block references', async () => {
