@@ -145,8 +145,10 @@ describe('completeWorkflowExecution', () => {
         })
       } finally {
         completing = false
-        await reader
+        // Settle the reader without letting its error replace a completion failure.
+        await reader.catch(() => {})
       }
+      await reader
 
       const ledger = await buildCostLedger(executionId)
       expect(ledger?.total).toBeCloseTo(EXECUTION_FEE, 8)
