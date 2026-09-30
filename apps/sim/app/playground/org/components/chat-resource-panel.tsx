@@ -220,6 +220,7 @@ function ResourceView({ workspace, resource, onBrowse }: ResourceViewProps) {
   return (
     <Resource>
       <Resource.Header
+        compact
         icon={Icon}
         breadcrumbs={[
           ...(workspace ? [{ label: workspace.name, onClick: () => onBrowse(null) }] : []),
@@ -227,13 +228,18 @@ function ResourceView({ workspace, resource, onBrowse }: ResourceViewProps) {
           {
             label: resource.name,
             dropdownItems: [
-              { label: 'Copy Link', icon: Link, onClick: () => {} },
               { label: 'Download', icon: Download, onClick: () => {} },
               { label: 'Rename', icon: Pencil, onClick: () => {} },
               { label: 'Share', icon: Send, onClick: () => {} },
               { label: 'Delete', icon: Trash, onClick: () => {} },
             ],
           },
+        ]}
+        actions={[
+          { icon: Link, text: 'Copy Link', onSelect: () => {} },
+          { icon: Download, text: 'Download', onSelect: () => {} },
+          { icon: Send, text: 'Share', onSelect: () => {} },
+          { icon: Trash, text: 'Delete', onSelect: () => {} },
         ]}
       />
       <div className='min-h-0 flex-1 overflow-y-auto'>
