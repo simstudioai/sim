@@ -255,6 +255,33 @@ export function projectToolErrorMessageForCopilot(
   return projectToolResultForCopilot({ success: false, error }, registry, toolId).error ?? ''
 }
 
+/**
+ * Sizes the content a withheld result would have carried, for the log line only.
+ *
+ * A complete registry can still refuse content by its encoded size or by the number of values the
+ * projection must walk (its node cap is reached well before the byte cap by row-shaped payloads).
+ * Both measures are reported so a `content-refused` line names which one it hit. Numbers only:
+ * the content itself never reaches the log.
+ */
+export function measureWithheldContent(result: ToolExecutionResult): {
+  resultBytes?: number
+  resultValues?: number
+} {
+  try {
+    let values = 0
+    const encoded = JSON.stringify(
+      { output: result.output, error: result.error },
+      (_key, value) => {
+        values += 1
+        return value
+      }
+    )
+    return { resultBytes: Buffer.byteLength(encoded, 'utf8'), resultValues: values }
+  } catch {
+    return {}
+  }
+}
+
 /** Flattens a withholding cause into log/span fields, so every surface reports it alike. */
 export function describeWithholdingCause(
   cause: ToolResultWithholdingCause
