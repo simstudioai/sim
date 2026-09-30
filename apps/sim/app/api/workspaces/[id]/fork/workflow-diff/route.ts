@@ -12,7 +12,7 @@ export const GET = defineInternalJsonRoute({
   contract: getForkWorkflowDiffContract,
   auth: internalSessionAuth,
   operation: forkOperations.syncPreview,
-  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal fork request policy' }),
+  rateLimit: internalRateLimits.user({ bucketName: 'workspace-fork-workflow-diff' }),
   errorPolicy: internalForkErrorPolicy,
   mapInput: ({ params, query }) => ({ workspaceId: params.id, ...query }),
   useCase: getWorkspaceSyncWorkflowDiff,

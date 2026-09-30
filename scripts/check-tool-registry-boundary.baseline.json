@@ -319,16 +319,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/[section]/page.tsx": {
-      "modules": 2449,
+      "modules": 2804,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 747,
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 1103,
+        "apps/sim/app/workspace/[workspaceId]/settings/section-warmers.ts": 914,
         "apps/sim/triggers/registry.ts": 489,
-        "apps/sim/lib/auth/index.ts": 406,
-        "apps/sim/blocks/registry.ts": 364,
-        "apps/sim/lib/webhooks/providers/index.ts": 122,
-        "apps/sim/lib/webhooks/providers/registry.ts": 120,
-        "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted.tsx": 105,
-        "apps/sim/ee/access-control/components/access-control.tsx": 79
+        "apps/sim/lib/auth/index.ts": 405,
+        "apps/sim/ee/workspace-forking/components/forks.tsx": 377,
+        "apps/sim/ee/workspace-forking/components/fork-sync-detail-view/fork-sync-detail-view.tsx": 369,
+        "apps/sim/ee/workspace-forking/components/fork-sync/fork-sync-view.tsx": 361,
+        "apps/sim/blocks/registry.ts": 356
       }
     },
     "app/workspace/[workspaceId]/settings/billing/credit-usage/layout.tsx": {
@@ -357,16 +357,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/layout.tsx": {
-      "modules": 1817,
+      "modules": 2172,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/settings/section-warmers.ts": 1779,
+        "apps/sim/app/workspace/[workspaceId]/settings/section-warmers.ts": 2134,
         "apps/sim/triggers/registry.ts": 528,
-        "apps/sim/blocks/registry.ts": 364,
-        "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted.tsx": 111,
-        "apps/sim/ee/access-control/components/access-control.tsx": 79,
-        "apps/sim/ee/access-control/components/group-detail.tsx": 77,
-        "apps/sim/connectors/registry.ts": 72,
-        "apps/sim/triggers/clickup/index.ts": 32
+        "apps/sim/ee/workspace-forking/components/forks.tsx": 379,
+        "apps/sim/ee/workspace-forking/components/fork-sync-detail-view/fork-sync-detail-view.tsx": 371,
+        "apps/sim/ee/workspace-forking/components/fork-sync/fork-sync-view.tsx": 363,
+        "apps/sim/blocks/registry.ts": 357,
+        "apps/sim/ee/workspace-forking/components/fork-sync/fork-workflow-diff-modal.tsx": 355,
+        "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/index.ts": 353
       }
     },
     "app/workspace/[workspaceId]/settings/page.tsx": {

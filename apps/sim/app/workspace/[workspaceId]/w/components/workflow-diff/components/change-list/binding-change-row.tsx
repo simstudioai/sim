@@ -34,13 +34,15 @@ export function BindingChangeRow({ blockType, field, oldValue, newValue }: Bindi
         <span className='text-[var(--text-muted)]'>Differs between workspaces</span>
       ) : (
         <>
-          <span className='min-w-0 truncate text-[var(--text-muted)]'>
-            {formatScalar(blockType, field, oldValue)}
-          </span>
+          <OverflowText
+            label={formatScalar(blockType, field, oldValue)}
+            className='min-w-0 flex-1 text-[var(--text-muted)]'
+          />
           <ArrowRight className='size-[12px] shrink-0 text-[var(--text-icon)]' />
-          <span className='min-w-0 truncate text-[var(--text-tertiary)]'>
-            {formatScalar(blockType, field, newValue)}
-          </span>
+          <OverflowText
+            label={formatScalar(blockType, field, newValue)}
+            className='min-w-0 flex-1 text-[var(--text-tertiary)]'
+          />
         </>
       )}
     </div>

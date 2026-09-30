@@ -14,6 +14,7 @@ import { Badge, cn, OverflowText } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import { humanizeBlockName } from '@sim/workflow-renderer'
 import type { BlockDiffStatus, WorkflowDiffSummary } from '@/lib/workflows/comparison'
+import { DIFF_LABEL } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
 import { BindingChangeRow } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/binding-change-row'
 import {
   DIFF_SIGN,
@@ -34,12 +35,6 @@ const STATUS_BADGE_VARIANT: Record<BlockDiffStatus, 'green' | 'amber' | 'red'> =
   added: 'green',
   modified: 'amber',
   removed: 'red',
-}
-
-const STATUS_LABEL: Record<BlockDiffStatus, string> = {
-  added: 'Added',
-  modified: 'Modified',
-  removed: 'Removed',
 }
 
 interface ChangeListProps {
@@ -166,14 +161,14 @@ export function ChangeList({
           }
         >
           <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3 text-small'>
-            {summary.variableChanges.addedNames.map((name) => (
-              <NamedRow key={`a-${name}`} kind='added' name={name} />
+            {summary.variableChanges.addedNames.map((name, index) => (
+              <NamedRow key={`a-${index}-${name}`} kind='added' name={name} />
             ))}
-            {summary.variableChanges.modifiedNames.map((name) => (
-              <NamedRow key={`m-${name}`} kind='changed' name={name} />
+            {summary.variableChanges.modifiedNames.map((name, index) => (
+              <NamedRow key={`m-${index}-${name}`} kind='changed' name={name} />
             ))}
-            {summary.variableChanges.removedNames.map((name) => (
-              <NamedRow key={`r-${name}`} kind='removed' name={name} />
+            {summary.variableChanges.removedNames.map((name, index) => (
+              <NamedRow key={`r-${index}-${name}`} kind='removed' name={name} />
             ))}
           </div>
         </Section>
@@ -293,7 +288,7 @@ const BlockCard = memo(function BlockCard({
           className='flex-1 font-medium text-[var(--text-primary)] text-small'
         />
         <Badge variant={bindingsOnly ? 'gray' : STATUS_BADGE_VARIANT[entry.status]} size='sm'>
-          {bindingsOnly ? 'Bindings only' : STATUS_LABEL[entry.status]}
+          {bindingsOnly ? 'Bindings only' : DIFF_LABEL[entry.status]}
         </Badge>
         {hasBody && (
           <ChevronDown
@@ -371,16 +366,16 @@ const BlockCard = memo(function BlockCard({
                   nested
                 />
               ))}
-              {entry.membership?.added.map((row) => (
+              {entry.membership?.added.map((row, index) => (
                 <NamedRow
-                  key={`a-${row.name}`}
+                  key={`a-${index}-${row.name}`}
                   kind='added'
                   name={`${humanizeBlockName(row.name)}${row.moved ? ' (moved in)' : ''}`}
                 />
               ))}
-              {entry.membership?.removed.map((row) => (
+              {entry.membership?.removed.map((row, index) => (
                 <NamedRow
-                  key={`r-${row.name}`}
+                  key={`r-${index}-${row.name}`}
                   kind='removed'
                   name={`${humanizeBlockName(row.name)}${row.moved ? ' (moved out)' : ''}`}
                 />

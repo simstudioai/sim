@@ -1,6 +1,14 @@
 'use client'
 
-import { type Dispatch, Fragment, type SetStateAction, useMemo, useState } from 'react'
+import {
+  type Dispatch,
+  Fragment,
+  lazy,
+  type SetStateAction,
+  Suspense,
+  useMemo,
+  useState,
+} from 'react'
 import {
   Badge,
   Button,
@@ -25,10 +33,6 @@ import type {
   ForkTriggerMapping,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
-
-/** A change row that names a deployed source workflow, so it can be previewed block for block. */
-type ForkWorkflowPreviewChange = Extract<ForkWorkflowChange, { action: 'update' | 'create' }>
-
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -58,7 +62,6 @@ import {
   getDisplayedDependentFields,
   isDependentConfigurationActionable,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
-import { ForkWorkflowDiffModal } from '@/ee/workspace-forking/components/fork-sync/fork-workflow-diff-modal'
 import type {
   ForkKindSummary,
   ForkMappingGroup,
@@ -67,6 +70,18 @@ import type {
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/sync-blockers'
 import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
+
+/** A change row that names a deployed source workflow, so it can be previewed block for block. */
+type ForkWorkflowPreviewChange = Extract<ForkWorkflowChange, { action: 'update' | 'create' }> & {
+  sourceWorkflowId: string
+}
+
+/** The comparison canvas is heavy and rarely opened, so it stays out of the settings bundle. */
+const ForkWorkflowDiffModal = lazy(() =>
+  import('@/ee/workspace-forking/components/fork-sync/fork-workflow-diff-modal').then((module) => ({
+    default: module.ForkWorkflowDiffModal,
+  }))
+)
 
 /**
  * Copyable kinds as expandable rows in the "Copy resources" section, ordered + labeled to match
@@ -878,18 +893,20 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           Unsynced workflows list greyed at the end, with a tooltip naming which workspace
           they are unsynced in - the sync will not touch them. */}
       {diffWorkflow && controller.otherWorkspaceId && (
-        <ForkWorkflowDiffModal
-          key={`${controller.direction}:${diffWorkflow.sourceWorkflowId}`}
-          open
-          onOpenChange={(open) => {
-            if (!open) setDiffWorkflow(null)
-          }}
-          workspaceId={controller.workspaceId}
-          otherWorkspaceId={controller.otherWorkspaceId}
-          direction={controller.direction}
-          sourceWorkflowId={diffWorkflow.sourceWorkflowId}
-          workflowName={diffWorkflow.currentName}
-        />
+        <Suspense fallback={null}>
+          <ForkWorkflowDiffModal
+            key={`${controller.direction}:${diffWorkflow.sourceWorkflowId}`}
+            open
+            onOpenChange={(open) => {
+              if (!open) setDiffWorkflow(null)
+            }}
+            workspaceId={controller.workspaceId}
+            otherWorkspaceId={controller.otherWorkspaceId}
+            direction={controller.direction}
+            sourceWorkflowId={diffWorkflow.sourceWorkflowId}
+            workflowName={diffWorkflow.currentName}
+          />
+        </Suspense>
       )}
 
       {controller.hasDiff ? (
@@ -899,6 +916,10 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
               <div className='flex flex-col gap-1'>
                 {controller.workflowChanges.map((change, index) => {
                   const renamed = change.currentName !== change.otherName
+                  const preview: ForkWorkflowPreviewChange | null =
+                    change.action !== 'archive' && change.sourceWorkflowId
+                      ? { ...change, sourceWorkflowId: change.sourceWorkflowId }
+                      : null
                   return (
                     <div
                       key={`${change.action}:${change.currentName}:${index}`}
@@ -915,14 +936,14 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                           </span>
                         </>
                       ) : null}
-                      {change.action !== 'archive' && controller.otherWorkspaceId && (
+                      {preview && controller.otherWorkspaceId && (
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
                               iconPadding='sm'
                               aria-label={`View changes to ${change.currentName}`}
-                              onClick={() => setDiffWorkflow(change)}
+                              onClick={() => setDiffWorkflow(preview)}
                               className='ml-auto shrink-0'
                             >
                               <Columns2 className='size-[14px]' />

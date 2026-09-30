@@ -3,7 +3,8 @@
 import { cn } from '@sim/emcn'
 import type { BlockDiffStatus } from '@/lib/workflows/comparison'
 
-const DIFF_LABEL: Record<BlockDiffStatus, string> = {
+/** The word for each comparison status, shared by the canvas label and the change list badge. */
+export const DIFF_LABEL: Record<BlockDiffStatus, string> = {
   added: 'Added',
   modified: 'Modified',
   removed: 'Removed',

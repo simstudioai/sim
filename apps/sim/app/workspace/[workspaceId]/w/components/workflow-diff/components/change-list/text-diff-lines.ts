@@ -19,6 +19,13 @@ const MAX_WORD_HIGHLIGHT_RATIO = 0.6
  */
 const MAX_WORD_DIFF_CHARS = 4000
 /**
+ * Word marks only help when a line pair differs by a few words, so the word
+ * diff gives up past this many edits. That caps each pair's work at a small
+ * multiple of its length, so many long, heavily rewritten line pairs cannot
+ * add up to a stall the way a per-line size limit alone would allow.
+ */
+const MAX_WORD_EDITS = 64
+/**
  * Line diffing is quadratic in the worst case too; two bodies with more lines
  * than this between them are summarized instead of diffed so opening a
  * comparison never hangs the tab.
@@ -63,7 +70,10 @@ export function markWordChanges(lines: DiffLine[]): DiffLine[] {
       const added = out[removedEnd + offset]
       const total = removed.text.length + added.text.length
       if (total === 0 || total > MAX_WORD_DIFF_CHARS) continue
-      const words = diffWordsWithSpace(removed.text, added.text)
+      const words = diffWordsWithSpace(removed.text, added.text, {
+        maxEditLength: MAX_WORD_EDITS,
+      })
+      if (!words) continue
       const changedChars = words
         .filter((part) => part.added || part.removed)
         .reduce((sum, part) => sum + part.value.length, 0)

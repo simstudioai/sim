@@ -58,6 +58,9 @@ export function KeyedListDiff({ blockType, field, oldValue, newValue }: KeyedLis
               {row.oldLabel && (
                 <span className='text-[var(--text-muted)]'> (was {row.oldLabel})</span>
               )}
+              {row.secretChanged && (
+                <span className='text-[var(--text-muted)]'> (a masked value changed)</span>
+              )}
             </span>
             {row.kind === 'changed' && row.oldText !== row.newText ? (
               <TextDiff oldText={row.oldText} newText={row.newText} />

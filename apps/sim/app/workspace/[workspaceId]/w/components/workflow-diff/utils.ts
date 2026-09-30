@@ -65,8 +65,13 @@ export function isPositionalListField(blockType: string, field: string): boolean
 export interface ListItemView {
   key: string
   label: string
-  /** The item's comparable body; a change here renders as a text diff */
+  /** The item's comparable body as shown, secrets masked; a change here renders as a text diff */
   text: string
+  /**
+   * The body before masking, used only to decide whether two items differ, so
+   * a change to a secret alone still reads as a change without being shown.
+   */
+  signature?: string
 }
 
 export type ListRowKind = 'added' | 'removed' | 'changed'
@@ -79,6 +84,8 @@ export interface ListDiffRow {
   oldLabel?: string
   oldText: string
   newText: string
+  /** The only difference is in a masked value, so the texts read the same */
+  secretChanged?: boolean
 }
 
 /**
@@ -103,7 +110,8 @@ export function pairListItems(
     const index = list.findIndex(predicate)
     return index === -1 ? undefined : list.splice(index, 1)[0]
   }
-  const same = (a: ListItemView, b: ListItemView) => a.text === b.text && a.label === b.label
+  const body = (item: ListItemView) => item.signature ?? item.text
+  const same = (a: ListItemView, b: ListItemView) => body(a) === body(b) && a.label === b.label
 
   for (const item of newItems) {
     const previous = take(oldLeft, (candidate) => candidate.key === item.key)
@@ -116,6 +124,9 @@ export function pairListItems(
         oldLabel: previous.label !== item.label ? previous.label : undefined,
         oldText: previous.text,
         newText: item.text,
+        ...(previous.text === item.text && body(previous) !== body(item)
+          ? { secretChanged: true }
+          : {}),
       })
     }
   }
@@ -214,13 +225,13 @@ export function describeListItems(
             ))
           : undefined
       const { serverId, toolName: _toolName, ...rawParams } = paramRecord
-      const visibleParams = maskSecretsDeep(rawParams) as Record<string, unknown>
       /* What the tool is allowed to do, where it runs and how it runs matter as much as its params. */
-      const body = filterBlank({
-        ...(maskSecretsDeep(pick(item, TOOL_EXECUTION_FIELDS)) as Record<string, unknown>),
+      const rawBody = filterBlank({
+        ...pick(item, TOOL_EXECUTION_FIELDS),
         server: serverId,
-        params: Object.keys(visibleParams).length ? visibleParams : undefined,
+        params: Object.keys(rawParams).length ? rawParams : undefined,
       })
+      const body = maskSecretsDeep(maskToolPasswordParams(toolType, rawBody))
       return {
         key:
           mcpName ?? customName ?? readString(item, ['toolId', 'type', 'title']) ?? `tool-${index}`,
@@ -230,7 +241,8 @@ export function describeListItems(
           customName ??
           readString(item, ['type']) ??
           `Tool ${index + 1}`,
-        text: Object.keys(body).length ? JSON.stringify(body, null, 2) : '',
+        text: Object.keys(rawBody).length ? JSON.stringify(body, null, 2) : '',
+        signature: Object.keys(rawBody).length ? JSON.stringify(rawBody) : '',
       }
     }
     if (type === 'input-format') {
@@ -252,6 +264,7 @@ export function describeListItems(
       key: id ?? label,
       label,
       text: Object.keys(rest).length ? JSON.stringify(maskSecretsDeep(rest), null, 2) : '',
+      signature: Object.keys(rest).length ? JSON.stringify(rest) : '',
     }
   })
 }
@@ -458,7 +471,9 @@ export function formatScalar(blockType: string, field: string, value: unknown): 
     const match = options.find((option) => option.id === value)
     if (match?.label) return match.label
   }
-  return formatValueForDisplay(value)
+  /* A comparison must show the whole value: a difference at character 55 is still a difference. */
+  if (typeof value === 'string') return value || formatValueForDisplay(value)
+  return formatValueForDisplay(maskSecretsDeep(value))
 }
 
 /**
@@ -493,12 +508,50 @@ function isSecretKey(key: string): boolean {
 }
 
 /**
+ * A block used as an agent tool keeps its params under the block's own
+ * sub-block ids, so the block's `password` flags say which ones are secrets,
+ * whatever they are named (an access key id is as sensitive as its secret).
+ */
+function maskToolPasswordParams(
+  toolType: string | undefined,
+  body: Record<string, unknown>
+): Record<string, unknown> {
+  const params = body.params
+  if (!toolType || !params || typeof params !== 'object' || Array.isArray(params)) return body
+  const masked: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
+    masked[key] =
+      !isBlankValue(value) && findSubBlockConfig(toolType, key)?.password ? MASKED_VALUE : value
+  }
+  return { ...body, params: masked }
+}
+
+/**
+ * Tool params persist structured values as JSON strings, so a header map with
+ * an Authorization entry arrives encoded; decode, mask and re-encode it.
+ */
+function maskEncodedSecrets(value: string): string {
+  const trimmed = value.trimStart()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return value
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    return value
+  }
+  if (parsed === null || typeof parsed !== 'object') return value
+  const masked = maskSecretsDeep(parsed)
+  return JSON.stringify(masked) === JSON.stringify(parsed) ? value : JSON.stringify(masked)
+}
+
+/**
  * Returns a copy of a stored value with every secret-looking leaf masked, at any
  * depth: object keys, and the `Value` of a key/value table row whose `Key`
  * names a secret (an API block's headers).
  */
 export function maskSecretsDeep(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(maskSecretsDeep)
+  if (typeof value === 'string') return maskEncodedSecrets(value)
   if (value === null || typeof value !== 'object') return value
   const record = value as Record<string, unknown>
   const cells = record.cells

@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { lazy, Suspense, useId, useState } from 'react'
 import {
   Button,
   ChipButtonGroup,
@@ -17,16 +17,26 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import {
+  type ComparePair,
+  resolveComparePair,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/compare-pair'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { type ComparePair, resolveComparePair } from './compare-pair'
-import { CompareVersionsModal, Versions } from './components'
+import { Versions } from './components'
 import { formatVersionLabel } from './format-version-label'
 
 const logger = createLogger('GeneralDeploy')
+
+/** The comparison canvas is heavy and rarely opened, so it stays out of the editor's initial bundle. */
+const CompareVersionsModal = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/components/compare-versions-modal'
+  ).then((module) => ({ default: module.CompareVersionsModal }))
+)
 
 interface GeneralDeployProps {
   workflowId: string | null
@@ -350,17 +360,19 @@ export function GeneralDeploy({
       />
 
       {workflowId && comparePair && (
-        <CompareVersionsModal
-          key={JSON.stringify(comparePair)}
-          open
-          onOpenChange={(open) => {
-            if (!open) setComparePair(null)
-          }}
-          workflowId={workflowId}
-          versions={versions}
-          initialBase={comparePair.base}
-          initialTarget={comparePair.target}
-        />
+        <Suspense fallback={null}>
+          <CompareVersionsModal
+            key={JSON.stringify(comparePair)}
+            open
+            onOpenChange={(open) => {
+              if (!open) setComparePair(null)
+            }}
+            workflowId={workflowId}
+            versions={versions}
+            initialBase={comparePair.base}
+            initialTarget={comparePair.target}
+          />
+        </Suspense>
       )}
 
       {workflowToShow && (

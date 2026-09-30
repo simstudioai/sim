@@ -3,8 +3,6 @@ export {
   type ContainerConfigField,
   generateWorkflowDiffSummary,
   hasWorkflowChanged,
-  LOOP_CONFIG_FIELDS,
-  PARALLEL_CONFIG_FIELDS,
   summaryHasChanges,
   type WorkflowDiffSummary,
 } from './compare'
