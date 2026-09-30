@@ -597,7 +597,7 @@ export async function executeFunctionExecute(
 
     /** Receipt records every value placed in the runtime, including silent resolutions. */
     for (const [name, plaintext] of Object.entries(mounted.envVars)) {
-      if (!mountedRegistry.recordResolved(name, plaintext)) {
+      if (plaintext.length > 0 && !mountedRegistry.recordResolved(name, plaintext)) {
         throw new CopilotCodeSecretAccessError('Mounted secret provenance is unavailable')
       }
     }

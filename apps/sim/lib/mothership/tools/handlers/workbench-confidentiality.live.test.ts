@@ -6,54 +6,29 @@ import { createDelegatedPrincipal } from '@sim/testing/factories/principal.facto
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { setEnv } from '@sim/testing/mocks/env.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { generateShortId } from '@sim/utils/id'
 import Redis from 'ioredis'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const io = vi.hoisted(() => ({ execute: vi.fn(), mount: vi.fn(), find: vi.fn(), write: vi.fn() }))
-vi.mock('@/tools', () => ({ executeTool: io.execute }))
+const io = vi.hoisted(() => ({ mount: vi.fn(), find: vi.fn(), write: vi.fn() }))
+vi.mock('@/tools', () => toolsMock)
 vi.mock('@/lib/mothership/tools/secret-mount-materializer.server', () => ({
   materializeCopilotCodeSecrets: io.mount,
   CopilotCodeSecretAccessError: class extends Error {},
 }))
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({
-    id: 'e2b',
-    dependencyStrategy: 'prebuilt',
-    resolveLifetimeMs: (ms: number) => ms,
-    findSessionSandbox: io.find,
-    create: async () => {
-      throw new Error('Only the existing disposable worker may be used')
-    },
-  }),
-}))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
   resolveWorkspaceSandbox: async () => null,
   provisionRuntimeDependencies: async () => {},
   repairMissingSandboxImage: async () => null,
   RUNTIME_INSTALL_TIMEOUT_MS: 60_000,
-}))
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: () => redis,
-  getConfiguredRedisUrl: () => undefined,
-  acquireLock: async (key: string, owner: string, ttl: number) =>
-    (await redis.set(key, owner, 'EX', ttl, 'NX')) === 'OK',
-  extendLock: async (key: string, owner: string, ttl: number) =>
-    (await redis.eval(
-      "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('EXPIRE',KEYS[1],ARGV[2]) else return 0 end",
-      1,
-      key,
-      owner,
-      ttl
-    )) === 1,
-  releaseLock: async (key: string, owner: string) =>
-    redis.eval(
-      "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end",
-      1,
-      key,
-      owner
-    ),
 }))
 vi.mock('@/lib/mothership/tools/sandbox-session', () => ({
   buildMothershipSandboxSession: async (args: { sessionKey: string }) => ({ key: args.sessionKey }),
@@ -168,6 +143,38 @@ function localWorker(): SandboxHandle {
 }
 
 beforeEach(async () => {
+  redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+  redisConfigMockFns.mockAcquireLock.mockImplementation(
+    async (key: string, owner: string, ttl: number) =>
+      (await redis.set(key, owner, 'EX', ttl, 'NX')) === 'OK'
+  )
+  redisConfigMockFns.mockExtendLock.mockImplementation(
+    async (key: string, owner: string, ttl: number) =>
+      (await redis.eval(
+        "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('EXPIRE',KEYS[1],ARGV[2]) else return 0 end",
+        1,
+        key,
+        owner,
+        ttl
+      )) === 1
+  )
+  redisConfigMockFns.mockReleaseLock.mockImplementation(async (key: string, owner: string) => {
+    await redis.eval(
+      "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end",
+      1,
+      key,
+      owner
+    )
+  })
+  remoteSandboxProviderMockFns.mockResolveProvider.mockReturnValue({
+    id: 'e2b',
+    dependencyStrategy: 'prebuilt',
+    resolveLifetimeMs: (ms: number) => ms,
+    findSessionSandbox: io.find,
+    create: async () => {
+      throw new Error('Only the existing disposable worker may be used')
+    },
+  })
   setEnv({ ENCRYPTION_KEY: 'a'.repeat(64) })
   envFlagsMock.isMothershipSandboxEnabled = true
   envFlagsMock.isRemoteSandboxEnabled = true
@@ -189,7 +196,7 @@ beforeEach(async () => {
     file: { id: 'review-file', name: 'review.txt', size: canary.length, type: 'text/plain' },
     vfsPath: 'files/review.txt',
   }))
-  io.execute.mockImplementation(
+  toolsMockFns.mockExecuteTool.mockImplementation(
     async (
       _id,
       params: CodeExecutionInput,
@@ -256,6 +263,18 @@ async function run(code: string, secrets: string[] = []) {
 }
 
 describe('persistent workbench output confidentiality', () => {
+  it('allows a mounted empty value without requiring a redaction receipt', async () => {
+    const emptyCatalog = [
+      { name: 'TOKEN', plaintext: '', encryptedValue: (await encryptSecret('')).encrypted },
+    ]
+    io.mount.mockResolvedValue({ envVars: { TOKEN: '' }, catalogEntries: emptyCatalog })
+    const result = await run('printenv TOKEN >/dev/null && test -z "$TOKEN" && printf allowed', [
+      'TOKEN',
+    ])
+    expect(result.raw.success).toBe(true)
+    expect(result.projected.safe).toBe(true)
+    expect(JSON.stringify(result.projected.result)).toContain('allowed')
+  })
   it('control: same-call secret output is redacted', async () => {
     const result = await run('printf "%s" "$TOKEN"', ['TOKEN'])
     expect(result.raw.success).toBe(true)
