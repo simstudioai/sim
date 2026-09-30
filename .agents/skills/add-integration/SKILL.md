@@ -123,7 +123,7 @@ Follow `.agents/skills/add-block/SKILL.md` for the block structure, subBlock typ
 `canvasPresentation`; `bun run apps/sim/scripts/check-canvas-sentences.ts --block={service}` must
 pass (CI runs `check:canvas-sentences --require-coverage`).
 
-Two rules that are easy to get wrong when copying from existing blocks:
+Three rules that are easy to get wrong when copying from existing blocks:
 
 - Every remote `selectorKey` must use the unified server selector path. Apply the `add-selector` skill:
   add browser-safe metadata to `apps/sim/lib/selectors/manifest.ts`, reuse or extract a server-only
@@ -135,6 +135,12 @@ Two rules that are easy to get wrong when copying from existing blocks:
   (e.g. `channelSelector` + `channelId` → `canonicalParamId: 'channel'`). It is the only key that
   survives serialization, so `inputs` and `tools.config.params` reference the canonical id, never the
   subblock ids. It is unique block-wide, and every member of a group shares the same `required` value.
+- Every text-entry subBlock (`short-input`, `long-input`, `code`) and every selector declares a
+  `placeholder`; an empty box tells the user nothing. Secrets read `Enter your {thing}` (e.g.
+  `Enter your API key`), free text names what to type (`Enter branch name`), and formatted values
+  show the shape (`2023-01-01T00:00:00Z`, `1 to 1000`). An optional field with a server-side default
+  names that default (`Defaults to the database region`). Dropdowns, switches, and `oauth-input` do
+  not need one.
 
 ## Step 4: Add Icon
 
@@ -309,6 +315,28 @@ bun run docs:check
 
 This creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
 
+Every generated integration page carries a hand-written intro directly under `<BlockInfoCard />`. The
+generator preserves it across regenerations, so write it once after the first generate:
+
+```mdx
+{/* MANUAL-CONTENT-START:intro */}
+[{Service}](https://service.com/) is {one sentence on what the service is}.
+
+With the {Service} block, you can:
+
+- **{Capability}**: {what the operations in this group do}
+- **{Capability}**: {...}
+
+{How to connect: which credential to create and where, if it is not OAuth.}
+
+In Sim, the {Service} block lets your agents {concrete workflow uses}.
+{/* MANUAL-CONTENT-END */}
+```
+
+Group the bullets by what the user gets done, not one bullet per tool. Only describe operations the
+block actually ships. Follow `.claude/rules/constitution.md` for voice. Re-run
+`bun run scripts/generate-docs.ts` afterwards and confirm the section survived unchanged.
+
 The docs generator refreshes `packages/deployment-config/src/integrations.json`, and the deployment
 config generator projects service-account provider IDs from that catalog plus the canonical OAuth
 registry. The checks compare both committed projections with their sources. Review the generated
@@ -368,6 +396,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Defined operation dropdown with all operations
 - [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
 - [ ] Added conditional fields per operation
+- [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder`
 - [ ] Set up dependsOn for cascading selectors
 - [ ] Every remote `selectorKey` exists in the shared manifest and has one server attachment with
       trusted credential provider binding and a fixed, credential-bound, or explicitly reviewed
@@ -415,6 +444,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Ran `bun run scripts/generate-docs.ts`
 - [ ] Ran `bun run deployment-config:generate` for OAuth or service-account changes
 - [ ] Verified docs file created
+- [ ] Wrote the `{/* MANUAL-CONTENT-START:intro */}` section under `<BlockInfoCard />` and confirmed it survives a regenerate
 - [ ] Reviewed and committed the generated `packages/deployment-config/src/integrations.json` change
 - [ ] `bun run integration-catalog:check` passes
 - [ ] `bun run docs:check` passes — CI fails on stale generated docs, so commit the full generator
