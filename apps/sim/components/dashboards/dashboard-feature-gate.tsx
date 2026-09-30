@@ -12,7 +12,7 @@ export function DashboardFeatureGate({ children }: DashboardFeatureGateProps) {
   return enabled ? (
     children
   ) : (
-    <div role='alert' className='p-6 text-[var(--text-secondary)]'>
+    <div role='alert' className='p-6 text-[var(--text-muted)]'>
       Dashboards are not enabled
     </div>
   )

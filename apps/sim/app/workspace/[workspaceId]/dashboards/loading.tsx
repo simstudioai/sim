@@ -1,5 +1,3 @@
-'use client'
-
 import { DashboardLoading } from '@/components/dashboards/dashboard-loading'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
