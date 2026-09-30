@@ -10,7 +10,6 @@ import {
   Table,
   Workflow,
 } from '@sim/emcn/icons'
-import { CHATS } from '@/app/playground/org/lib/mock-data'
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_NAV } from '@/app/playground/org/lib/settings-nav'
 
 export const PROTO_BASE = '/playground/org'
@@ -42,11 +41,8 @@ export const protoRoutes = {
   home: PROTO_BASE,
   search: `${PROTO_BASE}/search`,
   connectors: `${PROTO_BASE}/connectors`,
-  /** Every chat opens on its own page with the resource panel beside it. */
-  chat: (chatId: string) => {
-    if (!CHATS.some((c) => c.id === chatId)) throw new Error(`Unknown chat ${chatId}`)
-    return `${PROTO_BASE}/chat/${chatId}`
-  },
+  /** Every chat opens on its own page with the resource panel beside it; the page 404s an unknown id. */
+  chat: (chatId: string) => `${PROTO_BASE}/chat/${chatId}`,
   /** Main project view for dashboard/changelog/issues; any other section opens the full view. */
   workspace: (workspaceId: string, section: WorkspaceSection = 'dashboard') =>
     isMainSection(section)

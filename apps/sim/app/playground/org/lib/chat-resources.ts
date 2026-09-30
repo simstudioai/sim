@@ -46,6 +46,8 @@ export function panelKindConfig(kind: PanelKind): PanelKindConfig {
 export interface PanelResource {
   kind: PanelKind
   id: string
+  /** The project it belongs to; chats are not scoped, resources are. */
+  workspaceId: string
   name: string
   /** What the chat did with it, or the row's detail. */
   status?: string
@@ -57,19 +59,49 @@ export function panelResourceKey(resource: PanelResource): string {
 
 const MENTIONED: Record<string, PanelResource[]> = {
   c15: [
-    { kind: 'knowledge', id: 'refund-2024', name: 'Refund policy (2024)', status: 'Edit proposed' },
+    {
+      kind: 'knowledge',
+      id: 'refund-2024',
+      workspaceId: 'support',
+      name: 'Refund policy (2024)',
+      status: 'Edit proposed',
+    },
     {
       kind: 'issues',
       id: 'SUP-153',
+      workspaceId: 'support',
       name: 'Knowledge check got two answers to one question',
       status: 'Needs approval',
     },
-    { kind: 'logs', id: 'refund-questions', name: 'Refund questions', status: '48 runs' },
-    { kind: 'dashboard', id: 'support-operations', name: 'Support operations' },
+    {
+      kind: 'logs',
+      id: 'refund-questions',
+      workspaceId: 'support',
+      name: 'Refund questions',
+      status: '48 runs',
+    },
+    {
+      kind: 'dashboard',
+      id: 'support-operations',
+      workspaceId: 'support',
+      name: 'Support operations',
+    },
   ],
   c0: [
-    { kind: 'issues', id: 'INF-412', name: 'Bot replies in untagged threads', status: 'Ready' },
-    { kind: 'workflows', id: 'w1', name: 'slack-support-bot', status: 'v14 deployed' },
+    {
+      kind: 'issues',
+      id: 'INF-412',
+      workspaceId: 'infra',
+      name: 'Bot replies in untagged threads',
+      status: 'Ready',
+    },
+    {
+      kind: 'workflows',
+      id: 'w1',
+      workspaceId: 'infra',
+      name: 'slack-support-bot',
+      status: 'v14 deployed',
+    },
   ],
 }
 
@@ -78,13 +110,20 @@ export function mentionedIn(chatId: string): PanelResource[] {
 }
 
 export function resourcesOfKind(workspace: Workspace, kind: PanelKind): PanelResource[] {
+  const workspaceId = workspace.id
   switch (kind) {
     case 'dashboard':
-      return workspace.dashboards.map((id) => ({ kind, id, name: MOCK_DASHBOARDS[id].title }))
+      return workspace.dashboards.map((id) => ({
+        kind,
+        id,
+        workspaceId,
+        name: MOCK_DASHBOARDS[id].title,
+      }))
     case 'issues':
-      return ISSUES.filter((issue) => issue.workspaceId === workspace.id).map((issue) => ({
+      return ISSUES.filter((issue) => issue.workspaceId === workspaceId).map((issue) => ({
         kind,
         id: issue.key,
+        workspaceId,
         name: issue.title,
         status: issue.key,
       }))
@@ -92,6 +131,7 @@ export function resourcesOfKind(workspace: Workspace, kind: PanelKind): PanelRes
       return RESOURCES[kind].map((item) => ({
         kind,
         id: item.id,
+        workspaceId,
         name: item.name,
         status: item.meta,
       }))

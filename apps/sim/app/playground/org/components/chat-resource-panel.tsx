@@ -14,7 +14,13 @@ import {
   panelResourceKey,
   resourcesOfKind,
 } from '@/app/playground/org/lib/chat-resources'
-import { issueByKey, WORKSPACES, type Workspace } from '@/app/playground/org/lib/mock-data'
+import {
+  issueByKey,
+  ORGANIZATION,
+  WORKSPACES,
+  type Workspace,
+  workspaceById,
+} from '@/app/playground/org/lib/mock-data'
 import {
   Resource,
   type ResourceColumn,
@@ -22,44 +28,41 @@ import {
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
 export type PanelView =
-  | { type: 'browse'; kind: PanelKind | null }
+  | { type: 'browse'; workspaceId: string | null; kind: PanelKind | null }
   | { type: 'resource'; resource: PanelResource }
   | { type: 'browser' }
   | { type: 'terminal' }
 
 interface ChatResourcePanelProps {
   chatId: string
-  workspace?: Workspace
   view: PanelView
   onOpen: (resource: PanelResource) => void
   onOpenBrowser: () => void
   onOpenTerminal: () => void
-  onBrowse: (kind: PanelKind | null) => void
+  onBrowse: (workspaceId: string | null, kind: PanelKind | null) => void
 }
 
 /** Body of the resource panel: the new-tab browser, one open resource, a browser, or a terminal. */
 export function ChatResourcePanel({
   chatId,
-  workspace,
   view,
   onOpen,
   onOpenBrowser,
   onOpenTerminal,
   onBrowse,
 }: ChatResourcePanelProps) {
-  const [projectId, setProjectId] = useState<string | null>(workspace?.id ?? null)
-  const project = projectId ? WORKSPACES.find((w) => w.id === projectId) : undefined
-
-  if (view.type === 'resource') return <ResourceBody workspace={project} resource={view.resource} />
+  if (view.type === 'resource') return <ResourceBody resource={view.resource} />
   if (view.type === 'browser') return <BrowserView />
-  if (view.type === 'terminal') return <TerminalView workspace={project} />
+  if (view.type === 'terminal') return <TerminalView />
+
+  const project = view.workspaceId ? WORKSPACES.find((w) => w.id === view.workspaceId) : undefined
   if (view.kind && project) {
     return (
       <KindList
         workspace={project}
         kind={view.kind}
         onOpen={onOpen}
-        onBack={() => onBrowse(null)}
+        onBack={() => onBrowse(project.id, null)}
       />
     )
   }
@@ -87,19 +90,17 @@ export function ChatResourcePanel({
         <Section
           label={`Browse ${project.name}`}
           trailing={
-            !workspace && (
-              <button
-                type='button'
-                onClick={() => setProjectId(null)}
-                className='text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-body)]'
-              >
-                Change
-              </button>
-            )
+            <button
+              type='button'
+              onClick={() => onBrowse(null, null)}
+              className='text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-body)]'
+            >
+              Change
+            </button>
           }
         >
           {PANEL_KINDS.map((kind) => (
-            <Row key={kind.id} onClick={() => onBrowse(kind.id)}>
+            <Row key={kind.id} onClick={() => onBrowse(project.id, kind.id)}>
               <kind.icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{kind.label}</span>
               <span className='text-[var(--text-muted)] text-caption'>
@@ -117,14 +118,22 @@ export function ChatResourcePanel({
           </Row>
         </Section>
       ) : (
-        <Section label='Browse a project'>
+        <Section label={`Browse ${ORGANIZATION.name}`}>
           {WORKSPACES.map((candidate) => (
-            <Row key={candidate.id} onClick={() => setProjectId(candidate.id)}>
+            <Row key={candidate.id} onClick={() => onBrowse(candidate.id, null)}>
               <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
                 {candidate.name}
               </span>
             </Row>
           ))}
+          <Row onClick={onOpenBrowser}>
+            <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
+          </Row>
+          <Row onClick={onOpenTerminal}>
+            <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
+          </Row>
         </Section>
       )}
     </div>
@@ -221,21 +230,17 @@ function KindList({ workspace, kind, onOpen, onBack }: KindListProps) {
   )
 }
 
-interface ResourceBodyProps {
-  workspace?: Workspace
-  resource: PanelResource
-}
-
 /** An open resource's content; its name and actions live in the tab strip. */
-function ResourceBody({ workspace, resource }: ResourceBodyProps) {
+function ResourceBody({ resource }: { resource: PanelResource }) {
+  const workspace = workspaceById(resource.workspaceId)
   const issue = resource.kind === 'issues' ? issueByKey(resource.id) : undefined
   return (
     <div className='min-h-0 flex-1 overflow-y-auto'>
       {resource.kind === 'knowledge' && resource.id === 'refund-2024' ? (
         <RefundPolicyEdit />
-      ) : issue && workspace ? (
+      ) : issue ? (
         <IssuePage workspace={workspace} issue={issue} />
-      ) : resource.kind === 'dashboard' && workspace ? (
+      ) : resource.kind === 'dashboard' ? (
         <ProtoDashboard workspace={workspace} />
       ) : (
         <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>
@@ -266,12 +271,11 @@ function BrowserView() {
   )
 }
 
-/** Stand-in for the desktop terminal: a prompt in the project's directory. */
-function TerminalView({ workspace }: { workspace?: Workspace }) {
-  const dir = workspace ? workspace.name.toLowerCase().replace(/\s+/g, '-') : 'acme'
+/** Stand-in for the desktop terminal: a prompt in the org's directory. */
+function TerminalView() {
   return (
     <div className='min-h-0 flex-1 overflow-y-auto bg-[var(--surface-1)] px-4 py-3 font-mono text-[var(--text-body)] text-caption'>
-      <span className='text-[var(--text-muted)]'>~/{dir}</span> ${' '}
+      <span className='text-[var(--text-muted)]'>~/{ORGANIZATION.id}</span> ${' '}
       <span className='animate-pulse'>▍</span>
     </div>
   )

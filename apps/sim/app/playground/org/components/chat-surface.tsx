@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import {
-  Avatar,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -19,7 +18,7 @@ import {
   ChatResourcePanel,
   type PanelView,
 } from '@/app/playground/org/components/chat-resource-panel'
-import { ChatThread } from '@/app/playground/org/components/chat-thread'
+import { type ChatMessage, ChatThread } from '@/app/playground/org/components/chat-thread'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
 import {
   mentionedIn,
@@ -42,6 +41,7 @@ import {
 interface NewTab {
   kind: 'new'
   id: string
+  workspaceId: string | null
   browseKind: PanelKind | null
 }
 
@@ -63,8 +63,8 @@ function tabKey(tab: PanelTab): string {
     : panelResourceKey(tab)
 }
 
-function newTab(browseKind: PanelKind | null = null): NewTab {
-  return { kind: 'new', id: generateShortId(8), browseKind }
+function newTab(workspaceId: string | null = null, browseKind: PanelKind | null = null): NewTab {
+  return { kind: 'new', id: generateShortId(8), workspaceId, browseKind }
 }
 
 function stripItem(tab: PanelTab, active: boolean): TabStripItem {
@@ -90,10 +90,12 @@ function stripItem(tab: PanelTab, active: boolean): TabStripItem {
 
 const noop = () => {}
 
-const SEED = [
-  { role: 'user' as const, text: 'Why does the bot give two different refund windows?' },
+const NO_MESSAGES: ChatMessage[] = []
+
+const SEED: ChatMessage[] = [
+  { role: 'user', text: 'Why does the bot give two different refund windows?' },
   {
-    role: 'assistant' as const,
+    role: 'assistant',
     text: 'Billing policies has two Confluence pages that disagree. Refund policy (2024) was never archived when the 2026 one was published, so search returns both and the answer depends on which ranks higher that day. I drafted the archive edit and replayed the last 48 refund questions without the old page: every answer says 30 days for annual plans.',
   },
 ]
@@ -104,7 +106,6 @@ interface ChatSurfaceProps {
 
 /** A chat with the resource panel on the right: real panel chrome, mock resources. */
 export function ChatSurface({ chat }: ChatSurfaceProps) {
-  const workspace = chat.workspaceId ? workspaceById(chat.workspaceId) : undefined
   const [collapsed, setCollapsed] = useState(false)
   const [tabs, setTabs] = useState<PanelTab[]>(() => mentionedIn(chat.id))
   const [activeKey, setActiveKey] = useState<string | null>(() => {
@@ -135,9 +136,12 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
     place(resource)
   }
 
-  /** Browses `kind` in the active tab, turning an open resource back into a browsing tab. */
-  const browse = (kind: PanelKind | null) => {
-    const tab = active?.kind === 'new' ? { ...active, browseKind: kind } : newTab(kind)
+  /** Browses in the active tab, turning an open resource back into a browsing tab. */
+  const browse = (workspaceId: string | null, kind: PanelKind | null) => {
+    const tab =
+      active?.kind === 'new'
+        ? { ...active, workspaceId, browseKind: kind }
+        : newTab(workspaceId, kind)
     setTabs((prev) =>
       activeIndex >= 0 ? prev.map((t, i) => (i === activeIndex ? tab : t)) : [...prev, tab]
     )
@@ -161,9 +165,9 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
   }
 
   const view: PanelView = !active
-    ? { type: 'browse', kind: null }
+    ? { type: 'browse', workspaceId: null, kind: null }
     : active.kind === 'new'
-      ? { type: 'browse', kind: active.browseKind }
+      ? { type: 'browse', workspaceId: active.workspaceId, kind: active.browseKind }
       : active.kind === 'browser' || active.kind === 'terminal'
         ? { type: active.kind }
         : { type: 'resource', resource: active }
@@ -182,11 +186,7 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
             newTabLabel='New tab'
             endActions={
               view.type === 'resource' ? (
-                <ResourceTabActions
-                  resource={view.resource}
-                  workspaceName={workspace?.name}
-                  onBrowse={browse}
-                />
+                <ResourceTabActions resource={view.resource} onBrowse={browse} />
               ) : view.type === 'browser' ? (
                 <IconAction label='Copy Link' icon={Link} />
               ) : null
@@ -194,7 +194,6 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
           />
           <ChatResourcePanel
             chatId={chat.id}
-            workspace={workspace}
             view={view}
             onOpen={open}
             onOpenBrowser={() => place({ kind: 'browser', id: generateShortId(8) })}
@@ -212,21 +211,14 @@ export function ChatSurface({ chat }: ChatSurfaceProps) {
     >
       <div className='flex min-w-0 flex-1 flex-col'>
         <header className='flex h-[calc(var(--resource-header-controls-height)+1px)] shrink-0 items-center gap-2 border-[var(--border)] border-b pr-[calc(var(--resource-header-end-inset)+var(--resource-header-toggle-hit-size))] pl-4'>
-          {workspace && (
-            <>
-              <Avatar size='xs' name={workspace.name} />
-              <span className='text-[var(--text-muted)] text-small'>{workspace.name}</span>
-              <span className='text-[var(--text-muted)] text-small'>/</span>
-            </>
-          )}
           <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-small'>
             {chat.title}
           </span>
           {chat.id === 'c15' && <RunningDot />}
         </header>
         <ChatThread
-          placeholder='Reply to Sim…'
-          seed={chat.id === 'c15' ? SEED : undefined}
+          placeholder={chat.id === 'new' ? 'Do anything' : 'Reply to Sim…'}
+          seed={chat.id === 'c15' ? SEED : chat.id === 'new' ? NO_MESSAGES : undefined}
           className='mx-auto w-full max-w-[760px]'
         />
       </div>
@@ -258,13 +250,13 @@ function IconAction({ label, icon: Icon, onClick }: IconActionProps) {
 
 interface ResourceTabActionsProps {
   resource: PanelResource
-  workspaceName?: string
-  onBrowse: (kind: PanelKind | null) => void
+  onBrowse: (workspaceId: string | null, kind: PanelKind | null) => void
 }
 
 /** The open resource's actions, with the path it came from behind the overflow menu. */
-function ResourceTabActions({ resource, workspaceName, onBrowse }: ResourceTabActionsProps) {
+function ResourceTabActions({ resource, onBrowse }: ResourceTabActionsProps) {
   const config = panelKindConfig(resource.kind)
+  const workspace = workspaceById(resource.workspaceId)
   return (
     <>
       <IconAction label='Copy Link' icon={Link} />
@@ -277,15 +269,13 @@ function ResourceTabActions({ resource, workspaceName, onBrowse }: ResourceTabAc
           </TabStripAction>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
-          <DropdownMenuItem onSelect={() => onBrowse(resource.kind)}>
+          <DropdownMenuItem onSelect={() => onBrowse(resource.workspaceId, resource.kind)}>
             <config.icon className='size-[14px] text-[var(--text-icon)]' />
             Show in {config.label}
           </DropdownMenuItem>
-          {workspaceName && (
-            <DropdownMenuItem onSelect={() => onBrowse(null)}>
-              Show in {workspaceName}
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem onSelect={() => onBrowse(resource.workspaceId, null)}>
+            Show in {workspace.name}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem>
             <Trash className='size-[14px] text-[var(--text-icon)]' />

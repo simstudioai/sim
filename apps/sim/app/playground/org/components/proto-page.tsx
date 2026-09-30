@@ -6,8 +6,10 @@ import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { NewChatHome } from '@/app/playground/org/components/new-chat-home'
 import { ProjectShell } from '@/app/playground/org/components/project-shell'
 import { WorkspaceView } from '@/app/playground/org/components/workspace-view'
-import { CHATS, issueByKey, WORKSPACES } from '@/app/playground/org/lib/mock-data'
+import { CHATS, type Chat, issueByKey, WORKSPACES } from '@/app/playground/org/lib/mock-data'
 import { parseProtoRoute } from '@/app/playground/org/lib/routes'
+
+const NEW_CHAT: Chat = { id: 'new', title: 'New chat', age: 'now' }
 
 /** Client-side router for the prototype's catch-all route. */
 export function ProtoPage({ slug }: { slug?: string[] }) {
@@ -22,7 +24,7 @@ export function ProtoPage({ slug }: { slug?: string[] }) {
     case 'connectors':
       return <Placeholder title='Connectors' body='Slack, Linear, Jira, Zendesk, and the rest.' />
     case 'chat': {
-      const chat = CHATS.find((c) => c.id === route.chatId)
+      const chat = route.chatId === 'new' ? NEW_CHAT : CHATS.find((c) => c.id === route.chatId)
       if (!chat) notFound()
       return <ChatSurface chat={chat} />
     }

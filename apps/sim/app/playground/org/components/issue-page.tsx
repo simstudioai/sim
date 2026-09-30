@@ -224,7 +224,7 @@ export function IssuePage({ workspace, issue }: IssuePageProps) {
               {chats.map((chat) => (
                 <Link
                   key={chat.id}
-                  href={`${protoRoutes.issue(workspace.id, issue.key)}?chat=${chat.id}`}
+                  href={protoRoutes.chat(chat.id)}
                   className={cn(chipVariants({ fullWidth: true }), 'gap-2')}
                 >
                   <Avatar size='xs' name={chat.owner} />
