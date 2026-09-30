@@ -23,7 +23,8 @@ export {
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-matcher'
 
-const MAX_CONTENT_NODES = 100_000
+/** Values one model-content projection will walk before refusing the whole payload. */
+export const MAX_CONTENT_NODES = 100_000
 const MAX_CONTENT_DEPTH = 100
 const INTERNAL_DIAGNOSTIC_IDENTIFIER_PATTERN =
   /__var_[A-Za-z0-9_]+|__sim_code_\d+_(?:binding|input|runtime)_\d+[A-Za-z0-9_]*|__sim_placeholder_[a-f0-9]{64}__|__sim_runtime_[A-Za-z0-9_]+_\d+[A-Za-z0-9_]*|__SIM_RUNTIME_PAYLOAD_PATH/g
