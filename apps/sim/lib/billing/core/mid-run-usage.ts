@@ -7,6 +7,7 @@ import {
   type AccountBillingDecision,
   type AttributedUsageLimitsResult,
   type BillingAttributionSnapshot,
+  checkAccountBillingBlocks,
   refreshAttributionPeriod,
 } from '@/lib/billing/core/billing-attribution'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
@@ -110,6 +111,7 @@ async function readGateVerdict(
 export async function readMidRunUsageVerdict(
   attribution: BillingAttributionSnapshot
 ): Promise<MidRunUsageVerdict> {
+  if (!isHosted || !isBillingEnabled) return { status: 'within' }
   for (let attempt = 0; attempt < 2; attempt++) {
     let judged: BillingAttributionSnapshot
     try {
@@ -140,8 +142,9 @@ const accountVerdictCache = new LRUCache<string, MidRunUsageVerdict>({
 
 /**
  * The same verdict for a direct-v1 run billed to an account decision rather than an attributed
- * payer. The payer is the one saved in the decision at admission, never re-selected from the
- * actor's current memberships, judged against that payer's current subscription period.
+ * payer, in the gate's order: a blocked actor or payer first, then the payer's spend. The payer
+ * is the one saved in the decision at admission, never re-selected from the actor's current
+ * memberships, judged against that payer's current subscription period.
  */
 export async function readMidRunAccountUsageVerdict(
   decision: AccountBillingDecision
@@ -171,6 +174,10 @@ export async function readMidRunAccountUsageVerdict(
     ].join(':')
     const cached = accountVerdictCache.get(key)
     if (cached) return cached
+    const block = await checkAccountBillingBlocks(decision)
+    if (block.blocked) {
+      return { status: 'blocked', ...(block.message ? { message: block.message } : {}) }
+    }
     // An organization payer without a subscription stays organization-scoped on the free plan,
     // as `toUsageLimitSubscription` does for attributed runs, never the actor's personal ledger.
     const usageSubscription =

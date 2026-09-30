@@ -97,6 +97,12 @@ export interface AccountBillingDecision {
     readonly end: string
     readonly source?: UsagePeriodSource
   }
+  /**
+   * The payer's subscription at admission, so a run that outlives a Stripe period bills its
+   * later spend to the period it was spent in, as an attributed run's `payerSubscription` does.
+   * Absent for a payer without a subscription, and in decisions minted before it existed.
+   */
+  readonly payerSubscriptionId?: string
 }
 
 export interface ResolveBillingAttributionParams {
@@ -546,6 +552,10 @@ function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
   ) {
     throw new Error('Account billing decision must contain a valid billing period source')
   }
+  const payerSubscriptionId = value.payerSubscriptionId
+  if (payerSubscriptionId !== undefined && !isNonEmptyString(payerSubscriptionId)) {
+    throw new Error('Account billing decision must contain a valid payer subscription ID')
+  }
 
   return Object.freeze({
     userId: value.userId,
@@ -558,6 +568,7 @@ function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
       end: end.toISOString(),
       ...(source !== undefined ? { source } : {}),
     }),
+    ...(payerSubscriptionId !== undefined ? { payerSubscriptionId } : {}),
   })
 }
 
@@ -935,6 +946,20 @@ export async function checkAttributedBillingBlocks(
   }
 
   return { blocked: false }
+}
+
+/**
+ * The same freeze checks for a direct-v1 run: the actor's own account, then the payer saved in
+ * its admission decision, never one re-selected from the actor's current memberships.
+ */
+export async function checkAccountBillingBlocks(
+  decision: AccountBillingDecision
+): Promise<AttributedBillingBlockResult> {
+  const actorBlock = await checkBillingBlocked(decision.userId)
+  if (actorBlock.blocked) return { ...actorBlock, scope: 'actor' }
+  const payer = decision.billingEntity
+  if (payer.type === 'user' && payer.id === decision.userId) return actorBlock
+  return { ...(await checkBillingEntityBlocked(payer)), scope: 'payer' }
 }
 
 /**

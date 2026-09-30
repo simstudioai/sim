@@ -2265,7 +2265,7 @@ describe('runCopilotLifecycle', () => {
       },
       payerSubscription: null,
     }
-    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
     mockRunStreamLoop.mockImplementationOnce(
       async (
@@ -2349,7 +2349,7 @@ describe('runCopilotLifecycle', () => {
       billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
       payerSubscription: null,
     }
-    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     resetUsageGateCache()
     const billingRequestId = generateId()
     const onBillingAdmission = vi.fn()
@@ -2405,7 +2405,7 @@ describe('runCopilotLifecycle', () => {
       },
       payerSubscription: null,
     }
-    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       message: 'limit reached',
@@ -2458,7 +2458,7 @@ describe('runCopilotLifecycle', () => {
       billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
       payerSubscription: null,
     }
-    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     resetUsageGateCache()
     mockCheckAttributedUsageLimits
       .mockResolvedValueOnce({ isExceeded: false })
@@ -2548,7 +2548,7 @@ describe('runCopilotLifecycle', () => {
   })
 
   it('rejects hosted work without immutable billing attribution before egress', async () => {
-    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
 
     await expect(
       runCopilotLifecycle(

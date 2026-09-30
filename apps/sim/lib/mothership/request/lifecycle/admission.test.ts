@@ -37,7 +37,7 @@ const context = {
   billingAttribution: attribution,
 }
 beforeEach(() => {
-  setEnvFlags({ isHosted: true })
+  setEnvFlags({ isHosted: true, isBillingEnabled: true })
   mocks.standing.mockResolvedValue({ blocked: false })
   mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: false })
   mockGetOrganizationSubscription.mockResolvedValue({

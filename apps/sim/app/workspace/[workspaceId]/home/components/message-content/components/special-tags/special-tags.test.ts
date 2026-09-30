@@ -888,7 +888,9 @@ describe('usage card written to a worker log', () => {
 
     const { segments } = parseSpecialTags(replayed, false)
 
-    expect(segments).toContainEqual({ type: 'usage_upgrade', data: usageUpgrade })
-    expect(renderedText(segments)).toBe('Finished the first report.')
+    expect(segments).toEqual([
+      { type: 'text', content: 'Finished the first report.' },
+      { type: 'usage_upgrade', data: usageUpgrade },
+    ])
   })
 })

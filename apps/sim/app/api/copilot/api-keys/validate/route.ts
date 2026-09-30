@@ -319,6 +319,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
             ? { source: billingContext.billingPeriod.source }
             : {}),
         },
+        ...(subscription ? { payerSubscriptionId: subscription.id } : {}),
       },
     }
   }

@@ -17,6 +17,7 @@ import {
   assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   billingAttributionsEqual,
+  checkAccountBillingBlocks,
   checkAttributedBillingBlocks,
   checkAttributedUsageLimits,
   requireBillingAttributionHeader,
@@ -330,6 +331,51 @@ describe('serialized attribution boundaries', () => {
         },
       })
     ).toBe(true)
+  })
+})
+
+describe('checkAccountBillingBlocks', () => {
+  const decision = {
+    userId: 'actor',
+    billingEntity: { type: 'organization' as const, id: 'original-payer' },
+    billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+  }
+
+  beforeEach(() => {
+    mockCheckBillingBlocked.mockReset().mockResolvedValue({ blocked: false })
+    mockCheckBillingEntityBlocked.mockReset().mockResolvedValue({ blocked: false })
+  })
+
+  it('checks both the actor and the exact original payer', async () => {
+    await expect(checkAccountBillingBlocks(decision)).resolves.toMatchObject({ blocked: false })
+    expect(mockCheckBillingBlocked).toHaveBeenCalledWith('actor')
+    expect(mockCheckBillingEntityBlocked).toHaveBeenCalledWith(decision.billingEntity)
+  })
+
+  it('refuses an actor block before reading the payer', async () => {
+    mockCheckBillingBlocked.mockResolvedValueOnce({ blocked: true })
+    await expect(checkAccountBillingBlocks(decision)).resolves.toMatchObject({
+      blocked: true,
+      scope: 'actor',
+    })
+    expect(mockCheckBillingEntityBlocked).not.toHaveBeenCalled()
+  })
+
+  it('refuses a payer block independently of actor standing', async () => {
+    mockCheckBillingEntityBlocked.mockResolvedValueOnce({ blocked: true })
+    await expect(checkAccountBillingBlocks(decision)).resolves.toMatchObject({
+      blocked: true,
+      scope: 'payer',
+    })
+  })
+
+  it('reads the same personal actor and payer only once', async () => {
+    await checkAccountBillingBlocks({
+      ...decision,
+      billingEntity: { type: 'user', id: 'actor' },
+    })
+    expect(mockCheckBillingBlocked).toHaveBeenCalledTimes(1)
+    expect(mockCheckBillingEntityBlocked).not.toHaveBeenCalled()
   })
 })
 

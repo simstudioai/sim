@@ -385,6 +385,30 @@ describe('Cumulative billing with PostgreSQL', () => {
       expect(invoiced).toBeCloseTo(1.5, 9)
     })
 
+    it('gives each period row only the tokens spent after the rows before it', async () => {
+      await setSubscriptionPeriod(0)
+      await recordCumulativeUsage({
+        ...usage(0.4),
+        billingPeriod: { start: periods[0], end: periods[1] },
+        payerSubscriptionId: 'sub-1',
+      })
+      await setSubscriptionPeriod(1)
+      await recordCumulativeUsage({
+        ...usage(1),
+        billingPeriod: { start: periods[0], end: periods[1] },
+        payerSubscriptionId: 'sub-1',
+        metadata: { inputTokens: 25, outputTokens: 12 },
+      })
+
+      const rows = await connection<{ event_key: string; metadata: Record<string, number> }[]>`
+        select event_key, metadata from usage_log order by event_key
+      `
+      expect(rows.map((row) => [row.event_key, row.metadata])).toEqual([
+        ['update-cost:shared-request', { inputTokens: 10, outputTokens: 5 }],
+        ['update-cost:shared-request@1', { inputTokens: 15, outputTokens: 7 }],
+      ])
+    })
+
     it('never stamps a charge into a period earlier than its latest row', async () => {
       await setSubscriptionPeriod(0)
       await charge(0.4)

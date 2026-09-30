@@ -3,10 +3,6 @@ import {
   billingAttributionMockFns,
 } from '@sim/testing/mocks/billing-attribution.mock'
 import {
-  billingUsageMonitorMock,
-  billingUsageMonitorMockFns,
-} from '@sim/testing/mocks/billing-usage-monitor.mock'
-import {
   mothershipOrganizationChatsMock,
   mothershipOrganizationChatsMockFns,
 } from '@sim/testing/mocks/mothership-organization-chats.mock'
@@ -37,16 +33,14 @@ vi.mock('@/lib/permission-groups/capability-assertions', async (importOriginal) 
 }))
 vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+const mockCheckAccountBillingBlocks = billingAttributionMockFns.mockCheckAccountBillingBlocks
 const mockCheckAttributedBillingBlocks = billingAttributionMockFns.mockCheckAttributedBillingBlocks
 const mocks = {
   ...hoisted,
   organization: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
-  actorBlock: billingUsageMonitorMockFns.mockCheckBillingBlocked,
-  payerBlock: billingUsageMonitorMockFns.mockCheckBillingEntityBlocked,
   loadWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
   permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
 }
-vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
 const context = {
   userId: 'actor',
@@ -80,9 +74,8 @@ beforeEach(() => {
   })
   mocks.permission.mockResolvedValue('read')
   mocks.organization.mockResolvedValue(undefined)
-  mocks.actorBlock.mockResolvedValue({ blocked: false })
-  mocks.payerBlock.mockResolvedValue({ blocked: false })
   mockCheckAttributedBillingBlocks.mockResolvedValue({ blocked: false })
+  mockCheckAccountBillingBlocks.mockResolvedValue({ blocked: false })
 })
 
 describe('fresh chat callback authorization', () => {
@@ -196,37 +189,12 @@ describe('continuation account standing', () => {
   it('uses the existing attributed block policy with the original snapshot', async () => {
     await checkCopilotContinuationBilling({ kind: 'attributed', attribution })
     expect(mockCheckAttributedBillingBlocks).toHaveBeenCalledWith(attribution)
-    expect(mocks.actorBlock).not.toHaveBeenCalled()
-    expect(mocks.payerBlock).not.toHaveBeenCalled()
+    expect(mockCheckAccountBillingBlocks).not.toHaveBeenCalled()
   })
 
-  it('checks both actor and the exact original direct-account payer', async () => {
+  it('uses the account block policy with the original direct-account decision', async () => {
     await checkCopilotContinuationBilling({ kind: 'account', decision: account })
-    expect(mocks.actorBlock).toHaveBeenCalledWith('actor')
-    expect(mocks.payerBlock).toHaveBeenCalledWith({ type: 'organization', id: 'original-payer' })
-  })
-
-  it('refuses an actor block before reading the payer', async () => {
-    mocks.actorBlock.mockResolvedValueOnce({ blocked: true })
-    await expect(
-      checkCopilotContinuationBilling({ kind: 'account', decision: account })
-    ).resolves.toMatchObject({ blocked: true, scope: 'actor' })
-    expect(mocks.payerBlock).not.toHaveBeenCalled()
-  })
-
-  it('refuses a payer block independently of actor standing', async () => {
-    mocks.payerBlock.mockResolvedValueOnce({ blocked: true })
-    await expect(
-      checkCopilotContinuationBilling({ kind: 'account', decision: account })
-    ).resolves.toMatchObject({ blocked: true, scope: 'payer' })
-  })
-
-  it('reads the same personal actor/payer only once', async () => {
-    await checkCopilotContinuationBilling({
-      kind: 'account',
-      decision: { ...account, billingEntity: { type: 'user', id: 'actor' } },
-    })
-    expect(mocks.actorBlock).toHaveBeenCalledTimes(1)
-    expect(mocks.payerBlock).not.toHaveBeenCalled()
+    expect(mockCheckAccountBillingBlocks).toHaveBeenCalledWith(account)
+    expect(mockCheckAttributedBillingBlocks).not.toHaveBeenCalled()
   })
 })

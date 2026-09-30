@@ -22,7 +22,11 @@ import {
   resolveLegacyV0BillingAttribution,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
-import { type MidRunUsageVerdict, readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
+import {
+  type MidRunUsageVerdict,
+  readMidRunAccountUsageVerdict,
+  readMidRunUsageVerdict,
+} from '@/lib/billing/core/mid-run-usage'
 import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
@@ -75,24 +79,28 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
 /**
  * Reads the run payer's standing after a cost callback, so a long run stops at its next step
  * once it crosses the limit instead of at its next admission, with the card the worker writes
- * to its log. A duplicate callback answers too: it is often a retry whose first answer was lost.
- * Served from the execution usage gate: an admission is cached per payer and actor for the gate
- * TTL and a refusal is always re-read, so steady-state steps cost no ledger read. The charge is
+ * to its log. The payer is the attributed run's, or the one a direct-v1 run was admitted with.
+ * A duplicate callback answers too: it is often a retry whose first answer was lost. An
+ * admission is cached per payer and actor for the gate TTL and a refusal is always re-read, so
+ * steady-state steps cost no ledger read. The charge is
  * already recorded when this runs; a gate that cannot answer reports not-exceeded and leaves the
  * refusal to the next step or re-check rather than ending a paying run on a database blip,
  * and so does a read that outlasts {@link USAGE_STANDING_TIMEOUT_MS}.
  */
 async function readUsageStanding(
   userId: string,
-  billingAttribution: BillingAttributionSnapshot | undefined
+  billingAttribution: BillingAttributionSnapshot | undefined,
+  accountDecision: AccountBillingDecision | undefined
 ): Promise<BillingUsageVerdict> {
-  if (!isHosted || !billingAttribution) return { usageExceeded: false }
+  const readVerdict = billingAttribution
+    ? () => readMidRunUsageVerdict(billingAttribution)
+    : accountDecision
+      ? () => readMidRunAccountUsageVerdict(accountDecision)
+      : null
+  if (!isHosted || !readVerdict) return { usageExceeded: false }
   let verdict: MidRunUsageVerdict
   try {
-    verdict = await withinDeadline(
-      () => readMidRunUsageVerdict(billingAttribution),
-      Date.now() + USAGE_STANDING_TIMEOUT_MS
-    )
+    verdict = await withinDeadline(readVerdict, Date.now() + USAGE_STANDING_TIMEOUT_MS)
   } catch {
     logger.warn('Usage standing read outlasted the callback budget; answering not exceeded')
     return { usageExceeded: false }
@@ -370,8 +378,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     // period (see `payerSubscriptionId`), so a closed period is never topped up. Reporting-window
     // payers are closed from live anchors, and free payers have no close to miss.
     const rolloverSubscriptionId =
-      billingAttribution && billingContext?.billingPeriod.source !== 'reporting'
-        ? (billingAttribution.payerSubscription?.id ?? undefined)
+      billingContext?.billingPeriod.source === 'stripe'
+        ? (billingAttribution?.payerSubscription?.id ?? accountDecision?.payerSubscriptionId)
         : undefined
     const usageStartedAt = Date.now()
     const result = await recordCumulativeUsage({
@@ -426,7 +434,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       await checkAndBillOverageThreshold(userId, undefined, { onError: 'throw' })
     }
 
-    const usageVerdict = await readUsageStanding(userId, billingAttribution)
+    const usageVerdict = await readUsageStanding(userId, billingAttribution, accountDecision)
     const duration = Date.now() - startTime
 
     // Same-or-lower cumulative than already recorded: nothing new to bill.

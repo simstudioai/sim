@@ -4,10 +4,16 @@ import {
   billingAttributionMock,
   billingAttributionMockFns,
 } from '@sim/testing/mocks/billing-attribution.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import {
   billingUsageLogMock,
   billingUsageLogMockFns,
 } from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { sleep } from '@sim/utils/helpers'
@@ -41,6 +47,12 @@ vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: mockCheckAndBillOverageThreshold,
@@ -977,6 +989,62 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     })
   })
 
+  describe('a direct-v1 run', () => {
+    function directCallback() {
+      callbackSequence += 1
+      const billingRequestId = `0190c03f-9f7d-4b79-8b58-${String(callbackSequence).padStart(12, '0')}`
+      return createMockRequest(
+        'POST',
+        {
+          userId: 'user-1',
+          cost: 0.5 * callbackSequence,
+          model: 'claude-opus-4.8',
+          source: 'workspace-chat',
+          idempotencyKey: billingRequestId,
+        },
+        {
+          'x-api-key': 'internal',
+          'x-sim-billing-protocol': 'direct-v1',
+          'x-sim-billing-request-id': billingRequestId,
+          'x-sim-billing-account-decision': 'serialized-account-decision',
+        }
+      )
+    }
+
+    beforeEach(() => {
+      mockRequireAccountBillingDecisionHeader.mockReturnValue(ACCOUNT_BILLING_DECISION)
+      billingCoreMockFns.mockGetOrganizationSubscription.mockResolvedValue(null)
+      billingPlanMockFns.mockGetHighestPrioritySubscription.mockResolvedValue(null)
+      billingAttributionMockFns.mockCheckAccountBillingBlocks.mockResolvedValue({ blocked: false })
+      billingUsageMonitorMockFns.mockCheckUsageStatus.mockResolvedValue({
+        isExceeded: true,
+        currentUsage: 12,
+        limit: 10,
+      })
+    })
+
+    it('tells the worker when its admitted payer has crossed its usage limit', async () => {
+      const body = await (await POST(directCallback())).json()
+
+      expect(body).toMatchObject({
+        usageExceeded: true,
+        usageUpgrade: { reason: 'usage_limit' },
+      })
+    })
+
+    it('never pauses a blocked payer with the usage card', async () => {
+      billingAttributionMockFns.mockCheckAccountBillingBlocks.mockResolvedValue({
+        blocked: true,
+        scope: 'payer',
+      })
+
+      const body = await (await POST(directCallback())).json()
+
+      expect(body.usageExceeded).toBe(false)
+      expect(billingUsageMonitorMockFns.mockCheckUsageStatus).not.toHaveBeenCalled()
+    })
+  })
+
   describe('a run that outlives its billing period', () => {
     const PAYER_SUBSCRIPTION = {
       id: 'sub-1',
@@ -994,6 +1062,14 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       mockRequireBillingAttributionHeader.mockReturnValue({
         ...CURRENT_ATTRIBUTION,
         payerSubscription: PAYER_SUBSCRIPTION,
+      })
+      mockToBillingContext.mockReturnValue({
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'stripe',
+        },
       })
     })
 

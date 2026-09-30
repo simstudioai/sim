@@ -152,7 +152,12 @@ const { mockAuthorizeOrganizationChatDelegation: mockAuthorizeOrganizationChat }
 const { mockDeriveBillingContext } = billingUsageLogMockFns
 const { mockGetHighestPrioritySubscription } = billingPlanMockFns
 const { mockGetOrganizationSubscription } = billingCoreMockFns
-const { mockCheckServerSideUsageLimits, mockCheckUsageStatus } = billingUsageMonitorMockFns
+const {
+  mockCheckBillingBlocked,
+  mockCheckBillingEntityBlocked,
+  mockCheckServerSideUsageLimits,
+  mockCheckUsageStatus,
+} = billingUsageMonitorMockFns
 
 const mockIsEnterprisePlan = billingSubscriptionMockFns.mockIsEnterprisePlan
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
@@ -421,7 +426,10 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
     expect(mockGetWorkspaceBillingSettings).not.toHaveBeenCalled()
-    expect(mockSerializeAccountBillingDecisionHeader).toHaveBeenCalledWith(ACCOUNT_BILLING_DECISION)
+    expect(mockSerializeAccountBillingDecisionHeader).toHaveBeenCalledWith({
+      ...ACCOUNT_BILLING_DECISION,
+      payerSubscriptionId: ACCOUNT_SUBSCRIPTION.id,
+    })
     expect(res.headers.get('x-sim-billing-account-decision')).toBe('serialized-account-decision')
   })
 
@@ -514,6 +522,8 @@ describe('validation lifecycle purposes', () => {
     mockCheckContinuationBilling.mockReset().mockResolvedValue({ blocked: false })
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 1, limit: 10 })
+    mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
+    mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: false })
     mockIsEnterprisePlan.mockResolvedValue(false)
     mockGetOrganizationSubscription.mockResolvedValue({
       id: 'sub-org-1',
@@ -808,6 +818,14 @@ describe('validation lifecycle purposes', () => {
     expect((await POST(request(body, directHeaders))).status).toBe(402)
     expect((await POST(request(body, directHeaders))).status).toBe(402)
     expect(mockCheckUsageStatus).toHaveBeenCalledTimes(3)
+  })
+
+  it('never reads the usage gate for an attributed continuation when billing is off', async () => {
+    setEnvFlags({ isHosted: false, isBillingEnabled: false })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 
   it('never reads the ledger for a direct-v1 continuation when billing is off', async () => {
