@@ -9,12 +9,16 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 import {
   classifyChange,
   describeListItems,
+  formatScalar,
   listBlockChanges,
   listOneSidedFields,
-  maskSecretParams,
+  maskSecretsDeep,
   omitPresentationChanges,
   pairListItems,
   splitEnvironmentBindings,
+  toDiffText,
+  toItemList,
+  toMessageList,
 } from './utils'
 
 /** The global registry mock returns no sub-blocks; tests declare the ones they need per block type. */
@@ -97,6 +101,21 @@ describe('classifyChange', () => {
     expect(classifyChange('agent', 'unknown', 1, 2)).toBe('scalar')
   })
 
+  it('hides a secret-looking field by name when the block definition is unknown', () => {
+    declareSubBlocks({})
+
+    expect(classifyChange('vanished', 'apiKey', 'a', 'b')).toBe('secret')
+    expect(classifyChange('vanished', 'maxTokens', 1, 2)).toBe('scalar')
+  })
+
+  it('reads a definition re-registered under the same type name', () => {
+    declareSubBlocks({ agent: [{ id: 'tools', type: 'tool-input' }] })
+    expect(classifyChange('agent', 'tools', null, null)).toBe('list')
+
+    declareSubBlocks({ agent: [{ id: 'tools', type: 'long-input' }] })
+    expect(classifyChange('agent', 'tools', 'a', 'b')).toBe('text')
+  })
+
   it('treats a checkbox group that persists a record of flags as json, not as a list', () => {
     declareSubBlocks({ jina: [{ id: 'options', type: 'checkbox-list' }] })
 
@@ -160,7 +179,7 @@ describe('describeListItems', () => {
     expect(items[0]).toEqual({
       key: 'search_docs',
       label: 'search_docs',
-      text: JSON.stringify({ params: { query: 'x', apiToken: '•••' } }, null, 2),
+      text: JSON.stringify({ server: 's1', params: { query: 'x', apiToken: '•••' } }, null, 2),
     })
     /* A custom tool's schema is its implementation, so it stays in the comparable body. */
     expect(items[1]).toEqual({
@@ -219,10 +238,10 @@ describe('pairListItems', () => {
   })
 })
 
-describe('maskSecretParams', () => {
+describe('maskSecretsDeep', () => {
   it('masks keys that end in a secret noun and leaves ids, counts and limits readable', () => {
     expect(
-      maskSecretParams({
+      maskSecretsDeep({
         apiKey: 'k',
         api_key: 'k',
         accessToken: 'k',
@@ -254,6 +273,63 @@ describe('maskSecretParams', () => {
       query: 'keep',
       count: 2,
     })
+  })
+
+  it('reaches nested objects, arrays and key/value table rows', () => {
+    expect(
+      maskSecretsDeep({
+        headers: { Authorization: 'Bearer x', Accept: 'json' },
+        rows: [
+          { cells: { Key: 'X-Api-Key', Value: 'k' } },
+          { cells: { Key: 'Accept', Value: 'json' } },
+        ],
+        nested: [{ auth: { token: 't' } }],
+      })
+    ).toEqual({
+      headers: { Authorization: '•••', Accept: 'json' },
+      rows: [
+        { cells: { Key: 'X-Api-Key', Value: '•••' } },
+        { cells: { Key: 'Accept', Value: 'json' } },
+      ],
+      nested: [{ auth: '•••' }],
+    })
+    expect(toDiffText({ password: 'p', name: 'n' })).toBe(
+      JSON.stringify({ password: '•••', name: 'n' }, null, 2)
+    )
+  })
+})
+
+describe('value readers and labels', () => {
+  it('reads lists and messages from their stored forms and rejects the rest', () => {
+    expect(toItemList([1])).toEqual([1])
+    expect(toItemList('[1, 2]')).toEqual([1, 2])
+    expect(toItemList('[not json')).toBeNull()
+    expect(toItemList('{"a":1}')).toBeNull()
+    expect(toMessageList([{ role: 'user', content: 'hi' }])).toEqual([
+      { role: 'user', content: 'hi' },
+    ])
+    expect(toMessageList('[{"role":"system","content":"s"}]')).toEqual([
+      { role: 'system', content: 's' },
+    ])
+    expect(toMessageList('{oops')).toEqual([])
+    expect(toMessageList([{ role: 'user' }])).toEqual([])
+    expect(toDiffText(null)).toBe('')
+    expect(toDiffText('plain')).toBe('plain')
+  })
+
+  it('resolves dropdown ids to their labels from static and function options', () => {
+    declareSubBlocks({
+      agent: [
+        { id: 'model', type: 'dropdown', options: [{ id: 'gpt', label: 'GPT' }] },
+        { id: 'mode', type: 'dropdown', options: () => [{ id: 'fast', label: 'Fast' }] },
+        { id: 'temp', type: 'slider' },
+      ],
+    })
+
+    expect(formatScalar('agent', 'model', 'gpt')).toBe('GPT')
+    expect(formatScalar('agent', 'mode', 'fast')).toBe('Fast')
+    expect(formatScalar('agent', 'model', 'unknown')).toBe('unknown')
+    expect(formatScalar('agent', 'temp', 0.5)).toBe('0.5')
   })
 })
 
@@ -441,6 +517,33 @@ describe('listBlockChanges', () => {
       ['oldLoop', 'removed'],
     ])
     expect(entries[0].name).toBe('function')
+    /* Field rows follow the definition order; fields it never declared trail. */
+    declareSubBlocks({
+      function: [
+        { id: 'language', type: 'dropdown' },
+        { id: 'code', type: 'code' },
+      ],
+    })
+    const ordered = listBlockChanges(
+      summary({
+        modifiedBlocks: [
+          {
+            id: 'keep',
+            type: 'function',
+            name: 'keep',
+            changes: [
+              { field: 'zzz', oldValue: 1, newValue: 2 },
+              { field: 'code', oldValue: 'a', newValue: 'b' },
+              { field: 'language', oldValue: 'js', newValue: 'py' },
+            ],
+          },
+        ],
+        hasChanges: true,
+      }),
+      baseBlocks,
+      targetBlocks
+    )
+    expect(ordered[0].changes.map((change) => change.field)).toEqual(['language', 'code', 'zzz'])
     expect(entries[1].children.map((child) => child.id).sort()).toEqual(['mover', 'newChild'])
     expect(entries[1].membership).toBeUndefined()
     expect(entries[2].children.map((child) => child.id)).toEqual(['oldChild'])

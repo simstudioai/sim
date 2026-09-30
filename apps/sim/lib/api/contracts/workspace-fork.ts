@@ -313,17 +313,28 @@ export const forkUnmappedReferenceSchema = z.object({
   blockName: z.string().optional(),
 })
 
-export const forkWorkflowChangeSchema = z.object({
-  action: z.enum(['update', 'create', 'archive']),
+const forkWorkflowChangeNames = {
   /** Workflow name in the workspace the modal is open in. */
   currentName: z.string(),
   /** Workflow name in the sync-partner workspace (differs from `currentName` after a rename). */
   otherName: z.string(),
-  /** The deployed source workflow this sync copies; absent for an archive. */
-  sourceWorkflowId: z.string().optional(),
-  /** The workflow the sync writes or archives in the target workspace. */
-  targetWorkflowId: z.string().optional(),
-})
+}
+
+export const forkWorkflowChangeSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('update'),
+    ...forkWorkflowChangeNames,
+    /** The deployed source workflow this sync copies. */
+    sourceWorkflowId: workflowIdSchema,
+  }),
+  z.object({
+    action: z.literal('create'),
+    ...forkWorkflowChangeNames,
+    /** The deployed source workflow this sync copies. */
+    sourceWorkflowId: workflowIdSchema,
+  }),
+  z.object({ action: z.literal('archive'), ...forkWorkflowChangeNames }),
+])
 
 /**
  * A configured selector field (Gmail label, Slack channel, KB document, ...) that
@@ -987,7 +998,8 @@ export const getForkWorkflowDiffContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      targetWorkflowId: z.string(),
+      /** The workflow the sync overwrites; null when the sync would create it (its id is provisional). */
+      targetWorkflowId: workflowIdSchema.nullable(),
       before: deployedWorkflowStateSchema.nullable(),
       after: deployedWorkflowStateSchema,
       beforeLabel: z.string(),

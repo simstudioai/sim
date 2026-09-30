@@ -12,7 +12,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
  * cleanly against any of them.
  *
  * The merge walks every block on every store change, so a consumer that has
- * nothing to compare against yet passes `enabled: false` and gets null
+ * nothing to compare against yet passes `false` as `enabled` and gets null
  * without paying for it.
  */
 export function useDraftWorkflowState(

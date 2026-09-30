@@ -1,10 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { getForkWorkflowDiffContract } from '@/lib/api/contracts/workspace-fork'
-import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
+import { type ForkDirection, forkKeys } from '@/ee/workspace-forking/hooks/workspace-fork'
 
+/**
+ * Nested under the fork diff keys so the promote, rollback and unlink
+ * mutations' existing invalidation of `forkKeys.diffs()` covers a preview too.
+ */
 export const forkWorkflowDiffKeys = {
-  all: ['fork-workflow-diff'] as const,
+  all: [...forkKeys.diffs(), 'workflow'] as const,
   details: () => [...forkWorkflowDiffKeys.all, 'detail'] as const,
   detail: (
     workspaceId?: string,

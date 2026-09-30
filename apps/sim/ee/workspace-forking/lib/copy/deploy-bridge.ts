@@ -304,32 +304,46 @@ async function readAdmittedSourceState(
 }
 
 /**
+ * The target workflow as its editor currently holds it: the draft tables plus
+ * the variables on the workflow row, read in one repeatable-read snapshot and
+ * in the same shape as a deployed state. A sync overwrites exactly this, so it
+ * is the honest "before" of a preview. Null when the workflow is not in
+ * `workspaceId` (or does not exist), never for a workflow elsewhere.
+ */
+export async function loadTargetDraftState(
+  workflowId: string,
+  workspaceId: string
+): Promise<WorkflowState | null> {
+  return db.transaction(
+    async (tx) => {
+      const [draft, [row]] = await Promise.all([
+        loadWorkflowFromNormalizedTables(workflowId, tx),
+        tx
+          .select({ workspaceId: workflow.workspaceId, variables: workflow.variables })
+          .from(workflow)
+          .where(eq(workflow.id, workflowId))
+          .limit(1),
+      ])
+      if (!draft || !row || row.workspaceId !== workspaceId) return null
+      return {
+        blocks: draft.blocks,
+        edges: draft.edges,
+        loops: draft.loops,
+        parallels: draft.parallels,
+        variables: (row.variables ?? {}) as Record<string, Variable>,
+      }
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' }
+  )
+}
+
+/**
  * Read a workflow's active deployed state as a `WorkflowState`. Returns null ONLY
  * when the workflow genuinely has no active deployment (a legitimate skip); real
  * DB/migration errors propagate so the caller fails loudly instead of silently
  * dropping the workflow from the fork/promote. Block migrations (credential remap
  * to current ids) are applied so copied references reflect current resources.
  */
-/**
- * The target workflow as its editor currently holds it: the draft tables plus
- * the variables on the workflow row, in the same shape as a deployed state.
- * A sync overwrites exactly this, so it is the honest "before" of a preview.
- */
-export async function loadTargetDraftState(workflowId: string): Promise<WorkflowState | null> {
-  const [draft, rows] = await Promise.all([
-    loadWorkflowFromNormalizedTables(workflowId),
-    db.select({ variables: workflow.variables }).from(workflow).where(eq(workflow.id, workflowId)),
-  ])
-  if (!draft) return null
-  return {
-    blocks: draft.blocks,
-    edges: draft.edges,
-    loops: draft.loops,
-    parallels: draft.parallels,
-    variables: (rows[0]?.variables ?? {}) as Record<string, Variable>,
-  }
-}
-
 export async function readDeployedState(
   workflowId: string,
   workspaceId: string,

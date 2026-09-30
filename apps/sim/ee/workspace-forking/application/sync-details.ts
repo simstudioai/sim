@@ -254,7 +254,6 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
             currentName: item.sourceMeta.name,
             otherName: item.sourceMeta.name,
             sourceWorkflowId: item.sourceWorkflowId,
-            targetWorkflowId: item.targetWorkflowId,
           }
         }
         const targetName = item.targetName ?? item.sourceMeta.name
@@ -263,14 +262,12 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
           currentName: currentIsSource ? item.sourceMeta.name : targetName,
           otherName: currentIsSource ? targetName : item.sourceMeta.name,
           sourceWorkflowId: item.sourceWorkflowId,
-          targetWorkflowId: item.targetWorkflowId,
         }
       }),
       ...plan.archivedTargets.map((target) => ({
         action: 'archive' as const,
         currentName: target.name,
         otherName: target.name,
-        targetWorkflowId: target.id,
       })),
     ]
 

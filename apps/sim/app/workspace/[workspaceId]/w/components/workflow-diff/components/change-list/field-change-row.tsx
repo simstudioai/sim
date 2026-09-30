@@ -2,6 +2,7 @@
 
 import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
+import { isContainerType } from '@/lib/workflows/autolayout'
 import { resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
 import { KeyedListDiff } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/keyed-list-diff'
 import {
@@ -11,10 +12,9 @@ import {
 import {
   classifyChange,
   containerFieldLabel,
-  engineFieldLabel,
+  ENGINE_FIELD_LABELS,
   formatScalar,
   isBlankValue,
-  isContainerType,
   isSentenceLike,
   toDiffText,
   toMessageList,
@@ -38,9 +38,10 @@ interface FieldChangeRowProps {
 export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldChangeRowProps) {
   const kind = classifyChange(blockType, field, oldValue, newValue)
   const oneSided = isBlankValue(oldValue) !== isBlankValue(newValue)
+  const wordDiff = kind === 'scalar' && isSentenceLike(oldValue) && isSentenceLike(newValue)
   const resolvedLabel = isContainerType(blockType)
     ? containerFieldLabel(field)
-    : (engineFieldLabel(field) ?? resolveFieldLabel(blockType, field))
+    : (ENGINE_FIELD_LABELS[field] ?? resolveFieldLabel(blockType, field))
   /* A field its definition never titled comes back as the raw id; humanize it. */
   const label = resolvedLabel === field ? formatParameterLabel(field) : resolvedLabel
 
@@ -64,26 +65,23 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
           newValue={newValue}
         />
       )}
-      {(kind === 'scalar' || kind === 'toggle') && oneSided && (
-        <ValueChip
-          tone={isBlankValue(oldValue) ? 'added' : 'removed'}
-          text={formatScalar(blockType, field, isBlankValue(oldValue) ? newValue : oldValue)}
-        />
-      )}
-      {kind === 'scalar' && !oneSided && isSentenceLike(oldValue) && isSentenceLike(newValue) && (
-        <InlineDiff
-          oldText={formatScalar(blockType, field, oldValue)}
-          newText={formatScalar(blockType, field, newValue)}
-        />
-      )}
-      {!oneSided &&
-        (kind === 'toggle' ||
-          (kind === 'scalar' && !(isSentenceLike(oldValue) && isSentenceLike(newValue)))) && (
+      {(kind === 'scalar' || kind === 'toggle') &&
+        (oneSided ? (
+          <ValueChip
+            tone={isBlankValue(oldValue) ? 'added' : 'removed'}
+            text={formatScalar(blockType, field, isBlankValue(oldValue) ? newValue : oldValue)}
+          />
+        ) : wordDiff ? (
+          <InlineDiff
+            oldText={formatScalar(blockType, field, oldValue)}
+            newText={formatScalar(blockType, field, newValue)}
+          />
+        ) : (
           <OldNewPair
             oldText={formatScalar(blockType, field, oldValue)}
             newText={formatScalar(blockType, field, newValue)}
           />
-        )}
+        ))}
     </div>
   )
 }

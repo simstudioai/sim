@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { cn } from '@sim/emcn'
 import { SubflowNodeView } from '@sim/workflow-renderer'
 import type { Node, NodeProps } from '@xyflow/react'
 import type { BlockDiffStatus } from '@/lib/workflows/comparison'
@@ -51,12 +52,12 @@ function WorkflowPreviewSubflowInner({ data, id }: NodeProps<WorkflowPreviewSubf
       onSelect={() => undefined}
     />
   )
-  if (data.diffStatus !== 'removed') return view
-  /* A removed container fades like a removed card; its children ghost themselves. */
+  if (!data.diffStatus) return view
+  /* Same label as a card; a removed container fades like a removed card, its children ghost themselves. */
   return (
-    <div className='relative opacity-45'>
-      <DiffStatusLabel status='removed' />
-      {view}
+    <div className='relative'>
+      <DiffStatusLabel status={data.diffStatus} />
+      <div className={cn(data.diffStatus === 'removed' && 'opacity-45')}>{view}</div>
     </div>
   )
 }

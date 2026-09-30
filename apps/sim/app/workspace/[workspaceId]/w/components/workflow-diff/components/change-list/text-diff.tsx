@@ -30,7 +30,7 @@ const GUTTER_SIGN: Record<DiffLine['kind'], string> = {
 }
 
 const FOLD_BUTTON_CLASS =
-  'flex w-full items-center gap-2 bg-[var(--surface-3)] px-2 py-0.5 text-left text-[var(--text-tertiary)] text-caption hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-secondary)] focus-visible:bg-[var(--surface-4)] focus-visible:outline-none'
+  'flex w-full items-center gap-2 bg-[var(--surface-3)] px-2 py-0.5 text-left text-[var(--text-tertiary)] text-caption transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-secondary)] focus-visible:bg-[var(--surface-4)] focus-visible:outline-none'
 
 interface FoldRowProps {
   count: number
@@ -42,7 +42,9 @@ interface FoldRowProps {
 function FoldRow({ count, kind, onExpand }: FoldRowProps) {
   return (
     <button type='button' onClick={onExpand} className={FOLD_BUTTON_CLASS}>
-      <span className='w-3 text-center'>…</span>
+      <span aria-hidden='true' className='w-3 text-center'>
+        …
+      </span>
       <span>
         {count} {kind === 'unchanged' ? 'unchanged ' : 'more '}
         {count === 1 ? 'line' : 'lines'}
@@ -72,7 +74,7 @@ export function TextDiff({ oldText, newText }: TextDiffProps) {
         <button
           type='button'
           onClick={() => setExpandedAll((value) => !value)}
-          className='flex w-full items-center justify-between border-[var(--border)] border-b bg-[var(--surface-2)] px-2 py-0.5 text-left font-sans text-[var(--text-tertiary)] text-caption hover-hover:text-[var(--text-secondary)] focus-visible:bg-[var(--surface-4)] focus-visible:outline-none'
+          className='flex w-full items-center justify-between border-[var(--border)] border-b bg-[var(--surface-2)] px-2 py-0.5 text-left font-sans text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-secondary)] focus-visible:bg-[var(--surface-4)] focus-visible:outline-none'
         >
           <span>
             {foldCount} changed {foldCount === 1 ? 'region' : 'regions'}
@@ -81,6 +83,17 @@ export function TextDiff({ oldText, newText }: TextDiffProps) {
         </button>
       )}
       {rows.map((row, index) => {
+        if (row.type === 'oversized') {
+          return (
+            <div
+              key={index}
+              className='px-2 py-1 font-sans text-[var(--text-tertiary)] text-caption'
+            >
+              Too long to compare line by line: {row.oldLines} lines before, {row.newLines} lines
+              after.
+            </div>
+          )
+        }
         if (row.type === 'fold' || row.type === 'tail') {
           if (!expandedAll && !expanded.has(index)) {
             return (

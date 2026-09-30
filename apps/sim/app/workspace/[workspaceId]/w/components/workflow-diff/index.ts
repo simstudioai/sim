@@ -1,1 +1,1 @@
-export { CHANGE_LIST_WIDTH_CLASS, WorkflowDiffView } from './workflow-diff-view'
+export { WorkflowDiffSkeleton, WorkflowDiffView } from './workflow-diff-view'

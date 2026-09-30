@@ -19,7 +19,6 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 const mocks = vi.hoisted(() => ({
   loadSourceDeployedStates: vi.fn(),
   loadTargetDraftState: vi.fn(),
-  readDeployedState: vi.fn(),
   loadForkBlockMap: vi.fn(),
   computeForkPromotePlan: vi.fn(),
 }))
@@ -31,7 +30,6 @@ vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLine
 vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mocks.loadSourceDeployedStates,
   loadTargetDraftState: mocks.loadTargetDraftState,
-  readDeployedState: mocks.readDeployedState,
 }))
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   loadForkBlockMap: mocks.loadForkBlockMap,
@@ -113,6 +111,18 @@ describe('fork workflow-diff route', () => {
     expect(mocks.loadSourceDeployedStates).not.toHaveBeenCalled()
   })
 
+  it('rejects workspaces that are not a direct fork edge without reading state', async () => {
+    workspaceForkingLineageMockFns.mockResolveForkEdge.mockResolvedValue(null)
+
+    const response = await GET(
+      request({ otherWorkspaceId: 'parent', direction: 'push', sourceWorkflowId: 'wf-src' }),
+      routeContext
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.loadSourceDeployedStates).not.toHaveBeenCalled()
+  })
+
   it('maps a workflow outside the sync plan to 404', async () => {
     const response = await GET(
       request({ otherWorkspaceId: 'parent', direction: 'push', sourceWorkflowId: 'foreign' }),
@@ -130,7 +140,7 @@ describe('fork workflow-diff route', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
-      targetWorkflowId: 'wf-tgt',
+      targetWorkflowId: null,
       before: null,
       after: emptyState,
       beforeLabel: 'Ask Biz (current)',
