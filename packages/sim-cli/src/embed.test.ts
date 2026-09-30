@@ -97,6 +97,25 @@ describe('runEmbeddedCli', () => {
     expect(JSON.parse(a.stdout).data[0].id).toBe(wsA)
     expect(JSON.parse(b.stdout).data[0].id).toBe(wsB)
   })
+
+  it('reports a thrown error with its own exit code, as the installed CLI does', async () => {
+    const receipt = {
+      operationId: 'op-1',
+      requestId: 'req-1',
+      workspaceId: IDENTITY.workspaceId,
+      kind: 'workflow_import',
+      applied: true,
+      status: 'processing',
+      issues: [],
+    }
+    const result = await runEmbeddedCli(
+      ['--output', 'json', 'workspaces', 'operations', 'wait', 'op-1', '--wait-timeout', '0.01'],
+      { ...IDENTITY, transport: async () => jsonResponse({ data: receipt }) }
+    )
+    expect(result.exitCode).toBe(4)
+    expect(JSON.parse(result.stdout)).toMatchObject({ operationId: 'op-1', status: 'processing' })
+    expect(result.stderr).toContain('OPERATION_WAIT_TIMEOUT')
+  })
 })
 
 describe('embedded artifact destinations', () => {
