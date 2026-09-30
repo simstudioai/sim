@@ -104,6 +104,7 @@ async function pushWorkspaceFileMount(
     const imported = await importWorkspaceFileSnapshotProvenance({
       workspaceId,
       provenance: result.secretProvenance,
+      resourceId: record.id,
       registry,
     })
     if (!imported) registry.markIncomplete('mounted-file-provenance-unavailable')
@@ -471,6 +472,19 @@ async function importMountedProvenance(
   crossingValue: unknown
 ): Promise<void> {
   if (!target) return
+  /**
+   * The run's code could read every mounted byte, so a mount the source refused is taint in the
+   * output, not an absence. A serialized envelope drops the reason, and the bare
+   * `source-provenance-incomplete` it leaves behind is in the absence set: a writer would then
+   * record the output as `unrecorded`, and a refusal would name no guard.
+   */
+  if (source.isPermanentlyIncomplete()) {
+    target.markIncomplete('inherited-incomplete-source', {
+      source,
+      origin: 'copilotFunctionExecute.crossing',
+    })
+    return
+  }
 
   try {
     const provenance = source.exportProvenanceForValue(crossingValue)

@@ -71,6 +71,7 @@ import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
 import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
+  measureWithheldContent,
 } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
 import {
@@ -919,6 +920,7 @@ async function executeToolAndReportInner(
         toolName: toolCall.name,
         runtimeSucceeded: result.success,
         ...describeWithholdingCause(projection.cause),
+        ...measureWithheldContent(result),
       })
     }
 
