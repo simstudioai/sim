@@ -108,9 +108,19 @@ describe('runEmbeddedCli', () => {
       status: 'processing',
       issues: [],
     }
+    // The clock moves only when a status is served, so the wait can time out
+    // only after it has a receipt to print, however slow the runner is.
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
     const result = await runEmbeddedCli(
-      ['--output', 'json', 'workspaces', 'operations', 'wait', 'op-1', '--wait-timeout', '0.01'],
-      { ...IDENTITY, transport: async () => jsonResponse({ data: receipt }) }
+      ['--output', 'json', 'workspaces', 'operations', 'wait', 'op-1', '--wait-timeout', '60'],
+      {
+        ...IDENTITY,
+        transport: async () => {
+          now += 61_000
+          return jsonResponse({ data: receipt })
+        },
+      }
     )
     expect(result.exitCode).toBe(4)
     expect(JSON.parse(result.stdout)).toMatchObject({ operationId: 'op-1', status: 'processing' })
