@@ -8,21 +8,65 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const database = vi.hoisted(() => {
+const database = await vi.hoisted(async () => {
   process.env.MOTHERSHIP_BENCHMARK_ENABLED = 'true'
-  return { current: undefined as PostgresJsDatabase | undefined }
+  const { createServer } = await import('node:http')
+  const requests: Record<string, unknown>[] = []
+  const worker = createServer(async (request, response) => {
+    let body = ''
+    for await (const chunk of request) body += chunk
+    if (request.url !== '/api/mothership/execute') {
+      response.writeHead(200, { 'content-type': 'application/json' }).end('{}')
+      return
+    }
+    const payload = JSON.parse(body) as Record<string, unknown>
+    requests.push(payload)
+    const frames = [
+      { type: 'text', payload: { channel: 'assistant', text: '{"ok":true}' } },
+      { type: 'complete', payload: { status: 'complete' } },
+    ]
+    response.writeHead(200, { 'content-type': 'text/event-stream' })
+    response.end(
+      frames
+        .map(
+          (frame, index) =>
+            `data: ${JSON.stringify({
+              v: 1,
+              seq: index + 1,
+              ts: new Date().toISOString(),
+              stream: { streamId: payload.messageId },
+              ...frame,
+            })}\n\n`
+        )
+        .join('')
+    )
+  })
+  await new Promise<void>((resolve) => worker.listen(0, '127.0.0.1', resolve))
+  const address = worker.address()
+  if (!address || typeof address === 'string') throw new Error('Worker fixture did not bind')
+  process.env.MOTHERSHIP_BENCHMARK_URL = `http://127.0.0.1:${address.port}`
+  process.env.COPILOT_API_KEY = 'local-benchmark-fixture'
+  return { current: undefined as PostgresJsDatabase | undefined, worker, requests }
 })
 vi.mock('server-only', () => ({}))
-vi.mock('@sim/db', () => ({
-  get db() {
-    if (!database.current) throw new Error('Benchmark test database is not initialized')
-    return database.current
-  },
-}))
+vi.mock('@sim/db', () => {
+  const scopedDatabase = new Proxy(
+    {},
+    {
+      get(_target, property) {
+        if (!database.current) throw new Error('Benchmark test database is not initialized')
+        const value = Reflect.get(database.current, property)
+        return typeof value === 'function' ? value.bind(database.current) : value
+      },
+    }
+  )
+  return { db: scopedDatabase, dbFor: () => scopedDatabase }
+})
 
+import { z } from 'zod'
 import { createBenchmark, getBenchmark, listBenchmarks } from '@/lib/benchmarks/application/cases'
+import { prepareBenchmarkExecution } from '@/lib/benchmarks/application/prepare-execution'
 import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
-import { prepareBenchmarkReference } from '@/lib/benchmarks/application/prepare-reference'
 import {
   getBenchmarkRun,
   listBenchmarkRuns,
@@ -46,6 +90,7 @@ import {
   updateBenchmarkRecord,
 } from '@/lib/benchmarks/repository'
 import { type BenchmarkArtifacts, emptyBenchmarkArtifacts } from '@/lib/benchmarks/types'
+import { executeBenchmarkJson } from '@/lib/benchmarks/worker'
 import { listOrganizationChats } from '@/lib/mothership/chat/organization-chats'
 
 describe('private benchmark persistence and attempt fencing', () => {
@@ -113,6 +158,9 @@ describe('private benchmark persistence and attempt fencing', () => {
       'user',
       'settings',
       'copilot_chats',
+      'copilot_runs',
+      'copilot_request_stops',
+      'copilot_organization_request_stops',
       'mothership_memory_selections',
       'mothership_memory_spaces',
       'organization',
@@ -128,6 +176,7 @@ describe('private benchmark persistence and attempt fencing', () => {
     ]) {
       await connection`CREATE TABLE ${connection(table)} (LIKE ${connection(`public.${table}`)} INCLUDING ALL)`
     }
+    await connection`ALTER TABLE copilot_runs ADD CONSTRAINT benchmark_chat_fk FOREIGN KEY (chat_id) REFERENCES copilot_chats(id)`
     database.current = drizzle(connection)
     await connection`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at) VALUES ('owner', 'Owner', 'owner@benchmark.test', true, now(), now()), ('peer', 'Peer', 'peer@benchmark.test', true, now(), now())`
     await connection`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at) VALUES ('target', 'Target', 'target@benchmark.test', true, now(), now())`
@@ -138,7 +187,7 @@ describe('private benchmark persistence and attempt fencing', () => {
   })
 
   beforeEach(async () => {
-    await connection`TRUNCATE mothership_benchmark_runs, mothership_benchmarks, permissions, copilot_chats`
+    await connection`TRUNCATE mothership_benchmark_runs, mothership_benchmarks, permissions, copilot_runs, copilot_chats`
     await connection`UPDATE "user" SET role = CASE WHEN id IN ('owner', 'peer') THEN 'admin' ELSE 'user' END, banned = false`
     await connection`UPDATE settings SET super_user_mode_enabled = true`
     await connection`INSERT INTO member (id, organization_id, user_id, role) VALUES ('owner-member', 'org', 'owner', 'member'), ('target-member', 'org', 'target', 'member') ON CONFLICT (id) DO UPDATE SET organization_id = 'org'`
@@ -157,7 +206,52 @@ describe('private benchmark persistence and attempt fencing', () => {
     } finally {
       database.current = undefined
       await connection.end()
+      await new Promise<void>((resolve, reject) => {
+        database.worker.close((error) => (error ? reject(error) : resolve()))
+        database.worker.closeAllConnections()
+      })
     }
+  })
+
+  it('completes isolated JSON executions through the real lifecycle with fresh target-owned chats', async () => {
+    const { benchmark } = await createBenchmark.execute({
+      principal,
+      input: {
+        organizationId: 'org',
+        sourceWorkspaceId: 'workspace',
+        runAsUserId: 'target',
+        name: 'JSON execution',
+      },
+    })
+    database.requests.length = 0
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const input = {
+        principal,
+        benchmark,
+        messages: [{ role: 'user' as const, content: 'Return the fixture result.' }],
+        schema: z.object({ ok: z.literal(true) }),
+        signal: new AbortController().signal,
+      }
+      expect(await executeBenchmarkJson(input)).toEqual({ ok: true })
+    }
+    const runs =
+      await connection`SELECT r.status, r.user_id, c.user_id AS chat_user_id, c.config FROM copilot_runs r JOIN copilot_chats c ON c.id = r.chat_id`
+    expect(runs).toHaveLength(2)
+    for (const run of runs)
+      expect(run).toMatchObject({
+        status: 'complete',
+        user_id: 'target',
+        chat_user_id: 'target',
+        config: { benchmark: { id: benchmark.id, operatorUserId: 'owner' } },
+      })
+    expect(database.requests).toHaveLength(2)
+    expect(new Set(database.requests.map((request) => request.chatId)).size).toBe(2)
+    for (const request of database.requests)
+      expect(request).toMatchObject({
+        userId: 'target',
+        useConversationHistory: false,
+        messages: [{ role: 'user', content: 'Return the fixture result.' }],
+      })
   })
 
   it('requires a current superuser role and enabled toggle even when the deployment flag is on', async () => {
@@ -233,7 +327,7 @@ describe('private benchmark persistence and attempt fencing', () => {
       },
     })
     expect(benchmark).toMatchObject({ userId: 'owner', runAsUserId: 'target' })
-    const reference = await prepareBenchmarkReference.execute({
+    const reference = await prepareBenchmarkExecution.execute({
       principal,
       input: { organizationId: 'org', benchmarkId: benchmark.id },
     })
@@ -287,7 +381,7 @@ describe('private benchmark persistence and attempt fencing', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     await expect(
-      prepareBenchmarkReference.execute({
+      prepareBenchmarkExecution.execute({
         principal,
         input: { organizationId: 'org', benchmarkId: benchmark.id },
       })

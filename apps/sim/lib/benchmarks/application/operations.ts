@@ -3,8 +3,8 @@ import { defineWorkspaceOperation } from '@/lib/core/application/workspace-opera
 
 export const benchmarkOperations = {
   /** permission-group-exempt: platform superusers administer benchmarks; source access is checked for the selected user. */
-  prepareReference: defineOperation({
-    id: 'benchmarks.reference.prepare',
+  prepareExecution: defineOperation({
+    id: 'benchmarks.execution.prepare',
     principalKinds: ['session'],
     capability: 'none',
   }),

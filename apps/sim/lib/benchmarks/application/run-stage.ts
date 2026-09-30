@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { defineAuthorizedBenchmarkUseCase } from '@/lib/benchmarks/application/access'
 import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
-import { prepareBenchmarkReference } from '@/lib/benchmarks/application/prepare-reference'
 import {
   BENCHMARK_LEASE_MS,
   withBenchmarkStageLease,
@@ -44,7 +43,14 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 const logger = createLogger('BenchmarkStage')
 
 const distillationSchema = z
-  .object({ taskBrief: benchmarkBriefSchema.min(1), referenceSpec: benchmarkSpecSchema.min(1) })
+  .object({
+    taskBrief: benchmarkBriefSchema.min(1),
+    referenceSpec: benchmarkSpecSchema
+      .min(1)
+      .describe(
+        'A complete, human-readable Markdown specification, with headings and prose. Use code blocks for exact mappings or code where needed.'
+      ),
+  })
   .strict()
 const redactionSchema = z
   .object({
@@ -91,23 +97,19 @@ async function performStage(
   const artifacts = benchmark.artifacts
   switch (stage) {
     case 'distill': {
-      const target = await prepareBenchmarkReference.execute({
-        principal,
-        input: { organizationId: benchmark.organizationId, benchmarkId: benchmark.id },
-      })
-      signal.throwIfAborted()
       const result = await executeBenchmarkJson({
+        principal,
         benchmark,
         signal,
         schema: distillationSchema,
         messages: distillationMessages(artifacts.taskBrief),
         profile: { stage: 'distill' },
-        chatId: target.chatId,
       })
       return { artifacts: applyBenchmarkPatch(artifacts, result), plannerChatId: null }
     }
     case 'redact': {
       const result = await executeBenchmarkJson({
+        principal,
         benchmark,
         signal,
         schema: redactionSchema,
@@ -134,6 +136,7 @@ async function performStage(
     }
     case 'reconstruct': {
       const result = await executeBenchmarkJson({
+        principal,
         benchmark,
         signal,
         schema: reconstructionSchema,
@@ -145,6 +148,7 @@ async function performStage(
     }
     case 'grade': {
       const result = await executeBenchmarkJson({
+        principal,
         benchmark,
         signal,
         schema: gradingSchema,
