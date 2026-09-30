@@ -257,19 +257,27 @@ describe('retiring dormant Search embeddings', () => {
     await sql`INSERT INTO embedding VALUES ('26003', 'second-search', 'second-search-doc')`
     await sql`CREATE TABLE deletion_blocker (id text REFERENCES embedding(id))`
     await sql`INSERT INTO deletion_blocker VALUES ('26002')`
+    /** Every committed delete sits at or behind the cursor; a failed page leaves all rows past it. */
+    async function expectRolledBackPastCursor() {
+      const [progress] = await sql`SELECT phase, after_id FROM search_embedding_cleanup_progress`
+      expect(progress.phase).toBe('embeddings')
+      const [beyond] =
+        await sql`SELECT count(*)::int AS n FROM embedding WHERE id > ${progress.after_id}`
+      expect(beyond.n).toBe(26003 - Number(progress.after_id))
+      expect(progress.after_id < '26002').toBe(true)
+    }
     await expect(pass()).rejects.toThrow()
-    const before = await sql`SELECT * FROM search_embedding_cleanup_progress`
     const [remaining] = await sql`SELECT count(*)::int AS n FROM embedding`
     expect(remaining.n).toBeGreaterThan(501)
     expect(remaining.n).toBeLessThan(26002)
     expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+    await expectRolledBackPastCursor()
     await sql`UPDATE knowledge_base SET is_search_index = false WHERE id = 'second-search'`
     await expect(pass()).rejects.toThrow('no longer a Search knowledge base')
-    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(remaining.n)
+    await expectRolledBackPastCursor()
     await sql`UPDATE knowledge_base SET is_search_index = true WHERE id = 'second-search'`
     await expect(pass()).rejects.toThrow()
-    expect(await sql`SELECT * FROM search_embedding_cleanup_progress`).toEqual(before)
-    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(remaining.n)
+    await expectRolledBackPastCursor()
     await sql`DROP TABLE deletion_blocker`
     await sql`INSERT INTO document (id, knowledge_base_id) VALUES ('aaa-late-document', 'search')`
     await sql`INSERT INTO embedding VALUES ('00000', 'search', 'aaa-late-document')`
@@ -307,6 +315,69 @@ describe('retiring dormant Search embeddings', () => {
         WHERE knowledge_base_id = 'search' AND (NOT user_excluded OR enabled)`
       )[0].n
     ).toBe(0)
+  }, 60_000)
+
+  it('splits pages whose writes would outrun the statement timeout and resumes at the split', async () => {
+    const bound = 300
+    await sql`INSERT INTO document (id, knowledge_base_id, user_excluded, enabled)
+      SELECT 'doc-' || lpad(i::text, 5, '0'), CASE WHEN i % 3 = 0 THEN 'ordinary' ELSE 'search' END,
+        i % 7 = 0, i % 7 <> 0
+      FROM generate_series(1, 4000) i`
+    await sql`INSERT INTO embedding
+      SELECT lpad(i::text, 5, '0'), CASE WHEN i % 3 = 0 THEN 'ordinary' ELSE 'search' END,
+        CASE WHEN i % 3 = 0 THEN 'ordinary-doc' ELSE 'search-doc' END
+      FROM generate_series(1003, 5002) i`
+    await sql`CREATE TABLE committed_statement (rows integer NOT NULL)`
+    /** Stands in for write cost: a statement touching more than `bound` rows times out and rolls back. */
+    await sql.unsafe(`CREATE FUNCTION bound_statement_rows() RETURNS trigger LANGUAGE plpgsql AS $$
+      DECLARE touched integer;
+      BEGIN
+        SELECT count(*) INTO touched FROM changed_rows;
+        IF touched > ${bound} THEN
+          RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = 'query_canceled';
+        END IF;
+        INSERT INTO committed_statement VALUES (touched);
+        RETURN NULL;
+      END $$`)
+    await sql`CREATE TRIGGER bound_document_update AFTER UPDATE ON document
+      REFERENCING NEW TABLE AS changed_rows FOR EACH STATEMENT EXECUTE FUNCTION bound_statement_rows()`
+    await sql`CREATE TRIGGER bound_embedding_delete AFTER DELETE ON embedding
+      REFERENCING OLD TABLE AS changed_rows FOR EACH STATEMENT EXECUTE FUNCTION bound_statement_rows()`
+    try {
+      expect(await pass()).toBe(true)
+      const [{ largest, total }] = await sql`SELECT max(rows)::int AS largest,
+        sum(rows)::int AS total FROM committed_statement`
+      expect(largest).toBeLessThanOrEqual(bound)
+      expect(largest).toBeGreaterThan(0)
+      /** 2,286 unretired bulk documents plus `search-doc`, then 3,168 chunks; nothing twice. */
+      expect(total).toBe(2287 + 3168)
+      expect(
+        (
+          await sql`SELECT count(*)::int AS n FROM document
+          WHERE knowledge_base_id = 'search' AND (NOT user_excluded OR enabled)`
+        )[0].n
+      ).toBe(0)
+      expect(
+        (
+          await sql`SELECT count(*)::int AS n FROM document
+          WHERE knowledge_base_id = 'ordinary' AND NOT user_excluded AND enabled`
+        )[0].n
+      ).toBe(1 + 1333 - 190)
+      expect(
+        (await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'search'`)[0]
+          .n
+      ).toBe(0)
+      expect(
+        (
+          await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'ordinary'`
+        )[0].n
+      ).toBe(501 + 1333)
+    } finally {
+      await sql`DROP TRIGGER IF EXISTS bound_document_update ON document`
+      await sql`DROP TRIGGER IF EXISTS bound_embedding_delete ON embedding`
+      await sql`DROP FUNCTION bound_statement_rows()`
+      await sql`DROP TABLE committed_statement`
+    }
   }, 60_000)
 
   it('rejects inconsistent document ownership before deleting any chunk in the page', async () => {

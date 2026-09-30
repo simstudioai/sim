@@ -30,11 +30,20 @@ resume the saved scope, phase, cursor and maintenance checkpoints.
 The existing maintenance implementation rebuilds HNSW indexes and vacuums affected tables before
 deployment continues.
 
-Pages contain at most 25,000 IDs and execute sequentially without a pacing delay. Materialized SQL
-pages keep the IDs inside PostgreSQL; the migration process receives only a cursor and a validation
-result. Each page uses a two-minute statement timeout and a one-second lock timeout. Brief lock
-timeouts retry the rolled-back page with bounded backoff for up to one minute. Other errors, or
-exhausted lock retries, fail the migration without a completion receipt. Progress is logged every
+Each page reads at most 25,000 IDs and mutates at most a row limit of them, and pages execute
+sequentially without a pacing delay. Retiring a document is a non-HOT update that writes every
+index on `document`, and deleting a chunk cascades into its projections, so a page's cost follows
+the target rows it mutates, not the IDs it reads. A page that reaches the row limit advances the
+cursor only to its last mutated row; the rest of its scan is read again by the next page. Documents
+that are already retired never count against the limit. The limit starts at 2,000 rows, halves after
+a page slower than 30 seconds, and doubles (up to 25,000) after a fast page that reached it.
+Materialized SQL pages keep the IDs inside PostgreSQL; the migration process receives only a cursor
+and a validation result. Each page uses a two-minute statement timeout and a one-second lock timeout.
+A page that exceeds the statement timeout rolls back with its cursor and is retried with half the
+row limit; one that still times out at 25 rows fails the migration. The completion rechecks, which
+walk every captured KB once, run with a 30-minute timeout. Brief lock timeouts retry the rolled-back
+page with bounded backoff for up to one minute. Other errors, or exhausted lock retries, fail the
+migration without a completion receipt. Progress is logged every
 ten pages. The deployment job retains its five-hour overall timeout; it is not a runtime estimate.
 
 After interruption or failure, rerun the migration job, or run
