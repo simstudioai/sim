@@ -2,7 +2,14 @@ import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector, organizationSearchIntegration } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
+
+/** Take before resource row locks when changing or consuming an organization's Search approval. */
+export async function lockOrganizationSearchApproval(tx: DbTransaction, organizationId: string) {
+  await acquireAdvisoryXactLock(tx, 'search_approval', `search-approval:${organizationId}`)
+}
 
 /** Existing configured sources retain approval until an admin records an explicit decision. */
 export async function listOrganizationSearchApprovals(
@@ -26,8 +33,7 @@ export async function listOrganizationSearchApprovals(
           eq(knowledgeBase.organizationId, organizationId),
           eq(knowledgeBase.isSearchIndex, true),
           isNull(knowledgeBase.deletedAt),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
+          connectorIsLive()
         )
       ),
   ])

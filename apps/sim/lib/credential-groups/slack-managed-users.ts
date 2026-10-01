@@ -33,7 +33,10 @@ import {
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
-import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
+import {
+  listOrganizationSearchApprovals,
+  lockOrganizationSearchApproval,
+} from '@/lib/knowledge/search/integration-policy'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
 import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
 import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
@@ -773,6 +776,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
 
   return db.transaction(async (tx) => {
     if (params.attempt.organizationId) {
+      await lockOrganizationSearchApproval(tx, params.attempt.organizationId)
       const [app] = await tx
         .select()
         .from(slackApp)

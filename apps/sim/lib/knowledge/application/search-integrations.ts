@@ -18,7 +18,10 @@ import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/avail
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
+import {
+  listOrganizationSearchApprovals,
+  lockOrganizationSearchApproval,
+} from '@/lib/knowledge/search/integration-policy'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
@@ -266,43 +269,41 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
       ? await prepareSearchMcpProvider(context.organizationId, mcpProvider)
       : null
     let memberAccounts: { groupId: string; changed: boolean } | undefined
-    const changed =
-      policy || memberProvider || mcpProvider
-        ? await db.transaction(async (tx) => {
-            if (memberProvider)
-              memberAccounts = await addOrganizationAccountProvider(
-                context.organizationId!,
-                requirePrincipalSubjectUserId(principal),
-                {
-                  provider: memberProvider,
-                  label: source[1].name,
-                  ...(memberProvider === 'slack'
-                    ? { requiredScopes: [...SLACK_SEARCH_USER_SCOPES] }
-                    : {}),
-                },
-                tx
-              ).catch((error: unknown) => {
-                if (error instanceof CredentialGroupProviderConfigurationError)
-                  throw new OrchestrationError('validation', error.message)
-                throw error
-              })
-            if (mcpSetup)
-              memberAccounts = await addOrganizationSearchMcpProvider(
-                context.organizationId!,
-                requirePrincipalSubjectUserId(principal),
-                mcpSetup,
-                tx
-              )
-            if (policy)
-              await tx
-                .update(organization)
-                .set({
-                  metadata: sql`jsonb_set(COALESCE(${organization.metadata}::jsonb, '{}'::jsonb), '{liveSearchPolicies}', COALESCE(${organization.metadata}::jsonb->'liveSearchPolicies', '{}'::jsonb) || jsonb_build_object(${input.connectorType}::text, ${JSON.stringify(policy)}::jsonb))::json`,
-                })
-                .where(eq(organization.id, context.organizationId!))
-            return saveApproval(tx)
+    const changed = await db.transaction(async (tx) => {
+      await lockOrganizationSearchApproval(tx, context.organizationId!)
+      if (memberProvider)
+        memberAccounts = await addOrganizationAccountProvider(
+          context.organizationId!,
+          requirePrincipalSubjectUserId(principal),
+          {
+            provider: memberProvider,
+            label: source[1].name,
+            ...(memberProvider === 'slack'
+              ? { requiredScopes: [...SLACK_SEARCH_USER_SCOPES] }
+              : {}),
+          },
+          tx
+        ).catch((error: unknown) => {
+          if (error instanceof CredentialGroupProviderConfigurationError)
+            throw new OrchestrationError('validation', error.message)
+          throw error
+        })
+      if (mcpSetup)
+        memberAccounts = await addOrganizationSearchMcpProvider(
+          context.organizationId!,
+          requirePrincipalSubjectUserId(principal),
+          mcpSetup,
+          tx
+        )
+      if (policy)
+        await tx
+          .update(organization)
+          .set({
+            metadata: sql`jsonb_set(COALESCE(${organization.metadata}::jsonb, '{}'::jsonb), '{liveSearchPolicies}', COALESCE(${organization.metadata}::jsonb->'liveSearchPolicies', '{}'::jsonb) || jsonb_build_object(${input.connectorType}::text, ${JSON.stringify(policy)}::jsonb))::json`,
           })
-        : await saveApproval(db)
+          .where(eq(organization.id, context.organizationId!))
+      return saveApproval(tx)
+    })
     return {
       connectorType: input.connectorType,
       approved: input.approved,
