@@ -32,10 +32,6 @@ export type ListSortOrder = (typeof LIST_SORT_ORDERS)[number]
  * Escapes LIKE/ILIKE wildcards so `%`, `_`, and `\` in a caller's term match
  * themselves. Postgres treats `\` as the default LIKE escape character, so no
  * explicit `ESCAPE` clause is needed.
- *
- * `lib/table/sql.ts` carries its own copy for the JSONB predicate engine; the
- * two are worth folding together, but that module is table-specific and pulls
- * the whole column-type registry with it.
  */
 export function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&')

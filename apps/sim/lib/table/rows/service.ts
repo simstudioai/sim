@@ -1,3 +1,4 @@
+import { escapeLikePattern } from '@sim/utils/string'
 /**
  * Row CRUD + query operations for the table service layer.
  *
@@ -77,7 +78,6 @@ import {
   buildFilterClause,
   buildPredicateClause,
   buildSortClause,
-  escapeLikePattern,
   uniqueValuePredicate,
 } from '@/lib/table/sql'
 import { fireTableTrigger } from '@/lib/table/trigger'
