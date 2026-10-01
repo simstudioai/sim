@@ -2,8 +2,9 @@
  * How often reconnecting to an orphaned Chat run re-POSTs it to the worker, against real
  * Redis and PostgreSQL. The production reconnect route, stream recovery, chat lifecycle
  * and finalization run unmodified; a local HTTP server stands in for the worker. Faults
- * are injected at one seam, the leased replay append: an append that fails once or every
- * time, or a lease lost with no successor to take over.
+ * are injected at two seams: the leased replay append (an append that fails once or every
+ * time, or a lease lost with no successor to take over) and a recovering controller's read
+ * of the replay ring.
  */
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -19,6 +20,8 @@ const { redisUrl, inheritedEnv, worker, faults } = await vi.hoisted(async () => 
           frames: 'any_tool' | 'tool_result'
           effect: 'throw' | 'throw_once' | 'lose_lease'
         },
+    /** Fails a recovering controller's read of the whole replay ring. */
+    recoveryRead: false,
   }
   const worker = {
     posts: [] as Array<{ path: string; at: number }>,
@@ -87,6 +90,12 @@ vi.mock('@/lib/mothership/request/session/buffer', async (importOriginal) => {
       /** The lock expires under a live controller, and nobody else holds it. */
       if (hit && fault.effect === 'lose_lease') await getRedisClient()!.del(lease.key)
       return actual.appendEvents(...args)
+    },
+    readEvents: async (...args: Parameters<typeof actual.readEvents>) => {
+      const [, afterCursor] = args
+      if (faults.recoveryRead && afterCursor === '0')
+        throw new Error('simulated Redis read failure')
+      return actual.readEvents(...args)
     },
   }
 })
@@ -418,6 +427,39 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
     const stored = await storedRun(run.runId)
     expect(stored.status).toBe('complete')
     expect(stored.recoveryBackoff).toMatchObject({ attempts: 1 })
+  }, 30_000)
+
+  it('leaves the run untouched when a takeover fails before it starts, then ends it once exhausted', async () => {
+    worker.mode = 'frames'
+    const claimedAt = Date.now() - 1_000
+    const recoveryBackoff = { attempts: MAX_RECOVERY_ATTEMPTS, claimedAt, notBefore: claimedAt }
+    const run = await orphanedRun({ recoveryBackoff })
+    const { controllerToken } = (await storedRun(run.runId)).requestContext as {
+      controllerToken: string
+    }
+    faults.recoveryRead = true
+    try {
+      const { turns } = await reconnect(run, { windowMs: 2_000 })
+
+      expect(turns).toHaveLength(0)
+      expect(await storedRun(run.runId)).toMatchObject({
+        status: 'active',
+        requestContext: { controllerToken },
+        recoveryBackoff,
+      })
+    } finally {
+      faults.recoveryRead = false
+    }
+
+    const { turns, stops } = await reconnect(run, { windowMs: 10_000 })
+
+    expect(turns).toHaveLength(0)
+    expect(stops).toHaveLength(1)
+    expect(await storedRun(run.runId)).toMatchObject({
+      status: 'error',
+      error: new StreamRecoveryExhaustedError().userMessage,
+      recoveryBackoff: { attempts: MAX_RECOVERY_ATTEMPTS + 1 },
+    })
   }, 30_000)
 
   it('never takes over a parked run whose controller still holds the chat lock', async () => {
