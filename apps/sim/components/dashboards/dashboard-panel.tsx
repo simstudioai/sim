@@ -57,7 +57,7 @@ interface ResultsTableProps {
 }
 function ResultsTable({ data, timeField, timeZone }: ResultsTableProps) {
   return (
-    <div className='h-full overflow-auto'>
+    <div className='max-h-[400px] overflow-auto'>
       <Table>
         <TableHeader>
           <TableRow>
@@ -195,7 +195,7 @@ export function DashboardPanel({
                 : barChartHeight !== null
                   ? 'relative'
                   : 'relative h-[240px]'
-              : 'relative h-[400px]')
+              : 'relative grid min-h-[120px]')
         )}
         style={!timeSeries && barChartHeight !== null ? { height: barChartHeight } : undefined}
       >

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dashboardAxisFormatter,
   dashboardRangeFromCalendar,
+  dashboardRangeText,
   dashboardTimeLabel,
   dashboardZoomRange,
   parseDashboardCustomRange,
@@ -46,5 +47,22 @@ describe('dashboard time interactions', () => {
     expect(dashboardAxisFormatter(range, 'America/Los_Angeles')(stamp)).toBe('Sep 19\n19:30')
     expect(dashboardTimeLabel(stamp, 'America/Los_Angeles')).toContain('PDT')
     expect(dashboardTimeLabel('2026-12-20T02:30:00Z', 'America/Los_Angeles')).toContain('PST')
+  })
+
+  it('keeps both ends of a range that repeats the same wall-clock minute across a DST fall-back', () => {
+    const text = dashboardRangeText(
+      { from: '2026-11-01T05:30:00.000Z', to: '2026-11-01T06:31:00.000Z' },
+      'America/New_York'
+    )
+    expect(text).toBe('Nov 1, 01:30:00 EDT – Nov 1, 01:30:59 EST')
+  })
+
+  it('shows distinct endpoints for a sub-minute zoom range', () => {
+    expect(
+      dashboardRangeText(
+        { from: '2026-09-20T14:30:00.000Z', to: '2026-09-20T14:30:01.000Z' },
+        'UTC'
+      )
+    ).toBe('Sep 20, 14:30:00.000 UTC – Sep 20, 14:30:00.999 UTC')
   })
 })

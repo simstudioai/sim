@@ -12,6 +12,7 @@ import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn/icons'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
+import { DIFF_EMBED_LANGUAGE } from '@/lib/diff/embed-language'
 import { MarkdownStreamingContext } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-streaming-context'
 import { looksLikeMermaid, MermaidDiagram } from '../mermaid-diagram'
 import { MarkdownCodeBlock } from './code-block-schema'
@@ -21,6 +22,9 @@ import { useEditorEditable } from './use-editor-editable'
 /** Kept out of every rich-markdown surface's graph until a document actually holds a dashboard. */
 const DashboardEmbed = lazy(() =>
   import('@/components/dashboards/dashboard-embed').then((m) => ({ default: m.DashboardEmbed }))
+)
+const DiffEmbed = lazy(() =>
+  import('@/components/diff/diff-embed').then((m) => ({ default: m.DiffEmbed }))
 )
 
 const PLAIN = 'plain'
@@ -74,7 +78,8 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
   const text = node.textContent
   const isMermaid = explicitLanguage === MERMAID || (!explicitLanguage && looksLikeMermaid(text))
   const isDashboard = explicitLanguage === DASHBOARD_EMBED_LANGUAGE
-  const isRendered = isMermaid || isDashboard
+  const isDiff = explicitLanguage === DIFF_EMBED_LANGUAGE
+  const isRendered = isMermaid || isDashboard || isDiff
 
   // Editable Mermaid shows source while the caret is focused inside the block and re-renders the
   // diagram on blur (the Linear/GitHub model). The Show source / Show diagram control drives this by
@@ -148,7 +153,13 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
           <button
             type='button'
             aria-label={
-              showSource ? (isDashboard ? 'Show dashboard' : 'Show diagram') : 'Show source'
+              showSource
+                ? isDashboard
+                  ? 'Show dashboard'
+                  : isDiff
+                    ? 'Show diff'
+                    : 'Show diagram'
+                : 'Show source'
             }
             onMouseDown={(event) => event.preventDefault()}
             onClick={toggleSource}
@@ -225,7 +236,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
         // Select the whole node instead of placing a caret, which would flip the block to source.
         <div
           contentEditable={false}
-          className={cn(isDashboard && 'dashboard-embed')}
+          className={cn(isDashboard && 'dashboard-embed', isDiff && 'diff-embed')}
           onMouseDown={(event) => {
             const target = event.target
             if (!(target instanceof Element) || !event.currentTarget.contains(target)) return
@@ -238,6 +249,10 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
           {isDashboard ? (
             <Suspense fallback={null}>
               <DashboardEmbed source={text} isStreaming={isStreaming} />
+            </Suspense>
+          ) : isDiff ? (
+            <Suspense fallback={null}>
+              <DiffEmbed source={text} isStreaming={isStreaming} />
             </Suspense>
           ) : (
             <MermaidDiagram definition={text} className='mermaid-diagram-frame' />

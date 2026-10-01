@@ -5,10 +5,9 @@ import {
   searchWorkspaceInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { getValidationErrorMessage } from '@/lib/api/server/validation'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
-import { createKnowledgeDocumentCitation, liveCitationId } from '@/lib/knowledge/search/citation'
+import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { withSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
@@ -25,7 +24,7 @@ import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-sec
 const logger = createLogger('WorkspaceSearchTool')
 
 const CITATION_INSTRUCTION =
-  'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools.' +
+  'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools with a non-null citationUrl.' +
   ' When referring to a Slack conversation, link the returned sourceContainerName to its sourceContainerUrl when available.'
 
 export const searchWorkspaceServerTool: BaseServerTool = {
@@ -93,14 +92,8 @@ export const searchWorkspaceServerTool: BaseServerTool = {
               results: data.results.map((item) => ({
                 ...item,
                 siteName: connectorDisplayName(item.connectorType ?? ''),
-                ...createKnowledgeDocumentCitation({
-                  scope,
-                  knowledgeBaseId: '',
-                  documentId: item.documentId,
-                  sourceUrl: item.sourceUrl,
-                  baseUrl: getBaseUrl(),
-                }),
                 citationId: liveCitationId(item.documentId),
+                citationUrl: item.sourceUrl ?? item.sourceContainerUrl ?? null,
               })),
             },
           }
@@ -166,14 +159,8 @@ export const readDocumentServerTool: BaseServerTool = {
             message: CITATION_INSTRUCTION,
             data: {
               ...data,
-              ...createKnowledgeDocumentCitation({
-                scope,
-                knowledgeBaseId: '',
-                documentId: data.documentId,
-                sourceUrl: data.sourceUrl,
-                baseUrl: getBaseUrl(),
-              }),
               citationId: liveCitationId(data.documentId),
+              citationUrl: data.sourceUrl ?? data.sourceContainerUrl ?? null,
             },
           }
         } catch (error) {

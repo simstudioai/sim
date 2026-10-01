@@ -59,6 +59,11 @@ export const SLACK_SEARCH_USER_SCOPES = [
   ...SLACK_RTS_USER_SCOPES,
 ] as const
 
+/** Search readiness is separate from a connection's existing workflow permissions. */
+export function hasSlackSearchUserScopes(scopes: readonly string[] | undefined): boolean {
+  return SLACK_SEARCH_USER_SCOPES.every((scope) => scopes?.includes(scope))
+}
+
 /** Existing workflow options retain their scope policy; every user grant must attest identity. */
 export function resolveSlackManagedUserScopes(requiredScopes?: readonly string[]): string[] {
   return [

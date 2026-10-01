@@ -27,6 +27,8 @@ vi.mock('@/lib/sim-search/live/application', () => ({
 }))
 
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { collectRetrievalCitationEvidence } from '@/lib/mothership/chat/citation-evidence'
+import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import {
   readDocumentServerTool,
   searchWorkspaceServerTool,
@@ -81,6 +83,78 @@ describe('Assistant retrieval tools', () => {
       next: null,
     })
   })
+  for (const tool of [searchWorkspaceServerTool, readDocumentServerTool]) {
+    describe(`${tool.name} live citations`, () => {
+      it.each([
+        {
+          name: 'the source link before its container',
+          sourceUrl: 'https://source.test/document',
+          sourceContainerUrl: 'https://source.test/container',
+          citationUrl: 'https://source.test/document',
+        },
+        {
+          name: 'the container when the source has no link',
+          sourceUrl: null,
+          sourceContainerUrl: 'https://source.test/container',
+          citationUrl: 'https://source.test/container',
+        },
+        {
+          name: 'no citation link when neither destination is available',
+          sourceUrl: null,
+          sourceContainerUrl: undefined,
+          citationUrl: null,
+        },
+      ])('preserves $name through saved citation evidence', async (links) => {
+        const document = {
+          knowledgeBaseId: '',
+          documentId: 'live:opaque-reference',
+          documentName: 'Live document',
+          sourceUrl: links.sourceUrl,
+          sourceContainerUrl: links.sourceContainerUrl,
+          connectorType: 'slack',
+          content: 'Retrieved evidence',
+        }
+        const searching = tool.name === 'search_workspace'
+        if (searching) {
+          mocks.search.mockResolvedValueOnce({
+            retrieval: { status: 'complete', timedOutLegs: [] },
+            results: [document],
+          })
+        } else {
+          mocks.read.mockResolvedValueOnce({
+            ...document,
+            chunks: [{ chunkIndex: 0, content: document.content }],
+            hasMore: false,
+            next: null,
+          })
+        }
+        const result = await tool.execute(
+          searching ? { query: 'evidence' } : { documentId: document.documentId },
+          { ...context, assistantSearch: undefined }
+        )
+        const expected = { documentId: document.documentId, citationUrl: links.citationUrl }
+        expect(result).toMatchObject({
+          success: true,
+          data: searching ? { results: [expected] } : expected,
+        })
+        const evidence = collectRetrievalCitationEvidence([
+          {
+            toolCall: {
+              name: tool.name,
+              status: 'success',
+              result: {
+                success: true,
+                output: compactRetrievalCitations(tool.name, result),
+              },
+            },
+          },
+        ])
+        expect([...evidence.values()].map((source) => source.url)).toEqual(
+          links.citationUrl ? [links.citationUrl] : []
+        )
+      })
+    })
+  }
   it.each([{ startDate: '2026-09-01T00:00:00Z' }, { sortBy: 'newest' }, { sortBy: 'oldest' }])(
     'returns actionable validation for empty Notion native queries with %j',
     async (bound) => {

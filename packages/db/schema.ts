@@ -3820,23 +3820,19 @@ export const embeddingSearch = pgTable(
     knowledgeBaseId: text('knowledge_base_id').notNull(),
     documentId: text('document_id').notNull(),
     enabled: boolean('enabled').notNull(),
-    /**
-     * The connector whose documents this chunk belongs to, copied from the document so a vector
-     * index can cover one source. A member reads a source whole or barely at all, so searching
-     * each readable source in its own index finds their nearest chunks; one index over every
-     * source spends its scan budget on chunks the graph reached but the member cannot read.
-     * NULL for uploads.
-     */
-    // contract-pending(after the indexed-search retirement release and source/ACL projection writers have drained): drop connector_id — regular KB retrieval checks the parent document.
+    /** contract-pending(after #8528 is fully deployed and source/ACL projection writers have drained): drop connector_id — regular KB retrieval checks the parent document. */
     connectorId: text('connector_id'),
-    /** The document's ACL, mirrored by trigger, so a walk can test readability on the row it visits. */
-    // contract-pending(after the indexed-search retirement release and source/ACL projection writers have drained): drop acl — regular KB retrieval retains document-level access checks.
+    /** contract-pending(after #8528 is fully deployed and source/ACL projection writers have drained): drop acl — regular KB retrieval retains document-level access checks. */
     acl: text('acl').array(),
-    // contract-pending(after vector writers stop computing binary projections and embedding_search_width_check is replaced): drop binary and all binary_* columns — their ANN indexes were dropped in 0372 and no reader uses them.
+    /** contract-pending(after vector writers stop computing binary projections and embedding_search_width_check is replaced): drop binary and all binary_* columns — their ANN indexes were dropped in 0372 and no reader uses them. */
     binary: bit('binary', { dimensions: 1536 }),
+    /** @deprecated Remove with the binary projection contract above. */
     binary384: bit('binary_384', { dimensions: 384 }),
+    /** @deprecated Remove with the binary projection contract above. */
     binary768: bit('binary_768', { dimensions: 768 }),
+    /** @deprecated Remove with the binary projection contract above. */
     binary1024: bit('binary_1024', { dimensions: 1024 }),
+    /** @deprecated Remove with the binary projection contract above. */
     binary3072: bit('binary_3072', { dimensions: 3072 }),
     vector: halfvec('vector', { dimensions: 1536 }),
     vector384: halfvec('vector_384', { dimensions: 384 }),

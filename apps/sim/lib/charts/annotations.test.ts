@@ -116,4 +116,98 @@ describe('chart annotations', () => {
       )
     ).toThrow('Use highlights and thresholds instead of markArea or markLine on the series')
   })
+
+  it('measures thresholds on the axes the first series is plotted on', () => {
+    const option = applyChartAnnotations(
+      {
+        xAxis: { type: 'time' },
+        yAxis: [{ type: 'category' }, { id: 'latency', type: 'value' }],
+        series: [{ type: 'line', yAxisIndex: 1 }],
+      },
+      { thresholds: [{ value: 5 }] },
+      palette
+    )
+    expect((option.series as Series[])[0].markLine).toMatchObject({ data: [{ yAxis: 5 }] })
+    expect(() =>
+      applyChartAnnotations(
+        {
+          xAxis: { type: 'time' },
+          yAxis: [{ type: 'value' }, { id: 'stage', type: 'category' }],
+          series: [{ type: 'line', yAxisId: 'stage' }],
+        },
+        { thresholds: [{ value: 5 }] },
+        palette
+      )
+    ).toThrow('Thresholds require a value axis')
+  })
+
+  it('resolves a value axis selected by id, including a value x-axis on horizontal bars', () => {
+    const byId = applyChartAnnotations(
+      {
+        xAxis: { type: 'time' },
+        yAxis: [{ type: 'category' }, { id: 'latency', type: 'value' }],
+        series: [{ type: 'line', yAxisId: 'latency' }],
+      },
+      { thresholds: [{ value: 5 }] },
+      palette
+    )
+    expect((byId.series as Series[])[0].markLine).toMatchObject({ data: [{ yAxis: 5 }] })
+    const horizontal = applyChartAnnotations(
+      {
+        xAxis: [{ type: 'category' }, { id: 'count', type: 'value' }],
+        yAxis: [{ type: 'value' }, { id: 'stage', type: 'category', inverse: true }],
+        series: [{ type: 'bar', xAxisId: 'count', yAxisIndex: 1 }],
+      },
+      { thresholds: [{ value: 5, label: 'Limit' }] },
+      palette
+    )
+    const [first, labels] = horizontal.series as Series[]
+    expect(first.markLine).toMatchObject({ data: [{ xAxis: 5 }] })
+    expect(labels.markLine).toMatchObject({ data: [{ xAxis: 5, label: { position: 'start' } }] })
+  })
+
+  it('prefers the axis index over the axis id, as ECharts does', () => {
+    const option = applyChartAnnotations(
+      {
+        xAxis: { type: 'time' },
+        yAxis: [
+          { id: 'stage', type: 'category' },
+          { id: 7, type: 'value' },
+        ],
+        series: [{ type: 'line', yAxisIndex: 1, yAxisId: 'stage' }],
+      },
+      { thresholds: [{ value: 5 }] },
+      palette
+    )
+    expect((option.series as Series[])[0].markLine).toMatchObject({ data: [{ yAxis: 5 }] })
+    expect(() =>
+      applyChartAnnotations(
+        { ...option, series: [{ type: 'line', yAxisId: '7' }] },
+        { thresholds: [{ value: 5 }] },
+        palette
+      )
+    ).not.toThrow()
+  })
+
+  it('rejects a first series that references an axis the chart does not define', () => {
+    for (const reference of [{ yAxisIndex: 1 }, { yAxisIndex: -1 }, { yAxisIndex: 0.5 }])
+      expect(() =>
+        applyChartAnnotations(
+          {
+            xAxis: { type: 'time' },
+            yAxis: { type: 'value' },
+            series: [{ type: 'line', ...reference }],
+          },
+          { thresholds: [{ value: 5 }] },
+          palette
+        )
+      ).toThrow('The first series references a missing yAxis')
+    expect(() =>
+      applyChartAnnotations(
+        { xAxis: { type: 'time' }, yAxis: [], series: [{ type: 'line' }] },
+        { thresholds: [{ value: 5 }] },
+        palette
+      )
+    ).toThrow('The first series references a missing yAxis')
+  })
 })

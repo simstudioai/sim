@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  oauth-postgres:
+  postgres-integration:
     # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
     # apps/sim, discovered by glob (`vitest run --mode integration`), against the database each
     # provisioning path produces. A new integration suite needs no workflow change.
@@ -67,25 +67,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.2
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24
-
-      - name: Mount Bun cache
-        uses: ./.github/actions/cache-mount
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ~/.bun/install/cache
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
@@ -129,78 +114,87 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # Acceptance suites that cross a real HTTP boundary. Its own job, off the
+  # integration legs' critical path and on its own database: the SCIM app boots
+  # hosted, which starts background usage replay against DATABASE_URL, so it must
+  # never share a database with suites asserting on billing rows. The suites
+  # exercise HTTP behavior rather than a provisioning path, so they run once,
+  # against the production (migrate) path.
+  http-e2e:
+    name: End-to-end over real HTTP
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+
+      # Migrations create their own extensions, as on a fresh self-hosted install.
+      - name: Provision the database through migrations
+        working-directory: packages/db
+        run: bun run db:migrate
+
       - name: Verify Google document reads over real HTTP
-        if: matrix.provision == 'push'
         working-directory: apps/sim
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3040
           NEXT_PUBLIC_FORCE_HOSTED: 'false'
-          SEARCH_GOOGLE_CONTENT_REPORT_PATH: ${{ runner.temp }}/search-google-content.json
+          SEARCH_GOOGLE_CONTENT_REPORT_PATH: ${{ runner.temp }}/e2e/search-google-content.json
         run: bun scripts/test-search-google-content-e2e.ts
 
-      - name: Upload Google content acceptance report
-        if: failure() && matrix.provision == 'push'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: search-google-content
-          path: ${{ runner.temp }}/search-google-content.json
-          if-no-files-found: ignore
-          retention-days: 7
-
       - name: Verify Lucid MCP search and complete diagram reads over real HTTP
-        if: matrix.provision == 'push'
         working-directory: apps/sim
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3040
           NEXT_PUBLIC_FORCE_HOSTED: 'false'
-          SEARCH_LUCID_REPORT_PATH: ${{ runner.temp }}/search-lucid.json
+          SEARCH_LUCID_REPORT_PATH: ${{ runner.temp }}/e2e/search-lucid.json
         run: bun scripts/test-search-lucid-e2e.ts
 
-      - name: Upload Lucid acceptance report
-        if: failure() && matrix.provision == 'push'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: search-lucid
-          path: ${{ runner.temp }}/search-lucid.json
-          if-no-files-found: ignore
-          retention-days: 7
-
       - name: Verify Zoom search over real HTTP
-        if: matrix.provision == 'push'
         working-directory: apps/sim
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3040
           NEXT_PUBLIC_FORCE_HOSTED: 'false'
-          SEARCH_ZOOM_REPORT_PATH: ${{ runner.temp }}/search-zoom.json
+          SEARCH_ZOOM_REPORT_PATH: ${{ runner.temp }}/e2e/search-zoom.json
         run: bun scripts/test-search-zoom-e2e.ts
 
-      - name: Upload Zoom acceptance report
-        if: failure() && matrix.provision == 'push'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: search-zoom
-          path: ${{ runner.temp }}/search-zoom.json
-          if-no-files-found: ignore
-          retention-days: 7
-
       - name: Verify Google Meet search over real HTTP
-        if: matrix.provision == 'push'
         working-directory: apps/sim
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3040
           NEXT_PUBLIC_FORCE_HOSTED: 'false'
-          SEARCH_GOOGLE_MEET_REPORT_PATH: ${{ runner.temp }}/search-google-meet.json
+          SEARCH_GOOGLE_MEET_REPORT_PATH: ${{ runner.temp }}/e2e/search-google-meet.json
         run: bun scripts/test-search-google-meet-e2e.ts
 
-      - name: Upload Google Meet acceptance report
-        if: failure() && matrix.provision == 'push'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: search-google-meet
-          path: ${{ runner.temp }}/search-google-meet.json
-          if-no-files-found: ignore
-          retention-days: 7
-
+      # The first request cold-compiles the app under Turbopack, which took 42-150s
+      # on this runner class: a fixed 120s readiness deadline failed on the slow
+      # tail. The deadline only has to catch a hung boot; an exited server fails
+      # immediately, and either way the server log tail lands in the job log. No
+      # step timeout: the job's bound covers a hang without cutting a slow but
+      # healthy suite short of writing its report.
       - name: Verify SCIM, administration and workflow comparisons over real HTTP
         working-directory: apps/sim
         env:
@@ -222,48 +216,49 @@ jobs:
           DISABLE_TELEMETRY: 'true'
           NEXT_TELEMETRY_DISABLED: '1'
           NEXT_PUBLIC_CHAT_DISABLED: 'true'
+          READY_TIMEOUT_SECONDS: 300
         run: |
-          server_log="$RUNNER_TEMP/scim-next.log"
+          report_dir="$RUNNER_TEMP/e2e"
+          server_log="$report_dir/scim-next.log"
+          mkdir -p "$report_dir"
           node ../../node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3017 > "$server_log" 2>&1 &
           server_pid=$!
           finish() {
             kill "$server_pid" 2>/dev/null || true
             wait "$server_pid" 2>/dev/null || true
-            awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$RUNNER_TEMP/scim-http-status.log"
+            awk '/^ (GET|POST|PUT|PATCH|DELETE|HEAD) \/api\// { print }' "$server_log" > "$report_dir/scim-http-status.log"
           }
           trap finish EXIT
-          deadline=$((SECONDS + 120))
-          until curl --fail --silent --max-time 3 http://127.0.0.1:3017/api/health > /dev/null; do
-            if ! kill -0 "$server_pid" 2>/dev/null; then
-              echo 'Local SCIM app exited during startup.'
-              exit 1
-            fi
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo 'Local SCIM app did not become ready within 120 seconds.'
-              exit 1
-            fi
+          fail_startup() {
+            echo "::error::$1"
+            tail -n 200 "$server_log"
+            exit 1
+          }
+          started=$SECONDS
+          until curl --fail --silent --max-time 10 http://127.0.0.1:3017/api/health > /dev/null; do
+            kill -0 "$server_pid" 2>/dev/null || fail_startup 'Local SCIM app exited during startup.'
+            [ $((SECONDS - started)) -lt "$READY_TIMEOUT_SECONDS" ] ||
+              fail_startup "Local SCIM app did not become ready within $READY_TIMEOUT_SECONDS seconds."
             sleep 2
           done
+          echo "Local SCIM app ready after $((SECONDS - started))s"
           SCIM_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
           SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
           SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
-          SCIM_E2E_REPORT_PATH="$RUNNER_TEMP/scim-e2e-report.json" \
+          SCIM_E2E_REPORT_PATH="$report_dir/scim-e2e-report.json" \
             bun run test:scim:e2e
           VERSION_COMPARE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
           VERSION_COMPARE_E2E_DATABASE_URL="$DATABASE_URL" \
           VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
-          VERSION_COMPARE_E2E_REPORT_PATH="$RUNNER_TEMP/version-compare-http-report.json" \
+          VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
             bun run test:workflow-version-compare:e2e
 
-      - name: Upload HTTP acceptance failure reports and status log
+      - name: Upload end-to-end reports and server logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: scim-failure-${{ matrix.provision }}
-          path: |
-            ${{ runner.temp }}/scim-e2e-report.json
-            ${{ runner.temp }}/version-compare-http-report.json
-            ${{ runner.temp }}/scim-http-status.log
+          name: http-e2e-reports
+          path: ${{ runner.temp }}/e2e/
           if-no-files-found: ignore
           retention-days: 7
 
@@ -286,50 +281,11 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.2
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24
-
-      # Cache keys are scoped by event name, and fork PRs get their own
-      # namespace on top: untrusted fork runs must never share a cache with
-      # push runs (whose caches feed production image builds) or with trusted
-      # internal-PR runs.
-      #
-      # node_modules also keys on the lockfile hash: a sticky disk is a mutable
-      # volume, and `bun install --frozen-lockfile` adds what the lockfile needs
-      # without pruning what it dropped, so branches on different lockfiles were
-      # contaminating each other (a stale @next/swc 16.2.6 outlived the 16.2.11
-      # bump). The bun and Turbo caches are content/hash-addressed, so they stay
-      # shared — that is what keeps a fresh node_modules disk cheap to fill.
-      - name: Mount Bun cache
-        uses: ./.github/actions/cache-mount
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ~/.bun/install/cache
-
-      - name: Mount node_modules
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
-          path: ./node_modules
-
-      - name: Mount Turbo cache
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-turbo-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ./.turbo
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
+          turbo-cache-key: turbo-cache
 
       # Surfaces known CVEs in the dependency tree. Non-blocking until the
       # existing advisory backlog is triaged, then flip to a required gate by
@@ -381,9 +337,6 @@ jobs:
       #
       # Depth stays at 1 — without a merge-base the migration audit diffs the two
       # tips, which under `--diff-filter=AM` is exactly the migrations new here.
-      # Resolved once for both diff-based audits, and never with `|| true`: a
-      # swallowed fetch leaves the base absent, which neither audit can tell apart
-      # from a branch that changed nothing.
       #
       # On push the base is `github.event.before`, the tip the branch had before
       # this push — not `HEAD~1`, which names only the last commit and would let a
@@ -487,36 +440,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.2
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24
-
-      - name: Mount Bun cache
-        uses: ./.github/actions/cache-mount
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ~/.bun/install/cache
-
-      - name: Mount node_modules
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
-          path: ./node_modules
-
-      - name: Mount Turbo cache
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ./.turbo
+          turbo-cache-key: turbo-cache-build
 
       # No `.next/cache` mount: the Turbopack persistent build cache is off. A
       # controlled A/B on one branch (PR #6078) with a byte-identical module graph
@@ -539,9 +467,6 @@ jobs:
           if [ "$TOTAL_GB" -lt 40 ]; then
             echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
           fi
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build application
         env:

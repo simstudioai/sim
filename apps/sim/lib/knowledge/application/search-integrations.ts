@@ -1,17 +1,25 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { organization, organizationSearchIntegration } from '@sim/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import {
+  credential,
+  knowledgeBase,
+  knowledgeConnector,
+  organization,
+  organizationSearchIntegration,
+} from '@sim/db/schema'
+import { and, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { addOrganizationAccountProvider } from '@/lib/credential-groups/service'
 import { SLACK_SEARCH_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
@@ -26,6 +34,7 @@ import {
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
+import { supportsLiveSearchMode } from '@/lib/sim-search/live/provider-catalog'
 import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import { loadLiveServiceSource } from '@/lib/sim-search/live/service-sources'
 import {
@@ -33,6 +42,7 @@ import {
   liveSearchMcpConnector,
   liveSearchMemberAccountProvider,
 } from '@/lib/sim-search/live/source-catalog'
+import { getConnectorMeta } from '@/connectors/registry'
 
 interface SearchIntegrationInput {
   organizationId: string
@@ -54,7 +64,7 @@ export const listSearchIntegrations = defineAuthorizedKnowledgeUseCase({
     const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
     const scope = { kind: 'organization', organizationId: context.organizationId } as const
     const zoomEnabled = await isSearchProviderEnabled('zoom', scope)
-    return LIVE_SEARCH_SOURCE_TYPES.map(([connectorType]) => ({
+    const integrations = LIVE_SEARCH_SOURCE_TYPES.map(([connectorType]) => ({
       connectorType,
       approved: approvals.get(connectorType) ?? false,
       ...(policies
@@ -63,6 +73,97 @@ export const listSearchIntegrations = defineAuthorizedKnowledgeUseCase({
             available: connectorType !== 'zoom' || zoomEnabled,
           }
         : {}),
+    }))
+    const servicePolicies = integrations.filter(
+      (integration) =>
+        integration.approved &&
+        integration.available !== false &&
+        integration.policy?.accessMode === 'service_account' &&
+        supportsLiveSearchMode(integration.connectorType, 'service_account')
+    )
+    const availability = servicePolicies.length
+      ? await resolveKnowledgeAccessAvailability(context)
+      : null
+    const candidates = servicePolicies.filter(
+      (integration) =>
+        availability?.sourceMirrored &&
+        (availability.memberScoped ||
+          (integration.connectorType !== 'github' &&
+            !getConnectorMeta(integration.connectorType)?.requiresMemberIdentity))
+    )
+    const configured = candidates.length
+      ? await db
+          .select({ provider: sql<string>`requested.provider` })
+          .from(
+            sql`(VALUES ${sql.join(
+              candidates.map(
+                (integration) =>
+                  sql`(${integration.connectorType}::text, ${integration.policy?.sourceId ?? null}::text)`
+              ),
+              sql`, `
+            )}) AS requested(provider, source_id)`
+          )
+          .where(
+            exists(
+              db
+                .select({ id: knowledgeConnector.id })
+                .from(knowledgeConnector)
+                .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+                .where(
+                  and(
+                    eq(knowledgeBase.organizationId, context.organizationId),
+                    eq(knowledgeBase.isSearchIndex, true),
+                    isNull(knowledgeBase.deletedAt),
+                    eq(knowledgeConnector.connectorType, sql`requested.provider`),
+                    inArray(knowledgeConnector.status, ['active', 'pending', 'syncing', 'error']),
+                    isNull(knowledgeConnector.archivedAt),
+                    isNull(knowledgeConnector.deletedAt),
+                    or(
+                      and(
+                        sql`requested.provider = 'github'`,
+                        eq(knowledgeConnector.accessMode, 'members'),
+                        ne(knowledgeConnector.memberSyncStatus, 'disabled'),
+                        sql`jsonb_typeof(${knowledgeConnector.sourceConfig}::jsonb->'githubRepositoryId') = 'string'`,
+                        exists(
+                          db
+                            .select({ id: credential.id })
+                            .from(credential)
+                            .where(
+                              and(
+                                eq(credential.id, knowledgeConnector.credentialId),
+                                eq(credential.organizationId, context.organizationId),
+                                eq(credential.type, 'service_account'),
+                                eq(credential.providerId, GITHUB_INSTALLATION_PROVIDER_ID),
+                                isNull(credential.revokedAt)
+                              )
+                            )
+                        )
+                      ),
+                      and(
+                        sql`requested.provider <> 'github'`,
+                        eq(knowledgeConnector.accessMode, 'admin'),
+                        or(
+                          and(
+                            sql`requested.provider = 'gitlab'`,
+                            isNotNull(knowledgeConnector.encryptedApiKey)
+                          ),
+                          and(
+                            sql`requested.provider <> 'gitlab'`,
+                            eq(knowledgeConnector.id, sql`requested.source_id`),
+                            isNotNull(knowledgeConnector.credentialId)
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+            )
+          )
+      : []
+    const configuredProviders = new Set(configured.map((row) => row.provider))
+    return integrations.map((integration) => ({
+      ...integration,
+      configuredServiceSource: configuredProviders.has(integration.connectorType),
     }))
   },
 })
