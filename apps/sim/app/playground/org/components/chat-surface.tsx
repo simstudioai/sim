@@ -182,8 +182,9 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
     setActiveKey(tabKey(tab))
   }
 
+  /** A new tab starts on the project the pane is showing; Change browses the others. */
   const add = () => {
-    const tab = newTab()
+    const tab = newTab(projectId)
     setTabs((prev) => [...prev, tab])
     setActiveKey(tabKey(tab))
   }

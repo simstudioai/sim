@@ -71,75 +71,79 @@ export function ChatResourcePanel({
     )
   }
   return (
-    <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-4'>
-      {mentionedIn(chatId).length > 0 && (
-        <BrowseSection label='Mentioned in this chat'>
-          {mentionedIn(chatId).map((resource) => {
-            const Icon = panelKindConfig(resource.kind).icon
-            return (
-              <BrowseRow key={panelResourceKey(resource)} onClick={() => onOpen(resource)}>
-                <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+    <div className='min-h-0 flex-1 overflow-y-auto px-8 py-8'>
+      <div className='mx-auto flex w-full max-w-[560px] flex-col gap-6'>
+        {mentionedIn(chatId).length > 0 && (
+          <BrowseSection label='Mentioned in this chat'>
+            {mentionedIn(chatId).map((resource) => {
+              const Icon = panelKindConfig(resource.kind).icon
+              return (
+                <BrowseRow key={panelResourceKey(resource)} onClick={() => onOpen(resource)}>
+                  <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
+                    {resource.name}
+                  </span>
+                  {resource.status && (
+                    <span className='text-[var(--text-muted)] text-caption'>{resource.status}</span>
+                  )}
+                </BrowseRow>
+              )
+            })}
+          </BrowseSection>
+        )}
+        {project ? (
+          <BrowseSection
+            label={`Browse ${project.name}`}
+            trailing={
+              <button
+                type='button'
+                onClick={() => onBrowse(null, null)}
+                className='text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-body)]'
+              >
+                Change
+              </button>
+            }
+          >
+            {PANEL_KINDS.map((kind) => (
+              <BrowseRow key={kind.id} onClick={() => onBrowse(project.id, kind.id)}>
+                <kind.icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                 <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
-                  {resource.name}
+                  {kind.label}
                 </span>
-                {resource.status && (
-                  <span className='text-[var(--text-muted)] text-caption'>{resource.status}</span>
-                )}
+                <span className='text-[var(--text-muted)] text-caption'>
+                  {resourcesOfKind(project, kind.id).length}
+                </span>
               </BrowseRow>
-            )
-          })}
-        </BrowseSection>
-      )}
-      {project ? (
-        <BrowseSection
-          label={`Browse ${project.name}`}
-          trailing={
-            <button
-              type='button'
-              onClick={() => onBrowse(null, null)}
-              className='text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-body)]'
-            >
-              Change
-            </button>
-          }
-        >
-          {PANEL_KINDS.map((kind) => (
-            <BrowseRow key={kind.id} onClick={() => onBrowse(project.id, kind.id)}>
-              <kind.icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{kind.label}</span>
-              <span className='text-[var(--text-muted)] text-caption'>
-                {resourcesOfKind(project, kind.id).length}
-              </span>
+            ))}
+            <BrowseRow onClick={onOpenBrowser}>
+              <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
             </BrowseRow>
-          ))}
-          <BrowseRow onClick={onOpenBrowser}>
-            <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
-          </BrowseRow>
-          <BrowseRow onClick={onOpenTerminal}>
-            <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
-          </BrowseRow>
-        </BrowseSection>
-      ) : (
-        <BrowseSection label={`Browse ${ORGANIZATION.name}`}>
-          {WORKSPACES.map((candidate) => (
-            <BrowseRow key={candidate.id} onClick={() => onBrowse(candidate.id, null)}>
-              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
-                {candidate.name}
-              </span>
+            <BrowseRow onClick={onOpenTerminal}>
+              <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
             </BrowseRow>
-          ))}
-          <BrowseRow onClick={onOpenBrowser}>
-            <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
-          </BrowseRow>
-          <BrowseRow onClick={onOpenTerminal}>
-            <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
-          </BrowseRow>
-        </BrowseSection>
-      )}
+          </BrowseSection>
+        ) : (
+          <BrowseSection label={`Browse ${ORGANIZATION.name}`}>
+            {WORKSPACES.map((candidate) => (
+              <BrowseRow key={candidate.id} onClick={() => onBrowse(candidate.id, null)}>
+                <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
+                  {candidate.name}
+                </span>
+              </BrowseRow>
+            ))}
+            <BrowseRow onClick={onOpenBrowser}>
+              <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
+            </BrowseRow>
+            <BrowseRow onClick={onOpenTerminal}>
+              <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
+            </BrowseRow>
+          </BrowseSection>
+        )}
+      </div>
     </div>
   )
 }
