@@ -372,6 +372,23 @@ describe('buildCopilotRequestPayload', () => {
     }
   )
 
+  it('never grants the workspace-only dashboards entitlement to an organization chat', async () => {
+    mockDashboardAvailability.mockResolvedValue(true)
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Show my dashboard',
+        userId: 'actor',
+        userMessageId: 'message-1',
+        organizationId: 'org-1',
+        principal: { kind: 'session' as const, userId: 'actor' },
+        mode: 'agent',
+        model: '',
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.entitlements).toEqual([])
+  })
+
   beforeEach(() => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
     mockSecretNames.mockResolvedValue({ names: [] })

@@ -53,7 +53,8 @@ describe('dashboard repository in PostgreSQL', () => {
   })
 
   it('updates only at the expected revision and advances it', async () => {
-    const current = (await insertWorkspaceDashboard('ws-c', 'first', 'user-1'))!
+    const current = await insertWorkspaceDashboard('ws-c', 'original', 'user-1')
+    if (!current) throw new Error('ws-c dashboard was not created')
     const updated = await updateDashboardContent(current.id, 'edited', 'user-2', current.revision)
     expect(updated).toMatchObject({
       content: 'edited',
