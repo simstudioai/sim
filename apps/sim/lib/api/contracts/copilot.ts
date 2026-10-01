@@ -433,7 +433,7 @@ export const validateCopilotApiKeyContract = defineRouteContract({
     status: [200, 402],
     statusSchemas: {
       200: validateCopilotApiKeyResponseSchema,
-      402: validateCopilotApiKeyRefusalSchema,
+      402: validateCopilotApiKeyRefusalSchema.optional(),
     },
   },
   error: validateCopilotApiKeyErrorSchema,

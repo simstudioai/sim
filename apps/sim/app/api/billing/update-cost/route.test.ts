@@ -1040,6 +1040,29 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       })
     })
 
+    it("offers the card for its admitted payer's plan, not the actor's current one", async () => {
+      billingCoreMockFns.mockGetOrganizationSubscription.mockResolvedValue({
+        id: 'sub-account-org',
+        referenceId: 'account-org',
+        plan: 'team',
+        status: 'active',
+        seats: 4,
+      })
+      billingPlanMockFns.mockGetHighestPrioritySubscription.mockResolvedValue({
+        id: 'sub-personal',
+        referenceId: 'user-1',
+        plan: 'pro',
+        status: 'active',
+      })
+
+      const body = await (await POST(directCallback())).json()
+
+      expect(body.usageUpgrade).toMatchObject({
+        action: 'increase_limit',
+        message: expect.stringContaining("organization's usage limit"),
+      })
+    })
+
     it('never pauses a blocked payer with the usage card', async () => {
       billingAttributionMockFns.mockCheckAccountBillingBlocks.mockResolvedValue({
         blocked: true,

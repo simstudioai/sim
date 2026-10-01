@@ -114,7 +114,7 @@ async function readUsageStanding(
     usageExceeded: true,
     usageUpgrade: await resolveUsageUpgradePayload(
       userId,
-      billingAttribution,
+      billingAttribution ?? verdict.payer,
       verdict.scope,
       deadlineAt
     ),

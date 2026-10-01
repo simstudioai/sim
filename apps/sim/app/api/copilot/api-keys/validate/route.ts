@@ -453,7 +453,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
             span.setAttribute(TraceAttr.HttpStatusCode, 402)
             const usageUpgrade = await resolveUsageUpgradePayload(
               userId,
-              billing?.kind === 'attributed' ? billing.attribution : undefined,
+              billing?.kind === 'attributed' ? billing.attribution : verdict.payer,
               verdict.scope
             )
             return NextResponse.json<ValidateCopilotApiKeyUsageExceeded>(
