@@ -71,6 +71,7 @@
     "check:native-typecheck": "bun run scripts/check-native-typecheck.ts",
     "check:source-text": "bun run scripts/check-source-text.ts",
     "check:site-urls": "bun run scripts/check-site-urls.ts",
+    "check:library-content": "bun run scripts/check-library-content.ts",
     "check:spec-example-ids": "bun run scripts/check-spec-example-ids.ts",
     "check:script-tests": "bun run scripts/check-script-test-coverage.ts",
     "check:test-patterns": "bun run scripts/check-test-patterns.ts",
@@ -162,6 +163,7 @@
   "devDependencies": {
     "@babel/parser": "7.29.2",
     "@biomejs/biome": "2.0.6",
+    "@mdx-js/mdx": "3.1.1",
     "@octokit/rest": "^21.0.0",
     "@sim/utils": "workspace:*",
     "@types/opentype.js": "1.3.10",
