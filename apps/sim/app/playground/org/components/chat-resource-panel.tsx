@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, ChipInput, cn } from '@sim/emcn'
-import { Globe, TerminalWindow } from '@sim/emcn/icons'
+import { Globe, Search, TerminalWindow } from '@sim/emcn/icons'
 import { BrowseRow, BrowseSection } from '@/app/playground/org/components/browse-rows'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
@@ -71,11 +71,59 @@ export function ChatResourcePanel({
     )
   }
   return (
+    <BrowseView
+      chatId={chatId}
+      project={project}
+      onOpen={onOpen}
+      onOpenBrowser={onOpenBrowser}
+      onOpenTerminal={onOpenTerminal}
+      onBrowse={onBrowse}
+    />
+  )
+}
+
+interface BrowseViewProps {
+  chatId: string
+  project?: Workspace
+  onOpen: (resource: PanelResource) => void
+  onOpenBrowser: () => void
+  onOpenTerminal: () => void
+  onBrowse: (workspaceId: string | null, kind: PanelKind | null) => void
+}
+
+/** A browsing tab: search, what the chat mentioned, then the project's kinds. */
+function BrowseView({
+  chatId,
+  project,
+  onOpen,
+  onOpenBrowser,
+  onOpenTerminal,
+  onBrowse,
+}: BrowseViewProps) {
+  const [query, setQuery] = useState('')
+  const needle = query.trim().toLowerCase()
+  const scope = project ? [project] : WORKSPACES
+  const results = needle
+    ? scope.flatMap((workspace) =>
+        PANEL_KINDS.flatMap((kind) =>
+          resourcesOfKind(workspace, kind.id).filter((resource) =>
+            resource.name.toLowerCase().includes(needle)
+          )
+        )
+      )
+    : []
+  return (
     <div className='min-h-0 flex-1 overflow-y-auto px-8 py-8'>
       <div className='mx-auto flex w-full max-w-[560px] flex-col gap-6'>
-        {mentionedIn(chatId).length > 0 && (
-          <BrowseSection label='Mentioned in this chat'>
-            {mentionedIn(chatId).map((resource) => {
+        <ChipInput
+          icon={Search}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={`Search ${project?.name ?? ORGANIZATION.name}…`}
+        />
+        {needle ? (
+          <BrowseSection label={results.length > 0 ? 'Results' : 'No results'}>
+            {results.map((resource) => {
               const Icon = panelKindConfig(resource.kind).icon
               return (
                 <BrowseRow key={panelResourceKey(resource)} onClick={() => onOpen(resource)}>
@@ -83,65 +131,90 @@ export function ChatResourcePanel({
                   <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
                     {resource.name}
                   </span>
-                  {resource.status && (
-                    <span className='text-[var(--text-muted)] text-caption'>{resource.status}</span>
-                  )}
+                  <span className='text-[var(--text-muted)] text-caption'>
+                    {project
+                      ? panelKindConfig(resource.kind).label
+                      : workspaceById(resource.workspaceId).name}
+                  </span>
                 </BrowseRow>
               )
             })}
           </BrowseSection>
-        )}
-        {project ? (
-          <BrowseSection
-            label={`Browse ${project.name}`}
-            trailing={
-              <button
-                type='button'
-                onClick={() => onBrowse(null, null)}
-                className='text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-body)]'
-              >
-                Change
-              </button>
-            }
-          >
-            {PANEL_KINDS.map((kind) => (
-              <BrowseRow key={kind.id} onClick={() => onBrowse(project.id, kind.id)}>
-                <kind.icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-                <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
-                  {kind.label}
-                </span>
-                <span className='text-[var(--text-muted)] text-caption'>
-                  {resourcesOfKind(project, kind.id).length}
-                </span>
-              </BrowseRow>
-            ))}
-            <BrowseRow onClick={onOpenBrowser}>
-              <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
-            </BrowseRow>
-            <BrowseRow onClick={onOpenTerminal}>
-              <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
-            </BrowseRow>
-          </BrowseSection>
         ) : (
-          <BrowseSection label={`Browse ${ORGANIZATION.name}`}>
-            {WORKSPACES.map((candidate) => (
-              <BrowseRow key={candidate.id} onClick={() => onBrowse(candidate.id, null)}>
-                <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
-                  {candidate.name}
-                </span>
-              </BrowseRow>
-            ))}
-            <BrowseRow onClick={onOpenBrowser}>
-              <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
-            </BrowseRow>
-            <BrowseRow onClick={onOpenTerminal}>
-              <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-              <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
-            </BrowseRow>
-          </BrowseSection>
+          <>
+            {mentionedIn(chatId).length > 0 && (
+              <BrowseSection label='Mentioned in this chat'>
+                {mentionedIn(chatId).map((resource) => {
+                  const Icon = panelKindConfig(resource.kind).icon
+                  return (
+                    <BrowseRow key={panelResourceKey(resource)} onClick={() => onOpen(resource)}>
+                      <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                      <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
+                        {resource.name}
+                      </span>
+                      {resource.status && (
+                        <span className='text-[var(--text-muted)] text-caption'>
+                          {resource.status}
+                        </span>
+                      )}
+                    </BrowseRow>
+                  )
+                })}
+              </BrowseSection>
+            )}
+            {project ? (
+              <BrowseSection
+                label={`Browse ${project.name}`}
+                trailing={
+                  <button
+                    type='button'
+                    onClick={() => onBrowse(null, null)}
+                    className='text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-body)]'
+                  >
+                    Change
+                  </button>
+                }
+              >
+                {PANEL_KINDS.map((kind) => (
+                  <BrowseRow key={kind.id} onClick={() => onBrowse(project.id, kind.id)}>
+                    <kind.icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                    <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
+                      {kind.label}
+                    </span>
+                    <span className='text-[var(--text-muted)] text-caption'>
+                      {resourcesOfKind(project, kind.id).length}
+                    </span>
+                  </BrowseRow>
+                ))}
+                <BrowseRow onClick={onOpenBrowser}>
+                  <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
+                </BrowseRow>
+                <BrowseRow onClick={onOpenTerminal}>
+                  <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
+                </BrowseRow>
+              </BrowseSection>
+            ) : (
+              <BrowseSection label={`Browse ${ORGANIZATION.name}`}>
+                {WORKSPACES.map((candidate) => (
+                  <BrowseRow key={candidate.id} onClick={() => onBrowse(candidate.id, null)}>
+                    <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
+                      {candidate.name}
+                    </span>
+                  </BrowseRow>
+                ))}
+                <BrowseRow onClick={onOpenBrowser}>
+                  <Globe className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Browser</span>
+                </BrowseRow>
+                <BrowseRow onClick={onOpenTerminal}>
+                  <TerminalWindow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>Terminal</span>
+                </BrowseRow>
+              </BrowseSection>
+            )}
+          </>
         )}
       </div>
     </div>
