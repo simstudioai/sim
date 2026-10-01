@@ -6,7 +6,6 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { withinDeadline } from '@/lib/core/utils/deadline'
 
 const logger = createLogger('UsageUpgrade')
 
@@ -30,13 +29,12 @@ export interface UsageUpgradePayer {
  * increase for a paid one, with copy naming who can raise an organization's limit. A member
  * over the cap their organization set gets copy naming who can raise that cap. A known payer
  * decides the card without a query; otherwise the actor's current subscription decides, and a
- * lookup that fails or outlasts `deadlineAt` falls back to the plan-upgrade card.
+ * lookup that fails falls back to the plan-upgrade card.
  */
 export async function resolveUsageUpgradePayload(
   userId: string,
   payer?: UsageUpgradePayer,
-  scope?: AttributedUsageLimitsResult['scope'],
-  deadlineAt?: number
+  scope?: AttributedUsageLimitsResult['scope']
 ): Promise<UsageUpgradePayload> {
   if (scope === 'member') {
     return { reason: 'usage_limit', action: 'increase_limit', message: MEMBER_CAP_MESSAGE }
@@ -48,9 +46,7 @@ export async function resolveUsageUpgradePayload(
       plan = payer.payerSubscription?.plan
       orgScoped = payer.billingEntity.type === 'organization'
     } else {
-      const subscription = await (deadlineAt === undefined
-        ? getHighestPrioritySubscription(userId)
-        : withinDeadline(() => getHighestPrioritySubscription(userId), deadlineAt))
+      const subscription = await getHighestPrioritySubscription(userId)
       plan = subscription?.plan
       orgScoped = isOrgScopedSubscription(subscription, userId)
     }

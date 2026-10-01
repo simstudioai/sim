@@ -1073,23 +1073,6 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
 
       expect(body.usageExceeded).toBe(false)
     })
-
-    it('keeps the exceeded verdict with the plan-upgrade card when the card read outlasts the callback budget', async () => {
-      billingPlanMockFns.mockGetHighestPrioritySubscription.mockImplementation(async () => {
-        await sleep(1500)
-        return { plan: 'pro' }
-      })
-      const startedAt = Date.now()
-
-      const body = await (await POST(directCallback())).json()
-
-      expect(body).toMatchObject({
-        success: true,
-        usageExceeded: true,
-        usageUpgrade: { action: 'upgrade_plan' },
-      })
-      expect(Date.now() - startedAt).toBeLessThan(1400)
-    })
   })
 
   describe('a run that outlives its billing period', () => {
