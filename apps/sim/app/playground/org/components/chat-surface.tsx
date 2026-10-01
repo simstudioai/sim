@@ -266,18 +266,20 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
       panel={
         <ChatPanelContent ref={resize.mothershipRef} collapsed={collapsed}>
           <div className='flex min-w-0 items-center border-[var(--border)] border-b'>
-            <div className='shrink-0 pl-[var(--resource-header-end-inset)]'>
+            <div className='flex shrink-0 items-center gap-0.5 pl-[var(--resource-header-end-inset)]'>
+              <Chip
+                active={activeKey === WORKSPACE_TAB}
+                leftAdornment={<IdentityTile initial={(project ?? ORGANIZATION).name[0]} />}
+                onClick={() => {
+                  setActiveKey(WORKSPACE_TAB)
+                  setCollapsed(false)
+                }}
+              >
+                {project?.name ?? ORGANIZATION.name}
+              </Chip>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Chip
-                    variant='primary'
-                    shape='round'
-                    leftAdornment={<IdentityTile initial={(project ?? ORGANIZATION).name[0]} />}
-                    rightIcon={ChevronDown}
-                    aria-label='Switch project'
-                  >
-                    {project?.name ?? ORGANIZATION.name}
-                  </Chip>
+                  <Chip leftIcon={ChevronDown} aria-label='Switch project' />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='start' className='w-[260px]'>
                   <DropdownMenuItem onSelect={() => pickProject(null)}>
