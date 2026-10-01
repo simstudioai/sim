@@ -246,11 +246,11 @@ export interface CompetitorProfile {
    */
   isWorkflowBuilder?: boolean
   /**
-   * Phrases that identify this competitor in library article titles, tags,
-   * and descriptions, matched case-sensitively on word boundaries. Drives the
-   * links between comparison pages and library articles. Defaults to `[name]`;
-   * set it when articles use another name ("AgentKit") or when the bare name
-   * is also a common word ("Make").
+   * Phrases that identify this competitor in library article titles and tags,
+   * matched case-sensitively on word boundaries; descriptions also match the
+   * bare `name`. Drives the links between comparison pages and library
+   * articles. Defaults to `[name]`; set it when articles use another name
+   * ("AgentKit") or when the bare name is a common Title Case word ("Make").
    */
   mentions?: string[]
   /** Logo icon and brand colors, when available. */

@@ -11,20 +11,34 @@ const MAX_LINKS = 3
 const SUBJECT_SCORE = 2
 const MENTION_SCORE = 1
 
-/** Whole-word, case-sensitive match on any of the competitor's names. */
-function buildMentionPattern(competitor: CompetitorProfile): RegExp {
-  const phrases = competitor.mentions ?? [competitor.name]
+interface MentionPatterns {
+  /** Matches Title Case titles and tags, where a bare common-word name ("Make") is ambiguous. */
+  subject: RegExp
+  /** Matches sentence-case descriptions, where the bare name is unambiguous. */
+  mention: RegExp
+}
+
+/** Whole-word, case-sensitive match on any of `phrases`. */
+function wordPattern(phrases: string[]): RegExp {
   return new RegExp(`\\b(?:${phrases.map(escapeRegExp).join('|')})\\b`)
+}
+
+function buildMentionPatterns(competitor: CompetitorProfile): MentionPatterns {
+  const aliases = competitor.mentions ?? [competitor.name]
+  return {
+    subject: wordPattern(aliases),
+    mention: wordPattern([competitor.name, ...aliases]),
+  }
 }
 
 const COMPETITOR_PATTERNS = ALL_COMPETITORS.map((competitor) => ({
   competitor,
-  pattern: buildMentionPattern(competitor),
+  patterns: buildMentionPatterns(competitor),
 }))
 
-function scoreRelevance(post: ContentMeta, pattern: RegExp): number {
-  if (pattern.test(post.title) || post.tags.some((tag) => pattern.test(tag))) return SUBJECT_SCORE
-  return pattern.test(post.description) ? MENTION_SCORE : 0
+function scoreRelevance(post: ContentMeta, { subject, mention }: MentionPatterns): number {
+  if (subject.test(post.title) || post.tags.some((tag) => subject.test(tag))) return SUBJECT_SCORE
+  return mention.test(post.description) ? MENTION_SCORE : 0
 }
 
 /** The highest-scoring items with a positive score, best first; ties keep input order. */
@@ -44,8 +58,8 @@ function topByScore<T>(items: T[], score: (item: T) => number): T[] {
 export async function getLibraryPostsForCompetitor(
   competitor: CompetitorProfile
 ): Promise<ContentMeta[]> {
-  const pattern = buildMentionPattern(competitor)
-  return topByScore(await getAllPostMeta(), (post) => scoreRelevance(post, pattern))
+  const patterns = buildMentionPatterns(competitor)
+  return topByScore(await getAllPostMeta(), (post) => scoreRelevance(post, patterns))
 }
 
 /**
@@ -53,7 +67,7 @@ export async function getLibraryPostsForCompetitor(
  * subjects first, then in {@link ALL_COMPETITORS} order.
  */
 export function getComparisonsForPost(post: ContentMeta): CompetitorProfile[] {
-  return topByScore(COMPETITOR_PATTERNS, ({ pattern }) => scoreRelevance(post, pattern)).map(
+  return topByScore(COMPETITOR_PATTERNS, ({ patterns }) => scoreRelevance(post, patterns)).map(
     ({ competitor }) => competitor
   )
 }

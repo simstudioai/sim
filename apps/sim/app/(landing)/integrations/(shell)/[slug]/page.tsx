@@ -249,7 +249,7 @@ function buildMetaDescription(integration: Integration): string {
     const sample = operations.slice(0, 3).map((o) => toPhrase(o.name, name))
     const remaining = operations.length - sample.length
     sentences.push(
-      `Sim AI agents can ${toProseList(remaining > 0 ? [...sample, `${remaining} more ${name} actions`] : sample)}.`
+      `Sim AI agents can ${toProseList(remaining > 0 ? [...sample, pluralize(remaining, `more ${name} action`)] : sample)}.`
     )
   }
   if (triggers.length > 0) {
