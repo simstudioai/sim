@@ -968,26 +968,6 @@ export async function createCredentialGroupSelfEnrollmentLink(
   }
 }
 
-export async function createCredentialGroupInvitationLink(
-  scopeInput: string | ResourceScope,
-  groupId: string,
-  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
-  userId: string | undefined,
-  email: string,
-  /** See {@link inviteCredentialGroupEnrollment}. */
-  revokedEnrollment: RevokedEnrollmentPolicy = 'reactivate'
-): Promise<CredentialGroupInvitationLink> {
-  const scope = credentialGroupScope(scopeInput)
-  const context = await getInvitationContext(scope, groupId)
-  const issued = await issueInvitation(context, userId, normalizeEmail(email), {
-    revokedEnrollment,
-  })
-  return {
-    enrollment: toCredentialGroupEnrollment(issued.enrollment),
-    invitationLink: issued.invitationLink,
-  }
-}
-
 export async function resendCredentialGroupEnrollment(
   scopeInput: string | ResourceScope,
   groupId: string,
