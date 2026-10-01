@@ -18489,7 +18489,7 @@
         },
         {
           "name": "Execute DAX Query",
-          "description": "Execute one DAX query against a semantic model and preserve rows alongside reported query errors."
+          "description": "Execute one DAX query against a semantic model and detect reported query errors."
         },
         {
           "name": "Refresh Semantic Model",

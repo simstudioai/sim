@@ -1,5 +1,4 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
-import { createSerializedBlock } from '@sim/testing/factories/serialized-block.factory'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
@@ -62,8 +61,6 @@ import { createInternalToolFileResult } from '@/lib/internal/tool-operations/fil
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
-import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
-import { readToolFailureOutput } from '@/executor/utils/errors'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
@@ -82,7 +79,7 @@ import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
-import type { InternalToolConfig, ToolConfig, ToolResponse } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 import { runwayVideoTool } from '@/tools/video/runway'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
@@ -5692,91 +5689,6 @@ describe('Centralized Error Handling', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBe(expectedError)
   }
-
-  it.each([
-    {
-      name: 'keeps flattened HTTP diagnostics out of declared block failure output',
-      status: 409,
-      body: { message: 'Transport rejected the request' },
-      message: 'Transport rejected the request',
-      rawOutput: {
-        status: 409,
-        statusText: 'Conflict',
-        data: { message: 'Transport rejected the request' },
-      },
-      retainedOutput: {},
-    },
-    {
-      name: 'retains explicit failed tool outputs even when their keys match HTTP diagnostics',
-      status: 200,
-      body: {
-        status: 409,
-        statusText: 'Conflict',
-        data: { receiptId: 'partial-receipt' },
-        cost: { input: 1, output: 2, total: 3 },
-        error: 'Output-only error field',
-        undeclared: 'Output-only undeclared field',
-      },
-      message: 'Tool returned a failed result',
-      rawOutput: { status: 409, data: { receiptId: 'partial-receipt' } },
-      retainedOutput: {
-        status: 409,
-        statusText: 'Conflict',
-        data: { receiptId: 'partial-receipt' },
-      },
-    },
-  ])('$name', async ({ status, body, message, rawOutput, retainedOutput }) => {
-    const tool = {
-      id: 'test_failure_output_provenance',
-      name: 'Failure Output Provenance',
-      description: 'Returns an explicit failed tool result',
-      version: '1.0.0',
-      params: {},
-      request: {
-        url: 'https://example.com/failure-output',
-        method: 'GET',
-        headers: () => ({}),
-      },
-      transformResponse: async (response: Response): Promise<ToolResponse> => ({
-        success: false,
-        output: await response.json(),
-        error: 'Tool returned a failed result',
-      }),
-      outputs: {
-        status: { type: 'number', description: 'Tool result status' },
-        statusText: { type: 'string', description: 'Tool result status text' },
-        data: { type: 'json', description: 'Partial tool result' },
-        cost: { type: 'json', description: 'Untrusted cost output' },
-        error: { type: 'string', description: 'Output-only error field' },
-      },
-    } satisfies ToolConfig<Record<string, unknown>, ToolResponse>
-    ;(tools as Record<string, unknown>)[tool.id] = tool
-    mockValidateUrlWithDNS.mockResolvedValueOnce({ isValid: true, resolvedIP: '93.184.216.34' })
-    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
-      toSecureFetchResponse(Response.json(body, { status, statusText: 'Conflict' }))
-    )
-
-    try {
-      const block = createSerializedBlock({
-        id: 'failure-output-block',
-        type: 'failure-output-provenance',
-        tool: tool.id,
-      })
-      const handler = new GenericBlockHandler()
-      let thrown: unknown
-      try {
-        await handler.execute(createToolExecutionContext({ userId: 'user-1' }), block, {})
-      } catch (error) {
-        thrown = error
-      }
-
-      expect(thrown).toBeInstanceOf(Error)
-      expect(thrown).toMatchObject({ toolId: tool.id, message, output: rawOutput })
-      expect(readToolFailureOutput(thrown) ?? {}).toEqual(retainedOutput)
-    } finally {
-      Reflect.deleteProperty(tools, tool.id)
-    }
-  })
 
   it('uses a tool-specific Prospeo extractor before flattening a failed response', async () => {
     const originalExtractor = tools.http_request.errorExtractor

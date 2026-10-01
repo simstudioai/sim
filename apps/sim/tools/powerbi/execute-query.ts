@@ -25,8 +25,7 @@ export const powerbiExecuteQueryTool: ToolConfig<
 > = {
   id: 'powerbi_execute_query',
   name: 'Power BI Execute DAX Query',
-  description:
-    'Execute one DAX query against a semantic model and preserve rows alongside reported query errors.',
+  description: 'Execute one DAX query against a semantic model and detect reported query errors.',
   version: '1.0.0',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },
@@ -117,7 +116,7 @@ export const powerbiExecuteQueryTool: ToolConfig<
   outputs: {
     rows: {
       type: 'array',
-      description: 'Returned rows, preserving provider column keys and partial results',
+      description: 'Returned query rows, preserving provider column keys',
       items: { type: 'object' },
     },
     rowCount: { type: 'number', description: 'Number of rows returned' },

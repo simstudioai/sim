@@ -15,7 +15,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Connect a home-tenant organizational account through the **Power BI** Microsoft connection. Existing Microsoft Graph connections cannot substitute for it. Self-hosted installations use the existing Microsoft client environment variables and register `/api/auth/oauth2/callback/microsoft-powerbi` as a Web redirect URI. This version supports delegated OAuth only, without Credential Groups or service principals.
 
-**Execute DAX Query** requires the tenant's **Dataset Execute Queries REST API** setting, workspace access, and Read and Build permissions on the semantic model. Submit one DAX query that returns one table. The API limits each query to 100,000 rows or 1,000,000 values, 15 MB of returned data, and 120 query requests per minute per user. Dynamic column names are preserved. An HTTP 200 response can contain an error with partial rows; check the block's error and incomplete outputs before using those rows. See Microsoft's [Execute Queries documentation](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries-in-group).
+**Execute DAX Query** requires the tenant's **Dataset Execute Queries REST API** setting, workspace access, and Read and Build permissions on the semantic model. Submit one DAX query that returns one table. The API limits each query to 100,000 rows or 1,000,000 values, 15 MB of returned data, and 120 query requests per minute per user. Dynamic column names are preserved. An HTTP 200 response can contain an error with partial rows; any reported query error fails the action. Connect the block's error port to handle its standard `error` output. Failed workflow outputs omit query fields, including partial rows, `errors`, and `incomplete`; successful queries expose the declared outputs. Direct tool responses retain available partial rows and typed errors, but those fields are unavailable to downstream workflow blocks after failure. See Microsoft's [Execute Queries documentation](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries-in-group).
 
 **Refresh Semantic Model** requests a standard refresh and returns acceptance immediately. Acceptance does not mean the refresh completed. Use **Get Refresh History** separately to inspect status; it requires write permission on the model. `Unknown` can mean a refresh is in progress or its completion state is unknown. Standard refresh is subject to capacity limits, including eight refresh requests per day on shared capacity. See Microsoft's [refresh documentation](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/refresh-dataset-in-group) and [refresh history documentation](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/get-refresh-history-in-group).
 
@@ -132,7 +132,7 @@ Get semantic model metadata from a Power BI workspace.
 
 ### Power BI Execute DAX Query
 
-Execute one DAX query against a semantic model and preserve rows alongside reported query errors.
+Execute one DAX query against a semantic model and detect reported query errors.
 
 #### Input
 
@@ -147,7 +147,7 @@ Execute one DAX query against a semantic model and preserve rows alongside repor
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `rows` | array | Returned rows, preserving provider column keys and partial results |
+| `rows` | array | Returned query rows, preserving provider column keys |
 | `rowCount` | number | Number of rows returned |
 | `errors` | array | Errors reported at response, query, or table scope |
 |   ↳ `scope` | string | Error scope: response, query, or table |

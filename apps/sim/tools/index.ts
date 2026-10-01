@@ -99,11 +99,7 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
-import {
-  HostedKeyRateLimitedError,
-  HostedKeyUnavailableError,
-  markToolDiagnosticFailure,
-} from '@/tools/errors'
+import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
 import {
   getOwnEnumerableDataEntries,
   prepareToolRequest,
@@ -2416,7 +2412,7 @@ async function executeToolImplementation(
     const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
     const functionSandboxCost =
       normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
-    return markToolDiagnosticFailure({
+    return {
       success: false,
       output: {
         ...errorDetails,
@@ -2433,7 +2429,7 @@ async function executeToolImplementation(
         endTime: endTimeISO,
         duration,
       },
-    })
+    }
   } finally {
     completePendingSecretActivation?.()
   }

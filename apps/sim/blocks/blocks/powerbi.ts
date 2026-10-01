@@ -385,8 +385,7 @@ export const PowerBIBlock: BlockConfig = {
     },
     rows: {
       type: 'json',
-      description:
-        'Query rows preserving DAX column names, including available partial rows on error',
+      description: 'Rows from a successful query, preserving DAX column names',
       condition: { field: 'operation', value: 'powerbi_execute_query' },
     },
     rowCount: {
@@ -447,7 +446,7 @@ export const PowerBIBlockMeta = {
       icon: PowerBIIcon,
       title: 'Power BI KPI briefing',
       prompt:
-        'Build a scheduled workflow that runs an approved DAX query for daily KPIs in a Power BI semantic model, summarizes complete results, and posts the briefing to Microsoft Teams. Route query errors to a separate notification instead of treating partial rows as a complete report.',
+        "Build a scheduled workflow that runs an approved DAX query for daily KPIs in a Power BI semantic model, summarizes successful results, and posts the briefing to Microsoft Teams. Connect the query block's error port to a separate failure notification.",
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['analytics', 'reporting'],
@@ -518,7 +517,7 @@ export const PowerBIBlockMeta = {
       description:
         'Run an approved DAX query and turn complete semantic model results into a KPI summary.',
       content:
-        '# Summarize Semantic Model KPIs\n\n## Steps\n1. Select an accessible workspace and semantic model. Ask for known measure names or an approved query; these actions do not discover the model schema.\n2. Use Execute DAX Query with one EVALUATE query returning one table. Keep the result small and include nulls when blanks matter.\n3. Check errors and incomplete before summarizing. Keep partial rows separate from a complete KPI report.\n\n## Output\nKPI values, their model context, and any query errors.\n\n## Sources\n[Microsoft DAX queries](https://learn.microsoft.com/en-us/dax/dax-queries) · [Execute Queries API](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries-in-group)',
+        "# Summarize Semantic Model KPIs\n\n## Steps\n1. Select an accessible workspace and semantic model. Ask for known measure names or an approved query; these actions do not discover the model schema.\n2. Use Execute DAX Query with one EVALUATE query returning one table. Keep the result small and include nulls when blanks matter.\n3. Summarize only successful query results. Connect the query block's error port to a failure notification using its error output; partial rows are unavailable on the workflow error path.\n\n## Output\nKPI values and their model context on success, or a separate query failure notification.\n\n## Sources\n[Microsoft DAX queries](https://learn.microsoft.com/en-us/dax/dax-queries) · [Execute Queries API](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries-in-group)",
     },
     {
       name: 'inventory-workspace-reports',

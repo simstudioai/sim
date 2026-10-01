@@ -1,17 +1,4 @@
 import { HttpError } from '@/lib/core/utils/http-error'
-import type { ToolResponse } from '@/tools/types'
-
-const diagnosticFailures = new WeakSet<ToolResponse>()
-
-/** Catch-generated HTTP diagnostics are not declared resource outputs. */
-export function markToolDiagnosticFailure(response: ToolResponse): ToolResponse {
-  diagnosticFailures.add(response)
-  return response
-}
-
-export function isToolDiagnosticFailure(response: ToolResponse): boolean {
-  return diagnosticFailures.has(response)
-}
 
 /**
  * Hosted-key acquisition blocked by the workspace's own rate bucket. Carries a

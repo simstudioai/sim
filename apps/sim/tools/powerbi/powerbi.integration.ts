@@ -524,8 +524,8 @@ describe('Power BI with persisted delegated credentials and provider wire respon
   it.each([
     { handling: 'unhandled', status: 'failed' },
     { handling: 'error port', status: 'completed' },
-  ] as const)('keeps partial DAX rows available with $handling handling', ({ handling, status }) =>
-    checked(`partial DAX durable ${handling}`, async () => {
+  ] as const)('uses standard DAX failure outputs with $handling handling', ({ handling, status }) =>
+    checked(`standard DAX failure ${handling}`, async () => {
       provider.setScenario('partial-query')
       const consumerId = generateId()
       const configure: ConfigureWorkflowFixture | undefined =
@@ -534,21 +534,13 @@ describe('Power BI with persisted delegated credentials and provider wire respon
               state.blocks[consumerId] = createBlock({
                 id: consumerId,
                 type: 'function',
-                name: 'Consume partial query',
+                name: 'Handle query error',
                 subBlocks: {
                   language: { id: 'language', type: 'dropdown', value: 'javascript' },
                   code: {
                     id: 'code',
                     type: 'code',
-                    value: [
-                      'const rows = <powerbi_execute_query.rows>;',
-                      'const incomplete = <powerbi_execute_query.incomplete>;',
-                      'return {',
-                      '  revenue: rows.reduce((sum, row) => sum + row["[Revenue]"], 0),',
-                      '  rowCount: rows.length,',
-                      '  incomplete,',
-                      '};',
-                    ].join('\n'),
+                    value: 'return { error: <powerbi_execute_query.error> };',
                   },
                 },
               })
@@ -564,21 +556,28 @@ describe('Power BI with persisted delegated credentials and provider wire respon
       const run = await runWorkflow(['powerbi_execute_query'], undefined, credentialId, configure)
       expect(run.result).toMatchObject({ ok: true, status })
       expect(provider.requests).toHaveLength(1)
+      expect(provider.requests[0]).toMatchObject({ method: 'POST', status: 200 })
       const errorLog = run.state?.blockLogs.find((log) => log.blockId === run.blockIds[0])
       expect(errorLog).toMatchObject({
         success: false,
-        output: {
-          rowCount: 1,
-          rows: [{ '[Revenue]': 125, 'Sales[Region]': 'West', '[Missing]': null }],
-          incomplete: true,
-          errors: [
-            { scope: 'table', code: 'MoreRowsThanAllowed', message: 'Result was truncated.' },
-          ],
-        },
+        error: 'Result was truncated.',
+        output: { error: 'Result was truncated.' },
       })
+      const actionOutput = run.state?.blockStates[run.blockIds[0]]?.output
+      expect(actionOutput).toMatchObject({ error: 'Result was truncated.' })
+      for (const field of [
+        'rows',
+        'rowCount',
+        'errors',
+        'incomplete',
+        'informationProtectionLabel',
+      ]) {
+        expect(errorLog?.output).not.toHaveProperty(field)
+        expect(actionOutput).not.toHaveProperty(field)
+      }
       if (handling === 'error port') {
         expect(errorLog?.errorHandled).toBe(true)
-        const result = { revenue: 125, rowCount: 1, incomplete: true }
+        const result = { error: 'Result was truncated.' }
         expect(run.state?.blockLogs.find((log) => log.blockId === consumerId)).toMatchObject({
           success: true,
           output: { result },
