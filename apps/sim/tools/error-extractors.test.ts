@@ -382,6 +382,12 @@ describe('Error Extractors', () => {
       expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe('Unauthorized')
     })
 
+    it('keeps plain-text bodies', () => {
+      const errorInfo: ErrorInfo = { status: 502, data: 'Bad gateway' }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe('Bad gateway')
+    })
+
     it('falls back to the status when Wiza sends an empty message', () => {
       const errorInfo: ErrorInfo = { status: 400, data: { status: { code: 400, message: '' } } }
 

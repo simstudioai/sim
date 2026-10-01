@@ -1,5 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
-import { ErrorExtractorId } from '@/tools/error-extractors'
+import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 import { wizaHosting } from '@/tools/wiza/hosting'
 import type {
@@ -240,9 +240,22 @@ export const wizaIndividualRevealTool: ToolConfig<
         consecutiveErrors += 1
         if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
           const errorText = await statusResponse.text().catch(() => '')
+          let errorData: unknown
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = errorText
+          }
           return {
             success: false,
-            error: `Wiza API error: ${statusResponse.status} - ${errorText}`,
+            error: extractErrorMessage(
+              {
+                status: statusResponse.status,
+                statusText: statusResponse.statusText,
+                data: errorData,
+              },
+              ErrorExtractorId.WIZA_ERRORS
+            ),
             output: result.output,
           }
         }

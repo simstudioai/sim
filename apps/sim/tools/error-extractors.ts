@@ -517,12 +517,14 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
     id: 'wiza-errors',
     description:
-      'Wiza API error envelope: {status: {code, message}}. The message is nested under status, so the generic extractors miss it',
+      'Wiza API error envelope: {status: {code, message}}, plus plain-text bodies. The message is nested under status, so the generic extractors miss it',
     examples: ['Wiza'],
     extract: (errorInfo) => {
-      const message = errorInfo?.data?.status?.message
+      const data = errorInfo?.data
+      if (typeof data === 'string') return data.trim() || undefined
+      const message = data?.status?.message
       if (typeof message === 'string' && message.trim()) return message.trim()
-      return errorInfo?.data?.message
+      return data?.message
     },
   },
   {
