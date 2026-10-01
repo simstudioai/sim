@@ -1040,7 +1040,9 @@ async function executeToolAndReportInner(
           execContext.chatId,
           options?.onEvent,
           () => abortRequested(context, execContext, options),
-          toolCall.targetWorkspaceId ?? execContext.workspaceId,
+          execContext.organizationId
+            ? (toolCall.targetWorkspaceId ?? execContext.workspaceId)
+            : undefined,
           execContext.userId
         )
       }
