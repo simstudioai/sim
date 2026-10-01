@@ -401,6 +401,25 @@ describe('atomic organization live Search MCP setup', () => {
     await expect(setup.complete(verified.state)).rejects.toThrow('invalid or expired')
   })
 
+  it.each(['missing', 'disabled'] as const)(
+    'rejects workflow-only authorization when Search becomes approved (previous approval: %s)',
+    async (previousApproval) => {
+      const setup = await seedSlackAuthorization()
+      if (previousApproval === 'disabled')
+        await db.insert(organizationSearchIntegration).values({
+          organizationId: ids.organization,
+          connectorType: 'slack',
+          approved: false,
+        })
+      const pending = await setup.start()
+      await approve('slack')
+      provideSlackConsent(SLACK_MANAGED_USER_SCOPES)
+      await expect(setup.complete(pending.state)).rejects.toThrow('Search approval changed')
+      expect((await snapshot()).groups).toEqual(setup.before.groups)
+      await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+    }
+  )
+
   it.each([false, true])(
     'rejects a pending Search upgrade after approval changes (reapproved: %s)',
     async (reapproved) => {
