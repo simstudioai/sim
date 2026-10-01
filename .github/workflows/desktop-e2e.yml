@@ -17,6 +17,8 @@ on:
       - 'apps/sim/app/desktop/connect/**'
       - 'apps/sim/app/credential-groups/**'
       - 'apps/sim/hooks/queries/slack-search.ts'
+      - 'apps/sim/hooks/queries/personal-search-integrations.ts'
+      - 'apps/sim/hooks/use-search-integration-connection.ts'
       - 'apps/sim/hooks/use-github-installation-setup.ts'
       - 'apps/sim/app/o/**/integrations/indexed/use-member-enrollment.ts'
       - 'apps/sim/lib/api/contracts/desktop-source-connect.ts'

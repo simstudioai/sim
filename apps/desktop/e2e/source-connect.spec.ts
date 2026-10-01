@@ -54,6 +54,11 @@ test('source authorization returns to its desktop screen and refreshes live', as
   const githubInventorySessions: string[] = []
   let nativeCredentialVisible = false
   let installed = false
+  let holdSlackStart = false
+  let canceledSlackRequests = 0
+  const personalAttempts = new Map<string, { session: string; completed: boolean }>()
+  let personalInventoryFailed = false
+  let personalInventoryFailures = 0
   let javascript = ''
   let stylesheet = ''
   let origin = ''
@@ -174,7 +179,81 @@ test('source authorization returns to its desktop screen and refreshes live', as
       const state = generateShortId(32)
       attempts.set(state, session)
       startSessions.push(session)
+      if (holdSlackStart) {
+        response.on('close', () => {
+          if (!response.writableEnded) canceledSlackRequests++
+        })
+        return
+      }
       json({ authorizationUrl: `${origin}/provider?state=${state}` })
+      return
+    }
+    if (path === '/api/knowledge/sim-search/personal-integrations') {
+      if (request.method === 'POST') {
+        const { oauthCompletionId } = await body()
+        personalAttempts.set(oauthCompletionId, { session, completed: false })
+        json({
+          success: true,
+          data: { url: `${origin}/personal-provider?completionId=${oauthCompletionId}` },
+        })
+      } else if (personalInventoryFailed) {
+        personalInventoryFailures++
+        json({ error: 'Inventory temporarily unavailable' }, 503)
+      } else {
+        const attempt = personalAttempts.get(url.searchParams.get('completionId') ?? '')
+        const connected = attempt?.completed === true
+        json({
+          success: true,
+          data: {
+            completedCredentialId: connected ? 'fixture-personal-account' : null,
+            connections: connected
+              ? [
+                  {
+                    name: 'Slack',
+                    providerId: 'slack',
+                    connectorType: 'slack',
+                    description: '',
+                    accounts: [
+                      {
+                        credentialId: 'fixture-personal-account',
+                        displayName: 'Fixture',
+                        status: 'connected',
+                        action: null,
+                      },
+                    ],
+                    connectionStatus: 'connected',
+                    action: null,
+                  },
+                ]
+              : [],
+            available: [
+              {
+                name: 'Slack',
+                description: '',
+                target: {
+                  type: 'link',
+                  provider: 'slack',
+                  connectorType: 'slack',
+                  connectionMode: 'live',
+                  optionId: 'fixture-option',
+                },
+              },
+            ],
+            nextCursor: null,
+          },
+        })
+      }
+      return
+    }
+    if (path === '/personal-callback') {
+      const completionId = url.searchParams.get('completionId') ?? ''
+      const attempt = personalAttempts.get(completionId)
+      if (!attempt || attempt.session !== session) {
+        json({ error: 'Wrong attempt' }, 403)
+        return
+      }
+      attempt.completed = true
+      redirect(`/credential-groups/complete?completionId=${completionId}`)
       return
     }
     if (path === '/api/knowledge/slack/oauth/callback') {
@@ -295,6 +374,12 @@ test('source authorization returns to its desktop screen and refreshes live', as
       const completionId = url.searchParams.get('completionId') ?? ''
       response.end(
         `<!doctype html><a href="/account-callback?completionId=${completionId}">Authorize account</a><a href="/account-callback?completionId=${completionId}&error=denied">Deny account</a>`
+      )
+      return
+    }
+    if (path === '/personal-provider') {
+      response.end(
+        `<!doctype html><a href="/personal-callback?completionId=${url.searchParams.get('completionId')}">Authorize personal Search</a>`
       )
       return
     }
@@ -570,6 +655,68 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await expect(web).toHaveURL(`${origin}/o/fixture-organization/integrations`)
       await expect(web.getByLabel('Account count')).toHaveText('1')
     })
+    await check('canceling Slack setup aborts the pending web HTTP request', async () => {
+      holdSlackStart = true
+      const starts = startSessions.length
+      try {
+        await web.getByRole('button', { name: 'Connect Slack', exact: true }).click()
+        await expect.poll(() => startSessions.length).toBe(starts + 1)
+        await web.getByRole('button', { name: 'Cancel Slack request', exact: true }).click()
+        await expect.poll(() => canceledSlackRequests).toBe(1)
+        await expect(web.getByRole('button', { name: 'Connect Slack', exact: true })).toBeEnabled()
+      } finally {
+        holdSlackStart = false
+      }
+    })
+    await check(
+      'desktop Search preserves pending receipts after inventory failure and allows cancellation/retry',
+      async () => {
+        const previousOpens = (await opened()).length
+        await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
+        await expect.poll(async () => (await opened()).length).toBe(previousOpens + 1)
+        await external.goto((await opened())[previousOpens])
+        await external.getByRole('link', { name: 'Authorize personal Search' }).waitFor()
+        personalInventoryFailed = true
+        await external.getByRole('link', { name: 'Authorize personal Search' }).click()
+        await expect(external).toHaveURL(`${origin}/desktop/done?kind=connect`)
+        await expect.poll(() => personalInventoryFailures).toBeGreaterThan(0)
+        await expect(
+          page.getByRole('button', { name: 'Connect personal Search', exact: true })
+        ).toBeEnabled()
+        const receipt = () =>
+          page.evaluate(() => {
+            const entry = Object.entries(localStorage).find(([key]) =>
+              key.startsWith('sim.search-connection.')
+            )
+            if (!entry) return null
+            const attempt: { completionId: string; status: string; credentialId?: string } =
+              JSON.parse(entry[1])
+            return attempt
+          })
+        const pendingReceipt = await receipt()
+        expect(pendingReceipt).toMatchObject({ status: 'pending' })
+        await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
+        expect(await receipt()).toEqual(pendingReceipt)
+        await page.getByRole('button', { name: 'Cancel personal Search', exact: true }).click()
+        await expect
+          .poll(receipt)
+          .toMatchObject({ completionId: pendingReceipt?.completionId, status: 'failed' })
+        personalInventoryFailed = false
+        await page.getByRole('button', { name: 'Retry personal inventory', exact: true }).click()
+        await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
+        await expect.poll(async () => (await opened()).length).toBe(previousOpens + 2)
+        const retryReceipt = await receipt()
+        expect(retryReceipt).toMatchObject({ status: 'pending' })
+        expect(retryReceipt?.completionId).not.toBe(pendingReceipt?.completionId)
+        await external.goto((await opened())[previousOpens + 1])
+        await external.getByRole('link', { name: 'Authorize personal Search' }).click()
+        await expect.poll(receipt).toMatchObject({
+          completionId: retryReceipt?.completionId,
+          status: 'connected',
+          credentialId: 'fixture-personal-account',
+        })
+      }
+    )
     await page.screenshot({ path: test.info().outputPath('source-connect-desktop.png') })
   } finally {
     mkdirSync(dirname(reportPath), { recursive: true })

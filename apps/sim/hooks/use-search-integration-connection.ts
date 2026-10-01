@@ -160,6 +160,7 @@ export function useSearchIntegrationConnection({
         return
       }
       const desktop = isDesktopApp()
+      if (desktop && pending) return
       const tab = desktop ? null : window.open('about:blank', '_blank', 'width=600,height=700')
       if (!desktop && !tab) {
         setLocalError('Allow pop-ups for this site to connect your account.')
