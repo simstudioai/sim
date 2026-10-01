@@ -5,7 +5,6 @@ import {
 } from '@sim/workflow-persistence/subflow-helpers'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { getBlock } from '@/blocks/registry'
 import type {
@@ -16,7 +15,11 @@ import type {
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
 import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
-import { blockAdvertisesWebhookUrl, resolveBlockTriggerId } from '@/triggers/webhook-url'
+import {
+  blockAdvertisesWebhookUrl,
+  buildWebhookTriggerUrl,
+  resolveBlockTriggerId,
+} from '@/triggers/webhook-url'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)
@@ -363,9 +366,9 @@ function resolveTriggerWebhookUrl(blockId: string, block: BlockState): string | 
   const triggerPath = block.subBlocks?.triggerPath?.value
   const path = typeof triggerPath === 'string' && triggerPath.length > 0 ? triggerPath : blockId
   try {
-    return `${getBaseUrl()}/api/webhooks/trigger/${path}`
+    return buildWebhookTriggerUrl(path)
   } catch {
-    // getBaseUrl throws when NEXT_PUBLIC_APP_URL is unset; omit the field rather
+    // The base URL lookup throws when NEXT_PUBLIC_APP_URL is unset; omit the field rather
     // than fail the whole state read.
     return null
   }

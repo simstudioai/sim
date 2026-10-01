@@ -1,5 +1,6 @@
 import type { ExternalUserSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
@@ -125,7 +126,7 @@ export async function dispatchSlackWebhooks(
 
       if (result.outcome === 'ignored' && result.reason === 'filtered') {
         const rawEvent = payload.event as Record<string, unknown> | undefined
-        const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+        const providerConfig = toRecord(foundWebhook.providerConfig)
         logger.info(
           `[${requestId}] Event skipped by trigger filter for webhook ${foundWebhook.id}`,
           {
