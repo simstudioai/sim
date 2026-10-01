@@ -1,6 +1,7 @@
 'use client'
 
 import { Chip, toast } from '@sim/emcn'
+import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import { liveSearchProviderForCredential } from '@/lib/sim-search/live/provider-catalog'
 import {
@@ -133,6 +134,8 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           Boolean(option || server) &&
           approved &&
           (!option || option.configurationStatus === 'ready') &&
+          (provider !== 'slack' ||
+            (option?.provider === 'slack' && hasSlackSearchUserScopes(option.requiredScopes))) &&
           ((provider !== 'hubspot' && provider !== 'zoom') ||
             data.availableMcpConnectors.includes(provider))
         const scope =

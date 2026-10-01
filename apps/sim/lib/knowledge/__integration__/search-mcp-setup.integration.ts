@@ -10,8 +10,11 @@ import {
   organization,
   organizationSearchIntegration,
   resourcePolicy,
+  slackApp,
+  slackSearchInstallation,
   user,
 } from '@sim/db/schema'
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import * as dns from '@sim/security/dns'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -23,16 +26,29 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
 import { env } from '@/lib/core/config/env'
+import { closeRedisConnection } from '@/lib/core/config/redis'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import {
+  completeSlackCredentialGroupConfiguration,
+  startSlackCredentialGroupConfiguration,
+} from '@/lib/credential-groups/application/slack-managed-users'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
+  decryptCredentialGroupProviderConfiguration,
   emptyCredentialGroupProviderConfiguration,
   encryptCredentialGroupProviderConfiguration,
 } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroup } from '@/lib/credential-groups/service'
-import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import {
+  SLACK_MANAGED_USER_SCOPES,
+  SLACK_SEARCH_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
 import { createOrganizationAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
 import { deleteConnectionCredential } from '@/lib/credentials/deletion'
+import {
+  encryptManagedOAuthTokenSet,
+  resolveManagedOAuthToken,
+} from '@/lib/credentials/managed-oauth'
 import { acquireAdvisoryXactLock, tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   approveSearchIntegration,
@@ -43,17 +59,23 @@ import {
   type GitHubInstallationBinding,
 } from '@/lib/oauth/github-installation-types'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
-import { SLACK_RTS_USER_SCOPES } from '@/lib/sim-search/live/scopes'
 
 /**
- * Real authorization, transactions, constraints and persistence; only DNS is a fixture.
- * Run with TEST_DATABASE_URL naming a disposable database and pass
- * --outputFile.json="$SEARCH_MCP_SETUP_REPORT_PATH" for a caller-selected JSON report.
+ * Real authorization, PostgreSQL, Redis and token resolution; DNS and Slack HTTP use fixtures.
+ * Run `bun run test:integration lib/knowledge/__integration__/search-mcp-setup.integration.ts`
+ * with INTEGRATION_REPORT_PATH for a caller-selected JSON report. Direct Vitest runs require
+ * TEST_DATABASE_URL and TEST_REDIS_URL naming disposable local services.
  */
 describe('atomic organization live Search MCP setup', () => {
+  const redisUrl = readTestRedisUrl()
+  let restoreSlackHttp: (() => void) | undefined
   let ids: { organization: string; owner: string; member: string; outsider: string }
 
   beforeAll(() => {
+    if (!redisUrl)
+      throw new Error(
+        'Set TEST_REDIS_URL to a disposable local Redis or use bun run test:integration'
+      )
     vi.spyOn(dns, 'resolveHostAddresses').mockImplementation(async (hostname) => {
       if (
         !['api.fireflies.ai', 'mcp.granola.ai', 'mcp.notion.com', 'mcp.lucid.app'].includes(
@@ -68,6 +90,7 @@ describe('atomic organization live Search MCP setup', () => {
   beforeEach(async () => {
     Object.assign(env, {
       ZOOM_SEARCH: false,
+      REDIS_URL: redisUrl,
     })
     ids = {
       organization: generateId(),
@@ -98,10 +121,13 @@ describe('atomic organization live Search MCP setup', () => {
   })
 
   afterEach(async () => {
+    restoreSlackHttp?.()
+    restoreSlackHttp = undefined
     await db.delete(organization).where(eq(organization.id, ids.organization))
     await db.delete(user).where(inArray(user.id, [ids.owner, ids.member, ids.outsider]))
   })
   afterAll(async () => {
+    await closeRedisConnection()
     await db.$client.end()
   })
 
@@ -146,7 +172,7 @@ describe('atomic organization live Search MCP setup', () => {
       id: generateId(),
       provider: 'slack',
       label: 'Slack',
-      authorizationAppId: 'slack:fixture-app:fixture-team',
+      authorizationAppId: 'slack:A_FIXTURE:T_FIXTURE',
       requiredScopes: [...scopes],
       scopeVersion: credentialGroupScopePolicyVersion([...scopes]),
       required: false,
@@ -164,8 +190,8 @@ describe('atomic organization live Search MCP setup', () => {
           slack: {
             clientId: 'fixture-client',
             clientSecret: 'fixture-secret',
-            appId: 'fixture-app',
-            teamId: 'fixture-team',
+            appId: 'A_FIXTURE',
+            teamId: 'T_FIXTURE',
             scopes: [...scopes],
             verifiedAt: new Date().toISOString(),
           },
@@ -183,7 +209,7 @@ describe('atomic organization live Search MCP setup', () => {
       invitationExpiresAt: new Date(Date.now() + 60_000),
       invitedAt: new Date(),
     })
-    const encrypted = (await encryptSecret('{"access_token":"fixture-token"}')).encrypted
+    const encrypted = await encryptManagedOAuthTokenSet({ accessToken: 'fixture-token' })
     await db.insert(credential).values(
       [option, other].map((entry) => ({
         id: generateId(),
@@ -206,51 +232,215 @@ describe('atomic organization live Search MCP setup', () => {
     return { groupId: group.id, optionId: option.id, otherOptionId: other.id }
   }
 
+  async function seedSlackAuthorization(scopes: readonly string[] = SLACK_MANAGED_USER_SCOPES) {
+    const seeded = await seedWorkflowSlack(scopes)
+    const secret = (await encryptSecret('fixture-secret')).encrypted
+    await db.insert(slackApp).values({
+      id: 'A_FIXTURE',
+      organizationId: ids.organization,
+      kind: 'custom',
+      clientId: 'fixture-client',
+      encryptedClientSecret: secret,
+      encryptedSigningSecret: secret,
+      revision: generateId(),
+    })
+    const botId = generateId()
+    await db.insert(credential).values({
+      id: botId,
+      organizationId: ids.organization,
+      type: 'service_account',
+      providerId: 'slack',
+      displayName: 'Fixture Slack bot',
+      createdBy: ids.owner,
+      encryptedServiceAccountKey: secret,
+    })
+    await db.insert(slackSearchInstallation).values({
+      id: generateId(),
+      organizationId: ids.organization,
+      credentialId: botId,
+      appId: 'A_FIXTURE',
+      slackAppId: 'A_FIXTURE',
+      teamId: 'T_FIXTURE',
+      teamName: 'Fixture team',
+      botUserId: 'B_FIXTURE',
+      credentialVersion: generateId(),
+      revision: generateId(),
+    })
+    const before = await snapshot()
+    const connection = before.credentials.find(
+      (entry) => entry.credentialGroupOptionId === seeded.optionId
+    )!
+    const principal = createSessionPrincipal({ userId: ids.owner, sessionId: generateId() })
+    return {
+      ...seeded,
+      before,
+      resolveToken: () =>
+        resolveManagedOAuthToken({
+          credentialId: connection.id,
+          organizationId: ids.organization,
+          expectedProviderId: 'slack',
+          requiredScopes: ['chat:write'],
+        }),
+      start: () =>
+        startSlackCredentialGroupConfiguration.execute({
+          principal,
+          input: {
+            organizationId: ids.organization,
+            credentialGroupId: seeded.groupId,
+            appId: 'A_FIXTURE',
+            teamId: 'T_FIXTURE',
+          },
+        }),
+      complete: (state: string, providerError?: string) =>
+        completeSlackCredentialGroupConfiguration.execute({
+          principal,
+          input: { state, ...(providerError ? { providerError } : { code: 'fixture-code' }) },
+        }),
+    }
+  }
+
+  function provideSlackConsent(scopes: readonly string[]) {
+    restoreSlackHttp?.()
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      switch (url) {
+        case 'https://slack.com/api/oauth.v2.access':
+          return Response.json({
+            ok: true,
+            app_id: 'A_FIXTURE',
+            team: { id: 'T_FIXTURE', name: 'Fixture team' },
+            authed_user: {
+              id: 'U_FIXTURE',
+              access_token: 'fixture-verification-token',
+              token_type: 'user',
+              scope: scopes.join(','),
+            },
+          })
+        case 'https://slack.com/api/auth.test':
+          return Response.json({ ok: true, team_id: 'T_FIXTURE', user_id: 'U_FIXTURE' })
+        case 'https://slack.com/api/users.info':
+          return Response.json({
+            ok: true,
+            user: { id: 'U_FIXTURE', profile: { email: 'member@fixture.test' } },
+          })
+        case 'https://slack.com/api/auth.revoke':
+          return Response.json({ ok: true, revoked: true })
+        default:
+          throw new Error(`Unexpected OAuth fixture request: ${url}`)
+      }
+    })
+    restoreSlackHttp = () => spy.mockRestore()
+  }
+
   it.each([
     { name: 'workflow policy', scopes: SLACK_MANAGED_USER_SCOPES },
     { name: 'custom policy', scopes: ['chat:write', 'users:read', 'users:read.email'] },
-  ])(
-    'upgrades an existing Slack $name only through explicit Search approval',
-    async ({ scopes }) => {
-      const seeded = await seedWorkflowSlack(scopes)
-      const before = await snapshot()
+  ])('preserves a Slack $name until Search consent is verified', async ({ scopes }) => {
+    const setup = await seedSlackAuthorization(scopes)
+    await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+    const originalAttempt = await setup.start()
+    expect(
+      new URL(originalAttempt.authorizationUrl).searchParams.get('user_scope')!.split(',')
+    ).not.toContain('search:read.public')
+    await setup.complete(originalAttempt.state, 'access_denied')
+    await approve('slack')
+    await expect(approve('slack')).resolves.toMatchObject({ memberAccounts: { changed: false } })
+    const pending = await snapshot()
+    expect(pending.groups).toEqual(setup.before.groups)
+    expect(pending.credentials).toEqual(setup.before.credentials)
+    expect(pending.policies).toEqual(setup.before.policies)
+    await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+
+    const desiredScopes = [...new Set([...scopes, ...SLACK_SEARCH_USER_SCOPES])]
+    const cancelled = await setup.start()
+    expect(new URL(cancelled.authorizationUrl).searchParams.get('user_scope')!.split(',')).toEqual(
+      expect.arrayContaining(desiredScopes)
+    )
+    await expect(setup.complete(cancelled.state, 'access_denied')).resolves.toEqual({
+      ok: false,
+      reason: 'provider_error',
+    })
+    await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+    expect((await snapshot()).groups).toEqual(setup.before.groups)
+
+    const incomplete = await setup.start()
+    provideSlackConsent(scopes)
+    await expect(setup.complete(incomplete.state)).rejects.toThrow('did not grant every permission')
+    expect((await snapshot()).groups).toEqual(setup.before.groups)
+    await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+
+    const verified = await setup.start()
+    provideSlackConsent(desiredScopes)
+    await expect(setup.complete(verified.state)).resolves.toMatchObject({
+      ok: true,
+      reason: 'authorized',
+    })
+    const state = await snapshot()
+    const upgraded = state.groups[0].options.find((option) => option.id === setup.optionId)!
+    expect(upgraded.requiredScopes).toEqual(expect.arrayContaining(desiredScopes))
+    expect(upgraded.scopeVersion).not.toBe(setup.before.groups[0].options[0].scopeVersion)
+    const configuration = await decryptCredentialGroupProviderConfiguration(
+      state.groups[0].encryptedProviderConfiguration
+    )
+    expect(configuration.slack?.scopes).toEqual(expect.arrayContaining(desiredScopes))
+    expect(
+      state.credentials.find((entry) => entry.credentialGroupOptionId === setup.optionId)
+        ?.managedOauthStatus
+    ).toBe('needs_reauth')
+    expect(
+      state.credentials.find((entry) => entry.credentialGroupOptionId === setup.otherOptionId)
+    ).toEqual(
+      setup.before.credentials.find(
+        (entry) => entry.credentialGroupOptionId === setup.otherOptionId
+      )
+    )
+    expect(state.groups[0].options.find((option) => option.id === setup.otherOptionId)).toEqual(
+      setup.before.groups[0].options[1]
+    )
+    await expect(
+      getCredentialGroup({ kind: 'organization', organizationId: ids.organization }, setup.groupId)
+    ).resolves.toMatchObject({
+      options: expect.arrayContaining([
+        expect.objectContaining({ id: setup.optionId, configurationStatus: 'ready' }),
+      ]),
+    })
+    await expect(setup.complete(verified.state)).rejects.toThrow('invalid or expired')
+  })
+
+  it.each(['missing', 'disabled'] as const)(
+    'rejects workflow-only authorization when Search becomes approved (previous approval: %s)',
+    async (previousApproval) => {
+      const setup = await seedSlackAuthorization()
+      if (previousApproval === 'disabled')
+        await db.insert(organizationSearchIntegration).values({
+          organizationId: ids.organization,
+          connectorType: 'slack',
+          approved: false,
+        })
+      const pending = await setup.start()
       await approve('slack')
-      const state = await snapshot()
-      const upgraded = state.groups[0].options.find((option) => option.id === seeded.optionId)!
-      expect(upgraded.requiredScopes).toEqual(
-        expect.arrayContaining([...scopes, ...SLACK_RTS_USER_SCOPES])
-      )
-      expect(upgraded.scopeVersion).not.toBe(before.groups[0].options[0].scopeVersion)
-      expect(state.groups[0].options.find((option) => option.id === seeded.otherOptionId)).toEqual(
-        before.groups[0].options[1]
-      )
-      expect(state.policies).toEqual(before.policies)
-      expect(state.groups[0].encryptedProviderConfiguration).toBe(
-        before.groups[0].encryptedProviderConfiguration
-      )
-      expect(
-        state.credentials.find((entry) => entry.credentialGroupOptionId === seeded.optionId)
-          ?.managedOauthStatus
-      ).toBe('needs_reauth')
-      expect(
-        state.credentials.find((entry) => entry.credentialGroupOptionId === seeded.otherOptionId)
-      ).toEqual(
-        before.credentials.find((entry) => entry.credentialGroupOptionId === seeded.otherOptionId)
-      )
-      expect(
-        await getCredentialGroup(
-          { kind: 'organization', organizationId: ids.organization },
-          seeded.groupId
-        )
-      ).toMatchObject({
-        options: expect.arrayContaining([
-          expect.objectContaining({ id: seeded.optionId, configurationStatus: 'needs_update' }),
-        ]),
+      provideSlackConsent(SLACK_MANAGED_USER_SCOPES)
+      await expect(setup.complete(pending.state)).rejects.toThrow('Search approval changed')
+      expect((await snapshot()).groups).toEqual(setup.before.groups)
+      await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+    }
+  )
+
+  it.each([false, true])(
+    'rejects a pending Search upgrade after approval changes (reapproved: %s)',
+    async (reapproved) => {
+      const setup = await seedSlackAuthorization()
+      await approve('slack')
+      const pending = await setup.start()
+      await approveSearchIntegration.execute({
+        principal: createSessionPrincipal({ userId: ids.owner, sessionId: generateId() }),
+        input: { organizationId: ids.organization, connectorType: 'slack', approved: false },
       })
-      await expect(approve('slack')).resolves.toMatchObject({ memberAccounts: { changed: false } })
-      const repeated = await snapshot()
-      expect(repeated.groups).toEqual(state.groups)
-      expect(repeated.credentials).toEqual(state.credentials)
+      if (reapproved) await approve('slack')
+      provideSlackConsent([...SLACK_MANAGED_USER_SCOPES, ...SLACK_SEARCH_USER_SCOPES])
+      await expect(setup.complete(pending.state)).rejects.toThrow('Search approval changed')
+      expect((await snapshot()).groups).toEqual(setup.before.groups)
+      await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
     }
   )
 
@@ -463,6 +653,20 @@ describe('atomic organization live Search MCP setup', () => {
       .set({ memberSyncStatus: 'idle', sourceConfig: {} })
       .where(eq(knowledgeConnector.id, source.connectorId))
     expect(await integrationStatus('github')).toMatchObject({ configuredServiceSource: false })
+  })
+
+  it('rejects an oversized combined permission request without changing existing connections', async () => {
+    const scopes = [
+      'chat:write',
+      'users:read',
+      'users:read.email',
+      ...Array.from({ length: 97 }, (_, index) => `custom:${index}`),
+    ]
+    const setup = await seedSlackAuthorization(scopes)
+    await approve('slack')
+    await expect(setup.start()).rejects.toThrow('too many permissions')
+    expect((await snapshot()).groups).toEqual(setup.before.groups)
+    await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
   })
 
   it('keeps disabled Zoom approvals visible and removable without permitting reapproval', async () => {

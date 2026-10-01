@@ -401,7 +401,7 @@ export async function ensureWorkspaceAccountsGroup(
   }
 }
 
-/** Adds a provider or extends its required consent during an explicit administrator action. */
+/** Adds a provider without changing the verified consent policy of existing connections. */
 export async function addOrganizationAccountProvider(
   organizationId: string,
   userId: string,
@@ -430,31 +430,6 @@ export async function addOrganizationAccountProvider(
         'validation',
         `Enable ${option.label} in Connected accounts first`
       )
-    if (option.requiredScopes) {
-      const previousScopes =
-        current.provider === 'slack'
-          ? resolveSlackManagedUserScopes(current.requiredScopes)
-          : current.requiredScopes
-      const requiredScopes = [...new Set([...previousScopes, ...option.requiredScopes])]
-      const scopeVersion = credentialGroupScopePolicyVersion(requiredScopes)
-      if (!scopesEqual(requiredScopes, previousScopes) || scopeVersion !== current.scopeVersion) {
-        const [updated] = await executor
-          .update(credentialGroup)
-          .set({
-            options: existing.options.map((entry) =>
-              entry.id === current.id ? { ...entry, requiredScopes, scopeVersion } : entry
-            ),
-            updatedAt: new Date(),
-          })
-          .where(
-            and(eq(credentialGroup.id, group.id), resourceScopeCondition(credentialGroup, scope))
-          )
-          .returning({ id: credentialGroup.id })
-        if (!updated) throw new Error('Connected accounts policy update returned no row')
-        await invalidateOptionGrants(executor, group.id, [current.id])
-        return { groupId: group.id, changed: true }
-      }
-    }
     return { groupId: group.id, changed: group.created }
   }
   if (
