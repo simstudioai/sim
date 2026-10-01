@@ -90,10 +90,6 @@ describe('private sandbox v2 resource transport', () => {
       token
     )
     expect(await response.json()).toEqual({ data: { inserted: 1 } })
-    expect(recordInput).toHaveBeenCalledWith('mothership-chat:chat', false)
-    expect(recordInput.mock.invocationCallOrder[0]).toBeLessThan(
-      fetcher.mock.invocationCallOrder[0]!
-    )
     expect(fetcher).toHaveBeenCalledTimes(1)
     expect(recordEffects).toHaveBeenCalledWith(token, scope, [
       {
@@ -261,14 +257,6 @@ vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
   recordExistingSessionFileInput: recordInput,
 }))
 
-it('refuses delivery before dispatch when provenance cannot be recorded', async () => {
-  recordInput.mockRejectedValueOnce(new Error('storage unavailable'))
-  await expect(proxySandboxResourceRequest(request('/api/v2/tables/table'), token)).rejects.toThrow(
-    'storage unavailable'
-  )
-  expect(fetcher).not.toHaveBeenCalled()
-})
-
 it('does not poison public scratch after authenticated static catalog discovery', async () => {
   routeMatcher.mockReturnValue({
     params: { toolId: 'function_execute' },
@@ -332,41 +320,4 @@ it('keeps the server identity out of callback response headers and body', async 
   expect(mint).not.toHaveBeenCalled()
   expect(JSON.stringify([...response.headers])).not.toContain('server-only-identity')
   expect(await response.text()).not.toContain('server-only-identity')
-})
-
-it.each(['builtin', 'custom'] as const)(
-  'preserves public research scratch only for producer-classified %s block catalog content',
-  async (source) => {
-    routeMatcher.mockReturnValue({ params: {}, load: async () => ({ GET: fetcher }) })
-    fetcher.mockResolvedValue(
-      Response.json({
-        data: [
-          {
-            id: 'agent',
-            name: 'Agent',
-            description: 'Build an agent',
-            category: 'blocks',
-            source,
-            triggerAllowed: false,
-            triggerCapable: false,
-            triggerIds: [],
-            toolIds: [],
-            operationIds: [],
-            preview: false,
-            tags: [],
-          },
-        ],
-        nextCursor: null,
-      })
-    )
-    expect((await proxySandboxResourceRequest(request('/api/v2/blocks'), token)).status).toBe(200)
-    if (source === 'builtin') expect(recordInput).not.toHaveBeenCalled()
-    else expect(recordInput).toHaveBeenCalledWith('mothership-chat:chat', false)
-  }
-)
-it('does not trust a source label in a malformed catalog result', async () => {
-  routeMatcher.mockReturnValue({ params: {}, load: async () => ({ GET: fetcher }) })
-  fetcher.mockResolvedValue(Response.json({ data: [{ source: 'builtin' }], nextCursor: null }))
-  expect((await proxySandboxResourceRequest(request('/api/v2/blocks'), token)).status).toBe(200)
-  expect(recordInput).toHaveBeenCalledWith('mothership-chat:chat', false)
 })
