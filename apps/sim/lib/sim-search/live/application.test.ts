@@ -1,5 +1,6 @@
-import { resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import {
   inputValidationMock,
   inputValidationMockFns,
@@ -159,6 +160,8 @@ describe('authorized live retrieval', () => {
     let providerUsesCutoff = true
     beforeEach(() => {
       providerUsesCutoff = true
+      setEnv({ ZOOM_SEARCH: true })
+      dbChainMockFns.limit.mockResolvedValue([{ organizationId: 'org' }])
       mocks.accounts.mockResolvedValue([connected])
       mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
         if (name === 'search_meetings') {

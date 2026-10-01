@@ -74,6 +74,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
         )
   const available = LIVE_SEARCH_SOURCE_TYPES.filter(
     ([provider]) =>
+      (approvals.get(provider)?.available !== false || accountsForProvider(provider).length > 0) &&
       LIVE_SEARCH_SCOPE_FIELDS[provider] &&
       ((provider !== 'hubspot' && provider !== 'zoom') ||
         data.availableMcpConnectors.includes(provider) ||
@@ -130,6 +131,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           : undefined
         const accounts = accountsForProvider(provider)
         const ready =
+          approval?.available !== false &&
           group?.status === 'active' &&
           Boolean(option || server) &&
           approved &&
@@ -140,15 +142,18 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           approval?.policy?.accessMode === 'service_account'
             ? 'Selected resources you can access'
             : 'All accessible content'
-        const state = !approved
-          ? 'Disabled by your organization'
-          : group && group.status !== 'active'
-            ? 'Connections are paused by your organization'
-            : !ready
-              ? 'Not configured'
-              : accounts.length
-                ? scope
-                : undefined
+        const state =
+          approval?.available === false
+            ? 'Currently unavailable'
+            : !approved
+              ? 'Disabled by your organization'
+              : group && group.status !== 'active'
+                ? 'Connections are paused by your organization'
+                : !ready
+                  ? 'Not configured'
+                  : accounts.length
+                    ? scope
+                    : undefined
         const description = [
           accounts
             .map(

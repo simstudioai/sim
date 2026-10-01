@@ -11,25 +11,25 @@ export const MANAGED_MCP_CONNECTOR_IDS = [
 
 export type ManagedMcpConnectorId = (typeof MANAGED_MCP_CONNECTOR_IDS)[number]
 
-interface FixedManagedMcpConnector {
-  id: Exclude<ManagedMcpConnectorId, 'databricks' | 'hubspot' | 'zoom'>
+interface ManagedMcpConnectorMetadata {
   name: string
   description: string
+  bgColor?: string
+}
+
+interface FixedManagedMcpConnector extends ManagedMcpConnectorMetadata {
+  id: Exclude<ManagedMcpConnectorId, 'databricks' | 'hubspot' | 'zoom'>
   url: string
   oauthClientRegistration: 'dynamic'
 }
 
-interface DatabricksManagedMcpConnector {
+interface DatabricksManagedMcpConnector extends ManagedMcpConnectorMetadata {
   id: 'databricks'
-  name: string
-  description: string
   oauthClientRegistration: 'preregistered'
 }
 
-interface FixedPreregisteredManagedMcpConnector {
+interface FixedPreregisteredManagedMcpConnector extends ManagedMcpConnectorMetadata {
   id: 'hubspot' | 'zoom'
-  name: string
-  description: string
   url: string
   oauthClientRegistration: 'preregistered'
 }
@@ -50,6 +50,7 @@ export const MANAGED_MCP_CONNECTORS = {
   lucid: {
     id: 'lucid',
     name: 'Lucid',
+    bgColor: '#282C33',
     description: 'Search Lucidchart diagrams and Lucidspark boards using your Lucid account',
     url: 'https://mcp.lucid.app/mcp/readonly',
     oauthClientRegistration: 'dynamic',
@@ -121,6 +122,14 @@ export function getManagedMcpConnector(connectorId: string): ManagedMcpConnector
     throw new Error(`Unsupported managed MCP connector: ${connectorId}`)
   }
   return MANAGED_MCP_CONNECTORS[connectorId]
+}
+
+export function getManagedMcpConnectorBgColor(
+  connectorId: string | null | undefined
+): string | undefined {
+  return connectorId && isManagedMcpConnectorId(connectorId)
+    ? getManagedMcpConnector(connectorId).bgColor
+    : undefined
 }
 
 function hostnameHasSuffix(hostname: string, suffixes: readonly string[]): boolean {

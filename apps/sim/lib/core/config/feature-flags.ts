@@ -68,6 +68,11 @@ const FEATURE_FLAGS = {
       'Capture durable Workflow Agent tool history and continue existing retries. Supports workspace rollout targeting; version-aware memory storage remains active when capture is disabled.',
     fallback: 'AGENT_MEMORY_HISTORY',
   },
+  'zoom-search': {
+    description:
+      'Enable Zoom Search setup, personal authorization and retrieval. Organization targeting only; disabled by default. Standard workflow Zoom OAuth is unchanged.',
+    fallback: 'ZOOM_SEARCH',
+  },
   'slack-search-shared-app': {
     description:
       'Enable the official shared Slack app for existing Search customers. Supports orgId ' +

@@ -580,6 +580,7 @@ export const env = createEnv({
     INSTAGRAM_CLIENT_SECRET:               z.string().optional(),                  // Instagram App Secret (Business Login)
     SHOPIFY_CLIENT_ID:                     z.string().optional(),                  // Shopify OAuth client ID
     SHOPIFY_CLIENT_SECRET:                 z.string().optional(),                  // Shopify OAuth client secret
+    ZOOM_SEARCH:                           z.boolean().optional(),
     ZOOM_MCP_CLIENT_ID:                    z.string().optional(),                  // Zoom Search MCP OAuth client ID
     ZOOM_MCP_CLIENT_SECRET:                z.string().optional(),                  // Zoom Search MCP OAuth client secret
     ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID

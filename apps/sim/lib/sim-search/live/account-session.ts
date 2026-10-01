@@ -1,5 +1,6 @@
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { ResourceOwner } from '@/lib/core/resource-scope'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import type { ResolvedLiveAccount } from '@/lib/sim-search/live/accounts'
 import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
@@ -20,6 +21,7 @@ import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import { readNativeProvider, searchNativeProvider } from '@/lib/sim-search/live/providers'
 import { searchWithinPolicy } from '@/lib/sim-search/live/scoped-search'
 import { createLiveServiceSession } from '@/lib/sim-search/live/service-session'
@@ -67,6 +69,11 @@ export async function openLiveAccountSession(
   const { owner, userId, resolved, signal } = input
   const { account } = resolved
   const provider = account.provider
+  if (!(await isSearchProviderEnabled(provider, resourceScopeFromOwner(owner))))
+    throw new NativeSearchError(
+      'unavailable',
+      'This Search provider is not available for this organization'
+    )
   const origin =
     'origin' in resolved ? resolved.origin : LIVE_SEARCH_PROVIDER_CATALOG[provider].origin
   const client =
@@ -198,6 +205,7 @@ export async function openLiveAccountSession(
       return readMcp(reference)
     },
     async verifyCurrent(document) {
+      if (!(await isSearchProviderEnabled(provider, resourceScopeFromOwner(owner)))) return false
       const current = await sourceBoundary(
         livePolicyFor(await loadLiveSearchPolicies(owner), provider),
         true
