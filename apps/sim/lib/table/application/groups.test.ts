@@ -24,7 +24,6 @@ import type { TableDefinition, WorkflowGroup } from '@/lib/table/types'
 const hoisted = vi.hoisted(() => ({
   addGroup: vi.fn(),
   addOutput: vi.fn(),
-  deleteOutput: vi.fn(),
   getEnrichment: vi.fn(),
   loadWorkflowOutputs: vi.fn(),
   updateGroup: vi.fn(),
@@ -51,7 +50,6 @@ vi.mock('@/lib/table/workflow-groups/service', () => ({
   addWorkflowGroup: hoisted.addGroup,
   addWorkflowGroupOutput: hoisted.addOutput,
   deleteWorkflowGroup: vi.fn(),
-  deleteWorkflowGroupOutput: hoisted.deleteOutput,
   updateWorkflowGroup: hoisted.updateGroup,
 }))
 vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
@@ -222,7 +220,6 @@ describe('workflow and enrichment Table application commands', () => {
       tableWithGroup(nextGroup, [...table.schema.columns, ...outputColumns])
     )
     mocks.addOutput.mockResolvedValue(table)
-    mocks.deleteOutput.mockResolvedValue(table)
     mocks.updateGroup.mockImplementation(async (input) =>
       tableWithGroup({
         ...group,

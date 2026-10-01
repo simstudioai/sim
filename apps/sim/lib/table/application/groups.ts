@@ -32,7 +32,6 @@ import {
   addWorkflowGroup,
   addWorkflowGroupOutput,
   deleteWorkflowGroup,
-  deleteWorkflowGroupOutput,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -1196,49 +1195,6 @@ export const addWorkflowTableGroupOutput = defineAuthorizedTableUseCase({
       resourceName: result.table.name,
       description: `Added an output to workflow group "${result.groupId}"`,
       metadata: { op: 'add_group_output', groupId: result.groupId },
-    }
-  },
-  afterSuccess({ context }) {
-    signalTableSchemaChanged(context.tableId)
-  },
-})
-
-export interface DeleteTableGroupOutputInput extends TableGroupInput {
-  groupId: string
-  columnName: string
-}
-
-export const deleteTableGroupOutputUseCase = defineAuthorizedTableUseCase({
-  operation: tableOperations.updateGroup,
-  resolveContext: ({ input }: { input: DeleteTableGroupOutputInput }) =>
-    resolveActiveTableContext({
-      tableId: input.tableId,
-      assertedWorkspaceId: input.workspaceId,
-    }),
-  async execute({ input, context }) {
-    const table = await deleteWorkflowGroupOutput(
-      {
-        tableId: context.tableId,
-        workspaceId: context.workspaceId,
-        groupId: input.groupId,
-        columnName: input.columnName,
-      },
-      generateRequestId()
-    )
-    return { table, groupId: input.groupId, columnName: input.columnName }
-  },
-  projectAudit({ result }) {
-    return {
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: result.table.id,
-      resourceName: result.table.name,
-      description: `Deleted an output from workflow group "${result.groupId}"`,
-      metadata: {
-        op: 'delete_group_output',
-        groupId: result.groupId,
-        columnName: result.columnName,
-      },
     }
   },
   afterSuccess({ context }) {
