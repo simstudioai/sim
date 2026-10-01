@@ -1,7 +1,7 @@
 'use client'
 
 import { type ComponentType, type ReactNode, useMemo, useState } from 'react'
-import { ChipLink, cn } from '@sim/emcn'
+import { cn } from '@sim/emcn'
 import { ArrowUpRight, Database, File } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
@@ -51,14 +51,13 @@ interface CardHeading {
 interface ExcerptCardProps {
   heading: CardHeading
   diff: UnifiedDiff
-  side: 'edit' | 'old' | 'new'
+  side: 'old' | 'new'
 }
 interface InlineMarkdownProps {
   text: string
 }
 interface ProseLineProps {
   line: DiffLine
-  side: ExcerptCardProps['side']
 }
 interface CodeDiffProps {
   diff: UnifiedDiff
@@ -187,7 +186,7 @@ function InlineMarkdown({ text }: InlineMarkdownProps) {
 }
 
 /** Markdown headings read as headings; everything else is a paragraph of the source. */
-function ProseLine({ line, side }: ProseLineProps) {
+function ProseLine({ line }: ProseLineProps) {
   const headingMatch = /^#{1,6}\s+(.*)$/.exec(line.text)
   const text = headingMatch ? headingMatch[1] : line.text
   const weight = headingMatch && 'font-medium'
@@ -197,25 +196,16 @@ function ProseLine({ line, side }: ProseLineProps) {
         <InlineMarkdown text={text} />
       </p>
     )
-  const highlight =
-    side !== 'edit'
-      ? 'bg-[var(--badge-amber-bg)]'
-      : line.type === 'add'
-        ? 'bg-[var(--badge-success-bg)]'
-        : 'bg-[var(--badge-error-bg)] line-through decoration-[var(--badge-error-text)]'
   return (
     <p>
-      <mark className={cn(MARK, highlight, weight)}>
+      <mark className={cn(MARK, 'bg-[var(--badge-amber-bg)]', weight)}>
         <InlineMarkdown text={text} />
       </mark>
     </p>
   )
 }
 
-/**
- * A source excerpt in the shape of the page it quotes: unchanged text muted, changed text marked.
- * `old`/`new` show one side of a two-document comparison; `edit` shows both sides of one edit.
- */
+/** One side of a two-document comparison, in the shape of the page it quotes, its claim marked. */
 function ExcerptCard({ heading, diff, side }: ExcerptCardProps) {
   const Icon = heading.icon
   const skip = side === 'old' ? 'add' : side === 'new' ? 'del' : null
@@ -242,7 +232,7 @@ function ExcerptCard({ heading, diff, side }: ExcerptCardProps) {
             {hunk.lines
               .filter((line) => line.type !== skip && line.text.trim() !== '')
               .map((line, index) => (
-                <ProseLine key={index} line={line} side={side} />
+                <ProseLine key={index} line={line} />
               ))}
           </div>
         ))}
@@ -251,13 +241,20 @@ function ExcerptCard({ heading, diff, side }: ExcerptCardProps) {
   )
 }
 
-/** Line-numbered diffs are code: a monospace view with a unified/split toggle. */
+/** An edit, line by line: tinted rows with word-level changes and a unified/split toggle. */
 function CodeDiff({ diff, heading }: CodeDiffProps) {
+  const Icon = heading.icon
   const [mode, setMode] = useState<DiffViewMode>('unified')
   return (
     <div className='overflow-hidden rounded-lg border border-[var(--border)] font-season'>
       <div className='flex items-center gap-2 border-[var(--border)] border-b bg-[var(--surface-2)] py-1.5 pr-[68px] pl-3 text-caption'>
+        {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
         <span className='shrink-0 text-[var(--text-body)]'>{heading.title}</span>
+        {heading.href && (
+          <Link href={heading.href} aria-label={`Open ${heading.title}`} className='shrink-0'>
+            <ArrowUpRight className='size-[12px] text-[var(--text-icon)]' />
+          </Link>
+        )}
         <span className='min-w-0 flex-1 truncate text-[var(--text-muted)]'>{heading.meta}</span>
         {(['unified', 'split'] as const).map((option) => (
           <button
@@ -273,11 +270,6 @@ function CodeDiff({ diff, heading }: CodeDiffProps) {
             {option}
           </button>
         ))}
-        {heading.href && (
-          <ChipLink href={heading.href} rightIcon={ArrowUpRight} className='shrink-0'>
-            Open
-          </ChipLink>
-        )}
       </div>
       <DiffView hunks={diff.hunks} mode={mode} />
     </div>
@@ -297,9 +289,9 @@ function parse(
 /**
  * A ```diff fence: the change is written into the document, so it renders without any history.
  * When its header names workspace files or knowledge documents, the hunks are matched against
- * their current text and marked proposed or outdated when they no longer hold. Line-numbered
- * diffs render as code; everything else renders as excerpts of the pages it quotes. A public
- * share has no workspace session, so it renders without checking.
+ * their current text and marked proposed or outdated when they no longer hold. An edit renders
+ * line by line; two different documents render as side-by-side excerpts. A public share has no
+ * workspace session, so it renders without checking.
  */
 export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
   const params = useParams()
@@ -323,12 +315,7 @@ export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
           ? null
           : matchUnifiedDiff(diff, oldSide.segments, newSide?.segments)
   const detail = state && state !== 'current' ? STATE_LABELS[state] : changeCounts(diff)
-  const numbered = diff.hunks.some((hunk) =>
-    hunk.lines.some((line) => line.oldLine !== undefined || line.newLine !== undefined)
-  )
 
-  if (numbered)
-    return <CodeDiff diff={diff} heading={heading(oldSide, diff.path ?? 'Diff', detail)} />
   if (comparison)
     return (
       <div className='grid grid-cols-1 gap-3 font-season sm:grid-cols-2'>
@@ -336,13 +323,5 @@ export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
         <ExcerptCard diff={diff} side='new' heading={heading(newSide, 'After', detail)} />
       </div>
     )
-  return (
-    <div className='font-season'>
-      <ExcerptCard
-        diff={diff}
-        side='edit'
-        heading={heading(oldSide, diff.path ?? 'Edit', detail)}
-      />
-    </div>
-  )
+  return <CodeDiff diff={diff} heading={heading(oldSide, diff.path ?? 'Diff', detail)} />
 }

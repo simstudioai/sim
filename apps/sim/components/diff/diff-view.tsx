@@ -10,11 +10,13 @@ const CONTEXT_EDGE = 3
 /** A run of unchanged lines collapses once it is longer than this. */
 const COLLAPSE_AFTER = CONTEXT_EDGE * 2 + 2
 
-const ADD_ROW = 'bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]'
-const DEL_ROW = 'bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]'
+const ADD_ROW =
+  'bg-[color-mix(in_srgb,var(--badge-success-bg)_35%,transparent)] text-[var(--text-primary)]'
+const DEL_ROW =
+  'bg-[color-mix(in_srgb,var(--badge-error-bg)_35%,transparent)] text-[var(--text-primary)]'
 const CONTEXT_ROW = 'text-[var(--text-body)]'
-const ADD_WORD = 'rounded-sm bg-[color-mix(in_srgb,var(--badge-success-text)_18%,transparent)]'
-const DEL_WORD = 'rounded-sm bg-[color-mix(in_srgb,var(--badge-error-text)_18%,transparent)]'
+const ADD_WORD = 'rounded-sm bg-[color-mix(in_srgb,var(--badge-success-bg)_90%,transparent)]'
+const DEL_WORD = 'rounded-sm bg-[color-mix(in_srgb,var(--badge-error-bg)_90%,transparent)]'
 const GUTTER = 'select-none pl-3 text-right text-[var(--text-muted)] tabular-nums'
 const MARKER = 'select-none pl-3'
 const TEXT = 'whitespace-pre py-0.5 pr-3 pl-1'
@@ -128,6 +130,14 @@ function rowClass(line: DiffLine | undefined) {
   return line?.type === 'add' ? ADD_ROW : line?.type === 'del' ? DEL_ROW : line && CONTEXT_ROW
 }
 
+function markerClass(line: DiffLine | undefined) {
+  return line?.type === 'add'
+    ? 'text-[var(--badge-success-text)]'
+    : line?.type === 'del'
+      ? 'text-[var(--badge-error-text)]'
+      : undefined
+}
+
 function marker(line: DiffLine | undefined) {
   return line?.type === 'add' ? '+' : line?.type === 'del' ? '-' : ' '
 }
@@ -203,7 +213,9 @@ export function DiffView({ hunks, mode }: DiffViewProps) {
                       >
                         {numbered && <span className={GUTTER}>{item.line.oldLine ?? ''}</span>}
                         {numbered && <span className={GUTTER}>{item.line.newLine ?? ''}</span>}
-                        <span className={MARKER}>{marker(item.line)}</span>
+                        <span className={cn(MARKER, markerClass(item.line))}>
+                          {marker(item.line)}
+                        </span>
                         <span className={TEXT}>
                           <LineText line={item.line} segments={segments.get(item.line)} />
                         </span>
@@ -224,7 +236,7 @@ export function DiffView({ hunks, mode }: DiffViewProps) {
                                 {(side === 0 ? line?.oldLine : line?.newLine) ?? ''}
                               </span>
                             )}
-                            <span className={cn(MARKER, rowClass(line))}>
+                            <span className={cn(MARKER, rowClass(line), markerClass(line))}>
                               {line ? marker(line) : ''}
                             </span>
                             <span
