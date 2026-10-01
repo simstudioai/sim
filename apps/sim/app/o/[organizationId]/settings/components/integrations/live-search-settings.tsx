@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
+import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   defaultLiveSearchPolicy,
@@ -163,6 +164,14 @@ export function LiveSearchSettings() {
               const memberProvider = liveSearchMemberAccountProvider(type)
               const mcpProvider = liveSearchMcpConnector(type)
               const group = accounts.data?.credentialGroup
+              const slackOption = group?.options.find((option) => option.provider === 'slack')
+              const needsSlackSetup =
+                type === 'slack' &&
+                accounts.data &&
+                (group?.status !== 'active' ||
+                  slackOption?.status !== 'active' ||
+                  slackOption.configurationStatus !== 'ready' ||
+                  !hasSlackSearchUserScopes(slackOption.requiredScopes))
               const needsMemberSetup =
                 integration.available !== false &&
                 accounts.data &&
@@ -193,7 +202,13 @@ export function LiveSearchSettings() {
                   iconVariant='custom'
                   icon={<IntegrationTile blockType={type} icon={meta.icon} />}
                   title={meta.name}
-                  description={integration.available === false ? 'Currently unavailable' : scope}
+                  description={
+                    integration.available === false
+                      ? 'Currently unavailable'
+                      : needsSlackSetup
+                        ? 'Member accounts · Verify Search permissions'
+                        : scope
+                  }
                   trailing={
                     <div className='flex gap-2'>
                       {serviceAccount && (
@@ -206,7 +221,9 @@ export function LiveSearchSettings() {
                         </ChipLink>
                       )}
                       {type === 'slack' && (
-                        <Chip onClick={() => void setConnectedAccounts('slack')}>Slack app</Chip>
+                        <Chip onClick={() => void setConnectedAccounts('slack')}>
+                          {needsSlackSetup ? 'Verify permissions' : 'Slack app'}
+                        </Chip>
                       )}
                       {needsMemberSetup && (
                         <Chip
