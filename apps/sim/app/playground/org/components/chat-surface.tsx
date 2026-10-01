@@ -40,7 +40,7 @@ import {
   WORKSPACES,
   workspaceById,
 } from '@/app/playground/org/lib/mock-data'
-import type { ProjectSection } from '@/app/playground/org/lib/routes'
+import { type ProjectSection, WORKSPACE_SECTIONS } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
 import { useWorkspacePane } from '@/app/playground/org/lib/workspace-pane-store'
 import {
@@ -117,10 +117,8 @@ function tabFromRef(ref: string): PanelTab {
   return newTab(workspaceId, kind)
 }
 
-const PROJECT_SECTIONS: readonly ProjectSection[] = ['dashboard', 'changelog', 'issues', 'settings']
-
 function isProjectSection(value: string): value is ProjectSection {
-  return PROJECT_SECTIONS.includes(value as ProjectSection)
+  return value === 'resources' || WORKSPACE_SECTIONS.some((section) => section.id === value)
 }
 
 const NO_MESSAGES: ChatMessage[] = []
