@@ -1,3 +1,4 @@
+import { escapeLikePattern } from '@sim/utils/string'
 import {
   and,
   asc,
@@ -27,15 +28,6 @@ export type ListSortOrder = (typeof LIST_SORT_ORDERS)[number]
  * itself listed (the contract enum is what makes that lookup total), and a
  * cursor's values are type-checked against their key before they are bound.
  */
-
-/**
- * Escapes LIKE/ILIKE wildcards so `%`, `_`, and `\` in a caller's term match
- * themselves. Postgres treats `\` as the default LIKE escape character, so no
- * explicit `ESCAPE` clause is needed.
- */
-export function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, '\\$&')
-}
 
 /**
  * Case-insensitive substring predicate for a v2 `search` term, or `undefined`
