@@ -33,6 +33,12 @@ export function installFreebuffStub(): void {
   window.freebuff = Object.assign((...args: unknown[]) => void queue.push(args), { q: queue })
 }
 
+/** Deletes the tag's click-id cookie, which it writes host-only on `Path=/`. */
+export function clearFreebuffClickId(): void {
+  if (!document.cookie.includes(`${FREEBUFF_CLICK_ID_COOKIE}=`)) return
+  document.cookie = `${FREEBUFF_CLICK_ID_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`
+}
+
 /**
  * Reports a conversion from the page. Call only after the caller has verified
  * marketing consent; the tag is a no-op for visitors who did not arrive from an

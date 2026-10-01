@@ -319,7 +319,8 @@ export const auth = betterAuth({
 
           /**
            * Only the marketing-consent-gated Freebuff tag writes the `bfcid`
-           * cookie, from an ad click's `?bfcid=`. Not awaited: the postback
+           * cookie, and `FreebuffClickIdGuard` deletes it once marketing consent
+           * is withdrawn or expires. Not awaited: the postback
            * retries on its own and must never delay signup. The browser tag
            * reports the same `eventId` on email signup and Freebuff dedupes.
            */
