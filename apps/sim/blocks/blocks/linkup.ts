@@ -1,13 +1,22 @@
 import { LinkupIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { LinkupSearchToolResponse } from '@/tools/linkup/types'
+import type { LinkupResponse } from '@/tools/linkup/types'
 
-export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
+/**
+ * Blocks saved before the operation dropdown existed have no stored
+ * `operation`, so search fields are gated on "not fetch" rather than on
+ * `linkup_search` to keep those blocks rendering and serializing as before.
+ */
+const SEARCH_CONDITION = { field: 'operation', value: 'linkup_fetch', not: true }
+const FETCH_CONDITION = { field: 'operation', value: 'linkup_fetch' }
+
+export const LinkupBlock: BlockConfig<LinkupResponse> = {
   type: 'linkup',
   name: 'Linkup',
   description: 'Search the web with Linkup',
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Linkup into the workflow. Can search the web.',
+  longDescription:
+    'Integrate Linkup into the workflow. Can search the web and fetch the contents of a webpage as markdown.',
   docsLink: 'https://docs.sim.ai/integrations/linkup',
   category: 'tools',
   integrationType: IntegrationType.Search,
@@ -16,20 +25,42 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   canvasPresentation: {
     defaultTitle: 'Linkup',
     sentences: {
+      /** Painted for blocks saved before the operation dropdown existed. */
       default: [
-        { text: 'Search the web for', field: 'q', core: true },
+        'Search the web',
+        { text: 'for', field: 'q' },
         { text: ', within', field: 'includeDomains' },
         { text: ', since', field: 'fromDate' },
       ],
+      byOperation: {
+        linkup_search: [
+          { text: 'Search the web for', field: 'q', core: true },
+          { text: ', within', field: 'includeDomains' },
+          { text: ', since', field: 'fromDate' },
+        ],
+        linkup_fetch: [{ text: 'Fetch', field: 'url', after: 'as markdown', core: true }],
+      },
     },
   },
 
   subBlocks: [
     {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Search', id: 'linkup_search' },
+        { label: 'Fetch', id: 'linkup_fetch' },
+      ],
+      value: () => 'linkup_search',
+    },
+    // Search operation inputs
+    {
       id: 'q',
       title: 'Search Query',
       type: 'long-input',
       placeholder: 'Enter your search query',
+      condition: SEARCH_CONDITION,
       required: true,
     },
     {
@@ -41,6 +72,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
         { label: 'Search', id: 'searchResults' },
       ],
       value: () => 'sourcedAnswer',
+      condition: SEARCH_CONDITION,
     },
     {
       id: 'depth',
@@ -51,23 +83,27 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
         { label: 'Deep', id: 'deep' },
       ],
       value: () => 'standard',
+      condition: SEARCH_CONDITION,
     },
     {
       id: 'includeImages',
       title: 'Include Images',
       type: 'switch',
+      condition: SEARCH_CONDITION,
       mode: 'advanced',
     },
     {
       id: 'includeInlineCitations',
       title: 'Include Inline Citations',
       type: 'switch',
+      condition: SEARCH_CONDITION,
       mode: 'advanced',
     },
     {
       id: 'includeSources',
       title: 'Include Sources',
       type: 'switch',
+      condition: SEARCH_CONDITION,
       mode: 'advanced',
     },
     {
@@ -75,6 +111,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
       title: 'From Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      condition: SEARCH_CONDITION,
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -95,6 +132,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'To Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      condition: SEARCH_CONDITION,
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -115,6 +153,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Include Domains',
       type: 'long-input',
       placeholder: 'example.com, another.com (comma-separated)',
+      condition: SEARCH_CONDITION,
       mode: 'advanced',
     },
     {
@@ -122,6 +161,36 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Exclude Domains',
       type: 'long-input',
       placeholder: 'example.com, another.com (comma-separated)',
+      condition: SEARCH_CONDITION,
+      mode: 'advanced',
+    },
+    // Fetch operation inputs
+    {
+      id: 'url',
+      title: 'URL',
+      type: 'short-input',
+      placeholder: 'https://example.com',
+      condition: FETCH_CONDITION,
+      required: true,
+    },
+    {
+      id: 'renderJs',
+      title: 'Render JavaScript',
+      type: 'switch',
+      condition: FETCH_CONDITION,
+    },
+    {
+      id: 'includeRawHtml',
+      title: 'Include Raw HTML',
+      type: 'switch',
+      condition: FETCH_CONDITION,
+      mode: 'advanced',
+    },
+    {
+      id: 'extractImages',
+      title: 'Extract Images',
+      type: 'switch',
+      condition: FETCH_CONDITION,
       mode: 'advanced',
     },
     {
@@ -136,12 +205,24 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   ],
 
   tools: {
-    access: ['linkup_search'],
+    access: ['linkup_search', 'linkup_fetch'],
+    config: {
+      tool: (params) => {
+        switch (params.operation) {
+          case 'linkup_fetch':
+            return 'linkup_fetch'
+          default:
+            return 'linkup_search'
+        }
+      },
+    },
   },
 
   inputs: {
-    q: { type: 'string', description: 'Search query' },
+    operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Linkup API key' },
+    // Search operation
+    q: { type: 'string', description: 'Search query' },
     depth: { type: 'string', description: 'Search depth level' },
     outputType: { type: 'string', description: 'Output format type' },
     includeImages: { type: 'boolean', description: 'Include images in results' },
@@ -157,11 +238,22 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'string',
       description: 'Domains to exclude from search (comma-separated)',
     },
+    // Fetch operation
+    url: { type: 'string', description: 'URL of the webpage to fetch' },
+    renderJs: { type: 'boolean', description: 'Render JavaScript before extracting content' },
+    includeRawHtml: { type: 'boolean', description: 'Include the raw HTML in the response' },
+    extractImages: { type: 'boolean', description: 'Extract images from the webpage' },
   },
 
   outputs: {
+    // Search output
     answer: { type: 'string', description: 'Generated answer' },
     sources: { type: 'json', description: 'Source references' },
+    // Fetch output
+    markdown: { type: 'string', description: 'Webpage content as markdown' },
+    rawHtml: { type: 'string', description: 'Raw HTML of the webpage, when requested' },
+    images: { type: 'json', description: '[{alt, url}] — images extracted from the webpage' },
+    favicon: { type: 'string', description: 'URL of the website favicon' },
   },
 }
 
@@ -257,6 +349,12 @@ export const LinkupBlockMeta = {
         'Search Linkup for recent mentions of a topic, competitor, or brand within a date window.',
       content:
         '# Monitor Topic Mentions\n\nTrack fresh mentions of a topic or competitor.\n\n## Steps\n1. Set the search query to the brand, competitor, or topic to monitor.\n2. Use the Search output type and set the from date to the start of the window you want to cover.\n3. Optionally restrict to news or specific domains.\n4. Filter the results to genuinely new or relevant mentions and summarize each.\n\n## Output\nA list of new mentions with source URL, date, and a one-line summary of each.',
+    },
+    {
+      name: 'fetch-page-markdown',
+      description: 'Use Linkup Fetch to turn a webpage into clean markdown for downstream steps.',
+      content:
+        '# Fetch Page Markdown\n\nRead the contents of a specific webpage with Linkup.\n\n## Steps\n1. Use the Fetch operation with the full URL of the page.\n2. Enable Render JavaScript for single-page apps or pages that load their content client-side.\n3. Enable Extract Images when the page images matter, and Include Raw HTML only when a later step needs the original markup.\n4. Pass the markdown to a summarizer, extractor, or knowledge base.\n\n## Output\nThe page content as markdown, plus any extracted images and the raw HTML when requested.',
     },
   ],
 } as const satisfies BlockMeta

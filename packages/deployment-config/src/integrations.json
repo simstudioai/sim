@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-29",
+  "updatedAt": "2026-10-01",
   "integrations": [
     {
       "type": "onepassword",
@@ -14435,12 +14435,21 @@
       "slug": "linkup",
       "name": "Linkup",
       "description": "Search the web with Linkup",
-      "longDescription": "Integrate Linkup into the workflow. Can search the web.",
+      "longDescription": "Integrate Linkup into the workflow. Can search the web and fetch the contents of a webpage as markdown.",
       "bgColor": "#D6D3C7",
       "iconName": "LinkupIcon",
       "docsUrl": "https://docs.sim.ai/integrations/linkup",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Search",
+          "description": "Search the web for information using Linkup"
+        },
+        {
+          "name": "Fetch",
+          "description": "Fetch a single webpage using Linkup and return its content as clean markdown, with optional raw HTML and extracted images."
+        }
+      ],
+      "operationCount": 2,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

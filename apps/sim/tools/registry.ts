@@ -2933,7 +2933,7 @@ import {
   linearUpdateWorkflowStateTool,
 } from '@/tools/linear'
 import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
-import { linkupSearchTool } from '@/tools/linkup'
+import { linkupFetchTool, linkupSearchTool } from '@/tools/linkup'
 import {
   linqAddParticipantTool,
   linqCheckImessageTool,
@@ -6688,6 +6688,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   ketch_invoke_right: ketchInvokeRightTool,
   ketch_set_consent: ketchSetConsentTool,
   ketch_set_subscriptions: ketchSetSubscriptionsTool,
+  linkup_fetch: linkupFetchTool,
   linkup_search: linkupSearchTool,
   linq_add_participant: linqAddParticipantTool,
   linq_check_imessage: linqCheckImessageTool,
