@@ -78,18 +78,17 @@ export async function buildMothershipSandboxSession(args: {
   args.signal?.throwIfAborted()
   if (getSimConnection().mode === 'checkpoint') return { key: args.sessionKey }
   const cli = await workbenchCli(args.userId, args.signal)
-  let cliEnvs: Record<string, string> | undefined
+  let cliEnvs: Pick<SandboxSessionRequest, 'envs' | 'secretEnvs'> | undefined
   try {
     const apiKey = `mothership-sandbox:${generateId()}`
     const endpoint = env.MOTHERSHIP_SANDBOX_CLI_ENDPOINT?.trim() || getBaseUrl()
     const scopedEndpoint = await sandboxResourceEndpoint(endpoint, args, apiKey)
     if (scopedEndpoint !== endpoint) {
       cliEnvs = {
-        SIM_API_KEY: apiKey,
-        ...(args.organizationId
+        envs: args.organizationId
           ? { SIM_ORGANIZATION_ID: args.organizationId }
-          : { SIM_WORKSPACE: args.workspaceId! }),
-        SIM_ENDPOINT: scopedEndpoint,
+          : { SIM_WORKSPACE: args.workspaceId! },
+        secretEnvs: { SIM_API_KEY: apiKey, SIM_ENDPOINT: scopedEndpoint },
       }
     }
   } catch (error) {
@@ -101,6 +100,6 @@ export async function buildMothershipSandboxSession(args: {
   return {
     key: args.sessionKey,
     cli,
-    ...(cliEnvs ? { envs: cliEnvs } : {}),
+    ...cliEnvs,
   }
 }

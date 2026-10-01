@@ -77,10 +77,10 @@ describe('deployment-owned workbench tooling', () => {
     expect(JSON.stringify(first.cli)).not.toContain('test-delegation')
     expect(mint).not.toHaveBeenCalled()
     expect(JSON.stringify(first)).not.toContain('test-delegation')
-    expect(first.envs?.SIM_API_KEY).not.toBe(second.envs?.SIM_API_KEY)
-    expect(first.envs).toEqual({
+    expect(first.secretEnvs?.SIM_API_KEY).not.toBe(second.secretEnvs?.SIM_API_KEY)
+    expect(first.envs).toEqual({ SIM_WORKSPACE: 'workspace' })
+    expect(first.secretEnvs).toEqual({
       SIM_API_KEY: expect.stringMatching(/^mothership-sandbox:[0-9a-f-]{36}$/),
-      SIM_WORKSPACE: 'workspace',
       SIM_ENDPOINT: 'https://sim.test/api/mothership/sandbox/owned-token',
     })
   })
@@ -134,7 +134,9 @@ it('does not inject authentication when no active scoped callback can be establi
   fetchBootstrap.mockResolvedValue(Response.json({ version: 1, entrypoint: 'private-entry' }))
   read.mockResolvedValue('bundle')
   endpoint.mockImplementation(async (url) => url)
-  expect((await buildMothershipSandboxSession(request)).envs).toBeUndefined()
+  const session = await buildMothershipSandboxSession(request)
+  expect(session.envs).toBeUndefined()
+  expect(session.secretEnvs).toBeUndefined()
   expect(endpoint).toHaveBeenCalledOnce()
   expect(mint).not.toHaveBeenCalled()
 })

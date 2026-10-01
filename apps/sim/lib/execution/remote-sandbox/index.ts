@@ -9,6 +9,7 @@ import {
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
 import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metrics'
+import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import {
@@ -234,6 +235,16 @@ async function withSandboxExecutionBudget<T>(
 
 function throwIfSandboxTimedOut(result: { timedOut?: boolean }): void {
   if (result.timedOut) throw new DOMException('timeout', 'AbortError')
+}
+
+/**
+ * Masks the session's capability values in program output before it is parsed or returned. They
+ * are revoked when the call ends, but a printed copy would still reach the model and transcript.
+ */
+function sessionSecretMask(session: SandboxSessionRequest | undefined): (output: string) => string {
+  const secrets = Object.values(session?.secretEnvs ?? {})
+  if (secrets.length === 0) return (output) => output
+  return (output) => redactKnownSensitiveValues(output, secrets)
 }
 
 function bindSandboxAbort(
@@ -925,6 +936,7 @@ async function executeInSandboxWithinBudget(
     const executionEnvironment = {
       ...selected?.envs,
       ...req.session?.envs,
+      ...req.session?.secretEnvs,
       ...(req.session?.cli
         ? { PATH: sessionCommandPath(req.session, selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH) }
         : {}),
@@ -934,6 +946,7 @@ async function executeInSandboxWithinBudget(
     const hasExecutionEnvironment =
       selected?.envs !== undefined ||
       req.session?.envs !== undefined ||
+      req.session?.secretEnvs !== undefined ||
       req.session?.cli !== undefined ||
       (req.session !== undefined && req.outputSandboxDir !== undefined) ||
       Object.keys(privateInputFiles.environment).length > 0
@@ -953,16 +966,17 @@ async function executeInSandboxWithinBudget(
     }
     throwIfAborted(signal)
     throwIfSandboxTimedOut(execution)
+    const mask = sessionSecretMask(req.session)
 
     if (execution.error) {
-      const errorMessage = `${execution.error.name}: ${execution.error.value}`
+      const errorMessage = mask(`${execution.error.name}: ${execution.error.value}`)
       logger.error('Sandbox execution failed', {
         sandboxId,
         hasTraceback: Boolean(execution.error.traceback),
       })
       const executionResult = {
         result: null,
-        stdout: execution.error.traceback || errorMessage,
+        stdout: execution.error.traceback ? mask(execution.error.traceback) : errorMessage,
         error: errorMessage,
         sandboxId,
         ...sessionField,
@@ -975,9 +989,9 @@ async function executeInSandboxWithinBudget(
     // the marker is found no matter which stream carried it. Each individual
     // stream is already concatenated verbatim by the provider, because injecting
     // a newline at chunk boundaries corrupted large single-line payloads.
-    const combinedOutput = [execution.text, execution.stdout, execution.stderr]
-      .filter(Boolean)
-      .join('\n')
+    const combinedOutput = mask(
+      [execution.text, execution.stdout, execution.stderr].filter(Boolean).join('\n')
+    )
 
     const extraction = extractSimResult(combinedOutput)
     const cleanedStdout = extraction.cleanedStdout
@@ -1127,6 +1141,7 @@ async function executeShellInSandboxWithinBudget(
           ...selected?.envs,
           ...envs,
           ...req.session?.envs,
+          ...req.session?.secretEnvs,
           PATH: sessionCommandPath(req.session, selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH),
           ...privateInputFiles.environment,
           ...(req.session && req.outputSandboxDir ? { SIM_OUTPUT_DIR: req.outputSandboxDir } : {}),
@@ -1143,14 +1158,16 @@ async function executeShellInSandboxWithinBudget(
     }
     throwIfAborted(signal)
     throwIfSandboxTimedOut(result)
+    const mask = sessionSecretMask(req.session)
 
-    const stdout = [result.stdout, result.stderr].filter(Boolean).join('\n')
+    const stdout = mask([result.stdout, result.stderr].filter(Boolean).join('\n'))
 
     if (result.exitCode !== 0) {
       // Daytona merges both streams into stdout (stderr is always empty), so fall
       // back to stdout for the real command output before the generic message.
-      const errorMessage =
+      const errorMessage = mask(
         result.stderr || result.stdout || `Process exited with code ${result.exitCode}`
+      )
       logger.error('Sandbox shell execution error', {
         sandboxId,
         exitCode: result.exitCode,

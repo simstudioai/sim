@@ -596,6 +596,67 @@ describe('session sandbox lease', () => {
     expect(calls.killed).toBe(false)
   })
 
+  it.each([
+    ['code', 'completes'],
+    ['code', 'fails'],
+    ['shell', 'completes'],
+    ['shell', 'fails'],
+  ] as const)(
+    'masks session capability values when printed by %s that %s',
+    async (kind, outcome) => {
+      const { handle } = fakeSandbox(`capability-${kind}-${outcome}`)
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      const apiKey = 'mothership-sandbox:6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b'
+      const endpoint =
+        'https://sim.test/api/mothership/sandbox/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
+      let received: Record<string, string> = {}
+      const printEnv = (envs: Record<string, string> = {}) => {
+        received = envs
+        return Object.entries(envs)
+          .map(([name, value]) => `${name}=${value}`)
+          .join('\n')
+      }
+      handle.runCode = async (_code, options) => {
+        const printed = printEnv(options.envs)
+        return outcome === 'fails'
+          ? {
+              text: '',
+              stdout: printed,
+              stderr: '',
+              error: { name: 'Error', value: printed, traceback: printed },
+            }
+          : {
+              text: `${SIM_RESULT_PREFIX}${JSON.stringify({ env: options.envs })}`,
+              stdout: printed,
+              stderr: encodeURIComponent(endpoint),
+            }
+      }
+      handle.runCommand = async (_command, options) => {
+        const printed = printEnv(options.envs)
+        return outcome === 'fails'
+          ? { stdout: '', stderr: printed, exitCode: 1 }
+          : { stdout: `${printed}\n${SIM_RESULT_PREFIX}${apiKey}`, stderr: '', exitCode: 0 }
+      }
+      const session = {
+        key: `capability-${kind}-${outcome}`,
+        envs: { SIM_WORKSPACE: 'workspace-visible' },
+        secretEnvs: { SIM_API_KEY: apiKey, SIM_ENDPOINT: endpoint },
+      }
+      const result =
+        kind === 'code'
+          ? await executeInSandbox({ ...CODE_REQUEST, session })
+          : await executeShellInSandbox({ ...CODE_REQUEST, envs: {}, session })
+
+      expect(received).toMatchObject({ ...session.envs, ...session.secretEnvs })
+      const output = JSON.stringify(result)
+      expect(output).not.toContain(apiKey)
+      expect(output).not.toContain(endpoint)
+      expect(output).not.toContain(encodeURIComponent(endpoint))
+      expect(output).toContain('SIM_API_KEY=[REDACTED]')
+      expect(output).toContain('SIM_WORKSPACE=workspace-visible')
+    }
+  )
+
   it('keeps a completed result when temporary input cleanup is unavailable', async () => {
     const { handle, calls } = fakeSandbox('cleanup-failure')
     mockFindSessionSandbox.mockResolvedValue(handle)

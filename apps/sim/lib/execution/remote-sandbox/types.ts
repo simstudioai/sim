@@ -92,6 +92,8 @@ export interface SandboxSessionRequest {
   cli?: { path: string; content: string; runtime?: { path: string; content: string } }
   /** Extra environment variables present on every execution in the session. */
   envs?: Record<string, string>
+  /** Capability variables present on every execution; their values are masked in its output. */
+  secretEnvs?: Record<string, string>
   /**
    * This execution mounts bytes whose secret provenance is unknown, so the machine's input
    * history must not stay certified clean even when the caller's own inputs are.
