@@ -111,6 +111,22 @@ DeepSeek, OpenAI, Groq, and OpenRouter, each reading its key from
 iterations, latency, and tokens, plus a per-scenario pass-rate matrix.
 `EVAL_MIN_PASS_RATE` fails a model below a floor.
 
+### LLM-as-judge
+
+Substring and regex checks measure phrasing, not correctness. `judge.ts` scores
+an answer against a rubric with a judge model and returns structured numbers:
+
+```sh
+cd apps/sim
+DEEPSEEK_API_KEY=... bun run test:evals:judge
+```
+
+`judgeAnswer` takes the judge transport, the user request, the answer, optional
+tool evidence, and a rubric of weighted criteria, and returns a verdict. Pass a
+`judge` option to `runScenario` to add a `judge` check alongside the
+deterministic ones. The judge transport is an ordinary OpenAI-compatible
+completion, so a recorded transcript can replay it deterministically in CI.
+
 ## Add a case
 
 1. Open [`agent-tool-use/scenarios.ts`](./agent-tool-use/scenarios.ts) and add
