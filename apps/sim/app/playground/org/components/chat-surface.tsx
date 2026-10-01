@@ -7,24 +7,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   TabStrip,
-  TabStripAction,
   type TabStripItem,
-  Tooltip,
 } from '@sim/emcn'
-import {
-  Check,
-  ChevronDown,
-  Download,
-  Globe,
-  Link,
-  MoreHorizontal,
-  Send,
-  TerminalWindow,
-  Trash,
-} from '@sim/emcn/icons'
+import { Check, ChevronDown, Globe, TerminalWindow } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { useQueryStates } from 'nuqs'
@@ -276,11 +263,6 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
             newTabLabel='New tab'
             endActions={
               <>
-                {view.type === 'resource' ? (
-                  <ResourceTabActions resource={view.resource} onBrowse={browse} />
-                ) : view.type === 'browser' ? (
-                  <IconAction label='Copy Link' icon={Link} />
-                ) : null}
                 <span aria-hidden='true' className='mx-1 h-4 w-px shrink-0 bg-[var(--border)]' />
                 <ProjectControl
                   project={project}
@@ -400,66 +382,5 @@ function ProjectControl({ project, active, onShow, onPick }: ProjectControlProps
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
-  )
-}
-
-interface IconActionProps {
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  onClick?: () => void
-}
-
-/** One of the active tab's actions, trailing the strip like the home panel's. */
-function IconAction({ label, icon: Icon, onClick }: IconActionProps) {
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <TabStripAction variant='subtle' aria-label={label} onClick={onClick}>
-          <Icon className={RESOURCE_TAB_ICON_CLASS} />
-        </TabStripAction>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>{label}</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
-  )
-}
-
-interface ResourceTabActionsProps {
-  resource: PanelResource
-  onBrowse: (workspaceId: string | null, kind: PanelKind | null) => void
-}
-
-/** The open resource's actions, with the path it came from behind the overflow menu. */
-function ResourceTabActions({ resource, onBrowse }: ResourceTabActionsProps) {
-  const config = panelKindConfig(resource.kind)
-  const workspace = workspaceById(resource.workspaceId)
-  return (
-    <>
-      <IconAction label='Copy Link' icon={Link} />
-      <IconAction label='Download' icon={Download} />
-      <IconAction label='Share' icon={Send} />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <TabStripAction variant='subtle' aria-label='More'>
-            <MoreHorizontal className={RESOURCE_TAB_ICON_CLASS} />
-          </TabStripAction>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end'>
-          <DropdownMenuItem onSelect={() => onBrowse(resource.workspaceId, resource.kind)}>
-            <config.icon className='size-[14px] text-[var(--text-icon)]' />
-            Show in {config.label}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onBrowse(resource.workspaceId, null)}>
-            Show in {workspace.name}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            <Trash className='size-[14px] text-[var(--text-icon)]' />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
   )
 }

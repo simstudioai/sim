@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, ChipInput, cn } from '@sim/emcn'
-import { Globe, Search, TerminalWindow } from '@sim/emcn/icons'
+import { Download, Globe, Link, Pencil, Search, Send, TerminalWindow, Trash } from '@sim/emcn/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { BrowseRow, BrowseSection } from '@/app/playground/org/components/browse-rows'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
@@ -273,18 +273,40 @@ function KindList({ workspace, kind, onOpen, onBack }: KindListProps) {
 function ResourceBody({ resource }: { resource: PanelResource }) {
   const workspace = workspaceById(resource.workspaceId)
   const issue = resource.kind === 'issues' ? issueByKey(resource.id) : undefined
+  const config = panelKindConfig(resource.kind)
   return (
-    <div className='min-h-0 flex-1 overflow-y-auto'>
-      {resource.kind === 'knowledge' && resource.id === 'refund-2024' ? (
-        <RefundPolicyEdit />
-      ) : issue ? (
-        <IssuePage workspace={workspace} issue={issue} />
-      ) : (
-        <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>
-          {resource.name} opens here.
-        </p>
-      )}
-    </div>
+    <Resource>
+      <Resource.Header
+        icon={config.icon}
+        breadcrumbs={[
+          { label: config.label, icon: config.icon },
+          {
+            label: resource.name,
+            dropdownItems: [
+              { label: 'Rename', icon: Pencil, onClick: () => {} },
+              { label: 'Delete', icon: Trash, onClick: () => {} },
+            ],
+          },
+        ]}
+        actions={[
+          { icon: Link, text: 'Copy Link', onSelect: () => {} },
+          { icon: Download, text: 'Download', onSelect: () => {} },
+          { icon: Send, text: 'Share', onSelect: () => {} },
+          { icon: Trash, text: 'Delete', onSelect: () => {} },
+        ]}
+      />
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        {resource.kind === 'knowledge' && resource.id === 'refund-2024' ? (
+          <RefundPolicyEdit />
+        ) : issue ? (
+          <IssuePage workspace={workspace} issue={issue} />
+        ) : (
+          <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>
+            {resource.name} opens here.
+          </p>
+        )}
+      </div>
+    </Resource>
   )
 }
 
