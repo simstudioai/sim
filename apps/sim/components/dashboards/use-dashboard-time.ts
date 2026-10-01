@@ -87,8 +87,13 @@ export function useDashboardTime({
     if (period === 'custom') void queryClient.invalidateQueries(queryFilter)
     else setNow(Date.now())
   })
+  /** A view that resumes after a pause catches up at once instead of on the next tick. */
+  const catchUp = useEffectEvent(() => {
+    if (period !== 'custom' && Date.now() - now >= LIVE_TICK_MS) tick()
+  })
   useEffect(() => {
     if (!live) return
+    catchUp()
     const interval = setInterval(tick, LIVE_TICK_MS)
     document.addEventListener('visibilitychange', tick)
     return () => {
@@ -101,12 +106,19 @@ export function useDashboardTime({
     setInputError(null)
     setState({ range: 'custom', ...selected })
   }
+  /** Returns to the authored range, re-anchored to the present. */
+  const reset = () => {
+    cursorStore.getState().clearCursor()
+    setNow(Date.now())
+    setState({ range: null, from: null, to: null })
+  }
 
   return {
     range,
     now,
     rangeError,
     inputError,
+    reset,
     interactions: { cursorStore, timeZone, onZoom },
     controls: {
       period,

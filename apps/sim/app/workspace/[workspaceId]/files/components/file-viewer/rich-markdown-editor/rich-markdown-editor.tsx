@@ -1440,14 +1440,14 @@ export function LoadedRichMarkdownEditor({
             void insertImagesRef.current(images, range)
           }}
         />
-        {showPlaceholder && placeholder && (
-          <ReadOnlyPlaceholder
-            content={placeholder.content}
-            file={file}
-            workspaceId={workspaceId}
-          />
-        )}
         <MarkdownStreamingContext value={isStreaming}>
+          {showPlaceholder && placeholder && (
+            <ReadOnlyPlaceholder
+              content={placeholder.content}
+              file={file}
+              workspaceId={workspaceId}
+            />
+          )}
           <EditorContent
             editor={editor}
             className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}

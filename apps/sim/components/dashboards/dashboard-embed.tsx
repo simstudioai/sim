@@ -135,9 +135,7 @@ function EmbedView({ spec, workspaceId }: EmbedViewProps) {
             <button
               type='button'
               className='text-[var(--text-muted)] underline-offset-2 transition-colors hover:text-[var(--text-body)] hover:underline'
-              onClick={() =>
-                setState((current) => ({ ...current, range: null, from: null, to: null }))
-              }
+              onClick={time.reset}
             >
               Reset
             </button>
