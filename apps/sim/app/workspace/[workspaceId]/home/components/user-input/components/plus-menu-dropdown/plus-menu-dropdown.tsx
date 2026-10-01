@@ -5,11 +5,15 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItemLabel,
   DropdownMenuLabel,
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
   dropdownMenuRowClass,
+  OverflowText,
 } from '@sim/emcn'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
   ResourceMenuSections,
   resourceFromItem,
@@ -30,6 +34,7 @@ import {
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
   buildMentionPreview,
+  type ResourceMentionCandidate,
   resourceMentionMatches,
   withBrowserTabMentions,
   withFolderMentions,
@@ -39,7 +44,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
@@ -51,6 +56,11 @@ import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
  * autocomplete. ~10 rows is enough to show several families at once.
  */
 const MENTION_MAX_HEIGHT_CLASS = 'max-h-[min(280px,var(--radix-popper-available-height,280px))]'
+const RESOURCE_MENU_WIDTH_CLASS = 'w-[360px] min-w-0 max-w-[min(360px,calc(100vw-16px))]'
+
+type MentionCandidate =
+  | ResourceMentionCandidate
+  | { type: 'workspace'; item: Pick<Workspace, 'id' | 'name' | 'logoUrl'> }
 
 /**
  * Resource types that are only offered via `@`-mention autocomplete and hidden
@@ -141,11 +151,15 @@ export const PlusMenuDropdown = React.memo(
       enabled: inventoryEnabled,
       includeFolderMentions: true,
     })
-    const { data: allWorkspaces = [], isPending: workspacesPending } = useOrderedWorkspacesQuery(
+    const { data: allWorkspaces, isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
     )
-    const workspaces = allWorkspaces.filter(
-      (workspace) => workspace.organizationId === organizationId
+    const workspaces = useMemo(
+      () =>
+        organizationId
+          ? (allWorkspaces ?? []).filter((workspace) => workspace.organizationId === organizationId)
+          : [],
+      [allWorkspaces, organizationId]
     )
     const [inventories, setInventories] = useState<Record<string, AvailableResources>>({})
     const receiveInventory = useCallback((workspaceId: string, inventory: AvailableResources) => {
@@ -211,20 +225,23 @@ export const PlusMenuDropdown = React.memo(
       selectFolders: true,
     })
 
-    const filteredItems = useMemo(() => {
+    const filteredItems = useMemo((): MentionCandidate[] | null => {
       const rawQuery = isMention ? (mentionQuery ?? '') : search
       const q = rawQuery.toLowerCase().trim()
       if (!isMention && !q) return null
-      if (isMention && !q) {
-        return buildMentionPreview(
-          visibleResources,
-          (type) => getResourceConfig(type).mentionPreviewLimit ?? MENTION_PREVIEW_DEFAULT_LIMIT
-        )
-      }
-      return visibleResources.flatMap(({ type, items }) =>
-        items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
-      )
-    }, [isMention, mentionQuery, search, visibleResources])
+      const workspaceItems: MentionCandidate[] = workspaces
+        .filter((workspace) => workspace.name.toLowerCase().includes(q))
+        .map((item) => ({ type: 'workspace', item }))
+      const resourceItems = q
+        ? visibleResources.flatMap(({ type, items }) =>
+            items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
+          )
+        : buildMentionPreview(
+            visibleResources,
+            (type) => getResourceConfig(type).mentionPreviewLimit ?? MENTION_PREVIEW_DEFAULT_LIMIT
+          )
+      return [...workspaceItems, ...resourceItems]
+    }, [isMention, mentionQuery, search, visibleResources, workspaces])
 
     const filteredItemsRef = useRef(filteredItems)
     filteredItemsRef.current = filteredItems
@@ -257,8 +274,12 @@ export const PlusMenuDropdown = React.memo(
       closeAfterSelect()
     }
 
-    const handleSelectRef = useRef(handleSelect)
-    handleSelectRef.current = handleSelect
+    const handleCandidateSelect = (candidate: MentionCandidate) => {
+      if (candidate.type === 'workspace') handleWorkspaceSelect(candidate.item)
+      else handleSelect(resourceFromItem(candidate.type, candidate.item))
+    }
+    const handleSelectRef = useRef(handleCandidateSelect)
+    handleSelectRef.current = handleCandidateSelect
 
     React.useImperativeHandle(
       ref,
@@ -279,7 +300,7 @@ export const PlusMenuDropdown = React.memo(
           const items = filteredItemsRef.current
           const target = items?.length ? (items[activeIndexRef.current] ?? items[0]) : undefined
           if (!target) return isHydratingRef.current ? 'hydrating' : 'empty'
-          handleSelectRef.current(resourceFromItem(target.type, target.item))
+          handleSelectRef.current(target)
           return 'selected'
         },
       }),
@@ -318,7 +339,7 @@ export const PlusMenuDropdown = React.memo(
       } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
         e.preventDefault()
         const target = filteredItems[activeIndex] ?? filteredItems[0]
-        if (target) handleSelect(resourceFromItem(target.type, target.item))
+        if (target) handleCandidateSelect(target)
       }
     }
 
@@ -392,10 +413,8 @@ export const PlusMenuDropdown = React.memo(
           collisionPadding={8}
           className={cn(
             'flex flex-col overflow-hidden',
-            // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
-            // to its content via the emcn DropdownMenuContent default max-w.
-            // Mention mode renders resource names directly, so widen for breathing room.
-            isMention && `max-w-[min(300px,calc(100vw-32px))] ${MENTION_MAX_HEIGHT_CLASS}`
+            RESOURCE_MENU_WIDTH_CLASS,
+            isMention && MENTION_MAX_HEIGHT_CLASS
           )}
           onCloseAutoFocus={handleCloseAutoFocus}
           onOpenAutoFocus={handleOpenAutoFocus}
@@ -426,6 +445,7 @@ export const PlusMenuDropdown = React.memo(
                     selectFolders
                     onSelect={handleSelect}
                     onSelectWorkspace={handleWorkspaceSelect}
+                    subContentClassName={RESOURCE_MENU_WIDTH_CLASS}
                   />
                 ))}
               <ResourceMenuSections
@@ -434,15 +454,17 @@ export const PlusMenuDropdown = React.memo(
                   organizationId ? visibleResources.filter(isNativeResourceGroup) : visibleResources
                 }
                 onSelect={handleSelect}
-                subContentClassName='max-w-[min(300px,calc(100vw-32px))]'
+                subContentClassName={RESOURCE_MENU_WIDTH_CLASS}
               />
             </div>
             {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
                   menu Collection, or FocusScope restores focus to the content root. */}
             {filteredItems !== null &&
               (filteredItems.length > 0 ? (
-                filteredItems.map(({ type, item }, index) => {
-                  const config = getResourceConfig(type)
+                filteredItems.map((candidate, index) => {
+                  const { type, item } = candidate
+                  const config = type === 'workspace' ? null : getResourceConfig(type)
+                  const workspaceName = 'workspaceName' in item ? item.workspaceName : undefined
                   const isActive = index === activeIndex
                   /* Items arrive grouped by family (one group per type, ordered by
                      RESOURCE_MENU_ORDER), so a type change marks a section boundary.
@@ -450,15 +472,19 @@ export const PlusMenuDropdown = React.memo(
                      therefore every keyboard path — indexing exactly what it did. */
                   const startsSection = index === 0 || filteredItems[index - 1]?.type !== type
                   return (
-                    <React.Fragment key={`${type}:${item.workspaceId ?? ''}:${item.id}`}>
-                      {startsSection && <DropdownMenuLabel>{config.label}</DropdownMenuLabel>}
+                    <React.Fragment
+                      key={`${type}:${'workspaceId' in item ? item.workspaceId : ''}:${item.id}`}
+                    >
+                      {startsSection && (
+                        <DropdownMenuLabel>{config?.label ?? 'Workspaces'}</DropdownMenuLabel>
+                      )}
                       <button
                         type='button'
                         role='menuitem'
                         data-filtered-idx={index}
                         onMouseEnter={() => setActiveIndex(index)}
                         onClick={() => {
-                          handleSelect(resourceFromItem(type, item))
+                          handleCandidateSelect(candidate)
                         }}
                         className={cn(
                           dropdownMenuRowClass,
@@ -467,11 +493,24 @@ export const PlusMenuDropdown = React.memo(
                           isActive && 'bg-[var(--surface-hover)]'
                         )}
                       >
-                        {config.renderDropdownItem({ item })}
-                        {typeof item.workspaceName === 'string' && (
-                          <span className='ml-auto text-[var(--text-muted)] text-xs'>
-                            {item.workspaceName}
-                          </span>
+                        {candidate.type === 'workspace' ? (
+                          <>
+                            <IdentityTile
+                              initial={getWorkspaceInitial(candidate.item.name)}
+                              logoUrl={candidate.item.logoUrl}
+                            />
+                            <DropdownMenuItemLabel label={candidate.item.name} />
+                          </>
+                        ) : (
+                          getResourceConfig(candidate.type).renderDropdownItem({
+                            item: candidate.item,
+                          })
+                        )}
+                        {typeof workspaceName === 'string' && (
+                          <OverflowText
+                            label={workspaceName}
+                            className='ml-auto max-w-[35%] shrink-0 text-[var(--text-muted)] text-xs'
+                          />
                         )}
                       </button>
                     </React.Fragment>

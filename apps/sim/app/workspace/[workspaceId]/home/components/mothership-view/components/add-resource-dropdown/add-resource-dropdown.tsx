@@ -401,6 +401,7 @@ interface WorkspaceResourceMenuContentProps {
   /** Offers every folder as an attachable entry, as chat does. */
   selectFolders?: boolean
   onSelect: (resource: MothershipResource) => void
+  subContentClassName?: string
 }
 
 function WorkspaceResourceMenuContent({
@@ -410,6 +411,7 @@ function WorkspaceResourceMenuContent({
   searchable = true,
   selectFolders,
   onSelect,
+  subContentClassName,
 }: WorkspaceResourceMenuContentProps) {
   const { groups, structureFolders, isHydrating } = useAvailableResources(workspaceId, {
     enabled,
@@ -425,7 +427,12 @@ function WorkspaceResourceMenuContent({
   /** Lists fill in as they load, so a trailing row keeps a loading workspace from reading as empty. */
   const menu = (
     <>
-      <ResourceMenuSections sections={sections} groups={groups} onSelect={select} />
+      <ResourceMenuSections
+        sections={sections}
+        groups={groups}
+        onSelect={select}
+        subContentClassName={subContentClassName}
+      />
       {isHydrating && <DropdownMenuItem disabled>Loading resources</DropdownMenuItem>}
     </>
   )
@@ -449,6 +456,7 @@ interface WorkspaceResourceSubmenuProps {
    * offers its folder, for pickers that can attach a whole workspace.
    */
   onSelectWorkspace?: (workspace: Pick<Workspace, 'id' | 'name'>) => void
+  subContentClassName?: string
 }
 
 /**
@@ -461,6 +469,7 @@ export function WorkspaceResourceSubmenu({
   selectFolders,
   onSelect,
   onSelectWorkspace,
+  subContentClassName,
 }: WorkspaceResourceSubmenuProps) {
   const [open, setOpen] = useState(false)
   const icon = (
@@ -472,7 +481,9 @@ export function WorkspaceResourceSubmenu({
         {icon}
         <DropdownMenuItemLabel label={workspace.name} />
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className='flex w-[320px] flex-col overflow-hidden'>
+      <DropdownMenuSubContent
+        className={cn('flex w-[320px] flex-col overflow-hidden', subContentClassName)}
+      >
         {onSelectWorkspace && (
           <DropdownMenuItem onClick={() => onSelectWorkspace(workspace)}>
             {icon}
@@ -486,6 +497,7 @@ export function WorkspaceResourceSubmenu({
           searchable={false}
           selectFolders={selectFolders}
           onSelect={onSelect}
+          subContentClassName={subContentClassName}
         />
       </DropdownMenuSubContent>
     </DropdownMenuSub>

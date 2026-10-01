@@ -217,9 +217,8 @@ export function usePromptEditor({
 
   /**
    * Start offset of a mention/slash token most recently dismissed by the user
-   * (outside click or Escape) without a following keystroke — suppresses a
-   * single reopen of the menu for that exact token when the caret's own
-   * selection-change handler runs immediately after.
+   * (outside click or Escape). Mention dismissal lasts until the caret leaves
+   * that query; slash dismissal lasts until the next edit.
    */
   const dismissedMentionStartRef = useRef<number | null>(null)
   const dismissedSlashStartRef = useRef<number | null>(null)
@@ -709,12 +708,7 @@ export function usePromptEditor({
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
       if (!contextsEnabledRef.current) return
       const active = getActiveMentionAtRef.current(caret, text)
-      // Any word-boundary character inside the query — whitespace, sentence
-      // punctuation, or brackets — dismisses the menu. The mention token
-      // is "complete" the moment the user types a non-word character, so
-      // there's nothing more to query. Mirrors the boundary set the
-      // integration auto-detector uses for symmetry.
-      const isOpenable = active && !/[\s.,;:!?(){}[\]"'`/\\<>]/.test(active.query)
+      const isOpenable = active && !/[\r\n]/.test(active.query)
       if (!isOpenable) {
         if (mentionRangeRef.current !== null) {
           mentionRangeRef.current = null
@@ -732,6 +726,7 @@ export function usePromptEditor({
         }
         return
       }
+      dismissedMentionStartRef.current = null
 
       const wasActive = mentionRangeRef.current !== null
       mentionRangeRef.current = { start: active.start, end: active.end }
@@ -825,9 +820,15 @@ export function usePromptEditor({
       pendingCursorRef.current = null
       const previousValue = valueRef.current
       const nextValue = e.target.value
+      const hasMentionQuery =
+        mentionRangeRef.current !== null || dismissedMentionStartRef.current !== null
 
       let finalValue = nextValue
-      if (contextsEnabledRef.current && nextValue.length === previousValue.length + 1) {
+      if (
+        contextsEnabledRef.current &&
+        !hasMentionQuery &&
+        nextValue.length === previousValue.length + 1
+      ) {
         // Single-char keystroke — synchronous, boundary-triggered.
         finalValue = integrationAutoMention.processChange({
           textarea: e.target,
@@ -843,6 +844,7 @@ export function usePromptEditor({
           nextValue: finalValue,
         })
       } else if (
+        !hasMentionQuery &&
         nextValue.length > previousValue.length + 1 &&
         nextValue.length <= PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS
       ) {
@@ -867,7 +869,6 @@ export function usePromptEditor({
       const caret = e.target.selectionStart ?? finalValue.length
       valueRef.current = finalValue
       setValueState(finalValue)
-      dismissedMentionStartRef.current = null
       dismissedSlashStartRef.current = null
       syncMentionState(e.target, finalValue, caret)
       syncSlashState(e.target, finalValue, caret)
