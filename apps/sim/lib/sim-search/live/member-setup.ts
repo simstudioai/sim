@@ -109,6 +109,11 @@ export async function addOrganizationSearchMcpProvider(
     )
     .limit(1)
   if (existing) {
+    if (!(await isSearchProviderEnabled(provider, { kind: 'organization', organizationId })))
+      throw new OrchestrationError(
+        'forbidden',
+        'Zoom Search is not available for this organization'
+      )
     if (!existing.enabled)
       throw new OrchestrationError(
         'validation',
