@@ -672,6 +672,8 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
 
   it('the operator CLI refuses unverified endpoints and connection overrides before connecting', () => {
     const script = fileURLToPath(new URL('../scripts/retire-indexed-search.ts', import.meta.url))
+    const overrideUrl = new URL(databaseUrl)
+    overrideUrl.searchParams.set('statement_timeout', '0')
     for (const url of [
       'postgresql://reader@pool.example.invalid:5432/postgres',
       'postgresql://reader@fixture.pg.psdb.cloud:6432/postgres?sslmode=verify-full&sslrootcert=system',
@@ -680,7 +682,7 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
       'postgresql://reader@fixture.pg.psdb.cloud:5432/postgres?sslmode=disable',
       'postgresql://fixture.pg.psdb.cloud:5432/postgres?sslmode=verify-full&sslrootcert=system',
       'postgresql://reader@fixture.pg.psdb.cloud:5432/?sslmode=verify-full&sslrootcert=system',
-      `${databaseUrl}?statement_timeout=0`,
+      overrideUrl.toString(),
     ]) {
       const result = spawnSync('bun', ['--no-env-file', script, 'identity'], {
         env: { ...process.env, NODE_ENV: 'development', MIGRATION_DATABASE_URL: url },
