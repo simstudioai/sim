@@ -413,7 +413,7 @@ export async function runStreamLoop(
           context.errors.push(failureMessage)
           logger.error('Received invalid stream event on shared path', {
             reason: parsedEvent.reason,
-            message: parsedEvent.message,
+            detail: parsedEvent.message,
             errors: parsedEvent.errors,
           })
           throw new FatalSseEventError(failureMessage)
@@ -458,7 +458,7 @@ export async function runStreamLoop(
             agentId: streamEvent.scope?.agentId,
             code: errorPayload.code,
             provider: errorPayload.provider,
-            message: errorPayload.message,
+            errorMessage: errorPayload.message,
             error: errorPayload.error,
             displayMessage: errorPayload.displayMessage,
             data: errorPayload.data,

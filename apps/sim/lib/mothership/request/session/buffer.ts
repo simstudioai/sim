@@ -487,7 +487,7 @@ export async function readEvents(
       logger.warn('Skipping corrupt outbox entry', {
         streamId,
         reason: parsed.reason,
-        message: parsed.message,
+        detail: parsed.message,
         errors: parsed.errors,
       })
       continue

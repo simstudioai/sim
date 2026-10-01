@@ -12,7 +12,8 @@ import type { Logger } from '@sim/logger'
  * execution's event history is read from a cursor, so the write that would breach
  * the ceiling is refused and the buffer stops growing. The copilot replay ring trims
  * its oldest events by bytes below its ceiling instead, refunding what it drops, so a
- * long run slides rather than refuses; a reader behind the trim gets a replay gap.
+ * long run slides rather than refuses; a reader behind the trim is re-synced from the
+ * worker's run log, and ends with a replay gap only when that log cannot serve it.
  * A live-update feed is bounded differently — see `lib/realtime/event-log.ts`, whose
  * readers already handle a prune by refetching, so it drops oldest-first instead.
  *

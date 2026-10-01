@@ -2037,6 +2037,57 @@ describe('runCopilotLifecycle', () => {
     }
   )
 
+  it('reports a replay refusal over a reasonless error terminal', async () => {
+    const abortController = new AbortController()
+    const refusal = ownerRefusal()
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+        abortController.abort(refusal)
+      }
+    )
+
+    const result = await runWithStreamAbort(abortController)
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        cancelled: false,
+        error: refusal.userMessage,
+        errorCode: REPLAY_BUDGET_EXHAUSTED_CODE,
+      })
+    )
+  })
+
+  it('explains an error terminal that arrives without a reason as an already-ended run', async () => {
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+      }
+    )
+
+    const result = await runWithStreamAbort(new AbortController())
+
+    expect(result.success).toBe(false)
+    expect(result.cancelled).toBe(false)
+    expect(result.error).toEqual(expect.stringContaining('already ended'))
+  })
+
+  it('keeps a Stop a cancellation when the error terminal carries no reason', async () => {
+    const abortController = new AbortController()
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+        abortController.abort()
+      }
+    )
+
+    const result = await runWithStreamAbort(abortController)
+
+    expect(result.cancelled).toBe(true)
+    expect(result.error).toBeUndefined()
+  })
+
   it('keeps a Stop a cancellation when a replay refusal follows it', async () => {
     const abortController = new AbortController()
     mockRunStreamLoop.mockImplementationOnce(
@@ -3326,6 +3377,7 @@ describe('runCopilotLifecycle', () => {
     )
 
     expect(result.success).toBe(false)
+    expect(result.error).toBeUndefined()
     expect(result.errors).toEqual(['The provider is overloaded'])
   })
 

@@ -45,8 +45,13 @@ export const CLIENT_TOOL_RESULT_TIMEOUT_MS = 60 * 60 * 1000
 /** Extra slack the resume gate allows past the slowest pending tool's watchdog. */
 export const TOOL_WATCHDOG_RESUME_GRACE_MS = 30_000
 
-/** Timeout for the client-side streaming response handler (60 min). */
-export const STREAM_TIMEOUT_MS = 3_600_000
+/**
+ * The worker's default deadline for one Chat run (60 min).
+ *
+ * Sim does not enforce it: stream legs have no wall clock. It is the base of
+ * `USAGE_SETTLE_MS`, since it bounds how long a run tops up its model charge.
+ */
+export const CHAT_RUN_DEADLINE_MS = 3_600_000
 
 /**
  * How long a workflow tool call waits for a browser to pick it up before the
