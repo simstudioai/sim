@@ -3,7 +3,7 @@
 import { ChipModalField, ChipTag, cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { isContainerType } from '@/lib/workflows/autolayout'
-import { resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
+import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
 import {
   InlineDiff,
   TextDiff,
@@ -49,8 +49,9 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
   }
   const oldText = textual ? text(oldValue) : scalar ? formatScalar(blockType, field, oldValue) : ''
   const newText = textual ? text(newValue) : scalar ? formatScalar(blockType, field, newValue) : ''
-  // The summary saw a change the masked text cannot show, so the change is inside a secret.
-  const maskedOnly = (textual || (scalar && !oneSided)) && oldText === newText
+  const emptyTextChange = textual && oldText === '' && newText === ''
+  const sameDisplayValue =
+    !emptyTextChange && (textual || (scalar && !oneSided)) && oldText === newText
 
   return (
     <ChipModalField type='custom' title={label} flush>
@@ -59,12 +60,20 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
           {isBlankValue(oldValue) ? 'Set' : isBlankValue(newValue) ? 'Cleared' : 'Value changed'}
         </span>
       )}
-      {maskedOnly && (
-        <span className='text-[var(--text-secondary)] text-small'>A masked value changed</span>
+      {sameDisplayValue && (
+        <span className='text-[var(--text-secondary)] text-small'>Value changed</span>
       )}
-      {textual && !maskedOnly && <TextDiff oldText={oldText} newText={newText} />}
+      {emptyTextChange && (
+        <OldNewPair
+          oldText={formatValueForDisplay(oldValue)}
+          newText={formatValueForDisplay(newValue)}
+        />
+      )}
+      {textual && !sameDisplayValue && !emptyTextChange && (
+        <TextDiff oldText={oldText} newText={newText} />
+      )}
       {scalar &&
-        !maskedOnly &&
+        !sameDisplayValue &&
         (oneSided ? (
           <ValueChip
             tone={isBlankValue(oldValue) ? 'added' : 'removed'}

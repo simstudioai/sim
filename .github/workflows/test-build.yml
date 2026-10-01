@@ -201,7 +201,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Verify SCIM and administration over real HTTP
+      - name: Verify SCIM, administration and workflow comparisons over real HTTP
         working-directory: apps/sim
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3017
@@ -249,14 +249,20 @@ jobs:
           SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
           SCIM_E2E_REPORT_PATH="$RUNNER_TEMP/scim-e2e-report.json" \
             bun run test:scim:e2e
+          VERSION_COMPARE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+          VERSION_COMPARE_E2E_DATABASE_URL="$DATABASE_URL" \
+          VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+          VERSION_COMPARE_E2E_REPORT_PATH="$RUNNER_TEMP/version-compare-http-report.json" \
+            bun run test:workflow-version-compare:e2e
 
-      - name: Upload SCIM failure report and HTTP status log
+      - name: Upload HTTP acceptance failure reports and status log
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: scim-failure-${{ matrix.provision }}
           path: |
             ${{ runner.temp }}/scim-e2e-report.json
+            ${{ runner.temp }}/version-compare-http-report.json
             ${{ runner.temp }}/scim-http-status.log
           if-no-files-found: ignore
           retention-days: 7

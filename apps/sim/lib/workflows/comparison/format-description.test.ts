@@ -211,10 +211,12 @@ describe('formatDiffSummaryForDescription', () => {
         added: 2,
         removed: 1,
         addedDetails: [
-          { sourceName: 'My Agent', targetName: 'Slack' },
-          { sourceName: 'Router', targetName: 'Gmail' },
+          { source: 'my-agent', target: 'slack', sourceName: 'My Agent', targetName: 'Slack' },
+          { source: 'router', target: 'gmail', sourceName: 'Router', targetName: 'Gmail' },
         ],
-        removedDetails: [{ sourceName: 'Function', targetName: 'Webhook' }],
+        removedDetails: [
+          { source: 'function', target: 'webhook', sourceName: 'Function', targetName: 'Webhook' },
+        ],
       },
     })
 
@@ -231,11 +233,11 @@ describe('formatDiffSummaryForDescription', () => {
         added: 5,
         removed: 0,
         addedDetails: [
-          { sourceName: 'A', targetName: 'B' },
-          { sourceName: 'C', targetName: 'D' },
-          { sourceName: 'E', targetName: 'F' },
-          { sourceName: 'G', targetName: 'H' },
-          { sourceName: 'I', targetName: 'J' },
+          { source: 'a', target: 'b', sourceName: 'A', targetName: 'B' },
+          { source: 'c', target: 'd', sourceName: 'C', targetName: 'D' },
+          { source: 'e', target: 'f', sourceName: 'E', targetName: 'F' },
+          { source: 'g', target: 'h', sourceName: 'G', targetName: 'H' },
+          { source: 'i', target: 'j', sourceName: 'I', targetName: 'J' },
         ],
         removedDetails: [],
       },

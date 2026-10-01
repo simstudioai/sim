@@ -4,13 +4,17 @@ import { type CSSProperties, memo, useMemo } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
 import {
   CanvasSentenceView,
-  HANDLE_POSITIONS,
   humanizeBlockName,
   SubBlockRowView,
   WorkflowTypeTag,
 } from '@sim/workflow-renderer'
-import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workflow-types/workflow'
+import {
+  WORKFLOW_ERROR_HANDLE_ID,
+  WORKFLOW_SOURCE_HANDLE_ID,
+  WORKFLOW_TARGET_HANDLE_ID,
+} from '@sim/workflow-types/workflow'
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
+import { type CanvasPort, getCanvasPorts } from '@/lib/workflows/blocks/canvas-ports'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
   type CardSelector,
@@ -40,6 +44,12 @@ import {
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { DiffStatusLabel } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
+import { PreviewPortRows } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/port-rows/port-rows'
+import {
+  getPreviewPortRows,
+  PREVIEW_CARD_BORDER_WIDTH,
+} from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-ports'
+import { usePreviewPortInternals } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/use-preview-port-internals'
 import { getBlock } from '@/blocks'
 import { hasBlockAccent } from '@/blocks/accent'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
@@ -104,6 +114,7 @@ interface WorkflowPreviewBlockData extends Record<string, unknown> {
   diffStatus?: BlockDiffStatus
   /** Sub-block ids the comparison reported as changed on this block */
   changedFields?: string[]
+  removedPorts?: CanvasPort[]
 }
 
 /** A removed card fades instead of ringing, so only the live statuses have a ring. */
@@ -248,7 +259,7 @@ const SubBlockRow = memo(function SubBlockRow({
  */
 type WorkflowPreviewBlockNode = Node<WorkflowPreviewBlockData, 'workflowBlock' | 'noteBlock'>
 
-function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>) {
+function WorkflowPreviewBlockInner({ id, data }: NodeProps<WorkflowPreviewBlockNode>) {
   const {
     type,
     name,
@@ -264,6 +275,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
     lightweight = false,
     diffStatus,
     changedFields,
+    removedPorts,
   } = data
   const changedFieldSet = new Set(changedFields)
 
@@ -405,107 +417,31 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
     )
   }, [lightweight, blockConfig, type, effectiveTrigger, visibleSubBlocks, onCardById, rawValues])
 
-  /**
-   * Compute condition rows for condition blocks.
-   * In lightweight mode, returns default structure without parsing values.
-   */
-  const conditionRows = useMemo(() => {
-    if (type !== 'condition') return []
-
-    /** Default structure for lightweight mode or when no values */
-    const defaultRows = [
-      { id: 'if', title: 'if', value: '' },
-      { id: 'else', title: 'else', value: '' },
-    ]
-
-    if (lightweight) return defaultRows
-
-    const conditionsValue = rawValues.conditions
-    const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const conditionItem = item as { id?: string; value?: unknown }
-            const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
-            return {
-              id: conditionItem?.id ?? `cond-${index}`,
-              title,
-              value: typeof conditionItem?.value === 'string' ? conditionItem.value : '',
-            }
-          })
-        }
-      }
-    } catch {
-      /* empty */
-    }
-
-    return defaultRows
-  }, [type, rawValues, lightweight])
-
-  /**
-   * Compute router rows for router_v2 blocks.
-   * In lightweight mode, returns default structure without parsing values.
-   */
-  const routerRows = useMemo(() => {
-    if (type !== 'router_v2') return []
-
-    /** Default structure for lightweight mode or when no values */
-    const defaultRows = [{ id: 'route1', value: '' }]
-
-    if (lightweight) return defaultRows
-
-    const routesValue = rawValues.routes
-    const raw = typeof routesValue === 'string' ? routesValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const routeItem = item as { id?: string; value?: string }
-            return {
-              id: routeItem?.id ?? `route${index + 1}`,
-              value: routeItem?.value ?? '',
-            }
-          })
-        }
-      }
-    } catch {
-      /* empty */
-    }
-
-    return defaultRows
-  }, [type, rawValues, lightweight])
+  const portBlock = {
+    id,
+    type,
+    triggerMode: isTrigger,
+    errorEnabled,
+    subBlocks: {
+      conditions: { value: rawValues.conditions },
+      routes: { value: rawValues.routes },
+      context: { value: rawValues.context },
+    },
+  }
+  const ports = getCanvasPorts(portBlock, hasErrorConnection)
+  const portRows = getPreviewPortRows(portBlock, removedPorts)
+  usePreviewPortInternals(id, [...ports, ...(removedPorts ?? [])])
+  const isBranchBlock = type === 'condition' || type === 'router_v2'
 
   if (!blockConfig || !canvasPresentation) {
     return null
   }
 
   const IconComponent = blockConfig.icon
-  const isStarterOrTrigger = blockConfig.category === 'triggers' || type === 'starter' || isTrigger
   const isNoteBlock = type === 'note'
-
-  const shouldShowDefaultHandles = !isStarterOrTrigger && !isNoteBlock
+  const mountedHandles = new Set(ports.map((port) => port.handleId))
   const hasSubBlocks = visibleSubBlocks.length > 0
-  /*
-   * Gated on rows the preview actually renders. The error row that used to be
-   * the guaranteed content for every non-trigger block is gone, so keeping
-   * `shouldShowDefaultHandles` in this test painted an empty padded band under
-   * the header of any unconfigured block — content the editor canvas, which
-   * derives this from its real sections, never shows.
-   */
-  const hasContentBelowHeader =
-    type === 'condition'
-      ? conditionRows.length > 0
-      : type === 'router_v2'
-        ? /* The Context row renders whether or not any routes are defined. */
-          true
-        : /* A sentence built only from literals resolves no field, so it
-             contributes no rows but still paints. */
-          sentenceSegments !== null || hasSubBlocks
+  const hasContentBelowHeader = !isBranchBlock && (sentenceSegments !== null || hasSubBlocks)
 
   const hasError = executionStatus === 'error'
   const hasSuccess = executionStatus === 'success'
@@ -513,8 +449,9 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
 
   return (
     <div
+      style={{ '--preview-border-width': `${PREVIEW_CARD_BORDER_WIDTH}px` } as CSSProperties}
       className={cn(
-        'relative w-[250px] select-none rounded-2xl border-[1.5px] border-[var(--border-1)] bg-[var(--surface-2)]',
+        'relative w-[250px] select-none rounded-2xl border-[length:var(--preview-border-width)] border-[var(--border)] bg-[var(--surface-2)]',
         /* Ghost: the same card, just faded, so the eye reads "used to be here" not "broken". */
         isRemoved &&
           'border-[var(--border)] bg-[var(--surface-1)] [&>[data-ghost-content]]:opacity-45'
@@ -545,7 +482,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
       )}
 
       {/* Target handle - not shown for triggers/starters */}
-      {shouldShowDefaultHandles && (
+      {mountedHandles.has(WORKFLOW_TARGET_HANDLE_ID) && (
         <Handle
           type='target'
           position={Position.Left}
@@ -578,18 +515,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
       {/* Content area with subblocks */}
       {hasContentBelowHeader && (
         <div data-ghost-content='' className='flex flex-col gap-2 p-2'>
-          {type === 'condition' ? (
-            conditionRows.map((cond) => (
-              <SubBlockRow
-                key={cond.id}
-                title={cond.title}
-                value={lightweight ? undefined : getDisplayValue(cond.value)}
-                workflowMap={workflowMap}
-                workflowLabelsReady={workflowLabelsReady}
-                changed={changedFieldSet.has('conditions')}
-              />
-            ))
-          ) : sentenceSegments ? (
+          {sentenceSegments ? (
             <CanvasSentenceView
               segments={sentenceSegments}
               renderChip={(subBlockId) => {
@@ -624,27 +550,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
                 )
               }}
             />
-          ) : type === 'router_v2' ? (
-            <>
-              <SubBlockRow
-                key='context'
-                title='Context'
-                value={lightweight ? undefined : getDisplayValue(rawValues.context)}
-                workflowMap={workflowMap}
-                workflowLabelsReady={workflowLabelsReady}
-                changed={changedFieldSet.has('context')}
-              />
-              {routerRows.map((route, index) => (
-                <SubBlockRow
-                  key={route.id}
-                  title={`Route ${index + 1}`}
-                  value={lightweight ? undefined : getDisplayValue(route.value)}
-                  workflowMap={workflowMap}
-                  workflowLabelsReady={workflowLabelsReady}
-                  changed={changedFieldSet.has('routes')}
-                />
-              ))}
-            </>
           ) : (
             visibleSubBlocks.map((subBlock) => {
               const rawValue = lightweight ? undefined : rawValues[subBlock.id]
@@ -670,49 +575,17 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
         </div>
       )}
 
-      {/* Condition block handles */}
-      {type === 'condition' && (
-        <>
-          {conditionRows.map((cond, condIndex) => {
-            const topOffset =
-              HANDLE_POSITIONS.CONDITION_START_Y + condIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
-            return (
-              <Handle
-                key={`handle-${cond.id}`}
-                type='source'
-                position={Position.Right}
-                id={`condition-${cond.id}`}
-                className={HANDLE_STYLES.right}
-                style={{ top: `${topOffset}px`, right: '-7px', transform: 'translateY(-50%)' }}
-              />
-            )
-          })}
-        </>
-      )}
-
-      {/* Router block handles */}
-      {type === 'router_v2' && (
-        <>
-          {routerRows.map((route, routeIndex) => {
-            const topOffset =
-              HANDLE_POSITIONS.CONDITION_START_Y +
-              (routeIndex + 1) * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
-            return (
-              <Handle
-                key={`handle-${route.id}`}
-                type='source'
-                position={Position.Right}
-                id={`router-${route.id}`}
-                className={HANDLE_STYLES.right}
-                style={{ top: `${topOffset}px`, right: '-7px', transform: 'translateY(-50%)' }}
-              />
-            )
-          })}
-        </>
-      )}
+      <div data-ghost-content=''>
+        <PreviewPortRows
+          rows={portRows}
+          changedFields={changedFieldSet}
+          lightweight={lightweight}
+          borderWidth={PREVIEW_CARD_BORDER_WIDTH}
+        />
+      </div>
 
       {/* Source and error handles for non-condition/router/note blocks */}
-      {type !== 'condition' && type !== 'router_v2' && type !== 'response' && !isNoteBlock && (
+      {mountedHandles.has(WORKFLOW_SOURCE_HANDLE_ID) && (
         <Handle
           type='source'
           position={Position.Right}
@@ -726,11 +599,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
           half of the error-output toggle, and a card that never opted in should
           not grow one. An existing error edge keeps it mounted regardless, or
           React Flow would drop that edge for having no handle to leave from. */}
-      {shouldShowDefaultHandles && type !== 'response' && (errorEnabled || hasErrorConnection) && (
+      {mountedHandles.has(WORKFLOW_ERROR_HANDLE_ID) && (
         <Handle
           type='source'
           position={Position.Bottom}
-          id='error'
+          id={WORKFLOW_ERROR_HANDLE_ID}
           className={HANDLE_STYLES.error}
           style={ERROR_HANDLE_STYLE}
         />
@@ -769,6 +642,7 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.hasErrorConnection !== nextProps.data.hasErrorConnection ||
     prevProps.data.lightweight !== nextProps.data.lightweight ||
     prevProps.data.diffStatus !== nextProps.data.diffStatus ||
+    prevProps.data.removedPorts !== nextProps.data.removedPorts ||
     !sameFields(prevProps.data.changedFields, nextProps.data.changedFields)
   ) {
     return false

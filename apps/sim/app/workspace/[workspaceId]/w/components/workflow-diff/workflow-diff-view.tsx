@@ -89,6 +89,7 @@ export function WorkflowDiffView({
     summary.variableChanges.added +
     summary.variableChanges.removed +
     summary.variableChanges.modified
+  const connectionCount = summary.edgeChanges.added + summary.edgeChanges.removed
   const counts = [
     { label: 'added', value: summary.addedBlocks.length, className: 'text-[var(--brand-accent)]' },
     { label: 'modified', value: modifiedCount, className: 'text-[var(--warning)]' },
@@ -98,11 +99,15 @@ export function WorkflowDiffView({
       className: 'text-[var(--text-error)]',
     },
     {
-      label: 'connections',
-      value: summary.edgeChanges.added + summary.edgeChanges.removed,
+      label: connectionCount === 1 ? 'connection' : 'connections',
+      value: connectionCount,
       className: 'text-[var(--text-tertiary)]',
     },
-    { label: 'variables', value: variableCount, className: 'text-[var(--text-tertiary)]' },
+    {
+      label: variableCount === 1 ? 'variable' : 'variables',
+      value: variableCount,
+      className: 'text-[var(--text-tertiary)]',
+    },
   ].filter((count) => count.value > 0)
 
   return (
@@ -135,6 +140,7 @@ export function WorkflowDiffView({
             blockDiffStatus={overlay.blockStatus}
             edgeDiffStatus={overlay.edgeStatus}
             changedFieldsByBlock={overlay.changedFieldsByBlock}
+            removedPortsByBlock={overlay.removedPortsByBlock}
             selectedBlockId={selectedBlockId}
             onNodeClick={handleNodeClick}
             onPaneClick={handlePaneClick}

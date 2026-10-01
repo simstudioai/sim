@@ -1,8 +1,7 @@
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { materializeDeploymentState } from '@/lib/workflows/persistence/utils'
-import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
+import { materializeWorkflowComparisonState } from '@/lib/workflows/persistence/comparison-state'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const MAX_COMPARISON_BYTES = 16 * 1024 * 1024
@@ -48,17 +47,10 @@ export async function loadWorkflowComparisonVersions(
       .limit(2)
     const states = new Map<number, WorkflowState>()
     for (const row of rows) {
-      const data = await materializeDeploymentState(workflowId, row, workspaceId, tx, {
-        cache: false,
-      })
-      states.set(row.version, {
-        blocks: data.blocks,
-        edges: data.edges,
-        loops: data.loops,
-        parallels: data.parallels,
-        variables: parseWorkflowVariables(data.variables) ?? {},
-        lastSaved: 0,
-      })
+      states.set(
+        row.version,
+        await materializeWorkflowComparisonState(workflowId, row, workspaceId, tx)
+      )
     }
     const baseState = states.get(base)
     const targetState = states.get(target)

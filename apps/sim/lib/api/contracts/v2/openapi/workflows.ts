@@ -630,7 +630,7 @@ const declaredRoutes = [
       operationId: 'compareWorkflowVersionsV2',
       summary: 'Compare Workflow Versions',
       description:
-        'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. The combined snapshots must fit within 16 MiB.',
+        'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. Connections include stable block and port identifiers. The combined snapshots and the comparison result must each fit within 16 MiB.',
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('Changes from the base deployment to the target deployment.'),
     }),

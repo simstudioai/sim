@@ -1426,10 +1426,18 @@ type CompareWorkflowVersionsResponseRef0 = {
       added: number
       removed: number
       addedDetails: Array<{
+        source: string
+        target: string
+        sourceHandle?: string
+        targetHandle?: string
         sourceName: string
         targetName: string
       }>
       removedDetails: Array<{
+        source: string
+        target: string
+        sourceHandle?: string
+        targetHandle?: string
         sourceName: string
         targetName: string
       }>

@@ -1,4 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isJsonWithinByteLimit } from '@/lib/core/utils/bounded-json'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -6,6 +8,8 @@ import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/princip
 import { generateWorkflowDiffSummary, omitPresentationChanges } from '@/lib/workflows/comparison'
 import { redactWorkflowDiffSummary } from '@/lib/workflows/comparison/redact'
 import { loadWorkflowComparisonVersions } from '@/lib/workflows/persistence/compare-versions'
+
+const MAX_COMPARISON_RESULT_BYTES = 16 * 1024 * 1024
 
 export interface CompareWorkflowVersionsInput {
   workflowId: string
@@ -35,11 +39,18 @@ export const compareWorkflowVersions = defineAuthorizedWorkflowUseCase({
       input.target
     )
     const summary = omitPresentationChanges(generateWorkflowDiffSummary(states.target, states.base))
-    return {
+    const result = {
       workflowId: context.workflowId,
       base: input.base,
       target: input.target,
       diff: redactWorkflowDiffSummary(summary, states.base, states.target),
     }
+    if (!isJsonWithinByteLimit(result, MAX_COMPARISON_RESULT_BYTES)) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        'Deployment comparison result exceeds the 16 MiB limit'
+      )
+    }
+    return result
   },
 })

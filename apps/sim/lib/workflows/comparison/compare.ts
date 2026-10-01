@@ -8,10 +8,10 @@ import {
   type CanonicalFieldSpec,
   canonicalizeSubBlockValue,
 } from '@/lib/workflows/canonical/subblock-value'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   extractBlockFieldsForComparison,
   filterSubBlockIds,
+  type NormalizedEdge,
   normalizedStringify,
   normalizeEdge,
   normalizeLoop,
@@ -20,7 +20,8 @@ import {
   normalizeValue,
   normalizeVariables,
   sanitizeVariable,
-} from './normalize'
+} from '@/lib/workflows/comparison/normalize'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
  * Compare the current workflow state with the deployed state to detect meaningful changes.
@@ -73,9 +74,13 @@ export interface ContainerChange {
   nodesRemoved: string[]
 }
 
-/**
- * Result of workflow diff analysis between two workflow states
- */
+/** A connection's canonical endpoints and the block names from its own version. */
+export interface EdgeChange extends NormalizedEdge {
+  sourceName: string
+  targetName: string
+}
+
+/** Result of workflow diff analysis between two workflow states. */
 export interface WorkflowDiffSummary {
   addedBlocks: Array<{ id: string; type: string; name?: string }>
   removedBlocks: Array<{ id: string; type: string; name?: string }>
@@ -83,8 +88,8 @@ export interface WorkflowDiffSummary {
   edgeChanges: {
     added: number
     removed: number
-    addedDetails: Array<{ sourceName: string; targetName: string }>
-    removedDetails: Array<{ sourceName: string; targetName: string }>
+    addedDetails: EdgeChange[]
+    removedDetails: EdgeChange[]
   }
   loopChanges: { added: number; removed: number; modified: number }
   parallelChanges: { added: number; removed: number; modified: number }
@@ -245,6 +250,7 @@ export function generateWorkflowDiffSummary(
       const sourceBlock = currentBlocks[edge.source]
       const targetBlock = currentBlocks[edge.target]
       result.edgeChanges.addedDetails.push({
+        ...normalizeEdge(edge),
         sourceName: sourceBlock?.name || sourceBlock?.type || edge.source,
         targetName: targetBlock?.name || targetBlock?.type || edge.target,
       })
@@ -452,31 +458,31 @@ export function generateWorkflowDiffSummary(
 
   const currentEdges = (currentState.edges || []).map(normalizeEdge)
   const previousEdges = (previousState.edges || []).map(normalizeEdge)
-  const currentEdgeSet = new Set(currentEdges.map(normalizedStringify))
-  const previousEdgeSet = new Set(previousEdges.map(normalizedStringify))
+  const currentEdgeMap = new Map(currentEdges.map((edge) => [normalizedStringify(edge), edge]))
+  const previousEdgeMap = new Map(previousEdges.map((edge) => [normalizedStringify(edge), edge]))
 
-  const resolveBlockName = (blockId: string): string => {
-    const block = currentBlocks[blockId] || previousBlocks[blockId]
+  const resolveBlockName = (blocks: WorkflowState['blocks'], blockId: string): string => {
+    const block = blocks[blockId]
     return block?.name || block?.type || blockId
   }
 
-  for (const edgeStr of currentEdgeSet) {
-    if (!previousEdgeSet.has(edgeStr)) {
+  for (const [edgeKey, edge] of currentEdgeMap) {
+    if (!previousEdgeMap.has(edgeKey)) {
       result.edgeChanges.added++
-      const edge = JSON.parse(edgeStr) as { source: string; target: string }
       result.edgeChanges.addedDetails.push({
-        sourceName: resolveBlockName(edge.source),
-        targetName: resolveBlockName(edge.target),
+        ...edge,
+        sourceName: resolveBlockName(currentBlocks, edge.source),
+        targetName: resolveBlockName(currentBlocks, edge.target),
       })
     }
   }
-  for (const edgeStr of previousEdgeSet) {
-    if (!currentEdgeSet.has(edgeStr)) {
+  for (const [edgeKey, edge] of previousEdgeMap) {
+    if (!currentEdgeMap.has(edgeKey)) {
       result.edgeChanges.removed++
-      const edge = JSON.parse(edgeStr) as { source: string; target: string }
       result.edgeChanges.removedDetails.push({
-        sourceName: resolveBlockName(edge.source),
-        targetName: resolveBlockName(edge.target),
+        ...edge,
+        sourceName: resolveBlockName(previousBlocks, edge.source),
+        targetName: resolveBlockName(previousBlocks, edge.target),
       })
     }
   }

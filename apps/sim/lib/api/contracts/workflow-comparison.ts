@@ -45,6 +45,16 @@ const countsSchema = z.object({
   modified: z.number().int().describe('Number modified.'),
 })
 const edgeDetailSchema = z.object({
+  source: z.string().describe('Stable source block identifier.'),
+  target: z.string().describe('Stable target block identifier.'),
+  sourceHandle: z
+    .string()
+    .optional()
+    .describe('Source port identifier; omitted for the default port.'),
+  targetHandle: z
+    .string()
+    .optional()
+    .describe('Target port identifier; omitted for the default port.'),
   sourceName: z.string().describe('Source block name.'),
   targetName: z.string().describe('Target block name.'),
 })

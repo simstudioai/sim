@@ -74,7 +74,7 @@ export function normalizeValue(value: unknown): unknown {
     return value.map(normalizeValue)
   }
 
-  const sorted: Record<string, unknown> = {}
+  const sorted: Record<string, unknown> = Object.create(null)
   for (const key of Object.keys(value as Record<string, unknown>).sort()) {
     const normalized = normalizeValue((value as Record<string, unknown>)[key])
     if (normalized !== undefined) {
@@ -296,11 +296,11 @@ export function sanitizeInputFormat(inputFormat: unknown[] | undefined): Record<
 }
 
 /** Normalized edge with only connection-relevant fields */
-interface NormalizedEdge {
+export interface NormalizedEdge {
   source: string
-  sourceHandle?: string | null
+  sourceHandle?: string
   target: string
-  targetHandle?: string | null
+  targetHandle?: string
 }
 
 /**

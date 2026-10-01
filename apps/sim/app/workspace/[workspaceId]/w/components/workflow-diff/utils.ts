@@ -225,7 +225,7 @@ export function maskSecretsDeep(value: unknown, blockType?: string): unknown {
       record = { ...record, cells: { ...row, Value: MASKED_VALUE } }
     }
   }
-  const out: Record<string, unknown> = {}
+  const out: Record<string, unknown> = Object.create(null)
   for (const [key, entry] of Object.entries(record)) {
     out[key] =
       isSensitiveField(blockType, key) && entry !== '' && entry != null

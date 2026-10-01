@@ -7,6 +7,8 @@ import {
   type WorkflowDiffSummary,
 } from '@/lib/workflows/comparison/compare'
 import { buildWorkflowDiffOverlay } from '@/lib/workflows/comparison/overlay'
+import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
+import { getPreviewBlockDimensions } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-dimensions'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** Overlay only reads position, data and ids; the cast keeps the fixtures short. */
@@ -426,49 +428,88 @@ describe('buildWorkflowDiffOverlay', () => {
     expect(overlay.changedFieldsByBlock).toEqual({ b: ['code'] })
   })
 
-  it('keeps a deleted branch on the surviving card so its ghost edge has a handle to leave from', () => {
-    const conditions = (items: Array<{ id: string; value: string }>) => ({
-      conditions: { value: JSON.stringify(items) },
-    })
-    const base = asState({
-      blocks: {
-        cond: block('cond', {
-          type: 'condition',
-          subBlocks: conditions([
-            { id: 'c-if', value: 'a' },
-            { id: 'c-elif', value: 'b' },
-            { id: 'c-else', value: '' },
-          ]),
-        }),
-        b: block('b'),
-      },
-      edges: [{ id: 'e', source: 'cond', target: 'b', sourceHandle: 'condition-c-elif' }],
-    })
-    const target = asState({
-      blocks: {
-        cond: block('cond', {
-          type: 'condition',
-          subBlocks: conditions([
-            { id: 'c-if', value: 'a' },
-            { id: 'c-else', value: '' },
-          ]),
-        }),
-        b: block('b'),
-      },
-      edges: [],
-    })
+  it.each([
+    {
+      type: 'condition',
+      field: 'conditions',
+      prefix: 'condition',
+      baseIds: ['first', 'second', 'last'],
+      targetIds: ['second', 'last'],
+      removedId: 'first',
+      removedTitle: 'if',
+      liveTitles: ['if', 'else'],
+    },
+    {
+      type: 'condition',
+      field: 'conditions',
+      prefix: 'condition',
+      baseIds: ['first', 'second', 'last'],
+      targetIds: ['first', 'second'],
+      removedId: 'last',
+      removedTitle: 'else',
+      liveTitles: ['if', 'else'],
+    },
+    {
+      type: 'router_v2',
+      field: 'routes',
+      prefix: 'router',
+      baseIds: ['first', 'second'],
+      targetIds: ['second'],
+      removedId: 'first',
+      removedTitle: 'Route 1',
+      liveTitles: ['Route 1'],
+    },
+  ])(
+    'preserves target $type roles when the $removedId branch is removed',
+    ({ type, field, prefix, baseIds, targetIds, removedId, removedTitle, liveTitles }) => {
+      const branches = (ids: string[]) => ({
+        [field]: { value: JSON.stringify(ids.map((id) => ({ id, value: id }))) },
+      })
+      const base = asState({
+        blocks: {
+          cond: block('cond', {
+            type,
+            subBlocks: branches(baseIds),
+          }),
+          b: block('b'),
+        },
+        edges: [{ id: 'e', source: 'cond', target: 'b', sourceHandle: `${prefix}-${removedId}` }],
+      })
+      const target = asState({
+        blocks: {
+          cond: block('cond', {
+            type,
+            subBlocks: branches(targetIds),
+          }),
+          b: block('b'),
+        },
+        edges: [],
+      })
 
-    const overlay = buildWorkflowDiffOverlay(emptySummary(), base, target)
+      const overlay = buildWorkflowDiffOverlay(emptySummary(), base, target)
 
-    expect(overlay.edgeStatus).toEqual({ e: 'removed' })
-    expect(
-      JSON.parse(overlay.mergedState.blocks.cond.subBlocks.conditions.value as string).map(
-        (item: { id: string }) => item.id
-      )
-    ).toEqual(['c-if', 'c-elif', 'c-else'])
-    /* An untouched block is passed through by identity. */
-    expect(overlay.mergedState.blocks.b).toBe(target.blocks.b)
-  })
+      expect(overlay.edgeStatus).toEqual({ e: 'removed' })
+      expect(overlay.mergedState.blocks.cond.subBlocks).toEqual(target.blocks.cond.subBlocks)
+      const liveValue = overlay.mergedState.blocks.cond.subBlocks[field].value
+      const rows =
+        type === 'condition'
+          ? getConditionRows('cond', liveValue)
+          : getRouterRows('cond', liveValue).map((row, index) => ({
+              ...row,
+              title: `Route ${index + 1}`,
+            }))
+      expect(rows.map(({ title }) => title)).toEqual(liveTitles)
+      expect(overlay.removedPortsByBlock.cond).toEqual([
+        {
+          handleId: `${prefix}-${removedId}`,
+          type: 'source',
+          title: removedTitle,
+          value: removedId,
+        },
+      ])
+      expect(overlay.mergedState.blocks.b).toBe(target.blocks.b)
+    }
+  )
 
   it('stacks ghosts below every overlapping sibling, including more than eight', () => {
     const base = asState({
@@ -510,7 +551,7 @@ describe('buildWorkflowDiffOverlay', () => {
     expect(capped.blocks.goneA.position.y).toBeGreaterThanOrEqual(11 * 132 + 100)
   })
 
-  it('slots a deleted branch back where it sat so the surviving else keeps its role', () => {
+  it('does not add removed branch rows without a removed edge needing their handles', () => {
     const conditions = (ids: string[]) => ({
       conditions: { value: JSON.stringify(ids.map((id) => ({ id, value: id }))) },
     })
@@ -525,13 +566,324 @@ describe('buildWorkflowDiffOverlay', () => {
       edges: [],
     })
 
-    const merged = buildWorkflowDiffOverlay(emptySummary(), base, target).mergedState
-    expect(
-      JSON.parse(merged.blocks.cond.subBlocks.conditions.value as string).map(
-        (item: { id: string }) => item.id
-      )
-    ).toEqual(['if', 'elif', 'else'])
+    const overlay = buildWorkflowDiffOverlay(emptySummary(), base, target)
+    expect(overlay.mergedState.blocks.cond.subBlocks).toEqual(target.blocks.cond.subBlocks)
+    expect(overlay.removedPortsByBlock).toEqual({})
   })
+
+  it('uses the existing branch handle when only its connection was removed', () => {
+    const blocks = {
+      cond: block('cond', {
+        type: 'condition',
+        subBlocks: {
+          conditions: { value: JSON.stringify([{ id: 'first' }, { id: 'last' }]) },
+        },
+      }),
+      b: block('b'),
+    }
+    const base = asState({
+      blocks,
+      edges: [{ id: 'e', source: 'cond', target: 'b', sourceHandle: 'condition-first' }],
+    })
+    const target = asState({ blocks, edges: [] })
+
+    const overlay = buildWorkflowDiffOverlay(emptySummary(), base, target)
+    expect(overlay.edgeStatus).toEqual({ e: 'removed' })
+    expect(overlay.mergedState.edges[0].sourceHandle).toBe('condition-first')
+    expect(overlay.removedPortsByBlock).toEqual({})
+  })
+
+  it('does not duplicate branch rows on a removed whole block', () => {
+    const base = asState({
+      blocks: {
+        cond: block('cond', {
+          type: 'condition',
+          subBlocks: {
+            conditions: { value: JSON.stringify([{ id: 'first' }, { id: 'last' }]) },
+          },
+        }),
+        b: block('b'),
+      },
+      edges: [{ id: 'e', source: 'cond', target: 'b', sourceHandle: 'condition-first' }],
+    })
+    const target = asState({ blocks: { b: block('b') }, edges: [] })
+
+    const overlay = buildWorkflowDiffOverlay(
+      generateWorkflowDiffSummary(target, base),
+      base,
+      target
+    )
+    expect(overlay.blockStatus.cond).toBe('removed')
+    expect(overlay.edgeStatus).toEqual({ e: 'removed' })
+    expect(overlay.mergedState.blocks.cond.subBlocks).toEqual(base.blocks.cond.subBlocks)
+    expect(overlay.removedPortsByBlock).toEqual({})
+  })
+
+  it('keeps a removed branch anchor when its block becomes a container', () => {
+    const base = asState({
+      blocks: {
+        source: block('source', {
+          type: 'condition',
+          subBlocks: {
+            conditions: { value: JSON.stringify([{ id: 'first', value: 'true' }, { id: 'last' }]) },
+          },
+        }),
+        sink: block('sink'),
+      },
+      edges: [{ id: 'e', source: 'source', target: 'sink', sourceHandle: 'condition-first' }],
+    })
+    const target = asState({
+      blocks: { source: block('source', { type: 'loop' }), sink: base.blocks.sink },
+      edges: [],
+    })
+
+    const overlay = buildWorkflowDiffOverlay(
+      generateWorkflowDiffSummary(target, base),
+      base,
+      target
+    )
+    expect(overlay.mergedState.blocks.source.type).toBe('loop')
+    expect(overlay.removedPortsByBlock.source).toEqual([
+      { handleId: 'condition-first', type: 'source', title: 'if', value: 'true' },
+    ])
+    expect(overlay.edgeStatus).toEqual({ e: 'removed' })
+  })
+
+  it.each([
+    { before: 'function', after: 'condition', handles: ['source'] },
+    { before: 'loop', after: 'parallel', handles: ['loop-start-source', 'loop-end-source'] },
+    {
+      before: 'parallel',
+      after: 'function',
+      handles: ['parallel-start-source', 'parallel-end-source'],
+    },
+  ])('preserves removed output ports when $before becomes $after', ({ before, after, handles }) => {
+    const base = asState({
+      blocks: { changed: block('changed', { type: before }), sink: block('sink') },
+      edges: handles.map((sourceHandle, index) => ({
+        id: `e${index}`,
+        source: 'changed',
+        target: 'sink',
+        sourceHandle,
+        targetHandle: 'target',
+      })),
+    })
+    const target = asState({
+      blocks: { changed: block('changed', { type: after }), sink: base.blocks.sink },
+      edges: [],
+    })
+
+    const overlay = buildWorkflowDiffOverlay(
+      generateWorkflowDiffSummary(target, base),
+      base,
+      target
+    )
+    expect(overlay.removedPortsByBlock.changed).toMatchObject(
+      handles.map((handleId) => ({ handleId, type: 'source' }))
+    )
+    expect(overlay.mergedState.blocks.changed).toBe(target.blocks.changed)
+    expect(overlay.mergedState.edges.map((edge) => edge.sourceHandle)).toEqual(handles)
+  })
+
+  it('preserves a removed incoming port when its block becomes a trigger', () => {
+    const base = asState({
+      blocks: { source: block('source'), changed: block('changed') },
+      edges: [
+        {
+          id: 'e',
+          source: 'source',
+          target: 'changed',
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+      ],
+    })
+    const target = asState({
+      blocks: { source: base.blocks.source, changed: block('changed', { type: 'starter' }) },
+      edges: [],
+    })
+
+    const overlay = buildWorkflowDiffOverlay(
+      generateWorkflowDiffSummary(target, base),
+      base,
+      target
+    )
+    expect(overlay.removedPortsByBlock.changed).toMatchObject([
+      { handleId: 'target', type: 'target' },
+    ])
+    expect(overlay.mergedState.edges[0].targetHandle).toBe('target')
+  })
+
+  it('preserves an old error port when the target block cannot emit errors', () => {
+    const base = asState({
+      blocks: { changed: { ...block('changed'), errorEnabled: true }, sink: block('sink') },
+      edges: [{ id: 'e', source: 'changed', target: 'sink', sourceHandle: 'error' }],
+    })
+    const target = asState({
+      blocks: { changed: block('changed', { type: 'response' }), sink: base.blocks.sink },
+      edges: [],
+    })
+
+    const overlay = buildWorkflowDiffOverlay(
+      generateWorkflowDiffSummary(target, base),
+      base,
+      target
+    )
+    expect(overlay.removedPortsByBlock.changed).toMatchObject([
+      { handleId: 'error', type: 'source' },
+    ])
+  })
+
+  it('retains a removed output once when several removed edges leave it', () => {
+    const base = asState({
+      blocks: { changed: block('changed'), a: block('a'), b: block('b') },
+      edges: [
+        { id: 'a', source: 'changed', target: 'a', sourceHandle: 'source' },
+        { id: 'b', source: 'changed', target: 'b', sourceHandle: 'source' },
+      ],
+    })
+    const target = asState({
+      blocks: { ...base.blocks, changed: block('changed', { type: 'condition' }) },
+      edges: [],
+    })
+
+    const overlay = buildWorkflowDiffOverlay(
+      generateWorkflowDiffSummary(target, base),
+      base,
+      target
+    )
+    expect(overlay.removedPortsByBlock.changed).toHaveLength(1)
+    expect(overlay.removedPortsByBlock.changed[0]).toMatchObject({
+      handleId: 'source',
+      type: 'source',
+    })
+    expect(overlay.mergedState.edges).toHaveLength(2)
+  })
+
+  it.each([
+    {
+      before: 'condition',
+      after: 'function',
+      beforeHandle: 'condition-first',
+      afterHandle: 'source',
+    },
+    {
+      before: 'function',
+      after: 'condition',
+      beforeHandle: 'source',
+      afterHandle: 'condition-first',
+    },
+  ])(
+    'pins implicit handles to each original snapshot for $before → $after',
+    ({ before, after, beforeHandle, afterHandle }) => {
+      const changed = (type: string) =>
+        block('changed', {
+          type,
+          subBlocks: { conditions: { value: JSON.stringify([{ id: 'first' }, { id: 'last' }]) } },
+        })
+      const base = asState({
+        blocks: { changed: changed(before), oldSink: block('oldSink'), newSink: block('newSink') },
+        edges: [
+          {
+            id: 'old',
+            source: 'changed',
+            target: 'oldSink',
+            sourceHandle: null,
+            targetHandle: null,
+          },
+        ],
+      })
+      const target = asState({
+        blocks: { ...base.blocks, changed: changed(after) },
+        edges: [
+          {
+            id: 'new',
+            source: 'changed',
+            target: 'newSink',
+            sourceHandle: null,
+            targetHandle: null,
+          },
+        ],
+      })
+
+      const overlay = buildWorkflowDiffOverlay(
+        generateWorkflowDiffSummary(target, base),
+        base,
+        target
+      )
+      expect(overlay.mergedState.edges.find((edge) => edge.id === 'old')).toMatchObject({
+        sourceHandle: beforeHandle,
+        targetHandle: 'target',
+      })
+      expect(overlay.mergedState.edges.find((edge) => edge.id === 'new')).toMatchObject({
+        sourceHandle: afterHandle,
+        targetHandle: 'target',
+      })
+      expect(overlay.removedPortsByBlock.changed).toMatchObject([
+        { handleId: beforeHandle, type: 'source' },
+      ])
+      expect(base.edges[0].sourceHandle).toBeNull()
+      expect(target.edges[0].sourceHandle).toBeNull()
+      expect(overlay.edgeStatus).toEqual({ new: 'added', old: 'removed' })
+    }
+  )
+
+  it.each([false, true])(
+    'keeps a removed block clear of retained branch rows, nested=%s',
+    (nested) => {
+      const removedIds = Array.from({ length: 8 }, (_, index) => `removed-${index}`)
+      const conditionBlock = (ids: string[], x: number, height: number) =>
+        block('cond', {
+          type: 'condition',
+          position: { x, y: 64 },
+          height,
+          ...(nested ? { data: { parentId: 'loop' } } : {}),
+          subBlocks: {
+            conditions: { value: JSON.stringify(ids.map((id) => ({ id, value: id }))) },
+          },
+        })
+      const container = nested ? { loop: block('loop', { type: 'loop' }) } : {}
+      const base = asState({
+        blocks: {
+          ...container,
+          cond: conditionBlock(['first', ...removedIds, 'last'], 500, 331),
+          gone: block('gone', {
+            position: { x: 24, y: 164 },
+            height: 100,
+            ...(nested ? { data: { parentId: 'loop' } } : {}),
+          }),
+          sink: block('sink', {
+            position: { x: 1200, y: 64 },
+            ...(nested ? { data: { parentId: 'loop' } } : {}),
+          }),
+        },
+        edges: removedIds.map((id) => ({
+          id: `edge-${id}`,
+          source: 'cond',
+          target: 'sink',
+          sourceHandle: `condition-${id}`,
+        })),
+      })
+      const target = asState({
+        blocks: {
+          ...container,
+          cond: conditionBlock(['first', 'last'], 24, 107),
+          sink: base.blocks.sink,
+        },
+        edges: [],
+      })
+
+      const overlay = buildWorkflowDiffOverlay(
+        generateWorkflowDiffSummary(target, base),
+        base,
+        target,
+        getPreviewBlockDimensions
+      )
+
+      // Ten fixed-height rows occupy 328px before any border or removed-row label.
+      expect(overlay.mergedState.blocks.gone.position.y).toBeGreaterThanOrEqual(64 + 328)
+    }
+  )
 
   it('never reuses an id when suffixing ghost edges', () => {
     const blocks = { a: block('a'), b: block('b'), c: block('c') }

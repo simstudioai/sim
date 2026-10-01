@@ -1,6 +1,10 @@
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
-import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
+import {
+  collectErrorSourceBlockIds,
+  normalizeWorkflowEdgeHandles,
+} from '@sim/workflow-types/workflow'
 import { type BoundingBox, boxesOverlap } from '@/lib/workflows/autolayout'
+import { type CanvasPort, getCanvasPorts } from '@/lib/workflows/blocks/canvas-ports'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import { normalizedStringify, normalizeEdge } from '@/lib/workflows/comparison/normalize'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -25,6 +29,7 @@ export interface WorkflowDiffOverlay {
   blockStatus: Record<string, BlockDiffStatus>
   edgeStatus: Record<string, EdgeDiffStatus>
   changedFieldsByBlock: Record<string, string[]>
+  removedPortsByBlock: Record<string, CanvasPort[]>
 }
 
 /**
@@ -36,15 +41,41 @@ function edgeKey(edge: WorkflowState['edges'][number]): string {
   return normalizedStringify(normalizeEdge(edge))
 }
 
-const GHOST_GAP = 32
+function snapshotPorts(state: WorkflowState): Map<string, CanvasPort[]> {
+  const errorSources = collectErrorSourceBlockIds(state.edges)
+  return new Map(
+    Object.entries(state.blocks).map(([id, block]) => [
+      id,
+      getCanvasPorts(block, errorSources.has(id)),
+    ])
+  )
+}
 
-/** Sub-block fields whose list items each own a source handle on the canvas card. */
-const BRANCH_LIST_FIELDS = ['conditions', 'routes'] as const
+/** Extra ghost ports must not change which port an implicit edge originally used. */
+function resolveDisplayHandles(
+  edge: WorkflowState['edges'][number],
+  ports: ReadonlyMap<string, CanvasPort[]>
+): WorkflowState['edges'][number] {
+  return {
+    ...edge,
+    sourceHandle:
+      edge.sourceHandle ??
+      ports.get(edge.source)?.find((port) => port.type === 'source')?.handleId ??
+      null,
+    targetHandle:
+      edge.targetHandle ??
+      ports.get(edge.target)?.find((port) => port.type === 'target')?.handleId ??
+      null,
+  }
+}
+
+const GHOST_GAP = 32
 
 /** How big a block is drawn; the canvas passes its own measurement so ghost boxes match it. */
 export type MeasureBlock = (
   block: BlockState,
-  blocks: Record<string, BlockState>
+  blocks: Record<string, BlockState>,
+  removedPortsByBlock?: Record<string, CanvasPort[]>
 ) => { width: number; height: number }
 
 /**
@@ -72,9 +103,14 @@ const measureStoredSize: MeasureBlock = (block) => {
 function boxOf(
   block: BlockState,
   measure: MeasureBlock,
-  blocks: Record<string, BlockState>
+  blocks: Record<string, BlockState>,
+  removedPortsByBlock: Record<string, CanvasPort[]>
 ): BoundingBox {
-  return { x: block.position?.x ?? 0, y: block.position?.y ?? 0, ...measure(block, blocks) }
+  return {
+    x: block.position?.x ?? 0,
+    y: block.position?.y ?? 0,
+    ...measure(block, blocks, removedPortsByBlock),
+  }
 }
 
 /**
@@ -88,9 +124,10 @@ function nudgeOutOfCollision(
   ghost: BlockState,
   occupied: BoundingBox[],
   measure: MeasureBlock,
-  blocks: Record<string, BlockState>
+  blocks: Record<string, BlockState>,
+  removedPortsByBlock: Record<string, CanvasPort[]>
 ): BlockState {
-  const box = boxOf(ghost, measure, blocks)
+  const box = boxOf(ghost, measure, blocks, removedPortsByBlock)
   let nudges = 0
   let hit = occupied.find((other) => boxesOverlap(box, other))
   while (hit) {
@@ -101,56 +138,6 @@ function nudgeOutOfCollision(
   occupied.push(box)
   if (nudges === 0) return ghost
   return { ...ghost, position: { x: box.x, y: box.y } }
-}
-
-function readBranchList(value: unknown): Array<Record<string, unknown>> | null {
-  if (typeof value !== 'string') return null
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(value)
-  } catch {
-    return null
-  }
-  if (!Array.isArray(parsed)) return null
-  return parsed.filter(
-    (item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object'
-  )
-}
-
-/**
- * A surviving condition or router block draws one source handle per branch it
- * still has, so a ghost edge for a branch that was deleted would have nowhere
- * to start and the canvas would drop it. Carry the base side's missing branches
- * onto the merged card, in the JSON string the field persists, so the handle
- * exists.
- */
-function withRemovedBranches(baseBlock: BlockState, targetBlock: BlockState): BlockState {
-  let merged = targetBlock
-  for (const field of BRANCH_LIST_FIELDS) {
-    const baseItems = readBranchList(baseBlock.subBlocks?.[field]?.value)
-    const targetItems = readBranchList(targetBlock.subBlocks?.[field]?.value)
-    if (!baseItems || !targetItems) continue
-    const present = new Set(targetItems.map((item) => item.id))
-    if (baseItems.every((item) => typeof item.id !== 'string' || present.has(item.id))) continue
-    /* Slot each missing branch back where it sat, so the roles the card reads off position hold. */
-    const items = [...targetItems]
-    for (let index = baseItems.length - 1; index >= 0; index -= 1) {
-      const item = baseItems[index]
-      if (typeof item.id !== 'string' || present.has(item.id)) continue
-      const successor = baseItems.slice(index + 1).find((later) => present.has(later.id))
-      const at = successor ? items.findIndex((candidate) => candidate.id === successor.id) : -1
-      items.splice(at === -1 ? items.length : at, 0, item)
-      present.add(item.id)
-    }
-    merged = {
-      ...merged,
-      subBlocks: {
-        ...merged.subBlocks,
-        [field]: { ...merged.subBlocks[field], value: JSON.stringify(items) },
-      },
-    }
-  }
-  return merged
 }
 
 /**
@@ -189,12 +176,70 @@ export function buildWorkflowDiffOverlay(
     if ((before.data?.parentId ?? null) !== (block.data?.parentId ?? null)) {
       blockStatus[id] ??= 'modified'
     }
-    blocks[id] = withRemovedBranches(before, block)
+    blocks[id] = block
   }
 
   for (const removed of summary.removedBlocks) {
     if (baseState.blocks[removed.id]) blocks[removed.id] = baseState.blocks[removed.id]
   }
+  const targetKeyed = normalizeWorkflowEdgeHandles(targetState.edges ?? []).map(
+    (edge) => [edge, edgeKey(edge)] as const
+  )
+  const baseKeyed = normalizeWorkflowEdgeHandles(baseState.edges ?? []).map(
+    (edge) => [edge, edgeKey(edge)] as const
+  )
+  const targetKeys = new Set(targetKeyed.map(([, key]) => key))
+  const baseKeys = new Set(baseKeyed.map(([, key]) => key))
+  const targetPorts = snapshotPorts(targetState)
+  const basePorts = snapshotPorts(baseState)
+
+  const edgeStatus: Record<string, EdgeDiffStatus> = {}
+  const edges: WorkflowState['edges'] = []
+  const seenIds = new Set<string>()
+  for (const [edge, key] of targetKeyed) {
+    edges.push(resolveDisplayHandles(edge, targetPorts))
+    seenIds.add(edge.id)
+    if (!baseKeys.has(key)) edgeStatus[edge.id] = 'added'
+  }
+  for (const [edge, key] of baseKeyed) {
+    if (targetKeys.has(key)) continue
+    /* A base edge can share an id with a rewired target edge; keep both drawable. */
+    let id = edge.id
+    for (let attempt = 1; seenIds.has(id); attempt += 1) {
+      id = attempt === 1 ? `${edge.id}__removed` : `${edge.id}__removed${attempt}`
+    }
+    seenIds.add(id)
+    edges.push({ ...resolveDisplayHandles(edge, basePorts), id })
+    edgeStatus[id] = 'removed'
+  }
+
+  const removedPortsByBlock: Record<string, CanvasPort[]> = {}
+  const removedHandles = new Map<string, Set<string>>()
+  for (const edge of edges) {
+    if (edgeStatus[edge.id] !== 'removed') continue
+    for (const type of ['source', 'target'] as const) {
+      const blockId = edge[type]
+      const handleId = type === 'source' ? edge.sourceHandle : edge.targetHandle
+      if (!targetState.blocks[blockId] || !handleId) continue
+      const handles = removedHandles.get(blockId) ?? new Set<string>()
+      handles.add(`${type}:${handleId}`)
+      removedHandles.set(blockId, handles)
+    }
+  }
+  for (const [id, handles] of removedHandles) {
+    const currentHandles = new Set(
+      targetPorts.get(id)?.map((port) => `${port.type}:${port.handleId}`)
+    )
+    const ports = basePorts
+      .get(id)
+      ?.filter(
+        (port) =>
+          handles.has(`${port.type}:${port.handleId}`) &&
+          !currentHandles.has(`${port.type}:${port.handleId}`)
+      )
+    if (ports?.length) removedPortsByBlock[id] = ports
+  }
+
   const depth = (block: BlockState) => {
     const visited = new Set<string>([block.id])
     let parentId = block.data?.parentId
@@ -210,8 +255,8 @@ export function buildWorkflowDiffOverlay(
   for (const ghost of ghosts) {
     const occupied = Object.values(blocks)
       .filter((block) => placed.has(block.id) && block.data?.parentId === ghost.data?.parentId)
-      .map((block) => boxOf(block, measure, blocks))
-    blocks[ghost.id] = nudgeOutOfCollision(ghost, occupied, measure, blocks)
+      .map((block) => boxOf(block, measure, blocks, removedPortsByBlock))
+    blocks[ghost.id] = nudgeOutOfCollision(ghost, occupied, measure, blocks, removedPortsByBlock)
     placed.add(ghost.id)
   }
 
@@ -222,35 +267,6 @@ export function buildWorkflowDiffOverlay(
   const parallels = { ...(targetState.parallels ?? {}) }
   for (const [id, parallel] of Object.entries(baseState.parallels ?? {})) {
     if (!parallels[id] && blockStatus[id] === 'removed') parallels[id] = parallel
-  }
-
-  const targetKeyed = normalizeWorkflowEdgeHandles(targetState.edges ?? []).map(
-    (edge) => [edge, edgeKey(edge)] as const
-  )
-  const baseKeyed = normalizeWorkflowEdgeHandles(baseState.edges ?? []).map(
-    (edge) => [edge, edgeKey(edge)] as const
-  )
-  const targetKeys = new Set(targetKeyed.map(([, key]) => key))
-  const baseKeys = new Set(baseKeyed.map(([, key]) => key))
-
-  const edgeStatus: Record<string, EdgeDiffStatus> = {}
-  const edges: WorkflowState['edges'] = []
-  const seenIds = new Set<string>()
-  for (const [edge, key] of targetKeyed) {
-    edges.push(edge)
-    seenIds.add(edge.id)
-    if (!baseKeys.has(key)) edgeStatus[edge.id] = 'added'
-  }
-  for (const [edge, key] of baseKeyed) {
-    if (targetKeys.has(key)) continue
-    /* A base edge can share an id with a rewired target edge; keep both drawable. */
-    let id = edge.id
-    for (let attempt = 1; seenIds.has(id); attempt += 1) {
-      id = attempt === 1 ? `${edge.id}__removed` : `${edge.id}__removed${attempt}`
-    }
-    seenIds.add(id)
-    edges.push({ ...edge, id })
-    edgeStatus[id] = 'removed'
   }
 
   return {
@@ -264,5 +280,6 @@ export function buildWorkflowDiffOverlay(
     blockStatus,
     edgeStatus,
     changedFieldsByBlock,
+    removedPortsByBlock,
   }
 }

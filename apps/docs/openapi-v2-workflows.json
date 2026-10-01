@@ -1204,7 +1204,7 @@
       "get": {
         "operationId": "compareWorkflowVersionsV2",
         "summary": "Compare Workflow Versions",
-        "description": "Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. The combined snapshots must fit within 16 MiB.\n\nOAuth scope: `api:read`.",
+        "description": "Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. Connections include stable block and port identifiers. The combined snapshots and the comparison result must each fit within 16 MiB.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.versions.compare",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -9480,6 +9480,22 @@
                     "items": {
                       "type": "object",
                       "properties": {
+                        "source": {
+                          "type": "string",
+                          "description": "Stable source block identifier."
+                        },
+                        "target": {
+                          "type": "string",
+                          "description": "Stable target block identifier."
+                        },
+                        "sourceHandle": {
+                          "description": "Source port identifier; omitted for the default port.",
+                          "type": "string"
+                        },
+                        "targetHandle": {
+                          "description": "Target port identifier; omitted for the default port.",
+                          "type": "string"
+                        },
                         "sourceName": {
                           "type": "string",
                           "description": "Source block name."
@@ -9489,7 +9505,7 @@
                           "description": "Target block name."
                         }
                       },
-                      "required": ["sourceName", "targetName"],
+                      "required": ["source", "target", "sourceName", "targetName"],
                       "additionalProperties": false
                     },
                     "description": "Added connections."
@@ -9499,6 +9515,22 @@
                     "items": {
                       "type": "object",
                       "properties": {
+                        "source": {
+                          "type": "string",
+                          "description": "Stable source block identifier."
+                        },
+                        "target": {
+                          "type": "string",
+                          "description": "Stable target block identifier."
+                        },
+                        "sourceHandle": {
+                          "description": "Source port identifier; omitted for the default port.",
+                          "type": "string"
+                        },
+                        "targetHandle": {
+                          "description": "Target port identifier; omitted for the default port.",
+                          "type": "string"
+                        },
                         "sourceName": {
                           "type": "string",
                           "description": "Source block name."
@@ -9508,7 +9540,7 @@
                           "description": "Target block name."
                         }
                       },
-                      "required": ["sourceName", "targetName"],
+                      "required": ["source", "target", "sourceName", "targetName"],
                       "additionalProperties": false
                     },
                     "description": "Removed connections."

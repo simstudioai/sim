@@ -22,7 +22,10 @@ import {
 } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import { humanizeBlockName } from '@sim/workflow-renderer'
+import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workflow-types/workflow'
+import { getCanvasPorts } from '@/lib/workflows/blocks/canvas-ports'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison'
+import type { EdgeChange } from '@/lib/workflows/comparison/compare'
 import { DIFF_LABEL } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
 import {
   DIFF_SIGN,
@@ -50,6 +53,22 @@ interface ChangeListProps {
   }
   selectedBlockId: string | null
   onSelectBlock: Dispatch<SetStateAction<string | null>>
+}
+
+function connectionLabel(edge: EdgeChange, blocks: Record<string, BlockState>): string {
+  const endpointLabel = (type: 'source' | 'target') => {
+    const block = blocks[edge[type]]
+    const handle = type === 'source' ? edge.sourceHandle : edge.targetHandle
+    const defaultHandle = type === 'source' ? WORKFLOW_SOURCE_HANDLE_ID : WORKFLOW_TARGET_HANDLE_ID
+    const name = humanizeBlockName(type === 'source' ? edge.sourceName : edge.targetName)
+    if (!handle || handle === defaultHandle) return name
+    const ports = block ? getCanvasPorts(block, true).filter((port) => port.type === type) : []
+    const index = ports.findIndex((port) => port.handleId === handle)
+    const title = ports[index]?.title
+    const label = title === 'else if' ? `else if ${index}` : (title ?? handle)
+    return `${name} (${label})`
+  }
+  return `${endpointLabel('source')} → ${endpointLabel('target')}`
 }
 
 /** Whether the selected block is this entry or one nested under it. */
@@ -133,14 +152,14 @@ export function ChangeList({
               <NamedRow
                 key={`a-${index}`}
                 kind='added'
-                name={`${humanizeBlockName(edge.sourceName)} → ${humanizeBlockName(edge.targetName)}`}
+                name={connectionLabel(edge, targetBlocks)}
               />
             ))}
             {summary.edgeChanges.removedDetails.map((edge, index) => (
               <NamedRow
                 key={`r-${index}`}
                 kind='removed'
-                name={`${humanizeBlockName(edge.sourceName)} → ${humanizeBlockName(edge.targetName)}`}
+                name={connectionLabel(edge, baseBlocks)}
               />
             ))}
           </InfoCard>

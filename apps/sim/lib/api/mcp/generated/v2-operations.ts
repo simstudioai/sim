@@ -560,7 +560,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2CompareWorkflowVersionsContract,
     summary: 'Compare Workflow Versions',
     description:
-      'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. The combined snapshots must fit within 16 MiB.\n\nOAuth scope: `api:read`.',
+      'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. Connections include stable block and port identifiers. The combined snapshots and the comparison result must each fit within 16 MiB.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/versions/compare/route').then(
         (route) => route.GET

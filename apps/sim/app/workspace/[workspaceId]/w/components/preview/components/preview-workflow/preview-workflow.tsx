@@ -27,6 +27,7 @@ import {
   useCanvasColorMode,
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
+import type { CanvasPort } from '@/lib/workflows/blocks/canvas-ports'
 import type { BlockDiffStatus, EdgeDiffStatus } from '@/lib/workflows/comparison'
 import { SUBFLOW_CHILD_NODE_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
@@ -110,6 +111,7 @@ interface PreviewWorkflowProps {
   edgeDiffStatus?: Record<string, EdgeDiffStatus>
   /** Sub-block ids that changed on a modified block, keyed by block id */
   changedFieldsByBlock?: Record<string, string[]>
+  removedPortsByBlock?: Record<string, CanvasPort[]>
 }
 
 /** Preview node types using minimal, hook-free components. */
@@ -191,6 +193,7 @@ export function PreviewWorkflow({
   blockDiffStatus,
   edgeDiffStatus,
   changedFieldsByBlock,
+  removedPortsByBlock,
 }: PreviewWorkflowProps) {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = propWorkspaceId ?? params.workspaceId
@@ -338,10 +341,14 @@ export function PreviewWorkflow({
   const errorSourceBlockKey = useMemo(() => {
     const ids = new Set<string>()
     for (const edge of workflowState.edges ?? []) {
-      if (edge.sourceHandle === 'error') ids.add(edge.source)
+      if (
+        edge.sourceHandle === 'error' &&
+        (edgeDiffStatus?.[edge.id] !== 'removed' || blockDiffStatus?.[edge.source] === 'removed')
+      )
+        ids.add(edge.source)
     }
     return [...ids].sort().join(',')
-  }, [workflowState.edges])
+  }, [workflowState.edges, edgeDiffStatus, blockDiffStatus])
 
   const nodes: Node[] = useMemo(() => {
     if (!isValidWorkflowState) return []
@@ -360,7 +367,11 @@ export function PreviewWorkflow({
 
       if (block.type === 'loop' || block.type === 'parallel') {
         const isSelected = selectedBlockId === blockId
-        const dimensions = getPreviewBlockDimensions(block, workflowState.blocks)
+        const dimensions = getPreviewBlockDimensions(
+          block,
+          workflowState.blocks,
+          removedPortsByBlock
+        )
 
         // Check for direct error on the subflow block itself (e.g., loop resolution errors)
         // before falling back to children-derived status
@@ -390,6 +401,7 @@ export function PreviewWorkflow({
             isPreviewSelected: isSelected,
             executionStatus: subflowExecutionStatus,
             diffStatus: blockDiffStatus?.[blockId],
+            removedPorts: removedPortsByBlock?.[blockId],
             lightweight,
           },
         })
@@ -441,6 +453,7 @@ export function PreviewWorkflow({
           lightweight,
           diffStatus: blockDiffStatus?.[blockId],
           changedFields: changedFieldsByBlock?.[blockId],
+          removedPorts: removedPortsByBlock?.[blockId],
         },
       })
     })
@@ -461,6 +474,7 @@ export function PreviewWorkflow({
     lightweight,
     blockDiffStatus,
     changedFieldsByBlock,
+    removedPortsByBlock,
   ])
 
   const edges: Edge[] = useMemo(() => {
