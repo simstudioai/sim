@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
+import postgres, { type Sql } from 'postgres'
 
 const logger = createLogger('DatabasePush')
 const RECONCILIATION_COMMANDS = [
@@ -11,6 +13,39 @@ const RECONCILIATION_COMMANDS = [
   ['bun', '--env-file=.env', 'run', './script-migrations/0025_scope_keyword_projections.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0026_user_table_schema_for_write.ts'],
 ]
+
+/** Historical push reconcilers recreate retired projections and cannot run after replacement starts. */
+async function retirementAllowsPush(): Promise<boolean> {
+  const url = process.env.DATABASE_URL
+  if (!url) {
+    logger.error('DATABASE_URL is required for schema push')
+    return false
+  }
+  let sql: Sql | undefined
+  try {
+    sql = postgres(url, {
+      max: 1,
+      prepare: false,
+      connect_timeout: 5,
+      connection: { statement_timeout: 2_000, lock_timeout: 100 },
+      onnotice: () => undefined,
+    })
+    const [state] = await sql<{ present: boolean }[]>`
+      SELECT to_regclass('public.search_retirement_state') IS NOT NULL AS present`
+    if (state.present) {
+      logger.error(
+        'Schema push is disabled after Search retirement starts, including completed retirement. Use reviewed versioned migrations; push reconcilers would restore retired projections'
+      )
+      return false
+    }
+    return true
+  } catch (error) {
+    logger.error('Unable to verify schema-push safety', { code: getPostgresErrorCode(error) })
+    return false
+  } finally {
+    await sql?.end({ timeout: 1 }).catch(() => undefined)
+  }
+}
 
 /**
  * Push treats additions and removals as distinct objects by default. The pinned
@@ -30,6 +65,8 @@ export async function runPush(args: string[]): Promise<number> {
     )
     return 1
   }
+
+  if (!help && !(await retirementAllowsPush())) return 1
 
   if (!help && args.includes('--force')) {
     const preparation = Bun.spawn(['bun', '--env-file=.env', 'run', './scripts/prepare-push.ts'], {
