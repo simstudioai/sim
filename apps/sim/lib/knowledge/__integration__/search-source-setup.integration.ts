@@ -236,7 +236,7 @@ describe('Search source identity and concurrent creation', () => {
     ).toHaveLength(0)
   })
 
-  it('adopts a legacy index only during admin setup and persists its canonical identity', async () => {
+  it('preserves ordinary KB name collisions and creates one explicit Search configuration', async () => {
     await db
       .update(knowledgeBase)
       .set({ name: 'Sim Search' })
@@ -258,18 +258,40 @@ describe('Search source identity and concurrent creation', () => {
         principal: { kind: 'session', userId: other.aliceId, sessionId: 'fixture-admin' },
         input,
       })
-    const results = await Promise.all([prepare(), prepare()])
-    expect(results.map((result) => result.knowledgeBaseId)).toEqual([
-      other.knowledgeBaseId,
-      other.knowledgeBaseId,
-    ])
+    await expect(prepare()).rejects.toMatchObject({ code: 'conflict' })
+    expect(
+      await db
+        .select({ name: knowledgeBase.name, isSearchIndex: knowledgeBase.isSearchIndex })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, other.knowledgeBaseId))
+    ).toEqual([{ name: 'Sim Search', isSearchIndex: false }])
     await db
       .update(knowledgeBase)
-      .set({ name: 'Renamed adopted index' })
+      .set({ name: 'Ordinary knowledge' })
       .where(eq(knowledgeBase.id, other.knowledgeBaseId))
+    const results = await Promise.all([prepare(), prepare()])
+    const searchId = results[0].knowledgeBaseId
+    expect(searchId).not.toBe(other.knowledgeBaseId)
+    expect(results[1].knowledgeBaseId).toBe(searchId)
+    expect(
+      await db
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(
+          and(
+            eq(knowledgeBase.workspaceId, other.workspaceId),
+            eq(knowledgeBase.isSearchIndex, true)
+          )
+        )
+    ).toEqual([{ id: searchId }])
+    await db
+      .update(knowledgeBase)
+      .set({ name: 'Renamed Search configuration' })
+      .where(eq(knowledgeBase.id, searchId))
     await expect(readSearchIndex.execute({ principal: reader, input })).resolves.toMatchObject({
-      knowledgeBaseId: other.knowledgeBaseId,
+      knowledgeBaseId: searchId,
     })
+    await expect(prepare()).resolves.toMatchObject({ knowledgeBaseId: searchId })
   })
 
   it('serializes matching creates across independent database transactions and keeps one grant', async () => {

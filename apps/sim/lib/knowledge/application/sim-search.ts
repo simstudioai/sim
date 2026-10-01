@@ -1,7 +1,4 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
-import { db } from '@sim/db'
-import { knowledgeBase } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import {
@@ -84,19 +81,6 @@ async function ensureSearchKnowledgeBase(
         return created.id
       }
       const workspaceId = scope.workspaceId
-      const [legacy] = await db
-        .update(knowledgeBase)
-        .set({ isSearchIndex: true, updatedAt: new Date() })
-        .where(
-          and(
-            eq(knowledgeBase.workspaceId, workspaceId),
-            eq(knowledgeBase.name, SIM_SEARCH_KNOWLEDGE_BASE_NAME),
-            eq(knowledgeBase.isSearchIndex, false),
-            isNull(knowledgeBase.deletedAt)
-          )
-        )
-        .returning({ id: knowledgeBase.id })
-      if (legacy) return legacy.id
       const created = await createKnowledgeBase.execute({
         principal,
         input: {
