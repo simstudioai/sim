@@ -47,6 +47,17 @@ describe('parseUnifiedDiff', () => {
     })
   })
 
+  it('splits a multi-file git diff into hunks per file', () => {
+    const diff = parseUnifiedDiff(
+      'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,1 @@\n-one\n+uno\ndiff --git a/b.ts b/c.ts\nsimilarity index 90%\ncopy from b.ts\ncopy to c.ts\n--- a/b.ts\n+++ b/c.ts\n@@ -3,1 +3,1 @@\n-two\n+dos'
+    )
+    expect(diff.path).toBe('2 files')
+    expect(diff.hunks.map((hunk) => [hunk.file, hunk.lines.map((line) => line.text)])).toEqual([
+      ['a.ts', ['one', 'uno']],
+      ['c.ts', ['two', 'dos']],
+    ])
+  })
+
   it('names each side of a two-document comparison', () => {
     const diff = parseUnifiedDiff(
       '--- sim:knowledge/kb/old\n+++ sim:knowledge/kb/new\n-Refunds are available within 14 days.\n+Annual plans can be refunded within 30 days.'

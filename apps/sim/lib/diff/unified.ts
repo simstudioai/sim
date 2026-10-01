@@ -14,6 +14,8 @@ export interface DiffLine {
 export interface DiffHunk {
   /** Free text after the `@@ … @@` range, often the enclosing heading or function. */
   heading: string
+  /** The file a hunk belongs to, set only when a git diff spans several files. */
+  file?: string
   lines: DiffLine[]
 }
 
@@ -29,7 +31,7 @@ export interface UnifiedDiff {
 
 /** Git metadata that precedes `---`/`+++` in `git diff` output and carries nothing to render. */
 const GIT_HEADER =
-  /^(?:diff --git |index |new file mode |deleted file mode |similarity |rename |old mode |new mode |Binary files )/
+  /^(?:index |new file mode |deleted file mode |similarity |dissimilarity |rename |copy |old mode |new mode |Binary files )/
 const HUNK_HEADER = /^@@(?: -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@)?\s?(.*?)(?:\s*@@)?$/
 const SIM_SOURCE = /^sim:(file|knowledge)\/([^/\s]+)(?:\/([^/\s]+))?$/
 
@@ -72,20 +74,27 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
   let oldLine: number | undefined
   let newLine: number | undefined
 
+  let file: string | null = null
   for (const [index, row] of rows.entries()) {
+    if (row.startsWith('diff --git ')) {
+      hunk = null
+      file = null
+      continue
+    }
     if (!hunk && (row.startsWith('--- ') || row.startsWith('+++ '))) {
       const target = row.slice(4).trim()
       const parsed = parseSource(target)
-      if (row.startsWith('--- ')) oldSource = parsed
-      else newSource = parsed
-      if (!parsed && target !== '/dev/null' && (row.startsWith('+++ ') || !path))
-        path = target.replace(/^[ab]\//, '').split('\t')[0]
+      if (row.startsWith('--- ')) oldSource = parsed ?? oldSource
+      else newSource = parsed ?? newSource
+      if (!parsed && target !== '/dev/null' && (row.startsWith('+++ ') || !file))
+        file = target.replace(/^[ab]\//, '').split('\t')[0]
+      path ??= file
       continue
     }
     if (!hunk && GIT_HEADER.test(row)) continue
     const header = HUNK_HEADER.exec(row)
     if (row.startsWith('@@') && header) {
-      hunk = { heading: header[3] ?? '', lines: [] }
+      hunk = { heading: header[3] ?? '', file: file ?? undefined, lines: [] }
       hunks.push(hunk)
       oldLine = header[1] ? Number(header[1]) : undefined
       newLine = header[2] ? Number(header[2]) : undefined
@@ -93,7 +102,7 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
     }
     if (row.startsWith('\\')) continue
     if (!hunk) {
-      hunk = { heading: '', lines: [] }
+      hunk = { heading: '', file: file ?? undefined, lines: [] }
       hunks.push(hunk)
     }
     const marker = row[0]
@@ -114,5 +123,8 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
     throw new Error('A diff needs at least one + or - line')
   oldSource ??= newSource
   newSource ??= oldSource
+  const files = new Set(hunks.map((entry) => entry.file))
+  if (files.size <= 1) for (const entry of hunks) entry.file = undefined
+  else path = `${files.size} files`
   return { oldSource, newSource, path: oldSource ? null : path, hunks }
 }

@@ -9,6 +9,8 @@ import type { DiffHunk, DiffLine } from '@/lib/diff/unified'
 const CONTEXT_EDGE = 3
 /** A run of unchanged lines collapses once it is longer than this. */
 const COLLAPSE_AFTER = CONTEXT_EDGE * 2 + 2
+/** Word-level comparison is skipped past this many characters, so huge lines stay cheap. */
+const WORD_DIFF_MAX_CHARS = 1000
 
 const ADD_ROW =
   'bg-[color-mix(in_srgb,var(--badge-success-bg)_35%,transparent)] text-[var(--text-primary)]'
@@ -53,6 +55,7 @@ function wordSegments(lines: DiffLine[]): Map<DiffLine, Segment[]> {
     const adds: DiffLine[] = []
     while (lines[index]?.type === 'add') adds.push(lines[index++])
     for (let pair = 0; pair < Math.min(dels.length, adds.length); pair++) {
+      if (dels[pair].text.length + adds[pair].text.length > WORD_DIFF_MAX_CHARS) continue
       const parts = diffWordsWithSpace(dels[pair].text, adds[pair].text)
       segments.set(
         dels[pair],
@@ -158,9 +161,10 @@ export function DiffView({ hunks }: DiffViewProps) {
           const expand = () => setExpanded((current) => new Set(current).add(hunkIndex))
           return (
             <Fragment key={hunkIndex}>
-              {(hunk.heading || hunkIndex > 0) && (
+              {(hunk.file || hunk.heading || hunkIndex > 0) && (
                 <div className='sticky left-0 col-span-full px-3 pt-2 pb-1 font-sans text-[var(--text-muted)] text-caption'>
-                  {hunk.heading || '⋯'}
+                  {hunk.file && <span className='text-[var(--text-body)]'>{hunk.file} </span>}
+                  {hunk.heading || (hunk.file ? '' : '⋯')}
                 </div>
               )}
               {items.map((item, index) =>
