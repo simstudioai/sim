@@ -1,11 +1,42 @@
-import { retireSearchEmbeddingsMigration } from '@sim/db/script-migrations/0027_retire_search_embeddings'
+import {
+  type RetirementThrottle,
+  retireSearchEmbeddings,
+} from '@sim/db/script-migrations/0027_retire_search_embeddings'
 import { maintainSearchRetirementMigration } from '@sim/db/script-migrations/0028_maintain_search_retirement'
+import { searchRetirementSlice } from '@sim/db/script-migrations/0029_retire_all_search_embeddings'
 import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index'
+import { type ScriptMigration, ScriptMigrationDeferred } from '@sim/db/script-migrations/types'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+
+/**
+ * Pages back to back, for the suites about scope and recovery rather than pacing. A local database's
+ * small `max_wal_size` would otherwise pace even these tiny fixtures for seconds per page.
+ */
+const UNTHROTTLED: Partial<RetirementThrottle> = {
+  dutyRatio: 0,
+  walBudgetShare: Number.POSITIVE_INFINITY,
+}
+
+/** The retirement alone, run to completion under its own journal name. */
+const retireToCompletion: ScriptMigration = {
+  name: '0027_retire_search_embeddings',
+  async up(sql) {
+    if ((await retireSearchEmbeddings(sql, { throttle: UNTHROTTLED })) === 'deferred') {
+      throw new ScriptMigrationDeferred('Another Search retirement runner holds the lock')
+    }
+  },
+}
+
+/** The background runner's slice without a budget: retirement and maintenance to completion. */
+const backgroundRun = searchRetirementSlice({
+  budgetMs: Number.POSITIVE_INFINITY,
+  maintenance: true,
+  throttle: UNTHROTTLED,
+})
 
 /** Proves destructive scope, cascading integrity, and atomic restart against real PostgreSQL. */
 describe('retiring dormant Search embeddings', () => {
@@ -65,7 +96,7 @@ describe('retiring dormant Search embeddings', () => {
   })
 
   async function pass() {
-    await runScriptMigrations(sql, [retireSearchEmbeddingsMigration])
+    await runScriptMigrations(sql, [retireToCompletion])
     const receipts = await sql`SELECT name FROM script_migrations
       WHERE name = '0027_retire_search_embeddings'`
     return receipts.length === 1
@@ -181,11 +212,21 @@ describe('retiring dormant Search embeddings', () => {
           '0029_retire_all_search_embeddings',
         ].includes(migration.name)
       )
+      const journaled = async () =>
+        (
+          await sql`SELECT name FROM script_migrations WHERE name = '0029_retire_all_search_embeddings'`
+        ).length === 1
       try {
+        /** The deploy slice retires within its budget but leaves rebuilds to the background runner. */
         await runScriptMigrations(sql, migrations)
         const preserved = legacy === 'ordinary' ? 502 : 501
         expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(preserved)
         expect((await sql`SELECT count(*)::int AS n FROM embedding_search`)[0].n).toBe(preserved)
+        expect((await sql`SELECT to_regclass('legacy_hnsw_idx')::oid AS oid`)[0].oid).toBe(
+          original.oid
+        )
+        expect(await journaled()).toBe(!otherSearch)
+        await runScriptMigrations(sql, [backgroundRun])
         if (otherSearch) {
           expect(
             (await sql`SELECT user_excluded, enabled FROM document WHERE id = 'aaa-second-doc'`)[0]
@@ -205,9 +246,7 @@ describe('retiring dormant Search embeddings', () => {
         const [rebuilt] = await sql`SELECT to_regclass('legacy_hnsw_idx')::oid AS oid`
         if (otherSearch) expect(rebuilt.oid).not.toBe(original.oid)
         else expect(rebuilt.oid).toBe(original.oid)
-        expect(
-          await sql`SELECT name FROM script_migrations WHERE name = '0029_retire_all_search_embeddings'`
-        ).toHaveLength(1)
+        expect(await journaled()).toBe(true)
         await runScriptMigrations(sql, migrations)
         expect((await sql`SELECT to_regclass('legacy_hnsw_idx')::oid AS oid`)[0].oid).toBe(
           rebuilt.oid
@@ -302,16 +341,13 @@ describe('retiring dormant Search embeddings', () => {
     ).toEqual({ user_excluded: false, processing_queue_token: 'keep-dispatch' })
   })
 
-  it('finishes beyond the former page budget and journals completion in one invocation', async () => {
+  it('finishes in one unbounded background invocation and journals completion', async () => {
     await sql`INSERT INTO document (id, knowledge_base_id)
       SELECT 'bulk-doc-' || i::text, 'search' FROM generate_series(1, 51002) i`
     await sql`INSERT INTO embedding
       SELECT lpad(i::text, 5, '0'), 'search', 'search-doc' FROM generate_series(1003, 51002) i`
-    await runScriptMigrations(sql, [
-      retireSearchEmbeddingsMigration,
-      maintainSearchRetirementMigration,
-    ])
-    expect(await sql`SELECT name FROM script_migrations`).toHaveLength(2)
+    await runScriptMigrations(sql, [backgroundRun])
+    expect(await sql`SELECT name FROM script_migrations`).toHaveLength(3)
     expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(501)
     expect(
       (
@@ -661,7 +697,7 @@ describe('retiring dormant Search embeddings', () => {
       await released
     })
     const [{ pid }] = await sql`SELECT pg_backend_pid() AS pid`
-    const migrations = [retireSearchEmbeddingsMigration, maintainSearchRetirementMigration]
+    const migrations = [retireToCompletion, maintainSearchRetirementMigration]
     let outcome: Promise<unknown> | undefined
     try {
       await locked
@@ -710,4 +746,279 @@ describe('retiring dormant Search embeddings', () => {
       await sql`DROP INDEX retirement_hnsw_idx`
     }
   })
+
+  /** A cleanup progress row in its pre-maintenance layout, so a test can attach triggers first. */
+  async function createLegacyProgressTable() {
+    await sql`CREATE TABLE search_embedding_cleanup_progress (
+      id integer PRIMARY KEY CHECK (id = 1), knowledge_base_id text NOT NULL,
+      phase text NOT NULL CHECK (phase IN ('documents', 'embeddings', 'done')),
+      after_id text NOT NULL)`
+  }
+
+  /** Records each chunk delete statement's time, rows and smallest ID. */
+  async function recordDeleteStatements() {
+    await sql`CREATE TABLE delete_statement (at timestamptz NOT NULL, rows integer NOT NULL, min_id text)`
+    await sql`CREATE FUNCTION record_delete_statement() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        INSERT INTO delete_statement
+          SELECT clock_timestamp(), count(*), min(id) FROM removed HAVING count(*) > 0;
+        RETURN NULL;
+      END $$`
+    await sql`CREATE TRIGGER record_delete_statement AFTER DELETE ON embedding
+      REFERENCING OLD TABLE AS removed FOR EACH STATEMENT EXECUTE FUNCTION record_delete_statement()`
+  }
+
+  async function dropDeleteStatements() {
+    await sql`DROP TRIGGER IF EXISTS record_delete_statement ON embedding`
+    await sql`DROP FUNCTION IF EXISTS record_delete_statement()`
+    await sql`DROP TABLE IF EXISTS delete_statement`
+  }
+
+  async function deleteStatements() {
+    return sql<{ at: Date; rows: number; min_id: string }[]>`
+      SELECT at, rows, min_id FROM delete_statement ORDER BY at`
+  }
+
+  it('defers the deploy slice within its budget, then the background runner resumes the cursor and journals', async () => {
+    await sql`INSERT INTO embedding
+      SELECT lpad(i::text, 5, '0'), 'search', 'search-doc' FROM generate_series(1003, 40002) i`
+    await createLegacyProgressTable()
+    /** Every page commit waits, as a synchronous-replication round trip would. */
+    await sql`CREATE FUNCTION wait_at_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM pg_sleep(0.2);
+        RETURN NULL;
+      END $$`
+    await sql`CREATE CONSTRAINT TRIGGER wait_at_commit AFTER UPDATE ON search_embedding_cleanup_progress
+      DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION wait_at_commit()`
+    await recordDeleteStatements()
+    const lock = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
+    try {
+      const budgetMs = 1_000
+      const deploy = searchRetirementSlice({ budgetMs, maintenance: false })
+      const startedAt = performance.now()
+      await runScriptMigrations(sql, [deploy])
+      /** No page starts after the budget, so only the page in flight at the deadline may overrun it. */
+      expect(performance.now() - startedAt).toBeLessThan(budgetMs + 2_000)
+      expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+      const [saved] = await sql`SELECT phase, after_id FROM search_embedding_cleanup_progress`
+      expect(saved.phase).toBe('embeddings')
+      expect(saved.after_id > '').toBe(true)
+      const [{ remaining }] = await sql`SELECT count(*)::int AS remaining FROM embedding
+        WHERE knowledge_base_id = 'search'`
+      expect(remaining).toBeGreaterThan(0)
+      expect(remaining).toBeLessThan(39_501)
+
+      /** While another runner holds the retirement lock, a deploy slice defers without a page. */
+      await lock`SELECT pg_advisory_lock(hashtextextended('sim:search-retirement', 0))`
+      await runScriptMigrations(sql, [deploy])
+      await lock`SELECT pg_advisory_unlock(hashtextextended('sim:search-retirement', 0))`
+      expect(await sql`SELECT phase, after_id FROM search_embedding_cleanup_progress`).toEqual([
+        saved,
+      ])
+      expect(await sql`SELECT name FROM script_migrations`).toHaveLength(0)
+
+      await sql`TRUNCATE delete_statement`
+      await runScriptMigrations(sql, [backgroundRun])
+      /** The background run picks up at the saved cursor rather than rescanning from the start. */
+      const resumed = await deleteStatements()
+      expect(resumed.length).toBeGreaterThan(0)
+      for (const statement of resumed) expect(statement.min_id > saved.after_id).toBe(true)
+      expect(
+        (await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'search'`)[0]
+          .n
+      ).toBe(0)
+      expect(
+        (await sql`SELECT name FROM script_migrations ORDER BY name`).map((row) => row.name)
+      ).toEqual([
+        '0027_retire_search_embeddings',
+        '0028_maintain_search_retirement',
+        '0029_retire_all_search_embeddings',
+      ])
+    } finally {
+      await lock.end()
+      await dropDeleteStatements()
+      await sql`DROP TRIGGER IF EXISTS wait_at_commit ON search_embedding_cleanup_progress`
+      await sql`DROP FUNCTION wait_at_commit()`
+    }
+  }, 60_000)
+
+  it('halves the page and backs off exponentially while commits are slow', async () => {
+    await sql`INSERT INTO embedding
+      SELECT lpad(i::text, 5, '0'), 'search', 'search-doc' FROM generate_series(1003, 12002) i`
+    await createLegacyProgressTable()
+    await sql`CREATE SEQUENCE slow_commits`
+    /** The first two chunk pages wait at commit, as a stalled synchronous standby would make them. */
+    await sql`CREATE FUNCTION slow_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.phase = 'embeddings' AND NEW.after_id <> '' THEN
+          IF nextval('slow_commits') <= 2 THEN PERFORM pg_sleep(0.3); END IF;
+        END IF;
+        RETURN NULL;
+      END $$`
+    await sql`CREATE CONSTRAINT TRIGGER slow_commit AFTER UPDATE ON search_embedding_cleanup_progress
+      DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION slow_commit()`
+    await recordDeleteStatements()
+    const backoffMs = 1_000
+    try {
+      expect(
+        await retireSearchEmbeddings(sql, {
+          throttle: { ...UNTHROTTLED, slowCommitMs: 150, backoffMs },
+        })
+      ).toBe('complete')
+      const statements = await deleteStatements()
+      /** Halved after each slow commit, then growing again once commits recover. */
+      const rows = statements.slice(0, 4).map((statement) => statement.rows)
+      expect(rows).toEqual([rows[0], rows[0] / 2, rows[0] / 4, rows[0] / 2])
+      const gap = (index: number) =>
+        statements[index].at.getTime() - statements[index - 1].at.getTime()
+      /** Each gap holds the slow commit plus a back-off that doubles while commits stay slow. */
+      expect(gap(1)).toBeGreaterThanOrEqual(300 + backoffMs)
+      expect(gap(2)).toBeGreaterThanOrEqual(300 + 2 * backoffMs)
+      expect(gap(3)).toBeLessThan(backoffMs)
+      expect(
+        (await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'search'`)[0]
+          .n
+      ).toBe(0)
+    } finally {
+      await dropDeleteStatements()
+      await sql`DROP TRIGGER IF EXISTS slow_commit ON search_embedding_cleanup_progress`
+      await sql`DROP FUNCTION slow_commit()`
+      await sql`DROP SEQUENCE slow_commits`
+    }
+  }, 60_000)
+
+  it('paces pages so the database WAL rate stays within the budget', async () => {
+    await sql`INSERT INTO embedding
+      SELECT lpad(i::text, 5, '0'), 'search', 'search-doc' FROM generate_series(1003, 40002) i`
+    await sql`INSERT INTO embedding_search (id) SELECT id FROM embedding WHERE id > '01002'`
+    /** Where each chunk delete statement starts and ends, in time and in WAL. */
+    await sql`CREATE TABLE delete_bound (at timestamptz NOT NULL, lsn pg_lsn NOT NULL)`
+    await sql`CREATE FUNCTION record_delete_bound() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        INSERT INTO delete_bound VALUES (clock_timestamp(), pg_current_wal_insert_lsn());
+        RETURN NULL;
+      END $$`
+    await sql`CREATE TRIGGER record_delete_start BEFORE DELETE ON embedding
+      FOR EACH STATEMENT EXECUTE FUNCTION record_delete_bound()`
+    await sql`CREATE TRIGGER record_delete_end AFTER DELETE ON embedding
+      FOR EACH STATEMENT EXECUTE FUNCTION record_delete_bound()`
+    const [settings] = await sql<{ max_wal_bytes: number; checkpoint_ms: number }[]>`
+      SELECT pg_size_bytes(current_setting('max_wal_size'))::float8 AS max_wal_bytes,
+        (extract(epoch FROM current_setting('checkpoint_timeout')::interval) * 1000)::float8 AS checkpoint_ms`
+    /** 1 MB/s, far below what back-to-back pages write locally. */
+    const budgetBytesPerMs = 1_000
+    const walBudgetShare = (budgetBytesPerMs * settings.checkpoint_ms) / settings.max_wal_bytes
+    try {
+      expect(
+        await retireSearchEmbeddings(sql, { throttle: { dutyRatio: 0, walBudgetShare } })
+      ).toBe('complete')
+      const bounds = await sql<{ at: Date; wal: number }[]>`
+        SELECT at, pg_wal_lsn_diff(lsn, '0/0')::float8 AS wal FROM delete_bound ORDER BY at`
+      /** Pairs of start and end, one per page; the last page's bounds have no successor. */
+      const pages = []
+      for (let index = 0; index + 1 < bounds.length; index += 2) {
+        pages.push({
+          startedAt: bounds[index].at.getTime(),
+          wal: bounds[index + 1].wal - bounds[index].wal,
+        })
+      }
+      expect(pages.length).toBeGreaterThan(2)
+      /**
+       * Every page but the last was followed by its pause, so the WAL those pages wrote, over the
+       * time from the first page's start to the last page's start, is the paced rate.
+       */
+      const paced = pages.slice(0, -1)
+      const wal = paced.reduce((total, page) => total + page.wal, 0)
+      const elapsedMs = pages[pages.length - 1].startedAt - pages[0].startedAt
+      expect(wal).toBeGreaterThan(0)
+      expect(wal / elapsedMs).toBeLessThanOrEqual(budgetBytesPerMs * 1.05)
+    } finally {
+      await sql`DROP TRIGGER IF EXISTS record_delete_start ON embedding`
+      await sql`DROP TRIGGER IF EXISTS record_delete_end ON embedding`
+      await sql`DROP FUNCTION record_delete_bound()`
+      await sql`DROP TABLE delete_bound`
+    }
+  }, 60_000)
+
+  it('runs maintenance only in background slices, one checkpointed operation past the budget at most', async () => {
+    expect(await pass()).toBe(true)
+    await sql`CREATE INDEX aa_retirement_hnsw_idx ON embedding_search USING hnsw (vector public.vector_l2_ops)`
+    await sql`CREATE INDEX bb_retirement_hnsw_idx ON embedding_search USING hnsw (vector public.vector_l2_ops)`
+    const oids = async () =>
+      (
+        await sql`SELECT to_regclass('aa_retirement_hnsw_idx')::oid AS aa,
+          to_regclass('bb_retirement_hnsw_idx')::oid AS bb`
+      )[0]
+    const checkpoints = async () =>
+      (
+        await sql`SELECT reindexed_through, vacuumed_tables FROM search_embedding_cleanup_progress`
+      )[0]
+    const journaled = async () =>
+      (
+        await sql`SELECT name FROM script_migrations WHERE name = '0029_retire_all_search_embeddings'`
+      ).length === 1
+    const original = await oids()
+    const blocker = postgres(readTestDatabaseUrl(), {
+      max: 1,
+      connection: { search_path: schema },
+      onnotice: () => undefined,
+    })
+    let release!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let signalLocked!: () => void
+    const locked = new Promise<void>((resolve) => {
+      signalLocked = resolve
+    })
+    let holding: Promise<unknown> | undefined
+    try {
+      await runScriptMigrations(sql, [
+        searchRetirementSlice({ budgetMs: 60_000, maintenance: false }),
+      ])
+      expect(await oids()).toEqual(original)
+      expect(await checkpoints()).toEqual({ reindexed_through: '', vacuumed_tables: 0 })
+      expect(await journaled()).toBe(false)
+
+      /** An open writer makes the first concurrent rebuild outlast the slice's budget. */
+      holding = blocker.begin(async (tx) => {
+        await tx`UPDATE embedding_search SET vector = '[3,2,1]' WHERE id = '00001'`
+        signalLocked()
+        await released
+      })
+      await locked
+      const slice = runScriptMigrations(sql, [
+        searchRetirementSlice({ budgetMs: 300, maintenance: true, throttle: UNTHROTTLED }),
+      ])
+      await sleep(1_000)
+      release()
+      await holding
+      await slice
+      const afterSlice = await oids()
+      expect(afterSlice.aa).not.toBe(original.aa)
+      expect(afterSlice.bb).toBe(original.bb)
+      expect(await checkpoints()).toEqual({
+        reindexed_through: 'aa_retirement_hnsw_idx',
+        vacuumed_tables: 0,
+      })
+      expect(await journaled()).toBe(false)
+
+      await runScriptMigrations(sql, [backgroundRun])
+      const finished = await oids()
+      expect(finished.aa).toBe(afterSlice.aa)
+      expect(finished.bb).not.toBe(original.bb)
+      expect(await checkpoints()).toEqual({
+        reindexed_through: 'bb_retirement_hnsw_idx',
+        vacuumed_tables: 6,
+      })
+      expect(await journaled()).toBe(true)
+    } finally {
+      release()
+      await holding
+      await blocker.end()
+      await sql`DROP INDEX IF EXISTS aa_retirement_hnsw_idx`
+      await sql`DROP INDEX IF EXISTS bb_retirement_hnsw_idx`
+    }
+  }, 60_000)
 })

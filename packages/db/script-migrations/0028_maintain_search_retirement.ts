@@ -16,36 +16,75 @@ const VACUUM_TABLES = [
 
 /**
  * Runs after retirement, including on databases that already journaled 0027. Concurrent rebuilds
- * and vacuum must run outside transactions; checkpoints follow each successful operation.
+ * and vacuum must run outside transactions; checkpoints follow each successful operation. Runs to
+ * completion; the registered successor runs it within a budget instead.
  */
 export const maintainSearchRetirementMigration: ScriptMigration = {
   name: '0028_maintain_search_retirement',
   async up(sql) {
-    const [table] = await sql`SELECT to_regclass('search_embedding_cleanup_progress') AS relation`
-    if (!table.relation) return
-    const [retirement] = await sql`SELECT phase FROM search_embedding_cleanup_progress WHERE id = 1`
-    if (!retirement) return
-    if (retirement.phase !== 'done')
-      throw new Error('Search retirement must finish before maintenance')
+    if ((await maintainSearchRetirement(sql)) === 'deferred') {
+      throw new Error('Search retirement maintenance is already running')
+    }
+  },
+}
 
-    const [{ locked }] =
-      await sql`SELECT pg_try_advisory_lock(hashtextextended(${MAINTENANCE_LOCK}, 0)) AS locked`
-    if (!locked) throw new Error('Search retirement maintenance is already running')
-    const [settings] = await sql`SELECT current_setting('statement_timeout') AS statement_timeout,
-      current_setting('lock_timeout') AS lock_timeout`
-    try {
-      await sql.begin(async (tx) => {
-        await tx`SET LOCAL lock_timeout = '1s'`
-        await tx`SET LOCAL statement_timeout = '120s'`
-        await tx`ALTER TABLE search_embedding_cleanup_progress
+export interface MaintenanceRunOptions {
+  /**
+   * `performance.now()` after which no rebuild or vacuum starts. One that already started runs to
+   * completion: an interrupted concurrent rebuild restarts from scratch, so cancelling it at a
+   * deadline could keep a large index from ever finishing.
+   */
+  deadline?: number
+}
+
+/**
+ * Rebuilds the HNSW indexes and vacuums the retired tables, one checkpointed operation at a time.
+ * Returns `deferred` when the deadline passes with work left or another worker holds the lock.
+ */
+export async function maintainSearchRetirement(
+  sql: Sql,
+  options: MaintenanceRunOptions = {}
+): Promise<'complete' | 'deferred'> {
+  const deadline = options.deadline ?? Number.POSITIVE_INFINITY
+  const outOfBudget = (operation: Record<string, unknown>) => {
+    if (performance.now() < deadline) return false
+    logger.info('Search retirement maintenance deferred to a later slice', operation)
+    return true
+  }
+  const [table] = await sql`SELECT to_regclass('search_embedding_cleanup_progress') AS relation`
+  if (!table.relation) return 'complete'
+  const [retirement] = await sql`SELECT phase FROM search_embedding_cleanup_progress WHERE id = 1`
+  if (!retirement) return 'complete'
+  if (retirement.phase !== 'done')
+    throw new Error('Search retirement must finish before maintenance')
+
+  const [{ locked }] =
+    await sql`SELECT pg_try_advisory_lock(hashtextextended(${MAINTENANCE_LOCK}, 0)) AS locked`
+  if (!locked) {
+    logger.info('Search retirement maintenance is already running; deferring')
+    return 'deferred'
+  }
+  const [settings] = await sql`SELECT current_setting('statement_timeout') AS statement_timeout,
+      current_setting('lock_timeout') AS lock_timeout,
+      current_setting('vacuum_cost_delay') AS vacuum_cost_delay`
+  try {
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL lock_timeout = '1s'`
+      await tx`SET LOCAL statement_timeout = '120s'`
+      await tx`ALTER TABLE search_embedding_cleanup_progress
           ADD COLUMN IF NOT EXISTS reindexed_through text NOT NULL DEFAULT '',
           ADD COLUMN IF NOT EXISTS vacuumed_tables integer NOT NULL DEFAULT 0`
-      })
-      /** Concurrent maintenance waits for old snapshots without blocking ordinary table writes. */
-      await sql`SET statement_timeout = 0`
-      await sql`SET lock_timeout = 0`
-      for (;;) {
-        const [index] = await sql<{ name: string; qualified_name: string }[]>`
+    })
+    /** Concurrent maintenance waits for old snapshots without blocking ordinary table writes. */
+    await sql`SET statement_timeout = 0`
+    await sql`SET lock_timeout = 0`
+    /**
+     * A manual VACUUM is unthrottled by default; this gives it autovacuum's default cost delay so
+     * its reads, dirtied pages and WAL are spread out instead of competing with live traffic.
+     */
+    await sql`SET vacuum_cost_delay = '2ms'`
+    for (;;) {
+      const [index] = await sql<{ name: string; qualified_name: string }[]>`
           SELECT c.relname::text AS name, format('%I.%I', n.nspname, c.relname) AS qualified_name
           FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
           JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_am am ON am.oid = c.relam
@@ -53,48 +92,51 @@ export const maintainSearchRetirementMigration: ScriptMigration = {
             AND c.relname::text > (SELECT reindexed_through FROM search_embedding_cleanup_progress WHERE id = 1)
             AND c.relname !~ '_cc(new|old)[0-9]*$'
           ORDER BY c.relname::text LIMIT 1`
-        if (!index) break
-        await removeInterruptedRebuilds(sql, index.name)
-        const startedAt = Date.now()
-        logger.info('Rebuilding retired Search vector index', { index: index.name })
-        await sql.unsafe(`REINDEX INDEX CONCURRENTLY ${index.qualified_name}`)
-        await sql`UPDATE search_embedding_cleanup_progress SET reindexed_through = ${index.name} WHERE id = 1`
-        logger.info('Search vector index rebuilt', {
-          index: index.name,
-          elapsedMs: Date.now() - startedAt,
-        })
-      }
+      if (!index) break
+      if (outOfBudget({ index: index.name })) return 'deferred'
+      await removeInterruptedRebuilds(sql, index.name)
+      const startedAt = Date.now()
+      logger.info('Rebuilding retired Search vector index', { index: index.name })
+      await sql.unsafe(`REINDEX INDEX CONCURRENTLY ${index.qualified_name}`)
+      await sql`UPDATE search_embedding_cleanup_progress SET reindexed_through = ${index.name} WHERE id = 1`
+      logger.info('Search vector index rebuilt', {
+        index: index.name,
+        elapsedMs: Date.now() - startedAt,
+      })
+    }
 
-      const [progress] = await sql<{ vacuumed_tables: number }[]>`
+    const [progress] = await sql<{ vacuumed_tables: number }[]>`
         SELECT vacuumed_tables FROM search_embedding_cleanup_progress WHERE id = 1`
-      for (let step = progress.vacuumed_tables; step < VACUUM_TABLES.length; step++) {
-        const tableName = VACUUM_TABLES[step]
-        const [relation] = await sql<{ qualified_name: string; can_maintain: boolean }[]>`
+    for (let step = progress.vacuumed_tables; step < VACUUM_TABLES.length; step++) {
+      const tableName = VACUUM_TABLES[step]
+      if (outOfBudget({ table: tableName })) return 'deferred'
+      const [relation] = await sql<{ qualified_name: string; can_maintain: boolean }[]>`
           SELECT format('%I.%I', n.nspname, c.relname) AS qualified_name,
             CASE WHEN current_setting('server_version_num')::int >= 170000
               THEN has_table_privilege(c.oid, 'MAINTAIN')
               ELSE pg_has_role(c.relowner, 'USAGE') END AS can_maintain
           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
           WHERE c.oid = to_regclass(${tableName})`
-        if (!relation?.can_maintain) throw new Error(`Cannot vacuum retirement table ${tableName}`)
-        const startedAt = Date.now()
-        logger.info('Vacuuming retired Search storage', { table: tableName })
-        await sql.unsafe(`VACUUM (ANALYZE, TRUNCATE FALSE) ${relation.qualified_name}`)
-        await sql`UPDATE search_embedding_cleanup_progress SET vacuumed_tables = ${step + 1} WHERE id = 1`
-        logger.info('Search storage vacuumed', {
-          table: tableName,
-          elapsedMs: Date.now() - startedAt,
-        })
-      }
-    } finally {
-      try {
-        await sql`SELECT set_config('statement_timeout', ${settings.statement_timeout}, false),
-          set_config('lock_timeout', ${settings.lock_timeout}, false)`
-      } finally {
-        await sql`SELECT pg_advisory_unlock(hashtextextended(${MAINTENANCE_LOCK}, 0))`
-      }
+      if (!relation?.can_maintain) throw new Error(`Cannot vacuum retirement table ${tableName}`)
+      const startedAt = Date.now()
+      logger.info('Vacuuming retired Search storage', { table: tableName })
+      await sql.unsafe(`VACUUM (ANALYZE, TRUNCATE FALSE) ${relation.qualified_name}`)
+      await sql`UPDATE search_embedding_cleanup_progress SET vacuumed_tables = ${step + 1} WHERE id = 1`
+      logger.info('Search storage vacuumed', {
+        table: tableName,
+        elapsedMs: Date.now() - startedAt,
+      })
     }
-  },
+  } finally {
+    try {
+      await sql`SELECT set_config('statement_timeout', ${settings.statement_timeout}, false),
+          set_config('lock_timeout', ${settings.lock_timeout}, false),
+          set_config('vacuum_cost_delay', ${settings.vacuum_cost_delay}, false)`
+    } finally {
+      await sql`SELECT pg_advisory_unlock(hashtextextended(${MAINTENANCE_LOCK}, 0))`
+    }
+  }
+  return 'complete'
 }
 
 /** PostgreSQL leaves invalid _ccnew/_ccold siblings if a concurrent rebuild is interrupted. */

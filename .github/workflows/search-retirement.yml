@@ -1,0 +1,87 @@
+name: Search Retirement Cleanup
+
+# Background runner for the `0029_retire_all_search_embeddings` script migration. A deploy only
+# advances the cleanup for a minute and defers; this job advances it between deploys in budgeted,
+# resumable slices throttled on the database's commit latency, WAL rate and replication lag, and
+# journals it once retirement and index maintenance finish. Every slice resumes the saved cursor
+# and maintenance checkpoints, so a cancelled or failed run loses at most its in-flight page.
+# Runbook: packages/db/script-migrations/search-embedding-retirement.md
+#
+# Pause: `gh workflow disable search-retirement.yml`, then cancel any in-progress run.
+
+on:
+  schedule:
+    # Retirement slice every hour; a slice never starts index maintenance.
+    - cron: '23 * * * *'
+    # Off-peak maintenance window: concurrent HNSW rebuilds and vacuums may start.
+    - cron: '7 3 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+      budget_minutes:
+        description: Minutes after which no page or maintenance operation starts
+        required: false
+        default: '50'
+      maintenance:
+        description: Allow concurrent index rebuilds and vacuums in this run
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Advance Search retirement (${{ matrix.environment }})
+    if: github.repository == 'simstudioai/sim'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.environment) || '["production","staging"]') }}
+    # One slice per database at a time; a queued slice waits rather than cancelling a running one.
+    concurrency:
+      group: search-retirement-${{ matrix.environment }}
+      cancel-in-progress: false
+    # A rebuild that starts inside the budget runs to completion, so the job outlives the budget.
+    timeout-minutes: 300
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      # Same secret mapping as migrations.yml: the migration role owns the tables, which the
+      # concurrent rebuilds and vacuums require, and can read replication lag.
+      - name: Run a cleanup slice
+        working-directory: ./packages/db
+        env:
+          DATABASE_URL: ${{ matrix.environment == 'production' && secrets.DATABASE_URL || matrix.environment == 'staging' && secrets.STAGING_DATABASE_URL || '' }}
+          MIGRATION_DATABASE_URL: ${{ matrix.environment == 'production' && secrets.MIGRATION_DATABASE_URL || matrix.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
+          BUDGET_MINUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.budget_minutes || github.event.schedule == '7 3 * * *' && '120' || '50' }}
+          MAINTENANCE: ${{ (github.event_name == 'workflow_dispatch' && inputs.maintenance) || github.event.schedule == '7 3 * * *' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DATABASE_URL" ]; then
+            echo "ERROR: no database URL secret resolved" >&2
+            exit 1
+          fi
+          args=(--budget-minutes "$BUDGET_MINUTES")
+          if [ "$MAINTENANCE" = "true" ]; then
+            args+=(--maintenance)
+          fi
+          bun run ./script-migrations/0029_retire_all_search_embeddings.ts "${args[@]}"
