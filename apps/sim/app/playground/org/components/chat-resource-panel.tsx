@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Chip, ChipInput, cn } from '@sim/emcn'
 import { Globe, Search, TerminalWindow } from '@sim/emcn/icons'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { BrowseRow, BrowseSection } from '@/app/playground/org/components/browse-rows'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
@@ -199,6 +200,7 @@ function BrowseView({
               <BrowseSection label={`Browse ${ORGANIZATION.name}`}>
                 {WORKSPACES.map((candidate) => (
                   <BrowseRow key={candidate.id} onClick={() => onBrowse(candidate.id, null)}>
+                    <IdentityTile initial={candidate.name[0]} />
                     <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
                       {candidate.name}
                     </span>
