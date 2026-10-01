@@ -220,7 +220,7 @@ export function usePromptEditor({
    * (outside click or Escape). Mention dismissal lasts until the caret leaves
    * that query; slash dismissal lasts until the next edit.
    */
-  const dismissedMentionStartRef = useRef<number | null>(null)
+  const dismissedMentionRef = useRef<{ start: number; triggerSelected: boolean } | null>(null)
   const dismissedSlashStartRef = useRef<number | null>(null)
 
   const contextManagement = useContextManagement({
@@ -337,6 +337,16 @@ export function usePromptEditor({
    */
   const setValue = useCallback((text: string, options?: { chipify?: boolean }) => {
     const next = options?.chipify === false ? text : applyAutoMentionsRef.current(text)
+    atInsertPosRef.current = null
+    pendingCursorRef.current = null
+    mentionRangeRef.current = null
+    dismissedMentionRef.current = null
+    setMentionQuery(null)
+    plusMenuRef.current?.close()
+    slashRangeRef.current = null
+    dismissedSlashStartRef.current = null
+    setSlashQuery(null)
+    skillsMenuRef.current?.close()
     valueRef.current = next
     setValueState(next)
   }, [])
@@ -410,7 +420,7 @@ export function usePromptEditor({
       atInsertPosRef.current = null
       mentionRangeRef.current = null
       setMentionQuery(null)
-      dismissedMentionStartRef.current = null
+      dismissedMentionRef.current = null
       plusMenuRef.current?.close()
       slashRangeRef.current = null
       setSlashQuery(null)
@@ -438,7 +448,7 @@ export function usePromptEditor({
     plusMenuRef.current?.close()
     mentionRangeRef.current = null
     setMentionQuery(null)
-    dismissedMentionStartRef.current = null
+    dismissedMentionRef.current = null
     skillsMenuRef.current?.close()
     slashRangeRef.current = null
     setSlashQuery(null)
@@ -492,7 +502,7 @@ export function usePromptEditor({
         atInsertPosRef.current = newPos
         mentionRangeRef.current = null
         setMentionQuery(null)
-        dismissedMentionStartRef.current = null
+        dismissedMentionRef.current = null
         setValueState(newValue)
       }
 
@@ -692,7 +702,9 @@ export function usePromptEditor({
    * `onOpenChange` and never call this.
    */
   const handlePlusMenuClose = useCallback(() => {
-    dismissedMentionStartRef.current = mentionRangeRef.current?.start ?? null
+    dismissedMentionRef.current = mentionRangeRef.current
+      ? { start: mentionRangeRef.current.start, triggerSelected: false }
+      : null
     atInsertPosRef.current = null
     mentionRangeRef.current = null
     setMentionQuery(null)
@@ -707,13 +719,11 @@ export function usePromptEditor({
   const syncMentionState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
       if (!contextsEnabledRef.current) return
-      const dismissedStart = dismissedMentionStartRef.current
-      if (
-        dismissedStart !== null &&
-        textarea.selectionStart <= dismissedStart &&
-        textarea.selectionEnd > dismissedStart
-      ) {
-        dismissedMentionStartRef.current = null
+      const dismissed = dismissedMentionRef.current
+      if (dismissed) {
+        dismissed.triggerSelected =
+          textarea.selectionStart <= dismissed.start && textarea.selectionEnd > dismissed.start
+        if (dismissed.triggerSelected) return
       }
       const active = getActiveMentionAtRef.current(caret, text)
       const isOpenable = active && !/[\r\n]/.test(active.query)
@@ -723,18 +733,18 @@ export function usePromptEditor({
           setMentionQuery(null)
           plusMenuRef.current?.close()
         }
-        dismissedMentionStartRef.current = null
+        dismissedMentionRef.current = null
         return
       }
 
-      if (active.start === dismissedMentionStartRef.current) {
+      if (active.start === dismissedMentionRef.current?.start) {
         if (mentionRangeRef.current !== null) {
           mentionRangeRef.current = null
           setMentionQuery(null)
         }
         return
       }
-      dismissedMentionStartRef.current = null
+      dismissedMentionRef.current = null
 
       const wasActive = mentionRangeRef.current !== null
       mentionRangeRef.current = { start: active.start, end: active.end }
@@ -829,7 +839,8 @@ export function usePromptEditor({
       const previousValue = valueRef.current
       const nextValue = e.target.value
       const hasMentionQuery =
-        mentionRangeRef.current !== null || dismissedMentionStartRef.current !== null
+        mentionRangeRef.current !== null || dismissedMentionRef.current !== null
+      if (dismissedMentionRef.current?.triggerSelected) dismissedMentionRef.current = null
 
       let finalValue = nextValue
       if (

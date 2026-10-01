@@ -233,7 +233,9 @@ export const PlusMenuDropdown = React.memo(
     const filteredItems = useMemo((): MentionCandidate[] | null => {
       const q = query.toLowerCase().trim()
       if (!isMention && !q) return null
-      const workspaceItems: MentionCandidate[] = workspaces
+      const workspaceItems: MentionCandidate[] = (
+        q ? workspaces : workspaces.slice(0, MENTION_PREVIEW_DEFAULT_LIMIT)
+      )
         .filter((workspace) => workspace.name.toLowerCase().includes(q))
         .map((item) => ({ type: 'workspace', item }))
       const resourceItems = q
