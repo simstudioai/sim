@@ -9,6 +9,7 @@ import type { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { getPostgresErrorCode } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -20,7 +21,10 @@ const databaseUrl = readTestDatabaseUrl()
 
 vi.mock('@sim/db', () => ({ db: { transaction }, dbReplica: {} }))
 vi.mock('@/lib/billing/core/plan', () => ({ getHighestPrioritySubscription: vi.fn() }))
-vi.mock('@/lib/billing/subscriptions/utils', () => ({ isOrgScopedSubscription: vi.fn() }))
+vi.mock('@/lib/billing/subscriptions/utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/subscriptions/utils')>()),
+  isOrgScopedSubscription: vi.fn(),
+}))
 
 import {
   CumulativeUsageContextMismatchError,
@@ -31,6 +35,7 @@ import {
   type RecordCumulativeUsageParams,
   recordCumulativeUsage,
 } from '@/lib/billing/core/usage-log'
+import { claimTerminalPeriod } from '@/lib/billing/cycle-close'
 
 const require = createRequire(import.meta.url)
 const commonJsPostgres = require('postgres') as typeof postgres
@@ -547,6 +552,70 @@ describe('Cumulative billing with PostgreSQL', () => {
 
       await expect(charge(1)).rejects.toBeInstanceOf(CumulativeUsagePeriodClosedError)
       expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '0.4' }])
+    })
+
+    /**
+     * Resolves true once a session waits on a row lock of the subscription table, or false once
+     * `work` settles without anyone waiting, so a missing lock fails instead of hanging.
+     */
+    async function waitsOnSubscriptionRow(work: Promise<unknown>) {
+      let settled = false
+      work.then(
+        () => {
+          settled = true
+        },
+        () => {
+          settled = true
+        }
+      )
+      while (!settled) {
+        const [row] = await connection<{ waiting: boolean }[]>`
+          select exists (
+            select 1 from pg_locks
+            where locktype = 'tuple' and relation = 'subscription'::regclass
+          ) as waiting
+        `
+        if (row.waiting) return true
+        await sleep(10)
+      }
+      return false
+    }
+
+    it('makes the terminal claim wait for an in-flight charge, so the final sum includes it', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      const pause = pauseNextTransaction()
+      const inFlight = charge(0.6)
+      let claim: Promise<unknown> = Promise.resolve()
+      try {
+        await pause.reached.promise
+        claim = claimTerminalPeriod('sub-1')
+        expect(await waitsOnSubscriptionRow(claim)).toBe(true)
+      } finally {
+        pause.release.resolve()
+        await inFlight
+        await claim
+      }
+      expect(await stampedTotal(0)).toBeCloseTo(0.6, 9)
+      await expect(charge(0.8)).rejects.toBeInstanceOf(CumulativeUsagePeriodClosedError)
+    })
+
+    it('refuses a charge that waited on an in-flight terminal claim', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      const pause = pauseNextTransaction()
+      const claim = claimTerminalPeriod('sub-1')
+      let late: Promise<unknown> = Promise.resolve()
+      try {
+        await pause.reached.promise
+        late = charge(0.6)
+        expect(await waitsOnSubscriptionRow(late)).toBe(true)
+      } finally {
+        pause.release.resolve()
+        await claim
+      }
+      await expect(late).rejects.toBeInstanceOf(CumulativeUsagePeriodClosedError)
+      expect(await stampedTotal(0)).toBeCloseTo(0.4, 9)
     })
 
     it('holds an early period-start move until an in-flight top-up commits', async () => {
