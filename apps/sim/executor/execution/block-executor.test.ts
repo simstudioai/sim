@@ -133,7 +133,10 @@ describe('BlockExecutor', () => {
     expect(context.mcpBlockId).toBeUndefined()
   })
 
-  function createFailedToolExecution(output: Record<string, unknown>) {
+  function createFailedToolExecution(
+    output: Record<string, unknown>,
+    options: { piiRedaction?: boolean } = {}
+  ) {
     const block = createBlock()
     const workflow: SerializedWorkflow = {
       version: '1',
@@ -159,15 +162,125 @@ describe('BlockExecutor', () => {
       state
     )
     const ctx = createContext(state)
-    ctx.piiBlockOutputRedaction = {
-      enabled: true,
-      entityTypes: ['EMAIL_ADDRESS'],
-      language: 'en',
+    if (options.piiRedaction !== false) {
+      ctx.piiBlockOutputRedaction = {
+        enabled: true,
+        entityTypes: ['EMAIL_ADDRESS'],
+        language: 'en',
+      }
     }
     const node = createNode(block)
     node.outgoingEdges.set('error-edge', { sourceHandle: EDGE.ERROR, target: 'error-handler' })
     return { executor, block, state, ctx, node, failure, onBlockComplete }
   }
+
+  it('durably compacts inline failed tool rows before error-port state and completion output', async () => {
+    const rows = Array.from({ length: 3072 }, (_, id) => ({ id, value: 'p'.repeat(3072) }))
+    const persisted = new Map<string, Buffer>()
+    mockUploadFile.mockImplementation(async ({ customKey, file }) => {
+      persisted.set(customKey, file)
+      return { key: customKey }
+    })
+    mockDownloadFile.mockImplementation(async ({ key }) => {
+      const file = persisted.get(key)
+      if (!file) throw new Error('Stored partial-row chunk was not found')
+      return file
+    })
+    const { executor, block, state, ctx, node, failure, onBlockComplete } =
+      createFailedToolExecution(
+        { rows, rowCount: rows.length, incomplete: true },
+        { piiRedaction: false }
+      )
+    const cost = { input: 0.1, output: 0.2, total: 0.3 }
+    attachTrustedExecutionCost(failure, cost)
+
+    const output = await executor.execute(ctx, node, block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(isLargeArrayManifest(output.rows)).toBe(true)
+    expect(isLargeValueRef(output)).toBe(false)
+    expect(output).toMatchObject({
+      error: 'query incomplete',
+      rowCount: rows.length,
+      incomplete: true,
+      cost,
+    })
+    if (!isLargeArrayManifest(output.rows)) throw new Error('Expected compacted failed rows')
+    expect(output.rows.totalCount).toBe(rows.length)
+    expect(output.rows.chunks.every(({ ref }) => ref.executionId === ctx.executionId)).toBe(true)
+    clearLargeValueCacheForTests()
+    expect(
+      await readLargeArrayManifestSlice(output.rows, 0, rows.length, {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+      })
+    ).toEqual(rows)
+    expect(state.getBlockOutput(block.id)).toEqual(output)
+    expect(ctx.blockLogs[0]?.output).toEqual(output)
+    expect(onBlockComplete.mock.calls[0]?.[3]?.output).toEqual(output)
+    expect(ctx.blockLogs[0]).toMatchObject({ success: false, errorHandled: true })
+  })
+
+  it('keeps aggregate failed envelopes addressable by error routing and named fields', async () => {
+    const rows = Array.from({ length: 1536 }, (_, id) => ({ id, value: 'p'.repeat(3072) }))
+    const metadata = { notes: 'm'.repeat(4.5 * 1024 * 1024) }
+    const { executor, block, state, ctx, node, failure, onBlockComplete } =
+      createFailedToolExecution(
+        { rows, metadata, rowCount: rows.length, incomplete: true },
+        { piiRedaction: false }
+      )
+    const cost = { input: 0.1, output: 0.2, total: 0.3 }
+    attachTrustedExecutionCost(failure, cost)
+
+    const output = await executor.execute(ctx, node, block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(isLargeValueRef(output)).toBe(false)
+    expect(output.error).toBe('query incomplete')
+    expect(output.rowCount).toBe(rows.length)
+    expect(output.incomplete).toBe(true)
+    expect(output.cost).toEqual(cost)
+    expect(JSON.stringify(output.rows) === JSON.stringify(rows)).toBe(true)
+    expect(JSON.stringify(output.metadata) === JSON.stringify(metadata)).toBe(true)
+    expect(state.getBlockOutput(block.id)).toEqual(output)
+    expect(ctx.blockLogs[0]?.output).toEqual(output)
+    expect(onBlockComplete.mock.calls[0]?.[3]?.output).toEqual(output)
+    expect(ctx.blockLogs[0]).toMatchObject({ success: false, errorHandled: true })
+  })
+
+  it('omits retained tool payloads when durable compaction fails while preserving trusted cost', async () => {
+    const rows = Array.from({ length: 3072 }, (_, id) => ({ id, value: 'p'.repeat(3072) }))
+    const unsafeFailure = 'storage rejected private-partial-row-payload'
+    mockUploadFile.mockRejectedValueOnce(new Error(unsafeFailure))
+    const { executor, block, state, ctx, node, failure, onBlockComplete } =
+      createFailedToolExecution(
+        { rows, rowCount: rows.length, incomplete: true },
+        { piiRedaction: false }
+      )
+    const cost = { input: 0.1, output: 0.2, total: 0.3 }
+    attachTrustedExecutionCost(failure, cost)
+
+    const output = await executor.execute(ctx, node, block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(Object.hasOwn(output, 'rows')).toBe(false)
+    expect(Object.hasOwn(output, 'rowCount')).toBe(false)
+    expect(Object.hasOwn(output, 'incomplete')).toBe(false)
+    const expected = {
+      error: 'Partial tool output could not be stored and was omitted.',
+      cost,
+    }
+    expect(output).toEqual(expected)
+    expect(state.getBlockOutput(block.id)).toEqual(expected)
+    expect(ctx.blockLogs[0]?.output).toEqual(expected)
+    expect(ctx.blockLogs[0]?.error).toBe(expected.error)
+    expect(onBlockComplete.mock.calls[0]?.[3]?.output).toEqual(expected)
+    expect(ctx.blockLogs[0]).toMatchObject({ success: false, errorHandled: true })
+    expect(JSON.stringify([output, ctx.blockLogs, onBlockComplete.mock.calls])).not.toContain(
+      unsafeFailure
+    )
+  })
 
   it('masks partial failed tool rows before error-port state and completion output', async () => {
     mockMaskBatch.mockImplementation(async (texts: string[]) =>

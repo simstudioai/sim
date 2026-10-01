@@ -717,13 +717,33 @@ export class BlockExecutor {
         errorMessage = 'PII redaction failed. Partial tool output was omitted.'
       }
     }
-    endedAt = new Date().toISOString()
-    duration = performance.now() - startTime
-    const errorOutput: NormalizedBlockOutput = {
+    let errorOutput: NormalizedBlockOutput = {
       ...partialOutput,
       error: errorMessage,
       ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),
     }
+    if (partialOutput && Object.keys(partialOutput).length > 0) {
+      try {
+        const compacted = await compactBlockOutput(errorOutput, {
+          workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
+          executionId: ctx.executionId,
+          userId: ctx.userId,
+          preserveUserFileBase64: ctx.includeFileBase64 === true,
+          preserveRoot: true,
+          requireDurable: true,
+        })
+        errorOutput = compacted.output
+      } catch {
+        errorMessage = 'Partial tool output could not be stored and was omitted.'
+        errorOutput = {
+          error: errorMessage,
+          ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),
+        }
+      }
+    }
+    endedAt = new Date().toISOString()
+    duration = performance.now() - startTime
 
     // Keep any answer text already drained before timeout/failure so logs match
     // what was projected to the client.

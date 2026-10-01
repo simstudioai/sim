@@ -347,8 +347,8 @@ afterAll(async () => {
 })
 
 describe('Power BI with persisted delegated credentials and provider wire responses', () => {
-  it('refreshes an expired delegated token, stores rotation, and requests the Power BI audience', () =>
-    checked('expired delegated token rotation', async () => {
+  it('refreshes an expired delegated token, reuses its stored rotation, and requests the Power BI audience', () =>
+    checked('expired delegated token rotation and reuse', async () => {
       const run = await runWorkflow(['powerbi_list_datasets'], undefined, expiredCredentialId)
       expect(run.result).toMatchObject({ ok: true, status: 'completed' })
       expect(provider.requests).toHaveLength(2)
@@ -374,6 +374,45 @@ describe('Power BI with persisted delegated credentials and provider wire respon
         Date.now() + 89 * 24 * 60 * 60 * 1000
       )
       expect(run.state?.blockStates[run.blockIds[0]]?.output).toMatchObject({ datasetCount: 1 })
+
+      await db
+        .update(account)
+        .set({ accessTokenExpiresAt: new Date(Date.now() - 60_000) })
+        .where(eq(account.id, expiredAccountId))
+      const beforeRepeatedRefresh = provider.requests.length
+      const repeated = await runWorkflow(['powerbi_list_datasets'], undefined, expiredCredentialId)
+      expect(provider.requests.slice(beforeRepeatedRefresh)).toEqual([
+        {
+          method: 'POST',
+          path: '/common/oauth2/v2.0/token',
+          body: {
+            grant_type: 'refresh_token',
+            refresh_token: POWERBI_FIXTURE_ROTATED_REFRESH_TOKEN,
+            client_id: 'powerbi-fixture-client',
+            client_secret: 'powerbi-fixture-secret',
+            scope: tokenBody.scope,
+          },
+          authorized: true,
+          status: 200,
+        },
+        {
+          method: 'GET',
+          path: `/v1.0/myorg/groups/${POWERBI_FIXTURE_IDS.groupId}/datasets`,
+          body: null,
+          authorized: true,
+          status: 200,
+        },
+      ])
+      expect(repeated.result).toMatchObject({ ok: true, status: 'completed' })
+      expect(repeated.state?.blockStates[repeated.blockIds[0]]?.output).toMatchObject({
+        datasetCount: 1,
+      })
+      const [storedAgain] = await db.select().from(account).where(eq(account.id, expiredAccountId))
+      expect(storedAgain).toMatchObject({
+        accessToken: POWERBI_FIXTURE_TOKEN,
+        refreshToken: POWERBI_FIXTURE_ROTATED_REFRESH_TOKEN,
+      })
+      expect(storedAgain.accessTokenExpiresAt?.getTime()).toBeGreaterThan(Date.now())
     }))
 
   it('rejects missing resource identities instead of storing successful null identities', () =>

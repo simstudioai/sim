@@ -97,7 +97,8 @@ export async function startPowerBIProviderFixture(http: typeof NodeHTTP) {
       entry.body = Object.fromEntries(parameters)
       entry.authorized =
         parameters.get('grant_type') === 'refresh_token' &&
-        parameters.get('refresh_token') === POWERBI_FIXTURE_REFRESH_TOKEN &&
+        (parameters.get('refresh_token') === POWERBI_FIXTURE_REFRESH_TOKEN ||
+          parameters.get('refresh_token') === POWERBI_FIXTURE_ROTATED_REFRESH_TOKEN) &&
         parameters.get('client_id') === 'powerbi-fixture-client' &&
         parameters.get('client_secret') === 'powerbi-fixture-secret'
       if (!entry.authorized) return send(400, { error: 'invalid_grant' })
