@@ -41,7 +41,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ok: false,
       message: 'Sign in to Sim to complete this Slack setup.',
       state: rawState,
-      reason: 'unauthenticated',
+      reason: 'signin_required',
     })
   }
   const parsed = await parseRequest(slackCredentialGroupConfigurationCallbackContract, request, {})
