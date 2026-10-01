@@ -158,7 +158,7 @@ For an adoption test, ask whether a second team can safely operate the workflow 
 
 **Sim keeps deployment monitoring, agent control, and data storage inside the workspace through Logs, Chat, and Tables, rather than leaving that operational work to separate tools.**
 
-**Logs** addresses blind deployment. Every run from every trigger, including manual, API, chat, schedule, and webhook runs, lands on Sim's [Logs page](https://docs.sim.ai/logs-debugging/logging) with per-block timing, each block's inputs and outputs, and a frozen snapshot of the workflow as it was at run time. That turns a silent failure into something a team can trace back to the step that broke, and Sim [alerts](https://docs.sim.ai/logs-debugging/alerts) can notify a channel when a workflow fails, slows down, exceeds a cost threshold, or goes quiet.
+**Logs** addresses blind deployment. Every run from every trigger, including manual, API, chat, schedule, and webhook runs, lands on Sim's [Logs page](https://docs.sim.ai/logs-debugging/logging) with per-block timing, each block's inputs and outputs, and, for runs logged since Sim's enhanced logging was introduced, a frozen snapshot of the workflow as it was at run time. That turns a silent failure into something a team can trace back to the step that broke, and Sim [alerts](https://docs.sim.ai/logs-debugging/alerts) can notify a channel when a workflow fails, slows down, exceeds a cost threshold, or goes quiet.
 
 **Chat** handles control of agents already in use. In [Sim's Chat](https://docs.sim.ai/chat), a team member talks to Sim to [run, debug, edit, and deploy workflows](https://docs.sim.ai/chat/workflows) in natural language, so correcting a misbehaving agent does not require rebuilding it by hand.
 

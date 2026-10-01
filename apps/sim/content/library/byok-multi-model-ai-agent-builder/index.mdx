@@ -14,7 +14,7 @@ faq:
   - q: "What is BYOK in Sim?"
     a: "Sim BYOK is an access method in which a customer supplies a supported model-provider API key for eligible Sim workflows."
   - q: "Which providers are BYOK-eligible in Sim?"
-    a: "Sim accepts your own keys for the model providers OpenAI, Anthropic, Google, Mistral, Z.ai, Cohere, xAI, Kimi, Fireworks, Together AI, Baseten, Ollama Cloud, and Fal.ai, plus search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, and Hunter. Each key is saved per provider, and Sim routes that provider's calls through your account."
+    a: "Sim accepts your own keys for the LLM providers OpenAI, Anthropic, Google, Mistral, Z.ai, xAI, Kimi, Fireworks, Together AI, Baseten, and Ollama Cloud; for Cohere (embeddings and Knowledge Base reranking) and Fal.ai (image and video generation); plus search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, and Hunter. Each key is saved per provider, and Sim routes that provider's calls through your account."
   - q: "How is billing separated between hosted keys and BYOK?"
     a: "With Sim's hosted keys, model usage bills through Sim credits with a 1.1x multiplier on the provider's base price. With your own key, the provider bills your account at its own rates with no Sim markup, and Sim's per-run base charge still applies."
   - q: "Does Sim BYOK make model usage free?"
@@ -63,7 +63,7 @@ This guide separates three options that buyers often conflate: hosted model acce
 
 Sim BYOK means that a team supplies an API key from a supported model provider and uses that provider account when an eligible Sim workflow calls the model. On Sim Cloud, a workspace admin can store workspace keys on any plan, and organization admins on Pro for Teams, Max for Teams, or Enterprise can store organization keys that every workspace inherits, as described in Sim's [BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
 
-Sim's BYOK settings accept keys for these model providers: OpenAI, Anthropic, Google, Mistral, Z.ai, Cohere, xAI, Kimi, Fireworks, Together AI, Baseten, Ollama Cloud, and Fal.ai. The same page accepts keys for search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, Jina AI, Hunter, and People Data Labs. Precedence is resolved per provider: a workspace key wins, then the organization key, then Sim's hosted key with the multiplier applied.
+Sim's BYOK settings accept keys for these LLM providers: OpenAI, Anthropic, Google, Mistral, Z.ai, xAI, Kimi, Fireworks, Together AI, Baseten, and Ollama Cloud. Cohere keys cover embeddings and Knowledge Base reranking, and Fal.ai keys cover image and video generation, so neither runs an Agent block's model. The same page accepts keys for search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, Jina AI, Hunter, and People Data Labs. Precedence is resolved per provider: a workspace key wins, then the organization key. Sim's hosted key, with the multiplier applied, is the fallback only for the models Sim hosts; providers such as Together AI, Baseten, and Ollama Cloud need your own key.
 
 BYOK stands for “bring your own key.” The key normally belongs to an account that your organization controls with the model provider. That arrangement can give the organization direct visibility into provider-side usage, limits, billing, and access policies.
 
