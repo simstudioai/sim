@@ -76,9 +76,12 @@ export function isJsonWithinByteLimit(value: unknown, maxBytes: number): boolean
         const prototype = Object.getPrototypeOf(item)
         if (!Array.isArray(item) && prototype !== Object.prototype && prototype !== null)
           return false
-        const serializer = Object.getOwnPropertyDescriptor(item, 'toJSON')
-        if (serializer && (!('value' in serializer) || typeof serializer.value === 'function'))
-          return false
+        for (let owner: object | null = item; owner; owner = Object.getPrototypeOf(owner)) {
+          const serializer = Object.getOwnPropertyDescriptor(owner, 'toJSON')
+          if (!serializer) continue
+          if (!('value' in serializer) || typeof serializer.value === 'function') return false
+          break
+        }
         bytes += 2
         ancestors.add(item)
         stack.push({ value: item, entries: entries(item), count: 0 })

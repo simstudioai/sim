@@ -103,4 +103,20 @@ describe('bounded JSON', () => {
     expect(isJsonWithinByteLimit(value, bytes)).toBe(true)
     expect(isJsonWithinByteLimit(value, bytes - 1)).toBe(false)
   })
+
+  it.each(['method', 'accessor'] as const)(
+    'rejects an inherited toJSON %s without invoking it or ignoring an own shadow',
+    (kind) => {
+      const serialize = vi.fn(() => 'x'.repeat(2048))
+      const prototype = Object.create(Array.prototype, {
+        toJSON: kind === 'method' ? { value: serialize } : { get: serialize },
+      })
+      const value = Object.setPrototypeOf([], Object.create(prototype))
+      expect(isJsonWithinByteLimit(value, 1024)).toBe(false)
+      expect(serialize).not.toHaveBeenCalled()
+      Object.defineProperty(value, 'toJSON', { value: null })
+      expect(isJsonWithinByteLimit(value, 2)).toBe(true)
+      expect(serialize).not.toHaveBeenCalled()
+    }
+  )
 })
