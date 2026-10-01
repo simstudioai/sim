@@ -53,9 +53,11 @@ beforeEach(() => {
 })
 describe('Search source direct tool', () => {
   it('uses authenticated actor and org and forwards viewer-safe pagination', async () => {
-    expect(await tool.execute({ action: 'list', cursor: 'previous', mine: true }, context)).toEqual(
-      { action: 'list', sources: [], nextCursor: 'next' }
-    )
+    expect(await tool.execute({ action: 'list', cursor: 'previous' }, context)).toEqual({
+      action: 'list',
+      sources: [],
+      nextCursor: 'next',
+    })
     expect(mocks.list).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'organization_delegated',
@@ -64,7 +66,7 @@ describe('Search source direct tool', () => {
         audience: 'sim:knowledge',
         resourceScope: { chatId: 'actual-chat' },
       }),
-      input: { organizationId: 'actual-org', cursor: 'previous', mine: true },
+      input: { organizationId: 'actual-org', cursor: 'previous' },
     })
     expect(mocks.chat).toHaveBeenCalledBefore(mocks.list)
   })

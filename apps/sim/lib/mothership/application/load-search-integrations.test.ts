@@ -1,4 +1,4 @@
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { resetEnvFlagsMock } from '@sim/testing'
 import {
   mothershipOrganizationChatsMock,
   mothershipOrganizationChatsMockFns,
@@ -42,14 +42,17 @@ const emptyPage: InventoryPage = {
 describe('loadCopilotSearchIntegrations', () => {
   beforeEach(() => {
     resetEnvFlagsMock()
-    /** The paged inventory below is the indexed arm; the live test opts back in. */
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
+
     authorizeChat.mockResolvedValue(undefined)
     listIntegrations.mockResolvedValue(emptyPage)
+    liveAccounts.mockResolvedValue({ backend: 'live', accounts: [] })
   })
 
   it('authorizes the private chat and reads only for the authenticated person and organization', async () => {
-    expect(await loadCopilotSearchIntegrations(context)).toBe('{"connections":[],"available":[]}')
+    expect(JSON.parse(await loadCopilotSearchIntegrations(context))).toMatchObject({
+      connections: [],
+      available: [],
+    })
     const principal = authorizeChat.mock.calls[0][0].principal
     expect(principal).toMatchObject({
       kind: 'organization_delegated',
@@ -70,7 +73,6 @@ describe('loadCopilotSearchIntegrations', () => {
   })
 
   it('includes exact live connection targets alongside current provider search accounts', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     const target = {
       type: 'link',
       provider: 'slack',
@@ -97,75 +99,12 @@ describe('loadCopilotSearchIntegrations', () => {
     })
   })
 
-  it('loads every page and preserves account status and exact connection controls', async () => {
-    const available: InventoryPage['available'][number] = {
-      name: 'Gmail',
-      description: 'Personal mail',
-      target: { type: 'link', provider: 'google-email', connectorType: 'gmail' },
-    }
-    const connection: InventoryPage['connections'][number] = {
-      name: 'Gmail',
-      providerId: 'google-email',
-      connectorType: 'gmail',
-      connectorId: 'source-1',
-      knowledgeBaseId: 'kb-1',
-      description: 'Personal mail',
-      accounts: [
-        {
-          credentialId: 'account-1',
-          displayName: 'me@example.com',
-          status: 'reconnect_needed',
-          action: { ...available.target, connectorId: 'source-1', credentialId: 'account-1' },
-        },
-      ],
-      connectionStatus: 'reconnect_needed',
-      indexingStatus: 'indexed',
-      action: null,
-    }
-    listIntegrations
-      .mockResolvedValueOnce({ ...emptyPage, available: [available], nextCursor: 'page-2' })
-      .mockResolvedValueOnce({ ...emptyPage, connections: [connection], available: [available] })
-
-    expect(JSON.parse(await loadCopilotSearchIntegrations(context))).toEqual({
-      connections: [connection],
-      available: [available],
-    })
-    expect(listIntegrations.mock.calls[1][0]).toEqual({
-      principal: authorizeChat.mock.calls[0][0].principal,
-      input: { organizationId: 'org-1', cursor: 'page-2' },
-    })
-  })
-
   it('does not read inventory when private-chat authorization fails', async () => {
     authorizeChat.mockRejectedValueOnce(new Error('Chat belongs to another person'))
     await expect(loadCopilotSearchIntegrations(context)).rejects.toThrow(
       'Chat belongs to another person'
     )
     expect(listIntegrations).not.toHaveBeenCalled()
-  })
-
-  it('fails the turn if a later page cannot be read', async () => {
-    listIntegrations
-      .mockResolvedValueOnce({ ...emptyPage, nextCursor: 'page-2' })
-      .mockRejectedValueOnce(new Error('Inventory unavailable'))
-    await expect(loadCopilotSearchIntegrations(context)).rejects.toThrow('Inventory unavailable')
-  })
-
-  it('rejects a repeated cursor instead of looping or returning partial inventory', async () => {
-    listIntegrations.mockResolvedValue({ ...emptyPage, nextCursor: 'page-2' })
-    await expect(loadCopilotSearchIntegrations(context)).rejects.toThrow(
-      'pagination did not advance'
-    )
-    expect(listIntegrations).toHaveBeenCalledTimes(2)
-  })
-
-  it('bounds page loading when the inventory never ends', async () => {
-    listIntegrations.mockImplementation(async () => ({
-      ...emptyPage,
-      nextCursor: `page-${listIntegrations.mock.calls.length + 1}`,
-    }))
-    await expect(loadCopilotSearchIntegrations(context)).rejects.toThrow('exceeded 100 pages')
-    expect(listIntegrations).toHaveBeenCalledTimes(100)
   })
 
   it('rejects oversized prompt content instead of silently truncating it', async () => {

@@ -5,10 +5,7 @@ import {
   consumeDesktopSourceRequestContract,
   type DesktopSourceRequest,
 } from '@/lib/api/contracts/desktop-source-connect'
-import {
-  connectSimSearchConnectorContract,
-  startKnowledgeConnectorMemberEnrollmentContract,
-} from '@/lib/api/contracts/knowledge/connectors'
+import { startKnowledgeConnectorMemberEnrollmentContract } from '@/lib/api/contracts/knowledge/connectors'
 import {
   gitHubSearchSetupScopeSchema,
   readGitHubSearchSetupContract,
@@ -112,17 +109,6 @@ async function startRequest(
       const result = await requestJson(startKnowledgeConnectorMemberEnrollmentContract, {
         params: request.params,
         query: { oauthCompletionId: request.completionId },
-      })
-      return {
-        url: result.data.url,
-        match: request.completionId
-          ? { kind: 'completion', id: request.completionId }
-          : enrollmentMatch(result.data.url),
-      }
-    }
-    case 'search-source': {
-      const result = await requestJson(connectSimSearchConnectorContract, {
-        body: { ...request.body, oauthCompletionId: request.completionId },
       })
       return {
         url: result.data.url,

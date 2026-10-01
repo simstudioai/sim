@@ -30,7 +30,6 @@ import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-
 import { useSession } from '@/lib/auth/auth-client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { readSSELines } from '@/lib/core/utils/sse'
@@ -1927,7 +1926,6 @@ export function useChat(
     )
     /** Recovery discards interim search tabs without taking an already visible panel away. */
     if (
-      getDeploymentShape().features.liveEnterpriseSearch &&
       requestModeRef.current === 'assistant' &&
       !sendingRef.current &&
       (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
@@ -1956,7 +1954,6 @@ export function useChat(
       ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
       : updatedResources
     const keepSearchPanelStable =
-      getDeploymentShape().features.liveEnterpriseSearch &&
       requestModeRef.current === 'assistant' &&
       (sendingRef.current ||
         (activeStreamId && !isTerminalStreamStatus(chatHistory.streamSnapshot?.status)))
@@ -2173,9 +2170,7 @@ export function useChat(
       }
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
-        citedSourcesEnabled:
-          getDeploymentShape().features.liveEnterpriseSearch &&
-          requestModeRef.current === 'assistant',
+        citedSourcesEnabled: requestModeRef.current === 'assistant',
         refreshRoute: () => router.refresh(),
         viewerId,
         workspaceId,

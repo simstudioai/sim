@@ -3749,6 +3749,7 @@ export const embedding = pgTable(
 )
 
 /** Keyword ranking reads text-search vectors independently of chunk content and semantic vectors. */
+// contract-pending(after the indexed-search retirement release and all legacy projection writers have drained): drop embedding_keyword_search — regular KB keyword queries read embedding.content_tsv.
 export const embeddingKeywordSearch = pgTable(
   'embedding_keyword_search',
   {
@@ -3779,6 +3780,7 @@ export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
  * the index, and the embedding and knowledge base triggers that own these rows, and only where
  * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
  */
+// contract-pending(after the indexed-search retirement release and all legacy projection writers have drained): drop embedding_keyword_tin — only retired indexed Search ranks this projection.
 export const embeddingKeywordTin = pgTable(
   'embedding_keyword_tin',
   {
@@ -3825,10 +3827,12 @@ export const embeddingSearch = pgTable(
      * source spends its scan budget on chunks the graph reached but the member cannot read.
      * NULL for uploads.
      */
+    // contract-pending(after the indexed-search retirement release and source/ACL projection writers have drained): drop connector_id — regular KB retrieval checks the parent document.
     connectorId: text('connector_id'),
     /** The document's ACL, mirrored by trigger, so a walk can test readability on the row it visits. */
+    // contract-pending(after the indexed-search retirement release and source/ACL projection writers have drained): drop acl — regular KB retrieval retains document-level access checks.
     acl: text('acl').array(),
-    /** contract-pending(after the projection sync trigger stops writing them): drop the binary columns; their ANN indexes were dropped in 0372, and nothing reads them. */
+    // contract-pending(after vector writers stop computing binary projections and embedding_search_width_check is replaced): drop binary and all binary_* columns — their ANN indexes were dropped in 0372 and no reader uses them.
     binary: bit('binary', { dimensions: 1536 }),
     binary384: bit('binary_384', { dimensions: 384 }),
     binary768: bit('binary_768', { dimensions: 768 }),
@@ -3885,6 +3889,7 @@ export const embeddingSearch = pgTable(
  * holds the document row, but clearing it would otherwise take that row again, and readers probe
  * this small table instead of joining `document` per ranked row.
  */
+// contract-pending(after deferred vector content is repaired and projection mark writers/workers are retired): drop knowledge_projection_dirty — legacy ACL copies need no repair, but unfinished vector repairs must survive retirement.
 export const knowledgeProjectionDirty = pgTable(
   'knowledge_projection_dirty',
   {
@@ -5222,6 +5227,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
 ])
 
 /** Content-free organization Search activity, independent of billable model usage. */
+// contract-pending(after the indexed-search retirement release and old activity writers have drained): drop organization_search_invocation — live Search does not record indexed result activity.
 export const organizationSearchInvocation = pgTable(
   'organization_search_invocation',
   {

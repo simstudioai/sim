@@ -5,8 +5,8 @@
  * the keyword projection — so projection rows that are stale, unfilled, or missing change
  * nothing about what a workspace search returns. A signed-in reader's own grants widen what they
  * read, and a source whose reader must be proven live admits a candidate only once the proof
- * holds, with the readable rows below it filling the page when it does not. A search index named
- * by id while indexed organization search is dormant is searched the same way.
+ * holds, with the readable rows below it filling the page when it does not. A Search-marked knowledge base
+ * named explicitly by id is searched the same way.
  */
 import { createHash } from 'node:crypto'
 import type { Principal } from '@sim/auth/principal'
@@ -29,14 +29,7 @@ import {
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-
-/** Pinned to Live Search, so indexed organization search is dormant whatever the run's environment. */
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  isLiveEnterpriseSearchEnabled: true,
-}))
-
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -50,7 +43,6 @@ import type {
 import { type KnowledgeSearchMode, retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
-import { usesIndexedRetrieval } from '@/lib/sim-search/indexed/gate'
 
 afterAll(async () => {
   await db.$client.end()
@@ -165,7 +157,6 @@ describe.each([
       access: await accessProvider.get(),
       accessProvider,
       searchMode,
-      indexedRetrieval: usesIndexedRetrieval([{ isSearchIndex }]),
       query: 'handbook onboarding',
       queryVector,
     })

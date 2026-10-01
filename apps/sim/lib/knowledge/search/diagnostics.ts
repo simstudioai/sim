@@ -14,11 +14,9 @@ export type SearchStage =
   | 'tool_presentation'
   | 'workspace_application'
   | 'organization_application'
-  | 'scoped_application'
   | 'knowledge_application'
   | 'scope_resolution'
   | 'knowledge_context'
-  | 'index_resolution'
   | 'availability'
   | 'billing_attribution'
   | 'usage_admission'
@@ -28,10 +26,7 @@ export type SearchStage =
   | 'access_scope'
   | 'defaults'
   | 'retrieval'
-  | 'access_plan'
   | 'live_source_grants'
-  | 'vector.source_exact'
-  | 'vector.source_walk'
   | 'permitted_documents'
   | 'result_provenance'
   | 'reranking'
@@ -39,7 +34,6 @@ export type SearchStage =
   | 'overage_billing'
   | 'tag_definitions'
   | 'metadata_provenance'
-  | 'activity_recording'
   | RetrievalLeg
   | `${RetrievalLeg}.candidates`
   | `${RetrievalLeg}.hydration`
@@ -48,20 +42,9 @@ export type SearchStage =
   | 'vector.settings'
   | 'vector.probe'
   | 'vector.page'
-  | 'vector.projection_filled'
-  | 'vector.source_indexes'
-  | 'keyword.projection_filled'
   | 'vector.exact_candidates'
   | 'vector.exact'
   | 'vector.candidate_search'
-  | 'keyword.tin'
-  | 'keyword.tin_readiness'
-  | 'keyword.tin_query'
-  | 'source_overview'
-  | 'source_overview.availability'
-  | 'source_overview.providers'
-  | 'source_overview.indexing'
-  | 'source_overview.searchable'
   | 'access_batch.connectors'
   | 'access_batch.live_proof'
   | 'live.policies'
@@ -74,7 +57,7 @@ export type SearchStage =
 
 /** Fixed, content-free fields. Never pass queries, filters, document identities, SQL, or errors. */
 export interface SearchDiagnosticMetadata {
-  operation?: 'search_workspace' | 'read_document' | 'read_search_source_overview'
+  operation?: 'search_workspace' | 'read_document'
   surface?: 'dashboard' | 'mcp' | 'copilot' | 'workflow' | 'api' | 'slack' | 'other'
   toolCallId?: string
   executionId?: string
@@ -91,7 +74,7 @@ export interface SearchDiagnosticMetadata {
   searchMode?: 'hybrid' | 'vector'
   boostRecency?: boolean
   embeddingDimensions?: number
-  vectorRanking?: 'exact' | 'exact-candidates' | 'projection-walk' | 'per-source'
+  vectorRanking?: 'exact' | 'exact-candidates' | 'projection-walk'
   /**
    * Whether the bounded traversal filled its candidate limit. `underfilled` means visibility
    * removed enough neighbours that the rerank pool is smaller than requested, which lowers recall
@@ -102,25 +85,6 @@ export interface SearchDiagnosticMetadata {
   vectorCandidateLimit?: number
   /** Visible documents the tractability probe enumerated, capped at its own document limit. */
   vectorProbeDocumentCount?: number
-  /**
-   * Whether a user-scoped search resolved its permitted documents before retrieval: `bounded`
-   * ranks inside that set, `unbounded` means it exceeded the probe's limit and both legs search
-   * the index with the access predicate applied per candidate.
-   */
-  permittedDocuments?: 'bounded' | 'unbounded'
-  /** Documents in a bounded permitted set. */
-  permittedDocumentCount?: number
-  vectorSourcesSliced?: number
-  /** The sliced sources held more readable documents than one exact ranking may enumerate. */
-  vectorSlicedSaturated?: boolean
-  vectorSourcesWalked?: number
-  /**
-   * Which index ranked an unbounded keyword leg: `tin` ranks by BM25 and checks access on the top
-   * of that ranking; `gin` ranks every match. Absent when the leg ranked inside a bounded set.
-   */
-  keywordRanking?: 'tin' | 'gin'
-  /** Candidates Tin ranked before access was checked on the last keyword page. */
-  keywordTinWindow?: number
   vectorCandidateCount?: number
   vectorCandidateDimensions?: number
   resultCount?: number
@@ -139,10 +103,6 @@ export interface SearchDiagnosticMetadata {
   accessBatchCount?: number
   /** Connector identities sent for live proof, summed over every batch after the first. */
   liveProofConnectorCount?: number
-  /** Provider types with a configured search source, before any access probe. */
-  configuredProviderCount?: number
-  /** Searchable-document probes actually issued; one per batch until the answer is known. */
-  searchableProbeCount?: number
 }
 
 interface StageTiming {

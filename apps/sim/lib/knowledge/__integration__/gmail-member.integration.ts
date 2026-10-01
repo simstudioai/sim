@@ -11,7 +11,6 @@ import {
   credentialGroupEnrollment,
   document,
   embedding,
-  knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -24,12 +23,6 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const counters = vi.hoisted(() => ({ embeddedTexts: 0 }))
-/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
-  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
-    importOriginal
-  )
-)
 vi.mock('@/lib/embeddings', async () => ({
   ...(await import('@/lib/embeddings/client')),
   assertKnowledgeEmbeddingCapacity: async () => {},
@@ -224,10 +217,6 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       credentialGroupId: fixture.groupId,
       credentialGroupOptionId: fixture.optionId,
     })
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     await db
       .update(credentialGroup)
       .set({

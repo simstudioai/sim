@@ -7,7 +7,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
-import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 
 const logger = createLogger('KnowledgeProjectionEnqueue')
 
@@ -69,20 +68,19 @@ export interface KnowledgeProjectionSweepResult {
  * The knowledge projector's only trigger: one pass per window while marks need one, so marks are
  * settled within about a minute of their write, a document a pass gave up is retried by the next,
  * and an idle deployment starts no pass at all. The sweep first releases, on the pooled database,
- * the marks no pass is owed, so the always-on marking of writes never starts one. While indexed
- * organization search is off that is every mark without content to project, search-index ones
- * included, since nothing reads their mirrored source and ACL.
+ * the marks no pass is owed, so the always-on marking of writes never starts one.
+ * Search marks and permission-only marks are released without copying their rows. Only deferred
+ * ordinary-KB content admits a repair pass.
  */
 export async function enqueueKnowledgeProjectionSweep(): Promise<KnowledgeProjectionSweepResult> {
-  const scope = { searchIndexes: isIndexedOrgSearchEnabled() }
   let release = { drained: false, empty: false }
   try {
-    release = await releaseSettledMarks(db.$client, Date.now() + MARK_RELEASE_BUDGET_MS, scope)
+    release = await releaseSettledMarks(db.$client, Date.now() + MARK_RELEASE_BUDGET_MS)
   } catch (error) {
     /** A release that failed leaves its marks for the next sweep; whether a pass is owed still stands. */
     logger.warn('Releasing settled projection marks failed', { error: getErrorMessage(error) })
   }
-  if (release.empty || !(await hasKnowledgeProjectionWork(db.$client, release, scope))) {
+  if (release.empty || !(await hasKnowledgeProjectionWork(db.$client))) {
     return { triggered: false, backend: null, jobId: null }
   }
   if (!isTriggerAvailable()) {

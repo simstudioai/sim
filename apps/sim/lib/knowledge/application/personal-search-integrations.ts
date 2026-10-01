@@ -14,15 +14,11 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
-import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
-import { listIndexedPersonalSearchIntegrations } from '@/lib/sim-search/indexed/integrations/personal-search-integrations'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 
 export interface ListPersonalSearchIntegrationsInput {
   organizationId: string
   connectorType?: string
-  connectorId?: string
-  cursor?: string
   completionId?: string
 }
 
@@ -39,10 +35,6 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
       .where(eq(user.id, userId))
       .limit(1)
     if (!viewer) throw new OrchestrationError('forbidden', 'The current person is unavailable')
-    if (isIndexedOrgSearchEnabled())
-      return listIndexedPersonalSearchIntegrations({ principal, input, context, userId, viewer })
-    if (input.connectorId || input.cursor)
-      throw new OrchestrationError('validation', 'Refresh your live account connections')
     const scope = { kind: 'organization', organizationId: context.organizationId } as const
     if (!(await isScopedCredentialGroupsAvailable(scope)))
       return { completedCredentialId: null, connections: [], available: [], nextCursor: null }
@@ -95,9 +87,6 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
           name: connector.meta.name,
           providerId: option.provider,
           connectorType: connector.type,
-          connectorId: undefined,
-          knowledgeBaseId: undefined,
-          indexingStatus: undefined,
           description: '',
           accounts: own,
           connectionStatus: !ready
@@ -144,7 +133,6 @@ export const resolvePersonalSearchConnection = defineAuthorizedKnowledgeUseCase(
       input: {
         organizationId: input.organizationId,
         connectorType: input.target.connectorType,
-        connectorId: input.target.connectorId,
       },
     })
     const targets = [
@@ -159,7 +147,6 @@ export const resolvePersonalSearchConnection = defineAuthorizedKnowledgeUseCase(
       ({ target }) =>
         target.provider === input.target.provider &&
         target.connectorType === input.target.connectorType &&
-        target.connectorId === input.target.connectorId &&
         target.credentialId === input.target.credentialId &&
         target.connectionMode === input.target.connectionMode &&
         target.optionId === input.target.optionId

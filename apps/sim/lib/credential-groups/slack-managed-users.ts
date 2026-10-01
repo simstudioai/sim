@@ -24,6 +24,8 @@ import {
 } from '@/lib/credential-groups/provider-configuration'
 import {
   resolveSlackManagedUserScopes,
+  SLACK_CHANNEL_READ_SCOPES,
+  SLACK_DM_READ_SCOPES,
   SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
@@ -532,8 +534,19 @@ export async function createSlackManagedUsersAttempt(params: {
     clientId = app.clientId
     clientSecret = app.clientSecret
     appRevision = app.revision
+    const retiredSearchScopes = new Set([
+      ...SLACK_CHANNEL_READ_SCOPES,
+      ...SLACK_DM_READ_SCOPES,
+      'users:read',
+      'users:read.email',
+    ])
+    const upgradesSearchPolicy =
+      existingOption?.requiredScopes?.length === retiredSearchScopes.size &&
+      existingOption.requiredScopes.every((scope) => retiredSearchScopes.has(scope))
     requiredScopes = resolveSlackManagedUserScopes(
-      existingOption ? existingOption.requiredScopes : SLACK_SEARCH_USER_SCOPES
+      !existingOption || upgradesSearchPolicy
+        ? SLACK_SEARCH_USER_SCOPES
+        : existingOption.requiredScopes
     )
   } else {
     if (!params.slackBotCredentialId)

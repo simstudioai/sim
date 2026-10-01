@@ -18,7 +18,6 @@ import type { useSpeechToText } from '@/hooks/use-speech-to-text'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
-  live: false,
   plan: false,
   advanced: false,
   speech: vi.fn<typeof useSpeechToText>(),
@@ -90,10 +89,9 @@ import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
-const liveShape = () =>
-  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
-deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(liveShape)
-deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(liveShape)
+const deploymentShape = () => createMockDeploymentShape()
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
+deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)
 organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
   organization: { id: 'organization-a' },
 })
@@ -109,7 +107,6 @@ beforeEach(() => {
     modelSelection: { model: 'gpt-6-astra', fastMode: false },
   })
   mocks.plan = false
-  mocks.live = false
   vi.clearAllMocks()
   mocks.workspaces = [
     {
