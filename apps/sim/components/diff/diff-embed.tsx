@@ -186,17 +186,19 @@ function ExcerptCard({ heading, diff, side }: ExcerptCardProps) {
   const skip = side === 'old' ? 'add' : side === 'new' ? 'del' : null
   return (
     <article className='flex min-w-0 flex-col gap-3 rounded-lg border border-[var(--border)] px-4 py-3'>
-      <header className='flex items-start gap-2'>
+      <header className='flex items-start gap-2 pr-14'>
         {Icon && <Icon className='mt-0.5 size-[14px] shrink-0 text-[var(--text-icon)]' />}
         <div className='flex min-w-0 flex-1 flex-col'>
-          <span className='truncate text-[var(--text-body)] text-small'>{heading.title}</span>
+          <div className='flex min-w-0 items-center gap-1'>
+            <span className='truncate text-[var(--text-body)] text-small'>{heading.title}</span>
+            {heading.href && (
+              <Link href={heading.href} aria-label={`Open ${heading.title}`} className='shrink-0'>
+                <ArrowUpRight className='size-[12px] text-[var(--text-icon)]' />
+              </Link>
+            )}
+          </div>
           <span className='text-[var(--text-muted)] text-caption'>{heading.meta}</span>
         </div>
-        {heading.href && (
-          <Link href={heading.href} aria-label={`Open ${heading.title}`} className='shrink-0'>
-            <ArrowUpRight className='size-[12px] text-[var(--text-icon)]' />
-          </Link>
-        )}
       </header>
       <div className='flex flex-col gap-2 text-small leading-relaxed'>
         {diff.hunks.map((hunk, hunkIndex) => (
@@ -294,13 +296,13 @@ export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
     return <CodeDiff diff={diff} heading={heading(oldSide, diff.path ?? 'Diff', detail)} />
   if (comparison)
     return (
-      <div className='grid grid-cols-1 gap-3 pt-8 font-season sm:grid-cols-2'>
+      <div className='grid grid-cols-1 gap-3 font-season sm:grid-cols-2'>
         <ExcerptCard diff={diff} side='old' heading={heading(oldSide, 'Before', detail)} />
         <ExcerptCard diff={diff} side='new' heading={heading(newSide, 'After', detail)} />
       </div>
     )
   return (
-    <div className='pt-8 font-season'>
+    <div className='font-season'>
       <ExcerptCard
         diff={diff}
         side='edit'
