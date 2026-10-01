@@ -4,6 +4,7 @@ import { cn, TabStrip } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
 import { DashboardPanel } from '@/components/dashboards/dashboard-panel'
 import { dashboardTabParser, dashboardUrlOptions } from '@/components/dashboards/search-params'
+import type { ChartHighlight } from '@/lib/charts/annotations'
 import type { DashboardBlock, DashboardSource, DashboardTabs } from '@/lib/dashboards/spec'
 import type { DashboardTimeRange } from '@/lib/dashboards/time'
 
@@ -16,6 +17,8 @@ interface DashboardLayoutProps {
   now: number
   path?: string
   startIndex?: number
+  embedded?: boolean
+  highlights?: ChartHighlight[]
 }
 interface DashboardTabsProps extends Omit<DashboardLayoutProps, 'blocks'> {
   block: DashboardTabs
