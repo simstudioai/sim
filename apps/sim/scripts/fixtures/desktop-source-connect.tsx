@@ -7,6 +7,11 @@ import { CredentialGroupCompletionHandoff } from '@/app/credential-groups/comple
 import { SlackCompletion } from '@/app/credential-groups/slack-complete/slack-completion'
 import { SourceCompletion } from '@/app/desktop/connect/source-completion'
 import { useMemberEnrollment } from '@/app/o/[organizationId]/integrations/indexed/use-member-enrollment'
+import {
+  useConnectOrganizationAccount,
+  useOrganizationAccounts,
+  useReconnectPersonalOrganizationAccount,
+} from '@/hooks/queries/organization-accounts'
 import { useSlackSearchInstallations, useStartSlackSearchOAuth } from '@/hooks/queries/slack-search'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 
@@ -14,6 +19,9 @@ const NO_CONNECTIONS = new Set<string>()
 const MEMBERSHIP_KEYS: readonly (readonly string[])[] = []
 
 function SourceConnectFixture() {
+  const accountConnection = useConnectOrganizationAccount()
+  const reconnect = useReconnectPersonalOrganizationAccount()
+  const accounts = useOrganizationAccounts('fixture-organization')
   const enrollment = useMemberEnrollment({
     membershipQueryKeys: MEMBERSHIP_KEYS,
     connectedConnectorIds: NO_CONNECTIONS,
@@ -26,7 +34,36 @@ function SourceConnectFixture() {
   const connection = useStartSlackSearchOAuth()
   const inventory = useSlackSearchInstallations('fixture-organization')
   return (
-    <main>
+    <main className='flex flex-col items-start gap-2 p-6'>
+      <button
+        disabled={accountConnection.isPending}
+        onClick={() =>
+          accountConnection.mutate({
+            organizationId: 'fixture-organization',
+            optionId: 'fixture-option',
+          })
+        }
+      >
+        Connect account
+      </button>
+      <button
+        disabled={accountConnection.isPending}
+        onClick={() =>
+          accountConnection.mutate({
+            organizationId: 'fixture-organization',
+            mcpServerId: 'fixture-mcp',
+          })
+        }
+      >
+        Connect MCP account
+      </button>
+      <button disabled={reconnect.isPending} onClick={() => reconnect.mutate('fixture-account')}>
+        Reconnect account
+      </button>
+      <output aria-label='Account authorization'>{accountConnection.status}</output>
+      <output aria-label='Account error'>{accountConnection.error?.message}</output>
+      <output aria-label='Reconnect status'>{reconnect.status}</output>
+      <output aria-label='Account count'>{accounts.data?.viewerAccounts?.length ?? 0}</output>
       <input aria-label='Source draft' defaultValue='Unsubmitted source name' />
       <button
         disabled={connection.isPending}
@@ -91,7 +128,11 @@ const content =
       </a>
     )
   ) : location.pathname === '/credential-groups/complete' ? (
-    <CredentialGroupCompletionHandoff completionId={params.get('completionId')!} />
+    <CredentialGroupCompletionHandoff
+      completionId={params.get('completionId')!}
+      failure={params.get('oauth') === 'denied' ? 'denied' : undefined}
+      returnHref={params.has('organizationId') ? '/o/fixture-organization/integrations' : undefined}
+    />
   ) : location.pathname === '/desktop/connect' ? (
     <BrowserLauncher />
   ) : location.pathname === '/credential-groups/slack-complete' ? (

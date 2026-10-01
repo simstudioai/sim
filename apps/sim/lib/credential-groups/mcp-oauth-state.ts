@@ -1,4 +1,5 @@
 import { sha256Hex } from '@sim/security/hash'
+import { isValidUuid } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -27,6 +28,8 @@ return #keys
 `
 
 interface StoredCredentialGroupMcpOAuthAttempt {
+  completionId?: string
+  returnTo?: 'integrations'
   oauthConfigVersion: number
   configurationFingerprint?: string
   userId: string
@@ -43,6 +46,8 @@ interface StoredCredentialGroupMcpOAuthAttempt {
 }
 
 export interface CredentialGroupMcpOAuthAttempt {
+  completionId?: string
+  returnTo?: 'integrations'
   oauthConfigVersion: number
   configurationFingerprint?: string
   userId: string
@@ -83,6 +88,9 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupMcpOAuth
     (candidate.configurationFingerprint === undefined ||
       (typeof candidate.configurationFingerprint === 'string' &&
         /^[a-f0-9]{64}$/.test(candidate.configurationFingerprint))) &&
+    (candidate.completionId === undefined ||
+      (typeof candidate.completionId === 'string' && isValidUuid(candidate.completionId))) &&
+    (candidate.returnTo === undefined || candidate.returnTo === 'integrations') &&
     typeof candidate.userId === 'string' &&
     candidate.userId.length > 0 &&
     ((typeof candidate.workspaceId === 'string' &&
@@ -108,6 +116,8 @@ export function isCredentialGroupMcpOAuthState(state: string): boolean {
 }
 
 export async function createCredentialGroupMcpOAuthAttempt(params: {
+  completionId?: string
+  returnTo?: 'integrations'
   oauthConfigVersion: number
   configurationFingerprint?: string
   userId: string
@@ -121,6 +131,9 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   codeVerifier: string
   invitationToken: string
 }): Promise<void> {
+  if (params.completionId !== undefined && !isValidUuid(params.completionId)) {
+    throw new Error('OAuth completion requires a valid correlation ID')
+  }
   if (!isCredentialGroupMcpOAuthState(params.state)) {
     throw new Error('Managed MCP OAuth state has an invalid prefix')
   }
@@ -131,6 +144,8 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   ])
   const attempt: StoredCredentialGroupMcpOAuthAttempt = {
     version: MCP_OAUTH_ATTEMPT_VERSION,
+    completionId: params.completionId,
+    returnTo: params.returnTo,
     oauthConfigVersion: params.oauthConfigVersion,
     configurationFingerprint: params.configurationFingerprint,
     userId: params.userId,
@@ -173,6 +188,8 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   ])
   return {
     state,
+    completionId: parsed.completionId,
+    returnTo: parsed.returnTo,
     oauthConfigVersion: parsed.oauthConfigVersion,
     configurationFingerprint: parsed.configurationFingerprint,
     userId: parsed.userId,

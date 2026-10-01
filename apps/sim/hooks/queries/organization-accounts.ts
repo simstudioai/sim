@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+import { generateId } from '@sim/utils/id'
 import {
   isServer,
   useInfiniteQuery,
@@ -10,6 +12,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import type { DesktopSourceRequest } from '@/lib/api/contracts/desktop-source-connect'
 import {
   type AddOrganizationAccountMcpProviderBody,
   addOrganizationAccountMcpProviderContract,
@@ -39,6 +42,7 @@ import {
   updateOrganizationAccountsContract,
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
+import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
@@ -50,18 +54,55 @@ import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
 
-export function useReconnectPersonalOrganizationAccount() {
+function useAccountConnectionMutation<Variables>(
+  requestFor: (
+    variables: Variables
+  ) => Extract<DesktopSourceRequest, { kind: 'organization-account' | 'reconnect-account' }>
+) {
   const client = useQueryClient()
+  const pending = useRef<AbortController | null>(null)
+  useEffect(() => () => pending.current?.abort(), [])
   return useMutation({
-    mutationFn: async (credentialId: string) => {
+    mutationFn: async (variables: Variables) => {
+      pending.current?.abort()
+      const controller = new AbortController()
+      pending.current = controller
+      const completionId = generateId()
+      const input = requestFor(variables)
+      const request =
+        input.kind === 'organization-account'
+          ? { ...input, body: { ...input.body, oauthCompletionId: completionId } }
+          : { ...input, completionId }
       if (isDesktopApp()) {
-        await connectDesktopSource({ kind: 'reconnect-account', credentialId })
-        return null
+        await connectDesktopSource(request, controller.signal)
+      } else {
+        await connectCredentialGroupInPopup(
+          completionId,
+          (signal) =>
+            request.kind === 'organization-account'
+              ? requestJson(startOrganizationAccountConnectionContract, {
+                  params: { id: request.organizationId },
+                  body: request.body,
+                  signal,
+                })
+              : requestJson(reconnectPersonalOrganizationAccountContract, {
+                  params: { credentialId: request.credentialId },
+                  query: { oauthCompletionId: completionId },
+                  signal,
+                }),
+          controller.signal
+        )
       }
-      return requestJson(reconnectPersonalOrganizationAccountContract, { params: { credentialId } })
     },
     onSettled: () => refreshAccounts(client),
   })
+}
+
+export function useReconnectPersonalOrganizationAccount() {
+  return useAccountConnectionMutation((credentialId: string) => ({
+    kind: 'reconnect-account',
+    credentialId,
+  }))
 }
 
 /** Disconnects an owned grant; indexing and source setup do not gate this operation. */
@@ -213,23 +254,16 @@ async function refreshAccounts(client: ReturnType<typeof useQueryClient>) {
 }
 
 export function useConnectOrganizationAccount() {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: async ({
+  return useAccountConnectionMutation(
+    ({
       organizationId,
       ...body
-    }: { organizationId: string } & StartOrganizationAccountConnectionBody) => {
-      if (isDesktopApp()) {
-        await connectDesktopSource({ kind: 'organization-account', organizationId, body })
-        return null
-      }
-      return requestJson(startOrganizationAccountConnectionContract, {
-        params: { id: organizationId },
-        body,
-      })
-    },
-    onSettled: () => refreshAccounts(client),
-  })
+    }: { organizationId: string } & StartOrganizationAccountConnectionBody) => ({
+      kind: 'organization-account',
+      organizationId,
+      body,
+    })
+  )
 }
 
 export function useWorkspaceOrganizationAccounts(workspaceId?: string, enabled = true) {

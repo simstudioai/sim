@@ -1,7 +1,6 @@
 'use client'
 
 import { Chip, toast } from '@sim/emcn'
-import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import { liveSearchProviderForCredential } from '@/lib/sim-search/live/provider-catalog'
 import {
@@ -36,8 +35,6 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   const secrets = useOrganizationSecretSource(organizationId)
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
-  const navigate = (result: OrganizationAccountConnectionResponse | null) =>
-    result && window.location.assign(result.authorizationUrl ?? result.invitationLink)
   const onError = (error: Error) => toast.error(error.message)
   const error = inventory.error ?? policies.error ?? secrets.error
   if (error)
@@ -180,9 +177,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                     <Chip
                       key={account.credentialId}
                       disabled={pending || !ready}
-                      onClick={() =>
-                        reconnect.mutate(account.credentialId, { onSuccess: navigate, onError })
-                      }
+                      onClick={() => reconnect.mutate(account.credentialId, { onError })}
                     >
                       Reconnect{accounts.length > 1 ? ` ${account.displayName}` : ''}
                     </Chip>
@@ -197,7 +192,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                           organizationId,
                           ...(server ? { mcpServerId: server.id } : { optionId: option!.id }),
                         },
-                        { onSuccess: navigate, onError }
+                        { onError }
                       )
                     }
                   >

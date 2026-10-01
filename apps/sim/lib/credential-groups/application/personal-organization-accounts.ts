@@ -18,6 +18,10 @@ import { createCredentialGroupOAuthStartUrl } from '@/lib/credential-groups/enro
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
+import {
+  startViewerCredentialGroupMcpOAuth,
+  startViewerCredentialGroupOAuth,
+} from '@/lib/credential-groups/self-enrollment-oauth'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
 import type { DbOrTx } from '@/lib/db/types'
 import { evictMcpServerConnections } from '@/lib/mcp/connection-pool'
@@ -70,6 +74,7 @@ function ownAccounts(
       enrollmentStatus: credentialGroupEnrollment.status,
       optionId: credential.credentialGroupOptionId,
       mcpProvider: mcpServers.managedConnectorId,
+      mcpServerId: credential.mcpServerId,
     })
     .from(credential)
     .innerJoin(
@@ -127,7 +132,7 @@ export const reconnectPersonalOrganizationAccount = defineAuthorizedCredentialUs
     input,
   }: {
     principal: SessionPrincipal
-    input: { credentialId: string }
+    input: { credentialId: string; oauthCompletionId?: string }
   }) {
     const [account] = await ownAccounts(principal.userId, input)
     if (!account) throw new OrchestrationError('not_found', 'Connected account not found')
@@ -143,6 +148,29 @@ export const reconnectPersonalOrganizationAccount = defineAuthorizedCredentialUs
       }))
     )
       throw new OrchestrationError('forbidden', 'Organization connected accounts are unavailable')
+    if (input.oauthCompletionId) {
+      const connection = {
+        organizationId: account.organizationId,
+        userId: principal.userId,
+        credentialGroupId: account.groupId,
+        completionId: input.oauthCompletionId,
+        returnTo: 'integrations' as const,
+      }
+      if (account.type === 'managed_oauth' && account.optionId) {
+        return startViewerCredentialGroupOAuth({
+          ...connection,
+          optionId: account.optionId,
+          connectionIntent: { kind: 'reconnect', credentialId: account.credentialId },
+        })
+      }
+      if (account.type === 'managed_mcp' && account.mcpServerId) {
+        return startViewerCredentialGroupMcpOAuth({
+          ...connection,
+          mcpServerId: account.mcpServerId,
+        })
+      }
+      throw new OrchestrationError('not_found', 'This account provider is no longer available')
+    }
     const { invitationLink } = await createViewerCredentialGroupEnrollment({
       organizationId: account.organizationId,
       credentialGroupId: account.groupId,

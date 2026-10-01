@@ -18,7 +18,8 @@ import { mcpService } from '@/lib/mcp/service'
 
 export async function startCredentialGroupMcpOAuth(
   context: CredentialGroupMcpOAuthContext,
-  invitationToken: string
+  invitationToken: string,
+  completion: { completionId?: string; returnTo?: 'integrations' } = {}
 ): Promise<string> {
   assertSafeOauthServerUrl(context.server.url)
   return withMcpOauthRefreshLock(context.server.id, async () => {
@@ -55,6 +56,7 @@ export async function startCredentialGroupMcpOAuth(
         credentialGroupId: context.credentialGroupId,
         mcpServerId: context.server.id,
         invitationToken,
+        ...completion,
       })
       return error.authorizationUrl
     }

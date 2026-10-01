@@ -102,8 +102,18 @@ export type OrganizationAccountConnectionResponse = z.output<
 >
 
 export const startOrganizationAccountConnectionBodySchema = z.union([
-  z.object({ optionId: z.string().min(1).max(128) }).strict(),
-  z.object({ mcpServerId: z.string().min(1).max(128) }).strict(),
+  z
+    .object({
+      optionId: z.string().min(1).max(128),
+      oauthCompletionId: z.string().uuid().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      mcpServerId: z.string().min(1).max(128),
+      oauthCompletionId: z.string().uuid().optional(),
+    })
+    .strict(),
 ])
 export type StartOrganizationAccountConnectionBody = z.input<
   typeof startOrganizationAccountConnectionBodySchema
@@ -372,10 +382,18 @@ export const listPersonalOrganizationAccountsContract = defineRouteContract({
     }),
   },
 })
+export const reconnectPersonalOrganizationAccountQuerySchema = z.object({
+  oauthCompletionId: z.string().uuid().optional(),
+})
+export type ReconnectPersonalOrganizationAccountQuery = z.input<
+  typeof reconnectPersonalOrganizationAccountQuerySchema
+>
+
 export const reconnectPersonalOrganizationAccountContract = defineRouteContract({
   method: 'POST',
   path: '/api/users/me/organization-accounts/[credentialId]/reconnect',
   params: z.object({ credentialId: z.string().min(1).max(128) }),
+  query: reconnectPersonalOrganizationAccountQuerySchema,
   response: { mode: 'json', schema: organizationAccountConnectionResponseSchema },
 })
 export const disconnectPersonalOrganizationAccountContract = defineRouteContract({
