@@ -11,7 +11,7 @@ import {
   buildOuterBranchScopedId,
   extractBaseBlockId,
   extractOuterBranchIndex,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 
 const logger = createLogger('NodeExecutionOrchestrator')
 

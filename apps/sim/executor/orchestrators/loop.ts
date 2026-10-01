@@ -18,18 +18,17 @@ import type { BlockStateController, ContextExtensions } from '@/executor/executi
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { createReferencePattern } from '@/executor/utils/reference-validation'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
-import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
 import {
-  addSubflowErrorLog,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
-  emitSubflowSuccessEvents,
   extractBaseBlockId,
   extractLoopIdFromSentinel,
   extractParallelIdFromSentinel,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
+import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
+import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow-utils'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 
@@ -149,7 +148,7 @@ export class LoopOrchestrator {
             resolutionCtx,
             loopConfig.forEachItems,
             this.resolver,
-            buildSentinelStartId(loopId)
+            buildLoopSentinelStartId(loopId)
           )
         } catch (error) {
           const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
@@ -508,8 +507,8 @@ export class LoopOrchestrator {
     const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) return new Set()
 
-    const sentinelStartId = buildSentinelStartId(loopId)
-    const sentinelEndId = buildSentinelEndId(loopId)
+    const sentinelStartId = buildLoopSentinelStartId(loopId)
+    const sentinelEndId = buildLoopSentinelEndId(loopId)
     const result = new Set([sentinelStartId, sentinelEndId])
 
     for (const nodeId of loopConfig.nodes) {
@@ -650,8 +649,8 @@ export class LoopOrchestrator {
       const loopId = extractLoopIdFromSentinel(sourceId)
       return (
         !!loopId &&
-        sourceId === buildSentinelStartId(loopId) &&
-        targetId === buildSentinelEndId(loopId)
+        sourceId === buildLoopSentinelStartId(loopId) &&
+        targetId === buildLoopSentinelEndId(loopId)
       )
     }
 
