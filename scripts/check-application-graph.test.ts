@@ -33,11 +33,11 @@ describe('the guarded roots', () => {
       forbidden: FORBIDDEN_PREFIXES,
     })
     expect(violations).toHaveLength(1)
-    expect(violations[0].forbidden).toBe('providers/utils.ts')
+    expect(violations[0].forbidden).toBe('providers/models.ts')
     expect(violations[0].reason).toBe(FORBIDDEN_PREFIXES['providers/'])
     expect(violations[0].path).toEqual([
       'lib/permission-groups/model-access.ts',
-      'providers/utils.ts',
+      'providers/models.ts',
     ])
   })
 })
