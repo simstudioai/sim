@@ -75,10 +75,10 @@ Good interfaces make testing natural:
 
    ```typescript
    // Testable
-   function processOrder(order, paymentGateway) {}
+   function processOrder(order: Order, paymentGateway: PaymentGateway): Promise<Receipt> {}
 
    // Hard to test
-   function processOrder(order) {
+   function processOrder(order: Order): Promise<Receipt> {
      const gateway = new StripeGateway();
    }
    ```
@@ -87,10 +87,10 @@ Good interfaces make testing natural:
 
    ```typescript
    // Testable
-   function calculateDiscount(cart): Discount {}
+   function calculateDiscount(cart: Cart): Discount {}
 
    // Hard to test
-   function applyDiscount(cart): void {
+   function applyDiscount(cart: Cart): void {
      cart.total -= discount;
    }
    ```
@@ -113,5 +113,5 @@ Good interfaces make testing natural:
 
 ## Going deeper
 
-- **Deepening a cluster given its dependencies**, see [DEEPENING.md](DEEPENING.md): dependency categories, seam discipline, and replace-don't-layer testing.
+- **Deepening a cluster given its dependencies**, see [DEEPENING.md](DEEPENING.md): dependency categories, seam discipline, and replace-don't-layer testing (which defers to `CLAUDE.md` "Testing" and the `test-audit` skill).
 - **Exploring alternative interfaces**, see [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md): spin up parallel sub-agents to design the interface several radically different ways, then compare on depth, locality, and seam placement.
