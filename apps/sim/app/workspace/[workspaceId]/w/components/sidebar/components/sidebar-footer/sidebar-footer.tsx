@@ -24,6 +24,7 @@ import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { getDesktopUpdates } from '@/lib/desktop'
+import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import {
@@ -227,7 +228,10 @@ export function SidebarFooter({
               href={href}
               onNavigate={(event) => {
                 event.preventDefault()
-                useSettingsDirtyStore.getState().requestLeave(onNavigate)
+                useSettingsDirtyStore.getState().requestLeave(() => {
+                  rememberSettingsReturnUrl(href)
+                  onNavigate()
+                })
               }}
             >
               <Icon className='size-[14px]' />

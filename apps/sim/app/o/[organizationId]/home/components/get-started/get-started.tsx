@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
-import Link from 'next/link'
 import { HomeSection } from '@/components/home/home-section'
+import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
@@ -194,7 +194,11 @@ export function GetStarted() {
       {steps.map((step, i) => {
         const complete = completed[step.id]
         return (
-          <Link key={step.id} href={hrefs[step.id]} className={cn(ROW_CLASS, i > 0 && 'border-t')}>
+          <SettingsGuardedLink
+            key={step.id}
+            href={hrefs[step.id]}
+            className={cn(ROW_CLASS, i > 0 && 'border-t')}
+          >
             <StepMark complete={complete} />
             <span
               className={cn(
@@ -205,7 +209,7 @@ export function GetStarted() {
               {step.label}
             </span>
             <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-          </Link>
+          </SettingsGuardedLink>
         )
       })}
     </HomeSection>

@@ -139,7 +139,7 @@ function OrganizationHomeContent({
   const canSelectMode =
     !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
   const assistantSearchLevel = 'fast'
-  const panel = useChatResourcePanel(chat, controller)
+  const panel = useChatResourcePanel(chat, controller, userId)
   const addResource = panel.addResourceFromUser
   /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
   useEffect(() => {
