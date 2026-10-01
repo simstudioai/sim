@@ -156,8 +156,8 @@ describe('buildWorkflowDiffOverlay', () => {
           type: 'function',
           name: 'mod',
           changes: [
-            { field: 'code', oldValue: 'a', newValue: 'b' },
-            { field: 'name', oldValue: 'x', newValue: 'y' },
+            { scope: 'subblock', field: 'code', oldValue: 'a', newValue: 'b' },
+            { scope: 'block', field: 'name', oldValue: 'x', newValue: 'y' },
           ],
         },
       ],
@@ -183,7 +183,7 @@ describe('buildWorkflowDiffOverlay', () => {
       loop1: 'modified',
       mover: 'modified',
     })
-    expect(overlay.changedFieldsByBlock).toEqual({ mod: ['code', 'name'] })
+    expect(overlay.changedFieldsByBlock).toEqual({ mod: ['code'] })
     /* The ghost is drawn at its old spot; nothing lived there so it is not nudged. */
     expect(overlay.mergedState.blocks.gone).toBe(base.blocks.gone)
     expect(Object.keys(overlay.mergedState.blocks).sort()).toEqual([

@@ -1420,6 +1420,7 @@ type CompareWorkflowVersionsResponseRef0 = {
               kind: 'value'
               value: unknown
             }
+        scope: 'block' | 'subblock'
       }>
     }>
     edgeChanges: {

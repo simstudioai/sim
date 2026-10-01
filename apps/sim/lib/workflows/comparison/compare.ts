@@ -43,6 +43,10 @@ interface FieldChange {
   newValue: unknown
 }
 
+export interface BlockFieldChange extends FieldChange {
+  scope: 'block' | 'subblock'
+}
+
 /** The loop configuration fields a container diff compares, in the order they are reported. */
 export const LOOP_CONFIG_FIELDS = [
   'loopType',
@@ -84,7 +88,7 @@ export interface EdgeChange extends NormalizedEdge {
 export interface WorkflowDiffSummary {
   addedBlocks: Array<{ id: string; type: string; name?: string }>
   removedBlocks: Array<{ id: string; type: string; name?: string }>
-  modifiedBlocks: Array<{ id: string; type: string; name?: string; changes: FieldChange[] }>
+  modifiedBlocks: Array<{ id: string; type: string; name?: string; changes: BlockFieldChange[] }>
   edgeChanges: {
     added: number
     removed: number
@@ -187,7 +191,9 @@ export function summaryHasChanges(summary: Omit<WorkflowDiffSummary, 'hasChanges
  * basic/advanced mode memory is NOT one of them: with both values stored, the
  * mode decides which one executes.
  */
-const PRESENTATION_FIELDS = new Set(['horizontalHandles'])
+export function isPresentationField(field: string): boolean {
+  return field === 'horizontalHandles' || field.endsWith('.properties')
+}
 
 /**
  * The summary with presentation-only field changes removed, and any block that
@@ -199,7 +205,7 @@ export function omitPresentationChanges(summary: WorkflowDiffSummary): WorkflowD
     .map((block) => ({
       ...block,
       changes: block.changes.filter(
-        (change) => !PRESENTATION_FIELDS.has(change.field) && !change.field.endsWith('.properties')
+        (change) => change.scope !== 'block' || !isPresentationField(change.field)
       ),
     }))
     .filter((block) => block.changes.length > 0)
@@ -304,7 +310,7 @@ export function generateWorkflowDiffSummary(
 
     const currentBlock = currentBlocks[id]
     const previousBlock = previousBlocks[id]
-    const changes: FieldChange[] = []
+    const changes: BlockFieldChange[] = []
 
     const {
       blockRest: currentRest,
@@ -330,6 +336,7 @@ export function generateWorkflowDiffSummary(
     )
     if (currentErrorEnabled !== previousErrorEnabled) {
       changes.push({
+        scope: 'block',
         field: 'errorEnabled',
         oldValue: previousErrorEnabled,
         newValue: currentErrorEnabled,
@@ -347,13 +354,24 @@ export function generateWorkflowDiffSummary(
       normalizedStringify(normalizedCurrentBlock) !== normalizedStringify(normalizedPreviousBlock)
     ) {
       if (currentBlock.type !== previousBlock.type) {
-        changes.push({ field: 'type', oldValue: previousBlock.type, newValue: currentBlock.type })
+        changes.push({
+          scope: 'block',
+          field: 'type',
+          oldValue: previousBlock.type,
+          newValue: currentBlock.type,
+        })
       }
       if (currentBlock.name !== previousBlock.name) {
-        changes.push({ field: 'name', oldValue: previousBlock.name, newValue: currentBlock.name })
+        changes.push({
+          scope: 'block',
+          field: 'name',
+          oldValue: previousBlock.name,
+          newValue: currentBlock.name,
+        })
       }
       if (currentBlock.enabled !== previousBlock.enabled) {
         changes.push({
+          scope: 'block',
           field: 'enabled',
           oldValue: previousBlock.enabled,
           newValue: currentBlock.enabled,
@@ -364,6 +382,7 @@ export function generateWorkflowDiffSummary(
       for (const field of blockFields) {
         if (!!currentBlock[field] !== !!previousBlock[field]) {
           changes.push({
+            scope: 'block',
             field,
             oldValue: previousBlock[field],
             newValue: currentBlock[field],
@@ -373,6 +392,7 @@ export function generateWorkflowDiffSummary(
       /** Outside `blockFields`, whose `!!` coercion cannot tell two policies apart. */
       if (!blockRetryEquals(currentBlock.retry, previousBlock.retry)) {
         changes.push({
+          scope: 'block',
           field: 'retry',
           oldValue: previousBlock.retry,
           newValue: currentBlock.retry,
@@ -388,6 +408,7 @@ export function generateWorkflowDiffSummary(
             normalizedStringify(currentDataRest[key]) !== normalizedStringify(previousDataRest[key])
           ) {
             changes.push({
+              scope: 'block',
               field: `data.${key}`,
               oldValue: previousDataRest[key] ?? null,
               newValue: currentDataRest[key] ?? null,
@@ -439,6 +460,7 @@ export function generateWorkflowDiffSummary(
 
       if (normalizedStringify(currentValue) !== normalizedStringify(previousValue)) {
         changes.push({
+          scope: 'subblock',
           field: subId,
           oldValue: previousSub?.value ?? null,
           newValue: currentSub?.value ?? null,

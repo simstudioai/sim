@@ -114,7 +114,11 @@ function branchPresentation(value: unknown, config: SubBlockConfig): StructuredV
       Branch: titles[index],
       ...(Object.hasOwn(entry, 'value') ? { [description]: entry.value } : {}),
     }
-    return row(entry, withDetails(cells, entry, ['value'], ['id', 'title']), titles[index])
+    return row(
+      entry,
+      withDetails(cells, entry, ['value'], ['id', 'title']),
+      condition ? titles[index] : undefined
+    )
   })
   return { columns: columnsFor(rows, ['Branch', description]), rows }
 }
@@ -153,7 +157,8 @@ function checkboxPresentation(value: unknown, config: SubBlockConfig): Structure
   return { columns: ['Option', 'Selected'], rows }
 }
 
-function mappingPresentation(value: unknown): StructuredValuePresentation {
+/** Named values use the same ordered field rows for subblock mappings and block settings. */
+export function mappingPresentation(value: unknown): StructuredValuePresentation {
   if (!isRecordLike(value) || Object.keys(value).length === 0) return valuePresentation(value)
   return {
     columns: ['Field', 'Value'],

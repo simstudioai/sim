@@ -423,9 +423,9 @@ function WorkflowPreviewBlockInner({ id, data }: NodeProps<WorkflowPreviewBlockN
     triggerMode: isTrigger,
     errorEnabled,
     subBlocks: {
-      conditions: { value: rawValues.conditions },
-      routes: { value: rawValues.routes },
-      context: { value: rawValues.context },
+      conditions: { value: extractValue(subBlockValues?.conditions) },
+      routes: { value: extractValue(subBlockValues?.routes) },
+      context: { value: extractValue(subBlockValues?.context) },
     },
   }
   const ports = getCanvasPorts(portBlock, hasErrorConnection)
@@ -647,9 +647,6 @@ function shouldSkipPreviewBlockRender(
   ) {
     return false
   }
-
-  /** Skip subBlockValues comparison in lightweight mode */
-  if (nextProps.data.lightweight) return true
 
   if (
     prevProps.data.workflowMap !== nextProps.data.workflowMap ||

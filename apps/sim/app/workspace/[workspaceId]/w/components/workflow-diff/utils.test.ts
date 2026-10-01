@@ -157,6 +157,34 @@ describe('structured field rendering', () => {
 })
 
 describe('listOneSidedFields', () => {
+  it('keeps block settings separate from same-named integration inputs on either side', () => {
+    declareSubBlocks({ function: [{ id: 'enabled', type: 'switch' }] })
+    const state = block('node', {
+      enabled: false,
+      advancedMode: true,
+      retry: { enabled: false, maxTries: 3, waitBetweenTriesMs: 100 },
+      data: { canonicalModes: { document: 'basic' } },
+      subBlocks: { enabled: { id: 'enabled', type: 'switch', value: true } },
+    })
+    for (const side of ['added', 'removed'] as const) {
+      const fields = listOneSidedFields(state, side)
+      const valueKey = side === 'added' ? 'newValue' : 'oldValue'
+      expect(fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ scope: 'block', field: 'enabled', [valueKey]: false }),
+          expect.objectContaining({ scope: 'subblock', field: 'enabled', [valueKey]: true }),
+          expect.objectContaining({ scope: 'block', field: 'advancedMode', [valueKey]: true }),
+          expect.objectContaining({ scope: 'block', field: 'retry', [valueKey]: state.retry }),
+          expect.objectContaining({
+            scope: 'block',
+            field: 'data.canonicalModes',
+            [valueKey]: { document: 'basic' },
+          }),
+        ])
+      )
+    }
+  })
+
   it('excludes synthetic tool editor values from added and removed blocks', () => {
     const state = block('agent', {
       type: 'agent',
@@ -195,12 +223,13 @@ describe('listOneSidedFields', () => {
     })
 
     expect(listOneSidedFields(state, 'added')).toEqual([
-      { field: 'model', oldValue: undefined, newValue: 'gpt' },
-      { field: 'apiKey', oldValue: undefined, newValue: 'sk' },
-      { field: 'prompt', oldValue: undefined, newValue: 'hello' },
-      { field: 'temperature', oldValue: undefined, newValue: 0 },
+      { scope: 'subblock', field: 'model', oldValue: undefined, newValue: 'gpt' },
+      { scope: 'subblock', field: 'apiKey', oldValue: undefined, newValue: 'sk' },
+      { scope: 'subblock', field: 'prompt', oldValue: undefined, newValue: 'hello' },
+      { scope: 'subblock', field: 'temperature', oldValue: undefined, newValue: 0 },
     ])
     expect(listOneSidedFields(state, 'removed')[0]).toEqual({
+      scope: 'subblock',
       field: 'model',
       oldValue: 'gpt',
       newValue: undefined,
@@ -236,7 +265,7 @@ describe('listBlockChanges', () => {
           id: 'keep',
           type: 'function',
           name: '',
-          changes: [{ field: 'code', oldValue: 'a', newValue: 'b' }],
+          changes: [{ scope: 'subblock', field: 'code', oldValue: 'a', newValue: 'b' }],
         },
       ],
       hasChanges: true,
@@ -265,9 +294,9 @@ describe('listBlockChanges', () => {
             type: 'function',
             name: 'keep',
             changes: [
-              { field: 'zzz', oldValue: 1, newValue: 2 },
-              { field: 'code', oldValue: 'a', newValue: 'b' },
-              { field: 'language', oldValue: 'js', newValue: 'py' },
+              { scope: 'subblock', field: 'zzz', oldValue: 1, newValue: 2 },
+              { scope: 'subblock', field: 'code', oldValue: 'a', newValue: 'b' },
+              { scope: 'subblock', field: 'language', oldValue: 'js', newValue: 'py' },
             ],
           },
         ],
@@ -377,8 +406,8 @@ describe('listBlockChanges container settings', () => {
     )
 
     expect(entry.changes).toEqual([
-      { field: 'loopType', oldValue: null, newValue: 'for' },
-      { field: 'iterations', oldValue: null, newValue: 4 },
+      { scope: 'container', field: 'loopType', oldValue: null, newValue: 'for' },
+      { scope: 'container', field: 'iterations', oldValue: null, newValue: 4 },
     ])
   })
 })

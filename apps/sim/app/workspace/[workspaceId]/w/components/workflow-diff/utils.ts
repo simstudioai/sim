@@ -1,3 +1,7 @@
+import {
+  collectErrorSourceBlockIds,
+  resolveEffectiveErrorEnabled,
+} from '@sim/workflow-types/workflow'
 import { isContainerType } from '@/lib/workflows/autolayout'
 import { shapeSubBlockValue } from '@/lib/workflows/canonical/subblock-value'
 import {
@@ -6,7 +10,12 @@ import {
   containerConfigFields,
   type WorkflowDiffSummary,
 } from '@/lib/workflows/comparison'
-import { filterSubBlockIds, normalizeValue } from '@/lib/workflows/comparison/normalize'
+import { isPresentationField } from '@/lib/workflows/comparison/compare'
+import {
+  extractBlockFieldsForComparison,
+  filterSubBlockIds,
+  normalizeValue,
+} from '@/lib/workflows/comparison/normalize'
 import { formatValueForDisplay } from '@/lib/workflows/comparison/resolve-values'
 import { resolveDropdownLabel } from '@/lib/workflows/subblocks/display'
 import { getSubBlockPresentationKind } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation'
@@ -37,21 +46,13 @@ export function containerFieldLabel(field: string): string {
     : field
 }
 
-/**
- * Labels for fields the comparison engine reports outside any block
- * definition: block-level settings and the editor's basic/advanced mode per
- * canonical parameter, which decides which of two stored values executes.
- */
-export const ENGINE_FIELD_LABELS: Record<string, string> = {
-  'data.canonicalModes': 'Field modes',
-  name: 'Name',
-  enabled: 'Enabled',
-  triggerMode: 'Trigger mode',
-  advancedMode: 'Advanced mode',
-}
-
-export function findSubBlockConfig(blockType: string, field: string): SubBlockConfig | undefined {
-  return getBlock(blockType)?.subBlocks.find((config) => config.id === field)
+export function findSubBlockConfig(
+  blockType: string | undefined,
+  field: string
+): SubBlockConfig | undefined {
+  return blockType
+    ? getBlock(blockType)?.subBlocks.find((config) => config.id === field)
+    : undefined
 }
 
 function isSensitiveField(blockType: string | undefined, field: string): boolean {
@@ -75,14 +76,18 @@ export function isSentenceLike(value: unknown): value is string {
 }
 
 /** Field rows in the order the block definition declares them; unknown fields trail. */
-function sortChangesByDefinition<T extends { field: string }>(
+function sortChangesByDefinition<T extends { field: string; scope?: string }>(
   blockType: string,
   changes: T[]
 ): T[] {
   const order = new Map<string, number>()
   getBlock(blockType)?.subBlocks.forEach((subBlock, index) => order.set(subBlock.id, index))
   const rank = (field: string) => order.get(field) ?? Number.MAX_SAFE_INTEGER
-  return [...changes].sort((a, b) => rank(a.field) - rank(b.field))
+  return [...changes].sort(
+    (a, b) =>
+      (a.scope === 'block' ? Number.MAX_SAFE_INTEGER : rank(a.field)) -
+      (b.scope === 'block' ? Number.MAX_SAFE_INTEGER : rank(b.field))
+  )
 }
 
 /**
@@ -91,7 +96,7 @@ function sortChangesByDefinition<T extends { field: string }>(
  * definition no longer declares the field.
  */
 export function classifyChange(
-  blockType: string,
+  blockType: string | undefined,
   field: string,
   oldValue: unknown,
   newValue: unknown
@@ -117,7 +122,7 @@ export function classifyChange(
  * Resolves a stored dropdown id to its option label, else falls back to the
  * shared display formatter.
  */
-export function formatScalar(blockType: string, field: string, value: unknown): string {
+export function formatScalar(blockType: string | undefined, field: string, value: unknown): string {
   const config = findSubBlockConfig(blockType, field)
   const optionLabel = typeof value === 'string' ? resolveDropdownLabel(config, value) : null
   if (optionLabel) return optionLabel
@@ -140,6 +145,7 @@ export function toDiffText(value: unknown, blockType?: string, field?: string): 
 
 /** One side of a block that only exists in one version: what it has, as a change from nothing. */
 interface OneSidedField {
+  scope: 'block' | 'subblock'
   field: string
   oldValue: unknown
   newValue: unknown
@@ -243,16 +249,22 @@ export function isBlankValue(value: unknown): boolean {
  * so the card can say it is set, an undeclared secret-looking key is dropped
  * because nothing would mask its raw value.
  */
-export function listOneSidedFields(block: BlockState, side: 'added' | 'removed'): OneSidedField[] {
+export function listOneSidedFields(
+  block: BlockState,
+  side: 'added' | 'removed',
+  errorSources: ReadonlySet<string> = new Set()
+): OneSidedField[] {
   const declared = getBlock(block.type)?.subBlocks ?? []
   const fields = new Set(filterSubBlockIds(Object.keys(block.subBlocks ?? {})))
   const out: OneSidedField[] = []
   const seen = new Set<string>()
-  const push = (field: string, value: unknown) => {
-    if (!fields.has(field) || seen.has(field)) return
-    seen.add(field)
+  const push = (field: string, value: unknown, scope: 'block' | 'subblock' = 'subblock') => {
+    const key = `${scope}:${field}`
+    if ((scope === 'subblock' && !fields.has(field)) || seen.has(key)) return
+    seen.add(key)
     if (isBlankValue(value)) return
     out.push({
+      scope,
       field,
       oldValue: side === 'removed' ? value : undefined,
       newValue: side === 'added' ? value : undefined,
@@ -263,6 +275,26 @@ export function listOneSidedFields(block: BlockState, side: 'added' | 'removed')
     if (isSecretKey(field)) continue
     push(field, state?.value)
   }
+  const { blockRest, normalizedData } = extractBlockFieldsForComparison(block)
+  const settings = {
+    ...blockRest,
+    errorEnabled: resolveEffectiveErrorEnabled(block, block.id, errorSources),
+  }
+  const defaults: Record<string, unknown> = {
+    enabled: true,
+    errorEnabled: false,
+    advancedMode: false,
+    triggerMode: false,
+  }
+  for (const [field, value] of Object.entries(settings)) {
+    if (['id', 'type', 'name', 'data'].includes(field) || isPresentationField(field)) continue
+    if (Object.hasOwn(defaults, field) && (value ?? defaults[field]) === defaults[field]) continue
+    push(field, value, 'block')
+  }
+  for (const [field, value] of Object.entries(normalizedData)) {
+    if (!isPresentationField(`data.${field}`)) push(`data.${field}`, value, 'block')
+  }
+
   return out
 }
 
@@ -285,7 +317,10 @@ export interface BlockChangeEntry {
   type: string
   name: string
   status: BlockDiffStatus
-  changes: WorkflowDiffSummary['modifiedBlocks'][number]['changes']
+  changes: Array<
+    | WorkflowDiffSummary['modifiedBlocks'][number]['changes'][number]
+    | (WorkflowDiffSummary['containerChanges'][number]['changes'][number] & { scope: 'container' })
+  >
   /** Set on a surviving block whose container changed */
   moved?: BlockMove
   /** Set on a container: which blocks entered or left it; `moved` marks a block that survives elsewhere */
@@ -296,7 +331,7 @@ export interface BlockChangeEntry {
 
 function blockName(blocks: Record<string, BlockState>, id: string): string {
   const block = blocks[id]
-  return block?.name || block?.type || id
+  return block?.name || block?.type || 'Unavailable block'
 }
 
 function parentOf(block: BlockState | undefined): string | undefined {
@@ -382,10 +417,12 @@ export function listBlockChanges(
   for (const container of summary.containerChanges) {
     if (added.has(container.id) || removed.has(container.id)) continue
     const entry = ensureModified(container.id)
-    const seen = new Set(entry.changes.map((change) => change.field))
+    const seen = new Set(entry.changes.map((change) => `${change.scope}:${change.field}`))
     entry.changes = [
       ...entry.changes,
-      ...container.changes.filter((change) => !seen.has(change.field)),
+      ...container.changes
+        .filter((change) => !seen.has(`container:${change.field}`))
+        .map((change) => ({ ...change, scope: 'container' as const })),
     ]
     if (container.nodesAdded.length || container.nodesRemoved.length) {
       const row = (id: string): MembershipRow => ({
@@ -406,6 +443,9 @@ export function listBlockChanges(
     side: Record<string, BlockState>,
     sideContainers: Pick<WorkflowState, 'loops' | 'parallels'> | undefined
   ): BlockChangeEntry[] => {
+    const errorSources = collectErrorSourceBlockIds(
+      status === 'added' ? summary.edgeChanges.addedDetails : summary.edgeChanges.removedDetails
+    )
     const entries = new Map<string, BlockChangeEntry>()
     const children = childrenByParent(side)
     for (const block of list) {
@@ -419,11 +459,15 @@ export function listBlockChanges(
         type: block.type,
         name: block.name || block.type,
         status,
-        changes: config.map(({ field, value }) => ({
-          field,
-          oldValue: status === 'removed' ? value : null,
-          newValue: status === 'added' ? value : null,
-        })),
+        changes: [
+          ...config.map(({ field, value }) => ({
+            scope: 'container' as const,
+            field,
+            oldValue: status === 'removed' ? value : null,
+            newValue: status === 'added' ? value : null,
+          })),
+          ...(side[block.id] ? listOneSidedFields(side[block.id], status, errorSources) : []),
+        ],
         children: [],
       })
     }

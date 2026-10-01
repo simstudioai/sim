@@ -1,31 +1,63 @@
 import { describe, expect, it } from 'vitest'
+import { diffOrderedRows } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/ordered-row-diff'
 import { getStructuredValuePresentation } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation'
 
 describe('structured workflow value presentation', () => {
-  it('preserves duplicate header rows and order while ignoring editor row IDs and blank starter rows', () => {
-    const config = { id: 'headers', type: 'table' as const, columns: ['Key', 'Value'] }
+  it.each([false, true])(
+    'preserves header order and ignores editor metadata (encoded: %s)',
+    (encoded) => {
+      const stored = (value: unknown) => (encoded ? JSON.stringify(value) : value)
+      const config = { id: 'headers', type: 'table' as const, columns: ['Key', 'Value'] }
+      const source = [
+        { id: 'first', cells: { Key: 'X-Mode', Value: 'first' } },
+        { id: 'second', cells: { Key: 'X-Mode', Value: 'last' } },
+        { id: 'blank', cells: { Key: '', Value: '' } },
+        { id: 'empty-value', cells: { Key: 'X-Empty', Value: '' } },
+      ]
+      const result = getStructuredValuePresentation(config, 'headers', stored(source))!
+      expect(result.columns).toEqual(['Key', 'Value'])
+      expect(result.rows.map((row) => row.cells)).toEqual([
+        { Key: 'X-Mode', Value: 'first' },
+        { Key: 'X-Mode', Value: 'last' },
+        { Key: 'X-Empty', Value: '' },
+      ])
+      const recreated = source.map((row, index) => ({ ...row, id: `recreated-${index}` }))
+      expect(
+        getStructuredValuePresentation(config, 'headers', stored(recreated))?.rows.map(
+          (row) => row.key
+        )
+      ).toEqual(result.rows.map((row) => row.key))
+      expect(
+        getStructuredValuePresentation(config, 'headers', stored([...source].reverse()))?.rows.map(
+          (row) => row.key
+        )
+      ).not.toEqual(result.rows.map((row) => row.key))
+    }
+  )
+
+  it('keeps surviving router rows unchanged when a preceding route is removed', () => {
+    const config = { id: 'routes', type: 'router-input' as const }
     const source = [
-      { id: 'first', cells: { Key: 'X-Mode', Value: 'first' } },
-      { id: 'second', cells: { Key: 'X-Mode', Value: 'last' } },
-      { id: 'blank', cells: { Key: '', Value: '' } },
-      { id: 'empty-value', cells: { Key: 'X-Empty', Value: '' } },
+      { id: 'a', value: 'first' },
+      { id: 'b', value: 'second' },
+      { id: 'c', value: 'third' },
     ]
-    const result = getStructuredValuePresentation(config, 'headers', source)!
-    expect(result.columns).toEqual(['Key', 'Value'])
-    expect(result.rows.map((row) => row.cells)).toEqual([
-      { Key: 'X-Mode', Value: 'first' },
-      { Key: 'X-Mode', Value: 'last' },
-      { Key: 'X-Empty', Value: '' },
+    const before = getStructuredValuePresentation(config, 'routes', source)!
+    const after = getStructuredValuePresentation(config, 'routes', source.slice(1))!
+    expect(diffOrderedRows(before.rows, after.rows).map(({ kind }) => kind)).toEqual([
+      'removed',
+      'context',
+      'context',
     ])
-    const recreated = source.map((row, index) => ({ ...row, id: `recreated-${index}` }))
-    expect(
-      getStructuredValuePresentation(config, 'headers', recreated)?.rows.map((row) => row.key)
-    ).toEqual(result.rows.map((row) => row.key))
-    expect(
-      getStructuredValuePresentation(config, 'headers', [...source].reverse())?.rows.map(
-        (row) => row.key
-      )
-    ).not.toEqual(result.rows.map((row) => row.key))
+    const changed = getStructuredValuePresentation(config, 'routes', [
+      { ...source[1], value: 'edited' },
+      source[2],
+    ])!
+    expect(diffOrderedRows(after.rows, changed.rows).map(({ kind }) => kind)).toEqual([
+      'removed',
+      'added',
+      'context',
+    ])
   })
 
   it('keeps secret-only edits distinct before the renderer masks cells', () => {

@@ -142,21 +142,37 @@ describe('deployment version representations through the authorized application 
     expect((await compare(2)).diff.hasChanges).toBe(false)
     const previewDiff = generateWorkflowDiffSummary(target.version.state, base.version.state)
     expect(previewDiff.modifiedBlocks.find((block) => block.id === 'knowledge')?.changes).toEqual([
-      { field: 'knowledgeBaseSelector', oldValue: 'kb-original', newValue: 'kb-replacement' },
+      {
+        scope: 'subblock',
+        field: 'knowledgeBaseSelector',
+        oldValue: 'kb-original',
+        newValue: 'kb-replacement',
+      },
     ])
     expect(previewDiff.modifiedBlocks.find((block) => block.id === 'convex')?.changes).toEqual([
-      { field: 'deployKey', oldValue: 'private-kb-original', newValue: 'private-kb-replacement' },
+      {
+        scope: 'subblock',
+        field: 'deployKey',
+        oldValue: 'private-kb-original',
+        newValue: 'private-kb-replacement',
+      },
     ])
     const publicDiff = (await compare(3)).diff
     expect(publicDiff.modifiedBlocks.find((block) => block.id === 'knowledge')?.changes).toEqual([
       {
+        scope: 'subblock',
         field: 'knowledgeBaseSelector',
         oldValue: { kind: 'value', value: 'kb-original' },
         newValue: { kind: 'value', value: 'kb-replacement' },
       },
     ])
     expect(publicDiff.modifiedBlocks.find((block) => block.id === 'convex')?.changes).toEqual([
-      { field: 'deployKey', oldValue: { kind: 'redacted' }, newValue: { kind: 'redacted' } },
+      {
+        scope: 'subblock',
+        field: 'deployKey',
+        oldValue: { kind: 'redacted' },
+        newValue: { kind: 'redacted' },
+      },
     ])
 
     const pinned = await readWorkflowVersion.execute({

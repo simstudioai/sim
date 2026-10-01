@@ -64,7 +64,17 @@ export const workflowComparisonSummarySchema = z.object({
   removedBlocks: z.array(blockSchema).describe('Blocks present only in the base.'),
   modifiedBlocks: z
     .array(
-      blockSchema.extend({ changes: z.array(fieldChangeSchema).describe('Changed field values.') })
+      blockSchema.extend({
+        changes: z
+          .array(
+            fieldChangeSchema.extend({
+              scope: z
+                .enum(['block', 'subblock'])
+                .describe('Whether the field is a block setting or a subblock input.'),
+            })
+          )
+          .describe('Changed field values.'),
+      })
     )
     .describe('Blocks with changed fields.'),
   edgeChanges: z

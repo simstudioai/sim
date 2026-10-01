@@ -136,8 +136,18 @@ describe('formatDiffSummaryForDescription', () => {
           type: 'agent',
           name: 'My Agent',
           changes: [
-            { field: 'systemPrompt', oldValue: 'You are helpful', newValue: 'You are an expert' },
-            { field: 'model', oldValue: 'gpt-4o', newValue: 'claude-sonnet-4-5' },
+            {
+              scope: 'subblock' as const,
+              field: 'systemPrompt',
+              oldValue: 'You are helpful',
+              newValue: 'You are an expert',
+            },
+            {
+              scope: 'subblock' as const,
+              field: 'model',
+              oldValue: 'gpt-4o',
+              newValue: 'claude-sonnet-4-5',
+            },
           ],
         },
       ],
@@ -165,13 +175,19 @@ describe('formatDiffSummaryForDescription', () => {
           type: 'agent',
           name: 'Agent',
           changes: [
-            { field: 'systemPrompt', oldValue: 'old', newValue: 'new' },
+            { scope: 'subblock' as const, field: 'systemPrompt', oldValue: 'old', newValue: 'new' },
             {
+              scope: 'subblock' as const,
               field: 'systemPrompt.properties',
               oldValue: { some: 'meta' },
               newValue: { some: 'other' },
             },
-            { field: 'model.properties', oldValue: {}, newValue: { x: 1 } },
+            {
+              scope: 'subblock' as const,
+              field: 'model.properties',
+              oldValue: {},
+              newValue: { x: 1 },
+            },
           ],
         },
       ],
@@ -187,6 +203,7 @@ describe('formatDiffSummaryForDescription', () => {
     mockGetBlock.mockReturnValue({ subBlocks: [] })
 
     const changes = Array.from({ length: 8 }, (_, i) => ({
+      scope: 'subblock' as const,
       field: `field${i}`,
       oldValue: `old${i}`,
       newValue: `new${i}`,
@@ -275,6 +292,7 @@ describe('formatDiffSummaryForDescriptionAsync', () => {
           name: 'Calendly',
           changes: [
             {
+              scope: 'subblock' as const,
               field: 'operation',
               oldValue: 'calendly_get_current_user',
               newValue: 'calendly_list_event_types',

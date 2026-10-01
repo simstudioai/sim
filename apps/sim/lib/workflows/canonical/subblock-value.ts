@@ -4,6 +4,7 @@ import {
   sanitizeTableRows,
   sanitizeTools,
 } from '@/lib/workflows/comparison/normalize'
+import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 
 /**
  * Everything the canonical form needs to know about one declared subblock.
@@ -44,9 +45,12 @@ export function shapeSubBlockValue(
   ) {
     shaped = sanitizeInputFormat(shaped)
   }
-  if (Array.isArray(shaped) && subBlockType === 'table') {
-    const rows = sanitizeTableRows(shaped)
-    shaped = rows.length > 0 ? rows : null
+  if (subBlockType === 'table') {
+    const { array, wasString } = coerceObjectArray(shaped)
+    if (array) {
+      const rows = sanitizeTableRows(array)
+      shaped = wasString ? JSON.stringify(rows) : rows.length > 0 ? rows : null
+    }
   }
 
   return shaped

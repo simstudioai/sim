@@ -36,7 +36,6 @@ import { FieldChangeRow } from '@/app/workspace/[workspaceId]/w/components/workf
 import {
   type BlockChangeEntry,
   listBlockChanges,
-  listOneSidedFields,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -60,12 +59,15 @@ function connectionLabel(edge: EdgeChange, blocks: Record<string, BlockState>): 
     const block = blocks[edge[type]]
     const handle = type === 'source' ? edge.sourceHandle : edge.targetHandle
     const defaultHandle = type === 'source' ? WORKFLOW_SOURCE_HANDLE_ID : WORKFLOW_TARGET_HANDLE_ID
-    const name = humanizeBlockName(type === 'source' ? edge.sourceName : edge.targetName)
+    const name = humanizeBlockName(block?.name || block?.type || 'Unavailable block')
     if (!handle || handle === defaultHandle) return name
     const ports = block ? getCanvasPorts(block, true).filter((port) => port.type === type) : []
     const index = ports.findIndex((port) => port.handleId === handle)
     const title = ports[index]?.title
-    const label = title === 'else if' ? `else if ${index}` : (title ?? handle)
+    const label =
+      title === 'else if'
+        ? `else if ${index}`
+        : (title ?? (type === 'source' ? 'Unavailable output' : 'Unavailable input'))
     return `${name} (${label})`
   }
   return `${endpointLabel('source')} → ${endpointLabel('target')}`
@@ -95,7 +97,6 @@ export function ChangeList({
     () => listBlockChanges(summary, baseBlocks, targetBlocks, containers),
     [summary, baseBlocks, targetBlocks, containers]
   )
-  const blocks = useMemo(() => ({ ...baseBlocks, ...targetBlocks }), [baseBlocks, targetBlocks])
   const cardRefs = useRef<Map<string, HTMLDivElement>>(null)
   cardRefs.current ??= new Map()
 
@@ -136,7 +137,6 @@ export function ChangeList({
             <BlockCard
               key={entry.id}
               entry={entry}
-              blocks={blocks}
               selectedBlockId={containsSelection(entry, selectedBlockId) ? selectedBlockId : null}
               onToggleSelected={toggleSelected}
               registerCard={registerCard}
@@ -201,7 +201,6 @@ function Section({ title, children }: SectionProps) {
 
 interface BlockCardProps {
   entry: BlockChangeEntry
-  blocks: Record<string, BlockState>
   /** The selected block id when it is this card or one nested inside it, else null */
   selectedBlockId: string | null
   onToggleSelected: (id: string) => void
@@ -217,7 +216,6 @@ interface BlockCardProps {
  */
 const BlockCard = memo(function BlockCard({
   entry,
-  blocks,
   selectedBlockId,
   onToggleSelected,
   registerCard,
@@ -230,15 +228,11 @@ const BlockCard = memo(function BlockCard({
     setSeenSelection(selectedBlockId)
     if (selectedBlockId !== null && !selected) setCollapsed(false)
   }
-  const block = blocks[entry.id]
   const setCardRef = useCallback(
     (node: HTMLDivElement | null) => registerCard(entry.id, node),
     [registerCard, entry.id]
   )
-  const fields =
-    entry.status === 'modified'
-      ? entry.changes
-      : [...entry.changes, ...(block ? listOneSidedFields(block, entry.status) : [])]
+  const fields = entry.changes
   const hasBody =
     fields.length > 0 ||
     entry.children.length > 0 ||
@@ -254,6 +248,7 @@ const BlockCard = memo(function BlockCard({
     <div ref={setCardRef}>
       <CollapsibleCard
         collapsed={!hasBody || collapsed}
+        selected={selected}
         onToggleCollapse={toggle}
         title={
           <span className='flex min-w-0 items-center gap-2'>
@@ -294,8 +289,9 @@ const BlockCard = memo(function BlockCard({
 
           {fields.map((change) => (
             <FieldChangeRow
-              key={change.field}
+              key={`${change.scope}:${change.field}`}
               blockType={entry.type}
+              scope={change.scope}
               field={change.field}
               oldValue={change.oldValue}
               newValue={change.newValue}
@@ -309,7 +305,6 @@ const BlockCard = memo(function BlockCard({
                   <BlockCard
                     key={child.id}
                     entry={child}
-                    blocks={blocks}
                     selectedBlockId={
                       containsSelection(child, selectedBlockId) ? selectedBlockId : null
                     }

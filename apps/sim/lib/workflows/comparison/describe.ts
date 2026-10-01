@@ -46,7 +46,7 @@ export function formatDiffSummaryForDescription(summary: WorkflowDiffSummary): s
     const name = block.name || block.type
     const meaningfulChanges = block.changes.filter((c) => !c.field.endsWith('.properties'))
     for (const change of meaningfulChanges.slice(0, MAX_CHANGES_PER_BLOCK)) {
-      const fieldLabel = resolveFieldLabel(block.type, change.field)
+      const fieldLabel = resolveFieldLabel(block.type, change.field, change.scope)
       const oldStr = formatValueForDisplay(change.oldValue)
       const newStr = formatValueForDisplay(change.newValue)
       changes.push(`Modified ${name}: ${fieldLabel} changed from "${oldStr}" to "${newStr}"`)
@@ -105,6 +105,12 @@ export async function formatDiffSummaryForDescriptionAsync(
     const changesToProcess = meaningfulChanges.slice(0, MAX_CHANGES_PER_BLOCK)
     const resolvedChanges = await Promise.all(
       changesToProcess.map(async (change) => {
+        if (change.scope === 'block')
+          return {
+            field: resolveFieldLabel(block.type, change.field, change.scope),
+            oldLabel: formatValueForDisplay(change.oldValue),
+            newLabel: formatValueForDisplay(change.newValue),
+          }
         const context = {
           blockType: block.type,
           subBlockId: change.field,
@@ -119,7 +125,7 @@ export async function formatDiffSummaryForDescriptionAsync(
         ])
 
         return {
-          field: resolveFieldLabel(block.type, change.field),
+          field: resolveFieldLabel(block.type, change.field, change.scope),
           oldLabel: oldResolved.displayLabel,
           newLabel: newResolved.displayLabel,
         }

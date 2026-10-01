@@ -6,6 +6,52 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** Secrets can change without their values becoming part of the public delta. */
 describe('public workflow comparison', () => {
+  it('distinguishes a block setting from a credential subblock with the same name', () => {
+    vi.mocked(getBlock).mockReturnValue({
+      ...getBlock('agent')!,
+      subBlocks: [{ id: 'enabled', type: 'short-input', password: true }],
+    })
+    const before: WorkflowState = {
+      blocks: {
+        node: {
+          id: 'node',
+          type: 'function',
+          name: 'Node',
+          enabled: true,
+          position: { x: 0, y: 0 },
+          outputs: {},
+          subBlocks: { enabled: { id: 'enabled', type: 'short-input', value: 'private-before' } },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+      lastSaved: 0,
+    }
+    const after = structuredClone(before)
+    after.blocks.node.enabled = false
+    after.blocks.node.subBlocks.enabled.value = 'private-after'
+    const result = redactWorkflowDiffSummary(
+      generateWorkflowDiffSummary(after, before),
+      before,
+      after
+    )
+    expect(result.modifiedBlocks[0].changes).toEqual([
+      {
+        scope: 'block',
+        field: 'enabled',
+        oldValue: { kind: 'value', value: true },
+        newValue: { kind: 'value', value: false },
+      },
+      {
+        scope: 'subblock',
+        field: 'enabled',
+        oldValue: { kind: 'redacted' },
+        newValue: { kind: 'redacted' },
+      },
+    ])
+  })
+
   it('preserves secret-only changes while withholding passwords and opaque tables', () => {
     const definition = getBlock('agent')!
     vi.mocked(getBlock).mockReturnValue({

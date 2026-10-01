@@ -19,7 +19,7 @@ export interface PublicWorkflowDiffSummary
   extends Omit<WorkflowDiffSummary, 'modifiedBlocks' | 'containerChanges'> {
   modifiedBlocks: Array<
     Omit<WorkflowDiffSummary['modifiedBlocks'][number], 'changes'> & {
-      changes: PublicFieldChange[]
+      changes: Array<PublicFieldChange & { scope: 'block' | 'subblock' }>
     }
   >
   containerChanges: Array<
@@ -62,11 +62,12 @@ export function redactWorkflowDiffSummary(
     safe: typeof safeBase,
     blockId: string,
     field: string,
+    scope: 'block' | 'subblock',
     value: unknown
   ): ComparisonValue => {
     if (value == null) return { kind: 'unset' }
     if (!block) return { kind: 'redacted' }
-    if (Object.hasOwn(block.subBlocks, field)) {
+    if (scope === 'subblock') {
       const config = getBlock(block.type)?.subBlocks.find((subBlock) => subBlock.id === field)
       if (!config) return { kind: 'redacted' }
       const projected = safe.blocks?.[blockId]?.subBlocks?.[field]?.value
@@ -83,12 +84,14 @@ export function redactWorkflowDiffSummary(
     modifiedBlocks: summary.modifiedBlocks.map((block) => ({
       ...block,
       changes: block.changes.map((change) => ({
+        scope: change.scope,
         field: change.field,
         oldValue: valueFor(
           base.blocks[block.id],
           safeBase,
           block.id,
           change.field,
+          change.scope,
           change.oldValue
         ),
         newValue: valueFor(
@@ -96,6 +99,7 @@ export function redactWorkflowDiffSummary(
           safeTarget,
           block.id,
           change.field,
+          change.scope,
           change.newValue
         ),
       })),

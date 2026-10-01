@@ -2,18 +2,19 @@
 
 import { ChipModalField, ChipTag, cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
-import { isContainerType } from '@/lib/workflows/autolayout'
 import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
 import { StructuredValueDiff } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/structured-value-diff'
 import {
   InlineDiff,
   TextDiff,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/text-diff'
-import { getStructuredValuePresentation } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation'
+import {
+  getStructuredValuePresentation,
+  mappingPresentation,
+} from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation'
 import {
   classifyChange,
   containerFieldLabel,
-  ENGINE_FIELD_LABELS,
   findSubBlockConfig,
   formatScalar,
   isBlankValue,
@@ -24,6 +25,7 @@ import { formatParameterLabel } from '@/tools/params'
 
 interface FieldChangeRowProps {
   blockType: string
+  scope: 'block' | 'subblock' | 'container'
   field: string
   oldValue: unknown
   newValue: unknown
@@ -36,27 +38,46 @@ interface FieldChangeRowProps {
  * empty (a block that exists on one side only, or a value first set or
  * cleared) shows that one side alone, in that side's colour.
  */
-export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldChangeRowProps) {
-  const config = findSubBlockConfig(blockType, field)
-  const kind = classifyChange(blockType, field, oldValue, newValue)
-  const before =
-    kind === 'structured' ? getStructuredValuePresentation(config, field, oldValue) : null
-  const after =
-    kind === 'structured' ? getStructuredValuePresentation(config, field, newValue) : null
+export function FieldChangeRow({
+  blockType,
+  scope,
+  field,
+  oldValue,
+  newValue,
+}: FieldChangeRowProps) {
+  const valueBlockType = scope === 'subblock' ? blockType : undefined
+  const config = findSubBlockConfig(valueBlockType, field)
+  const kind = classifyChange(valueBlockType, field, oldValue, newValue)
+  const structuredSettings = scope === 'block' && kind === 'json'
+  const present = (value: unknown) =>
+    structuredSettings
+      ? mappingPresentation(value)
+      : kind === 'structured'
+        ? getStructuredValuePresentation(config, field, value)
+        : null
+  const before = present(oldValue)
+  const after = present(newValue)
   const oneSided = isBlankValue(oldValue) !== isBlankValue(newValue)
   const wordDiff = kind === 'scalar' && isSentenceLike(oldValue) && isSentenceLike(newValue)
-  const resolvedLabel = isContainerType(blockType)
-    ? containerFieldLabel(field)
-    : (ENGINE_FIELD_LABELS[field] ?? resolveFieldLabel(blockType, field))
+  const resolvedLabel =
+    scope === 'container' ? containerFieldLabel(field) : resolveFieldLabel(blockType, field, scope)
   const label = resolvedLabel === field ? formatParameterLabel(field) : resolvedLabel
-  const textual = kind === 'text' || kind === 'json'
+  const textual = !structuredSettings && (kind === 'text' || kind === 'json')
   const scalar = kind === 'scalar' || kind === 'toggle'
   const text = (value: unknown) => {
-    const formatted = toDiffText(value, blockType, field)
+    const formatted = toDiffText(value, valueBlockType, field)
     return kind === 'json' && typeof value === 'string' ? JSON.stringify(formatted) : formatted
   }
-  let oldText = textual ? text(oldValue) : scalar ? formatScalar(blockType, field, oldValue) : ''
-  let newText = textual ? text(newValue) : scalar ? formatScalar(blockType, field, newValue) : ''
+  let oldText = textual
+    ? text(oldValue)
+    : scalar
+      ? formatScalar(valueBlockType, field, oldValue)
+      : ''
+  let newText = textual
+    ? text(newValue)
+    : scalar
+      ? formatScalar(valueBlockType, field, newValue)
+      : ''
   if (
     scalar &&
     (config?.type === 'dropdown' || config?.type === 'combobox') &&
@@ -99,7 +120,7 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
         (oneSided ? (
           <ValueChip
             tone={isBlankValue(oldValue) ? 'added' : 'removed'}
-            text={formatScalar(blockType, field, isBlankValue(oldValue) ? newValue : oldValue)}
+            text={formatScalar(valueBlockType, field, isBlankValue(oldValue) ? newValue : oldValue)}
           />
         ) : wordDiff ? (
           <InlineDiff oldText={oldText} newText={newText} />

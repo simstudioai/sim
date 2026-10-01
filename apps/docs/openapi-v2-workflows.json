@@ -9447,9 +9447,14 @@
                               }
                             ],
                             "description": "Target version value."
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": ["block", "subblock"],
+                            "description": "Whether the field is a block setting or a subblock input."
                           }
                         },
-                        "required": ["field", "oldValue", "newValue"],
+                        "required": ["field", "oldValue", "newValue", "scope"],
                         "additionalProperties": false
                       },
                       "description": "Changed field values."

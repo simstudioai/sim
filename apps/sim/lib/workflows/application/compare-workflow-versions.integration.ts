@@ -246,10 +246,20 @@ describe('compare deployment versions through the authorized application boundar
     const reverse = await compare(6, 5)
     expect(forward.diff.hasChanges).toBe(true)
     expect(forward.diff.modifiedBlocks.find((block) => block.id === 'playlist')?.changes).toEqual([
-      { field: 'public', oldValue: { kind: 'unset' }, newValue: { kind: 'value', value: true } },
+      {
+        scope: 'subblock',
+        field: 'public',
+        oldValue: { kind: 'unset' },
+        newValue: { kind: 'value', value: true },
+      },
     ])
     expect(reverse.diff.modifiedBlocks.find((block) => block.id === 'playlist')?.changes).toEqual([
-      { field: 'public', oldValue: { kind: 'value', value: true }, newValue: { kind: 'unset' } },
+      {
+        scope: 'subblock',
+        field: 'public',
+        oldValue: { kind: 'value', value: true },
+        newValue: { kind: 'unset' },
+      },
     ])
   })
 
@@ -258,6 +268,7 @@ describe('compare deployment versions through the authorized application boundar
     expect(result.diff.hasChanges).toBe(true)
     expect(result.diff.modifiedBlocks.find((block) => block.id === 'mcp')?.changes).toEqual([
       {
+        scope: 'subblock',
         field: 'arguments',
         oldValue: {
           kind: 'value',
@@ -290,6 +301,7 @@ describe('compare deployment versions through the authorized application boundar
     expect(
       forward.diff.modifiedBlocks.find((block) => block.id === 'convex')?.changes
     ).toContainEqual({
+      scope: 'subblock',
       field: 'deployKey',
       oldValue: { kind: 'redacted' },
       newValue: { kind: 'redacted' },

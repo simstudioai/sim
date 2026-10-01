@@ -160,7 +160,9 @@ export function buildWorkflowDiffOverlay(
   for (const block of summary.removedBlocks) blockStatus[block.id] = 'removed'
   for (const block of summary.modifiedBlocks) {
     blockStatus[block.id] = 'modified'
-    changedFieldsByBlock[block.id] = block.changes.map((change) => change.field)
+    changedFieldsByBlock[block.id] = block.changes
+      .filter((change) => change.scope === 'subblock')
+      .map((change) => change.field)
   }
   /* A reconfigured container, and a surviving block whose parent changed, both read as modified. */
   for (const container of summary.containerChanges) {

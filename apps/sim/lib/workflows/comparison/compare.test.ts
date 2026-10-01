@@ -1788,8 +1788,8 @@ describe('omitPresentationChanges', () => {
           type: 'function',
           name: 'a',
           changes: [
-            { field: 'horizontalHandles', oldValue: true, newValue: false },
-            { field: 'tools.properties', oldValue: {}, newValue: {} },
+            { scope: 'block', field: 'horizontalHandles', oldValue: true, newValue: false },
+            { scope: 'block', field: 'tools.properties', oldValue: {}, newValue: {} },
           ],
         },
         {
@@ -1797,8 +1797,8 @@ describe('omitPresentationChanges', () => {
           type: 'function',
           name: 'b',
           changes: [
-            { field: 'horizontalHandles', oldValue: true, newValue: false },
-            { field: 'code', oldValue: 'x', newValue: 'y' },
+            { scope: 'block', field: 'horizontalHandles', oldValue: true, newValue: false },
+            { scope: 'subblock', field: 'code', oldValue: 'x', newValue: 'y' },
           ],
         },
       ],
@@ -1812,7 +1812,7 @@ describe('omitPresentationChanges', () => {
         id: 'b',
         type: 'function',
         name: 'b',
-        changes: [{ field: 'code', oldValue: 'x', newValue: 'y' }],
+        changes: [{ scope: 'subblock', field: 'code', oldValue: 'x', newValue: 'y' }],
       },
     ])
     expect(next.hasChanges).toBe(true)
@@ -1825,7 +1825,12 @@ describe('omitPresentationChanges', () => {
           type: 'slack',
           name: 'c',
           changes: [
-            { field: 'data.canonicalModes', oldValue: {}, newValue: { channel: 'advanced' } },
+            {
+              scope: 'block',
+              field: 'data.canonicalModes',
+              oldValue: {},
+              newValue: { channel: 'advanced' },
+            },
           ],
         },
       ],

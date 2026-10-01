@@ -466,6 +466,7 @@ try {
         expected.diff.modifiedBlocks.find((block) => block.id === id)?.changes
       assert.deepEqual(modified('knowledge'), [
         {
+          scope: 'subblock',
           field: 'knowledgeBaseSelector',
           oldValue: { kind: 'value', value: 'kb-original' },
           newValue: { kind: 'value', value: 'kb-replacement' },
@@ -473,13 +474,19 @@ try {
       ])
       assert.deepEqual(modified('fn'), [
         {
+          scope: 'subblock',
           field: 'code',
           oldValue: { kind: 'value', value: 'return 1' },
           newValue: { kind: 'value', value: 'return 2' },
         },
       ])
       assert.deepEqual(modified('convex'), [
-        { field: 'deployKey', oldValue: { kind: 'redacted' }, newValue: { kind: 'redacted' } },
+        {
+          scope: 'subblock',
+          field: 'deployKey',
+          oldValue: { kind: 'redacted' },
+          newValue: { kind: 'redacted' },
+        },
       ])
       assert.deepEqual(expected.diff.edgeChanges.removedDetails, [
         {
