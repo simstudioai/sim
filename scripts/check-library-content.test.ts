@@ -77,6 +77,7 @@ describe('check-library-content', () => {
       [
         '## Overview',
         'See [the guide](/library/kept-guide) and https://www.sim.ai/library/kept-guide#intro.',
+        'Read https://www.sim.ai/library/kept-guide. Then https://www.sim.ai/library/moved-post, too.',
         '![diagram](/library/clean/diagram.png) and [tags](/library/tags) are not posts.',
         'An apex https://sim.ai/library/missing link belongs to check:site-urls.',
         '| a | b |',
@@ -177,6 +178,7 @@ describe('check-library-content', () => {
         '[b](https://www.sim.ai/library/old-guide)',
         '<a href="/blog/moved-post">c</a>',
         '[d](/blog/kept-guide)',
+        'Also see https://www.sim.ai/library/gone.',
       ].join('\n')
     )
     expect(await findingsFor('library', 'post')).toEqual([
@@ -199,6 +201,11 @@ describe('check-library-content', () => {
         line: 13,
         rule: 'internal-link',
         message: '/blog/kept-guide does not exist (no apps/sim/content/blog/kept-guide/index.mdx).',
+      },
+      {
+        line: 14,
+        rule: 'internal-link',
+        message: '/library/gone does not exist (no apps/sim/content/library/gone/index.mdx).',
       },
     ])
   })
