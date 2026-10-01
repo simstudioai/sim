@@ -41,7 +41,6 @@ import {
   workspaceById,
 } from '@/app/playground/org/lib/mock-data'
 import type { ProjectSection } from '@/app/playground/org/lib/routes'
-import { WORKSPACE_SECTIONS } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
 import { useWorkspacePane } from '@/app/playground/org/lib/workspace-pane-store'
 import {
@@ -118,8 +117,10 @@ function tabFromRef(ref: string): PanelTab {
   return newTab(workspaceId, kind)
 }
 
+const PROJECT_SECTIONS: readonly ProjectSection[] = ['dashboard', 'changelog', 'issues', 'settings']
+
 function isProjectSection(value: string): value is ProjectSection {
-  return value === 'resources' || WORKSPACE_SECTIONS.some((section) => section.id === value)
+  return PROJECT_SECTIONS.includes(value as ProjectSection)
 }
 
 const NO_MESSAGES: ChatMessage[] = []
@@ -210,7 +211,7 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
    */
   useEffect(() => {
     if (!openRef) return
-    if (openRef.startsWith('workspace:')) {
+    if (openRef === 'workspace' || openRef.startsWith('workspace:')) {
       const [, workspaceId, section] = openRef.split(':')
       if (workspaceId && !WORKSPACES.some((w) => w.id === workspaceId))
         throw new Error(`Bad ref ${openRef}`)

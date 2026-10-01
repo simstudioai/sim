@@ -28,13 +28,12 @@ export const WORKSPACE_SECTIONS = [
 
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]['id']
 
-/** Tabs of the workspace pane; every other section lives under Resources. */
+/** Tabs of the workspace pane; every other kind opens in a browsing tab from Resources. */
 export const MAIN_SECTION_IDS: readonly WorkspaceSection[] = ['dashboard', 'changelog', 'issues']
 export const MAIN_SECTIONS = WORKSPACE_SECTIONS.filter((s) => MAIN_SECTION_IDS.includes(s.id))
-export const RESOURCE_SECTIONS = WORKSPACE_SECTIONS.filter((s) => !MAIN_SECTION_IDS.includes(s.id))
 
-/** A section of the workspace pane, or the Resources tab listing the rest. */
-export type ProjectSection = WorkspaceSection | 'resources'
+/** What the workspace tab shows: one of its tabs, or settings from the project menu. */
+export type ProjectSection = 'dashboard' | 'changelog' | 'issues' | 'settings'
 
 /**
  * Everything lives beside a chat, so a link to a project thing is a `?open=` ref the chat

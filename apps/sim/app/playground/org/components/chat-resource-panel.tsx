@@ -54,7 +54,7 @@ export function ChatResourcePanel({
   onOpenTerminal,
   onBrowse,
 }: ChatResourcePanelProps) {
-  if (view.type === 'workspace') return <WorkspaceView />
+  if (view.type === 'workspace') return <WorkspaceView onBrowse={onBrowse} />
   if (view.type === 'resource') return <ResourceBody resource={view.resource} />
   if (view.type === 'browser') return <BrowserView />
   if (view.type === 'terminal') return <TerminalView />
