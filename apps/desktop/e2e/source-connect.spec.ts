@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -8,6 +8,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { build } from 'esbuild'
+import postcss from 'postcss'
+import loadPostcssConfig from 'postcss-load-config'
 
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
@@ -42,6 +44,9 @@ test('source authorization returns to its desktop screen and refreshes live', as
   }
   const tickets = new Map<string, unknown>()
   const attempts = new Map<string, string>()
+  const accountAttempts = new Map<string, { session: string; mcp: boolean }>()
+  let accountConnected = false
+  let mcpAccountConnected = false
   const startSessions: string[] = []
   const callbackSessions: string[] = []
   const githubAttempts = new Map<string, { session: string; completed: boolean }>()
@@ -50,6 +55,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
   let nativeCredentialVisible = false
   let installed = false
   let javascript = ''
+  let stylesheet = ''
   let origin = ''
   let app: Awaited<ReturnType<typeof electron.launch>> | undefined
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
@@ -73,9 +79,76 @@ test('source authorization returns to its desktop screen and refreshes live', as
       for await (const chunk of request) text += chunk.toString()
       return JSON.parse(text)
     }
-    if (path === '/fixture.js') {
-      response.setHeader('content-type', 'text/javascript')
-      response.end(javascript)
+    if (path === '/fixture.js' || path === '/fixture.css') {
+      response.setHeader('content-type', path.endsWith('.js') ? 'text/javascript' : 'text/css')
+      response.end(path.endsWith('.js') ? javascript : stylesheet)
+      return
+    }
+    if (path === '/api/organizations/fixture-organization/connected-accounts') {
+      json({
+        credentialGroup: null,
+        availableProviders: [],
+        availableMcpConnectors: [],
+        canManage: false,
+        indexingAvailable: true,
+        viewerMcpAccounts: mcpAccountConnected
+          ? [
+              {
+                credentialId: 'fixture-mcp-account',
+                displayName: 'Fixture MCP account',
+                mcpServerId: 'fixture-mcp',
+                status: 'active',
+              },
+            ]
+          : [],
+        viewerAccounts: accountConnected
+          ? [
+              {
+                credentialId: 'fixture-account',
+                displayName: 'Fixture account',
+                providerId: 'google-drive',
+                groupId: 'fixture-group',
+                optionId: 'fixture-option',
+                status: 'active',
+              },
+            ]
+          : [],
+      })
+      return
+    }
+    if (
+      path === '/api/organizations/fixture-organization/connected-accounts/connect' ||
+      path === '/api/users/me/organization-accounts/fixture-account/reconnect'
+    ) {
+      const input = request.method === 'POST' && path.endsWith('/connect') ? await body() : null
+      const completionId = input?.oauthCompletionId ?? url.searchParams.get('oauthCompletionId')
+      if (!completionId) {
+        json({ error: 'Missing completion ID' }, 400)
+        return
+      }
+      accountAttempts.set(completionId, { session, mcp: Boolean(input?.mcpServerId) })
+      json({
+        invitationLink: `${origin}/credential-groups/enroll/fixture-account-invitation`,
+        authorizationUrl: `${origin}/account-provider?completionId=${completionId}`,
+      })
+      return
+    }
+    if (path === '/account-callback') {
+      const completionId = url.searchParams.get('completionId') ?? ''
+      const attempt = accountAttempts.get(completionId)
+      if (attempt?.session !== session) {
+        json({ error: 'Wrong attempt' }, 403)
+        return
+      }
+      accountAttempts.delete(completionId)
+      const denied = url.searchParams.has('error')
+      if (!denied) {
+        if (attempt.mcp) mcpAccountConnected = true
+        else accountConnected = true
+      }
+      redirect(
+        `/credential-groups/complete?completionId=${completionId}&organizationId=fixture-organization${denied ? '&oauth=denied' : ''}`
+      )
       return
     }
     if (path === '/api/auth/get-session') {
@@ -217,6 +290,14 @@ test('source authorization returns to its desktop screen and refreshes live', as
       return
     }
     response.setHeader('content-type', 'text/html')
+    if (path === '/account-provider') {
+      response.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+      const completionId = url.searchParams.get('completionId') ?? ''
+      response.end(
+        `<!doctype html><a href="/account-callback?completionId=${completionId}">Authorize account</a><a href="/account-callback?completionId=${completionId}&error=denied">Deny account</a>`
+      )
+      return
+    }
     if (path === '/github-provider') {
       response.end(
         `<!doctype html><a href="/github-callback?setupId=${url.searchParams.get('setupId')}">Authorize GitHub</a>`
@@ -239,10 +320,18 @@ test('source authorization returns to its desktop screen and refreshes live', as
         'set-cookie',
         'better-auth.session_token=desktop-fixture; HttpOnly; SameSite=Lax; Path=/'
       )
-    response.end('<!doctype html><div id="root"></div><script src="/fixture.js"></script>')
+    response.end(
+      '<!doctype html><html><head><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>'
+    )
   })
   try {
     await check('launch the production source hook and native bridge', async () => {
+      const config = await loadPostcssConfig({}, SIM_DIR)
+      const cssPath = join(SIM_DIR, 'app/_styles/globals.css')
+      const css = await postcss(config.plugins).process(
+        `${readFileSync(cssPath, 'utf8')}\n@source ${JSON.stringify(FIXTURE)};`,
+        { from: cssPath }
+      )
       const bundle = await build({
         entryPoints: [FIXTURE],
         bundle: true,
@@ -257,6 +346,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
         define: { 'process.env.NODE_ENV': '"development"' },
       })
       javascript = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text ?? ''
+      stylesheet = `${css.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`
       await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
       const address = server.address()
       if (!address || typeof address === 'string') throw new Error('Missing fixture address')
@@ -399,6 +489,86 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await expect(page.getByLabel('Connection')).toHaveText('error')
       await expect(page.getByRole('alert')).toContainText('Sign in to Sim in your browser')
       expect(page.url()).toBe(`${origin}/home`)
+    })
+    await check('managed accounts return through the desktop completion handoff', async () => {
+      await page.getByRole('button', { name: 'Connect MCP account', exact: true }).click()
+      await expect.poll(async () => (await opened()).length).toBe(9)
+      await external.goto((await opened())[8])
+      await external.getByRole('link', { name: 'Authorize account' }).click()
+      await expect(page.getByLabel('Account authorization', { exact: true })).toHaveText('success')
+      await expect(page.getByLabel('Account count')).toHaveText('1')
+      expect(page.url()).toBe(`${origin}/home`)
+      await expect(page.getByLabel('Source draft')).toHaveValue('Preserved while connecting')
+    })
+    const web = await context.newPage()
+    web.on('pageerror', (error) => pageErrors.push(error.message))
+    await web.goto(`${origin}/o/fixture-organization/integrations?search=fixture`)
+    await check(
+      'web authorization preserves the origin and refreshes after an isolated provider window',
+      async () => {
+        accountConnected = false
+        mcpAccountConnected = false
+        await web.reload()
+        await web.getByLabel('Source draft').fill('Web draft retained')
+        await expect(web.getByLabel('Account count')).toHaveText('0')
+        const popupReady = context.waitForEvent('page')
+        await web.getByRole('button', { name: 'Connect account', exact: true }).click()
+        const popup = await popupReady
+        await popup.getByRole('link', { name: 'Authorize account' }).click()
+        await expect(web.getByLabel('Account count')).toHaveText('1')
+        await expect(web.getByLabel('Account authorization', { exact: true })).toHaveText('success')
+        await expect(web.getByLabel('Source draft')).toHaveValue('Web draft retained')
+        expect(web.url()).toBe(`${origin}/o/fixture-organization/integrations?search=fixture`)
+      }
+    )
+    await check('overlapping connect and reconnect preserve the active authorization', async () => {
+      const popupReady = context.waitForEvent('page')
+      await web.getByRole('button', { name: 'Connect account', exact: true }).click()
+      const popup = await popupReady
+      await popup.getByRole('link', { name: 'Authorize account' }).waitFor()
+      const pendingAttempts = accountAttempts.size
+      await web.getByRole('button', { name: 'Reconnect account', exact: true }).click()
+      await expect(web.getByLabel('Reconnect error')).toContainText('Finish or cancel')
+      expect(accountAttempts.size).toBe(pendingAttempts)
+      await expect(web.getByLabel('Account authorization', { exact: true })).toHaveText('pending')
+      await popup.getByRole('link', { name: 'Authorize account' }).click()
+      await expect(web.getByLabel('Account authorization', { exact: true })).toHaveText('success')
+    })
+    await check('web denial and cancellation leave the initiating page usable', async () => {
+      const popupReady = context.waitForEvent('page')
+      await web.getByRole('button', { name: 'Connect account', exact: true }).click()
+      const popup = await popupReady
+      await popup.getByRole('link', { name: 'Deny account' }).click()
+      await expect(web.getByLabel('Account error')).toContainText('canceled')
+      await popup.close()
+      await expect(web.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0)
+      const nextPopupReady = context.waitForEvent('page')
+      await web.getByRole('button', { name: 'Connect account', exact: true }).click()
+      const nextPopup = await nextPopupReady
+      await nextPopup.getByRole('link', { name: 'Authorize account' }).waitFor()
+      await expect(web.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(1)
+      await web.getByRole('button', { name: 'Cancel', exact: true }).click()
+      expect(pageErrors).toEqual([])
+      await expect(web.getByLabel('Account error')).toContainText('canceled')
+      await expect(web.getByRole('button', { name: 'Connect account', exact: true })).toBeEnabled()
+      await expect(web.getByLabel('Account count')).toHaveText('1')
+    })
+    await check('reconnect uses the same completion lifecycle', async () => {
+      const popupReady = context.waitForEvent('page')
+      await web.getByRole('button', { name: 'Reconnect account', exact: true }).click()
+      const popup = await popupReady
+      await popup.getByRole('link', { name: 'Authorize account' }).click()
+      await expect(web.getByLabel('Reconnect status')).toHaveText('success')
+      await expect(web.getByLabel('Source draft')).toHaveValue('Web draft retained')
+    })
+    await check('blocked popups complete in the same tab and return to Integrations', async () => {
+      await web.evaluate(() => {
+        window.open = () => null
+      })
+      await web.getByRole('button', { name: 'Connect account', exact: true }).click()
+      await web.getByRole('link', { name: 'Authorize account' }).click()
+      await expect(web).toHaveURL(`${origin}/o/fixture-organization/integrations`)
+      await expect(web.getByLabel('Account count')).toHaveText('1')
     })
     await page.screenshot({ path: test.info().outputPath('source-connect-desktop.png') })
   } finally {

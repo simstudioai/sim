@@ -17,7 +17,11 @@ export const desktopSourceRequestSchema = z.discriminatedUnion('kind', [
     organizationId: organizationIdSchema,
     body: startOrganizationAccountConnectionBodySchema,
   }),
-  z.object({ kind: z.literal('reconnect-account'), credentialId: z.string().min(1).max(128) }),
+  z.object({
+    kind: z.literal('reconnect-account'),
+    credentialId: z.string().min(1).max(128),
+    completionId: z.string().uuid().optional(),
+  }),
   z.object({
     kind: z.literal('personal-search'),
     body: connectPersonalSearchIntegrationBodySchema,

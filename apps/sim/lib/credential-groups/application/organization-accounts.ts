@@ -29,7 +29,10 @@ import {
 } from '@/lib/credential-groups/provider-availability'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
-import { startViewerCredentialGroupOAuth } from '@/lib/credential-groups/self-enrollment-oauth'
+import {
+  startViewerCredentialGroupMcpOAuth,
+  startViewerCredentialGroupOAuth,
+} from '@/lib/credential-groups/self-enrollment-oauth'
 import {
   ensureWorkspaceAccountsGroup,
   getOrganizationAccountsGroup,
@@ -250,7 +253,7 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
   }: {
     input: OrganizationAccountsInput &
       StartOrganizationAccountConnectionBody & {
-        oauthCompletionId?: string
+        returnTo?: 'integrations'
         connectionIntent?: CredentialGroupConnectionIntent
       }
     context: OrganizationMembershipContext
@@ -261,6 +264,16 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
     if ('mcpServerId' in input) {
       if (!group.mcpServers.some((server) => server.id === input.mcpServerId && server.enabled))
         throw new OrchestrationError('not_found', 'This account provider is no longer available')
+      if (input.oauthCompletionId) {
+        return startViewerCredentialGroupMcpOAuth({
+          organizationId: context.organizationId,
+          userId: context.userId,
+          credentialGroupId: group.id,
+          mcpServerId: input.mcpServerId,
+          completionId: input.oauthCompletionId,
+          returnTo: input.returnTo,
+        })
+      }
       const { invitationLink } = await createViewerCredentialGroupEnrollment({
         organizationId: context.organizationId,
         userId: context.userId,
@@ -283,6 +296,7 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
         credentialGroupId: group.id,
         optionId: input.optionId,
         completionId: input.oauthCompletionId,
+        returnTo: input.returnTo,
         connectionIntent: input.connectionIntent,
       })
     }

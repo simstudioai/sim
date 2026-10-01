@@ -85,10 +85,17 @@ async function startRequest(
             })
           : await requestJson(reconnectPersonalOrganizationAccountContract, {
               params: { credentialId: request.credentialId },
+              query: { oauthCompletionId: request.completionId },
             })
+      const completionId =
+        request.kind === 'organization-account'
+          ? request.body.oauthCompletionId
+          : request.completionId
       return {
         url: result.authorizationUrl ?? result.invitationLink,
-        match: enrollmentMatch(result.invitationLink),
+        match: completionId
+          ? { kind: 'completion', id: completionId }
+          : enrollmentMatch(result.invitationLink),
       }
     }
     case 'personal-search': {

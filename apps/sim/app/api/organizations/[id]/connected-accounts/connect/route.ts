@@ -21,6 +21,7 @@ export const POST = defineInternalJsonRoute({
   mapInput: ({ params, body }) => ({
     organizationId: params.id,
     ...body,
+    ...(body.oauthCompletionId ? { returnTo: 'integrations' as const } : {}),
   }),
   useCase: startOrganizationAccountConnection,
 })
