@@ -18,6 +18,7 @@ import {
   USAGE_GATE_SETTLE_TIMEOUT_MS,
   USAGE_GATE_TTL_MS,
 } from '@/lib/billing/core/usage-gate-cache'
+import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
@@ -26,7 +27,8 @@ const logger = createLogger('MidRunUsage')
 /**
  * A run's standing while it is under way, read through the execution usage gate:
  * - `exceeded`: the payer (or the actor's member cap) spent its limit; the run pauses with the
- *   upgrade card.
+ *   upgrade card. A direct-v1 verdict carries the payer it read, so the card names that payer's
+ *   plan rather than the actor's.
  * - `blocked`: the account is blocked (payment failed, dispute); the run is refused as a blocked
  *   account, never with the upgrade card.
  * - `unknown`: usage, or the payer's current period, could not be read. Admission fails closed
@@ -35,7 +37,11 @@ const logger = createLogger('MidRunUsage')
  */
 export type MidRunUsageVerdict =
   | { status: 'within' }
-  | { status: 'exceeded'; scope?: AttributedUsageLimitsResult['scope'] }
+  | {
+      status: 'exceeded'
+      scope?: AttributedUsageLimitsResult['scope']
+      payer?: UsageUpgradePayer
+    }
   | { status: 'blocked'; message?: string }
   | { status: 'unknown' }
 
@@ -213,7 +219,13 @@ export async function readMidRunAccountUsageVerdict(
       USAGE_GATE_SETTLE_TIMEOUT_MS
     )
     if (usage.unavailable) return { status: 'unknown' }
-    if (usage.isExceeded) return { status: 'exceeded', scope: 'payer' }
+    if (usage.isExceeded) {
+      return {
+        status: 'exceeded',
+        scope: 'payer',
+        payer: { billingEntity: payer, payerSubscription: subscription },
+      }
+    }
     const within: MidRunUsageVerdict = { status: 'within' }
     accountVerdictCache.set(key, within)
     return within

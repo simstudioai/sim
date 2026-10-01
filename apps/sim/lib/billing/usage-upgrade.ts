@@ -1,14 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { UsageUpgradePayload } from '@/lib/api/contracts/subscription'
-import type {
-  AttributedUsageLimitsResult,
-  BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+import type { AttributedUsageLimitsResult } from '@/lib/billing/core/billing-attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { withinDeadline } from '@/lib/core/utils/deadline'
 
 const logger = createLogger('UsageUpgrade')
 
@@ -19,18 +16,25 @@ const MEMBER_CAP_MESSAGE =
   "You've reached the usage limit your organization set for you this billing period. Only an organization owner or admin can raise it — please ask them to continue."
 
 /**
+ * The payer a run is billed to, as the upgrade card needs it: its billing entity and its
+ * subscription's plan. An attribution snapshot is one; a direct-v1 run's mid-run verdict carries one.
+ */
+export interface UsageUpgradePayer {
+  readonly billingEntity: Readonly<BillingEntity>
+  readonly payerSubscription: { readonly plan: string } | null
+}
+
+/**
  * The upgrade card for a payer over its usage limit: a plan upgrade for a free payer, a limit
  * increase for a paid one, with copy naming who can raise an organization's limit. A member
- * over the cap their organization set gets copy naming who can raise that cap. An attributed
- * run reads the plan from its admission snapshot without a query; otherwise the actor's current
- * subscription decides, and a lookup that fails or outlasts `deadlineAt` falls back to the
- * plan-upgrade card.
+ * over the cap their organization set gets copy naming who can raise that cap. A known payer
+ * decides the card without a query; otherwise the actor's current subscription decides, and a
+ * lookup that fails falls back to the plan-upgrade card.
  */
 export async function resolveUsageUpgradePayload(
   userId: string,
-  billingAttribution?: BillingAttributionSnapshot,
-  scope?: AttributedUsageLimitsResult['scope'],
-  deadlineAt?: number
+  payer?: UsageUpgradePayer,
+  scope?: AttributedUsageLimitsResult['scope']
 ): Promise<UsageUpgradePayload> {
   if (scope === 'member') {
     return { reason: 'usage_limit', action: 'increase_limit', message: MEMBER_CAP_MESSAGE }
@@ -38,13 +42,11 @@ export async function resolveUsageUpgradePayload(
   let plan: string | undefined
   let orgScoped = false
   try {
-    if (billingAttribution) {
-      plan = billingAttribution.payerSubscription?.plan
-      orgScoped = billingAttribution.billingEntity.type === 'organization'
+    if (payer) {
+      plan = payer.payerSubscription?.plan
+      orgScoped = payer.billingEntity.type === 'organization'
     } else {
-      const subscription = await (deadlineAt === undefined
-        ? getHighestPrioritySubscription(userId)
-        : withinDeadline(() => getHighestPrioritySubscription(userId), deadlineAt))
+      const subscription = await getHighestPrioritySubscription(userId)
       plan = subscription?.plan
       orgScoped = isOrgScopedSubscription(subscription, userId)
     }

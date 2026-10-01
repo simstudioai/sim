@@ -10,6 +10,7 @@ import {
 } from '@sim/db/schema'
 import * as dns from '@sim/security/dns'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
@@ -18,7 +19,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
 import { env } from '@/lib/core/config/env'
 import { createOrganizationAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
-import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { acquireAdvisoryXactLock, tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   approveSearchIntegration,
   listSearchIntegrations,
@@ -194,6 +195,63 @@ describe('atomic organization live Search MCP setup', () => {
       expect(result.memberAccounts?.groupId).toBe(group.id)
     }
   )
+
+  it('rejects Zoom approval when rollout is disabled while waiting for the accounts lock', async () => {
+    const group = await db.transaction((tx) =>
+      createOrganizationAccountsGroup(tx, ids.organization, ids.owner)
+    )
+    await db.insert(mcpServers).values({
+      id: generateId(),
+      organizationId: ids.organization,
+      credentialGroupId: group.id,
+      managedConnectorId: 'zoom',
+      name: 'Zoom',
+      transport: 'streamable-http',
+      url: 'https://mcp.zoom.us/mcp/meeting/streamable',
+      authType: 'oauth',
+      enabled: true,
+      createdBy: ids.owner,
+    })
+    Object.assign(env, { ZOOM_SEARCH: true })
+    const before = await snapshot()
+    const locked = createDeferred<number>()
+    const release = createDeferred<void>()
+    const blocker = db.transaction(async (tx) => {
+      await acquireAdvisoryXactLock(
+        tx,
+        'search_accounts',
+        `search-accounts:organization:${ids.organization}`
+      )
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      locked.resolve(connection.pid)
+      await release.promise
+    })
+    const blockerPid = await locked.promise
+    const attempt = approve('zoom').catch((error: unknown) => error)
+    try {
+      await vi.waitFor(
+        async () => {
+          const [state] = await db.execute<{ waiting: boolean }>(sql`
+            SELECT EXISTS (
+              SELECT 1 FROM pg_stat_activity
+              WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+            ) AS waiting
+          `)
+          expect(state.waiting).toBe(true)
+        },
+        { timeout: 5_000 }
+      )
+      Object.assign(env, { ZOOM_SEARCH: false })
+    } finally {
+      release.resolve()
+      await blocker
+      await attempt
+    }
+    expect(await attempt).toMatchObject({ code: 'forbidden' })
+    expect(await snapshot()).toEqual(before)
+    Object.assign(env, { ZOOM_SEARCH: true })
+    await expect(approve('zoom')).resolves.toMatchObject({ approved: true })
+  })
 
   it('resolves the sign-in server before the approval takes the accounts lock', async () => {
     const lockHeldDuringLookup: boolean[] = []
