@@ -114,6 +114,8 @@ const STATIC_SCRIPT_SRC = [
         // X (Twitter) conversion pixel (landing pages) — the base code injects
         // uwt.js as a <script> tag from static.ads-twitter.com
         'https://static.ads-twitter.com',
+        // Freebuff Ads conversion tag — freebuff-tag.js
+        'https://freebuff.com',
       ]
     : []),
 ] as const
@@ -160,6 +162,8 @@ const STATIC_CONNECT_SRC = [
         // via fetch/sendBeacon. The t.co image-pixel fallback is already
         // covered by the `https:` wildcard in img-src.
         'https://analytics.twitter.com',
+        // Freebuff Ads conversion tag — beacons to /api/advertisers/conversions/client
+        'https://freebuff.com',
       ]
     : []),
 ] as const

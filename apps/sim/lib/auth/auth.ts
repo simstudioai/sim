@@ -35,6 +35,8 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
+import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
@@ -310,10 +312,27 @@ export const auth = betterAuth({
           }
           return { data: user }
         },
-        after: async (user) => {
+        after: async (user, context) => {
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
           })
+
+          /**
+           * Only the marketing-consent-gated Freebuff tag writes the `bfcid`
+           * cookie, and `FreebuffClickIdGuard` deletes it once marketing consent
+           * is withdrawn or expires. Not awaited: the postback
+           * retries on its own and must never delay signup. The browser tag
+           * reports the same `eventId` on email signup and Freebuff dedupes.
+           */
+          const freebuffClickId = context?.getCookie(FREEBUFF_CLICK_ID_COOKIE)
+          if (freebuffClickId) {
+            void reportFreebuffConversion({
+              clickId: freebuffClickId,
+              eventType: 'signup_completed',
+              eventId: user.id,
+              occurredAt: user.createdAt,
+            })
+          }
 
           try {
             PlatformEvents.userSignedUp({
