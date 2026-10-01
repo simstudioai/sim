@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import {
   Avatar,
   Chip,
+  ChipTag,
   chipVariants,
   cn,
   OverflowText,
@@ -11,15 +12,23 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
-import { ChevronDown, Home, Integration, PanelLeft, Search, Settings } from '@sim/emcn/icons'
+import { ChevronDown, Home, Integration, PanelLeft, Plus, Search, Settings } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { RunningDot } from '@/app/playground/org/components/glyphs'
 import { DRAFTS } from '@/app/playground/org/lib/changelog-data'
 import { useProtoChats } from '@/app/playground/org/lib/chat-store'
-import { CHATS, type Chat, ORGANIZATION, PEOPLE } from '@/app/playground/org/lib/mock-data'
+import {
+  CHATS,
+  type Chat,
+  ORGANIZATION,
+  PEOPLE,
+  WORKSPACES,
+  type Workspace,
+} from '@/app/playground/org/lib/mock-data'
 import { PROTO_BASE, protoRoutes } from '@/app/playground/org/lib/routes'
+import { useWorkspacePane } from '@/app/playground/org/lib/workspace-pane-store'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
   isNavItemActive,
@@ -45,12 +54,13 @@ const NAV_ITEMS: SidebarNavItemData[] = [
   { id: 'connectors', label: 'Connectors', icon: Integration, href: protoRoutes.connectors },
 ]
 
-/** Mock org rail: New chat / Search / Connectors, then chats. Projects live in the workspace pane. */
+/** Mock org rail: New chat / Search / Connectors, projects, then chats. A project opens in the workspace pane. */
 export function ProtoSidebar() {
   const { isCollapsed: railCollapsed, isPeeking } = useSidebarChrome()
   const isCollapsed = railCollapsed && !isPeeking
   const pathname = usePathname()
   const created = useProtoChats((state) => state.created)
+  const projectId = useWorkspacePane((state) => state.projectId)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
@@ -117,7 +127,31 @@ export function ProtoSidebar() {
           {...scrollFadeAttributes(scrollEdges)}
         >
           <div ref={scrollContentRef} className='flex flex-col'>
-            <SidebarSection title='Recent chats' railCollapsed={isCollapsed}>
+            <SidebarSection
+              title='Projects'
+              railCollapsed={isCollapsed}
+              action={
+                isCollapsed ? undefined : (
+                  <Chip leftIcon={Plus} aria-label='New project' className='mr-2 h-[18px]' />
+                )
+              }
+            >
+              <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                {WORKSPACES.map((workspace) => (
+                  <ProjectRow
+                    key={workspace.id}
+                    workspace={workspace}
+                    active={workspace.id === projectId}
+                    railCollapsed={isCollapsed}
+                  />
+                ))}
+              </div>
+            </SidebarSection>
+            <SidebarSection
+              title='Recent chats'
+              railCollapsed={isCollapsed}
+              className={SIDEBAR_SECTION_GAP_CLASS}
+            >
               <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                 {[...created, ...CHATS].map((chat) => (
                   <ChatRow
@@ -151,6 +185,34 @@ export function ProtoSidebar() {
         </div>
       </div>
     </aside>
+  )
+}
+
+interface ProjectRowProps {
+  workspace: Workspace
+  active: boolean
+  railCollapsed: boolean
+}
+
+/** A project row: opens it in the workspace pane beside whatever chat is open. */
+function ProjectRow({ workspace, active, railCollapsed }: ProjectRowProps) {
+  return (
+    <SidebarTooltip label={workspace.name} enabled={railCollapsed}>
+      <Link
+        href={protoRoutes.workspace(workspace.id)}
+        className={cn(chipVariants({ active, fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+      >
+        <IdentityTile initial={workspace.name[0]} />
+        <OverflowText
+          label={workspace.name}
+          className='sidebar-collapse-hide flex-1 text-[var(--text-body)]'
+          focusTarget='nearest-interactive'
+        />
+        {!railCollapsed && workspace.needsYou > 0 && (
+          <ChipTag variant='gray'>{workspace.needsYou}</ChipTag>
+        )}
+      </Link>
+    </SidebarTooltip>
   )
 }
 
