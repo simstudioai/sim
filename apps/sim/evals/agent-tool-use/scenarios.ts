@@ -509,7 +509,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
     category: 'planning',
     description:
       'Each call depends on the previous result; the loop must preserve order across four turns.',
-    userMessage: 'Where is my latest order?',
+    userMessage: 'Where is my latest order? My user id is u-42.',
     tools: [getUser, listOrders, getOrder, getShipping],
     script: [
       {
@@ -517,7 +517,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
         calls: [
           {
             name: 'get_user',
-            args: { userId: 'me' },
+            args: { userId: 'u-42' },
             result: { success: true, output: { id: 'u1' } },
           },
         ],
@@ -560,6 +560,12 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       maxIterations: 5,
       successfulToolCalls: 4,
     },
+    /** With the id already known, a live model may skip the profile lookup. */
+    liveExpect: {
+      toolCallSequence: undefined,
+      requiredTools: ['list_orders', 'get_order', 'get_shipping'],
+      successfulToolCalls: 3,
+    },
   },
   {
     id: 'near-duplicate-names',
@@ -588,5 +594,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       finalContent: /Europe\/Berlin/,
       maxIterations: 3,
     },
+    /** Over-calling the profile tool is inefficiency, not wrong-tool selection. */
+    liveExpect: { forbiddenTools: undefined },
   },
 ]
