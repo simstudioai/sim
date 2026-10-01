@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { db } from '@sim/db'
-import { member, organization, user } from '@sim/db/schema'
+import { credential, credentialGroupEnrollment, member, organization, user } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import {
@@ -14,9 +14,12 @@ import {
   runWithOutboundOrganization,
 } from '@/lib/core/network/context.server'
 import { startOrganizationAccountConnection } from '@/lib/credential-groups/application/organization-accounts'
+import { reconnectPersonalOrganizationAccount } from '@/lib/credential-groups/application/personal-organization-accounts'
 import { createManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-service'
 import { consumeCredentialGroupMcpOAuthAttempt } from '@/lib/credential-groups/mcp-oauth-state'
+import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
+import { encryptManagedMcpTokens } from '@/lib/credentials/managed-mcp'
 import * as oauth from '@/lib/mcp/oauth/auth'
 import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 
@@ -28,6 +31,7 @@ const outsider = generateId()
 const directOrg = generateId()
 const blockedOrg = generateId()
 const servers = new Map<string, string>()
+const grants = new Map<string, { credentialId: string; enrollmentId: string }>()
 const requests: string[] = []
 
 /** Real OAuth discovery and registration over a socket; only the remote destination is replaced. */
@@ -122,6 +126,28 @@ beforeAll(async () => {
       )
     )
     servers.set(organizationId, mcpServer.id)
+    const { enrollment } = await createViewerCredentialGroupEnrollment({
+      organizationId,
+      credentialGroupId: group.id,
+      userId,
+    })
+    const credentialId = `mcp-cg-${generateId()}`
+    await db.insert(credential).values({
+      id: credentialId,
+      organizationId,
+      type: 'managed_mcp',
+      displayName: 'OAuth fixture',
+      grantedAt: new Date(),
+      credentialGroupEnrollmentId: enrollment.id,
+      mcpServerId: mcpServer.id,
+      managedOauthStatus: 'active',
+      mcpTools: [],
+      encryptedOauthTokenSet: await encryptManagedMcpTokens({
+        access_token: 'fixture-access',
+        token_type: 'Bearer',
+      }),
+    })
+    grants.set(organizationId, { credentialId, enrollmentId: enrollment.id })
   }
   await new Promise<void>((resolve) => providerServer.listen(0, '127.0.0.1', resolve))
   const address = providerServer.address()
@@ -169,8 +195,19 @@ function connect(
   })
 }
 
-async function verifyAuthorization() {
-  const result = await connect(directOrg)
+function reconnect(organizationId: string, userId = owner) {
+  return reconnectPersonalOrganizationAccount.execute({
+    principal: createSessionPrincipal({ userId, sessionId: generateId() }),
+    input: {
+      credentialId: grants.get(organizationId)!.credentialId,
+      oauthCompletionId: generateId(),
+    },
+  })
+}
+
+async function verifyAuthorization(start: typeof connect | typeof reconnect) {
+  const result = await start(directOrg)
+  if (!result.authorizationUrl) throw new Error('OAuth authorization URL is missing')
   const authorization = new URL(result.authorizationUrl)
   expect(`${authorization.origin}${authorization.pathname}`).toBe(`${ISSUER}/authorize`)
   expect(authorization.searchParams.get('client_id')).toBe('fixture-dynamic-client')
@@ -189,33 +226,50 @@ async function verifyAuthorization() {
   expect(await consumeCredentialGroupMcpOAuthAttempt(state)).toBeNull()
 }
 
-describe('Organization account OAuth outbound ownership', () => {
+describe.each([
+  { name: 'Connect', start: connect },
+  { name: 'Reconnect', start: reconnect },
+])('$name account OAuth outbound ownership', ({ start }) => {
   it('starts dynamic OAuth with a bound single-use attempt when no ambient scope exists', async () => {
-    await verifyAuthorization()
+    await verifyAuthorization(start)
     await expect(resolveCurrentOutboundRoute()).rejects.toMatchObject({ code: 'MISSING_SCOPE' })
   })
   it('uses authorized ownership instead of an ambient blocked organization and restores the outer scope', async () => {
     await runWithOutboundOrganization(blockedOrg, async () => {
-      await verifyAuthorization()
+      await verifyAuthorization(start)
       await expect(resolveCurrentOutboundRoute()).rejects.toMatchObject({ code: 'ROUTE_BLOCKED' })
     })
   })
   it('does not bypass an organization block through ambient platform scope', async () => {
     const before = requests.length
     await runWithOutboundOrganization(null, async () => {
-      await expect(connect(blockedOrg, blockedOwner)).rejects.toMatchObject({
+      await expect(start(blockedOrg, blockedOwner)).rejects.toMatchObject({
         code: 'ROUTE_BLOCKED',
       })
       expect(await resolveCurrentOutboundRoute()).toEqual({ kind: 'direct' })
     })
     expect(requests.length).toBe(before)
   })
+})
+
+describe('Account authorization before outbound OAuth', () => {
   it('denies nonmembers and cross-organization providers before contacting OAuth', async () => {
     const before = requests.length
     await expect(connect(directOrg, outsider)).rejects.toMatchObject({ code: 'not_found' })
     await expect(connect(directOrg, owner, servers.get(blockedOrg))).rejects.toMatchObject({
       code: 'not_found',
     })
+    expect(requests.length).toBe(before)
+  })
+  it('denies another contributor and a revoked enrollment during reconnect', async () => {
+    const before = requests.length
+    await expect(reconnect(directOrg, outsider)).rejects.toMatchObject({ code: 'not_found' })
+    const enrollmentId = grants.get(directOrg)!.enrollmentId
+    await db
+      .update(credentialGroupEnrollment)
+      .set({ status: 'revoked' })
+      .where(eq(credentialGroupEnrollment.id, enrollmentId))
+    await expect(reconnect(directOrg)).rejects.toMatchObject({ code: 'forbidden' })
     expect(requests.length).toBe(before)
   })
 })
