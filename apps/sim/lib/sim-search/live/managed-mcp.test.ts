@@ -140,4 +140,17 @@ describe('managed search MCP read boundary', () => {
       serialize.mockRestore()
     }
   })
+
+  it.each(['wide', 'deep'] as const)(
+    'preserves byte-small %s MCP responses without imposing capture limits',
+    (shape) => {
+      let content: unknown = shape === 'wide' ? Array.from({ length: 100_000 }, () => 0) : 'leaf'
+      if (shape === 'deep') {
+        for (let index = 0; index < 128; index++) content = { child: content }
+      }
+      const result = { structuredContent: content }
+      expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThan(4 * 1024 * 1024)
+      expect(managedMcpPayload(result, 'Fireflies')).toEqual(content)
+    }
+  )
 })
