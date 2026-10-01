@@ -15,6 +15,7 @@ import {
 } from '@/hooks/queries/organization-accounts'
 import { useSlackSearchInstallations, useStartSlackSearchOAuth } from '@/hooks/queries/slack-search'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
+import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 
 const NO_CONNECTIONS = new Set<string>()
 const MEMBERSHIP_KEYS: readonly (readonly string[])[] = []
@@ -32,7 +33,20 @@ function SourceConnectFixture() {
     organizationId: 'fixture-organization',
     onConnected: setGithubCredential,
   })
+  const slackAbort = useRef<AbortController | null>(null)
   const connection = useStartSlackSearchOAuth()
+  const personal = useSearchIntegrationConnection({
+    organizationId: 'fixture-organization',
+    userId: 'fixture-user',
+    controlId: 'fixture-search-card',
+    target: {
+      type: 'link',
+      provider: 'slack',
+      connectorType: 'slack',
+      connectionMode: 'live',
+      optionId: 'fixture-option',
+    },
+  })
   const inventory = useSlackSearchInstallations('fixture-organization')
   return (
     <main className='flex flex-col items-start gap-2 p-6'>
@@ -72,17 +86,37 @@ function SourceConnectFixture() {
       <input aria-label='Source draft' defaultValue='Unsubmitted source name' />
       <button
         disabled={connection.isPending}
-        onClick={() =>
+        onClick={() => {
+          const controller = new AbortController()
+          slackAbort.current = controller
           connection.mutate({
+            signal: controller.signal,
             organizationId: 'fixture-organization',
             name: 'Search',
             description: 'Search fixture',
             mode: 'shared',
           })
-        }
+        }}
       >
         Connect Slack
       </button>
+      <button onClick={() => slackAbort.current?.abort()}>Cancel Slack request</button>
+      <button
+        disabled={
+          personal.isLoading ||
+          personal.isStarting ||
+          personal.connected ||
+          (!personal.available && !personal.pending)
+        }
+        onClick={() => void personal.connect()}
+      >
+        Connect personal Search
+      </button>
+      <button onClick={personal.cancel}>Cancel personal Search</button>
+      <button onClick={() => void personal.retry()}>Retry personal inventory</button>
+      <output aria-label='Personal Search pending'>{String(personal.pending)}</output>
+      <output aria-label='Personal Search inventory error'>{personal.inventoryError}</output>
+      <output aria-label='Personal Search connected'>{String(personal.connected)}</output>
       <button disabled={github.pending} onClick={() => void github.connect()}>
         Connect GitHub
       </button>
