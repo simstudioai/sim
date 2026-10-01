@@ -1,4 +1,3 @@
-import { MOCK_DASHBOARDS } from '@/app/playground/org/lib/dashboards'
 import {
   ISSUES,
   RESOURCES,
@@ -8,17 +7,9 @@ import {
 import { WORKSPACE_SECTIONS } from '@/app/playground/org/lib/routes'
 
 /** Resource families the chat panel can browse and open as tabs. */
-export type PanelKind =
-  | 'dashboard'
-  | 'issues'
-  | 'workflows'
-  | 'files'
-  | 'logs'
-  | 'tables'
-  | 'knowledge'
+export type PanelKind = 'issues' | 'workflows' | 'files' | 'logs' | 'tables' | 'knowledge'
 
 const PANEL_KIND_IDS: readonly PanelKind[] = [
-  'dashboard',
   'issues',
   'workflows',
   'files',
@@ -85,12 +76,6 @@ const MENTIONED: Record<string, PanelResource[]> = {
       name: 'Refund questions',
       status: '48 runs',
     },
-    {
-      kind: 'dashboard',
-      id: 'support-operations',
-      workspaceId: 'support',
-      name: 'Support operations',
-    },
   ],
   c0: [
     {
@@ -117,13 +102,6 @@ export function mentionedIn(chatId: string): PanelResource[] {
 export function resourcesOfKind(workspace: Workspace, kind: PanelKind): PanelResource[] {
   const workspaceId = workspace.id
   switch (kind) {
-    case 'dashboard':
-      return workspace.dashboards.map((id) => ({
-        kind,
-        id,
-        workspaceId,
-        name: MOCK_DASHBOARDS[id].title,
-      }))
     case 'issues':
       return ISSUES.filter((issue) => issue.workspaceId === workspaceId).map((issue) => ({
         kind,

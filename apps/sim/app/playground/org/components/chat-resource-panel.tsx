@@ -6,7 +6,6 @@ import { Globe, Search, TerminalWindow } from '@sim/emcn/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { BrowseRow, BrowseSection } from '@/app/playground/org/components/browse-rows'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
-import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import { WorkspaceView } from '@/app/playground/org/components/workspace-view'
 import {
   mentionedIn,
@@ -280,8 +279,6 @@ function ResourceBody({ resource }: { resource: PanelResource }) {
         <RefundPolicyEdit />
       ) : issue ? (
         <IssuePage workspace={workspace} issue={issue} />
-      ) : resource.kind === 'dashboard' ? (
-        <ProtoDashboard workspace={workspace} />
       ) : (
         <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>
           {resource.name} opens here.
