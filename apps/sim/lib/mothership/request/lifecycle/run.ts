@@ -53,7 +53,7 @@ import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-ret
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
-import { replayRefusal } from '@/lib/mothership/request/session/replay-budget'
+import { turnFailure } from '@/lib/mothership/request/session/turn-failure'
 import {
   getToolCallTerminalData,
   requireToolCallStateResult,
@@ -562,27 +562,27 @@ export async function runCopilotLifecycle(
       // the work the user watched succeed.
       const backendFinishedTurn =
         context.completionStatus === MothershipStreamV1CompletionStatus.complete
-      // A refused replay write aborts the turn to stop it, but the turn failed; it
-      // was not stopped by the user.
-      const refusal = replayRefusal(lifecycleOptions.abortSignal?.reason)
+      // A turn failure (such as a refused replay write) aborts the turn to stop it, but
+      // the turn failed; it was not stopped by the user.
+      const failure = turnFailure(lifecycleOptions.abortSignal?.reason)
       // Consult the lifecycle signal as well as the flag. `context.wasAborted` is
       // only reached from a fanout leg through the (deliberately asymmetric) merge
       // in `mergeResumeLegOutputs`, so a Stop landing mid-fanout could otherwise
       // classify the turn as a success. Mirrors the check already used below on
       // the throw path.
       const turnWasAborted =
-        !refusal &&
+        !failure &&
         (context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
           context.wasAborted ||
           (lifecycleOptions.abortSignal?.aborted ?? false))
       const succeeded =
-        !refusal &&
+        !failure &&
         !turnWasAborted &&
         (backendFinishedTurn || (!context.completionStatus && context.errors.length === 0))
       // The worker sends an error terminal with no `error` event only when it replays a run
       // that already ended (for example at its deadline) to a resume or reattach, because
       // that replay does not carry the run's stored reason. Say so rather than leave the turn
-      // to a generic failure; a reported reason or a replay refusal always wins.
+      // to a generic failure; a reported reason or a turn failure always wins.
       const endedWithoutReason =
         !turnWasAborted &&
         context.completionStatus === MothershipStreamV1CompletionStatus.error &&
@@ -606,7 +606,7 @@ export async function runCopilotLifecycle(
         chatId: context.chatId,
         requestId: context.requestId,
         ...(endedWithoutReason ? { error: ENDED_RUN_MESSAGE } : {}),
-        ...(refusal ? { error: refusal.userMessage, errorCode: refusal.code } : {}),
+        ...(failure ? { error: failure.userMessage, errorCode: failure.code } : {}),
         errors: !succeeded && context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -645,8 +645,8 @@ export async function runCopilotLifecycle(
       // partial content can be appended.
       // Return `cancelled: true` so upstream classification stays
       // consistent with the success-path cancel result.
-      const refusal = replayRefusal(lifecycleOptions.abortSignal?.reason)
-      const wasCancelled = !refusal && (lifecycleOptions.abortSignal?.aborted ?? false)
+      const failure = turnFailure(lifecycleOptions.abortSignal?.reason)
+      const wasCancelled = !failure && (lifecycleOptions.abortSignal?.aborted ?? false)
       // Preserve whatever streamed before the throw for both terminals. A thrown
       // backend error (as opposed to an `error` SSE event that lets the loop finish
       // normally) must still carry the partial assistant turn so onError can
@@ -661,8 +661,8 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
-        error: refusal?.userMessage ?? err.message,
-        ...(refusal ? { errorCode: refusal.code } : {}),
+        error: failure?.userMessage ?? err.message,
+        ...(failure ? { errorCode: failure.code } : {}),
         errors: context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,

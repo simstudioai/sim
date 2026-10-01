@@ -15,6 +15,7 @@ vi.mock('@/lib/mothership/request/session/buffer', () => ({
 
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
+import { StreamPersistenceFailedError } from '@/lib/mothership/request/session/turn-failure'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 
 function decodeChunk(value: Uint8Array): string {
@@ -63,7 +64,7 @@ describe('StreamWriter', () => {
   })
 
   it('does not deliver an event from a controller whose durable append was rejected', async () => {
-    appendEvents.mockRejectedValueOnce(new Error('ownership lost'))
+    appendEvents.mockRejectedValueOnce(new StreamControllerSupersededError())
     const writer = new StreamWriter({
       streamId: 'stream-1',
       requestId: 'req-1',
@@ -73,59 +74,74 @@ describe('StreamWriter', () => {
     writer.attach(controller as unknown as ReadableStreamDefaultController)
     await expect(
       writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'stale' } })
-    ).rejects.toThrow('ownership lost')
+    ).rejects.toBeInstanceOf(StreamControllerSupersededError)
     expect(controller.enqueue).not.toHaveBeenCalled()
-    await expect(writer.close()).rejects.toThrow('ownership lost')
+    await expect(writer.close()).rejects.toBeInstanceOf(StreamControllerSupersededError)
     expect(controller.close).toHaveBeenCalledOnce()
   })
 
-  it('ends delivery with a budget error, not a handoff, and still delivers the terminal verdict', async () => {
-    appendEvents.mockResolvedValueOnce({
-      persisted: false,
-      refusal: {
-        resource: 'owner_redis_bytes',
-        currentBytes: 32,
-        limitBytes: 32,
-        attemptedBytes: 1,
-      },
-    })
-    const writer = new StreamWriter({
-      streamId: 'stream-1',
-      requestId: 'req-1',
-      userId: 'user-1',
-      lease: { key: 'chat-lock', value: 'current-controller' },
-    })
-    const delivered: string[] = []
-    const controller = {
-      enqueue: (value: Uint8Array) => delivered.push(decodeChunk(value)),
-      close: () => {},
+  it.each([
+    {
+      failure: 'a budget refusal',
+      expected: StreamReplayBudgetExhaustedError,
+      append: () =>
+        appendEvents.mockResolvedValueOnce({
+          persisted: false,
+          refusal: {
+            resource: 'owner_redis_bytes',
+            currentBytes: 32,
+            limitBytes: 32,
+            attemptedBytes: 1,
+          },
+        }),
+    },
+    {
+      failure: 'a failed append',
+      expected: StreamPersistenceFailedError,
+      append: () => appendEvents.mockRejectedValueOnce(new Error('connection reset')),
+    },
+  ])(
+    'ends delivery after $failure, not a handoff, and still delivers the terminal verdict',
+    async ({ expected, append }) => {
+      append()
+      const writer = new StreamWriter({
+        streamId: 'stream-1',
+        requestId: 'req-1',
+        userId: 'user-1',
+        lease: { key: 'chat-lock', value: 'current-controller' },
+      })
+      const delivered: string[] = []
+      const controller = {
+        enqueue: (value: Uint8Array) => delivered.push(decodeChunk(value)),
+        close: () => {},
+      }
+      writer.attach(controller as unknown as ReadableStreamDefaultController)
+
+      const refused = writer.publish({
+        type: 'text',
+        payload: { channel: 'assistant', text: 'unsaved' },
+      })
+      await expect(refused).rejects.toBeInstanceOf(expected)
+      await expect(refused).rejects.not.toBeInstanceOf(StreamControllerSupersededError)
+      await expect(
+        writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'later' } })
+      ).rejects.toBeInstanceOf(expected)
+      expect(delivered).toEqual([])
+      await expect(writer.flush()).resolves.toBeUndefined()
+
+      await writer.publish({
+        type: 'error',
+        payload: { message: 'stopped', code: 'replay_budget_exhausted' },
+      })
+      await writer.publish({ type: 'complete', payload: { status: 'error' } })
+      await expect(writer.close()).resolves.toBeUndefined()
+      expect(delivered.map((frame) => JSON.parse(frame.replace(/^data: /, '')).type)).toEqual([
+        'error',
+        'complete',
+      ])
+      expect(writer.sawComplete).toBe(true)
     }
-    writer.attach(controller as unknown as ReadableStreamDefaultController)
-
-    const refused = writer.publish({
-      type: 'text',
-      payload: { channel: 'assistant', text: 'unsaved' },
-    })
-    await expect(refused).rejects.toBeInstanceOf(StreamReplayBudgetExhaustedError)
-    await expect(refused).rejects.not.toBeInstanceOf(StreamControllerSupersededError)
-    await expect(
-      writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'later' } })
-    ).rejects.toBeInstanceOf(StreamReplayBudgetExhaustedError)
-    expect(delivered).toEqual([])
-    await expect(writer.flush()).resolves.toBeUndefined()
-
-    await writer.publish({
-      type: 'error',
-      payload: { message: 'stopped', code: 'replay_budget_exhausted' },
-    })
-    await writer.publish({ type: 'complete', payload: { status: 'error' } })
-    await expect(writer.close()).resolves.toBeUndefined()
-    expect(delivered.map((frame) => JSON.parse(frame.replace(/^data: /, '')).type)).toEqual([
-      'error',
-      'complete',
-    ])
-    expect(writer.sawComplete).toBe(true)
-  })
+  )
 
   it('enqueues before persistence completes and flushes pending writes on close', async () => {
     let releasePersist!: () => void
