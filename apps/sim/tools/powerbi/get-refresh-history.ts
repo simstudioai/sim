@@ -22,7 +22,8 @@ export const powerbiGetRefreshHistoryTool: ToolConfig<
 > = {
   id: 'powerbi_get_refresh_history',
   name: 'Power BI Get Refresh History',
-  description: `Get recent semantic model refresh history; requires Write permission on the model. Unknown can mean a refresh is in progress or its completion state is unknown. See the [refresh history documentation](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/get-refresh-history-in-group).`,
+  description:
+    'Get recent semantic model refresh history; requires Write permission on the model. Unknown can mean a refresh is in progress or its completion state is unknown.',
   version: '1.0.0',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },
