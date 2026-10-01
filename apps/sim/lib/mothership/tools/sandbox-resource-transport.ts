@@ -10,6 +10,8 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
   type DurableSecretProvenance,
   durableSecretProvenanceFromEnvelope,
+  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
+  mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
@@ -98,6 +100,7 @@ async function proxyAuthorizedSandboxRequest(
   const forwarded = new Request(target, init)
   const effects: ResourceChange[] = []
   let response: Response | undefined
+  let rowProvenance: DurableSecretProvenance | undefined
   let dispatched = false
   /** Invoke the same handler with private request identity; the declared use case still authorizes current domain access. */
   const matched = matchV2Route(path)
@@ -132,13 +135,14 @@ async function proxyAuthorizedSandboxRequest(
   const deliver = async () => {
     dispatched = true
     let fileObserved = false
-    let rowsObserved = false
     const result = await observeTableRowDelivery(
       async (provenance, _values, extras) => {
-        await recordInput(
-          extras.unprovenancedErrorText ? false : durableSecretProvenanceFromEnvelope(provenance)
+        rowProvenance = mergeDurableSecretProvenance(
+          rowProvenance ?? EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
+          extras.unprovenancedErrorText
+            ? { status: 'unknown' }
+            : durableSecretProvenanceFromEnvelope(provenance)
         )
-        rowsObserved = true
       },
       () =>
         observeWorkspaceFileDelivery(async (provenance) => {
@@ -148,7 +152,7 @@ async function proxyAuthorizedSandboxRequest(
     )
     try {
       if (fileRead && !fileObserved && result.ok && result.body) await recordInput(false)
-      else if (!fileObserved && !rowsObserved) {
+      else if (!fileObserved && !rowProvenance) {
         /** Missing producer evidence is unrecorded, not proof that the machine received a secret. */
         logger.warn('Sandbox API response has no recorded secret provenance', {
           method,
@@ -208,6 +212,24 @@ async function proxyAuthorizedSandboxRequest(
       }
     })
   )
+  if (rowProvenance) {
+    // Row mutations have already committed; admission must not interrupt completion or effects.
+    try {
+      await recordInput(rowProvenance)
+    } catch {
+      await response.body?.cancel().catch(() => {})
+      logger.warn('Sandbox response provenance could not be recorded after API completion', {
+        toolCallId: scope.toolCallId,
+        status: response.status,
+      })
+      response = Response.json(
+        {
+          error: `API request completed with HTTP ${response.status}, but its result could not be returned safely. Do not retry a mutation automatically; read the resource to check its current state.`,
+        },
+        { status: 502 }
+      )
+    }
+  }
   return new Response(request.method === 'HEAD' ? null : response.body, {
     status: response.status,
     statusText: response.statusText,

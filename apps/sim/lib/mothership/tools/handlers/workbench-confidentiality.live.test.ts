@@ -425,6 +425,44 @@ describe('sandbox API provenance admission', () => {
     }
   )
 
+  it('preserves mutation completion and withholds its body when provenance storage fails', async () => {
+    const mutationPath = join(root, 'mutation.json')
+    const response = await sandboxApi(
+      '/api/v2/tables/fixture/rows',
+      async () => {
+        await writeFile(mutationPath, JSON.stringify({ committed: true, completed: false }))
+        const evalCommand = redis.eval.bind(redis)
+        vi.spyOn(redis, 'eval').mockImplementation((...args) => {
+          if (String(args[2]).startsWith('mothership:workbench-provenance:v2:')) {
+            return Promise.reject(new Error('Synthetic provenance storage failure'))
+          }
+          return evalCommand(...args)
+        })
+        await reportTableRowDelivery(
+          {
+            version: 1,
+            complete: true,
+            scope,
+            entries: [{ name: 'TOKEN', encryptedValue: catalog[0].encryptedValue }],
+          },
+          [{ value: canary }]
+        )
+        await writeFile(mutationPath, JSON.stringify({ committed: true, completed: true }))
+        return Response.json({ data: { value: canary } }, { status: 201 })
+      },
+      'POST'
+    )
+    expect(JSON.parse(await readFile(mutationPath, 'utf8'))).toEqual({
+      committed: true,
+      completed: true,
+    })
+    expect(response.status).toBe(502)
+    const body = await response.text()
+    expect(body).not.toContain(canary)
+    expect(body).toContain('completed with HTTP 201')
+    expect(body).toContain('Do not retry a mutation automatically')
+  })
+
   it.each(['file', 'table'] as const)(
     'preserves an explicit unknown %s delivery as unknown',
     async (source) => {
