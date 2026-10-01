@@ -9,7 +9,7 @@ const { redisUrl } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
   const url = readTestRedisUrl()
   process.env.REDIS_URL = url
-  /** The park below outlasts it more than twice over in real time. */
+  /** Shorter than the lock heartbeat that refreshes a live buffer. */
   process.env.COPILOT_STREAM_TTL_SECONDS = '5'
   return { redisUrl: url }
 })
@@ -61,9 +61,16 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
     expect(await acquirePendingChatStream(chatId, streamId, 0)).toBe(true)
     await appendText(streamId, 'before the park')
     const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
-    const chargedBytes = await getRedisClient()!.get(ownerBudgetKey)
-    /** The counter's own TTL is an hour; shortening it stands in for a park that long. */
-    await getRedisClient()!.expire(ownerBudgetKey, 5)
+    const redis = getRedisClient()!
+    const chargedBytes = await redis.get(ownerBudgetKey)
+    /** Shortening every TTL to 5 s stands in for a park longer than each; the park outlasts it twice. */
+    for (const key of [
+      ownerBudgetKey,
+      `mothership_stream:${streamId}:events`,
+      `mothership_stream:${streamId}:seq`,
+    ]) {
+      await redis.expire(key, 5)
+    }
 
     vi.useFakeTimers({ toFake: ['Date'] })
     const poller = startAbortPoller(streamId, new AbortController(), { chatId, pollMs: 50 })
@@ -81,8 +88,17 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
     expect(await getLatestSeq(streamId)).toBe(1)
     expect((await readEvents(streamId, '0')).map((event) => event.seq)).toEqual([1])
     expect(chargedBytes).not.toBeNull()
-    expect(await getRedisClient()!.get(ownerBudgetKey)).toBe(chargedBytes)
+    expect(await redis.get(ownerBudgetKey)).toBe(chargedBytes)
     expect(await appendText(streamId, 'after the park')).toBe(2)
+  })
+
+  it('keeps a live buffer past the heartbeat that refreshes it when the configured TTL is shorter', async () => {
+    const streamId = generateId()
+    await appendText(streamId, 'live')
+
+    const redis = getRedisClient()!
+    expect(await redis.ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThanOrEqual(55)
+    expect(await redis.ttl(`mothership_stream:${streamId}:seq`)).toBeGreaterThanOrEqual(55)
   })
 
   it('never re-extends a finished stream’s buffer after its cleanup was scheduled', async () => {
