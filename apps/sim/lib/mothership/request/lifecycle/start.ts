@@ -62,11 +62,7 @@ import {
 } from '@/lib/mothership/request/session/controller-lease'
 import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
 import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
-import {
-  StreamPersistenceFailedError,
-  type StreamTurnFailure,
-  turnFailure,
-} from '@/lib/mothership/request/session/turn-failure'
+import { type StreamTurnFailure, turnFailure } from '@/lib/mothership/request/session/turn-failure'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
@@ -448,17 +444,18 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                   await publisher.publish(event)
                 } catch (error) {
                   /*
-                    Only a lost lease hands the turn to a successor. A refusal, or a
-                    Redis error that outlasted its retries, is terminal: leaving it
-                    recoverable made each replacement re-receive and fail the same
-                    event, re-POSTing the run on every reconnect poll.
+                    A refused write is a terminal failure, not a handoff: leaving it
+                    recoverable made each replacement re-receive and re-refuse the same
+                    event. Any other failure to persist means this controller can no
+                    longer prove ownership of the replay, so a successor takes over; the
+                    run's recovery budget bounds how often that repeats.
                   */
-                  const failure =
-                    error instanceof StreamControllerSupersededError
-                      ? error
-                      : (turnFailure(error) ?? new StreamPersistenceFailedError(error))
-                  if (!abortController.signal.aborted) abortController.abort(failure)
-                  throw failure
+                  if (!abortController.signal.aborted) {
+                    abortController.abort(
+                      turnFailure(error) ?? new StreamControllerSupersededError()
+                    )
+                  }
+                  throw error
                 }
               },
               onAbortObserved: (reason) => {

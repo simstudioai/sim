@@ -2,8 +2,8 @@
  * How often reconnecting to an orphaned Chat run re-POSTs it to the worker, against real
  * Redis and PostgreSQL. The production reconnect route, stream recovery, chat lifecycle
  * and finalization run unmodified; a local HTTP server stands in for the worker. Faults
- * are injected at one seam, the leased replay append: an append that fails for a reason
- * other than a lost lease, or a lease lost with no successor to take over.
+ * are injected at one seam, the leased replay append: an append that fails once or every
+ * time, or a lease lost with no successor to take over.
  */
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -15,7 +15,10 @@ const { redisUrl, inheritedEnv, worker, faults } = await vi.hoisted(async () => 
     /** Which leased appends fail, and how; `undefined` lets every append through. */
     append: undefined as
       | undefined
-      | { frames: 'any_tool' | 'tool_result'; effect: 'throw' | 'lose_lease' },
+      | {
+          frames: 'any_tool' | 'tool_result'
+          effect: 'throw' | 'throw_once' | 'lose_lease'
+        },
   }
   const worker = {
     posts: [] as Array<{ path: string; at: number }>,
@@ -76,6 +79,11 @@ vi.mock('@/lib/mothership/request/session/buffer', async (importOriginal) => {
               (envelope.payload as { phase?: string }).phase === 'result')
         )
       if (hit && fault.effect === 'throw') throw new Error('simulated Redis write failure')
+      /** A Redis blip that outlasts the append retries, after which Redis is healthy again. */
+      if (hit && fault.effect === 'throw_once') {
+        faults.append = undefined
+        throw new Error('simulated transient Redis write failure')
+      }
       /** The lock expires under a live controller, and nobody else holds it. */
       if (hit && fault.effect === 'lose_lease') await getRedisClient()!.del(lease.key)
       return actual.appendEvents(...args)
@@ -105,10 +113,7 @@ import { isTerminalStreamStatus } from '@/lib/mothership/request/session'
 import { appendEvents } from '@/lib/mothership/request/session/buffer'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { createEvent } from '@/lib/mothership/request/session/event'
-import {
-  StreamPersistenceFailedError,
-  StreamRecoveryExhaustedError,
-} from '@/lib/mothership/request/session/turn-failure'
+import { StreamRecoveryExhaustedError } from '@/lib/mothership/request/session/turn-failure'
 import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
 
 const userId = generateId()
@@ -331,55 +336,56 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
     30_000
   )
 
+  it('hands off a turn whose append fails once, and the next controller completes it', async () => {
+    worker.mode = 'frames'
+    const run = await orphanedRun()
+    faults.append = { frames: 'any_tool', effect: 'throw_once' }
+    try {
+      const { turns, stops } = await reconnect(run, { windowMs: 15_000 })
+
+      expect(turns).toHaveLength(2)
+      expect(stops).toHaveLength(0)
+      expect(await storedRun(run.runId)).toMatchObject({
+        status: 'complete',
+        recoveryBackoff: { attempts: 2 },
+      })
+    } finally {
+      faults.append = undefined
+    }
+  }, 60_000)
+
   it.each([
-    { frames: 'any_tool', tails: 1 },
-    { frames: 'any_tool', tails: 3 },
-    { frames: 'tool_result', tails: 1 },
-    { frames: 'tool_result', tails: 3 },
+    { frames: 'any_tool', effect: 'throw', tails: 1 },
+    { frames: 'any_tool', effect: 'throw', tails: 3 },
+    { frames: 'tool_result', effect: 'throw', tails: 1 },
+    { frames: 'tool_result', effect: 'throw', tails: 3 },
+    { frames: 'any_tool', effect: 'lose_lease', tails: 3 },
   ] as const)(
-    'ends the run after one worker request when a $frames frame cannot be persisted ($tails tails)',
-    async ({ frames, tails }) => {
+    'gives up on a run whose recovered controllers keep failing ($effect on $frames, $tails tails)',
+    async ({ frames, effect, tails }) => {
       worker.mode = 'frames'
       const run = await orphanedRun()
-      faults.append = { frames, effect: 'throw' }
+      faults.append = { frames, effect }
       try {
-        const { turns, stops } = await reconnect(run, { tails, windowMs: 15_000 })
+        const { turns, stops } = await reconnect(run, { tails, windowMs: 60_000 })
 
-        expect(turns).toHaveLength(1)
+        expect(turns).toHaveLength(MAX_RECOVERY_ATTEMPTS)
+        /** Each takeover waits at least the jittered floor of the one before it. */
+        turns.slice(1).forEach((turn, i) => {
+          expect(turn.at - turns[i].at).toBeGreaterThanOrEqual(0.7 * 1_000 * 2 ** i)
+        })
         expect(stops).toHaveLength(1)
         expect(await storedRun(run.runId)).toMatchObject({
           status: 'error',
-          error: new StreamPersistenceFailedError(undefined).userMessage,
+          error: new StreamRecoveryExhaustedError().userMessage,
+          recoveryBackoff: { attempts: MAX_RECOVERY_ATTEMPTS + 1 },
         })
       } finally {
         faults.append = undefined
       }
     },
-    60_000
+    120_000
   )
-
-  it('gives up on a run whose recovered controllers keep losing their lease', async () => {
-    worker.mode = 'frames'
-    const run = await orphanedRun()
-    faults.append = { frames: 'any_tool', effect: 'lose_lease' }
-    try {
-      const { turns, stops } = await reconnect(run, { tails: 3, windowMs: 60_000 })
-
-      expect(turns).toHaveLength(MAX_RECOVERY_ATTEMPTS)
-      /** Each takeover waits at least the jittered floor of the one before it. */
-      turns.slice(1).forEach((turn, i) => {
-        expect(turn.at - turns[i].at).toBeGreaterThanOrEqual(0.7 * 1_000 * 2 ** i)
-      })
-      expect(stops).toHaveLength(1)
-      expect(await storedRun(run.runId)).toMatchObject({
-        status: 'error',
-        error: new StreamRecoveryExhaustedError().userMessage,
-        recoveryBackoff: { attempts: MAX_RECOVERY_ATTEMPTS + 1 },
-      })
-    } finally {
-      faults.append = undefined
-    }
-  }, 120_000)
 
   it('waits out the backoff of a recent takeover, then takes over and completes the run', async () => {
     worker.mode = 'frames'

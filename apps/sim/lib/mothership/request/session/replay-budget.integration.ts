@@ -17,6 +17,8 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
     onAbort: undefined as (() => Promise<void>) | undefined,
     /** The read-only replay's answer; a worker that does not know the run by default. */
     replay: { status: 404, frames: [] as unknown[] },
+    /** How many coming reads of the controller's own lease fail, as a Redis error would. */
+    leaseReadFailures: 0,
   }
   const replayRequests: Array<Record<string, unknown>> = []
   const server = createHttpServer(async (request, response) => {
@@ -72,6 +74,20 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
 })
 
 vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/lib/mothership/request/session/controller-lease', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/mothership/request/session/controller-lease')>()
+  return {
+    ...actual,
+    assertChatStreamLease: async (...args: Parameters<typeof actual.assertChatStreamLease>) => {
+      if (worker.hooks.leaseReadFailures > 0) {
+        worker.hooks.leaseReadFailures--
+        throw new Error('simulated Redis read failure')
+      }
+      return actual.assertChatStreamLease(...args)
+    },
+  }
+})
 vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   /**
    * Stands in for the worker leg: forwards each scripted event to the controller's
@@ -147,7 +163,6 @@ import {
   StreamReplayBudgetExhaustedError,
 } from '@/lib/mothership/request/session/replay-budget'
 import { STREAM_STRING_PREVIEW_UNITS } from '@/lib/mothership/request/session/replay-compaction'
-import { STREAM_PERSISTENCE_FAILED_CODE } from '@/lib/mothership/request/session/turn-failure'
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 import type { StreamingContext } from '@/lib/mothership/request/types'
@@ -659,7 +674,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     }
   )
 
-  it('ends a turn whose append fails while it still holds the lease, and stops the worker', async () => {
+  it('leaves a run it handed off recoverable after a transient append failure', async () => {
     let eventsKey = ''
     const { streamId, runId, frames } = await runTurn(
       [
@@ -674,36 +689,27 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       }
     )
 
-    expect(frames.map((frame) => [frame.type, frame.payload.code ?? frame.payload.status])).toEqual(
-      [
-        ['session', undefined],
-        ['error', STREAM_PERSISTENCE_FAILED_CODE],
-        ['complete', 'error'],
-      ]
-    )
+    expect(frames.map((frame) => frame.type)).toEqual(['session'])
+    expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
-    expect(stored.status).toBe('error')
-    expect(worker.abortRequests).toEqual([expect.objectContaining({ messageId: streamId })])
-    expect(worker.runs[0].dispatched).toEqual([])
-    expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
+    expect(stored.status).toBe('active')
+    expect(worker.abortRequests).toEqual([])
   })
 
-  it('settles a finished turn whose lease became unreadable instead of handing it off', async () => {
-    const { runId, frames } = await runTurn([
-      text('Done.'),
-      async () => {
-        // A lock key of the wrong type makes every read of the lease fail, as a Redis error would.
-        await redis().del(chatStreamLockKey(chatId))
-        await redis().hset(chatStreamLockKey(chatId), 'corrupt', '1')
-      },
-    ])
-
+  it('settles a finished turn whose lease could not be read instead of handing it off', async () => {
     try {
+      const { runId, frames } = await runTurn([
+        text('Done.'),
+        async () => {
+          worker.hooks.leaseReadFailures = 1
+        },
+      ])
+
       expect(frames.at(-1)).toMatchObject({ type: 'complete', payload: { status: 'complete' } })
       const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
       expect(stored.status).toBe('complete')
     } finally {
-      await redis().del(chatStreamLockKey(chatId))
+      worker.hooks.leaseReadFailures = 0
     }
   })
 
@@ -1065,7 +1071,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     )
   }
 
-  it('marks its run terminal even when the final events cannot be persisted', async () => {
+  it('marks its run terminal even when the final events cannot be published', async () => {
     const controllerToken = `owner\n${generateId()}`
     const { streamId, runId } = await pausedRun(controllerToken)
     const lease = { key: chatStreamLockKey(generateId()), value: controllerToken }
@@ -1074,8 +1080,10 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     await redis().set(`mothership_stream:${streamId}:events`, 'not a sorted set', 'EX', 60)
     const publisher = new StreamWriter({ streamId, requestId: generateId(), lease })
 
-    await finalizeAsError(publisher, runId)
+    const failure = await finalizeAsError(publisher, runId).catch((error: unknown) => error)
 
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(StreamControllerSupersededError)
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored.status).toBe('error')
     await redis().del(lease.key)
