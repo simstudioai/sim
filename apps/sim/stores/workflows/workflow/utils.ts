@@ -1,7 +1,3 @@
-import {
-  isWorkflowBlockAncestorLocked,
-  isWorkflowBlockProtected,
-} from '@sim/workflow-types/workflow'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -30,28 +26,4 @@ export function findAllDescendantNodes(
     }
   }
   return descendants
-}
-
-/**
- * Checks if any ancestor container of a block is locked.
- * Unlike {@link isBlockProtected}, this ignores the block's own locked state.
- *
- * @param blockId - The ID of the block to check
- * @param blocks - Record of all blocks in the workflow
- * @returns True if any ancestor is locked
- */
-export function isAncestorProtected(blockId: string, blocks: Record<string, BlockState>): boolean {
-  return isWorkflowBlockAncestorLocked(blockId, blocks)
-}
-
-/**
- * Checks if a block is protected from editing/deletion.
- * A block is protected if it is locked or if any ancestor container is locked.
- *
- * @param blockId - The ID of the block to check
- * @param blocks - Record of all blocks in the workflow
- * @returns True if the block is protected
- */
-export function isBlockProtected(blockId: string, blocks: Record<string, BlockState>): boolean {
-  return isWorkflowBlockProtected(blockId, blocks)
 }

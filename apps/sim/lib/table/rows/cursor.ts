@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 /**
  * Opaque pagination cursor for the v2 table-query surface.
  *
@@ -19,6 +18,7 @@ import { isRecordLike } from '@sim/utils/object'
  * {@link assertCursorQueryBinding}.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { canonicalJson, canonicalUnorderedArray, fingerprint } from '@/lib/api/cursor-binding'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type { Filter, Sort, TablePredicate, TableRow, TableRowsCursor } from '@/lib/table/types'

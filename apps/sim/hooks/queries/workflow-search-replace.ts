@@ -419,9 +419,7 @@ export function useWorkflowSearchMcpServerDetails(
 
   const serversQuery = useQuery({
     queryKey: workflowSearchReplaceKeys.mcpServerListDetails(workspaceId),
-    queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      return fetchWorkspaceMcpServers(workspaceId as string, signal)
-    },
+    queryFn: ({ signal }) => fetchWorkspaceMcpServers(workspaceId as string, signal),
     enabled: Boolean(workspaceId && serverMatches.length > 0),
     staleTime: WORKFLOW_SEARCH_MCP_SERVER_LIST_STALE_TIME,
   })
@@ -454,9 +452,7 @@ export function useWorkflowSearchMcpToolDetails(
 
   const toolsQuery = useQuery({
     queryKey: workflowSearchReplaceKeys.mcpToolListDetails(workspaceId),
-    queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      return fetchWorkspaceMcpTools(workspaceId as string, signal)
-    },
+    queryFn: ({ signal }) => fetchWorkspaceMcpTools(workspaceId as string, signal),
     enabled: Boolean(workspaceId && toolMatches.length > 0),
     staleTime: WORKFLOW_SEARCH_MCP_TOOL_LIST_STALE_TIME,
   })
@@ -721,13 +717,12 @@ export function useWorkflowSearchMcpServerReplacementOptions(
     queries: [
       {
         queryKey: workflowSearchReplaceKeys.mcpServerReplacementOptions(workspaceId),
-        queryFn: async ({
+        queryFn: ({
           signal,
         }: {
           signal: AbortSignal
-        }): Promise<ListMcpServersResponse['data']['servers']> => {
-          return fetchWorkspaceMcpServers(workspaceId as string, signal)
-        },
+        }): Promise<ListMcpServersResponse['data']['servers']> =>
+          fetchWorkspaceMcpServers(workspaceId as string, signal),
         enabled: Boolean(workspaceId && serverGroups.length > 0),
         staleTime: WORKFLOW_SEARCH_MCP_SERVER_REPLACEMENT_STALE_TIME,
         select: (
@@ -773,13 +768,12 @@ export function useWorkflowSearchMcpToolReplacementOptions(
     queries: [
       {
         queryKey: workflowSearchReplaceKeys.mcpToolReplacementOptions(workspaceId),
-        queryFn: async ({
+        queryFn: ({
           signal,
         }: {
           signal: AbortSignal
-        }): Promise<DiscoverMcpToolsResponse['data']['tools']> => {
-          return fetchWorkspaceMcpTools(workspaceId as string, signal)
-        },
+        }): Promise<DiscoverMcpToolsResponse['data']['tools']> =>
+          fetchWorkspaceMcpTools(workspaceId as string, signal),
         enabled: Boolean(workspaceId && toolGroups.length > 0),
         staleTime: WORKFLOW_SEARCH_MCP_TOOL_REPLACEMENT_STALE_TIME,
         select: (

@@ -23,6 +23,7 @@ import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/as
 import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -39,7 +40,6 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
-  buildJsonSchemaResponseFormat,
   calculateCost,
   checkForForcedToolUsageOpenAI,
   isFunctionToolCall,

@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 /**
  * Column names an authored filter or sort names, read from untrusted JSON.
  *
@@ -9,6 +8,7 @@ import { isRecordLike } from '@sim/utils/object'
  * these are advisory readers of persisted block state.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Every `field` a predicate tree names, in document order: a bare
  * `{ field, op, value }` condition, or nested `{ all | any: [...] }` groups.

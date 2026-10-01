@@ -23,6 +23,7 @@ import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -37,7 +38,6 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
-  buildJsonSchemaResponseFormat,
   calculateCost,
   isFunctionToolCall,
   prepareToolExecution,

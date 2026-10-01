@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 /**
  * Shared normalizers for the `tableRowExecutions` sidecar columns that are
  * stored looser than every consumer declares them.
@@ -6,6 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
  * Internal module: not exposed via the `@/lib/table` barrel.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Projects the schemaless `blockErrors` jsonb column onto the
  * `Record<string, string>` shape the domain type and the published contract

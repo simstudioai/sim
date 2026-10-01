@@ -41,8 +41,7 @@ interface MockForcedToolUsage {
  * - `enforceStrictSchema` and `filterBlacklistedModels` are identity; `isProviderBlacklisted`,
  *   `shouldBillModelUsage` and every `supports*`/`is*Model` capability check → `false`;
  * - `getProviderFromModel` → `'openai'`;
- * - `generateSchemaInstructions` → `'SCHEMA_INSTRUCTIONS'`, `buildJsonSchemaResponseFormat` is the
- *   real `json_schema` payload builder;
+ * - `generateSchemaInstructions` → `'SCHEMA_INSTRUCTIONS'`;
  * - `getApiKey` returns the user key, else the real `PROVIDER_PLACEHOLDER_KEY`;
  * - the `MODELS_WITH_*` catalog constants are empty arrays and `providers` is `{}`.
  *
@@ -69,19 +68,6 @@ export const providersUtilsMockFns = {
   mockGetAllProviderIds: vi.fn((): string[] => []),
   mockIsProviderBlacklisted: vi.fn((_providerId: string): boolean => false),
   mockFilterBlacklistedModels: vi.fn((models: string[]): string[] => models),
-  mockBuildJsonSchemaResponseFormat: vi.fn(
-    (
-      responseFormat: { name?: string; schema?: unknown; strict?: boolean },
-      { includeStrict = true }: { includeStrict?: boolean } = {}
-    ) => ({
-      type: 'json_schema' as const,
-      json_schema: {
-        name: responseFormat.name || 'response_schema',
-        schema: responseFormat.schema || responseFormat,
-        ...(includeStrict ? { strict: responseFormat.strict !== false } : {}),
-      },
-    })
-  ),
   mockGenerateSchemaInstructions: vi.fn(
     (_schema: unknown, _schemaName?: string): string => 'SCHEMA_INSTRUCTIONS'
   ),
@@ -104,7 +90,6 @@ export const providersUtilsMockFns = {
   }),
   mockGetModelPricing: vi.fn((_modelId: string): unknown => null),
   mockFormatCost: vi.fn((_cost: number): string => '—'),
-  mockGetHostedModels: vi.fn((): string[] => []),
   mockShouldBillModelUsage: vi.fn((_model: string): boolean => false),
   mockGetApiKey: vi.fn(
     (_provider: string, _model: string, userProvidedKey?: string): string =>
@@ -195,7 +180,6 @@ export const providersUtilsMock = {
   getAllProviderIds: providersUtilsMockFns.mockGetAllProviderIds,
   isProviderBlacklisted: providersUtilsMockFns.mockIsProviderBlacklisted,
   filterBlacklistedModels: providersUtilsMockFns.mockFilterBlacklistedModels,
-  buildJsonSchemaResponseFormat: providersUtilsMockFns.mockBuildJsonSchemaResponseFormat,
   generateSchemaInstructions: providersUtilsMockFns.mockGenerateSchemaInstructions,
   generateStructuredOutputInstructions:
     providersUtilsMockFns.mockGenerateStructuredOutputInstructions,
@@ -207,7 +191,6 @@ export const providersUtilsMock = {
   sumToolCosts: providersUtilsMockFns.mockSumToolCosts,
   getModelPricing: providersUtilsMockFns.mockGetModelPricing,
   formatCost: providersUtilsMockFns.mockFormatCost,
-  getHostedModels: providersUtilsMockFns.mockGetHostedModels,
   shouldBillModelUsage: providersUtilsMockFns.mockShouldBillModelUsage,
   getApiKey: providersUtilsMockFns.mockGetApiKey,
   prepareToolsWithUsageControl: providersUtilsMockFns.mockPrepareToolsWithUsageControl,

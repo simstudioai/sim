@@ -8,7 +8,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import type { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { prepareWorkflowExecutionAdmission } from '@/lib/workflows/execution-admission'
@@ -227,7 +227,7 @@ async function resolveSourceSnapshot(input: SnapshotCopilotRunInput): Promise<{
 async function executeCopilotRun(params: {
   principal: Principal
   input: BaseCopilotRunInput
-  context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
+  context: ActiveWorkflowApplicationContext
   executionInput: unknown
   triggerBlockId?: string
   stopAfterBlockId?: string

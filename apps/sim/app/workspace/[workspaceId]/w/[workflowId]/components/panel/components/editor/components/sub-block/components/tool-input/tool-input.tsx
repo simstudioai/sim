@@ -34,6 +34,16 @@ import {
   OPERATION_SUBBLOCK_ID,
 } from '@/lib/permission-groups/operation-access'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
+import {
+  buildCanonicalIndex,
+  type CanonicalIndex,
+  type CanonicalModeOverrides,
+  isCanonicalPair,
+  reindexToolCanonicalModes,
+  resolveCanonicalMode,
+  resolveDependencyValue,
+  scopeCanonicalModesForTool,
+} from '@/lib/workflows/subblocks/visibility'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import {
   buildAgentToolUsageControlCanonicalKey,
@@ -104,16 +114,6 @@ import {
   isUserFacingToolParam,
   type SubBlocksForToolInput,
 } from '@/tools/params'
-import {
-  buildCanonicalIndex,
-  type CanonicalIndex,
-  type CanonicalModeOverrides,
-  isCanonicalPair,
-  reindexToolCanonicalModes,
-  resolveCanonicalMode,
-  resolveDependencyValue,
-  scopeCanonicalModesForTool,
-} from '@/tools/params-resolver'
 
 const logger = createLogger('ToolInput')
 

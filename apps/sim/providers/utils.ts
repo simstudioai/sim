@@ -28,7 +28,7 @@ import { isCustomTool } from '@/executor/constants'
 import {
   findProviderFromModel,
   getComputerUseModels,
-  getHostedModels as getHostedModelsFromDefinitions,
+  getHostedModels,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
@@ -51,12 +51,7 @@ import {
   getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
-import type {
-  ModelPricing,
-  ProviderId,
-  ProviderRequest,
-  ProviderToolConfig,
-} from '@/providers/types'
+import type { ModelPricing, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { mergeToolParameters } from '@/tools/merge-params'
 import { buildToolParamShapes, decodeToolParams } from '@/tools/param-shape'
 import type { WorkflowToolExecutionContext } from '@/tools/types'
@@ -325,35 +320,6 @@ function isModelBlacklisted(model: string): boolean {
 
 export function filterBlacklistedModels(models: string[]): string[] {
   return models.filter((model) => !isModelBlacklisted(model))
-}
-
-/** OpenAI-compatible `json_schema` response format sent to chat-completions providers. */
-export interface JsonSchemaResponseFormat {
-  type: 'json_schema'
-  json_schema: {
-    name: string
-    schema: Record<string, unknown>
-    strict?: boolean
-  }
-}
-
-/**
- * Builds the OpenAI-compatible `json_schema` response format from a request's `responseFormat`.
- * Strict mode is on unless the caller set `strict: false`; `includeStrict: false` leaves the
- * `strict` flag out of the payload entirely.
- */
-export function buildJsonSchemaResponseFormat(
-  responseFormat: NonNullable<ProviderRequest['responseFormat']>,
-  { includeStrict = true }: { includeStrict?: boolean } = {}
-): JsonSchemaResponseFormat {
-  return {
-    type: 'json_schema',
-    json_schema: {
-      name: responseFormat.name || 'response_schema',
-      schema: responseFormat.schema || responseFormat,
-      ...(includeStrict ? { strict: responseFormat.strict !== false } : {}),
-    },
-  }
 }
 
 /**
@@ -1101,14 +1067,6 @@ export function getModelPricing(modelId: string): ModelPricing | null {
  */
 export function formatCost(cost: number): string {
   return formatCreditCost(cost) ?? '—'
-}
-
-/**
- * Get the list of models that are hosted by the platform (don't require user API keys)
- * These are the models for which we hide the API key field in the hosted environment
- */
-export function getHostedModels(): string[] {
-  return getHostedModelsFromDefinitions()
 }
 
 /**

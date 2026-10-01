@@ -1,9 +1,9 @@
-import { normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 /**
  * Shared MCP utilities - safe for both client and server.
  * No server-side dependencies (database, fs, etc.) should be imported here.
  */
 
+import { normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 import { isMcpTool, MCP } from '@/executor/constants'
 
 export const MCP_SERVER_ADVANCED_TOOL_TYPE = 'mcp-server-advanced' as const

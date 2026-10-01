@@ -1,7 +1,7 @@
 import type { NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import type { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import {
@@ -18,7 +18,7 @@ export interface ReadWorkflowDefinitionInput {
 }
 
 export interface ReadWorkflowDefinitionResult {
-  workflow: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>['workflow']
+  workflow: ActiveWorkflowApplicationContext['workflow']
   workspaceId: string
   state: NormalizedWorkflowData | DeployedWorkflowData | null
 }

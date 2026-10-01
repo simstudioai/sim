@@ -8,9 +8,9 @@ import {
   type ChatCompletionPayload,
   executeChatCompletionRequest,
 } from '@/providers/openai-compat/chat-completions'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { openAICompatTransport } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
-import { buildJsonSchemaResponseFormat } from '@/providers/utils'
 
 const logger = createLogger('FireworksProvider')
 

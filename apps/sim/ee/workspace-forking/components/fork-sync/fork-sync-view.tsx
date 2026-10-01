@@ -24,6 +24,7 @@ import type {
   ForkTriggerMapping,
 } from '@/lib/api/contracts/workspace-fork'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -59,7 +60,6 @@ import type {
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/sync-blockers'
-import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 /**
  * Copyable kinds as expandable rows in the "Copy resources" section, ordered + labeled to match

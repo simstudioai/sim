@@ -13,9 +13,10 @@ import {
   getOpenRouterModelCapabilities,
   supportsNativeStructuredOutputs,
 } from '@/providers/openrouter/utils'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { openAICompatTransport } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
-import { buildJsonSchemaResponseFormat, generateSchemaInstructions } from '@/providers/utils'
+import { generateSchemaInstructions } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterProvider')
 

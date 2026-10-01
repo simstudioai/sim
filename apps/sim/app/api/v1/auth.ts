@@ -1,5 +1,8 @@
-import type { PersonalApiKeyPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
-import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
+import {
+  ANONYMOUS_USER_ID,
+  type PersonalApiKeyPrincipal,
+  type WorkspaceApiKeyPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'

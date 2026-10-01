@@ -41,6 +41,7 @@ import { getModelOptions } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import {
+  getHostedModels,
   isAutoModel,
   isCustomModelId,
   isKnownModelId,
@@ -1570,7 +1571,6 @@ export async function preValidateCredentialInputs(
   workflowState?: Record<string, unknown>
 ): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
   const { isHosted } = await import('@/lib/core/config/env-flags')
-  const { getHostedModels } = await import('@/providers/utils')
 
   const logger = createLogger('PreValidateCredentials')
   const errors: ValidationError[] = []

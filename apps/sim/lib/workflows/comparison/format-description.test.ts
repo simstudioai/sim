@@ -33,6 +33,7 @@ vi.mock('@/lib/selectors/client/execute-selector', () => ({
 }))
 
 import { WorkflowBuilder } from '@sim/testing'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import { formatDiffSummaryForDescriptionAsync } from '@/lib/workflows/comparison/describe'
 import {
@@ -117,7 +118,7 @@ describe('resolveValueForDisplay', () => {
 })
 
 describe('formatDiffSummaryForDescriptionAsync shared formatting', () => {
-  const state = { blocks: {} } as any
+  const state: WorkflowState = { blocks: {}, edges: [], loops: {}, parallels: {} }
 
   it('uses human-readable field labels for modified blocks', async () => {
     mockGetBlock.mockReturnValue({

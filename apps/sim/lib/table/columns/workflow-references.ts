@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 /**
  * Finds workflow Table blocks whose saved configuration still names a column by
  * its old name after a rename.
@@ -13,6 +12,7 @@ import { isRecordLike } from '@sim/utils/object'
 
 import { db } from '@sim/db'
 import { workflowBlocks, workflow as workflowTable } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   collectPredicateFieldNames,

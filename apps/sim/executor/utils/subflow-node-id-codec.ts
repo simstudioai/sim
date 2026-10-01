@@ -103,6 +103,9 @@ export function extractParallelIdFromSentinel(sentinelId: string): string | null
   return null
 }
 
+/**
+ * Builds a branch node ID with subscript notation, e.g. `("blockId", 2)` → `"blockId₍2₎"`.
+ */
 export function buildBranchNodeId(baseId: string, branchIndex: number): string {
   return `${baseId}${PARALLEL.BRANCH.PREFIX}${branchIndex}${PARALLEL.BRANCH.SUFFIX}`
 }
@@ -120,6 +123,10 @@ export function isBranchNodeId(nodeId: string): boolean {
   return BRANCH.MATCH.test(nodeId)
 }
 
+/**
+ * Extracts the outer branch index from a cloned subflow ID (`{originalId}__obranch-{index}`).
+ * Returns undefined when the ID is not a clone.
+ */
 export function extractOuterBranchIndex(clonedId: string): number | undefined {
   const match = clonedId.match(OUTER_BRANCH.MATCH)
   return match ? Number.parseInt(match[1], 10) : undefined
@@ -131,14 +138,25 @@ export function extractInnermostOuterBranchIndex(clonedId: string): number | und
   return lastMatch ? Number.parseInt(lastMatch[1], 10) : undefined
 }
 
+/**
+ * Strips outer-branch suffixes (`__obranch-N`), clone digests (`__clone{hex}`), and the
+ * trailing branch subscript (`₍N₎`) from a node ID, returning the workflow-level block ID.
+ */
 export function stripCloneSuffixes(nodeId: string): string {
   return extractBaseBlockId(nodeId.replace(OUTER_BRANCH.STRIP, '').replace(CLONE.DIGEST_STRIP, ''))
 }
 
+/**
+ * Builds a stable ID scoped to a global outer parallel branch; also the ID of a cloned subflow.
+ */
 export function buildOuterBranchScopedId(originalId: string, branchIndex: number): string {
   return `${originalId}__obranch-${branchIndex}`
 }
 
+/**
+ * Strips outer-branch suffixes (`__obranch-N`) and clone digests (`__clone{hex}`) from an ID,
+ * returning the workflow-level subflow ID.
+ */
 export function stripOuterBranchSuffix(id: string): string {
   return id.replace(OUTER_BRANCH.STRIP, '').replace(CLONE.DIGEST_STRIP, '')
 }
@@ -160,6 +178,16 @@ export function normalizeNodeId(nodeId: string): string {
   return nodeId
 }
 
+/**
+ * Finds the effective (possibly cloned) container ID for a subflow, given the current node's ID
+ * and an execution map (`loopExecutions` or `parallelExecutions`).
+ *
+ * Inside a cloned subflow (e.g. `loop-1__obranch-2`) the execution scope is stored under the
+ * cloned ID, not the original. This reads the `__obranch-N` suffix from `mappedBranchIndex` or the
+ * current node ID, builds the candidate cloned container ID, and checks the map for it.
+ *
+ * @returns The effective ID (cloned or original) that exists in the map, else `originalId`.
+ */
 export function findEffectiveContainerId(
   originalId: string,
   currentNodeId: string,

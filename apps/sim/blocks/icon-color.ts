@@ -1,8 +1,9 @@
 /**
- * Contrast helpers for brand tiles. Pure colour maths — deliberately free of any
- * `@/blocks/registry` import so the public landing `/integrations` page can use
- * these without pulling 282 block configs and the tool registry into its bundle.
- * Registry-backed icon styling lives in `@/blocks/brand-icon`.
+ * Tailwind classes for brand-tile icons, built on the shared
+ * `isLightTileColor` predicate. Deliberately free of any `@/blocks/registry`
+ * import so the public landing `/integrations` page can use it without pulling
+ * every block config and the tool registry into its bundle. Registry-backed
+ * icon styling lives in `@/blocks/brand-icon`.
  */
 import { isLightTileColor } from '@sim/workflow-renderer/tile-icon-color'
 

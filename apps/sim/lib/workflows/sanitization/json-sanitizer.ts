@@ -5,6 +5,7 @@ import {
 } from '@sim/workflow-persistence/subflow-helpers'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
+import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { getBlock } from '@/blocks/registry'
 import type {
@@ -15,11 +16,7 @@ import type {
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
 import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
-import {
-  blockAdvertisesWebhookUrl,
-  buildWebhookTriggerUrl,
-  resolveBlockTriggerId,
-} from '@/triggers/webhook-url'
+import { blockAdvertisesWebhookUrl, resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)

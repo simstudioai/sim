@@ -3,8 +3,8 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
 
 const logger = createLogger('WebhookProviderSubscriptions')
 
@@ -15,7 +15,7 @@ export function getProviderConfig(webhook: Record<string, unknown>): Record<stri
 
 /** Build the public callback URL providers should deliver webhook events to. */
 export function getNotificationUrl(webhook: Record<string, unknown>): string {
-  return `${getBaseUrl()}/api/webhooks/trigger/${webhook.path}`
+  return buildWebhookTriggerUrl(String(webhook.path))
 }
 
 /**

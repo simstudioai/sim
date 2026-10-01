@@ -5,8 +5,9 @@ import { storageServiceMock } from './storage-service.mock'
  * Controllable mock functions for the `@/lib/uploads` barrel.
  *
  * Defaults describe local storage: `isUsingCloudStorage` → `false`,
- * `getServePathPrefix` → `'/api/files/serve/'` (the real constant). The `StorageService` namespace is `storageServiceMock`, so drive storage I/O
- * through `storageServiceMockFns` from `@sim/testing/mocks/storage-service.mock`.
+ * `getServePathPrefix` → `'/api/files/serve/'` (the real constant). The `StorageService`
+ * namespace is `storageServiceMock`, so drive storage I/O through `storageServiceMockFns`
+ * from `@sim/testing/mocks/storage-service.mock`.
  *
  * @example
  * ```ts

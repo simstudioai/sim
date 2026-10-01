@@ -1,9 +1,9 @@
-import type {
-  OAuthAccessTokenPrincipal,
-  PersonalApiKeyPrincipal,
-  WorkspaceApiKeyPrincipal,
+import {
+  ANONYMOUS_USER_ID,
+  type OAuthAccessTokenPrincipal,
+  type PersonalApiKeyPrincipal,
+  type WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
-import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { apiKey, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'

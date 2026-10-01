@@ -98,9 +98,9 @@ function vfsPath(file: MockWorkspaceFilePathFields): string {
  * `matchesWorkspaceFilePattern`, `parseWorkspaceFileKey`, `suffixedName` are faithful;
  * the VFS helpers (`workspaceFileVfsPath`, `getSandboxWorkspaceFilePath`,
  * `parseChatUploadReference`, `findWorkspaceFileRecord`) percent-encode with
- * `encodeURIComponent` and split folder paths on `/` (no escaped-slash folder names). `generateWorkspaceFileKey` is deterministic —
- * `workspace/{workspaceId}/generated-{fileName}` — which `parseWorkspaceFileKey` does
- * not recognize (no timestamp/random segment).
+ * `encodeURIComponent` and split folder paths on `/` (no escaped-slash folder names).
+ * `generateWorkspaceFileKey` is deterministic — `workspace/{workspaceId}/generated-{fileName}`
+ * — which `parseWorkspaceFileKey` does not recognize (no timestamp/random segment).
  *
  * @example
  * ```ts
