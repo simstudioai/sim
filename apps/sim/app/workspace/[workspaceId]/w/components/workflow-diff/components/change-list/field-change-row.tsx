@@ -4,14 +4,17 @@ import { ChipModalField, ChipTag, cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { isContainerType } from '@/lib/workflows/autolayout'
 import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
+import { StructuredValueDiff } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/structured-value-diff'
 import {
   InlineDiff,
   TextDiff,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/text-diff'
+import { getStructuredValuePresentation } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation'
 import {
   classifyChange,
   containerFieldLabel,
   ENGINE_FIELD_LABELS,
+  findSubBlockConfig,
   formatScalar,
   isBlankValue,
   isSentenceLike,
@@ -34,7 +37,12 @@ interface FieldChangeRowProps {
  * cleared) shows that one side alone, in that side's colour.
  */
 export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldChangeRowProps) {
+  const config = findSubBlockConfig(blockType, field)
   const kind = classifyChange(blockType, field, oldValue, newValue)
+  const before =
+    kind === 'structured' ? getStructuredValuePresentation(config, field, oldValue) : null
+  const after =
+    kind === 'structured' ? getStructuredValuePresentation(config, field, newValue) : null
   const oneSided = isBlankValue(oldValue) !== isBlankValue(newValue)
   const wordDiff = kind === 'scalar' && isSentenceLike(oldValue) && isSentenceLike(newValue)
   const resolvedLabel = isContainerType(blockType)
@@ -47,14 +55,28 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
     const formatted = toDiffText(value, blockType, field)
     return kind === 'json' && typeof value === 'string' ? JSON.stringify(formatted) : formatted
   }
-  const oldText = textual ? text(oldValue) : scalar ? formatScalar(blockType, field, oldValue) : ''
-  const newText = textual ? text(newValue) : scalar ? formatScalar(blockType, field, newValue) : ''
+  let oldText = textual ? text(oldValue) : scalar ? formatScalar(blockType, field, oldValue) : ''
+  let newText = textual ? text(newValue) : scalar ? formatScalar(blockType, field, newValue) : ''
+  if (
+    scalar &&
+    (config?.type === 'dropdown' || config?.type === 'combobox') &&
+    oldText === newText &&
+    typeof oldValue === 'string' &&
+    typeof newValue === 'string' &&
+    oldValue !== newValue
+  ) {
+    oldText = `${oldText} (${oldValue})`
+    newText = `${newText} (${newValue})`
+  }
   const emptyTextChange = textual && oldText === '' && newText === ''
   const sameDisplayValue =
     !emptyTextChange && (textual || (scalar && !oneSided)) && oldText === newText
 
   return (
     <ChipModalField type='custom' title={label} flush>
+      {before && after && (
+        <StructuredValueDiff before={before} after={after} config={config} label={label} />
+      )}
       {kind === 'secret' && (
         <span className='text-[var(--text-secondary)] text-small'>
           {isBlankValue(oldValue) ? 'Set' : isBlankValue(newValue) ? 'Cleared' : 'Value changed'}

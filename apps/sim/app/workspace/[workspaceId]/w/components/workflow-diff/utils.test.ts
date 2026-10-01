@@ -143,6 +143,17 @@ describe('structured field rendering', () => {
       credentialId: 'ref',
     })
   })
+
+  it('masks secret mapping values and human-readable credential column labels', () => {
+    const presentation = [
+      { cells: { Field: 'accessToken', Value: 'private-mapping' } },
+      { cells: { 'API key': 'private-key', Model: 'model-a' } },
+    ]
+    expect(maskSecretsDeep(presentation)).toEqual([
+      { cells: { Field: 'accessToken', Value: '•••' } },
+      { cells: { 'API key': '•••', Model: 'model-a' } },
+    ])
+  })
 })
 
 describe('listOneSidedFields', () => {

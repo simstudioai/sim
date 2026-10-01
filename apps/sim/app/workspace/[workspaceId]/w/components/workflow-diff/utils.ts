@@ -8,22 +8,14 @@ import {
 } from '@/lib/workflows/comparison'
 import { filterSubBlockIds, normalizeValue } from '@/lib/workflows/comparison/normalize'
 import { formatValueForDisplay } from '@/lib/workflows/comparison/resolve-values'
+import { resolveDropdownLabel } from '@/lib/workflows/subblocks/display'
+import { getSubBlockPresentationKind } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** How a changed value should be rendered in the change list. */
-type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle'
-
-/** Sub-block types whose values read as prose or code, so they get a line diff. */
-const TEXT_SUB_BLOCK_TYPES = new Set<string>([
-  'long-input',
-  'code',
-  'condition-input',
-  'text',
-  'eval-input',
-  'messages-input',
-])
+type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle' | 'structured'
 
 const INLINE_TEXT_MAX_LENGTH = 60
 
@@ -58,7 +50,7 @@ export const ENGINE_FIELD_LABELS: Record<string, string> = {
   advancedMode: 'Advanced mode',
 }
 
-function findSubBlockConfig(blockType: string, field: string): SubBlockConfig | undefined {
+export function findSubBlockConfig(blockType: string, field: string): SubBlockConfig | undefined {
   return getBlock(blockType)?.subBlocks.find((config) => config.id === field)
 }
 
@@ -105,11 +97,15 @@ export function classifyChange(
   newValue: unknown
 ): ValueKind {
   const config = findSubBlockConfig(blockType, field)
+  if (config?.type === 'table') return 'structured'
   if (isSensitiveField(blockType, field)) return 'secret'
+  const presentation = getSubBlockPresentationKind(config?.type, oldValue, newValue)
+  if (presentation === 'structured') return 'structured'
+  if (presentation === 'secret') return 'secret'
   if ([oldValue, newValue].some((value) => value !== null && typeof value === 'object'))
     return 'json'
   if (oldValue != null && newValue != null && typeof oldValue !== typeof newValue) return 'json'
-  if (config && TEXT_SUB_BLOCK_TYPES.has(config.type)) return 'text'
+  if (presentation === 'text') return 'text'
   if (typeof oldValue === 'boolean' || typeof newValue === 'boolean') return 'toggle'
   if (isTextLike(oldValue) || isTextLike(newValue)) return 'text'
   const sample = newValue ?? oldValue
@@ -123,11 +119,8 @@ export function classifyChange(
  */
 export function formatScalar(blockType: string, field: string, value: unknown): string {
   const config = findSubBlockConfig(blockType, field)
-  if (config?.type === 'dropdown' && typeof value === 'string' && config.options) {
-    const options = typeof config.options === 'function' ? config.options() : config.options
-    const match = options.find((option) => option.id === value)
-    if (match?.label) return match.label
-  }
+  const optionLabel = typeof value === 'string' ? resolveDropdownLabel(config, value) : null
+  if (optionLabel) return optionLabel
   /* A comparison must show the whole value: a difference at character 55 is still a difference. */
   if (typeof value === 'string') return maskEncodedSecrets(value) || formatValueForDisplay(value)
   return formatValueForDisplay(maskSecretsDeep(value))
@@ -159,7 +152,7 @@ interface OneSidedField {
  * are masked.
  */
 const SECRET_KEY_PATTERN =
-  /^(auth|authorization|bearer|cookie|pwd)$|(token|secret|password|passphrase|credential|api[_-]?key|private[_-]?key|authorization)$/i
+  /^(auth|authorization|bearer|cookie|pwd)$|(token|secret|password|passphrase|credential|api[ _-]?key|private[ _-]?key|authorization)$/i
 /**
  * Words that make a key secret wherever they sit in it: `secretAccessKey`,
  * `aws_secret_access_key`, `passwordHash`. `credential` is not one of them, so
@@ -216,12 +209,8 @@ export function maskSecretsDeep(value: unknown, blockType?: string): unknown {
   const cells = record.cells
   if (cells && typeof cells === 'object' && !Array.isArray(cells)) {
     const row = cells as Record<string, unknown>
-    if (
-      typeof row.Key === 'string' &&
-      isSecretKey(row.Key) &&
-      row.Value !== '' &&
-      row.Value != null
-    ) {
+    const name = row.Key ?? row.Field
+    if (typeof name === 'string' && isSecretKey(name) && row.Value !== '' && row.Value != null) {
       record = { ...record, cells: { ...row, Value: MASKED_VALUE } }
     }
   }

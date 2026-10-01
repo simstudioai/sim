@@ -148,7 +148,7 @@ export function resolveFieldLabel(blockType: string, subBlockId: string): string
   const blockConfig = getBlock(blockType)
   if (!blockConfig) return subBlockId
   const subBlockConfig = blockConfig.subBlocks.find((sb) => sb.id === subBlockId)
-  return subBlockConfig?.title ?? subBlockId
+  return subBlockConfig?.title || subBlockId
 }
 
 /**
