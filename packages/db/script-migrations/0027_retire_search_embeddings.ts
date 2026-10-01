@@ -1,3 +1,4 @@
+import { parseArgs } from 'node:util'
 import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { retryOnLockTimeout } from '@sim/db/scripts/lock-timeout-retry'
@@ -18,7 +19,8 @@ const SCAN_ROWS_PER_MUTATION = 4
 /**
  * Rows one page may update or delete. Every retired document is a non-HOT update touching each of
  * its indexes, and every deleted chunk cascades into its projections, so the write cost of a page,
- * not its scan, is what can outrun the statement timeout.
+ * not its scan, is what can outrun the statement timeout. `maxRows` lowers the starting limit and
+ * the ceiling it may grow to.
  */
 const ROW_LIMIT = { initial: 2_000, min: 25, max: 8_000 } as const
 /** A page slower than this halves the row limit. */
@@ -28,12 +30,23 @@ const SLOW_PAGE_MS = 30_000
  * to a size that timed out.
  */
 const FAST_PAGE_MS = SLOW_PAGE_MS / 4
-/**
- * Each page, committed or timed out, is followed by a pause as long as the page, up to this, to
- * leave the primary headroom.
- */
-const MAX_PAGE_PAUSE_MS = 5_000
+/** The longest pause after one page, however slow the page was. */
+const MAX_PAGE_PAUSE_MS = 60_000
 const LOCK_RETRY_BUDGET_MS = 60_000
+
+/**
+ * How hard one run pushes the primary. Each page, committed or timed out, is followed by a pause of
+ * `pauseRatio` times the page's duration (up to a minute), so the run is busy at most
+ * `1 / (1 + pauseRatio)` of the time. A page is timed through its commit, so a slow synchronous
+ * replica or a checkpoint stall lengthens the pause by the same factor.
+ */
+export interface RetirementPacing {
+  pauseRatio: number
+  /** The most rows one page may update or delete, from 25 to 8,000. */
+  maxRows: number
+}
+
+export const DEFAULT_RETIREMENT_PACING: RetirementPacing = { pauseRatio: 2, maxRows: 2_000 }
 
 type Phase = 'documents' | 'embeddings' | 'done'
 
@@ -87,116 +100,132 @@ interface Progress {
  */
 export const retireSearchEmbeddingsMigration: ScriptMigration = {
   name: '0027_retire_search_embeddings',
-  async up(sql) {
-    const hasTargets = await sql.begin('isolation level repeatable read', async (tx) => {
-      await tx`SET LOCAL statement_timeout = '120s'`
-      await tx`SET LOCAL lock_timeout = '1s'`
-      await tx`CREATE TABLE IF NOT EXISTS search_embedding_cleanup_progress (
+  up: (sql) => retireSearchEmbeddings(sql),
+}
+
+/** Retires every captured target, resuming the saved cursor, paced by `pacing`. */
+export async function retireSearchEmbeddings(
+  sql: Sql,
+  pacing: RetirementPacing = DEFAULT_RETIREMENT_PACING
+): Promise<void> {
+  if (
+    !(pacing.pauseRatio >= 0) ||
+    !Number.isInteger(pacing.maxRows) ||
+    pacing.maxRows < ROW_LIMIT.min ||
+    pacing.maxRows > ROW_LIMIT.max
+  ) {
+    throw new Error(
+      `Search retirement pacing needs a pause ratio of at least 0 and ${ROW_LIMIT.min}-${ROW_LIMIT.max} max rows`
+    )
+  }
+  const pause = (pageMs: number) => sleep(Math.min(pageMs * pacing.pauseRatio, MAX_PAGE_PAUSE_MS))
+  const hasTargets = await sql.begin('isolation level repeatable read', async (tx) => {
+    await tx`SET LOCAL statement_timeout = '120s'`
+    await tx`SET LOCAL lock_timeout = '1s'`
+    await tx`CREATE TABLE IF NOT EXISTS search_embedding_cleanup_progress (
           id integer PRIMARY KEY CHECK (id = 1), knowledge_base_id text NOT NULL,
           phase text NOT NULL CHECK (phase IN ('documents', 'embeddings', 'done')),
           after_id text NOT NULL
         )`
-      const [existing] = await tx<Progress[]>`
+    const [existing] = await tx<Progress[]>`
         SELECT knowledge_base_id, phase, after_id FROM search_embedding_cleanup_progress WHERE id = 1 FOR UPDATE`
-      const [snapshot] =
-        await tx`SELECT to_regclass('search_embedding_cleanup_targets') AS relation`
-      if (snapshot.relation) return Boolean(existing)
-      if (existing && existing.phase !== 'done') {
-        const [target] = await tx`SELECT id FROM knowledge_base
+    const [snapshot] = await tx`SELECT to_regclass('search_embedding_cleanup_targets') AS relation`
+    if (snapshot.relation) return Boolean(existing)
+    if (existing && existing.phase !== 'done') {
+      const [target] = await tx`SELECT id FROM knowledge_base
           WHERE id = ${existing.knowledge_base_id} AND is_search_index FOR SHARE`
-        if (!target) throw new Error('Cleanup target is no longer a Search knowledge base')
-      }
+      if (!target) throw new Error('Cleanup target is no longer a Search knowledge base')
+    }
 
-      /** Creating the snapshot and resetting a legacy cursor commit atomically, once. */
-      await tx`CREATE TABLE search_embedding_cleanup_targets (knowledge_base_id text PRIMARY KEY)`
-      let afterId = ''
-      for (;;) {
-        const [page] = await tx<{ after_id: string | null }[]>`
+    /** Creating the snapshot and resetting a legacy cursor commit atomically, once. */
+    await tx`CREATE TABLE search_embedding_cleanup_targets (knowledge_base_id text PRIMARY KEY)`
+    let afterId = ''
+    for (;;) {
+      const [page] = await tx<{ after_id: string | null }[]>`
           WITH targets AS (
             INSERT INTO search_embedding_cleanup_targets (knowledge_base_id)
             SELECT id FROM knowledge_base WHERE is_search_index AND id > ${afterId}
             ORDER BY id LIMIT ${SCAN_PAGE_SIZE}
             RETURNING knowledge_base_id
           ) SELECT max(knowledge_base_id) AS after_id FROM targets`
-        if (page.after_id === null) break
-        afterId = page.after_id
-      }
-      const [first] = await tx<{ knowledge_base_id: string }[]>`
+      if (page.after_id === null) break
+      afterId = page.after_id
+    }
+    const [first] = await tx<{ knowledge_base_id: string }[]>`
         SELECT knowledge_base_id FROM search_embedding_cleanup_targets ORDER BY knowledge_base_id LIMIT 1`
-      if (!first) return false
-      await tx`ANALYZE search_embedding_cleanup_targets`
-      await tx`ALTER TABLE search_embedding_cleanup_progress
+    if (!first) return false
+    await tx`ANALYZE search_embedding_cleanup_targets`
+    await tx`ALTER TABLE search_embedding_cleanup_progress
         ADD COLUMN IF NOT EXISTS reindexed_through text NOT NULL DEFAULT '',
         ADD COLUMN IF NOT EXISTS vacuumed_tables integer NOT NULL DEFAULT 0`
-      await tx`INSERT INTO search_embedding_cleanup_progress (id, knowledge_base_id, phase, after_id)
+    await tx`INSERT INTO search_embedding_cleanup_progress (id, knowledge_base_id, phase, after_id)
         VALUES (1, ${first.knowledge_base_id}, 'documents', '')
         ON CONFLICT (id) DO UPDATE SET knowledge_base_id = EXCLUDED.knowledge_base_id,
           phase = 'documents', after_id = '',
           reindexed_through = '', vacuumed_tables = 0`
-      return true
-    })
-    if (!hasTargets) return
+    return true
+  })
+  if (!hasTargets) return
 
-    const startedAt = Date.now()
-    let batches = 0
-    let mutated = 0
-    let rowLimit: number = ROW_LIMIT.initial
-    /** The largest limit the run may still try: half of the smallest limit that timed out. */
-    let ceiling: number = ROW_LIMIT.max
-    for (;;) {
-      /** Timed around the whole call, so the synchronous-replication wait at commit counts. */
-      const pageStartedAt = performance.now()
-      let page: PageResult
-      try {
-        page = await retirePage(sql, rowLimit)
-      } catch (error) {
-        if (!(error instanceof PageMutationTimeout)) throw error
-        /** The timed-out page rolled back with its cursor, so it is retried with fewer rows. */
-        if (rowLimit <= ROW_LIMIT.min) throw error.timeout
-        ceiling = halve(rowLimit)
-        rowLimit = ceiling
-        logger.warn('Search retirement page timed out; retrying with fewer rows', { rowLimit })
-        await sleep(Math.min(performance.now() - pageStartedAt, MAX_PAGE_PAUSE_MS))
-        continue
-      }
-      if (page.done) break
-      const pageMs = performance.now() - pageStartedAt
-      batches++
-      mutated += page.mutated
-      if (page.transition) {
-        /** A phase change may include a full recheck, which says nothing about page cost. */
-        logger.info('Search retirement phase changed', {
-          transition: page.transition,
-          batches,
-          mutated,
-        })
-      } else if (pageMs > SLOW_PAGE_MS) {
-        rowLimit = halve(rowLimit)
-        logger.warn('Search retirement page was slow; halving the row limit', {
-          pageMs: Math.round(pageMs),
-          rowLimit,
-        })
-      } else if (pageMs < FAST_PAGE_MS) {
-        rowLimit = Math.min(ceiling, rowLimit * 2)
-      }
-      if (batches % 10 === 0) {
-        logger.info('Search embedding retirement progress', {
-          batches,
-          phase: page.phase,
-          afterId: page.afterId,
-          mutated,
-          rowLimit,
-          elapsedMs: Date.now() - startedAt,
-        })
-      }
-      await sleep(Math.min(pageMs, MAX_PAGE_PAUSE_MS))
+  const startedAt = Date.now()
+  let batches = 0
+  let mutated = 0
+  let rowLimit = Math.min(ROW_LIMIT.initial, pacing.maxRows)
+  /** The largest limit the run may still try: half of the smallest limit that timed out. */
+  let ceiling = pacing.maxRows
+  for (;;) {
+    /** Timed around the whole call, so the synchronous-replication wait at commit counts. */
+    const pageStartedAt = performance.now()
+    let page: PageResult
+    try {
+      page = await retirePage(sql, rowLimit)
+    } catch (error) {
+      if (!(error instanceof PageMutationTimeout)) throw error
+      /** The timed-out page rolled back with its cursor, so it is retried with fewer rows. */
+      if (rowLimit <= ROW_LIMIT.min) throw error.timeout
+      ceiling = halve(rowLimit)
+      rowLimit = ceiling
+      logger.warn('Search retirement page timed out; retrying with fewer rows', { rowLimit })
+      await pause(performance.now() - pageStartedAt)
+      continue
     }
-    logger.info('Selected Search knowledge bases retired', {
-      batches,
-      mutated,
-      elapsedMs: Date.now() - startedAt,
-    })
-  },
+    if (page.done) break
+    const pageMs = performance.now() - pageStartedAt
+    batches++
+    mutated += page.mutated
+    if (page.transition) {
+      /** A phase change may include a full recheck, which says nothing about page cost. */
+      logger.info('Search retirement phase changed', {
+        transition: page.transition,
+        batches,
+        mutated,
+      })
+    } else if (pageMs > SLOW_PAGE_MS) {
+      rowLimit = halve(rowLimit)
+      logger.warn('Search retirement page was slow; halving the row limit', {
+        pageMs: Math.round(pageMs),
+        rowLimit,
+      })
+    } else if (pageMs < FAST_PAGE_MS) {
+      rowLimit = Math.min(ceiling, rowLimit * 2)
+    }
+    if (batches % 10 === 0) {
+      logger.info('Search embedding retirement progress', {
+        batches,
+        phase: page.phase,
+        afterId: page.afterId,
+        mutated,
+        rowLimit,
+        elapsedMs: Date.now() - startedAt,
+      })
+    }
+    await pause(pageMs)
+  }
+  logger.info('Selected Search knowledge bases retired', {
+    batches,
+    mutated,
+    elapsedMs: Date.now() - startedAt,
+  })
 }
 
 /**
@@ -380,17 +409,36 @@ async function validateTargetMarkers(tx: TransactionSql): Promise<void> {
   }
 }
 
-/** The standalone entry resumes the deployment cursor and journals only a completed retirement. */
+/**
+ * The operator entry: resumes the saved cursor and, with `--maintenance`, also rebuilds the indexes,
+ * vacuums, and journals the completed cleanup. `--pause-ratio` and `--max-rows` set the pacing.
+ */
 if (import.meta.main) {
+  const { values } = parseArgs({
+    options: {
+      maintenance: { type: 'boolean', default: false },
+      'pause-ratio': { type: 'string' },
+      'max-rows': { type: 'string' },
+    },
+  })
+  const pacing: RetirementPacing = {
+    pauseRatio: Number(values['pause-ratio'] ?? DEFAULT_RETIREMENT_PACING.pauseRatio),
+    maxRows: Number(values['max-rows'] ?? DEFAULT_RETIREMENT_PACING.maxRows),
+  }
   const url = resolveMigrationDatabaseUrl()
   if (!url) throw new Error('DATABASE_URL is required for Search retirement')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {
-    const { runScriptMigrations } = await import('@sim/db/script-migrations/index')
-    const { retireAllSearchEmbeddingsMigration } = await import(
-      '@sim/db/script-migrations/0029_retire_all_search_embeddings'
-    )
-    await runScriptMigrations(sql, [retireAllSearchEmbeddingsMigration])
+    if (values.maintenance) {
+      const { runScriptMigrations } = await import('@sim/db/script-migrations/index')
+      const { retireAllSearchEmbeddings } = await import(
+        '@sim/db/script-migrations/0029_retire_all_search_embeddings'
+      )
+      await runScriptMigrations(sql, [retireAllSearchEmbeddings(pacing)])
+    } else {
+      await retireSearchEmbeddings(sql, pacing)
+      logger.info('Search retirement pass finished; run with --maintenance off-peak to complete it')
+    }
   } finally {
     await sql.end()
   }

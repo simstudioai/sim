@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { SearchTrigger } from '@/components/ui/search-trigger'
 import { SimWordmark } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { SIM_SITE_URL } from '@/lib/urls'
 import { cn } from '@/lib/utils'
 
 /**
@@ -82,7 +83,7 @@ export function Navbar() {
 
           <div className='flex items-center gap-2'>
             <ThemeToggle />
-            <ChipLink href='https://sim.ai' variant='primary'>
+            <ChipLink href={SIM_SITE_URL} variant='primary'>
               Get started
             </ChipLink>
           </div>

@@ -9,13 +9,12 @@ authors:
 readingTime: 16
 tags: [AI Agents, Workflow Automation, Industry Use Cases, Sim]
 ogImage: /library/ai-agent-examples-by-department-and-industry/cover.jpg
-canonical: https://www.sim.ai/library/ai-agent-examples-by-department-and-industry
 draft: false
 faq:
   - q: "How does an AI agent differ from a chatbot or RAG bot?"
     a: "A chatbot or RAG bot retrieves information and generates a response. An AI agent can also call tools, evaluate results, and complete actions such as updating a ticket or issuing an approved refund."
-  - q: "What does Mothership orchestration or multi-agent coordination mean in practice?"
-    a: "In Sim’s Mothership orchestration, a coordinator assigns parts of a larger task to specialized agents and passes outputs between them. For example, one agent researches a lead, another drafts outreach, and a coordinator sends qualified results to the CRM."
+  - q: "What does multi-agent orchestration in Sim mean in practice?"
+    a: "When Sim orchestrates multiple agents from Chat, a coordinator assigns parts of a larger task to specialized agents and passes outputs between them. For example, one agent researches a lead, another drafts outreach, and a coordinator sends qualified results to the CRM."
   - q: "Do these AI agent examples require coding?"
     a: "Many examples can use visual blocks, integrations, and prompts without custom code. Sim supports visual, conversational, and code-based building, while custom APIs or unusual business rules may require a function block or developer support."
   - q: "How do you enforce human oversight?"
@@ -36,11 +35,11 @@ A chatbot usually retrieves information and generates a response. Retrieval-augm
 
 Invoice processing provides another useful distinction. OCR software extracts vendor names, amounts, and line items from a document. An invoice agent compares those fields with purchase orders and receipts, then evaluates why records differ. For example, the agent might identify a partial delivery rather than merely flagging an amount mismatch. Invoice agents can route uncertain or exceptional cases to a reviewer with the relevant records attached.
 
-The examples in this roundup follow a recurring pattern. A trigger starts the job, the agent gathers context, and tool calls perform an action. A human-in-the-loop checkpoint controls sensitive or irreversible decisions. In [Sim](https://sim.ai), an Agent block handles reasoning, a knowledge base supplies trusted context, and workflows connect triggers, tools, actions, and review steps. The guide to [what an AI agent is](https://www.sim.ai/library/what-is-an-ai-agent-definition-how-it-works-and-examples) explains these components in more detail.
+The examples in this roundup follow a recurring pattern. A trigger starts the job, the agent gathers context, and tool calls perform an action. A human-in-the-loop checkpoint controls sensitive or irreversible decisions. In [Sim](https://www.sim.ai), an Agent block handles reasoning, a knowledge base supplies trusted context, and workflows connect triggers, tools, actions, and review steps. The guide to [what an AI agent is](https://www.sim.ai/library/what-is-an-ai-agent-definition-how-it-works-and-examples) explains these components in more detail.
 
 ## AI agent examples by department
 
-The following examples show how sales, support, operations, engineering and IT, marketing, and HR departments can use agents. Each section also explains how to build the pattern in [Sim](https://sim.ai) with Agent blocks, connected workflows, and human review steps.
+The following examples show how sales, support, operations, engineering and IT, marketing, and HR departments can use agents. Each section also explains how to build the pattern in [Sim](https://www.sim.ai) with Agent blocks, connected workflows, and human review steps.
 
 ### Sales: outbound prospecting and inbound lead qualification agents
 
@@ -60,7 +59,7 @@ An agent-assist workflow gives support representatives similar tool access witho
 
 Place human approval immediately before an agent takes a consequential or difficult-to-reverse action. Examples include issuing a refund, cancelling an account, changing an entitlement, or sending a binding response. Classification and context gathering can run automatically when a reviewer can correct their outputs before execution. See [what human in the loop means for AI agents](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents) for more approval patterns.
 
-In [Sim](https://sim.ai), an Agent block can classify the ticket and enrich it with CRM or bug-tracker data. Workflow branches can route routine questions to support and known incidents to engineering. A Human in the Loop block can pause refund execution and request approval through a connected channel or webhook. Sim’s run logs then record the blocks, actions, costs, and failures associated with each support request.
+In [Sim](https://www.sim.ai), an Agent block can classify the ticket and enrich it with CRM or bug-tracker data. Workflow branches can route routine questions to support and known incidents to engineering. A Human in the Loop block can pause refund execution and request approval through a connected channel or webhook. Sim’s run logs then record the blocks, actions, costs, and failures associated with each support request.
 
 ### Operations: invoice processing and document triage agents
 
@@ -102,7 +101,7 @@ In [Sim](https://www.sim.ai/), an Agent block can receive documents and extract 
 
 ## AI agent examples by industry
 
-The following examples apply agent patterns to ecommerce, healthcare, finance, SaaS, and real estate. Each section explains how to build the pattern in [Sim](https://sim.ai) with Agent blocks, connected tools, workflows, and human review steps.
+The following examples apply agent patterns to ecommerce, healthcare, finance, SaaS, and real estate. Each section explains how to build the pattern in [Sim](https://www.sim.ai) with Agent blocks, connected tools, workflows, and human review steps.
 
 ### Ecommerce: shopping support and merchandising agents
 
@@ -156,7 +155,7 @@ Evaluate a workflow builder when you can map the job as a mostly predictable seq
 
 Evaluate a packaged assistant when the job resembles personal or executive assistance. Compare Lindy for [scheduling](https://docs.lindy.ai/features/meeting-assistant/scheduling) and [inbox tasks](https://docs.lindy.ai/skills/popular-integrations/gmail) with [Zapier Agents](https://zapier.com/agents) for assistant features connected to app automation. Verify the integrations, controls, and setup requirements that your workflow needs.
 
-An open agent workspace fits a use case that requires custom instructions, company knowledge, model choice, or access to several tools. [Sim](https://www.sim.ai/) provides Agent blocks for individual reasoning tasks and workflows for connecting those tasks to integrations, code, data, and approval steps. Sim’s Mothership orchestration can coordinate specialized agents when a workflow needs to delegate work or combine agent outputs. Read [AI agent orchestration frameworks explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) for the underlying coordination patterns.
+An open agent workspace fits a use case that requires custom instructions, company knowledge, model choice, or access to several tools. [Sim](https://www.sim.ai/) provides Agent blocks for individual reasoning tasks and workflows for connecting those tasks to integrations, code, data, and approval steps. Sim’s Chat can coordinate specialized agents when a workflow needs to delegate work or combine agent outputs. Read [AI agent orchestration frameworks explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) for the underlying coordination patterns.
 
 The use case should determine the category. A fixed invoice-routing sequence may need a workflow builder, while a research agent that delegates analysis and drafting may benefit from multi-agent coordination. Coding requirements also vary. Visual builders reduce setup work, while code and self-hosting options give you more control over custom behavior and deployment.
 

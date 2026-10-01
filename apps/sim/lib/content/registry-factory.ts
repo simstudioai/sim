@@ -12,6 +12,7 @@ import { mdxComponents } from '@/lib/content/mdx'
 import type { Author, ContentMeta, ContentPost, TagWithCount } from '@/lib/content/schema'
 import { AuthorSchema, ContentFrontmatterSchema } from '@/lib/content/schema'
 import { byDateDesc, ensureContentDirs, toIsoDate } from '@/lib/content/utils'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 const logger = createLogger('ContentRegistry')
 
@@ -26,6 +27,8 @@ export interface ContentRegistryConfig {
   contentDir: string
   /** Directory holding one JSON file per author, shared across sections. */
   authorsDir: string
+  /** Path the section is served under (e.g. `/library`); each post's canonical URL is derived from it. */
+  basePath: string
   /** Per-slug custom MDX component overrides, merged over the base `mdxComponents` map. */
   componentLoaders?: ContentComponentLoaders
 }
@@ -33,6 +36,8 @@ export interface ContentRegistryConfig {
 export interface ContentRegistry {
   getAllPostMeta: () => Promise<ContentMeta[]>
   getPostBySlug: (slug: string) => Promise<ContentPost | null>
+  /** Raw markdown body (frontmatter stripped) of a published post, or null if none. */
+  getPostSource: (slug: string) => Promise<string | null>
   getAllTags: () => Promise<TagWithCount[]>
   getRelatedPosts: (slug: string, limit?: number) => Promise<ContentMeta[]>
   getNavPosts: () => Promise<Pick<ContentMeta, 'slug' | 'title' | 'ogImage'>[]>
@@ -84,10 +89,10 @@ async function loadAuthorsForDir(authorsDir: string): Promise<Record<string, Aut
  * (see `loadAuthorsForDir`).
  */
 export function createContentRegistry(config: ContentRegistryConfig): ContentRegistry {
-  const { contentDir, authorsDir, componentLoaders = {} } = config
+  const { contentDir, authorsDir, basePath, componentLoaders = {} } = config
 
   const postComponentsRegistry: Record<string, Record<string, React.ComponentType>> = {}
-  let cachedMeta: ContentMeta[] | null = null
+  let metaPromise: Promise<ContentMeta[]> | null = null
 
   async function loadAuthors(): Promise<Record<string, Author>> {
     return loadAuthorsForDir(authorsDir)
@@ -131,10 +136,16 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     }
   }
 
-  async function scanFrontmatters(): Promise<ContentMeta[]> {
-    if (cachedMeta) {
-      return cachedMeta
-    }
+  /** Shares one in-flight scan across concurrent callers (e.g. parallel static renders). */
+  function scanFrontmatters(): Promise<ContentMeta[]> {
+    metaPromise ??= readAllFrontmatters().catch((error) => {
+      metaPromise = null
+      throw error
+    })
+    return metaPromise
+  }
+
+  async function readAllFrontmatters(): Promise<ContentMeta[]> {
     await ensureContentDirs(contentDir, authorsDir)
     const entries = await fs.readdir(contentDir).catch(() => [])
     const authorsMap = await loadAuthors()
@@ -175,7 +186,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
           ogImage: fm.ogImage,
           ogImageWidth: ogImageDimensions?.width,
           ogImageHeight: ogImageDimensions?.height,
-          canonical: fm.canonical,
+          canonical: `${SITE_URL}${basePath}/${fm.slug}`,
           ogAlt: fm.ogAlt,
           about: fm.about,
           timeRequired: fm.timeRequired,
@@ -187,8 +198,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
         }
       })
     )
-    cachedMeta = results.filter((result): result is ContentMeta => result !== null).sort(byDateDesc)
-    return cachedMeta
+    return results.filter((result): result is ContentMeta => result !== null).sort(byDateDesc)
   }
 
   async function getAllPostMeta(): Promise<ContentMeta[]> {
@@ -245,6 +255,13 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
       postComponentsRegistry[slug] = {}
       return {}
     }
+  }
+
+  async function getPostSource(slug: string): Promise<string | null> {
+    const published = await getAllPostMeta()
+    if (!published.some((m) => m.slug === slug)) return null
+    const raw = await fs.readFile(path.join(contentDir, slug, 'index.mdx'), 'utf-8')
+    return matter(raw).content
   }
 
   async function getPostBySlug(slug: string): Promise<ContentPost | null> {
@@ -306,7 +323,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
   }
 
   function invalidateCaches() {
-    cachedMeta = null
+    metaPromise = null
     authorsCacheByDir.delete(authorsDir)
     Object.keys(postComponentsRegistry).forEach((key) => delete postComponentsRegistry[key])
   }
@@ -314,6 +331,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
   return {
     getAllPostMeta,
     getPostBySlug,
+    getPostSource,
     getAllTags,
     getRelatedPosts,
     getNavPosts,

@@ -1,48 +1,92 @@
 # Retiring legacy Search indexes
 
-`0029_retire_all_search_embeddings` runs through the existing script-migration registry without
-cleanup flags. It supersedes the single-KB retirement and maintenance entries (`0027`/`0028`),
-including databases that already recorded either receipt. It snapshots every knowledge base whose
-persisted `is_search_index` marker is true. No Search KB is a completed no-op. Once saved, the
-snapshot stays fixed across retries even if another Search KB is created. Ordinary KBs and the
-selected KBs' live source/credential configuration, document metadata, and backing files are preserved.
+The retirement is an **operator-run maintenance command, not a deploy step**. Deploy migrations no
+longer register it: a long cleanup inside the deploy migration generated heavy WAL and stalled
+application writes, and it held the release until it finished. It is optional storage reclamation
+once live Search is on, so it runs separately, paced, at a time the operator chooses. Self-hosted
+operators can run the same command.
 
-## Deployment and execution
+`0029_retire_all_search_embeddings` snapshots every knowledge base whose persisted `is_search_index`
+marker is true and supersedes the single-KB retirement and maintenance receipts (`0027`/`0028`),
+including databases that already recorded either. No Search KB is a completed no-op. Once saved, the
+snapshot stays fixed across runs even if another Search KB is created. Ordinary KBs and the selected
+KBs' live source/credential configuration, document metadata, and backing files are preserved.
 
-The app and workers must already use live Search, and older indexing jobs must be drained before
-this cleanup ships: deployment migrations run before the new app switches over. `SIM_SEARCH_LIVE=true`
-(the default) makes `isIndexedOrgSearchEnabled()` false. **`SIM_SEARCH_LIVE=false` enables indexed
-Search again.** The cleanup does not inspect this flag. Live source setup may still create a Search
-KB for configuration; it does not index content. Document uploads, dispatch and queued processing
-also honor the indexed-search gate.
+## Before running
 
-The ordinary migration runner starts the cleanup automatically and continues until it is complete
-in the same deployment. There is no page-count or one-minute deferral. A successful run records
-`0029_retire_all_search_embeddings` and its superseded names in `script_migrations` only after all
-selected KBs have no remaining chunks or unretired documents and index maintenance finishes.
-On upgrading a legacy single-KB checkpoint, the snapshot and cursor reset commit atomically. The
-scan starts at the beginning once so it includes other KBs behind the old cursor; previous deletes
-remain committed. Maintenance checkpoints also reset once because the expanded cleanup creates new
-dead entries. A completed legacy checkpoint does not require its former KB to still exist or remain
-Search-marked; the new snapshot selects current Search KBs and preserves any KB now marked ordinary.
-An unfinished legacy checkpoint still requires its target to remain Search-marked. Subsequent retries
-resume the saved scope, phase, cursor and maintenance checkpoints.
-The existing maintenance implementation rebuilds HNSW indexes and vacuums affected tables before
-deployment continues.
+The app and workers must already use live Search, and older indexing jobs must be drained.
+`SIM_SEARCH_LIVE=true` (the default) makes `isIndexedOrgSearchEnabled()` false. **`SIM_SEARCH_LIVE=false`
+enables indexed Search again.** The cleanup does not inspect this flag. Live source setup may still
+create a Search KB for configuration; it does not index content. Document uploads, dispatch and
+queued processing also honor the indexed-search gate.
+
+## Running it
+
+From the repository root, with the migration role's writer DSN on a **direct or session-pooled**
+connection (the run holds a session advisory lock and session settings; PgBouncer transaction pooling
+is unsupported, and reserving a postgres.js client does not pin a backend through it):
+
+```sh
+# Retire documents and delete their chunks, resuming the saved cursor. Safe to stop and rerun.
+MIGRATION_DATABASE_URL=<direct DSN> bun run packages/db/script-migrations/0027_retire_search_embeddings.ts
+
+# Off-peak: finish any remaining retirement, rebuild the HNSW indexes, vacuum, and record completion.
+MIGRATION_DATABASE_URL=<direct DSN> bun run packages/db/script-migrations/0027_retire_search_embeddings.ts --maintenance
+```
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--pause-ratio N` | `2` | After each page, pause N × the page's duration (at most one minute), so the run is busy at most `1 / (1 + N)` of the time. Raise it to go gentler. |
+| `--max-rows N` | `2000` | The most rows one page may update or delete (25–8,000). Lower it to make each page lighter. |
+| `--maintenance` | off | After retirement, run the index rebuilds and vacuums and journal `0029` with its superseded names. |
+
+Run it as the migration role: maintenance needs `pg_maintain`, which the application roles lack. Run
+it outside peak traffic, and run `--maintenance` in the quietest window you have: concurrent HNSW
+rebuilds are long and write a lot of WAL (GitLab, for example, schedules automatic reindexing for
+weekends). Keep one run at a time.
+
+**Pausing.** Ctrl-C is safe at any point. The in-flight page rolls back with its cursor, and an
+interrupted concurrent rebuild's leftover index is removed on the next run. Rerun the same command to
+resume; completed pages stay committed.
+
+**Watching.** Every ten pages the run logs the phase, cursor, rows mutated so far and current row
+limit; it also logs each halving after a slow page, each phase change, and the start of the completion
+recheck. In PostgreSQL, watch for `checkpoint starting: wal` in quick succession, slow checkpoint
+sync times, `canceling wait for synchronous replication`, and replica lag. If they appear, stop the
+run and resume later with a higher `--pause-ratio` or lower `--max-rows`.
+
+```sql
+SELECT * FROM search_embedding_cleanup_progress;
+SELECT name, applied_at FROM script_migrations
+WHERE name IN ('0027_retire_search_embeddings', '0028_maintain_search_retirement',
+               '0029_retire_all_search_embeddings');
+```
+
+A plain run does not journal anything; only a `--maintenance` run that finishes records `0029` and its
+superseded names. On upgrading a legacy single-KB checkpoint, the snapshot and cursor reset commit
+atomically. The scan starts at the beginning once so it includes other KBs behind the old cursor;
+previous deletes remain committed. Maintenance checkpoints also reset once because the expanded
+cleanup creates new dead entries. A completed legacy checkpoint does not require its former KB to
+still exist or remain Search-marked; the new snapshot selects current Search KBs and preserves any KB
+now marked ordinary. An unfinished legacy checkpoint still requires its target to remain
+Search-marked.
+
+## How a run paces itself
 
 Each page mutates at most a row limit of target rows and reads at most four IDs per row of that
 limit, never more than 25,000 IDs. Pages execute
-sequentially, and each is followed by a pause as long as the page took, up to five seconds, to
-leave the primary headroom. Retiring a document is a non-HOT update that writes every index on
+sequentially, and each is followed by a pause of `--pause-ratio` times its duration, up to one
+minute. Because a page is timed through its commit, a slow synchronous replica or a checkpoint stall
+lengthens the following pause by the same factor. Retiring a document is a non-HOT update that writes every index on
 `document`, and deleting a chunk cascades into its projections, so a page's cost follows the target
 rows it mutates, not the IDs it reads. A page that reaches the row limit advances the cursor only to
 its last mutated row; the rest of its scan is read again by the next page. Tying the scan window to
 the limit keeps that re-reading proportional to the work, even after the limit shrinks. Documents
 that are already retired never count against the limit.
 
-The row limit starts at 2,000 rows. A page is timed from the start of its transaction through its
+The row limit starts at 2,000 rows, or `--max-rows` if lower. A page is timed from the start of its transaction through its
 commit, including the synchronous-replication wait and any lock-timeout retries. A page slower than
-30 seconds halves the limit. A fast page, one under 7.5 seconds, doubles it up to 8,000, which
+30 seconds halves the limit. A fast page, one under 7.5 seconds, doubles it up to `--max-rows`, which
 also widens the scan window, so sparse stretches are not crawled in small windows. The limit never drops below 25 rows. Phase changes do not adjust it.
 
 Materialized SQL pages keep the IDs inside PostgreSQL; the migration process receives only a cursor
@@ -54,23 +98,6 @@ still times out at 25 rows fails the migration. Any other statement timeout fail
 speed it up. The completion rechecks, which walk every captured KB once, run with a 30-minute
 timeout. Brief lock timeouts retry the rolled-back page with bounded backoff for up to one minute.
 Other errors, or exhausted lock retries, fail the migration without a completion receipt.
-
-Every ten pages the migration logs the phase, cursor, rows mutated so far and current row limit. It
-also logs each halving after a slow page, each phase change and the start of the completion
-recheck. The deployment job retains its five-hour overall timeout; it is not a runtime estimate. A
-large cleanup can need more than one job run, and each run resumes from the saved cursor.
-
-After interruption or failure, rerun the migration job, or run
-`bun run packages/db/script-migrations/0027_retire_search_embeddings.ts` with the writer supplied
-through the normal `MIGRATION_DATABASE_URL`/`DATABASE_URL` configuration. Completed pages remain
-committed and the failed page is retried from its saved cursor. The standalone command runs both
-retirement and maintenance through the successor migration and the same journal. Keep one maintenance worker and monitor primary
-latency, WAL, replica lag and available disk.
-
-Both entry points require a direct or session-pooled PostgreSQL connection, as the deployment
-migration runner already does for its session advisory lock and settings. `DATABASE_URL` is a valid
-fallback only when it provides that session affinity. PgBouncer transaction pooling is unsupported;
-reserving a postgres.js client connection does not pin a backend through a transaction pooler.
 
 The runner-owned `search_embedding_cleanup_targets` table stores the frozen KB set, populated in
 bounded SQL pages within one repeatable-read transaction. The existing `search_embedding_cleanup_progress`
@@ -110,12 +137,11 @@ indexed Search requires deliberately restoring document eligibility and fully re
 
 ## Storage maintenance
 
-After deletion, `0029` invokes the existing maintenance implementation to run `REINDEX INDEX CONCURRENTLY` on each HNSW index of `embedding_search`,
+With `--maintenance`, after deletion, `0029` invokes the existing maintenance implementation to run `REINDEX INDEX CONCURRENTLY` on each HNSW index of `embedding_search`,
 then `VACUUM (ANALYZE, TRUNCATE FALSE)` on the vector and keyword projections, chunk provenance,
 embeddings, and documents. These operations execute sequentially outside transactions. Rebuilds
 keep ordinary reads and writes available and require temporary index space and WAL capacity.
-They wait for older transactions and can dominate total runtime; the five-hour job deadline still
-applies. PostgreSQL's `pg_stat_progress_create_index` and `pg_stat_progress_vacuum` expose progress.
+They wait for older transactions and can dominate total runtime. PostgreSQL's `pg_stat_progress_create_index` and `pg_stat_progress_vacuum` expose progress.
 
 The existing progress row gains `reindexed_through` and `vacuumed_tables` checkpoints. Completed
 indexes and tables are skipped on retry; interruption between an operation and its checkpoint may
@@ -134,3 +160,20 @@ bucket objects: their application hard-delete path also enqueues identity-bound 
 and applies accounting. Its ordinary scoped mode excludes retired documents, so a follow-up must
 explicitly support these rows while preserving those side effects. Do not delete source accounts,
 integration policies or permission grants used by live Search.
+
+## Why it runs this way
+
+Long data changes belong outside deploy migrations, in batches, throttled on database health, and
+resumable from a cursor:
+
+- [strong_migrations: Backfilling data](https://github.com/ankane/strong_migrations#backfilling-data)
+- [GitLab batched background migrations](https://docs.gitlab.com/development/database/batched_background_migrations/)
+  and [automatic reindexing](https://docs.gitlab.com/omnibus/settings/database/)
+- [Shopify maintenance_tasks](https://github.com/Shopify/maintenance_tasks)
+- [gh-ost throttling](https://github.com/github/gh-ost/blob/master/doc/throttle.md) and
+  [pt-online-schema-change](https://docs.percona.com/percona-toolkit/pt-online-schema-change.html)
+- [Stripe: online migrations at scale](https://stripe.com/blog/online-migrations)
+- PostgreSQL 17: [WAL configuration](https://www.postgresql.org/docs/17/wal-configuration.html),
+  [synchronous replication](https://www.postgresql.org/docs/17/warm-standby.html#SYNCHRONOUS-REPLICATION),
+  [replication statistics](https://www.postgresql.org/docs/17/monitoring-stats.html)
+- [PlanetScale: the only scalable delete](https://planetscale.com/blog/the-only-scalable-delete)
