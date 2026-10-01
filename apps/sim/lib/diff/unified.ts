@@ -68,27 +68,38 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
   const rows = text.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n')
   let oldSource: DiffSource | null = null
   let newSource: DiffSource | null = null
-  let path: string | null = null
   const hunks: DiffHunk[] = []
   let hunk: DiffHunk | null = null
   let oldLine: number | undefined
   let newLine: number | undefined
 
   let file: string | null = null
+  let namesPath = false
+  /** Each file takes one `---` and one `+++` header; a later line starting that way is a change. */
+  let seenOld = false
+  let seenNew = false
   for (const [index, row] of rows.entries()) {
     if (row.startsWith('diff --git ')) {
       hunk = null
       file = null
+      seenOld = false
+      seenNew = false
       continue
     }
-    if (!hunk && (row.startsWith('--- ') || row.startsWith('+++ '))) {
+    const isOld = row.startsWith('--- ')
+    const isNew = row.startsWith('+++ ')
+    if (!hunk && ((isOld && !seenOld) || (isNew && !seenNew))) {
+      if (isOld) seenOld = true
+      else seenNew = true
       const target = row.slice(4).trim()
       const parsed = parseSource(target)
-      if (row.startsWith('--- ')) oldSource = parsed ?? oldSource
-      else newSource = parsed ?? newSource
-      if (!parsed && target !== '/dev/null' && (row.startsWith('+++ ') || !file))
-        file = target.replace(/^[ab]\//, '').split('\t')[0]
-      path ??= file
+      if (parsed) {
+        if (isOld) oldSource = parsed
+        else newSource = parsed
+      } else if (target !== '/dev/null') {
+        namesPath = true
+        if (isNew || !file) file = target.replace(/^[ab]\//, '').split('\t')[0]
+      }
       continue
     }
     if (!hunk && GIT_HEADER.test(row)) continue
@@ -121,10 +132,12 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
 
   if (!hunks.some((entry) => entry.lines.some((line) => line.type !== 'context')))
     throw new Error('A diff needs at least one + or - line')
+  if (namesPath && (oldSource || newSource))
+    throw new Error('A diff with a sim: source cannot also include ordinary file paths')
   oldSource ??= newSource
   newSource ??= oldSource
   const files = new Set(hunks.map((entry) => entry.file))
+  const path = files.size > 1 ? `${files.size} files` : (hunks[0]?.file ?? file)
   if (files.size <= 1) for (const entry of hunks) entry.file = undefined
-  else path = `${files.size} files`
   return { oldSource, newSource, path: oldSource ? null : path, hunks }
 }

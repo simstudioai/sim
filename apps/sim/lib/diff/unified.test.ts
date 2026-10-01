@@ -58,6 +58,19 @@ describe('parseUnifiedDiff', () => {
     ])
   })
 
+  it('titles a renamed file by its new path', () => {
+    expect(parseUnifiedDiff('--- a/old.ts\n+++ b/new.ts\n@@ -1 +1 @@\n-a\n+b').path).toBe('new.ts')
+  })
+
+  it('reads a changed line starting with --- after the headers as a change', () => {
+    expect(
+      parseUnifiedDiff('--- a/x.md\n+++ b/x.md\n--- divider\n+=== divider').hunks[0].lines
+    ).toEqual([
+      { type: 'del', text: '-- divider' },
+      { type: 'add', text: '=== divider' },
+    ])
+  })
+
   it('names each side of a two-document comparison', () => {
     const diff = parseUnifiedDiff(
       '--- sim:knowledge/kb/old\n+++ sim:knowledge/kb/new\n-Refunds are available within 14 days.\n+Annual plans can be refunded within 30 days.'
@@ -72,6 +85,11 @@ describe('parseUnifiedDiff', () => {
     ['a knowledge source without a document', '--- sim:knowledge/kb_1\n-x\n+y', 'sim:knowledge/'],
     ['a line without a marker', '@@ x @@\n-a\nplain', 'Line 3'],
     ['no changes', ' just context', 'at least one + or - line'],
+    [
+      'a sim: source mixed with file paths',
+      'diff --git a/x b/x\n--- sim:file/f1\n+++ sim:file/f1\n-a\n+b\ndiff --git a/y b/y\n--- a/y.ts\n+++ b/y.ts\n-c\n+d',
+      'cannot also include ordinary file paths',
+    ],
   ])('rejects %s', (_, text, message) => {
     expect(() => parseUnifiedDiff(text)).toThrow(message)
   })

@@ -101,7 +101,7 @@ function CollapsedRun({ count, onExpand }: CollapsedRunProps) {
 }
 
 /** Splits a hunk into visible lines and collapsed runs of unchanged lines. */
-function visibleItems(lines: DiffLine[], expanded: boolean) {
+function visibleItems(lines: DiffLine[], isExpanded: (start: number) => boolean) {
   const items: Array<{ line: DiffLine } | { collapsed: number; key: number }> = []
   for (let index = 0; index < lines.length; ) {
     if (lines[index].type !== 'context') {
@@ -115,7 +115,11 @@ function visibleItems(lines: DiffLine[], expanded: boolean) {
     const trailing = index === lines.length
     const keepBefore = leading ? 0 : CONTEXT_EDGE
     const keepAfter = trailing ? 0 : CONTEXT_EDGE
-    if (expanded || run.length <= COLLAPSE_AFTER || run.length <= keepBefore + keepAfter + 1) {
+    if (
+      isExpanded(start) ||
+      run.length <= COLLAPSE_AFTER ||
+      run.length <= keepBefore + keepAfter + 1
+    ) {
       for (const line of run) items.push({ line })
       continue
     }
@@ -147,7 +151,8 @@ function marker(line: DiffLine | undefined) {
  * when the hunk headers carry them.
  */
 export function DiffView({ hunks }: DiffViewProps) {
-  const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set())
+  /** Expanded runs, keyed `hunk:start` so each collapsed run opens on its own. */
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
   const numbered = hunks.some((hunk) =>
     hunk.lines.some((line) => line.oldLine !== undefined || line.newLine !== undefined)
   )
@@ -157,8 +162,7 @@ export function DiffView({ hunks }: DiffViewProps) {
       <div className={cn('grid w-max min-w-full font-mono text-caption leading-[1.6]', columns)}>
         {hunks.map((hunk, hunkIndex) => {
           const segments = wordSegments(hunk.lines)
-          const items = visibleItems(hunk.lines, expanded.has(hunkIndex))
-          const expand = () => setExpanded((current) => new Set(current).add(hunkIndex))
+          const items = visibleItems(hunk.lines, (start) => expanded.has(`${hunkIndex}:${start}`))
           return (
             <Fragment key={hunkIndex}>
               {(hunk.file || hunk.heading || hunkIndex > 0) && (
@@ -181,7 +185,13 @@ export function DiffView({ hunks }: DiffViewProps) {
                     </span>
                   </div>
                 ) : (
-                  <CollapsedRun key={`c${item.key}`} count={item.collapsed} onExpand={expand} />
+                  <CollapsedRun
+                    key={`c${item.key}`}
+                    count={item.collapsed}
+                    onExpand={() =>
+                      setExpanded((current) => new Set(current).add(`${hunkIndex}:${item.key}`))
+                    }
+                  />
                 )
               )}
             </Fragment>
