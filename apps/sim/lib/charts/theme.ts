@@ -1,4 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import type { ChartTonePalette } from '@/lib/charts/annotations'
 import { CHART_BAR_MAX_WIDTH, mapTooltipEntries } from '@/lib/charts/option'
 import { formatChartValue } from '@/lib/charts/summary'
 
@@ -95,6 +96,23 @@ export function applyChartTooltipDefaults(option: Record<string, unknown>) {
     }))
   }
   return option
+}
+
+/** Colours for highlights and thresholds; neutral matches the axis labels. */
+export function readChartTonePalette(element: HTMLElement): ChartTonePalette {
+  const styles = getComputedStyle(element)
+  const token = (name: string) => {
+    const value = styles.getPropertyValue(name).trim()
+    if (!value) throw new Error(`Missing chart theme token ${name}`)
+    return value
+  }
+  return {
+    tones: {
+      neutral: token('--text-tertiary'),
+      error: token('--text-error'),
+      info: token('--brand-blue'),
+    },
+  }
 }
 
 /** Canvas cannot resolve CSS variables; read the same tokens as EMCN at its own container. */

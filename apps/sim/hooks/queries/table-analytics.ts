@@ -12,17 +12,19 @@ export const TABLE_ANALYTICS_STALE_TIME = 60_000
 export const tableAnalyticsKeys = {
   all: ['table-analytics'] as const,
   queries: () => [...tableAnalyticsKeys.all, 'query'] as const,
-  query: (tableId: string, body: QueryTableAnalyticsBody) =>
-    [...tableAnalyticsKeys.queries(), tableId, body] as const,
+  /** `refreshedAt` re-keys a fixed range when its view refreshes, so only that view refetches. */
+  query: (tableId: string, body: QueryTableAnalyticsBody, refreshedAt: number) =>
+    [...tableAnalyticsKeys.queries(), tableId, body, refreshedAt] as const,
 }
 
 interface UseTableAnalyticsProps {
   tableId: string
   body: QueryTableAnalyticsBody
+  refreshedAt: number
 }
-export function useTableAnalytics({ tableId, body }: UseTableAnalyticsProps) {
+export function useTableAnalytics({ tableId, body, refreshedAt }: UseTableAnalyticsProps) {
   return useQuery({
-    queryKey: tableAnalyticsKeys.query(tableId, body),
+    queryKey: tableAnalyticsKeys.query(tableId, body, refreshedAt),
     queryFn: async ({ signal }) => {
       const result = await requestJson(queryTableAnalyticsContract, {
         params: { tableId },
