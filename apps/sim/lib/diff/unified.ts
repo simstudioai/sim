@@ -21,16 +21,20 @@ export interface DiffHunk {
 }
 
 export interface UnifiedDiff {
-  source: DiffSource | null
+  /** Where the original text lives (`---`). */
+  oldSource: DiffSource | null
+  /** Where the changed text lives (`+++`); the same resource as `oldSource` for an edit. */
+  newSource: DiffSource | null
   /** The file path from a plain `+++ b/<path>` header, for diffs without a `sim:` source. */
   path: string | null
   hunks: DiffHunk[]
 }
 
 /**
- * How a diff relates to its source's current text. `current`: every hunk's result is present.
- * `proposed`: every hunk's original is present and none of its results, so the change is not
- * applied. `outdated`: the source no longer matches either side.
+ * How a diff relates to its sources' current text. For an edit to one resource, `current`: every
+ * hunk's result is present; `proposed`: every hunk's original is present and not its result;
+ * `outdated`: neither. For a comparison of two resources, `current` while each still contains
+ * its side.
  */
 export type DiffMatch = 'current' | 'proposed' | 'outdated'
 
@@ -55,7 +59,7 @@ function parseSource(path: string): DiffSource | null {
   return { kind: 'knowledge', knowledgeBaseId: first, documentId: second }
 }
 
-function sameSource(a: DiffSource, b: DiffSource): boolean {
+export function sameSource(a: DiffSource, b: DiffSource): boolean {
   return a.kind === 'file' && b.kind === 'file'
     ? a.fileId === b.fileId
     : a.kind === 'knowledge' &&
@@ -71,7 +75,8 @@ function sameSource(a: DiffSource, b: DiffSource): boolean {
  */
 export function parseUnifiedDiff(text: string): UnifiedDiff {
   const rows = text.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n')
-  let source: DiffSource | null = null
+  let oldSource: DiffSource | null = null
+  let newSource: DiffSource | null = null
   let path: string | null = null
   const hunks: DiffHunk[] = []
   let hunk: DiffHunk | null = null
@@ -82,9 +87,8 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
     if (!hunk && (row.startsWith('--- ') || row.startsWith('+++ '))) {
       const target = row.slice(4).trim()
       const parsed = parseSource(target)
-      if (parsed && source && !sameSource(source, parsed))
-        throw new Error('A diff compares one source: --- and +++ must name the same resource')
-      source = parsed ?? source
+      if (row.startsWith('--- ')) oldSource = parsed
+      else newSource = parsed
       if (!parsed && target !== '/dev/null' && (row.startsWith('+++ ') || !path))
         path = target.replace(/^[ab]\//, '').split('\t')[0]
       continue
@@ -119,7 +123,9 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
 
   if (!hunks.some((entry) => entry.lines.some((line) => line.type !== 'context')))
     throw new Error('A diff needs at least one + or - line')
-  return { source, path: source ? null : path, hunks }
+  oldSource ??= newSource
+  newSource ??= oldSource
+  return { oldSource, newSource, path: oldSource ? null : path, hunks }
 }
 
 /** Whitespace-insensitive, so reflowed indentation or line endings never read as a change. */
@@ -138,16 +144,33 @@ function sideText(hunk: DiffHunk, side: 'before' | 'after'): string {
 }
 
 /**
- * Matches each hunk against the source by content rather than line numbers, so edits elsewhere in
- * the source never mark a diff outdated. `segments` are the pieces a source is stored in (a
- * knowledge document's chunks); a hunk may match inside one segment or across their concatenation.
+ * Matches each hunk by content rather than line numbers, so edits elsewhere never mark a diff
+ * outdated. Segments are the pieces a source is stored in (a knowledge document's chunks); a hunk
+ * may match inside one segment or across their concatenation. Pass `newSegments` when the diff
+ * compares two different resources.
  */
-export function matchUnifiedDiff(diff: UnifiedDiff, segments: readonly string[]): DiffMatch {
+export function matchUnifiedDiff(
+  diff: UnifiedDiff,
+  oldSegments: readonly string[],
+  newSegments?: readonly string[]
+): DiffMatch {
+  const inOld = containsIn(oldSegments)
+  if (newSegments) {
+    const inNew = containsIn(newSegments)
+    return diff.hunks.every(
+      (hunk) => inOld(sideText(hunk, 'before')) && inNew(sideText(hunk, 'after'))
+    )
+      ? 'current'
+      : 'outdated'
+  }
+  if (diff.hunks.every((hunk) => inOld(sideText(hunk, 'after')))) return 'current'
+  if (diff.hunks.every((hunk) => inOld(sideText(hunk, 'before')))) return 'proposed'
+  return 'outdated'
+}
+
+function containsIn(segments: readonly string[]) {
   const whole = normalize(segments.join('\n'))
   const pieces = segments.map(normalize)
-  const contains = (text: string) =>
+  return (text: string) =>
     text === '' || whole.includes(text) || pieces.some((piece) => piece.includes(text))
-  if (diff.hunks.every((hunk) => contains(sideText(hunk, 'after')))) return 'current'
-  if (diff.hunks.every((hunk) => contains(sideText(hunk, 'before')))) return 'proposed'
-  return 'outdated'
 }

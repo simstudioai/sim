@@ -11,7 +11,8 @@ const runbook = `--- sim:file/wf_runbook
 describe('parseUnifiedDiff', () => {
   it('reads the source from sim: header paths and hunks without line numbers', () => {
     const diff = parseUnifiedDiff(runbook)
-    expect(diff.source).toEqual({ kind: 'file', fileId: 'wf_runbook' })
+    expect(diff.oldSource).toEqual({ kind: 'file', fileId: 'wf_runbook' })
+    expect(diff.newSource).toEqual(diff.oldSource)
     expect(diff.hunks).toEqual([
       {
         heading: 'Re-authorizing',
@@ -28,7 +29,7 @@ describe('parseUnifiedDiff', () => {
     const diff = parseUnifiedDiff(
       'diff --git a/x.ts b/x.ts\nindex 1..2 100644\n--- a/x.ts\n+++ b/x.ts\n@@ -10,2 +10,2 @@ fn\n keep\n-old\n+new\n\\ No newline at end of file'
     )
-    expect(diff.source).toBeNull()
+    expect(diff.oldSource).toBeNull()
     expect(diff.path).toBe('x.ts')
     expect(diff.hunks[0].heading).toBe('fn')
     expect(diff.hunks[0].lines).toEqual([
@@ -39,17 +40,14 @@ describe('parseUnifiedDiff', () => {
   })
 
   it('reads knowledge document sources', () => {
-    expect(
-      parseUnifiedDiff('--- sim:knowledge/kb_1/doc_2\n+++ sim:knowledge/kb_1/doc_2\n-a\n+b').source
-    ).toEqual({ kind: 'knowledge', knowledgeBaseId: 'kb_1', documentId: 'doc_2' })
+    expect(parseUnifiedDiff('--- sim:knowledge/kb_1/doc_2\n-a\n+b').newSource).toEqual({
+      kind: 'knowledge',
+      knowledgeBaseId: 'kb_1',
+      documentId: 'doc_2',
+    })
   })
 
   it.each([
-    [
-      'two different sources',
-      '--- sim:file/a\n+++ sim:file/b\n-x\n+y',
-      'must name the same resource',
-    ],
     ['a knowledge source without a document', '--- sim:knowledge/kb_1\n-x\n+y', 'sim:knowledge/'],
     ['a line without a marker', '@@ x @@\n-a\nplain', 'Line 3'],
     ['no changes', ' just context', 'at least one + or - line'],
@@ -88,5 +86,38 @@ describe('matchUnifiedDiff', () => {
         'Tokens rotate every 12h; the refresh job handles it.',
       ])
     ).toBe('current')
+  })
+})
+
+describe('comparing two documents', () => {
+  const diff = parseUnifiedDiff(
+    '--- sim:knowledge/kb/old\n+++ sim:knowledge/kb/new\n-Refunds are available within 14 days.\n+Annual plans can be refunded within 30 days.'
+  )
+
+  it('names each side', () => {
+    expect([diff.oldSource, diff.newSource]).toEqual([
+      { kind: 'knowledge', knowledgeBaseId: 'kb', documentId: 'old' },
+      { kind: 'knowledge', knowledgeBaseId: 'kb', documentId: 'new' },
+    ])
+  })
+
+  it('is current while each document still says its side', () => {
+    expect(
+      matchUnifiedDiff(
+        diff,
+        ['Refunds are available within 14 days. Issued in 5 days.'],
+        ['Annual plans can be refunded within 30 days.']
+      )
+    ).toBe('current')
+  })
+
+  it('is outdated once either document changes', () => {
+    expect(
+      matchUnifiedDiff(
+        diff,
+        ['Refunds within 30 days.'],
+        ['Annual plans can be refunded within 30 days.']
+      )
+    ).toBe('outdated')
   })
 })
