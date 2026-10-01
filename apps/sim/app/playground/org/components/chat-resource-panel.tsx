@@ -116,24 +116,6 @@ function BrowseView({
   return (
     <div className='min-h-0 flex-1 overflow-y-auto px-8 py-8'>
       <div className='mx-auto flex w-full max-w-[560px] flex-col gap-6'>
-        {mentioned.length > 0 && (
-          <BrowseSection label='Mentioned in this chat'>
-            {mentioned.map((resource) => {
-              const Icon = panelKindConfig(resource.kind).icon
-              return (
-                <BrowseRow key={panelResourceKey(resource)} onClick={() => onOpen(resource)}>
-                  <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
-                    {resource.name}
-                  </span>
-                  {resource.status && (
-                    <span className='text-[var(--text-muted)] text-caption'>{resource.status}</span>
-                  )}
-                </BrowseRow>
-              )
-            })}
-          </BrowseSection>
-        )}
         <BrowseSection
           label={`Browse ${project?.name ?? ORGANIZATION.name}`}
           trailing={
@@ -209,6 +191,24 @@ function BrowseView({
             </>
           )}
         </BrowseSection>
+        {mentioned.length > 0 && (
+          <BrowseSection label='Mentioned in this chat'>
+            {mentioned.map((resource) => {
+              const Icon = panelKindConfig(resource.kind).icon
+              return (
+                <BrowseRow key={panelResourceKey(resource)} onClick={() => onOpen(resource)}>
+                  <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>
+                    {resource.name}
+                  </span>
+                  {resource.status && (
+                    <span className='text-[var(--text-muted)] text-caption'>{resource.status}</span>
+                  )}
+                </BrowseRow>
+              )
+            })}
+          </BrowseSection>
+        )}
       </div>
     </div>
   )
