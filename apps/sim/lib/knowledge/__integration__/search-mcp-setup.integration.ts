@@ -62,14 +62,20 @@ import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 
 /**
  * Real authorization, PostgreSQL, Redis and token resolution; DNS and Slack HTTP use fixtures.
- * Run with TEST_DATABASE_URL naming a disposable database and pass
- * --outputFile.json="$SEARCH_MCP_SETUP_REPORT_PATH" for a caller-selected JSON report.
+ * Run `bun run test:integration lib/knowledge/__integration__/search-mcp-setup.integration.ts`
+ * with INTEGRATION_REPORT_PATH for a caller-selected JSON report. Direct Vitest runs require
+ * TEST_DATABASE_URL and TEST_REDIS_URL naming disposable local services.
  */
 describe('atomic organization live Search MCP setup', () => {
+  const redisUrl = readTestRedisUrl()
   let restoreSlackHttp: (() => void) | undefined
   let ids: { organization: string; owner: string; member: string; outsider: string }
 
   beforeAll(() => {
+    if (!redisUrl)
+      throw new Error(
+        'Set TEST_REDIS_URL to a disposable local Redis or use bun run test:integration'
+      )
     vi.spyOn(dns, 'resolveHostAddresses').mockImplementation(async (hostname) => {
       if (
         !['api.fireflies.ai', 'mcp.granola.ai', 'mcp.notion.com', 'mcp.lucid.app'].includes(
@@ -84,7 +90,7 @@ describe('atomic organization live Search MCP setup', () => {
   beforeEach(async () => {
     Object.assign(env, {
       ZOOM_SEARCH: false,
-      REDIS_URL: readTestRedisUrl(),
+      REDIS_URL: redisUrl,
     })
     ids = {
       organization: generateId(),
@@ -647,7 +653,6 @@ describe('atomic organization live Search MCP setup', () => {
       .set({ memberSyncStatus: 'idle', sourceConfig: {} })
       .where(eq(knowledgeConnector.id, source.connectorId))
     expect(await integrationStatus('github')).toMatchObject({ configuredServiceSource: false })
-
   })
 
   it('rejects an oversized combined permission request without changing existing connections', async () => {
