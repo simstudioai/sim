@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   type ContentCheckConfig,
   checkContent,
-  checkMergedSlugTargets,
+  checkRedirectTargets,
   indexPosts,
+  readReservedSegments,
   resolvePostArg,
 } from './check-library-content'
 
@@ -56,10 +57,12 @@ beforeEach(() => {
     reservedSegments: { blog: new Set(['tags']), library: new Set(['tags']), customers: new Set() },
     mergedSlugs: { 'old-guide': 'kept-guide' },
     movedBlogSlugs: ['moved-post'],
+    customerSlugs: ['acme'],
   }
   mkdirSync(path.join(config.contentDir, 'authors'), { recursive: true })
   writeFileSync(path.join(config.contentDir, 'authors', 'sim.json'), '{"id":"sim","name":"Sim"}')
   writePost('library', 'kept-guide', 'The surviving guide.')
+  writePost('library', 'moved-post', 'Moved from the blog.')
 })
 
 afterEach(() => {
@@ -202,9 +205,86 @@ describe('check-library-content', () => {
 
   it('rejects a retired slug whose replacement no longer exists', () => {
     config.mergedSlugs = { 'old-guide': 'gone-guide' }
-    const findings = checkMergedSlugTargets(config, indexPosts(config.contentDir), 'map.ts')
+    const findings = checkRedirectTargets(config, indexPosts(config.contentDir), 'map.ts')
     expect(findings.map((finding) => finding.message)).toEqual([
-      'Retired slug "old-guide" redirects to /library/gone-guide, which does not exist.',
+      '/library/old-guide redirects to /library/gone-guide, which does not exist (no apps/sim/content/library/gone-guide/index.mdx).',
+    ])
+  })
+
+  it('rejects a moved blog slug whose library destination is missing or a draft', () => {
+    config.movedBlogSlugs = ['moved-post', 'never-moved']
+    writePost('library', 'moved-post', 'Unpublished.', { draft: 'true' })
+    const findings = checkRedirectTargets(config, indexPosts(config.contentDir), 'map.ts')
+    expect(findings.map((finding) => finding.message)).toEqual([
+      '/blog/moved-post redirects to /library/moved-post, which is a draft, so it 404s.',
+      '/blog/never-moved redirects to /library/never-moved, which does not exist (no apps/sim/content/library/never-moved/index.mdx).',
+    ])
+  })
+
+  it('rejects a link to a draft blog or library post', async () => {
+    writePost('library', 'unpublished', 'Draft.', { draft: 'true' })
+    writePost('library', 'post', '[a](/library/unpublished)')
+    expect(await findingsFor('library', 'post')).toEqual([
+      {
+        line: 10,
+        rule: 'internal-link',
+        message: '/library/unpublished is a draft, so it 404s.',
+      },
+    ])
+  })
+
+  it('accepts a registered draft customer story but rejects an unregistered one', async () => {
+    writePost('customers', 'acme', 'Registered draft.', { draft: 'true' })
+    writePost('customers', 'globex', 'Folder without a CUSTOMER_STORIES entry.')
+    writePost('library', 'post', '[a](/customers/acme)\n[b](/customers/globex)')
+    expect(await findingsFor('library', 'post')).toEqual([
+      {
+        line: 11,
+        rule: 'internal-link',
+        message:
+          '/customers/globex is not in CUSTOMER_STORIES (apps/sim/lib/customers/data.ts), so it 404s.',
+      },
+    ])
+  })
+
+  it('reserves only sibling folders that define a page or route handler', () => {
+    const appDir = path.join(root, 'app')
+    for (const [dir, file] of [
+      ['tags', 'page.tsx'],
+      ['rss.xml', 'route.ts'],
+      ['[slug]', 'page.tsx'],
+      ['components', 'card.tsx'],
+    ]) {
+      mkdirSync(path.join(appDir, dir), { recursive: true })
+      writeFileSync(path.join(appDir, dir, file), '')
+    }
+    expect([...readReservedSegments(() => appDir).customers].sort()).toEqual(['rss.xml', 'tags'])
+  })
+
+  it('rejects an invalid author profile and does not accept its id', async () => {
+    writeFileSync(path.join(config.contentDir, 'authors', 'ghost.json'), '{"id":"ghost"}')
+    writeFileSync(path.join(config.contentDir, 'authors', 'broken.json'), '{not json')
+    writePost('library', 'post', 'Body.', { authors: '[ghost]' })
+    const findings = await findingsFor('library', 'post')
+    expect(findings.map(({ rule, message }) => ({ rule, message }))).toEqual([
+      { rule: 'frontmatter', message: expect.stringMatching(/^Author profile is invalid/) },
+      { rule: 'frontmatter', message: expect.stringMatching(/^Author profile is invalid: name/) },
+      {
+        rule: 'frontmatter',
+        message: 'Author "ghost" has no profile in apps/sim/content/authors.',
+      },
+    ])
+  })
+
+  it('rejects an ogImage that resolves outside public, even when the file exists', async () => {
+    writeFileSync(path.join(root, 'secret.jpg'), '')
+    writePost('library', 'post', 'Body.', { ogImage: '/../secret.jpg' })
+    expect(await findingsFor('library', 'post')).toEqual([
+      {
+        line: 7,
+        rule: 'og-image',
+        message: 'ogImage "/../secret.jpg" resolves outside apps/sim/public.',
+      },
     ])
   })
 

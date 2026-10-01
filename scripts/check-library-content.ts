@@ -15,8 +15,10 @@
  * - `faq`: the body has no FAQ heading (the FAQ lives in frontmatter, which renders it and emits
  *   its JSON-LD), and no FAQ question or answer contains Markdown link syntax (it renders as text).
  * - `internal-link`: every `https://www.sim.ai/<section>/<slug>` link, and every relative
- *   `/<section>/<slug>` link target, names an existing post folder rather than a retired or moved
- *   slug. Apex `https://sim.ai` links belong to `check:site-urls`.
+ *   `/<section>/<slug>` link target, names a page that serves: a published blog or library post,
+ *   or a customer story registered in `CUSTOMER_STORIES` — never a retired or moved slug. Every
+ *   retired or moved slug redirects to a published library post. Apex `https://sim.ai` links
+ *   belong to `check:site-urls`.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
  */
@@ -25,7 +27,8 @@ import path from 'node:path'
 import { compile } from '@mdx-js/mdx'
 import matter from 'gray-matter'
 import remarkGfm from 'remark-gfm'
-import { ContentFrontmatterSchema } from '../apps/sim/lib/content/schema'
+import { AuthorSchema, ContentFrontmatterSchema } from '../apps/sim/lib/content/schema'
+import { CUSTOMER_STORIES } from '../apps/sim/lib/customers/data'
 import {
   LIBRARY_MERGED_SLUGS,
   LIBRARY_MOVED_BLOG_SLUGS,
@@ -55,7 +58,12 @@ export interface ContentCheckConfig {
   mergedSlugs: Readonly<Record<string, string>>
   /** Blog slugs that now live under `/library`. */
   movedBlogSlugs: readonly string[]
+  /** Customer slugs the `/customers/[slug]` route serves (`CUSTOMER_STORIES`). */
+  customerSlugs: readonly string[]
 }
+
+/** Post folders per section, keyed by slug, with each post's `draft` flag. */
+export type PostIndex = Record<Section, Map<string, { draft: boolean }>>
 
 export interface PostRef {
   section: Section
@@ -71,31 +79,56 @@ const INTERNAL_LINK =
 const MARKDOWN_LINK = /\[[^\]\n]*\]\([^)\n]*\)/
 const FAQ_HEADING = /^#{1,6}\s+FAQs?\s*:?\s*$/i
 const CODE_FENCE = /^\s*(```|~~~)/
+const ROUTE_FILES = ['page.tsx', 'page.ts', 'route.tsx', 'route.ts']
 
 function isSection(value: string): value is Section {
   return (SECTIONS as readonly string[]).includes(value)
 }
 
+/** A post whose frontmatter does not parse counts as published; its own check reports it. */
+function readDraft(file: string): boolean {
+  try {
+    return matter(readFileSync(file, 'utf-8'), {}).data.draft === true
+  } catch {
+    return false
+  }
+}
+
 /** Post folders per section: every directory that holds an `index.mdx`. */
-export function indexPosts(contentDir: string): Record<Section, Set<string>> {
-  const index = {} as Record<Section, Set<string>>
+export function indexPosts(contentDir: string): PostIndex {
+  const index = {} as PostIndex
   for (const section of SECTIONS) {
     const sectionDir = path.join(contentDir, section)
-    index[section] = new Set(
-      existsSync(sectionDir)
-        ? readdirSync(sectionDir, { withFileTypes: true })
-            .filter(
-              (entry) =>
-                entry.isDirectory() && existsSync(path.join(sectionDir, entry.name, 'index.mdx'))
-            )
-            .map((entry) => entry.name)
-        : []
-    )
+    index[section] = new Map()
+    if (!existsSync(sectionDir)) continue
+    for (const entry of readdirSync(sectionDir, { withFileTypes: true })) {
+      const file = path.join(sectionDir, entry.name, 'index.mdx')
+      if (entry.isDirectory() && existsSync(file)) {
+        index[section].set(entry.name, { draft: readDraft(file) })
+      }
+    }
   }
   return index
 }
 
-/** Static route segments beside each section's `[slug]` route, read from the app router tree. */
+/** Why `/<section>/<slug>` would not serve a page, or null when it does. */
+export function unservedReason(
+  posts: PostIndex,
+  customerSlugs: readonly string[],
+  section: Section,
+  slug: string
+): string | null {
+  const post = posts[section].get(slug)
+  if (!post) return `does not exist (no apps/sim/content/${section}/${slug}/index.mdx)`
+  if (section === 'customers') {
+    return customerSlugs.includes(slug)
+      ? null
+      : 'is not in CUSTOMER_STORIES (apps/sim/lib/customers/data.ts), so it 404s'
+  }
+  return post.draft ? 'is a draft, so it 404s' : null
+}
+
+/** Static routes beside each section's `[slug]` route: folders that define a page or route handler. */
 export function readReservedSegments(sectionAppDir: (section: Section) => string) {
   const reserved = {} as Record<Section, Set<string>>
   for (const section of SECTIONS) {
@@ -103,7 +136,12 @@ export function readReservedSegments(sectionAppDir: (section: Section) => string
     reserved[section] = new Set(
       existsSync(dir)
         ? readdirSync(dir, { withFileTypes: true })
-            .filter((entry) => entry.isDirectory() && !/^[[(_]/.test(entry.name))
+            .filter(
+              (entry) =>
+                entry.isDirectory() &&
+                !/^[[(_]/.test(entry.name) &&
+                ROUTE_FILES.some((name) => existsSync(path.join(dir, entry.name, name)))
+            )
             .map((entry) => entry.name)
         : []
     )
@@ -112,10 +150,7 @@ export function readReservedSegments(sectionAppDir: (section: Section) => string
 }
 
 /** Parses `<section>/<slug>` or a bare `<slug>`, resolving the latter against the post index. */
-export function resolvePostArg(
-  arg: string,
-  posts: Record<Section, Set<string>>
-): PostRef[] | string {
+export function resolvePostArg(arg: string, posts: PostIndex): PostRef[] | string {
   const [first, second] = arg.replace(/\/+$/, '').split('/')
   if (second !== undefined) {
     if (!isSection(first)) return `Unknown section "${first}"; use one of ${SECTIONS.join(', ')}.`
@@ -137,7 +172,7 @@ function lineOfKey(frontmatterLines: string[], key: string): number {
 /** Validates one post, returning every finding (empty when the post is clean). */
 export async function checkPost(
   config: ContentCheckConfig,
-  posts: Record<Section, Set<string>>,
+  posts: PostIndex,
   authorIds: ReadonlySet<string>,
   { section, slug }: PostRef
 ): Promise<Finding[]> {
@@ -228,8 +263,16 @@ export async function checkPost(
         `Point it at a file under apps/sim/public, e.g. /${section}/${slug}/cover.jpg.`
       )
     } else {
-      const target = path.join(config.publicDir, data.ogImage)
-      if (!existsSync(target) || !statSync(target).isFile()) {
+      const target = path.resolve(config.publicDir, `.${data.ogImage}`)
+      const relative = path.relative(config.publicDir, target)
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        report(
+          line,
+          'og-image',
+          `ogImage "${data.ogImage}" resolves outside apps/sim/public.`,
+          `Point it at a file under apps/sim/public, e.g. /${section}/${slug}/cover.jpg.`
+        )
+      } else if (!existsSync(target) || !statSync(target).isFile()) {
         report(
           line,
           'og-image',
@@ -308,15 +351,20 @@ export async function checkPost(
           `${link} moved to /library/${target}.`,
           `Link /library/${target} instead.`
         )
-      } else if (!posts[linkSection].has(target)) {
-        const elsewhere = SECTIONS.filter((other) => posts[other].has(target))
+      } else {
+        const reason = unservedReason(posts, config.customerSlugs, linkSection, target)
+        if (!reason) continue
+        const elsewhere = SECTIONS.filter(
+          (other) =>
+            other !== linkSection && !unservedReason(posts, config.customerSlugs, other, target)
+        )
         report(
           line,
           'internal-link',
-          `${link} does not exist (no apps/sim/content/${linkSection}/${target}/index.mdx).`,
+          `${link} ${reason}.`,
           elsewhere.length > 0
             ? `Did you mean ${elsewhere.map((other) => `/${other}/${target}`).join(' or ')}?`
-            : 'Fix the slug or remove the link.'
+            : 'Fix the slug, publish the target, or remove the link.'
         )
       }
     }
@@ -337,31 +385,59 @@ export async function checkPost(
   return findings
 }
 
-/** Every retired library slug must map to a post that still exists. */
-export function checkMergedSlugTargets(
+/** Every retired or moved slug must redirect to a library post that serves a page. */
+export function checkRedirectTargets(
   config: ContentCheckConfig,
-  posts: Record<Section, Set<string>>,
+  posts: PostIndex,
   file: string
 ): Finding[] {
-  return Object.entries(config.mergedSlugs)
-    .filter(([, kept]) => !posts.library.has(kept))
-    .map(([retired, kept]) => ({
+  const redirects = [
+    ...Object.entries(config.mergedSlugs).map(([from, to]) => [`/library/${from}`, to]),
+    ...config.movedBlogSlugs.map((slug) => [`/blog/${slug}`, slug]),
+  ]
+  return redirects.flatMap(([from, to]) => {
+    const reason = unservedReason(posts, config.customerSlugs, 'library', to)
+    if (!reason) return []
+    return {
       file,
       line: 1,
       rule: 'internal-link' as const,
-      message: `Retired slug "${retired}" redirects to /library/${kept}, which does not exist.`,
-      hint: 'Point LIBRARY_MERGED_SLUGS at a surviving library post.',
-    }))
+      message: `${from} redirects to /library/${to}, which ${reason}.`,
+      hint: 'Point the redirect in retired-slugs.ts at a published library post.',
+    }
+  })
 }
 
-export function readAuthorIds(contentDir: string): Set<string> {
+/** Author ids from every author JSON that passes `AuthorSchema`; invalid profiles are findings. */
+export function readAuthors(contentDir: string): { ids: Set<string>; findings: Finding[] } {
   const dir = path.join(contentDir, 'authors')
-  if (!existsSync(dir)) return new Set()
-  return new Set(
-    readdirSync(dir)
-      .filter((name) => name.endsWith('.json'))
-      .map((name) => (JSON.parse(readFileSync(path.join(dir, name), 'utf-8')) as { id: string }).id)
-  )
+  const ids = new Set<string>()
+  const findings: Finding[] = []
+  if (!existsSync(dir)) return { ids, findings }
+  for (const name of readdirSync(dir)
+    .filter((entry) => entry.endsWith('.json'))
+    .sort()) {
+    const file = path.join(dir, name)
+    let json: unknown
+    try {
+      json = JSON.parse(readFileSync(file, 'utf-8'))
+    } catch (error) {
+      json = error
+    }
+    const result = AuthorSchema.safeParse(json)
+    if (result.success) {
+      ids.add(result.data.id)
+      continue
+    }
+    findings.push({
+      file,
+      line: 1,
+      rule: 'frontmatter',
+      message: `Author profile is invalid: ${result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'} ${issue.message}`).join('; ')}`,
+      hint: 'Match AuthorSchema in apps/sim/lib/content/schema.ts (valid JSON with id and name).',
+    })
+  }
+  return { ids, findings }
 }
 
 export async function checkContent(
@@ -369,13 +445,14 @@ export async function checkContent(
   only?: PostRef[]
 ): Promise<{ checked: number; findings: Finding[] }> {
   const posts = indexPosts(config.contentDir)
-  const authorIds = readAuthorIds(config.contentDir)
+  const authors = readAuthors(config.contentDir)
   const targets =
-    only ?? SECTIONS.flatMap((section) => [...posts[section]].map((slug) => ({ section, slug })))
+    only ??
+    SECTIONS.flatMap((section) => [...posts[section].keys()].map((slug) => ({ section, slug })))
   const results = await Promise.all(
-    targets.map((target) => checkPost(config, posts, authorIds, target))
+    targets.map((target) => checkPost(config, posts, authors.ids, target))
   )
-  return { checked: targets.length, findings: results.flat() }
+  return { checked: targets.length, findings: [...authors.findings, ...results.flat()] }
 }
 
 async function main() {
@@ -389,6 +466,7 @@ async function main() {
     ),
     mergedSlugs: LIBRARY_MERGED_SLUGS,
     movedBlogSlugs: LIBRARY_MOVED_BLOG_SLUGS,
+    customerSlugs: CUSTOMER_STORIES.map((story) => story.slug),
   }
 
   const args = process.argv.slice(2)
@@ -410,7 +488,7 @@ async function main() {
     only = resolved
   } else {
     findings.push(
-      ...checkMergedSlugTargets(
+      ...checkRedirectTargets(
         config,
         indexPosts(config.contentDir),
         path.join(appDir, 'lib/library/retired-slugs.ts')
