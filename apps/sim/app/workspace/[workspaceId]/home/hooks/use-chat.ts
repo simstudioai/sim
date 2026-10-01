@@ -126,6 +126,7 @@ import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-ca
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
+import { useChatPanelStore } from '@/stores/chat-panel/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -1183,6 +1184,9 @@ export function useChat(
           : pendingChatKeyRef.current
       chatIdRef.current = chatId
       const resolvedDesktopScopeId = desktopChatScopeId(scopeKey, chatId)
+      if (wasPending) {
+        useChatPanelStore.getState().migrate(pendingDesktopScopeId, resolvedDesktopScopeId)
+      }
       const activeActivityTracker = resourceActivityTrackerRef.current
       if (activeActivityTracker?.generation === streamGenRef.current) {
         if (wasPending) {
@@ -1753,6 +1757,7 @@ export function useChat(
               return
             }
 
+            useChatPanelStore.getState().migrate(previousDesktopScopeId, resolvedChatId)
             await migrateDesktopChatScopes(previousDesktopScopeId, resolvedChatId)
             if (pendingChatKey) {
               useMothershipQueueStore.getState().migrate(pendingChatKey, resolvedChatId)

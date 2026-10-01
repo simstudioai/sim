@@ -53,6 +53,7 @@ import {
   parseSearchConnectionBody,
   searchConnectionTargetSchema,
 } from '@/lib/knowledge/search/connection-target'
+import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { organizationSecretNameSchema } from '@/lib/organization-secrets/validation'
@@ -3488,6 +3489,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
         {canManageBilling ? (
           <ChipLink
             href={href}
+            onNavigate={() => rememberSettingsReturnUrl(href)}
             variant='border'
             rightIcon={hosted ? ArrowRight : SquareArrowUpRight}
             target={hosted ? undefined : '_blank'}
