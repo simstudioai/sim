@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   TabStrip,
@@ -15,6 +16,7 @@ import {
 } from '@sim/emcn'
 import {
   Check,
+  ChevronDown,
   Download,
   Globe,
   Link,
@@ -48,6 +50,7 @@ import {
   type Chat,
   ORGANIZATION,
   WORKSPACES,
+  type Workspace,
   workspaceById,
 } from '@/app/playground/org/lib/mock-data'
 import { type ProjectSection, WORKSPACE_SECTIONS } from '@/app/playground/org/lib/routes'
@@ -252,7 +255,7 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
 
   const project = projectId ? workspaceById(projectId) : null
   const stripTabs: TabStripItem[] = tabs.map((tab) => stripItem(tab, activeKey === tabKey(tab)))
-  /** The tile is the switcher: picking a project (or the one already picked) shows the workspace tab. */
+  /** Picking a project shows it in the workspace tab. */
   const pickProject = (id: string | null) => {
     setProject(id)
     setActiveKey(WORKSPACE_TAB)
@@ -263,58 +266,34 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
     <ChatPanelLayout
       panel={
         <ChatPanelContent ref={resize.mothershipRef} collapsed={collapsed}>
-          <div className='flex min-w-0 items-center border-[var(--border)] border-b'>
-            <div className='shrink-0 pl-[var(--resource-header-end-inset)]'>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type='button'
-                    aria-label={`${project?.name ?? ORGANIZATION.name}: switch project`}
-                    className={cn(
-                      'flex size-[var(--tab-strip-band,30px)] shrink-0 items-center justify-center rounded-lg text-xs transition-colors',
-                      activeKey === WORKSPACE_TAB
-                        ? 'bg-[var(--surface-6)] text-[var(--text-body)]'
-                        : 'bg-[var(--surface-4)] text-[var(--text-icon)] hover-hover:bg-[var(--surface-6)]'
-                    )}
-                  >
-                    {(project ?? ORGANIZATION).name[0]}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='start' className='w-[260px]'>
-                  <DropdownMenuItem onSelect={() => pickProject(null)}>
-                    <IdentityTile initial={ORGANIZATION.name[0]} />
-                    <span className='min-w-0 flex-1 truncate'>{ORGANIZATION.name}</span>
-                    <Check className={cn(project && 'invisible')} />
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {WORKSPACES.map((candidate) => (
-                    <DropdownMenuItem key={candidate.id} onSelect={() => pickProject(candidate.id)}>
-                      <IdentityTile initial={candidate.name[0]} />
-                      <span className='min-w-0 flex-1 truncate'>{candidate.name}</span>
-                      <Check className={cn(candidate.id !== project?.id && 'invisible')} />
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <TabStrip
-              tabs={stripTabs}
-              variant='floating'
-              dividers={false}
-              className={cn(RESOURCE_HEADER_CLASSES.stripGeometry, 'min-w-0 flex-1')}
-              onSelect={setActiveKey}
-              onClose={close}
-              onNew={add}
-              newTabLabel='New tab'
-              endActions={
-                view.type === 'resource' ? (
+          <TabStrip
+            tabs={stripTabs}
+            variant='floating'
+            className={RESOURCE_HEADER_CLASSES.stripGeometry}
+            onSelect={setActiveKey}
+            onClose={close}
+            onNew={add}
+            newTabLabel='New tab'
+            endActions={
+              <>
+                {view.type === 'resource' ? (
                   <ResourceTabActions resource={view.resource} onBrowse={browse} />
                 ) : view.type === 'browser' ? (
                   <IconAction label='Copy Link' icon={Link} />
-                ) : null
-              }
-            />
-          </div>
+                ) : null}
+                <span aria-hidden='true' className='mx-1 h-4 w-px shrink-0 bg-[var(--border)]' />
+                <ProjectControl
+                  project={project}
+                  active={activeKey === WORKSPACE_TAB}
+                  onShow={() => {
+                    setActiveKey(WORKSPACE_TAB)
+                    setCollapsed(false)
+                  }}
+                  onPick={pickProject}
+                />
+              </>
+            }
+          />
           <ChatResourcePanel
             chatId={chat.id}
             view={view}
@@ -360,6 +339,67 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
         )}
       </div>
     </ChatPanelLayout>
+  )
+}
+
+interface ProjectControlProps {
+  project: Workspace | null
+  active: boolean
+  onShow: () => void
+  onPick: (projectId: string | null) => void
+}
+
+/**
+ * The split profile at the strip's end: the project (tile + name) shows the workspace tab,
+ * the chevron beside it switches project.
+ */
+function ProjectControl({ project, active, onShow, onPick }: ProjectControlProps) {
+  const current = project ?? ORGANIZATION
+  return (
+    <div className='flex h-[var(--tab-strip-band,30px)] shrink-0 items-center overflow-hidden rounded-lg border border-[var(--border)]'>
+      <button
+        type='button'
+        aria-pressed={active}
+        aria-label={`Show ${current.name}`}
+        onClick={onShow}
+        className={cn(
+          'flex h-full items-center gap-1.5 pr-2 pl-1.5 text-small transition-colors',
+          active
+            ? 'bg-[var(--surface-active)] text-[var(--text-primary)]'
+            : 'text-[var(--text-body)] hover-hover:bg-[var(--surface-hover)]'
+        )}
+      >
+        <IdentityTile initial={current.name[0]} />
+        <span className='max-w-[136px] truncate'>{current.name}</span>
+      </button>
+      <span aria-hidden='true' className='h-4 w-px bg-[var(--border)]' />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type='button'
+            aria-label='Switch project'
+            className='flex h-full w-6 items-center justify-center text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)]'
+          >
+            <ChevronDown className='size-[12px]' />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end' className='w-[246px]'>
+          <DropdownMenuLabel>Switch project</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={() => onPick(null)}>
+            <IdentityTile initial={ORGANIZATION.name[0]} />
+            <span className='min-w-0 flex-1 truncate'>{ORGANIZATION.name}</span>
+            <Check className={cn(project && 'invisible')} />
+          </DropdownMenuItem>
+          {WORKSPACES.map((candidate) => (
+            <DropdownMenuItem key={candidate.id} onSelect={() => onPick(candidate.id)}>
+              <IdentityTile initial={candidate.name[0]} />
+              <span className='min-w-0 flex-1 truncate'>{candidate.name}</span>
+              <Check className={cn(candidate.id !== project?.id && 'invisible')} />
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 
