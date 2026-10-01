@@ -41,6 +41,13 @@ const GLYPH_SIZE_CLASS = {
 /** The loader's goo: blur, then crush alpha so parts within the blur radius melt together. */
 const GOO_ALPHA_MATRIX = '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9'
 
+/**
+ * Crops to the 76-unit span `generateGlyph` fits into (plus a small margin) so the
+ * glyph fills the tile. Zooming via the viewBox, not the geometry, keeps the gaps
+ * the goo blur is tuned to.
+ */
+const GLYPH_VIEW_BOX = '10 10 80 80'
+
 function glyphShape(shape: GlyphShape, key: number) {
   switch (shape.kind) {
     case 'circle':
@@ -89,7 +96,7 @@ function Glyph({ seed, className, slot, size }: GlyphProps) {
     <svg
       data-slot={slot}
       aria-hidden='true'
-      viewBox='0 0 100 100'
+      viewBox={GLYPH_VIEW_BOX}
       className={cn(
         'shrink-0 text-[var(--text-icon)] dark:text-[var(--text-secondary)]',
         GLYPH_SIZE_CLASS[size],
