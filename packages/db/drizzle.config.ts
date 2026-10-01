@@ -20,5 +20,7 @@ export default {
     '!script_migrations',
     '!search_embedding_cleanup_progress',
     '!search_embedding_cleanup_targets',
+    '!search_retirement_*',
+    '!embedding_search_retirement_*',
   ],
 } satisfies Config

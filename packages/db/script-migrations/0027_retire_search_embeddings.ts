@@ -1,11 +1,9 @@
-import { parseArgs } from 'node:util'
-import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { retryOnLockTimeout } from '@sim/db/scripts/lock-timeout-retry'
 import { createLogger } from '@sim/logger'
 import { getPostgresCancellationReason } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import postgres, { type Sql, type TransactionSql } from 'postgres'
+import type { Sql, TransactionSql } from 'postgres'
 
 const logger = createLogger('RetireSearchEmbeddings')
 /** Most IDs one page reads in primary-key order; reading is cheap next to the mutation. */
@@ -409,37 +407,10 @@ async function validateTargetMarkers(tx: TransactionSql): Promise<void> {
   }
 }
 
-/**
- * The operator entry: resumes the saved cursor and, with `--maintenance`, also rebuilds the indexes,
- * vacuums, and journals the completed cleanup. `--pause-ratio` and `--max-rows` set the pacing.
- */
+/** Historical implementation remains for migration replay tests; the unbounded CLI is retired. */
 if (import.meta.main) {
-  const { values } = parseArgs({
-    options: {
-      maintenance: { type: 'boolean', default: false },
-      'pause-ratio': { type: 'string' },
-      'max-rows': { type: 'string' },
-    },
-  })
-  const pacing: RetirementPacing = {
-    pauseRatio: Number(values['pause-ratio'] ?? DEFAULT_RETIREMENT_PACING.pauseRatio),
-    maxRows: Number(values['max-rows'] ?? DEFAULT_RETIREMENT_PACING.maxRows),
-  }
-  const url = resolveMigrationDatabaseUrl()
-  if (!url) throw new Error('DATABASE_URL is required for Search retirement')
-  const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
-  try {
-    if (values.maintenance) {
-      const { runScriptMigrations } = await import('@sim/db/script-migrations/index')
-      const { retireAllSearchEmbeddings } = await import(
-        '@sim/db/script-migrations/0029_retire_all_search_embeddings'
-      )
-      await runScriptMigrations(sql, [retireAllSearchEmbeddings(pacing)])
-    } else {
-      await retireSearchEmbeddings(sql, pacing)
-      logger.info('Search retirement pass finished; run with --maintenance off-peak to complete it')
-    }
-  } finally {
-    await sql.end()
-  }
+  logger.error(
+    'Use packages/db/scripts/retire-indexed-search.ts. The legacy delete/reindex command is disabled.'
+  )
+  process.exitCode = 1
 }
