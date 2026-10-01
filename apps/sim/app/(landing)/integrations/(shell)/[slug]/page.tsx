@@ -559,16 +559,16 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         <section aria-labelledby='overview-heading' className='px-6 py-10'>
           <h2
             id='overview-heading'
-            className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+            className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
           >
             What Sim agents can do with {name}
           </h2>
           {overviewBody && (
-            <p className='text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+            <p className='text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
               {overviewBody}
             </p>
           )}
-          <dl className='mt-6 grid grid-cols-2 gap-x-6 gap-y-4 text-[14px] sm:grid-cols-3 lg:grid-cols-5'>
+          <dl className='mt-6 grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3 lg:grid-cols-5'>
             {[
               { term: 'Category', detail: categoryLabel },
               { term: 'Authentication', detail: AUTH_LABEL[authType] },
@@ -603,11 +603,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='install-heading' className='px-6 py-10'>
               <h2
                 id='install-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 {landingContent.install.heading}
               </h2>
-              <p className='mb-6 max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='mb-6 max-w-[700px] text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
                 {landingContent.install.intro}
               </p>
               <ol className='space-y-4' aria-label={`Steps to add ${name}`}>
@@ -623,7 +623,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                       <h3 className='mb-1 text-[15px] text-[var(--text-primary)] tracking-[-0.02em]'>
                         {item.title}
                       </h3>
-                      <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+                      <p className='text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em]'>
                         {item.body}
                       </p>
                     </div>
@@ -644,11 +644,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='privacy-heading' className='px-6 py-10'>
               <h2
                 id='privacy-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 Privacy & data
               </h2>
-              <p className='max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='max-w-[700px] text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
                 {landingContent.privacy.body}{' '}
                 <Link
                   href={landingContent.privacy.href}
@@ -669,11 +669,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='ai-disclaimer-heading' className='px-6 py-10'>
               <h2
                 id='ai-disclaimer-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 AI-generated content
               </h2>
-              <p className='max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='max-w-[700px] text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
                 {landingContent.aiDisclaimer}
               </p>
             </section>
@@ -685,7 +685,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         <section aria-labelledby='how-it-works-heading' className='px-6 py-10'>
           <h2
             id='how-it-works-heading'
-            className='mb-6 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+            className='mb-6 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
           >
             How to automate {name} with Sim
           </h2>
@@ -723,7 +723,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   <h3 className='mb-1 text-[15px] text-[var(--text-primary)] tracking-[-0.02em]'>
                     {title}
                   </h3>
-                  <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+                  <p className='text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em]'>
                     {body}
                   </p>
                 </div>
@@ -752,12 +752,12 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 </span>
                 <h2
                   id='triggers-heading'
-                  className='text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                  className='text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
                 >
                   {name} triggers
                 </h2>
               </div>
-              <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em]'>
                 {seo?.triggersIntro ?? (
                   <>
                     Add {articleFor(name)} {name} trigger to a Sim agent and it starts a run
@@ -771,11 +771,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               <div key={trigger.id}>
                 <div className='flex items-start gap-4 px-6 py-4'>
                   <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                    <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
+                    <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
                       {trigger.name}
                     </h3>
                     {trigger.description && (
-                      <p className='text-[12px] text-[var(--text-muted)] leading-[150%]'>
+                      <p className='text-[var(--text-muted)] text-caption leading-[150%]'>
                         {trigger.description}
                       </p>
                     )}
@@ -793,7 +793,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <div className='px-6 pt-10 pb-4'>
               <h2
                 id='templates-heading'
-                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-2 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 Agent templates
               </h2>
@@ -860,7 +860,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                                 <TemplateIconRow allTypes={resolveTypes(template)} />
                               </div>
                               <div className='flex flex-col gap-2'>
-                                <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
+                                <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
                                   {template.title}
                                 </h3>
                                 <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
@@ -886,10 +886,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                           <TemplateIconRow allTypes={resolveTypes(lastTemplate)} />
                         </div>
                         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                          <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
+                          <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
                             {lastTemplate.title}
                           </h3>
-                          <p className='line-clamp-1 text-[12px] text-[var(--text-muted)] leading-[150%]'>
+                          <p className='line-clamp-1 text-[var(--text-muted)] text-caption leading-[150%]'>
                             {lastTemplate.prompt}
                           </p>
                         </div>
@@ -909,7 +909,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <div className='px-6 pt-10 pb-4'>
               <h2
                 id='tools-heading'
-                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-2 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 {name} tools
               </h2>
@@ -923,11 +923,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               <div key={op.name}>
                 <div className='flex items-start gap-4 px-6 py-4'>
                   <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                    <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
+                    <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
                       {op.name}
                     </h3>
                     {op.description && (
-                      <p className='text-[12px] text-[var(--text-muted)] leading-[150%]'>
+                      <p className='text-[var(--text-muted)] text-caption leading-[150%]'>
                         {op.description}
                       </p>
                     )}
@@ -971,7 +971,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         <section aria-labelledby='faq-heading' className='px-6 py-10'>
           <h2
             id='faq-heading'
-            className='mb-8 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+            className='mb-8 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
           >
             Frequently asked questions
           </h2>
@@ -986,7 +986,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <div className='px-6 pt-10 pb-4'>
               <h2
                 id='related-heading'
-                className='text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 Related {categoryLabel} integrations
               </h2>

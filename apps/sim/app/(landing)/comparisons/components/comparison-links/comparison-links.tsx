@@ -11,7 +11,7 @@ export function ComparisonLinks({ competitors }: ComparisonLinksProps) {
     <section aria-labelledby='comparison-links-heading'>
       <h2
         id='comparison-links-heading'
-        className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+        className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
       >
         Compare Sim
       </h2>

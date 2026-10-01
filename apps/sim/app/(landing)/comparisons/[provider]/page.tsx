@@ -217,7 +217,7 @@ export default async function ComparisonProviderPage({
                 <section aria-labelledby='better-than-heading' className='px-6 py-10'>
                   <h2
                     id='better-than-heading'
-                    className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                    className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
                   >
                     Is Sim better than {competitor.name}?
                   </h2>
@@ -270,7 +270,7 @@ export default async function ComparisonProviderPage({
             <section aria-labelledby='comparison-table-heading' className='px-6 pt-10 pb-4'>
               <h2
                 id='comparison-table-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Sim vs {competitor.name}: feature-by-feature comparison
               </h2>
@@ -341,7 +341,7 @@ export default async function ComparisonProviderPage({
             <section aria-labelledby='bottom-line-heading' className='px-6 py-10'>
               <h2
                 id='bottom-line-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Bottom line
               </h2>
@@ -362,7 +362,7 @@ export default async function ComparisonProviderPage({
                 <section aria-labelledby='related-reading-heading'>
                   <h2
                     id='related-reading-heading'
-                    className='px-6 pt-10 pb-6 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                    className='px-6 pt-10 pb-6 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
                   >
                     Related reading
                   </h2>
@@ -380,7 +380,7 @@ export default async function ComparisonProviderPage({
             <section aria-labelledby='faq-heading' className='px-6 py-10'>
               <h2
                 id='faq-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Frequently asked questions
               </h2>
