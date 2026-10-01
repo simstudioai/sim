@@ -1,7 +1,17 @@
 'use client'
 
-import { Chip, ChipDropdown, ChipTag, cn } from '@sim/emcn'
-import { Settings } from '@sim/emcn/icons'
+import {
+  Chip,
+  ChipDropdown,
+  ChipTag,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@sim/emcn'
+import { Check, ChevronDown, Settings } from '@sim/emcn/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { BrowseRow, BrowseSection } from '@/app/playground/org/components/browse-rows'
 import { Changelog } from '@/app/playground/org/components/changelog'
@@ -24,7 +34,7 @@ const TABS = [
   { id: 'resources' as ProjectSection, label: 'Resources' },
 ]
 
-const TAB_CLASS = 'border-b-2 pt-3 pb-2.5 text-small transition-colors'
+const TAB_CLASS = '-mb-px border-b-2 pb-2.5 text-small transition-colors'
 const TAB_IDLE_CLASS =
   'border-transparent text-[var(--text-muted)] hover-hover:text-[var(--text-body)]'
 
@@ -42,38 +52,67 @@ export function WorkspaceView() {
     : 'resources'
   return (
     <div className='flex h-full min-h-0 flex-col'>
-      <div className='border-[var(--border)] border-b'>
-        <header className='flex shrink-0 items-end gap-3 px-4'>
-          <nav aria-label='Project sections' className='flex min-w-0 flex-1 items-center gap-5'>
-            {TABS.map((item) => {
-              const active = activeTab === item.id
-              return (
+      <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
+        <div className='flex min-w-0 flex-col gap-0.5'>
+          <div className='flex items-center gap-1.5'>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <button
-                  key={item.id}
                   type='button'
-                  onClick={() => setSection(item.id)}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    TAB_CLASS,
-                    active
-                      ? 'border-[var(--text-primary)] text-[var(--text-primary)]'
-                      : TAB_IDLE_CLASS
-                  )}
+                  className='flex w-fit items-center gap-1.5 text-[20px] text-[var(--text-primary)] leading-tight'
                 >
-                  {item.label}
+                  {workspace.name}
+                  <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
                 </button>
-              )
-            })}
-          </nav>
-          <div className='pb-1.5'>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='start' className='w-[260px]'>
+                <DropdownMenuItem onSelect={() => setProject(null)}>
+                  <IdentityTile initial={ORGANIZATION.name[0]} />
+                  <span className='min-w-0 flex-1 truncate'>{ORGANIZATION.name}</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {WORKSPACES.map((candidate) => (
+                  <DropdownMenuItem key={candidate.id} onSelect={() => setProject(candidate.id)}>
+                    <IdentityTile initial={candidate.name[0]} />
+                    <span className='min-w-0 flex-1 truncate'>{candidate.name}</span>
+                    <Check className={cn(candidate.id !== workspace.id && 'invisible')} />
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Chip
               leftIcon={Settings}
               aria-label='Settings'
               onClick={() => setSection('settings')}
             />
           </div>
-        </header>
-      </div>
+          <p className='text-[var(--text-muted)] text-small'>{workspace.description}</p>
+        </div>
+        <nav
+          aria-label='Project sections'
+          className='flex items-center gap-6 border-[var(--border)] border-b'
+        >
+          {TABS.map((item) => {
+            const active = activeTab === item.id
+            return (
+              <button
+                key={item.id}
+                type='button'
+                onClick={() => setSection(item.id)}
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  TAB_CLASS,
+                  active
+                    ? 'border-[var(--text-primary)] text-[var(--text-primary)]'
+                    : TAB_IDLE_CLASS
+                )}
+              >
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
+      </header>
       <div className='min-h-0 flex-1 overflow-y-auto'>
         <SectionBody section={section} />
       </div>

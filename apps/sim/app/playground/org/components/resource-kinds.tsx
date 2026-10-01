@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Folder } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import {
   isPanelKind,
@@ -79,7 +78,6 @@ export function ResourceKinds({ workspace }: { workspace: Workspace }) {
 
   return (
     <Resource>
-      <Resource.Header icon={Folder} title='Resources' />
       <Resource.Options
         search={{ value: search, onChange: setSearch, placeholder: `Search ${workspace.name}` }}
       />
