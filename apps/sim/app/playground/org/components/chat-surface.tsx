@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Chip,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +14,7 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import {
-  ChevronDown,
+  Check,
   Download,
   Globe,
   Link,
@@ -253,6 +252,12 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
 
   const project = projectId ? workspaceById(projectId) : null
   const stripTabs: TabStripItem[] = tabs.map((tab) => stripItem(tab, activeKey === tabKey(tab)))
+  /** The tile is the switcher: picking a project (or the one already picked) shows the workspace tab. */
+  const pickProject = (id: string | null) => {
+    setProject(id)
+    setActiveKey(WORKSPACE_TAB)
+    setCollapsed(false)
+  }
 
   return (
     <ChatPanelLayout
@@ -260,17 +265,32 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
         <ChatPanelContent ref={resize.mothershipRef} collapsed={collapsed}>
           <div className='flex min-w-0 items-center border-[var(--border)] border-b'>
             <div className='shrink-0 pl-[var(--resource-header-end-inset)]'>
-              <Chip
-                variant='outline'
-                leftAdornment={<IdentityTile initial={(project ?? ORGANIZATION).name[0]} />}
-                rightIcon={ChevronDown}
-                onClick={() => {
-                  setActiveKey(WORKSPACE_TAB)
-                  setCollapsed(false)
-                }}
-              >
-                {project?.name ?? ORGANIZATION.name}
-              </Chip>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <TabStripAction
+                    variant='subtle'
+                    aria-label={`${project?.name ?? ORGANIZATION.name}: switch project`}
+                    className={cn(activeKey === WORKSPACE_TAB && 'bg-[var(--surface-active)]')}
+                  >
+                    <IdentityTile initial={(project ?? ORGANIZATION).name[0]} />
+                  </TabStripAction>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='start' className='w-[260px]'>
+                  <DropdownMenuItem onSelect={() => pickProject(null)}>
+                    <IdentityTile initial={ORGANIZATION.name[0]} />
+                    <span className='min-w-0 flex-1 truncate'>{ORGANIZATION.name}</span>
+                    <Check className={cn(project && 'invisible')} />
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {WORKSPACES.map((candidate) => (
+                    <DropdownMenuItem key={candidate.id} onSelect={() => pickProject(candidate.id)}>
+                      <IdentityTile initial={candidate.name[0]} />
+                      <span className='min-w-0 flex-1 truncate'>{candidate.name}</span>
+                      <Check className={cn(candidate.id !== project?.id && 'invisible')} />
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <TabStrip
               tabs={stripTabs}
