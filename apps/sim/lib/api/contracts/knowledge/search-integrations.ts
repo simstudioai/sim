@@ -13,6 +13,7 @@ export type SearchIntegrationApproval = z.output<typeof searchIntegrationApprova
 
 export const searchIntegrationStatusSchema = searchIntegrationApprovalSchema.extend({
   available: z.boolean().optional(),
+  configuredServiceSource: z.boolean().optional(),
 })
 export type SearchIntegrationStatus = z.output<typeof searchIntegrationStatusSchema>
 

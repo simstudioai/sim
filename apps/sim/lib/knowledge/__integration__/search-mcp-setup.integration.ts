@@ -3,6 +3,8 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  knowledgeBase,
+  knowledgeConnector,
   mcpServers,
   member,
   organization,
@@ -35,6 +37,10 @@ import {
   approveSearchIntegration,
   listSearchIntegrations,
 } from '@/lib/knowledge/application/search-integrations'
+import {
+  GITHUB_INSTALLATION_PROVIDER_ID,
+  type GitHubInstallationBinding,
+} from '@/lib/oauth/github-installation-types'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { SLACK_RTS_USER_SCOPES } from '@/lib/sim-search/live/scopes'
 
@@ -246,6 +252,204 @@ describe('atomic organization live Search MCP setup', () => {
       expect(repeated.credentials).toEqual(state.credentials)
     }
   )
+
+  async function seedServiceSource(provider: 'google_drive' | 'github' | 'gitlab') {
+    const knowledgeBaseId = generateId()
+    const connectorId = generateId()
+    const credentialId = generateId()
+    const installation = {
+      type: 'github_app_installation',
+      version: 1,
+      appId: '1',
+      appClientId: 'fixture-github-app',
+      installationId: '21',
+      accountId: '11',
+      accountType: 'Organization',
+      accountLogin: 'fixture-owner',
+      repositorySelection: 'selected',
+    } satisfies GitHubInstallationBinding
+    const encryptedInstallation =
+      provider === 'github' ? await encryptSecret(JSON.stringify(installation)) : undefined
+    await db.insert(knowledgeBase).values({
+      id: knowledgeBaseId,
+      userId: ids.owner,
+      organizationId: ids.organization,
+      isSearchIndex: true,
+      name: 'Service source fixture',
+    })
+    await db.insert(credential).values({
+      id: credentialId,
+      organizationId: ids.organization,
+      type: 'service_account',
+      providerId: provider === 'github' ? GITHUB_INSTALLATION_PROVIDER_ID : 'google-drive',
+      ...(encryptedInstallation
+        ? {
+            encryptedServiceAccountKey: encryptedInstallation.encrypted,
+            providerSubjectId: installation.installationId,
+            providerTenantId: installation.accountId,
+            authorizationAppId: installation.appClientId,
+          }
+        : {}),
+      displayName: 'Service source fixture',
+      createdBy: ids.owner,
+    })
+    await db.insert(knowledgeConnector).values({
+      id: connectorId,
+      knowledgeBaseId,
+      connectorType: provider,
+      credentialId,
+      encryptedApiKey: provider === 'gitlab' ? 'synthetic-encrypted-key' : null,
+      sourceConfig:
+        provider === 'github'
+          ? { repository: 'fixture-owner/repository', githubRepositoryId: '101' }
+          : {},
+      accessMode: provider === 'github' ? 'members' : 'admin',
+      status: 'active',
+    })
+    await db.insert(organizationSearchIntegration).values({
+      organizationId: ids.organization,
+      connectorType: provider,
+      approved: true,
+    })
+    await db
+      .update(organization)
+      .set({
+        metadata: {
+          liveSearchPolicies: {
+            [provider]: {
+              ...defaultLiveSearchPolicy(provider),
+              accessMode: 'service_account',
+              ...(provider === 'google_drive' ? { sourceId: connectorId } : {}),
+            },
+          },
+        },
+      })
+      .where(eq(organization.id, ids.organization))
+    return { knowledgeBaseId, connectorId, credentialId }
+  }
+
+  async function integrationStatus(provider: string) {
+    const data = await listSearchIntegrations.execute({
+      principal: createSessionPrincipal({ userId: ids.member, sessionId: generateId() }),
+      input: { organizationId: ids.organization },
+    })
+    return listSearchIntegrationsContract.response.schema
+      .parse({ success: true, data })
+      .data.find((entry) => entry.connectorType === provider)
+  }
+
+  it.each(['google_drive', 'github', 'gitlab'] as const)(
+    'reports a configured %s service source without requiring a member account',
+    async (provider) => {
+      const source = await seedServiceSource(provider)
+      expect((await snapshot()).groups).toEqual([])
+      expect(await integrationStatus(provider)).toMatchObject({ configuredServiceSource: true })
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'disabled' })
+        .where(eq(knowledgeConnector.id, source.connectorId))
+      expect(await integrationStatus(provider)).toMatchObject({ configuredServiceSource: false })
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'active', archivedAt: new Date() })
+        .where(eq(knowledgeConnector.id, source.connectorId))
+      expect(await integrationStatus(provider)).toMatchObject({ configuredServiceSource: false })
+      await db
+        .update(knowledgeConnector)
+        .set({ archivedAt: null })
+        .where(eq(knowledgeConnector.id, source.connectorId))
+      await db
+        .update(knowledgeBase)
+        .set({ deletedAt: new Date() })
+        .where(eq(knowledgeBase.id, source.knowledgeBaseId))
+      expect(await integrationStatus(provider)).toMatchObject({ configuredServiceSource: false })
+      await db
+        .update(knowledgeBase)
+        .set({ deletedAt: null })
+        .where(eq(knowledgeBase.id, source.knowledgeBaseId))
+      await db
+        .update(organizationSearchIntegration)
+        .set({ approved: false })
+        .where(eq(organizationSearchIntegration.organizationId, ids.organization))
+      expect(await integrationStatus(provider)).toMatchObject({ configuredServiceSource: false })
+    }
+  )
+
+  it('requires the selected service source to belong to this organization and provider', async () => {
+    const source = await seedServiceSource('google_drive')
+    const otherOrganizationId = generateId()
+    await db.insert(organization).values({
+      id: otherOrganizationId,
+      name: 'Other service fixture',
+      slug: otherOrganizationId,
+    })
+    try {
+      await db
+        .update(knowledgeBase)
+        .set({ organizationId: otherOrganizationId })
+        .where(eq(knowledgeBase.id, source.knowledgeBaseId))
+      expect(await integrationStatus('google_drive')).toMatchObject({
+        configuredServiceSource: false,
+      })
+      await db
+        .update(knowledgeBase)
+        .set({ organizationId: ids.organization })
+        .where(eq(knowledgeBase.id, source.knowledgeBaseId))
+      await db
+        .update(knowledgeConnector)
+        .set({ connectorType: 'confluence' })
+        .where(eq(knowledgeConnector.id, source.connectorId))
+      expect(await integrationStatus('google_drive')).toMatchObject({
+        configuredServiceSource: false,
+      })
+      await db
+        .update(knowledgeConnector)
+        .set({ connectorType: 'google_drive' })
+        .where(eq(knowledgeConnector.id, source.connectorId))
+      await db
+        .update(organization)
+        .set({
+          metadata: {
+            liveSearchPolicies: {
+              google_drive: {
+                ...defaultLiveSearchPolicy(),
+                accessMode: 'service_account',
+                sourceId: generateId(),
+              },
+            },
+          },
+        })
+        .where(eq(organization.id, ids.organization))
+      expect(await integrationStatus('google_drive')).toMatchObject({
+        configuredServiceSource: false,
+      })
+    } finally {
+      await db.delete(organization).where(eq(organization.id, otherOrganizationId))
+    }
+  })
+
+  it('does not count a GitHub member source without its active installation credential', async () => {
+    const source = await seedServiceSource('github')
+    await db
+      .update(credential)
+      .set({ revokedAt: new Date() })
+      .where(eq(credential.id, source.credentialId))
+    expect(await integrationStatus('github')).toMatchObject({ configuredServiceSource: false })
+    await db
+      .update(credential)
+      .set({ revokedAt: null })
+      .where(eq(credential.id, source.credentialId))
+    await db
+      .update(knowledgeConnector)
+      .set({ memberSyncStatus: 'disabled' })
+      .where(eq(knowledgeConnector.id, source.connectorId))
+    expect(await integrationStatus('github')).toMatchObject({ configuredServiceSource: false })
+    await db
+      .update(knowledgeConnector)
+      .set({ memberSyncStatus: 'idle', sourceConfig: {} })
+      .where(eq(knowledgeConnector.id, source.connectorId))
+    expect(await integrationStatus('github')).toMatchObject({ configuredServiceSource: false })
+  })
 
   it('keeps disabled Zoom approvals visible and removable without permitting reapproval', async () => {
     const connectorType = 'zoom'

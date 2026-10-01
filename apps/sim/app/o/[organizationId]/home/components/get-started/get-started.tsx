@@ -71,7 +71,7 @@ function StepMark({ complete }: { complete: boolean }) {
  * The organization home's onboarding list under the composer. Same chrome as
  * the workspace home's suggested actions: a hover-revealed disclosure header
  * over hairline-separated rows. Each step leads to the page that completes it,
- * and reads as done from the organization's real state: a connected account and an OAuth app authorized to use Search.
+ * and reads as done from the organization's real state: a configured integration and an OAuth app authorized to use Search.
  */
 export function GetStarted() {
   const { organization, viewer, connectedAccountsAvailable } = useOrganizationContext()
@@ -142,7 +142,15 @@ export function GetStarted() {
     'connect-sim-search': routes.settingsSection('search-mcp'),
   }
   const completed: Record<StepId, boolean> = {
-    'connect-integration': Boolean(hasSearchConnection),
+    'connect-integration': Boolean(
+      hasSearchConnection ||
+        integrations?.some(
+          (integration) =>
+            integration.approved &&
+            integration.available !== false &&
+            integration.configuredServiceSource
+        )
+    ),
     'connect-sim-search': hasSearchAuthorization,
   }
   const steps = STEPS.filter((step) =>
