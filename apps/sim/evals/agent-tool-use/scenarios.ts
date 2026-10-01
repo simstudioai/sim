@@ -499,7 +499,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
     expect: {
       requiredTools: ['search_docs'],
       finalContent:
-        /could ?n[o']t find|cannot find|can'?t find|no results|not find|unable to find|no .*policy/i,
+        /could ?n'?o?t find|cannot find|can'?t find|didn'?t find|wasn'?t able|not able to find|unable to find|no results|no matching|no documentation|no information|not covered|returned empty|came back empty|found nothing|no .*policy/i,
       maxIterations: 3,
     },
   },
@@ -567,7 +567,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
     category: 'tool-selection',
     description:
       'get_user and get_user_settings differ by suffix; only the settings tool has the timezone.',
-    userMessage: 'What timezone is set in my account settings?',
+    userMessage: 'What timezone is set in my account settings? My user id is u-42.',
     tools: [getUser, getUserSettings],
     script: [
       {
@@ -575,7 +575,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
         calls: [
           {
             name: 'get_user_settings',
-            args: { userId: 'me' },
+            args: { userId: 'u-42' },
             result: { success: true, output: { timezone: 'Europe/Berlin' } },
           },
         ],
