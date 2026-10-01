@@ -110,6 +110,7 @@ export function DashboardPanel({
         ...panelRange,
       },
     },
+    refreshedAt: now,
   })
   const title = 'stat' in block ? block.stat : 'chart' in block ? block.chart : block.table
   const data = query.data

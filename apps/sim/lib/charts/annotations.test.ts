@@ -79,6 +79,25 @@ describe('chart annotations', () => {
     })
   })
 
+  it('puts the label series on the same axes as the first series', () => {
+    const option = applyChartAnnotations(
+      {
+        xAxis: { type: 'time' },
+        yAxis: [{ type: 'value' }, { type: 'value' }],
+        series: [{ type: 'line', yAxisIndex: 1 }],
+      },
+      { thresholds: [{ value: 5, label: 'Limit' }] },
+      palette
+    )
+    expect((option.series as Series[])[1]).toMatchObject({ yAxisIndex: 1 })
+  })
+
+  it('rejects thresholds on a chart without axes', () => {
+    expect(() =>
+      applyChartAnnotations({ series: [{ type: 'pie' }] }, { thresholds: [{ value: 1 }] }, palette)
+    ).toThrow('Thresholds require a value axis')
+  })
+
   it('adds no label series when nothing is labelled', () => {
     const option = applyChartAnnotations(timeSeries, { thresholds: [{ value: 1 }] }, palette)
     expect(option.series).toHaveLength(2)

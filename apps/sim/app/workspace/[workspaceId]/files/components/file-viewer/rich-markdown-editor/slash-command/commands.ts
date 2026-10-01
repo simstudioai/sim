@@ -15,6 +15,7 @@ import {
   TextQuote,
 } from '@sim/emcn/icons'
 import type { Editor, Range } from '@tiptap/core'
+import { TextSelection } from '@tiptap/pm/state'
 import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
 
 /** A time-series starter; the table id is left for the author to fill in. */
@@ -157,7 +158,16 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
           attrs: { language: DASHBOARD_EMBED_LANGUAGE },
           content: [{ type: 'text', text: DASHBOARD_EMBED_STARTER }],
         })
-        .setTextSelection(range.from + 1)
+        .command(({ tr }) => {
+          let fence = -1
+          tr.doc.nodesBetween(range.from - 1, tr.doc.content.size, (node, pos) => {
+            if (fence < 0 && node.type.name === 'codeBlock') fence = pos
+            return fence < 0
+          })
+          if (fence < 0) return false
+          tr.setSelection(TextSelection.create(tr.doc, fence + 1))
+          return true
+        })
         .run(),
   },
   {

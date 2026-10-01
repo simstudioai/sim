@@ -3,7 +3,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
-import { useIsFetching, useQueryClient } from '@tanstack/react-query'
+import { useIsFetching } from '@tanstack/react-query'
 import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 import type { DashboardRange, DashboardTime } from '@/lib/dashboards/spec'
 import {
@@ -55,7 +55,6 @@ export function useDashboardTime({
   const cursorStoreRef = useRef<DashboardCursorStore | null>(null)
   cursorStoreRef.current ??= createDashboardCursorStore()
   const cursorStore = cursorStoreRef.current
-  const queryClient = useQueryClient()
   const [now, setNow] = useState(() => Date.now())
   const [inputError, setInputError] = useState<string | null>(null)
   const queryFilter = {
@@ -82,14 +81,13 @@ export function useDashboardTime({
     }
   }
 
+  /** Advancing `now` rolls relative ranges and re-keys fixed ones, refetching only this view. */
   const tick = useEffectEvent(() => {
-    if (document.visibilityState !== 'visible') return
-    if (period === 'custom') void queryClient.invalidateQueries(queryFilter)
-    else setNow(Date.now())
+    if (document.visibilityState === 'visible') setNow(Date.now())
   })
   /** A view that resumes after a pause catches up at once instead of on the next tick. */
   const catchUp = useEffectEvent(() => {
-    if (period !== 'custom' && Date.now() - now >= LIVE_TICK_MS) tick()
+    if (Date.now() - now >= LIVE_TICK_MS) tick()
   })
   useEffect(() => {
     if (!live) return
@@ -147,7 +145,6 @@ export function useDashboardTime({
       onRefresh: () => {
         setNow(Date.now())
         cursorStore.getState().clearCursor()
-        if (period === 'custom') void queryClient.invalidateQueries(queryFilter)
       },
       onZoneChange: (zone: 'utc' | 'local') => setState({ zone }),
     },

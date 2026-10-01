@@ -1,4 +1,4 @@
-import { toRecord } from '@sim/utils/object'
+import { filterUndefined, toRecord } from '@sim/utils/object'
 
 export const CHART_TONES = ['neutral', 'error', 'info'] as const
 export type ChartTone = (typeof CHART_TONES)[number]
@@ -33,6 +33,8 @@ function firstAxis(axis: unknown): Record<string, unknown> {
 
 /** The axis a threshold is measured on; ECharts defaults an unspecified yAxis to a value axis. */
 export function valueAxisKey(option: Record<string, unknown>): 'xAxis' | 'yAxis' {
+  if (option.xAxis === undefined && option.yAxis === undefined)
+    throw new Error('Thresholds require a value axis')
   const y = firstAxis(option.yAxis)
   if (y.type === undefined || y.type === 'value' || y.type === 'log') return 'yAxis'
   const x = firstAxis(option.xAxis)
@@ -147,6 +149,12 @@ export function applyChartAnnotations(
           {
             id: CHART_ANNOTATION_SERIES_ID,
             type: 'line',
+            ...filterUndefined({
+              xAxisIndex: first.xAxisIndex,
+              yAxisIndex: first.yAxisIndex,
+              xAxisId: first.xAxisId,
+              yAxisId: first.yAxisId,
+            }),
             data: [],
             silent: true,
             z: 3,
