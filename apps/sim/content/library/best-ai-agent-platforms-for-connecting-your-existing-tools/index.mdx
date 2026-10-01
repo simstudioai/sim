@@ -3,7 +3,7 @@ slug: best-ai-agent-platforms-for-connecting-your-existing-tools
 title: 'Best AI Agent Platforms for Connecting Your Existing Tools'
 description: 'Compare the best AI agent platforms for connecting Slack, Notion, Airtable, and other existing tools, including Sim, Zapier, Make, n8n, Gumloop, and Workato.'
 date: 2026-08-01
-updated: 2026-08-01
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 12
@@ -18,18 +18,18 @@ faq:
   - q: "Can these platforms write back to connected tools?"
     a: "Yes, but write-back depth varies by platform and connector. Buyers should verify the exact create, update, and delete actions required for each production workflow."
   - q: "Which platforms can be self-hosted?"
-    a: "Sim and n8n can be self-hosted. Sim uses the permissive Apache 2.0 license, while n8n's self-hosted edition uses its source-available Sustainable Use License. Self-hosting adds infrastructure responsibility as well as deployment control."
+    a: "Sim and n8n can be self-hosted. Sim's core uses the permissive Apache 2.0 license, while enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use. n8n's self-hosted edition uses its source-available Sustainable Use License. Self-hosting adds infrastructure responsibility as well as deployment control."
   - q: "What is the best open-source Zapier alternative?"
-    a: "Sim is a strong open-source Zapier alternative for teams that need agent reasoning, write-back actions, real-time triggers, and a permissive Apache 2.0 license. Zapier remains better suited to teams that prioritize maximum connector breadth and managed setup."
+    a: "Sim is a strong open-source Zapier alternative for teams that need agent reasoning, write-back actions, real-time triggers, and a permissive Apache 2.0 core license. Zapier remains better suited to teams that prioritize maximum connector breadth and managed setup."
   - q: "What is the difference between Sim and Zapier?"
-    a: "Sim combines agent reasoning, deterministic workflow logic, write-back actions, and Apache 2.0 self-hosting, while Zapier prioritizes a large managed app catalog. Choose according to whether infrastructure control or catalog breadth matters more."
+    a: "Sim combines agent reasoning, deterministic workflow logic, write-back actions, and self-hosting of its Apache 2.0 core, while Zapier prioritizes a large managed app catalog. Choose according to whether infrastructure control or catalog breadth matters more."
 ---
 
 ## TL;DR
 
 The best AI agent platforms for connecting existing tools are Sim, Zapier, Make, n8n, Gumloop, and Workato, but each is strongest for a different integration requirement.
 
-- **Sim** combines AI reasoning, write-back actions, real-time triggers, and Apache 2.0 self-hosting across a growing integration catalog.
+- **Sim** combines AI reasoning, write-back actions, real-time triggers, and self-hosting of its Apache 2.0 core across a growing integration catalog.
 - **[Zapier](https://zapier.com/apps)** offers a broad app catalog, instant triggers for many apps, and an API request fallback, but runs as a managed cloud service.
 - **[Make](https://www.make.com/en/integrations)** provides a deep visual builder with instant and polling triggers, though integration depth varies by app.
 - **[n8n](https://docs.n8n.io/)** supports self-hosting, code extensions, and a universal HTTP Request node, but uses a fair-code license.
@@ -85,7 +85,7 @@ These five criteria show whether an agent can act through your existing tools ra
 
 Sim provides read and write coverage across the three integrations examined here. Its [Slack integration](https://www.sim.ai/integrations/slack) supports message, channel, file, user, canvas, and reaction operations alongside real-time message, mention, and reaction triggers. Airtable tools cover record creation, reading, updating, upserting, and deletion, plus a real-time webhook trigger. Notion tools cover pages, blocks, databases, comments, and users, with real-time triggers for supported events.
 
-The [Apache 2.0 licensed core](https://github.com/simstudioai/sim) gives buyers more infrastructure control than the managed platforms covered here. It can be self-hosted with Docker, and Sim can operate as both an MCP client and server so workflows can call external MCP tools or become tools that other AI systems use.
+The [Apache 2.0 licensed core](https://github.com/simstudioai/sim) gives buyers more infrastructure control than the managed platforms covered here. It can be self-hosted with Docker, and Sim can operate as both an MCP client and server so workflows can call external MCP tools or become tools that other AI systems use. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution.
 
 ### Pros
 

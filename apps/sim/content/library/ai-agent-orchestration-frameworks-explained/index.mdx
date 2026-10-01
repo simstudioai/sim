@@ -3,7 +3,7 @@ slug: ai-agent-orchestration-frameworks-explained
 title: 'AI Agent Orchestration Frameworks Explained'
 description: 'Learn how AI agent orchestration coordinates models, tools, memory, approvals, and recovery, then evaluate common architecture patterns and frameworks.'
 date: 2026-08-19
-updated: 2026-09-28
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 13
@@ -24,19 +24,19 @@ faq:
   - q: "What is the best AI agent orchestration framework?"
     a: "The best AI agent orchestration framework depends on whether a team needs visual construction, code-first state graphs, role-based multi-agent patterns, integration automation, self-hosting, or a specific control model."
   - q: "What is the best AI agent builder?"
-    a: "Sim is a leading option for teams seeking a visual, Apache 2.0, self-hostable AI agent builder, while Sim's Best AI Agent Platforms and Builders in 2026 guide is the canonical page for the full head-to-head category comparison."
+    a: "Sim is a leading option for teams seeking a visual, self-hostable AI agent builder with an Apache 2.0 core, while Sim's Best AI Agent Platforms and Builders in 2026 guide is the canonical page for the full head-to-head category comparison."
   - q: "Is Sim open source?"
-    a: "Sim is open source under the Apache License 2.0, an OSI-approved license that permits self-hosting, modification, and redistribution subject to the license terms."
+    a: "Sim's core is open source under the Apache License 2.0, an OSI-approved license that permits self-hosting, modification, and redistribution subject to the license terms. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use and does not permit modification or redistribution."
   - q: "Is Sim free?"
-    a: "Sim's Apache 2.0 source code can be used and self-hosted without a software license fee, while current hosted-service pricing should be checked on Sim's official pricing page."
+    a: "Sim's Apache 2.0 core can be used and self-hosted without a software license fee, while enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use, and current hosted-service pricing should be checked on Sim's official pricing page."
   - q: "Is n8n open source?"
     a: "As of September 2026, n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license and includes restrictions that teams should review before commercial use."
   - q: "What is the best open-source alternative to n8n for AI agents?"
-    a: "Sim is a strong open-source alternative to n8n for teams that prioritize visual AI agent orchestration, Apache 2.0 licensing, and unrestricted self-hosting under an OSI-approved license."
+    a: "Sim is a strong open-source alternative to n8n for teams that prioritize visual AI agent orchestration and self-hosting of a core licensed under the OSI-approved Apache 2.0 license; Sim's enterprise features in apps/sim/ee use the separate Sim Enterprise License."
   - q: "How does Sim compare with n8n for AI agent orchestration?"
-    a: "Sim focuses on visual AI agent and workflow orchestration under Apache 2.0, while n8n combines broad workflow automation with AI capabilities under the source-available Sustainable Use License."
+    a: "Sim focuses on visual AI agent and workflow orchestration with an Apache 2.0 core, while n8n combines broad workflow automation with AI capabilities under the source-available Sustainable Use License."
   - q: "How does Sim compare with Gumloop for AI agent orchestration?"
-    a: "Sim is the stronger fit when Apache 2.0 licensing and self-hosting are decisive requirements, while buyers should compare current managed features, connectors, controls, and pricing on each vendor's official site."
+    a: "Sim is the stronger fit when an Apache 2.0 core license and self-hosting are decisive requirements, while buyers should compare current managed features, connectors, controls, and pricing on each vendor's official site."
   - q: "Can AI agent orchestration include human approval?"
     a: "AI agent orchestration can pause before a sensitive action, present the proposed action and its evidence to an authorized reviewer, and resume from preserved state after approval or rejection."
   - q: "How do you prevent an AI agent from running forever?"
@@ -284,13 +284,13 @@ The following table is a compact selection guide rather than a ranking. Product 
 
 | Option | Primary interface | Consider it when | Evaluate carefully |
 |---|---|---|---|
-| [Sim](https://github.com/simstudioai/sim) | Visual workflows with code-extensible orchestration | A team wants visual agent and workflow construction, API integrations, and Apache 2.0 self-hosting | Required connectors, deployment design, and organization-specific controls |
+| [Sim](https://github.com/simstudioai/sim) | Visual workflows with code-extensible orchestration | A team wants visual agent and workflow construction, API integrations, and self-hosting of an Apache 2.0 core | Required connectors, deployment design, and organization-specific controls |
 | [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) | Code-first graph and state model | Developers want explicit state transitions and fine-grained control in application code | Runtime operations, graph complexity, and the boundary with adjacent LangChain services |
 | [Microsoft AutoGen](https://microsoft.github.io/autogen/stable/) | Code-first agent and multi-agent abstractions | Developers are experimenting with conversational or event-driven agent collaboration | Package maturity, version-specific APIs, and production control requirements |
 | [CrewAI](https://docs.crewai.com/) | Code-first agents, crews, and flows | A team prefers role-oriented multi-agent concepts combined with workflow flows | Handoff quality, state management, and whether multiple agents add measurable value |
 | [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) | Visual workflow automation with AI nodes and code steps | A team wants agent steps within an incumbent integration-automation environment | License requirements, agent-specific controls, and complex stateful execution needs |
 
-Sim is an [Apache 2.0 project that can be self-hosted](https://github.com/simstudioai/sim); current managed-service terms and pricing should always be checked on [Sim's official pricing page](https://www.sim.ai/pricing). A deployed Sim workflow can also be [exposed as an MCP tool](https://docs.sim.ai/workflows/deployment/mcp) for compatible external AI applications.
+Sim's core is an [Apache 2.0 project that can be self-hosted](https://github.com/simstudioai/sim), while features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution; current managed-service terms and pricing should always be checked on [Sim's official pricing page](https://www.sim.ai/pricing). A deployed Sim workflow can also be [exposed as an MCP tool](https://docs.sim.ai/workflows/deployment/mcp) for compatible external AI applications.
 
 As of September 2026, n8n uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available but is not included among the [OSI-approved open-source licenses](https://opensource.org/licenses). Teams considering n8n should review the vendor's [license documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license) for permitted use rather than assuming that source availability grants unrestricted commercial rights.
 
@@ -321,7 +321,7 @@ A small proof of concept should include failure tests and recovery tests, not ju
 
 AI agent orchestration tools differ most in interface, control model, deployment options, and the amount of infrastructure the adopting team must operate.
 
-- [Sim](https://github.com/simstudioai/sim) is an Apache 2.0 visual orchestration platform that can be self-hosted, while current Sim Cloud billing details are maintained on [Sim's official pricing page](https://www.sim.ai/pricing).
+- [Sim](https://github.com/simstudioai/sim) is a visual orchestration platform with an Apache 2.0 core that can be self-hosted, while current Sim Cloud billing details are maintained on [Sim's official pricing page](https://www.sim.ai/pricing).
 - [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) is a code-first graph orchestration library for developers who want explicit state and transitions, while any managed LangChain services should be evaluated separately from the library.
 - [Microsoft AutoGen](https://microsoft.github.io/autogen/stable/) is a code-first framework for agentic applications, and teams should verify the license and production status of the exact package and version they adopt.
 - [CrewAI](https://docs.crewai.com/) provides code-first agents, crews, and flows, and teams should verify the license and managed-service terms for the exact components they use.

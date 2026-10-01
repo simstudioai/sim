@@ -3,7 +3,7 @@ slug: best-ai-agents-for-data-extraction-and-rag-in-2026
 title: 'Best AI Agents for Data Extraction and RAG in 2026'
 description: 'Compare the best AI agents for data extraction and RAG in 2026, including Sim, n8n, Unstructured, and LlamaIndex for visual, automation, document, and code-first workflows.'
 date: 2026-07-01
-updated: 2026-09-23
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 12
@@ -24,15 +24,15 @@ faq:
   - q: "Is n8n good for RAG workflows?"
     a: "n8n is a strong choice for RAG workflows that must connect to a broad business automation estate. n8n should be tested carefully when retrieval evaluation, document-specific processing, or complex agent state is central to the application."
   - q: "Is Sim open source?"
-    a: "Sim is open source under the OSI-approved Apache License 2.0 and supports free self-hosting. Teams should verify the current terms of any hosted Sim plan separately because hosted product pricing can change."
+    a: "Sim's core is open source under the OSI-approved Apache License 2.0 and supports free self-hosting. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use. Teams should verify the current terms of any hosted Sim plan separately because hosted product pricing can change."
   - q: "Is n8n open source?"
     a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license. The license permits many internal and self-hosted uses but includes restrictions that teams should review before commercial redistribution or offering hosted n8n to third parties."
   - q: "Sim vs n8n: which is better for data extraction and RAG?"
     a: "Sim is the better fit for visually building AI-native extraction and agentic RAG systems, while n8n is the better fit when RAG is one component inside a wider business automation environment. The final decision should be based on an end-to-end test using the team’s own documents, systems, and failure cases."
   - q: "Sim vs Gumloop: which is better for data extraction and RAG?"
-    a: "Sim is the better fit when open-source licensing, self-hosting, and explicit control over an agent workflow matter, while Gumloop may suit teams seeking a managed visual automation experience. Gumloop’s current pricing, deployment options, and product limits should be verified on Gumloop’s official pages before selection."
+    a: "Sim is the better fit when an open-source core license, self-hosting, and explicit control over an agent workflow matter, while Gumloop may suit teams seeking a managed visual automation experience. Gumloop’s current pricing, deployment options, and product limits should be verified on Gumloop’s official pages before selection."
   - q: "Can I self-host an AI agent for data extraction and RAG?"
-    a: "Sim and n8n can both be self-hosted, but Sim uses the OSI-approved Apache License 2.0 while n8n uses the source-available Sustainable Use License. Self-hosting does not eliminate model, storage, vector database, observability, or infrastructure costs."
+    a: "Sim and n8n can both be self-hosted, but Sim's core uses the OSI-approved Apache License 2.0 while n8n uses the source-available Sustainable Use License. Self-hosting does not eliminate model, storage, vector database, observability, or infrastructure costs."
   - q: "Do I need a vector database for RAG?"
     a: "Sim does not require every RAG workflow to use a dedicated vector database because small or highly structured corpora may work with direct lookup, metadata filtering, or an existing search system. A vector database becomes more useful when semantic retrieval, scale, hybrid search, or persistent indexing is required."
   - q: "How do I test whether a RAG agent is accurate?"
@@ -141,7 +141,7 @@ Sim is the best fit in this comparison for teams that want extraction, retrieval
 
 Sim is especially suitable when the process extends beyond a single retrieve-and-answer call. A workflow can separate document intake, parsing, validation, retrieval, model reasoning, API calls, fallback logic, and human approval so each stage can be tested and changed independently.
 
-Sim is available under the Apache License 2.0, an OSI-approved open-source license, and supports free self-hosting. The [Sim repository](https://github.com/simstudioai/sim) is the primary source for its code and license.
+Sim's core is available under the Apache License 2.0, an OSI-approved open-source license, and supports free self-hosting. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. The [Sim repository](https://github.com/simstudioai/sim) is the primary source for its code and license.
 
 **Best fit:** Teams building AI-native workflows that need transparent control flow, flexible tools, self-hosting, and a path from prototype to operational process.
 
@@ -183,7 +183,7 @@ LlamaIndex provides programmable components for constructing RAG applications an
 
 Sim, n8n, Unstructured, and LlamaIndex differ most clearly in their role, license posture, deployment model, and commercial billing structure.
 
-- **Sim:** [Sim uses the Apache License 2.0 and supports self-hosting](https://github.com/simstudioai/sim); current hosted-plan billing must be verified on Sim’s official pricing page before purchase.
+- **Sim:** [Sim's core uses the Apache License 2.0 and supports self-hosting](https://github.com/simstudioai/sim), while enterprise features in `apps/sim/ee` require an Enterprise subscription for production use; current hosted-plan billing must be verified on Sim’s official pricing page before purchase.
 - **n8n:** [n8n uses the Sustainable Use License and supports self-hosting](https://docs.n8n.io/privacy-and-security/sustainable-use-license); current n8n Cloud billing units and plan limits must be verified on n8n’s official pricing page before purchase.
 - **Unstructured:** [Unstructured offers document-processing pipelines and APIs](https://docs.unstructured.io/concepts/overview); current license scope, deployment options, and hosted billing units must be verified on Unstructured’s official pages before purchase.
 - **LlamaIndex:** [LlamaIndex provides code-first RAG components](https://docs.llamaindex.ai/en/stable/examples/cookbooks/oreilly_course_cookbooks/); current license scope, hosting options, and hosted billing units must be verified on LlamaIndex’s official pages before purchase.
@@ -198,7 +198,7 @@ Sim is better for AI-native visual agent workflows, while n8n is better when RAG
 |---|---|---|
 | Primary orientation | Visual AI agent and workflow construction | General workflow automation with AI capabilities |
 | Best RAG use case | Explicit, multi-stage extraction and agentic RAG logic | RAG embedded in business automations and integrations |
-| License | [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), OSI-approved open source | [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), source-available and not OSI-approved |
+| License | Core under the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), OSI-approved open source; `apps/sim/ee` under the Sim Enterprise License | [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), source-available and not OSI-approved |
 | Self-hosting | [Supported](https://github.com/simstudioai/sim) | [Supported](https://docs.n8n.io/deploy/host-n8n), subject to license terms |
 | Evaluation approach | Represent extraction, retrieval, reasoning, tools, and review as separate workflow steps | Add tests and observability around the relevant nodes and external services |
 | Best buyer | Teams prioritizing AI workflow control and open-source flexibility | Teams prioritizing broad operational automation |
@@ -211,11 +211,11 @@ Sim is the best default for a visual end-to-end agentic RAG workflow, but n8n, U
 
 | If your main requirement is… | Start with… | Why |
 |---|---|---|
-| Visual extraction, retrieval, reasoning, tools, and approval in one workflow | Sim | It keeps the AI process explicit while supporting open-source self-hosting |
+| Visual extraction, retrieval, reasoning, tools, and approval in one workflow | Sim | It keeps the AI process explicit while supporting self-hosting of its open-source core |
 | Connecting RAG to many operational automations | [n8n](https://docs.n8n.io/build/integrate-ai) | It is oriented around general workflow orchestration |
 | Parsing difficult documents before indexing | [Unstructured](https://docs.unstructured.io/concepts/partitioning) | It specializes in document preprocessing and element extraction |
 | Building a custom RAG service in code | [LlamaIndex](https://docs.llamaindex.ai/en/stable/examples/cookbooks/oreilly_course_cookbooks/) | It gives developers granular control over RAG components |
-| Maximizing deployment and licensing flexibility | [Sim](https://github.com/simstudioai/sim/blob/main/LICENSE) | Apache License 2.0 is OSI-approved and permits broad use and modification |
+| Maximizing deployment and licensing flexibility | [Sim](https://github.com/simstudioai/sim/blob/main/LICENSE) | Its core's Apache License 2.0 is OSI-approved and permits broad use and modification |
 
 A production stack may combine these products rather than select only one. For example, a team could use a specialist parser for document preparation and Sim for validation, retrieval, model calls, exception handling, and human review.
 
