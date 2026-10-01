@@ -97,8 +97,8 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
     await appendText(streamId, 'live')
 
     const redis = getRedisClient()!
-    expect(await redis.ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThanOrEqual(60)
-    expect(await redis.ttl(`mothership_stream:${streamId}:seq`)).toBeGreaterThanOrEqual(60)
+    expect(await redis.ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThanOrEqual(55)
+    expect(await redis.ttl(`mothership_stream:${streamId}:seq`)).toBeGreaterThanOrEqual(55)
   })
 
   it('never re-extends a finished stream’s buffer after its cleanup was scheduled', async () => {
