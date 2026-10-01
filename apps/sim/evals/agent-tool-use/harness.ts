@@ -15,6 +15,7 @@ import type { StreamingToolLoopComplete } from '@/providers/streaming-tool-loop-
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import type { ProviderToolConfig, TimeSegment } from '@/providers/types'
 import type { ToolResponse } from '@/tools/types'
+import { type JudgeRubric, judgeAnswer } from './judge'
 import type {
   AgentToolUseExpectations,
   AgentToolUseResult,
@@ -63,6 +64,12 @@ export interface RunScenarioOptions {
   model?: string
   /** Provider label used in loop diagnostics. */
   providerName?: string
+  /** Optional LLM-as-judge scorer for the answer; adds a `judge` check. */
+  judge?: {
+    completion: OpenAICompatCreateCompletion
+    model: string
+    rubric: JudgeRubric
+  }
 }
 
 /** Raw call counts as a value the loop never reads; scenarios only assert on it. */
@@ -390,6 +397,26 @@ export async function runScenario(
   const finalContent = completed?.content ?? ''
   const iterations = completed?.iterations ?? 0
   const checks = scoreExpectations(expected, toolCalls, finalContent, iterations, streamError, mode)
+
+  if (options.judge) {
+    try {
+      const verdict = await judgeAnswer({
+        completion: options.judge.completion,
+        model: options.judge.model,
+        rubric: options.judge.rubric,
+        userMessage: scenario.userMessage,
+        answer: finalContent,
+        evidence: JSON.stringify(invocations),
+      })
+      checks.push({
+        name: 'judge',
+        passed: verdict.passed,
+        detail: `weighted ${verdict.weightedScore.toFixed(2)}; ${verdict.rationale}`,
+      })
+    } catch (error) {
+      checks.push({ name: 'judge', passed: false, detail: `judge failed: ${String(error)}` })
+    }
+  }
   const successful = toolCalls.filter((call) => call.success).length
 
   return {
