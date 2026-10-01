@@ -85,7 +85,8 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
  * steady-state steps cost no ledger read. The charge is
  * already recorded when this runs; a gate that cannot answer reports not-exceeded and leaves the
  * refusal to the next step or re-check rather than ending a paying run on a database blip,
- * and so does a read that outlasts {@link USAGE_STANDING_TIMEOUT_MS}.
+ * and so does a verdict read that outlasts {@link USAGE_STANDING_TIMEOUT_MS}. An exceeded
+ * verdict always pauses the run; a card read past that budget falls back to the plan-upgrade card.
  */
 async function readUsageStanding(
   userId: string,
@@ -98,9 +99,10 @@ async function readUsageStanding(
       ? () => readMidRunAccountUsageVerdict(accountDecision)
       : null
   if (!isHosted || !readVerdict) return { usageExceeded: false }
+  const deadlineAt = Date.now() + USAGE_STANDING_TIMEOUT_MS
   let verdict: MidRunUsageVerdict
   try {
-    verdict = await withinDeadline(readVerdict, Date.now() + USAGE_STANDING_TIMEOUT_MS)
+    verdict = await withinDeadline(readVerdict, deadlineAt)
   } catch {
     logger.warn('Usage standing read outlasted the callback budget; answering not exceeded')
     return { usageExceeded: false }
@@ -110,7 +112,12 @@ async function readUsageStanding(
   if (verdict.status !== 'exceeded') return { usageExceeded: false }
   return {
     usageExceeded: true,
-    usageUpgrade: await resolveUsageUpgradePayload(userId, billingAttribution, verdict.scope),
+    usageUpgrade: await resolveUsageUpgradePayload(
+      userId,
+      billingAttribution,
+      verdict.scope,
+      deadlineAt
+    ),
   }
 }
 

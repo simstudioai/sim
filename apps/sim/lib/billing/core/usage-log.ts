@@ -696,7 +696,10 @@ function assertCumulativeUsageLedgerBinding(
     workspaceId?: string
     billingContext: BillingContext
     eventKey: string
-    /** A request whose first charge landed after its period closed is stamped with a later one. */
+    /**
+     * A request whose first charge landed after its period closed, or after an anchor reset moved
+     * its start forward, is stamped with a later one.
+     */
     allowLaterPeriod?: boolean
   }
 ): void {
@@ -717,10 +720,11 @@ function assertCumulativeUsageLedgerBinding(
   const samePeriod =
     existing.billingPeriodStart?.getTime() === frozenPeriod.start.getTime() &&
     existing.billingPeriodEnd?.getTime() === frozenPeriod.end.getTime()
+  // The same forward-only rule that rolls a charge into a new period row.
   const laterPeriod =
     expected.allowLaterPeriod === true &&
     existing.billingPeriodStart !== null &&
-    existing.billingPeriodStart.getTime() >= frozenPeriod.end.getTime()
+    existing.billingPeriodStart.getTime() > frozenPeriod.start.getTime()
   if (!samePeriod && !laterPeriod) {
     mismatchedFields.push('billing period')
   }
