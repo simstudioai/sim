@@ -26,7 +26,7 @@ To implement Linkup in your agent, simply add the tool to your agent's configura
 
 ## Usage Instructions
 
-Integrate Linkup into the workflow. Can search the web.
+Integrate Linkup into the workflow. Can search the web and fetch the contents of a webpage as markdown.
 
 
 
@@ -58,5 +58,30 @@ Search the web for information using Linkup
 | --------- | ---- | ----------- |
 | `answer` | string | The sourced answer to the search query |
 | `sources` | array | Array of sources used to compile the answer, each containing name, url, and snippet |
+
+### Linkup Fetch
+
+Fetch a single webpage using Linkup and return its content as clean markdown, with optional raw HTML and extracted images.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The URL of the webpage to fetch \(e.g., "https://docs.linkup.so") |
+| `apiKey` | string | Yes | Enter your Linkup API key |
+| `renderJs` | boolean | No | Render the JavaScript of the webpage before extracting its content |
+| `includeRawHtml` | boolean | No | Include the raw HTML of the webpage in the response |
+| `extractImages` | boolean | No | Extract the images from the webpage |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markdown` | string | The clean markdown content of the webpage |
+| `rawHtml` | string | The raw HTML of the webpage, when includeRawHtml is enabled |
+| `images` | array | Images extracted from the webpage, when extractImages is enabled |
+|   ↳ `alt` | string | The alt text of the image |
+|   ↳ `url` | string | The URL of the image |
+| `favicon` | string | The URL of the website favicon |
 
 
