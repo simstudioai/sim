@@ -657,6 +657,91 @@ describe('session sandbox lease', () => {
     }
   )
 
+  it.each(['code', 'shell'] as const)(
+    'masks session capability values in files exported by %s',
+    async (kind) => {
+      const { handle } = fakeSandbox(`capability-files-${kind}`)
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      const apiKey = 'mothership-sandbox:6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b'
+      const endpoint =
+        'https://sim.test/api/mothership/sandbox/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
+      const outputDir = '/tmp/sim/outputs/capability'
+      const files = new Map<string, Buffer>()
+      const write = (envs: Record<string, string> = {}) => {
+        const binary = Buffer.concat([
+          Buffer.from([0xff, 0x00]),
+          Buffer.from(`${envs.SIM_API_KEY} ${encodeURIComponent(envs.SIM_ENDPOINT)}`),
+          Buffer.from([0x80, 0xfe]),
+        ])
+        files.set('/home/user/report.txt', Buffer.from(`key=${envs.SIM_API_KEY}\n`))
+        files.set('/home/user/chart.png', binary)
+        files.set(`${envs.SIM_OUTPUT_DIR}/dump.bin`, binary)
+      }
+      handle.runCode = async (_code, options) => {
+        write(options.envs)
+        return { text: `${SIM_RESULT_PREFIX}true`, stdout: '', stderr: '' }
+      }
+      handle.runCommand = async (_command, options) => {
+        write(options.envs)
+        return { stdout: '', stderr: '', exitCode: 0 }
+      }
+      handle.getFileSize = async (path) => files.get(path)?.byteLength ?? 0
+      handle.listFiles = async (directory) =>
+        [...files].flatMap(([path, content]) =>
+          path.startsWith(`${directory}/`)
+            ? [
+                {
+                  path,
+                  relativePath: path.slice(directory.length + 1),
+                  kind: 'file',
+                  size: content.byteLength,
+                },
+              ]
+            : []
+        )
+      handle.readFileWithLimit = async (path, options) => {
+        const content = files.get(path)
+        if (content === undefined) throw new Error('Missing file')
+        return {
+          content: content.toString(options.encoding === 'base64' ? 'base64' : 'utf8'),
+          byteLength: content.byteLength,
+        }
+      }
+      const request = {
+        session: {
+          key: `capability-files-${kind}`,
+          secretEnvs: { SIM_API_KEY: apiKey, SIM_ENDPOINT: endpoint },
+        },
+        outputSandboxPath: '/home/user/report.txt',
+        outputSandboxPaths: ['/home/user/chart.png'],
+        outputSandboxDir: outputDir,
+      }
+      const result =
+        kind === 'code'
+          ? await executeInSandbox({ ...CODE_REQUEST, ...request })
+          : await executeShellInSandbox({ ...CODE_REQUEST, envs: {}, ...request })
+
+      const masked = Buffer.concat([
+        Buffer.from([0xff, 0x00]),
+        Buffer.from('[REDACTED] [REDACTED]'),
+        Buffer.from([0x80, 0xfe]),
+      ])
+      expect(result.exportedFileContent).toBe('key=[REDACTED]\n')
+      expect(result.exportedFiles).toEqual({
+        '/home/user/report.txt': 'key=[REDACTED]\n',
+        '/home/user/chart.png': masked.toString('base64'),
+      })
+      expect(result.collectedFiles).toEqual([
+        {
+          path: `${outputDir}/dump.bin`,
+          relativePath: 'dump.bin',
+          contentBase64: masked.toString('base64'),
+          byteLength: masked.byteLength,
+        },
+      ])
+    }
+  )
+
   it('keeps a completed result when temporary input cleanup is unavailable', async () => {
     const { handle, calls } = fakeSandbox('cleanup-failure')
     mockFindSessionSandbox.mockResolvedValue(handle)

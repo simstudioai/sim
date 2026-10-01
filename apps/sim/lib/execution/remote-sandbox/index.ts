@@ -247,6 +247,15 @@ function sessionSecretMask(session: SandboxSessionRequest | undefined): (output:
   return (output) => redactKnownSensitiveValues(output, secrets)
 }
 
+/**
+ * Applies {@link sessionSecretMask} to a file's raw bytes. Latin-1 maps every byte to one code
+ * unit and back, so every byte outside a masked value, including non-UTF-8 binary, survives as-is.
+ */
+function maskFileBytes(contentBase64: string, mask: (output: string) => string): string {
+  const bytes = Buffer.from(contentBase64, 'base64').toString('latin1')
+  return Buffer.from(mask(bytes), 'latin1').toString('base64')
+}
+
 function bindSandboxAbort(
   sandbox: SandboxHandle,
   provider: SandboxProviderId,
@@ -688,7 +697,12 @@ async function ensureSandboxOutputDir(
 
 async function collectExportedFiles(
   sandbox: SandboxHandle,
-  req: { outputSandboxPath?: string; outputSandboxPaths?: string[]; outputSandboxDir?: string },
+  req: {
+    outputSandboxPath?: string
+    outputSandboxPaths?: string[]
+    outputSandboxDir?: string
+    session?: SandboxSessionRequest
+  },
   options: { signal: AbortSignal }
 ): Promise<{
   exportedFiles?: Record<string, string>
@@ -723,6 +737,7 @@ async function collectExportedFiles(
     }
   }
 
+  const mask = req.session?.secretEnvs ? sessionSecretMask(req.session) : undefined
   const exportedFiles: Record<string, string> = {}
   let readOutputBytes = 0
   for (const outputSandboxPath of readablePaths) {
@@ -736,7 +751,11 @@ async function collectExportedFiles(
       if (file !== undefined) {
         remainingSandboxBudgetMs(options.signal)
         readOutputBytes += file.byteLength
-        exportedFiles[outputSandboxPath] = file.content
+        exportedFiles[outputSandboxPath] = !mask
+          ? file.content
+          : isBinarySandboxPath(outputSandboxPath)
+            ? maskFileBytes(file.content, mask)
+            : mask(file.content)
       }
     } catch (error) {
       if (isSandboxOutputLimitError(error)) {
@@ -763,11 +782,12 @@ async function collectExportedFiles(
       })
       remainingSandboxBudgetMs(options.signal)
       readOutputBytes += file.byteLength
+      const contentBase64 = mask ? maskFileBytes(file.content, mask) : file.content
       collectedFiles.push({
         path: entry.path,
         relativePath: entry.relativePath,
-        contentBase64: file.content,
-        byteLength: file.byteLength,
+        contentBase64,
+        byteLength: mask ? Buffer.byteLength(contentBase64, 'base64') : file.byteLength,
       })
     } catch (error) {
       if (isSandboxOutputLimitError(error)) {
