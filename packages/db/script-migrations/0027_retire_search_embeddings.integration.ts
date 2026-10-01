@@ -1,6 +1,10 @@
-import { retireSearchEmbeddingsMigration } from '@sim/db/script-migrations/0027_retire_search_embeddings'
+import {
+  retireSearchEmbeddings,
+  retireSearchEmbeddingsMigration,
+} from '@sim/db/script-migrations/0027_retire_search_embeddings'
 import { maintainSearchRetirementMigration } from '@sim/db/script-migrations/0028_maintain_search_retirement'
-import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index'
+import { retireAllSearchEmbeddings } from '@sim/db/script-migrations/0029_retire_all_search_embeddings'
+import { runScriptMigrations } from '@sim/db/script-migrations/index'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -174,13 +178,7 @@ describe('retiring dormant Search embeddings', () => {
         await sql`INSERT INTO embedding VALUES ('new-ordinary-chunk', 'search', 'search-doc')`
         await sql`INSERT INTO embedding_search (id) VALUES ('new-ordinary-chunk')`
       }
-      const migrations = scriptMigrations.filter((migration) =>
-        [
-          '0027_retire_search_embeddings',
-          '0028_maintain_search_retirement',
-          '0029_retire_all_search_embeddings',
-        ].includes(migration.name)
-      )
+      const migrations = [retireAllSearchEmbeddings()]
       try {
         await runScriptMigrations(sql, migrations)
         const preserved = legacy === 'ordinary' ? 502 : 501
@@ -710,4 +708,31 @@ describe('retiring dormant Search embeddings', () => {
       await sql`DROP INDEX retirement_hnsw_idx`
     }
   })
+
+  it('pauses after each page for the pause ratio times the page, so a manual run leaves the primary idle', async () => {
+    /** Every delete page takes about 100 ms; with a ratio of 3 the next page starts 300 ms after it ends. */
+    await sql`CREATE TABLE delete_page_started (at timestamptz NOT NULL DEFAULT clock_timestamp())`
+    await sql`CREATE FUNCTION slow_delete_page() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN INSERT INTO delete_page_started DEFAULT VALUES; PERFORM pg_sleep(0.1); RETURN NULL; END $$`
+    await sql`CREATE TRIGGER slow_delete_page BEFORE DELETE ON embedding
+      FOR EACH STATEMENT EXECUTE FUNCTION slow_delete_page()`
+    try {
+      await retireSearchEmbeddings(sql, { pauseRatio: 3, maxRows: 200 })
+      expect(
+        (await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'search'`)[0]
+          .n
+      ).toBe(0)
+      const starts = (
+        await sql<{ at: Date }[]>`SELECT at FROM delete_page_started ORDER BY at`
+      ).map(({ at }) => at.getTime())
+      expect(starts.length).toBeGreaterThanOrEqual(3)
+      for (let i = 1; i < starts.length; i++) {
+        expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(380)
+      }
+    } finally {
+      await sql`DROP TRIGGER slow_delete_page ON embedding`
+      await sql`DROP FUNCTION slow_delete_page()`
+      await sql`DROP TABLE delete_page_started`
+    }
+  }, 60_000)
 })
