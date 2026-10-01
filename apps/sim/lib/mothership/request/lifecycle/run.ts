@@ -1663,8 +1663,16 @@ async function ensureHeadlessRunIdentity(input: {
       },
     })
     return { executionId, runId, cancelled: run.status === 'cancelled' }
-  } catch {
-    throw new Error('Chat could not start because its execution record is unavailable')
+  } catch (error) {
+    logger.error('Headless run record could not be created', {
+      chatId: input.chatId,
+      streamId: input.messageId,
+      error: getErrorMessage(error),
+      ...causeForLog(error),
+    })
+    throw new Error('Chat could not start because its execution record is unavailable', {
+      cause: error,
+    })
   }
 }
 
