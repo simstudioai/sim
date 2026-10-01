@@ -9,9 +9,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
   TabStrip,
+  TabStripAction,
   type TabStripItem,
+  Tooltip,
 } from '@sim/emcn'
-import { Check, ChevronDown, Globe, TerminalWindow } from '@sim/emcn/icons'
+import { Check, ChevronDown, Expand, Globe, TerminalWindow } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { useQueryStates } from 'nuqs'
@@ -143,6 +145,8 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
   const renameChat = useProtoChats((state) => state.renameChat)
   const { projectId, setProject, setSection } = useWorkspacePane()
   const [collapsed, setCollapsed] = useState(false)
+  /** The workspace pane fills the chat's width; the chat is hidden until it is restored. */
+  const [expanded, setExpanded] = useState(false)
   const resize = useMothershipResize('playground')
   const [tabs, setTabs] = useState<PanelTab[]>(() => mentionedIn(chat.id))
   const [activeKey, setActiveKey] = useState<string>(() => {
@@ -252,7 +256,11 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
   return (
     <ChatPanelLayout
       panel={
-        <ChatPanelContent ref={resize.mothershipRef} collapsed={collapsed}>
+        <ChatPanelContent
+          ref={resize.mothershipRef}
+          collapsed={collapsed}
+          className={cn(expanded && !collapsed && 'w-full border-l-0')}
+        >
           <TabStrip
             tabs={stripTabs}
             variant='floating'
@@ -273,6 +281,24 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
                   }}
                   onPick={pickProject}
                 />
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <TabStripAction
+                      variant='subtle'
+                      aria-label={expanded ? 'Show chat' : 'Hide chat'}
+                      aria-pressed={expanded}
+                      onClick={() => {
+                        resize.clearWidth()
+                        setExpanded((prev) => !prev)
+                      }}
+                    >
+                      <Expand className={RESOURCE_TAB_ICON_CLASS} />
+                    </TabStripAction>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>
+                    <p>{expanded ? 'Show chat' : 'Hide chat'}</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               </>
             }
           />
@@ -298,7 +324,7 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
       onResizeKeyDown={resize.handleResizeKeyDown}
       onResizeFocus={resize.handleResizeFocus}
     >
-      <div className='flex min-w-0 flex-1 flex-col'>
+      <div className={cn('flex min-w-0 flex-1 flex-col', expanded && !collapsed && 'hidden')}>
         <header className='flex h-[calc(var(--resource-header-controls-height)+1px)] shrink-0 items-center gap-2 border-[var(--border)] border-b pr-[calc(var(--resource-header-end-inset)+var(--resource-header-toggle-hit-size))] pl-4'>
           <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-small'>
             {chat.title}
@@ -354,7 +380,10 @@ function ProjectControl({ project, active, onShow, onPick }: ProjectControlProps
         <IdentityTile initial={current.name[0]} />
         <span className='max-w-[136px] truncate'>{current.name}</span>
       </button>
-      <span aria-hidden='true' className='h-4 w-px bg-[var(--border)]' />
+      <span
+        aria-hidden='true'
+        className={cn('h-4 w-px bg-[var(--border)]', active && 'invisible')}
+      />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
