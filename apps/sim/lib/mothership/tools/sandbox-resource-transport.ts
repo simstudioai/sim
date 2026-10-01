@@ -1,20 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
-import {
-  v2GetBlockContract,
-  v2GetToolContract,
-  v2ListBlocksContract,
-  v2ListConnectorTypesContract,
-  v2ListToolsContract,
-} from '@/lib/api/contracts/v2/catalog'
 import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
+import {
+  type DurableSecretProvenance,
+  durableSecretProvenanceFromEnvelope,
+  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
+  mergeDurableSecretProvenance,
+} from '@/lib/execution/durable-secret-provenance'
 import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -24,6 +22,7 @@ import {
   recordSandboxResourceEffects,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { observeTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 const logger = createLogger('MothershipSandboxResourceTransport')
@@ -101,6 +100,7 @@ async function proxyAuthorizedSandboxRequest(
   const forwarded = new Request(target, init)
   const effects: ResourceChange[] = []
   let response: Response | undefined
+  let rowProvenance: DurableSecretProvenance | undefined
   let dispatched = false
   /** Invoke the same handler with private request identity; the declared use case still authorizes current domain access. */
   const matched = matchV2Route(path)
@@ -122,23 +122,6 @@ async function proxyAuthorizedSandboxRequest(
     if (!(result instanceof Response)) throw new Error('Invalid sandbox API response')
     return result
   }
-  // Only these producer-owned catalog responses contain no workspace data or execution output.
-  const publicCatalog =
-    method === 'GET' &&
-    [v2ListToolsContract, v2GetToolContract, v2ListConnectorTypesContract].some(
-      (contract) =>
-        contract.path.replace(/\[([^\]]+)\]/g, (_match, key) =>
-          encodeURIComponent(matched.params[key] ?? '')
-        ) === path
-    )
-  const blockCatalog =
-    method === 'GET' &&
-    [v2ListBlocksContract, v2GetBlockContract].find(
-      (contract) =>
-        contract.path.replace(/\[([^\]]+)\]/g, (_match, key) =>
-          encodeURIComponent(matched.params[key] ?? '')
-        ) === path
-    )
   const recordInput = (provenance: boolean | DurableSecretProvenance) =>
     recordExistingSessionFileInput(chatSandboxSessionKey(scope.chatId), provenance)
   const fileRead =
@@ -151,21 +134,31 @@ async function proxyAuthorizedSandboxRequest(
     )
   const deliver = async () => {
     dispatched = true
-    if (!publicCatalog && !fileRead && !blockCatalog) await recordInput(false)
-    let observed = false
-    const result = await observeWorkspaceFileDelivery(async (provenance) => {
-      await recordInput(provenance?.status === 'exact' ? provenance : false)
-      observed = true
-    }, dispatch)
+    let fileObserved = false
+    const result = await observeTableRowDelivery(
+      async (provenance, _values, extras) => {
+        rowProvenance = mergeDurableSecretProvenance(
+          rowProvenance ?? EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
+          extras.unprovenancedErrorText
+            ? { status: 'unknown' }
+            : durableSecretProvenanceFromEnvelope(provenance)
+        )
+      },
+      () =>
+        observeWorkspaceFileDelivery(async (provenance) => {
+          await recordInput(provenance?.status === 'exact' ? provenance : false)
+          fileObserved = true
+        }, dispatch)
+    )
     try {
-      if (fileRead && !observed && result.ok && result.body) await recordInput(false)
-      if (blockCatalog && result.ok && result.body) {
-        const parsed = blockCatalog.response.schema.safeParse(await result.clone().json())
-        const data = parsed.success ? parsed.data.data : undefined
-        const safe = Array.isArray(data)
-          ? data.every((block) => block.source === 'builtin')
-          : data?.source === 'builtin'
-        if (!safe) await recordInput(false)
+      if (fileRead && !fileObserved && result.ok && result.body) await recordInput(false)
+      else if (!fileObserved && !rowProvenance) {
+        /** Missing producer evidence is unrecorded, not proof that the machine received a secret. */
+        logger.warn('Sandbox API response has no recorded secret provenance', {
+          method,
+          route: matched.pattern,
+          toolCallId: scope.toolCallId,
+        })
       }
     } catch (error) {
       await result.body?.cancel().catch(() => {})
@@ -219,6 +212,24 @@ async function proxyAuthorizedSandboxRequest(
       }
     })
   )
+  if (rowProvenance) {
+    // Row mutations have already committed; admission must not interrupt completion or effects.
+    try {
+      await recordInput(rowProvenance)
+    } catch {
+      await response.body?.cancel().catch(() => {})
+      logger.warn('Sandbox response provenance could not be recorded after API completion', {
+        toolCallId: scope.toolCallId,
+        status: response.status,
+      })
+      response = Response.json(
+        {
+          error: `API request completed with HTTP ${response.status}, but its result could not be returned safely. Do not retry a mutation automatically; read the resource to check its current state.`,
+        },
+        { status: 502 }
+      )
+    }
+  }
   return new Response(request.method === 'HEAD' ? null : response.body, {
     status: response.status,
     statusText: response.statusText,

@@ -18,6 +18,10 @@ import {
   mothershipGoFetchMock,
   mothershipGoFetchMockFns,
 } from '@sim/testing/mocks/mothership-go-fetch.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import {
   remoteSandboxProviderMock,
@@ -30,6 +34,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const io = vi.hoisted(() => ({ mount: vi.fn(), find: vi.fn(), write: vi.fn() }))
 vi.mock('@/tools', () => toolsMock)
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/mothership/tools/secret-mount-materializer.server', () => ({
   materializeCopilotCodeSecrets: io.mount,
   CopilotCodeSecretAccessError: class extends Error {},
@@ -54,6 +59,7 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 }))
 
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
+import * as inProcessTransport from '@/lib/api/server/routes/in-process-transport'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
@@ -73,12 +79,15 @@ import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/reso
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
 import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
+import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 import {
   readSandboxResourceScope,
   withSandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { reportTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
+import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import type { CodeExecutionInput } from '@/tools/function/types'
@@ -319,6 +328,161 @@ function inResourceScope<T>(action: () => Promise<T>) {
     action
   )
 }
+
+async function sandboxApi(path: string, handler: () => Promise<Response>, method = 'GET') {
+  mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace.mockResolvedValue(scope)
+  vi.spyOn(inProcessTransport, 'matchV2Route').mockReturnValue({
+    pattern: path,
+    params: { fileId: 'fixture', tableId: 'fixture' },
+    literals: 3,
+    load: async () => ({ GET: handler, POST: handler }),
+  })
+  return inResourceScope(async () => {
+    const session = await buildMothershipSandboxSession({
+      ...scope,
+      sessionKey: chatSandboxSessionKey(chatId),
+    })
+    const endpoint = session.envs!.SIM_ENDPOINT
+    return proxySandboxResourceRequest(
+      new Request(`${endpoint}${path}`, {
+        method,
+        headers: { 'x-api-key': session.envs!.SIM_API_KEY },
+      }),
+      endpoint.split('/').at(-1)!
+    )
+  })
+}
+
+describe('sandbox API provenance admission', () => {
+  it('keeps ordinary API mutations usable for later code output and generated CLI input', async () => {
+    const response = await sandboxApi(
+      '/api/v2/custom-tools',
+      async () => Response.json({ data: { id: 'fixture-tool', title: 'fixture' } }),
+      'POST'
+    )
+    expect(response.status).toBe(200)
+    const result = await run('printf "[]" > operations.json; printf "ready"')
+    expect(result.projected.safe).toBe(true)
+    expect(result.projected.result).toMatchObject({ success: true, output: { stdout: 'ready' } })
+    expect(
+      (await readCliInputFile(chatSandboxSessionKey(chatId), 'operations.json')).toString()
+    ).toBe('[]')
+  })
+
+  it('retains earlier secret protection after an API response without provenance', async () => {
+    await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
+    await sandboxApi('/api/v2/custom-tools', async () => Response.json({ data: [] }))
+    const result = await run('cat saved.txt')
+    expect(result.projected.safe).toBe(true)
+    expect(result.projected.result).toMatchObject({
+      success: true,
+      output: { stdout: '{{TOKEN}}' },
+    })
+    await expect(readCliInputFile(chatSandboxSessionKey(chatId), 'saved.txt')).rejects.toThrow(
+      'protected workbench values'
+    )
+  })
+
+  it.each(['file', 'table'] as const)(
+    'imports explicit %s delivery evidence before later output',
+    async (source) => {
+      const response = await sandboxApi(
+        `/api/v2/${source === 'file' ? 'files/fixture' : 'tables/fixture/rows'}`,
+        async () => {
+          if (source === 'file') {
+            await reportWorkspaceFileDelivery({
+              status: 'exact',
+              entries: [
+                {
+                  name: 'TOKEN',
+                  encryptedValue: catalog[0].encryptedValue,
+                  sourceUserId: scope.userId,
+                  sourceWorkspaceId: scope.workspaceId,
+                },
+              ],
+            })
+          } else {
+            await reportTableRowDelivery(
+              {
+                version: 1,
+                complete: true,
+                scope,
+                entries: [{ name: 'TOKEN', encryptedValue: catalog[0].encryptedValue }],
+              },
+              [{ value: canary }]
+            )
+          }
+          return new Response(canary)
+        }
+      )
+      await machine.writeFile('/home/user/delivered.txt', await response.text())
+      const result = await run('cat delivered.txt')
+      expect(result.projected.safe).toBe(true)
+      expect(result.projected.result).toMatchObject({
+        success: true,
+        output: { stdout: '{{TOKEN}}' },
+      })
+    }
+  )
+
+  it('preserves mutation completion and withholds its body when provenance storage fails', async () => {
+    const mutationPath = join(root, 'mutation.json')
+    const response = await sandboxApi(
+      '/api/v2/tables/fixture/rows',
+      async () => {
+        await writeFile(mutationPath, JSON.stringify({ committed: true, completed: false }))
+        const evalCommand = redis.eval.bind(redis)
+        vi.spyOn(redis, 'eval').mockImplementation((...args) => {
+          if (String(args[2]).startsWith('mothership:workbench-provenance:v2:')) {
+            return Promise.reject(new Error('Synthetic provenance storage failure'))
+          }
+          return evalCommand(...args)
+        })
+        await reportTableRowDelivery(
+          {
+            version: 1,
+            complete: true,
+            scope,
+            entries: [{ name: 'TOKEN', encryptedValue: catalog[0].encryptedValue }],
+          },
+          [{ value: canary }]
+        )
+        await writeFile(mutationPath, JSON.stringify({ committed: true, completed: true }))
+        return Response.json({ data: { value: canary } }, { status: 201 })
+      },
+      'POST'
+    )
+    expect(JSON.parse(await readFile(mutationPath, 'utf8'))).toEqual({
+      committed: true,
+      completed: true,
+    })
+    expect(response.status).toBe(502)
+    const body = await response.text()
+    expect(body).not.toContain(canary)
+    expect(body).toContain('completed with HTTP 201')
+    expect(body).toContain('Do not retry a mutation automatically')
+  })
+
+  it.each(['file', 'table'] as const)(
+    'preserves an explicit unknown %s delivery as unknown',
+    async (source) => {
+      await sandboxApi(
+        `/api/v2/${source === 'file' ? 'files/fixture' : 'tables/fixture/rows'}`,
+        async () => {
+          if (source === 'file') await reportWorkspaceFileDelivery({ status: 'unknown' })
+          else
+            await reportTableRowDelivery({ version: 1, complete: false, entries: [] }, [
+              { value: 'unknown' },
+            ])
+          return new Response('unknown')
+        }
+      )
+      const result = await run('printf "ready"')
+      expect(result.projected.safe).toBe(false)
+      expect(JSON.stringify(result.projected.result)).not.toContain('ready')
+    }
+  )
+})
 
 describe('persistent workbench output confidentiality', () => {
   it.each(['javascript', 'shell'] as const)(
