@@ -6,11 +6,10 @@ import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { HomeSection } from '@/components/home/home-section'
 import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
-import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { useSearchSourceOverview } from '@/hooks/queries/kb/connectors'
 import { useAuthorizedApps } from '@/hooks/queries/oauth-provider'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 
 type StepId = 'connect-integration' | 'connect-sim-search'
 
@@ -67,14 +66,12 @@ function StepMark({ complete }: { complete: boolean }) {
  * The organization home's onboarding list under the composer. Same chrome as
  * the workspace home's suggested actions: a hover-revealed disclosure header
  * over hairline-separated rows. Each step leads to the page that completes it,
- * and reads as done from the organization's real state: a source the viewer can
- * search and an OAuth app authorized to use Search.
+ * and reads as done from the organization's real state: a connected account and an OAuth app authorized to use Search.
  */
 export function GetStarted() {
   const { organization, viewer } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
-  const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const { data: overview } = useSearchSourceOverview(scope)
+  const { data: accounts } = useOrganizationAccounts(organization.id)
   const {
     data: authorizedApps,
     fetchNextPage,
@@ -94,7 +91,10 @@ export function GetStarted() {
     'connect-sim-search': routes.settingsSection('search-mcp'),
   }
   const completed: Record<StepId, boolean> = {
-    'connect-integration': overview?.hasSearchableDocuments === true,
+    'connect-integration': Boolean(
+      accounts?.viewerAccounts?.some((account) => account.status === 'active') ||
+        accounts?.viewerMcpAccounts?.some((account) => account.status === 'active')
+    ),
     'connect-sim-search': hasSearchAuthorization,
   }
   const steps = STEPS.filter((step) => step.id !== 'connect-sim-search' || viewer.canUseSearchMcp)

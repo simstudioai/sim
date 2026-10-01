@@ -3,7 +3,6 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, organizationSearchIntegration } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
@@ -14,7 +13,6 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import {
   addOrganizationSearchMcpProvider,
@@ -52,24 +50,19 @@ export const listSearchIntegrations = defineAuthorizedKnowledgeUseCase({
     if (!context.organizationId)
       throw new OrchestrationError('validation', 'Organization is required')
     const approvals = await listOrganizationSearchApprovals(context.organizationId)
-    const policies = isLiveEnterpriseSearchEnabled
-      ? await loadLiveSearchPolicies({ organizationId: context.organizationId })
-      : undefined
+    const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
     const scope = { kind: 'organization', organizationId: context.organizationId } as const
-    const zoomEnabled =
-      !isLiveEnterpriseSearchEnabled || (await isSearchProviderEnabled('zoom', scope))
-    return (isLiveEnterpriseSearchEnabled ? LIVE_SEARCH_SOURCE_TYPES : SEARCH_SOURCE_TYPES).map(
-      ([connectorType]) => ({
-        connectorType,
-        approved: approvals.get(connectorType) ?? false,
-        ...(policies
-          ? {
-              policy: livePolicyFor(policies, connectorType),
-              available: connectorType !== 'zoom' || zoomEnabled,
-            }
-          : {}),
-      })
-    )
+    const zoomEnabled = await isSearchProviderEnabled('zoom', scope)
+    return LIVE_SEARCH_SOURCE_TYPES.map(([connectorType]) => ({
+      connectorType,
+      approved: approvals.get(connectorType) ?? false,
+      ...(policies
+        ? {
+            policy: livePolicyFor(policies, connectorType),
+            available: connectorType !== 'zoom' || zoomEnabled,
+          }
+        : {}),
+    }))
   },
 })
 
@@ -81,14 +74,11 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
   async execute({ input, context, principal }) {
     if (!context.organizationId)
       throw new OrchestrationError('validation', 'Organization is required')
-    const source = (
-      isLiveEnterpriseSearchEnabled ? LIVE_SEARCH_SOURCE_TYPES : SEARCH_SOURCE_TYPES
-    ).find(([type]) => type === input.connectorType)
+    const source = LIVE_SEARCH_SOURCE_TYPES.find(([type]) => type === input.connectorType)
     if (!source) {
       throw new OrchestrationError('validation', 'This integration is not supported by Sim Search')
     }
     if (
-      isLiveEnterpriseSearchEnabled &&
       input.approved &&
       !(await isSearchProviderEnabled(input.connectorType, {
         kind: 'organization',
@@ -99,16 +89,10 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
         'forbidden',
         'Zoom Search is not available for this organization'
       )
-    if (input.policy && !isLiveEnterpriseSearchEnabled)
-      throw new OrchestrationError('validation', 'Live search settings are not enabled')
-    const memberProvider =
-      isLiveEnterpriseSearchEnabled && input.approved
-        ? liveSearchMemberAccountProvider(input.connectorType)
-        : null
-    const mcpProvider =
-      isLiveEnterpriseSearchEnabled && input.approved
-        ? liveSearchMcpConnector(input.connectorType)
-        : null
+    const memberProvider = input.approved
+      ? liveSearchMemberAccountProvider(input.connectorType)
+      : null
+    const mcpProvider = input.approved ? liveSearchMcpConnector(input.connectorType) : null
     if (memberProvider || mcpProvider) {
       /** permission-group-enforced: integrations.manage — adding sign-in is part of this explicit source action. */
       if (await isOrganizationCapabilityWithheld(context.organizationId, 'integrations.manage'))

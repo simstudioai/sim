@@ -15,8 +15,8 @@ KBs' live source/credential configuration, document metadata, and backing files 
 ## Before running
 
 The app and workers must already use live Search, and older indexing jobs must be drained.
-`SIM_SEARCH_LIVE=true` (the default) makes `isIndexedOrgSearchEnabled()` false. **`SIM_SEARCH_LIVE=false`
-enables indexed Search again.** The cleanup does not inspect this flag. Live source setup may still
+Enterprise Search no longer has an indexed backend or an environment toggle to re-enable it.
+Older releases could re-enable indexed Search, so their workers must be drained before retirement. Live source setup may still
 create a Search KB for configuration; it does not index content. Document uploads, dispatch and
 queued processing also honor the indexed-search gate.
 

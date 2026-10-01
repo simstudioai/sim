@@ -9,7 +9,6 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
@@ -139,7 +138,6 @@ function OrganizationHomeContent({
   const hasChat = Boolean(chatId || chat.messages.length)
   const canSelectMode =
     !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
-  const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
   const assistantSearchLevel = 'fast'
   const panel = useChatResourcePanel(chat, controller)
   const addResource = panel.addResourceFromUser
@@ -257,7 +255,7 @@ function OrganizationHomeContent({
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel, liveSearch])
+  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel])
 
   const send = (
     message: string,
@@ -390,11 +388,7 @@ function OrganizationHomeContent({
           chatId={chat.resolvedChatId}
           composer={composer}
           onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={
-            (requestMode !== 'assistant' || liveSearch) &&
-            chat.resources.length > 0 &&
-            panel.isResourceCollapsed
-          }
+          initialScrollBlocked={chat.resources.length > 0 && panel.isResourceCollapsed}
         />
       ) : (
         <OrganizationLanding

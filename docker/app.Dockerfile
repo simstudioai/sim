@@ -134,8 +134,6 @@ WORKDIR /app
 # Runtime flags override these image defaults; dev images opt into Plan.
 ARG MSHIP_PLAN_MODE_DEFAULT=false
 ENV MSHIP_PLAN_MODE_DEFAULT=$MSHIP_PLAN_MODE_DEFAULT
-ARG SIM_SEARCH_LIVE_DEFAULT=true
-ENV SIM_SEARCH_LIVE_DEFAULT=$SIM_SEARCH_LIVE_DEFAULT
 
 # Node.js 24, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production

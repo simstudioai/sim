@@ -11,7 +11,6 @@ import {
 } from '@sim/emcn'
 import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import {
@@ -159,7 +158,7 @@ export function ConnectorSettingsFields({
   onContentCredentialChange,
   onWorkspaceCredentialChange,
 }: ConnectorSettingsFieldsProps) {
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
+  const liveSearch = isSearchIndex
   const connectorConfig = liveSearchSourceMeta(originalConfig, Boolean(liveSearch), {
     githubInstallation: usesGitHubInstallation && scope.kind === 'organization',
   })

@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Chip } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
@@ -9,7 +8,6 @@ import {
   InteractionCard,
   InteractionCardActionRow,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
-import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 
@@ -42,7 +40,6 @@ function SearchIntegrationConnectionControl({
   divided,
   onConnected,
 }: SearchIntegrationConnectionProps) {
-  const [setupOpen, setSetupOpen] = useState(false)
   const connector = SEARCH_CONNECTORS.find((entry) => entry.type === target.connectorType)
   const connection = useSearchIntegrationConnection({
     organizationId,
@@ -63,17 +60,7 @@ function SearchIntegrationConnectionControl({
         : !connection.available
           ? `${name} connection is no longer available`
           : `${action} ${name}`
-  const handleConnect = () => {
-    if (
-      target.connectionMode !== 'live' &&
-      connector &&
-      !connection.connectorId &&
-      connector.setupFields.length &&
-      !connection.pending
-    )
-      setSetupOpen(true)
-    else void connection.connect()
-  }
+  const handleConnect = () => void connection.connect()
   const content = (
     <>
       <InteractionCardActionRow
@@ -100,21 +87,6 @@ function SearchIntegrationConnectionControl({
             Retry
           </Chip>
         </div>
-      )}
-      {setupOpen && connector && (
-        <SourceSetupModal
-          organizationId={organizationId}
-          onConnected={connection.completeSetup}
-          connector={connector}
-          onClose={() => setSetupOpen(false)}
-          isPending={connection.isStarting}
-          error={connection.error}
-          onConnect={(config) => {
-            void connection.connect(config).then((started) => {
-              if (started) setSetupOpen(false)
-            })
-          }}
-        />
       )}
     </>
   )

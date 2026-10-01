@@ -16,7 +16,6 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -67,7 +66,6 @@ export function SearchSourceSetup({
   mirroredAccessAvailable,
 }: SearchSourceSetupProps) {
   const { data: session } = useSession()
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const {
     integrationAvailability,
     oauthServiceAvailability,
@@ -135,9 +133,7 @@ export function SearchSourceSetup({
   }
   const failedQuery = index.isError ? index : null
   const initialMode = (type: string) =>
-    type === 'github' || (!liveSearch && (setup['source-access'] === 'members' || type === 'slack'))
-      ? ('members' as const)
-      : ('admin' as const)
+    type === 'github' ? ('members' as const) : ('admin' as const)
 
   const selectedAccessMode = selectedType ? initialMode(selectedType) : undefined
   const selectedAvailability = selectedMeta
@@ -199,10 +195,7 @@ export function SearchSourceSetup({
   ) {
     if (selectedType && session?.user?.id) {
       const accessMode = initialMode(selectedType)
-      const setupMode =
-        liveSearch || !(selectedMeta?.mirrorsSourceAcls && selectedMeta.auth.mode === 'oauth')
-          ? accessMode
-          : 'choose'
+      const setupMode = accessMode
       return (
         <AddConnectorModal
           key={`${session.user.id}:${knowledgeBaseId}:${selectedType}:${setupMode}:${accessMode}`}
@@ -216,7 +209,7 @@ export function SearchSourceSetup({
           initialConnectorType={selectedType}
           initialAccessMode={accessMode}
           lockConnectorType
-          lockedAccessMode={setupMode === 'choose' ? undefined : setupMode}
+          lockedAccessMode={setupMode}
           setupDraftKey={`${session.user.id}:${resourceScopeKey(scope)}:${knowledgeBaseId}:${selectedType}:${setupMode}`}
           onConnectorTypeChange={(type) =>
             void setSelectedType(type !== null ? searchSetupParam.parser.parse(type) : null)
@@ -224,7 +217,7 @@ export function SearchSourceSetup({
           onCreated={async (type, connector) => {
             await setSelectedType(null)
             const destination = organizationRoutes(scope.organizationId).searchSource(connector.id)
-            if (liveSearch && accessMode === 'admin' && type !== 'gitlab') {
+            if (accessMode === 'admin' && type !== 'gitlab') {
               updateSearchIntegration.mutate(
                 {
                   organizationId: scope.organizationId,
@@ -366,11 +359,7 @@ export function SearchSourceSetup({
                       isIntegrationAvailabilityReady,
                     }
                   )
-                  const available =
-                    type === 'github' ||
-                    (!liveSearch && (setup['source-access'] === 'members' || type === 'slack'))
-                      ? members
-                      : central
+                  const available = type === 'github' ? members : central
                   return (
                     <SettingsResourceRow
                       key={type}

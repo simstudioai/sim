@@ -1,13 +1,13 @@
 import { StrictMode, useEffect, useRef, useState } from 'react'
 import { ToastProvider } from '@sim/emcn'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { isCredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import { startDesktopSourceBrowser } from '@/lib/desktop/source-browser'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { CredentialGroupCompletionHandoff } from '@/app/credential-groups/complete/completion-handoff'
 import { SlackCompletion } from '@/app/credential-groups/slack-complete/slack-completion'
 import { SourceCompletion } from '@/app/desktop/connect/source-completion'
-import { useMemberEnrollment } from '@/app/o/[organizationId]/integrations/indexed/use-member-enrollment'
 import {
   useConnectOrganizationAccount,
   useOrganizationAccounts,
@@ -17,16 +17,16 @@ import { useSlackSearchInstallations, useStartSlackSearchOAuth } from '@/hooks/q
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 
-const NO_CONNECTIONS = new Set<string>()
-const MEMBERSHIP_KEYS: readonly (readonly string[])[] = []
-
 function SourceConnectFixture() {
   const accountConnection = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
   const accounts = useOrganizationAccounts('fixture-organization')
-  const enrollment = useMemberEnrollment({
-    membershipQueryKeys: MEMBERSHIP_KEYS,
-    connectedConnectorIds: NO_CONNECTIONS,
+  const enrollment = useMutation({
+    mutationFn: () =>
+      connectDesktopSource({
+        kind: 'member-enrollment',
+        params: { id: '00000000-0000-4000-8000-000000000001', connectorId: 'fixture-connector' },
+      }),
   })
   const [githubCredential, setGithubCredential] = useState('')
   const github = useGitHubInstallationSetup({
@@ -120,16 +120,11 @@ function SourceConnectFixture() {
       <output aria-label='GitHub pending'>{String(github.pending)}</output>
       <output aria-label='GitHub credential'>{githubCredential}</output>
       <output aria-label='GitHub error'>{github.error}</output>
-      <button
-        disabled={enrollment.isPending}
-        onClick={() =>
-          enrollment.connect('00000000-0000-4000-8000-000000000001', 'fixture-connector')
-        }
-      >
+      <button disabled={enrollment.isPending} onClick={() => enrollment.mutate()}>
         Connect invited source
       </button>
       <output aria-label='Enrollment pending'>{String(enrollment.isPending)}</output>
-      <output aria-label='Enrollment error'>{enrollment.error}</output>
+      <output aria-label='Enrollment error'>{enrollment.error?.message}</output>
       <output aria-label='Connection'>{connection.status}</output>
       <output aria-label='Accounts'>{inventory.data?.installations.length ?? 0}</output>
       {connection.error && <p role='alert'>{connection.error.message}</p>}

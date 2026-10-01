@@ -11,7 +11,6 @@ vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveM
 
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { organizationAccountAccessOperations } from '@/lib/credential-groups/application/organization-access'
-import { updateOrganizationAccountIndexingOperation } from '@/lib/credential-groups/application/organization-account-indexing'
 import { organizationAccountManagementOperations } from '@/lib/credential-groups/application/organization-account-management'
 import { organizationAccountOperations } from '@/lib/credential-groups/application/organization-accounts'
 
@@ -19,7 +18,6 @@ const operations = [
   ...Object.values(organizationAccountOperations),
   ...Object.values(organizationAccountAccessOperations),
   ...Object.values(organizationAccountManagementOperations),
-  updateOrganizationAccountIndexingOperation,
 ]
 const principal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',

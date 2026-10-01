@@ -17,7 +17,6 @@ import {
   billingUsageMonitorMock,
   billingUsageMonitorMockFns,
 } from '@sim/testing/mocks/billing-usage-monitor.mock'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
@@ -41,7 +40,7 @@ import {
 import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const hoisted = vi.hoisted(() => ({
@@ -52,14 +51,9 @@ const hoisted = vi.hoisted(() => ({
   getTagDefinitions: vi.fn(),
   importProvenance: vi.fn(),
   rerank: vi.fn(),
-  recordActivity: vi.fn(),
 }))
 
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
-
-vi.mock('@/lib/knowledge/search/activity', () => ({
-  recordOrganizationSearchActivity: hoisted.recordActivity,
-}))
 
 vi.mock('@/lib/knowledge/reranker', () => ({
   hasRerankerCredential: hoisted.hasRerankerCredential,
@@ -236,42 +230,6 @@ describe('knowledge search application use case', () => {
     }
   )
 
-  describe.each(['workspace', 'organization'] as const)('%s ranking policy', (scope) => {
-    beforeEach(() => {
-      if (scope === 'organization') {
-        setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
-        mocks.getKnowledgeBase.mockResolvedValue({
-          ...knowledgeBase,
-          workspaceId: null,
-          organizationId: 'org-canonical',
-          isSearchIndex: true,
-        })
-        queueTableRows(member, [{ role: 'member' }])
-      }
-    })
-    afterEach(resetEnvFlagsMock)
-
-    it('meters only successful organization calls under the acting person', async () => {
-      await searchKnowledge.execute({
-        principal: createSessionPrincipal(),
-        input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10, surface: 'mcp' },
-      })
-      if (scope === 'organization') {
-        expect(mocks.recordActivity).toHaveBeenCalledExactlyOnceWith({
-          organizationId: 'org-canonical',
-          userId: 'user-1',
-          surface: 'mcp',
-          results: expect.any(Array),
-        })
-      } else {
-        expect(mocks.recordActivity).not.toHaveBeenCalled()
-      }
-    })
-
-    const _principal = createSessionPrincipal()
-    const _input = { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10 }
-  })
-
   it('gates organization search using the persisted owner even when the request omits it', async () => {
     mocks.getKnowledgeBase.mockResolvedValue({
       ...knowledgeBase,
@@ -288,7 +246,6 @@ describe('knowledge search application use case', () => {
         input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
       })
     ).rejects.toThrow('Search is not enabled for this organization')
-    expect(mocks.recordActivity).not.toHaveBeenCalled()
     expect(
       knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
     ).toHaveBeenCalledExactlyOnceWith('org-canonical')
@@ -297,10 +254,8 @@ describe('knowledge search application use case', () => {
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 
-  describe('while indexed organization search is dormant', () => {
+  describe('Search-marked knowledge bases named explicitly', () => {
     const principal = createSessionPrincipal()
-    beforeEach(() => setEnvFlags({ isLiveEnterpriseSearchEnabled: true }))
-    afterEach(resetEnvFlagsMock)
 
     it.each([
       ['an organization', { workspaceId: null, organizationId: 'org-canonical' }],
@@ -318,7 +273,7 @@ describe('knowledge search application use case', () => {
       })
       expect(result.results).toHaveLength(1)
       expect(mocks.executeSearch).toHaveBeenCalledWith(
-        expect.objectContaining({ knowledgeBaseIds: ['knowledge-1'], indexedRetrieval: false })
+        expect.objectContaining({ knowledgeBaseIds: ['knowledge-1'] })
       )
     })
   })

@@ -20,7 +20,6 @@ on:
       - 'apps/sim/hooks/queries/personal-search-integrations.ts'
       - 'apps/sim/hooks/use-search-integration-connection.ts'
       - 'apps/sim/hooks/use-github-installation-setup.ts'
-      - 'apps/sim/app/o/**/integrations/indexed/use-member-enrollment.ts'
       - 'apps/sim/lib/api/contracts/desktop-source-connect.ts'
       - 'apps/sim/scripts/fixtures/desktop-source-connect.tsx'
       - 'apps/sim/app/workspace/**/browser-session/**'

@@ -13,7 +13,7 @@ import {
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
-/** The workspace knowledge base Sim Search indexes into, one per workspace, created on first connect. */
+/** The knowledge-base shell that holds live Search source configuration. */
 export const SIM_SEARCH_KNOWLEDGE_BASE_NAME = 'Sim Search'
 
 /**
@@ -128,42 +128,6 @@ export function personalSetupFields(meta: ConnectorMeta): ConnectorConfigField[]
 /** Personal sources use defaults even when they also support central indexing. Slack needs a custom app first. */
 export function canConnectWithDefaults(meta: ConnectorMeta): boolean {
   return canConnectPersonally(meta) && meta.id !== 'slack' && personalSetupFields(meta).length === 0
-}
-
-/**
- * The settings a person may supply when a source is created from Sim Search:
- * its setup fields plus anything the connector's Search defaults cover.
- */
-export function personalSourceConfigFieldIds(meta: ConnectorMeta): Set<string> {
-  return new Set([
-    ...personalSetupFields(meta).map((field) => field.id),
-    ...Object.keys(meta.searchDefaultSourceConfig ?? {}),
-  ])
-}
-
-/**
- * A Search source's settings, starting from the connector's Search defaults.
- * A supplied value replaces its default; a blank one leaves the default in
- * place, so an untouched form field never widens the source.
- */
-export function withSearchSourceDefaults(
-  meta: Pick<ConnectorMeta, 'searchDefaultSourceConfig'>,
-  sourceConfig: Record<string, string> = {}
-): Record<string, string> {
-  const merged: Record<string, string> = { ...(meta.searchDefaultSourceConfig ?? {}) }
-  for (const [field, value] of Object.entries(sourceConfig)) {
-    if (typeof value === 'string' && value.trim() === '' && field in merged) continue
-    merged[field] = value
-  }
-  return merged
-}
-
-/** The setup fields a source config leaves empty. */
-export function missingSetupFields(
-  meta: ConnectorMeta,
-  sourceConfig: Record<string, string>
-): ConnectorConfigField[] {
-  return personalSetupFields(meta).filter((field) => !sourceConfig[field.id]?.trim())
 }
 
 /** The name a connector shows, from its registry entry. */

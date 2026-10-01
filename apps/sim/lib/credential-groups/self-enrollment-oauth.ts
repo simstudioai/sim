@@ -8,7 +8,7 @@ import { startCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 
-/** Starts a user-initiated connection with the same scoped receipt for live and indexed Search. */
+/** Starts a user-initiated connection with a scoped receipt for Search and knowledge-base enrollment. */
 export async function startViewerCredentialGroupOAuth(input: {
   userId: string
   organizationId?: string

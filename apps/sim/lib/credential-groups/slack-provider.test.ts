@@ -1,5 +1,4 @@
 import type { CredentialGroupOptionConfig } from '@sim/db/schema'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,7 +33,6 @@ afterAll(resetUrlsMock)
 
 describe('Slack member scope policy', () => {
   beforeEach(() => {
-    resetEnvFlagsMock()
     mocks.configuration.mockResolvedValue({
       slackBotCredentialId: 'bot-1',
       clientId: 'client',
@@ -80,45 +78,32 @@ describe('Slack member scope policy', () => {
     }
   }
 
-  it('requests RTS consent only with live search enabled while retaining the stored policy', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
-    const current = context(SLACK_SEARCH_USER_SCOPES)
-    const policy = await adapter.getPolicy(current.option, {
-      workspaceId: current.workspaceId,
-      credentialGroupId: current.credentialGroupId,
-    })
-    const authorization = await adapter.prepareAuthorization(current, policy)
-    const url = new URL(
-      await authorization.buildAuthorizationUrl({ state: 'state', nonce: 'nonce' })
-    )
-    expect(url.searchParams.get('user_scope')?.split(',')).toEqual(
-      expect.arrayContaining([
-        'search:read.public',
-        'search:read.private',
-        'search:read.im',
-        'search:read.mpim',
-        'search:read.files',
-        'files:read',
-      ])
-    )
-    expect(policy.requiredScopes).toEqual([...SLACK_SEARCH_USER_SCOPES])
-  })
-
-  it('uses the option policy for enrollment instead of widening it', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
-    const scopes = SLACK_MANAGED_USER_SCOPES
-    const current = context(scopes)
-    const policy = await adapter.getPolicy(current.option, {
-      workspaceId: current.workspaceId,
-      credentialGroupId: current.credentialGroupId,
-    })
-    expect(policy.requiredScopes).toEqual([...scopes])
-    const authorization = await adapter.prepareAuthorization(current, policy)
-    const url = new URL(
-      await authorization.buildAuthorizationUrl({ state: 'state', nonce: 'nonce' })
-    )
-    expect(url.searchParams.get('user_scope')?.split(',')).toEqual([...scopes])
-  })
+  it.each([{ scopes: SLACK_SEARCH_USER_SCOPES }, { scopes: SLACK_MANAGED_USER_SCOPES }])(
+    'requests RTS consent while retaining the stored option policy',
+    async ({ scopes }) => {
+      const current = context(scopes)
+      const policy = await adapter.getPolicy(current.option, {
+        workspaceId: current.workspaceId,
+        credentialGroupId: current.credentialGroupId,
+      })
+      const authorization = await adapter.prepareAuthorization(current, policy)
+      const url = new URL(
+        await authorization.buildAuthorizationUrl({ state: 'state', nonce: 'nonce' })
+      )
+      expect(url.searchParams.get('user_scope')?.split(',')).toEqual(
+        expect.arrayContaining([
+          ...scopes,
+          'search:read.public',
+          'search:read.private',
+          'search:read.im',
+          'search:read.mpim',
+          'search:read.files',
+          'files:read',
+        ])
+      )
+      expect(policy.requiredScopes).toEqual([...scopes])
+    }
+  )
 
   it('accepts a different provider email', async () => {
     const scopes = SLACK_SEARCH_USER_SCOPES

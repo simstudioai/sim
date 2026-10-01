@@ -11,7 +11,7 @@ import {
   credentialsManagedOauthMock,
   credentialsManagedOauthMockFns,
 } from '@sim/testing/mocks/credentials-managed-oauth.mock'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { resetEnvFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import {
   knowledgeSearchIntegrationPolicyMock,
   knowledgeSearchIntegrationPolicyMockFns,
@@ -55,12 +55,6 @@ vi.mock('@/lib/sim-search/connectors', () => ({
   ],
 }))
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
-/** The barrel's other use cases need the application layer mocked above; ownership is exercised as is. */
-vi.mock('@/lib/sim-search/indexed', async () => ({
-  ownsIndexedPersonalSearchAccount: (
-    await import('@/lib/sim-search/indexed/integrations/personal-account-ownership')
-  ).ownsIndexedPersonalSearchAccount,
-}))
 
 import {
   prepareOrganizationPersonalConnection,
@@ -125,7 +119,6 @@ describe('organization personal token authorization', () => {
   })
 
   it('uses current personal OAuth inventory in live mode without consulting indexed sources', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     mocks.liveAccounts.mockResolvedValue([
       { id: 'own', providerId: 'google-drive', type: 'managed_oauth' },
     ])
@@ -136,7 +129,6 @@ describe('organization personal token authorization', () => {
     expect(mocks.liveAccounts).toHaveBeenCalledWith({ organizationId: 'org' }, 'person')
   })
   it('does not let direct integration tools bypass current organization scope restrictions', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     mocks.liveAccounts.mockResolvedValue([
       { id: 'own', providerId: 'google-drive', type: 'managed_oauth' },
     ])
@@ -156,7 +148,6 @@ describe('organization personal token authorization', () => {
   it.each(['service_account'])(
     'never substitutes a %s for a personal OAuth account',
     async (type) => {
-      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
       mocks.liveAccounts.mockResolvedValue([{ id: 'own', providerId: 'google-drive', type }])
       await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
         'own connected account'
@@ -166,14 +157,15 @@ describe('organization personal token authorization', () => {
     }
   )
   it('observes a revoked live account without falling back to old indexing membership', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
       'own connected account'
     )
     expect(mocks.token).not.toHaveBeenCalled()
   })
   it('uses the authenticated person inventory and organization token scope without a workspace', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
+    mocks.liveAccounts.mockResolvedValue([
+      { id: 'own', providerId: 'google-drive', type: 'managed_oauth' },
+    ])
     await expect(resolveOrganizationPersonalToken.execute({ principal, input })).resolves.toEqual({
       accessToken: 'secret',
       refreshed: false,
@@ -219,21 +211,7 @@ describe('organization personal token authorization', () => {
     expect(mocks.token).not.toHaveBeenCalled()
   })
 
-  it('does not confuse paused indexing with account authorization', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
-    mocks.inventory.mockResolvedValue({
-      connections: [
-        { indexingStatus: 'paused', accounts: [{ credentialId: 'own', status: 'connected' }] },
-      ],
-      nextCursor: null,
-    })
-    await expect(
-      resolveOrganizationPersonalToken.execute({ principal, input })
-    ).resolves.toHaveProperty('credentialType', 'managed_oauth')
-  })
-
   it('returns the live account target for a connection request without an indexed source', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     const target = {
       type: 'link',
       provider: 'google-drive',
@@ -253,29 +231,5 @@ describe('organization personal token authorization', () => {
     expect(result).toEqual({ provider: 'Google Drive', providerId: 'google-drive', target })
     expect(result).not.toHaveProperty('settingsPath')
     expect(mocks.liveAccounts).not.toHaveBeenCalled()
-  })
-
-  it('finds an exact reconnect control on a later inventory page', async () => {
-    const target = {
-      type: 'link',
-      provider: 'google-drive',
-      connectorType: 'drive',
-      connectorId: 'connector',
-      credentialId: 'own',
-    }
-    mocks.inventory.mockResolvedValueOnce({ connections: [], available: [], nextCursor: 'next' })
-    mocks.inventory.mockResolvedValueOnce({
-      connections: [{ accounts: [{ credentialId: 'own', action: target }] }],
-      available: [],
-      nextCursor: null,
-    })
-    await expect(
-      prepareOrganizationPersonalConnection.execute({
-        principal,
-        input: { organizationId: 'org', providerName: 'Google Drive', credentialId: 'own' },
-      })
-    ).resolves.toEqual({ provider: 'Google Drive', providerId: 'google-drive', target })
-    expect(mocks.inventory.mock.calls[1][0].input.cursor).toBe('next')
-    expect(mocks.token).not.toHaveBeenCalled()
   })
 })

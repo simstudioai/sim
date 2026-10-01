@@ -511,7 +511,7 @@ describe('useChat remount send recovery', () => {
       const shape = resolveDeploymentShape()
       seedDeploymentShape({
         ...shape,
-        features: { ...shape.features, liveEnterpriseSearch: true },
+        features: shape.features,
       })
       const history: MothershipChatHistory = {
         id: 'chat-cited-search',
@@ -632,7 +632,7 @@ describe('useChat remount send recovery', () => {
 
   it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {
     const shape = resolveDeploymentShape()
-    seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+    seedDeploymentShape({ ...shape, features: shape.features })
     const history: MothershipChatHistory = {
       id: 'chat-reconnecting-search',
       title: 'Search',
