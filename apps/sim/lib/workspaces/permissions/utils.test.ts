@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { describe, expect, it, vi } from 'vitest'
 import {
   checkWorkspaceAccess,
-  getManageableWorkspaces,
   getUserEntityPermissions,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
@@ -192,37 +191,6 @@ describe('Permission Utils', () => {
       const result = await hasWorkspaceAdminAccess('user123', 'workspace456')
 
       expect(result).toBe(false)
-    })
-  })
-
-  describe('getManageableWorkspaces', () => {
-    it('should combine owned and admin workspaces without duplicates', async () => {
-      const mockOwnedWorkspaces = [
-        { id: 'ws1', name: 'My Workspace', ownerId: 'user123' },
-        { id: 'ws2', name: 'Another Workspace', ownerId: 'user123' },
-      ]
-      const mockAdminWorkspaces = [
-        { id: 'ws1', name: 'My Workspace', ownerId: 'user123' }, // Duplicate (should be filtered)
-        { id: 'ws3', name: 'Shared Workspace', ownerId: 'other-user' },
-      ]
-
-      let callCount = 0
-      mockDb.select.mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          return createMockChain(mockOwnedWorkspaces) // Owned workspaces
-        }
-        return createMockChain(mockAdminWorkspaces) // Admin workspaces
-      })
-
-      const result = await getManageableWorkspaces('user123')
-
-      expect(result).toHaveLength(3)
-      expect(result).toEqual([
-        { id: 'ws1', name: 'My Workspace', ownerId: 'user123', accessType: 'owner' },
-        { id: 'ws2', name: 'Another Workspace', ownerId: 'user123', accessType: 'owner' },
-        { id: 'ws3', name: 'Shared Workspace', ownerId: 'other-user', accessType: 'direct' },
-      ])
     })
   })
 
