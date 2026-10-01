@@ -258,12 +258,6 @@ export function getCredentialGroupProviderService(
   return service
 }
 
-export function getCredentialGroupProviderSupport(
-  provider: CredentialGroupProvider
-): CredentialGroupProviderSupport {
-  return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider]
-}
-
 export function getCredentialGroupProviderId(provider: CredentialGroupProvider): string {
   return getCredentialGroupProviderService(provider).providerId
 }
