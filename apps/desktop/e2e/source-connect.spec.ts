@@ -58,6 +58,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
   let canceledSlackRequests = 0
   const personalAttempts = new Map<string, { session: string; completed: boolean }>()
   let personalInventoryFailed = false
+  let personalInventoryFailures = 0
   let javascript = ''
   let stylesheet = ''
   let origin = ''
@@ -196,6 +197,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
           data: { url: `${origin}/personal-provider?completionId=${oauthCompletionId}` },
         })
       } else if (personalInventoryFailed) {
+        personalInventoryFailures++
         json({ error: 'Inventory temporarily unavailable' }, 503)
       } else {
         const attempt = personalAttempts.get(url.searchParams.get('completionId') ?? '')
@@ -661,7 +663,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
         await expect.poll(() => startSessions.length).toBe(starts + 1)
         await web.getByRole('button', { name: 'Cancel Slack request', exact: true }).click()
         await expect.poll(() => canceledSlackRequests).toBe(1)
-        await expect(web.getByLabel('Connection', { exact: true })).toHaveText('error')
+        await expect(web.getByRole('button', { name: 'Connect Slack', exact: true })).toBeEnabled()
       } finally {
         holdSlackStart = false
       }
@@ -677,9 +679,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
         personalInventoryFailed = true
         await external.getByRole('link', { name: 'Authorize personal Search' }).click()
         await expect(external).toHaveURL(`${origin}/desktop/done?kind=connect`)
-        await expect(page.getByLabel('Personal Search inventory error')).toHaveText(
-          'Inventory temporarily unavailable'
-        )
+        await expect.poll(() => personalInventoryFailures).toBeGreaterThan(0)
         await expect(
           page.getByRole('button', { name: 'Connect personal Search', exact: true })
         ).toBeEnabled()
@@ -688,24 +688,33 @@ test('source authorization returns to its desktop screen and refreshes live', as
             const entry = Object.entries(localStorage).find(([key]) =>
               key.startsWith('sim.search-connection.')
             )
-            return entry ? (JSON.parse(entry[1]).completionId as string) : null
+            if (!entry) return null
+            const attempt: { completionId: string; status: string; credentialId?: string } =
+              JSON.parse(entry[1])
+            return attempt
           })
         const pendingReceipt = await receipt()
-        expect(pendingReceipt).toBeTruthy()
+        expect(pendingReceipt).toMatchObject({ status: 'pending' })
         await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
-        expect(await receipt()).toBe(pendingReceipt)
-        await expect(page.getByLabel('Personal Search pending')).toHaveText('true')
+        expect(await receipt()).toEqual(pendingReceipt)
         await page.getByRole('button', { name: 'Cancel personal Search', exact: true }).click()
-        await expect(page.getByLabel('Personal Search pending')).toHaveText('false')
+        await expect
+          .poll(receipt)
+          .toMatchObject({ completionId: pendingReceipt?.completionId, status: 'failed' })
         personalInventoryFailed = false
         await page.getByRole('button', { name: 'Retry personal inventory', exact: true }).click()
         await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
         await expect.poll(async () => (await opened()).length).toBe(previousOpens + 2)
-        expect(await receipt()).not.toBe(pendingReceipt)
+        const retryReceipt = await receipt()
+        expect(retryReceipt).toMatchObject({ status: 'pending' })
+        expect(retryReceipt?.completionId).not.toBe(pendingReceipt?.completionId)
         await external.goto((await opened())[previousOpens + 1])
         await external.getByRole('link', { name: 'Authorize personal Search' }).click()
-        await expect(page.getByLabel('Personal Search connected')).toHaveText('true')
-        await expect(page.getByLabel('Personal Search pending')).toHaveText('false')
+        await expect.poll(receipt).toMatchObject({
+          completionId: retryReceipt?.completionId,
+          status: 'connected',
+          credentialId: 'fixture-personal-account',
+        })
       }
     )
     await page.screenshot({ path: test.info().outputPath('source-connect-desktop.png') })

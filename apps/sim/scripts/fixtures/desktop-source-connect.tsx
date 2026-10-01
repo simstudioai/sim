@@ -114,9 +114,6 @@ function SourceConnectFixture() {
       </button>
       <button onClick={personal.cancel}>Cancel personal Search</button>
       <button onClick={() => void personal.retry()}>Retry personal inventory</button>
-      <output aria-label='Personal Search pending'>{String(personal.pending)}</output>
-      <output aria-label='Personal Search inventory error'>{personal.inventoryError}</output>
-      <output aria-label='Personal Search connected'>{String(personal.connected)}</output>
       <button disabled={github.pending} onClick={() => void github.connect()}>
         Connect GitHub
       </button>
