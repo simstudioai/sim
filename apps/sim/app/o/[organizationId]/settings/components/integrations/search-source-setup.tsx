@@ -133,7 +133,9 @@ export function SearchSourceSetup({
   }
   const failedQuery = index.isError ? index : null
   const initialMode = (type: string) =>
-    type === 'github' || type === 'slack' ? ('members' as const) : ('admin' as const)
+    type === 'github' || type === 'slack' || setup['source-access'] === 'members'
+      ? ('members' as const)
+      : ('admin' as const)
 
   const selectedAccessMode = selectedType ? initialMode(selectedType) : undefined
   const selectedAvailability = selectedMeta

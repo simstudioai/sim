@@ -7,6 +7,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { addOrganizationAccountProvider } from '@/lib/credential-groups/service'
+import { SLACK_SEARCH_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -90,7 +91,9 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
         'Zoom Search is not available for this organization'
       )
     const memberProvider = input.approved
-      ? liveSearchMemberAccountProvider(input.connectorType)
+      ? input.connectorType === 'slack'
+        ? 'slack'
+        : liveSearchMemberAccountProvider(input.connectorType)
       : null
     const mcpProvider = input.approved ? liveSearchMcpConnector(input.connectorType) : null
     if (memberProvider || mcpProvider) {
@@ -169,7 +172,13 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
               memberAccounts = await addOrganizationAccountProvider(
                 context.organizationId!,
                 requirePrincipalSubjectUserId(principal),
-                { provider: memberProvider, label: source[1].name },
+                {
+                  provider: memberProvider,
+                  label: source[1].name,
+                  ...(memberProvider === 'slack'
+                    ? { requiredScopes: [...SLACK_SEARCH_USER_SCOPES] }
+                    : {}),
+                },
                 tx
               ).catch((error: unknown) => {
                 if (error instanceof CredentialGroupProviderConfigurationError)
@@ -217,7 +226,7 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
                   action: AuditAction.CREDENTIAL_GROUP_UPDATED,
                   resourceType: AuditResourceType.CREDENTIAL_GROUP,
                   resourceId: result.memberAccounts.groupId,
-                  description: `Added ${result.connectorType} member sign-in for Sim Search`,
+                  description: `Configured ${result.connectorType} member sign-in for Sim Search`,
                   metadata: { connectorType: result.connectorType },
                 },
               ]

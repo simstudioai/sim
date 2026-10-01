@@ -1289,6 +1289,9 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
     }
     const documentIds = [...new Set(input.documentIds)]
     const restoring = input.operation === 'restore'
+    if (restoring && !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+    }
     const updated = await db
       .update(document)
       .set({ userExcluded: !restoring, enabled: restoring })

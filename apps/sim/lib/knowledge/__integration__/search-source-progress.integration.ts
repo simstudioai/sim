@@ -22,8 +22,10 @@ import {
 import {
   deleteKnowledgeConnector,
   listKnowledgeConnectorDocuments,
+  updateKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
 import {
+  bulkUpdateKnowledgeDocuments,
   listKnowledgeDocuments,
   readKnowledgeDocument,
   updateKnowledgeDocument,
@@ -90,6 +92,100 @@ describe('viewer-isolated knowledge-base recovery lists', () => {
     expect(result.counts.failed).toBe(1)
     expect(result.hasMore).toBe(false)
     expect((await read(bob)).documents).toEqual([])
+  })
+})
+
+describe('retired Search document admission', () => {
+  const fixture = createKnowledgeAclFixtureIds()
+  const viewer = {
+    kind: 'session' as const,
+    userId: fixture.aliceId,
+    sessionId: 'fixture-retirement',
+  }
+  const documentId = generateId()
+
+  beforeAll(async () => {
+    await seedKnowledgeAclFixture(fixture, { connectorType: 'google_drive' })
+    await db.insert(document).values({
+      id: documentId,
+      knowledgeBaseId: fixture.knowledgeBaseId,
+      connectorId: fixture.connectorId,
+      externalId: documentId,
+      filename: 'Retirement fixture',
+      fileUrl: '',
+      fileSize: 0,
+      mimeType: 'text/plain',
+      processingStatus: 'completed',
+      acl: [`u:${fixture.aliceId}@fixture.test`],
+      aclVerifiedAt: new Date(),
+    })
+  })
+  afterAll(async () => {
+    await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
+    await db.delete(organization).where(eq(organization.id, fixture.organizationId))
+    await db.delete(user).where(inArray(user.id, [fixture.aliceId, fixture.bobId]))
+  })
+
+  it.each([
+    'connector restore',
+    'document enable',
+    'document updates enable',
+    'selected documents enable',
+    'all documents enable',
+  ] as const)('refuses %s for retired Search while preserving ordinary KBs', async (operation) => {
+    const change = () => {
+      const input = { knowledgeBaseId: fixture.knowledgeBaseId, documentId }
+      if (operation === 'connector restore')
+        return updateKnowledgeConnectorDocuments.execute({
+          principal: viewer,
+          input: {
+            ...input,
+            connectorId: fixture.connectorId,
+            operation: 'restore',
+            documentIds: [documentId],
+          },
+        })
+      if (operation === 'document enable')
+        return updateKnowledgeDocument.execute({
+          principal: viewer,
+          input: { ...input, enabled: true },
+        })
+      if (operation === 'document updates enable')
+        return updateKnowledgeDocument.execute({
+          principal: viewer,
+          input: { ...input, updates: { enabled: true } },
+        })
+      return bulkUpdateKnowledgeDocuments.execute({
+        principal: viewer,
+        input: {
+          knowledgeBaseId: fixture.knowledgeBaseId,
+          operation: 'enable',
+          ...(operation === 'all documents enable'
+            ? { selectAll: true }
+            : { documentIds: [documentId] }),
+        },
+      })
+    }
+    await db
+      .update(document)
+      .set({ enabled: false, userExcluded: operation === 'connector restore' })
+      .where(eq(document.id, documentId))
+    await db
+      .update(knowledgeBase)
+      .set({ isSearchIndex: true })
+      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
+    const [before] = await db.select().from(document).where(eq(document.id, documentId))
+
+    await expect(change()).rejects.toMatchObject({ code: 'validation' })
+    expect(await db.select().from(document).where(eq(document.id, documentId))).toEqual([before])
+
+    await db
+      .update(knowledgeBase)
+      .set({ isSearchIndex: false })
+      .where(eq(knowledgeBase.id, fixture.knowledgeBaseId))
+    await change()
+    const [restored] = await db.select().from(document).where(eq(document.id, documentId))
+    expect(restored).toMatchObject({ enabled: true, userExcluded: false, acl: before.acl })
   })
 })
 

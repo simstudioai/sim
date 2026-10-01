@@ -27,6 +27,7 @@ import {
   resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   ALL_TAG_SLOTS,
   type AllTagSlot,
@@ -837,6 +838,9 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     const updates: KnowledgeDocumentUpdates = input.updates
       ? { ...input.updates }
       : { filename: input.filename, enabled: input.enabled }
+    if (updates.enabled && !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+    }
     if (input.tagValues !== undefined) {
       Object.assign(
         updates,
@@ -889,6 +893,12 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     input: BulkKnowledgeDocumentsInput
   }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }) {
+    if (
+      input.operation === 'enable' &&
+      !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)
+    ) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+    }
     const result = input.selectAll
       ? await bulkDocumentOperationByFilter(
           context.knowledgeBaseId,
