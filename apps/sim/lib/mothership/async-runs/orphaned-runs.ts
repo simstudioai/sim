@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   type CopilotRunStatus,
+  copilotAsyncToolCalls,
   copilotChats,
   copilotOrganizationRequestStops,
   copilotRequestStops,
@@ -19,6 +20,7 @@ import {
   isNull,
   lt,
   lte,
+  not,
   notInArray,
   or,
   type SQL,
@@ -51,11 +53,12 @@ const UNFINISHED_RUN_STATUSES: CopilotRunStatus[] = [
  * How long a leased run must go without a status write before the sweep may settle it.
  *
  * This is a recovery window, not a liveness test, and is independent of any run
- * deadline. Liveness comes only from the chat lock: a live controller renews it by
- * heartbeat for as long as it runs, however long that is, and a run whose stream holds
- * the lock is never settled. For a run with no lock holder, this window and the replay
- * buffer's `:seq` key (whose TTL each write renews, `COPILOT_STREAM_TTL_SECONDS`,
- * one hour by default) leave a reconnect time to resume it; the sweep waits for both.
+ * deadline. Liveness comes only from heartbeats, which run for as long as their work
+ * does, however long that is: a run whose stream holds the chat lock, which its live
+ * controller renews, or whose Sim tool holds an execution lease, is never settled. For a
+ * run with neither, this window and the replay buffer's `:seq` key (whose TTL each write
+ * renews, `COPILOT_STREAM_TTL_SECONDS`, one hour by default) leave a reconnect time to
+ * resume it; the sweep waits for both.
  * A TTL configured below this window shortens only that resume window, never safety.
  */
 export const ORPHANED_RUN_GRACE_MS = 60 * 60 * 1000
@@ -92,7 +95,20 @@ function idleFor(ms: number): SQL {
   return sql`${copilotRuns.updatedAt} < now() - make_interval(secs => ${ms / 1000})`
 }
 
-const leasedRunIdle = and(isNotNull(controllerToken), idleFor(ORPHANED_RUN_GRACE_MS))
+/**
+ * One of the run's Sim tools is still executing. A tool call writes nothing to its run
+ * while it runs, however long that is; its owner only renews this execution lease by
+ * heartbeat, so an unexpired lease is live Sim work the worker is still waiting on.
+ */
+const toolExecuting = sql`EXISTS (SELECT 1 FROM ${copilotAsyncToolCalls} t
+    WHERE t.run_id = ${copilotRuns.id} AND t.execution_settled_at IS NULL
+      AND t.execution_revoked_at IS NULL AND t.execution_lease_expires_at > clock_timestamp())`
+
+const leasedRunIdle = and(
+  isNotNull(controllerToken),
+  idleFor(ORPHANED_RUN_GRACE_MS),
+  not(toolExecuting)
+)
 const legacyRunIdle = and(
   isNull(controllerToken),
   lt(copilotRuns.toolExecutionVersion, SIM_TOOL_EXECUTION_VERSION),
@@ -143,9 +159,14 @@ function terminalValues(reason: 'orphaned' | 'legacy') {
  * which write the same row, wins or loses atomically against it.
  *
  * Chat rows are locked first, in id order, as a controller's claim does, so the two
- * never wait on each other in opposite orders. A legacy run keeps its last write as its
- * completion and retention time. The chat marker is released without
- * touching the chat's ordering timestamp.
+ * never wait on each other in opposite orders. The run rows are locked next, before the
+ * guarded update takes its snapshot: a tool's admission locks its run row, so the update
+ * then sees any execution lease an admission committed, and a later admission sees the
+ * run settled. Their unsettled tool executions are locked last: a lease heartbeat
+ * writes only the tool row, so one already past its expiry check commits before the
+ * update reads the lease, and a later one finds the lease expired. A legacy run keeps
+ * its last write as its completion and retention time. The chat marker is released
+ * without touching the chat's ordering timestamp.
  */
 async function settleRuns(
   tx: DbTransaction,
@@ -159,6 +180,26 @@ async function settleRuns(
     .from(copilotChats)
     .where(inArray(copilotChats.id, chatIds))
     .orderBy(asc(copilotChats.id))
+    .for('update')
+  const runIds = runs.map((run) => run.id)
+  await tx
+    .select({ id: copilotRuns.id })
+    .from(copilotRuns)
+    .where(inArray(copilotRuns.id, runIds))
+    .orderBy(asc(copilotRuns.id))
+    .for('update')
+  await tx
+    .select({ id: copilotAsyncToolCalls.id })
+    .from(copilotAsyncToolCalls)
+    .where(
+      and(
+        inArray(copilotAsyncToolCalls.runId, runIds),
+        isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt)
+      )
+    )
+    .orderBy(asc(copilotAsyncToolCalls.id))
     .for('update')
 
   const settled: UnownedRun[] = []
@@ -336,10 +377,10 @@ async function settleBatch(candidates: UnownedRun[]): Promise<UnownedRun[]> {
 
 /**
  * Settles runs that no controller will ever finish: a leased run whose stream holds no
- * chat lock and has no replay buffer left, idle past the recovery window, and a legacy
- * run from before the current protocol. Each sweep resumes where the last one stopped
- * and wraps to the first run, so no run is starved by the ones before it. A failed
- * batch is logged and skipped.
+ * chat lock and has no replay buffer left, with no Sim tool still executing, idle past
+ * the recovery window, and a legacy run from before the current protocol. Each sweep
+ * resumes where the last one stopped and wraps to the first run, so no run is starved by
+ * the ones before it. A failed batch is logged and skipped.
  */
 export async function sweepOrphanedRuns(): Promise<{ settledRunIds: string[] }> {
   const settledRunIds: string[] = []
