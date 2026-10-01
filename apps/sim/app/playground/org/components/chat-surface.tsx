@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import {
+  Chip,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -12,7 +14,17 @@ import {
   type TabStripItem,
   Tooltip,
 } from '@sim/emcn'
-import { Download, Globe, Link, MoreHorizontal, Send, TerminalWindow, Trash } from '@sim/emcn/icons'
+import {
+  Check,
+  ChevronDown,
+  Download,
+  Globe,
+  Link,
+  MoreHorizontal,
+  Send,
+  TerminalWindow,
+  Trash,
+} from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { useQueryStates } from 'nuqs'
@@ -241,37 +253,67 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
           : { type: 'resource', resource: active }
 
   const project = projectId ? workspaceById(projectId) : null
-  const stripTabs: TabStripItem[] = [
-    {
-      id: WORKSPACE_TAB,
-      title: project?.name ?? ORGANIZATION.name,
-      icon: <IdentityTile initial={(project ?? ORGANIZATION).name[0]} />,
-      pinned: true,
-      active: activeKey === WORKSPACE_TAB,
-    },
-    ...tabs.map((tab) => stripItem(tab, activeKey === tabKey(tab))),
-  ]
+  const stripTabs: TabStripItem[] = tabs.map((tab) => stripItem(tab, activeKey === tabKey(tab)))
+  /** Picking a project shows it in the workspace tab, like switching a browser profile. */
+  const pickProject = (id: string | null) => {
+    setProject(id)
+    setActiveKey(WORKSPACE_TAB)
+    setCollapsed(false)
+  }
 
   return (
     <ChatPanelLayout
       panel={
         <ChatPanelContent ref={resize.mothershipRef} collapsed={collapsed}>
-          <TabStrip
-            tabs={stripTabs}
-            variant='floating'
-            className={RESOURCE_HEADER_CLASSES.stripGeometry}
-            onSelect={setActiveKey}
-            onClose={close}
-            onNew={add}
-            newTabLabel='New tab'
-            endActions={
-              view.type === 'resource' ? (
-                <ResourceTabActions resource={view.resource} onBrowse={browse} />
-              ) : view.type === 'browser' ? (
-                <IconAction label='Copy Link' icon={Link} />
-              ) : null
-            }
-          />
+          <div className='flex min-w-0 items-center border-[var(--border)] border-b'>
+            <div className='shrink-0 pl-[var(--resource-header-end-inset)]'>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Chip
+                    variant='primary'
+                    shape='round'
+                    leftAdornment={<IdentityTile initial={(project ?? ORGANIZATION).name[0]} />}
+                    rightIcon={ChevronDown}
+                    aria-label='Switch project'
+                  >
+                    {project?.name ?? ORGANIZATION.name}
+                  </Chip>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='start' className='w-[260px]'>
+                  <DropdownMenuItem onSelect={() => pickProject(null)}>
+                    <IdentityTile initial={ORGANIZATION.name[0]} />
+                    <span className='min-w-0 flex-1 truncate'>{ORGANIZATION.name}</span>
+                    <Check className={cn(project && 'invisible')} />
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {WORKSPACES.map((candidate) => (
+                    <DropdownMenuItem key={candidate.id} onSelect={() => pickProject(candidate.id)}>
+                      <IdentityTile initial={candidate.name[0]} />
+                      <span className='min-w-0 flex-1 truncate'>{candidate.name}</span>
+                      <Check className={cn(candidate.id !== project?.id && 'invisible')} />
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <TabStrip
+              tabs={stripTabs}
+              variant='floating'
+              dividers={false}
+              className={cn(RESOURCE_HEADER_CLASSES.stripGeometry, 'min-w-0 flex-1')}
+              onSelect={setActiveKey}
+              onClose={close}
+              onNew={add}
+              newTabLabel='New tab'
+              endActions={
+                view.type === 'resource' ? (
+                  <ResourceTabActions resource={view.resource} onBrowse={browse} />
+                ) : view.type === 'browser' ? (
+                  <IconAction label='Copy Link' icon={Link} />
+                ) : null
+              }
+            />
+          </div>
           <ChatResourcePanel
             chatId={chat.id}
             view={view}
