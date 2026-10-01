@@ -267,13 +267,18 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
             <div className='shrink-0 pl-[var(--resource-header-end-inset)]'>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <TabStripAction
-                    variant='subtle'
+                  <button
+                    type='button'
                     aria-label={`${project?.name ?? ORGANIZATION.name}: switch project`}
-                    className={cn(activeKey === WORKSPACE_TAB && 'bg-[var(--surface-active)]')}
+                    className={cn(
+                      'flex size-[var(--tab-strip-band,30px)] shrink-0 items-center justify-center rounded-lg text-xs transition-colors',
+                      activeKey === WORKSPACE_TAB
+                        ? 'bg-[var(--surface-6)] text-[var(--text-body)]'
+                        : 'bg-[var(--surface-4)] text-[var(--text-icon)] hover-hover:bg-[var(--surface-6)]'
+                    )}
                   >
-                    <IdentityTile initial={(project ?? ORGANIZATION).name[0]} />
-                  </TabStripAction>
+                    {(project ?? ORGANIZATION).name[0]}
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='start' className='w-[260px]'>
                   <DropdownMenuItem onSelect={() => pickProject(null)}>
