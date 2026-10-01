@@ -85,6 +85,7 @@ vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 
 import { Composer } from '@/app/o/[organizationId]/home/components/composer/composer'
+import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
@@ -187,6 +188,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => root.unmount())
+  vi.useRealTimers()
   container.remove()
   queryClient.clear()
 })
@@ -250,6 +252,86 @@ async function render(
 function fileList(files: File[]): FileList {
   return Object.assign(files, { item: (index: number) => files[index] ?? null })
 }
+
+it.each([
+  { searchEnabled: true, planEnabled: true, modes: ['assistant', 'agent', 'plan', 'assistant'] },
+  { searchEnabled: true, planEnabled: false, modes: ['assistant', 'agent', 'assistant'] },
+  { searchEnabled: false, planEnabled: true, modes: ['agent', 'plan', 'agent'] },
+] satisfies { searchEnabled: boolean; planEnabled: boolean; modes: ChatRequestMode[] }[])(
+  'cycles available modes without losing the draft or selection (Search: $searchEnabled, Plan: $planEnabled)',
+  async ({ searchEnabled, planEnabled, modes }) => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
+    let currentMode = modes[0]
+    function Harness() {
+      const [mode, setMode] = useState(modes[0])
+      currentMode = mode
+      const [value, setValue] = useState('Summarize this draft')
+      const files = useFileAttachments({
+        userId: 'user-a',
+        organizationId: 'organization-a',
+        requestMode: mode,
+      })
+      return (
+        <Composer
+          requestMode={mode}
+          searchEnabled={searchEnabled}
+          showModeSelector
+          onModeChange={setMode}
+          value={value}
+          onChange={setValue}
+          files={files}
+          isInitialView
+          isSending={false}
+          onStop={() => {}}
+          onSubmit={() => {}}
+        />
+      )
+    }
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <FeatureFlagsProvider
+            flags={{
+              dashboards: false,
+              'table-row-ttl': false,
+              'mothership-model-selector': false,
+              'mothership-plan-mode': planEnabled,
+            }}
+          >
+            <Harness />
+          </FeatureFlagsProvider>
+        </QueryClientProvider>
+      )
+    )
+    const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+    await act(async () => {
+      input.focus()
+      input.setSelectionRange(10, 14, 'backward')
+    })
+    for (const expectedMode of modes.slice(1)) {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      await act(async () => {
+        container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.dispatchEvent(event)
+      })
+      await act(async () => vi.advanceTimersToNextFrame())
+      const nextInput = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+      expect(currentMode).toBe(expectedMode)
+      expect(event.defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(nextInput)
+      expect(nextInput.value).toBe('Summarize this draft')
+      expect([
+        nextInput.selectionStart,
+        nextInput.selectionEnd,
+        nextInput.selectionDirection,
+      ]).toEqual([10, 14, 'backward'])
+    }
+  }
+)
 
 async function paste(files: File[]) {
   const event = new Event('paste', { bubbles: true, cancelable: true })
