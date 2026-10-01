@@ -69,7 +69,7 @@ import {
   createProviderToolCallIdentity,
   scopeProviderToolCallId,
 } from '@/lib/mothership/request/go/tool-call-identity'
-import { appendEvents } from '@/lib/mothership/request/session/buffer'
+import { appendEvents, readEvents } from '@/lib/mothership/request/session/buffer'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { createEvent } from '@/lib/mothership/request/session/event'
 import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
@@ -345,5 +345,26 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
       .filter((id): id is string => typeof id === 'string')
     expect(toolIds).toHaveLength(2)
     expect(new Set(toolIds).size).toBe(2)
+  })
+
+  it('numbers a recovered turn past a ring whose events are all unreadable', async () => {
+    const { streamId, runId, frame } = await orphanedRunWithTrimmedRing()
+    const redis = getRedisClient()!
+    const eventsKey = `mothership_stream:${streamId}:events`
+    await redis.del(eventsKey)
+    await redis.zadd(eventsKey, 1, 'corrupt-1', 2, 'corrupt-2', 3, 'corrupt-3', 4, 'corrupt-4')
+    worker.replies = {
+      '/api/mothership': [
+        frame(1, 'session', { kind: 'start' }),
+        frame(2, 'text', { channel: 'assistant', text: FULL_TEXT, textOffset: 0 }),
+        frame(3, 'complete', { status: 'complete', textLength: FULL_TEXT.length }),
+      ],
+    }
+
+    expect(await recoverAndFinish(streamId, runId)).toBe('complete')
+
+    const recovered = await readEvents(streamId, '0')
+    expect(recovered.length).toBeGreaterThan(0)
+    expect(Math.min(...recovered.map((event) => event.seq))).toBe(5)
   })
 })

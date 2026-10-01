@@ -125,13 +125,13 @@ export const readChatStream = defineAuthorizedChatUseCase({
        * A ring that lost its head is treated like an expired one: the controller starts
        * from an empty context and re-attaches with an empty receipt, so the worker re-sends
        * the whole response and re-hands its parked calls. Rebuilding from the tail would
-       * persist a truncated turn.
+       * persist a truncated turn. Without a recovered event, numbering resumes past the
+       * stream's counter, which outlives unreadable entries still holding earlier seqs.
        */
       const ringIntact = startsAtReplayHead(events[0]?.seq)
       const recoveredEvents = ringIntact ? events : []
-      const resumeSeq = ringIntact
-        ? (events.at(-1)?.seq ?? 0)
-        : ((await getLatestSeq(run.streamId)) ?? 0)
+      const lastEvent = recoveredEvents.at(-1)
+      const resumeSeq = lastEvent ? lastEvent.seq : ((await getLatestSeq(run.streamId)) ?? 0)
       const requestId = typeof saved?.requestId === 'string' ? saved.requestId : generateId()
       const completion = {
         chatId,
