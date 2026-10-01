@@ -1485,14 +1485,6 @@ export interface FunctionExecutionRequestContext {
   signal: AbortSignal
 }
 
-export function projectFunctionValidationResponse(
-  req: Pick<FunctionExecutionRequestContext, 'headers'>,
-  response: NextResponse
-): Promise<NextResponse> {
-  const metadataType = getRequestedResolvedSecretNamesMetadataType(req.headers)
-  return appendPrivateResolvedSecretNames(response, metadataType ? [] : null, metadataType)
-}
-
 /**
  * Compares an about-to-be-exported buffer against the overwrite target's
  * current content. `identical: true` means the export is a byte-for-byte no-op:

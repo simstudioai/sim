@@ -43,10 +43,7 @@ vi.mock('@sim/workflow-persistence/subflow-helpers', () => ({
 vi.mock('@/blocks', () => ({
   getBlock: () => null,
   getAllBlocks: () => ({}),
-  getAllBlockTypes: () => [],
   getBlockByToolName: () => null,
-  getBlocksByCategory: () => [],
-  isValidBlockType: () => false,
   registry: {},
 }))
 
