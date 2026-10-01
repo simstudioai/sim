@@ -12,13 +12,19 @@ const params = {
 describe('Power BI DAX result handling', () => {
   it('preserves partial rows and identifies errors at every documented scope', async () => {
     const response = jsonResponse({
-      error: { code: 'ResponseLimit', message: 'Limited result.' },
+      error: {
+        'pbi.error': { code: 'ResponseLimit', message: 'Limited result.' },
+      },
       results: [
         {
-          error: { code: 'QueryLimit', message: 'One result table allowed.' },
+          error: {
+            'pbi.error': { code: 'QueryLimit', message: 'One result table allowed.' },
+          },
           tables: [
             {
-              error: { code: 'TableLimit', message: 'More than the allowed rows.' },
+              error: {
+                'pbi.error': { code: 'TableLimit', message: 'More than the allowed rows.' },
+              },
               rows: [{ 'Sales[Amount]': 0, '[Blank]': null }],
             },
           ],
@@ -103,12 +109,21 @@ describe('Power BI DAX result handling', () => {
     })
   })
 
-  it('keeps nested Microsoft error details when the direct message is absent', async () => {
+  it.each(['direct', 'wrapped'])('normalizes %s Microsoft error diagnostics', async (kind) => {
+    const details =
+      kind === 'direct'
+        ? { diagnostic: 'DAX query failure' }
+        : [
+            { code: 'AnalysisServicesErrorCode', detail: { type: 1, value: '3238920194' } },
+            { code: 'DetailsMessage', detail: { type: 1, value: 'The DAX query is invalid.' } },
+          ]
     const result = await powerbiExecuteQueryTool.transformResponse!(
       jsonResponse({
         error: {
           code: 'DatasetExecuteQueriesError',
-          details: { diagnostic: 'DAX query failure' },
+          ...(kind === 'direct'
+            ? { details }
+            : { 'pbi.error': { code: 'DatasetExecuteQueriesError', details } }),
         },
       }),
       params
@@ -118,10 +133,13 @@ describe('Power BI DAX result handling', () => {
       {
         scope: 'response',
         code: 'DatasetExecuteQueriesError',
-        message: null,
-        details: { diagnostic: 'DAX query failure' },
+        message: kind === 'direct' ? null : 'The DAX query is invalid.',
+        details,
       },
     ])
+    expect(result.error).toBe(
+      kind === 'direct' ? 'DatasetExecuteQueriesError' : 'The DAX query is invalid.'
+    )
   })
 
   it.each(['declared', 'streamed'])(

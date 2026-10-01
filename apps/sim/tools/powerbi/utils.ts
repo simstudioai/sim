@@ -175,10 +175,27 @@ export function appendPowerBIQueryError(
 ): void {
   if (value === undefined || value === null) return
   const error = powerBIRecord(value, 'query error')
+  const diagnostic = isRecordLike(error['pbi.error']) ? error['pbi.error'] : null
+  const details = error.details ?? diagnostic?.details ?? null
+  let message = toStringOrNull(error.message) ?? toStringOrNull(diagnostic?.message)
+  if (message === null && Array.isArray(details)) {
+    for (const entry of details) {
+      if (
+        isRecordLike(entry) &&
+        entry.code === 'DetailsMessage' &&
+        isRecordLike(entry.detail) &&
+        typeof entry.detail.value === 'string' &&
+        entry.detail.value.trim()
+      ) {
+        message = entry.detail.value
+        break
+      }
+    }
+  }
   errors.push({
     scope,
-    code: toStringOrNull(error.code),
-    message: toStringOrNull(error.message),
-    details: error.details ?? null,
+    code: toStringOrNull(error.code) ?? toStringOrNull(diagnostic?.code),
+    message,
+    details,
   })
 }
