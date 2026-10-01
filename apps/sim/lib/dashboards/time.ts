@@ -90,7 +90,8 @@ export function dashboardRangeText(range: DashboardTimeRange, timeZone: string):
   const fromLocal = zonedWallClock(from, timeZone)
   const toLocal = zonedWallClock(to, timeZone)
   if (fromLocal === toLocal) {
-    // Same wall-clock minute (e.g. a DST fall-back repeat): formatRange would collapse both ends.
+    // Same wall-clock minute (e.g. a DST fall-back repeat): formatRange would collapse both ends,
+    // so show the exact exclusive end to the second.
     const exact = new Intl.DateTimeFormat('en-US', {
       timeZone,
       month: 'short',
@@ -101,7 +102,7 @@ export function dashboardRangeText(range: DashboardTimeRange, timeZone: string):
       hourCycle: 'h23',
       timeZoneName: 'short',
     })
-    return `${exact.format(from)} – ${exact.format(to)}`
+    return `${exact.format(from)} – ${exact.format(new Date(range.to))}`
   }
   const sameDay = fromLocal.slice(0, 10) === toLocal.slice(0, 10)
   return new Intl.DateTimeFormat('en-US', {

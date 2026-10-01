@@ -45,9 +45,10 @@ function seriesAxis(
     return toRecord(axis)
   }
   const index = series[`${key}Index`] ?? 0
-  if (typeof index !== 'number' || (index > 0 && axes[index] === undefined))
+  if (option[key] === undefined && index === 0) return {}
+  if (!Number.isInteger(index) || axes[index as number] === undefined)
     throw new Error(`The first series references a missing ${key} at index ${String(index)}`)
-  return toRecord(axes[index])
+  return toRecord(axes[index as number])
 }
 
 /**

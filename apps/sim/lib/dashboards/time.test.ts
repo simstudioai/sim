@@ -55,6 +55,15 @@ describe('dashboard time interactions', () => {
       'America/New_York'
     )
     expect(text).toContain('01:30:00 EDT')
-    expect(text).toContain('01:30:59 EST')
+    expect(text).toContain('01:31:00 EST')
+  })
+
+  it('shows distinct endpoints for a sub-minute zoom range', () => {
+    expect(
+      dashboardRangeText(
+        { from: '2026-09-20T14:30:00.000Z', to: '2026-09-20T14:30:01.000Z' },
+        'UTC'
+      )
+    ).toBe('Sep 20, 14:30:00 UTC – Sep 20, 14:30:01 UTC')
   })
 })

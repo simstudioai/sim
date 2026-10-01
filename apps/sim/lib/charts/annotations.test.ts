@@ -140,4 +140,26 @@ describe('chart annotations', () => {
       )
     ).toThrow('Thresholds require a value axis')
   })
+
+  it('rejects a first series that references an axis the chart does not define', () => {
+    for (const reference of [{ yAxisIndex: 1 }, { yAxisIndex: -1 }, { yAxisIndex: 0.5 }])
+      expect(() =>
+        applyChartAnnotations(
+          {
+            xAxis: { type: 'time' },
+            yAxis: { type: 'value' },
+            series: [{ type: 'line', ...reference }],
+          },
+          { thresholds: [{ value: 5 }] },
+          palette
+        )
+      ).toThrow('The first series references a missing yAxis')
+    expect(() =>
+      applyChartAnnotations(
+        { xAxis: { type: 'time' }, yAxis: [], series: [{ type: 'line' }] },
+        { thresholds: [{ value: 5 }] },
+        palette
+      )
+    ).toThrow('The first series references a missing yAxis')
+  })
 })
