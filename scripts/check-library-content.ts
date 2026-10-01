@@ -78,6 +78,8 @@ const INTERNAL_LINK =
   /(?:https?:\/\/www\.sim\.ai|(?<=\]\(\s*|href=\{?["'`]))\/(library|blog|customers)\/([^\s)"'`#?/<>\]]+)(\/[^\s)"'`#?<>\]]*)?/g
 /** Sentence punctuation that ends a bare URL in prose (`…see https://www.sim.ai/library/x.`). */
 const TRAILING_PUNCTUATION = /[.,;:!]+$/
+/** Text just before a Markdown link target or `href` value, whose URL ends at its delimiter. */
+const LINK_TARGET_OPENER = /(?:\]\(\s*|href=\{?["'`])$/
 const MARKDOWN_LINK = /\[[^\]\n]*\]\([^)\n]*\)/
 const FAQ_HEADING = /^#{1,6}\s+FAQs?\s*:?\s*$/i
 const CODE_FENCE = /^\s*(```|~~~)/
@@ -332,7 +334,8 @@ export async function checkPost(
     }
     for (const match of text.matchAll(INTERNAL_LINK)) {
       const linkSection = match[1] as Section
-      const target = match[2].replace(TRAILING_PUNCTUATION, '')
+      const isBareUrl = !LINK_TARGET_OPENER.test(text.slice(0, match.index))
+      const target = isBareUrl ? match[2].replace(TRAILING_PUNCTUATION, '') : match[2]
       const rest = match[3] ?? ''
       // A deeper path is a public asset (`/library/<slug>/cover.jpg`) or a static sub-route.
       if (rest !== '' && rest !== '/') continue

@@ -179,6 +179,7 @@ describe('check-library-content', () => {
         '<a href="/blog/moved-post">c</a>',
         '[d](/blog/kept-guide)',
         'Also see https://www.sim.ai/library/gone.',
+        '[e](/library/kept-guide.) and <a href="https://www.sim.ai/library/kept-guide.">f</a>',
       ].join('\n')
     )
     expect(await findingsFor('library', 'post')).toEqual([
@@ -206,6 +207,18 @@ describe('check-library-content', () => {
         line: 14,
         rule: 'internal-link',
         message: '/library/gone does not exist (no apps/sim/content/library/gone/index.mdx).',
+      },
+      {
+        line: 15,
+        rule: 'internal-link',
+        message:
+          '/library/kept-guide. does not exist (no apps/sim/content/library/kept-guide./index.mdx).',
+      },
+      {
+        line: 15,
+        rule: 'internal-link',
+        message:
+          '/library/kept-guide. does not exist (no apps/sim/content/library/kept-guide./index.mdx).',
       },
     ])
   })
