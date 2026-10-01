@@ -46,9 +46,9 @@ export const protoRoutes = {
   connectors: `${PROTO_BASE}/connectors`,
   /** Every chat opens on its own page with the workspace pane beside it; the page 404s an unknown id. */
   chat: (chatId: string) => `${PROTO_BASE}/chat/${chatId}`,
-  /** Shows `section` of the project in the workspace tab. */
+  /** Home, with `section` of the project open in the workspace tab. */
   workspace: (workspaceId: string, section: ProjectSection = 'dashboard') =>
-    `?open=workspace:${workspaceId}:${section}`,
+    `${PROTO_BASE}?open=workspace:${workspaceId}:${section}`,
   /** Opens the issue as a resource tab. */
   issue: (workspaceId: string, key: string) => `?open=issues:${workspaceId}:${key}`,
 }

@@ -47,6 +47,7 @@ import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { useMothershipResize } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-resize'
 
 /** The pinned first tab: the project, shared by every chat. */
 const WORKSPACE_TAB = 'workspace'
@@ -116,8 +117,6 @@ function isProjectSection(value: string): value is ProjectSection {
   return value === 'resources' || WORKSPACE_SECTIONS.some((section) => section.id === value)
 }
 
-const noop = () => {}
-
 const NO_MESSAGES: ChatMessage[] = []
 
 const SEED: ChatMessage[] = [
@@ -140,6 +139,7 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
   const renameChat = useProtoChats((state) => state.renameChat)
   const { projectId, setProject, setSection } = useWorkspacePane()
   const [collapsed, setCollapsed] = useState(false)
+  const resize = useMothershipResize('playground')
   const [tabs, setTabs] = useState<PanelTab[]>(() => mentionedIn(chat.id))
   const [activeKey, setActiveKey] = useState<string>(() => {
     const first = mentionedIn(chat.id)[0]
@@ -249,7 +249,7 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
   return (
     <ChatPanelLayout
       panel={
-        <ChatPanelContent collapsed={collapsed}>
+        <ChatPanelContent ref={resize.mothershipRef} collapsed={collapsed}>
           <TabStrip
             tabs={stripTabs}
             variant='floating'
@@ -278,10 +278,15 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
       }
       collapsed={collapsed}
       label='workspace'
-      onToggle={() => setCollapsed((prev) => !prev)}
-      onResize={noop}
-      onResizeKeyDown={noop}
-      onResizeFocus={noop}
+      onToggle={() =>
+        setCollapsed((prev) => {
+          if (!prev) resize.clearWidth()
+          return !prev
+        })
+      }
+      onResize={resize.handleResizePointerDown}
+      onResizeKeyDown={resize.handleResizeKeyDown}
+      onResizeFocus={resize.handleResizeFocus}
     >
       <div className='flex min-w-0 flex-1 flex-col'>
         <header className='flex h-[calc(var(--resource-header-controls-height)+1px)] shrink-0 items-center gap-2 border-[var(--border)] border-b pr-[calc(var(--resource-header-end-inset)+var(--resource-header-toggle-hit-size))] pl-4'>
