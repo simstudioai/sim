@@ -47,9 +47,9 @@ export function resolveLineagePlacements(
   return placements
 }
 
-/** A project's name: its lineage root workspace's name. */
+/** A project's name: its lineage root workspace's name, marked as a project. */
 export function projectName(rootName: string): string {
-  return rootName.trim() || 'Untitled project'
+  return `${rootName.trim() || 'Untitled'} - Project`
 }
 
 /**

@@ -9,9 +9,12 @@ import type { DbOrTx } from '@/lib/db/types'
  * ever without a project.
  */
 
-/** A project's name: the name of the workspace that roots it. */
+/**
+ * A project's name: the name of the workspace that roots it, marked as a project so it reads
+ * apart from that workspace. Matches the backfill's naming.
+ */
 function projectNameFor(workspaceName: string): string {
-  return workspaceName.trim() || 'Untitled project'
+  return `${workspaceName.trim() || 'Untitled'} - Project`
 }
 
 interface NewWorkspace {
