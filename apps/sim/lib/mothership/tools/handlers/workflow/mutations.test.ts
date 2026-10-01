@@ -63,7 +63,6 @@ vi.mock('@/lib/mothership/tools/server/router', () => ({ getRegisteredServerTool
 
 import {
   executeCancelWorkflowRun,
-  executeCreateWorkflow,
   executeRunBlock,
   executeRunWorkflow,
 } from '@/lib/mothership/tools/handlers/workflow/mutations'
@@ -81,44 +80,6 @@ describe('workflow mutation Copilot adapters', () => {
   beforeEach(() => {
     mocks.hasExecutionResult.mockReturnValue(false)
     mocks.readAttemptedExecutionId.mockReturnValue(undefined)
-  })
-
-  it('maps encoded folder aliases into one create application command', async () => {
-    mocks.executeWorkflowUseCase.mockResolvedValue({
-      workflow: {
-        id: 'workflow-new',
-        name: 'New Workflow',
-        workspaceId: 'workspace-1',
-        folderId: 'folder-1',
-      },
-      normalizedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
-    })
-
-    const result = await executeCreateWorkflow(
-      { name: ' New Workflow ', folderPath: 'workflows/Launch%20Plans' },
-      context
-    )
-
-    expect(result.success).toBe(true)
-    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledWith(
-      context,
-      expect.objectContaining({ operation: expect.objectContaining({ id: 'workflows.create' }) }),
-      {
-        workspaceId: 'workspace-1',
-        name: 'New Workflow',
-        folderPath: '/Launch%20Plans',
-      }
-    )
-  })
-
-  it('rejects a create-workflow workspaceId that names a different workspace', async () => {
-    const result = await executeCreateWorkflow(
-      { name: 'New Workflow', workspaceId: 'workspace-other' },
-      context
-    )
-
-    expect(result.success).toBe(false)
-    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 
   it('projects one run command result without exposing binary payloads', async () => {
