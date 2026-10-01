@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Opaque pagination cursor for the v2 table-query surface.
  *
@@ -235,7 +236,7 @@ export function decodeCursor(token: string): {
   } catch {
     invalidCursor()
   }
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+  if (!isRecordLike(payload)) {
     invalidCursor()
   }
 

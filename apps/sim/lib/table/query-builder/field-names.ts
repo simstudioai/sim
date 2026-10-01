@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Column names an authored filter or sort names, read from untrusted JSON.
  *
@@ -7,10 +8,6 @@
  * design — a malformed node contributes nothing rather than throwing, since
  * these are advisory readers of persisted block state.
  */
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 /**
  * Every `field` a predicate tree names, in document order: a bare
@@ -29,7 +26,7 @@ export function collectPredicateFieldNames(root: unknown): string[] {
       visitLater(node)
       continue
     }
-    if (!isRecord(node)) continue
+    if (!isRecordLike(node)) continue
     if (typeof node.field === 'string') names.push(node.field)
     if (Array.isArray(node.any)) visitLater(node.any)
     if (Array.isArray(node.all)) visitLater(node.all)
@@ -44,8 +41,8 @@ export function collectPredicateFieldNames(root: unknown): string[] {
 export function collectSortFieldNames(root: unknown): string[] {
   if (Array.isArray(root)) {
     return root.flatMap((entry) =>
-      isRecord(entry) && typeof entry.field === 'string' ? [entry.field] : []
+      isRecordLike(entry) && typeof entry.field === 'string' ? [entry.field] : []
     )
   }
-  return isRecord(root) ? Object.keys(root) : []
+  return isRecordLike(root) ? Object.keys(root) : []
 }

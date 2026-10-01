@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Shared normalizers for the `tableRowExecutions` sidecar columns that are
  * stored looser than every consumer declares them.
@@ -17,7 +18,7 @@
  * rather than publish an empty map.
  */
 export function normalizeBlockErrors(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  if (!isRecordLike(value)) return undefined
 
   const blockErrors: Record<string, string> = {}
   for (const [blockId, error] of Object.entries(value)) {

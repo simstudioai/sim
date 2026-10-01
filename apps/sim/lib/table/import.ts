@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Shared CSV import helpers for user-defined tables.
  *
@@ -760,7 +761,7 @@ export function parseJsonRows(buffer: Buffer | string): {
   }
   const headerSet = new Set<string>()
   for (const row of parsed) {
-    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+    if (!isRecordLike(row)) {
       throw new OrchestrationError(
         'validation',
         'Each element in the JSON array must be a plain object'
