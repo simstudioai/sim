@@ -18,7 +18,6 @@ import {
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
 import { env } from '@/lib/core/config/env'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ResourceOwner,
@@ -160,10 +159,6 @@ interface LiveSearchOptions {
 }
 export type LiveSearchInput = ResourceOwner & LiveSearchOptions
 
-function requireLiveSearch() {
-  if (!isLiveEnterpriseSearchEnabled)
-    throw new OrchestrationError('not_found', 'Live search is not enabled')
-}
 function safeContent(content: string, registry?: ResolvedSecretTraceRegistry): string {
   if (!registry) return content
   const projected = projectResolvedSecretModelContent(content, registry)
@@ -345,7 +340,6 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: LiveSearchInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }): Promise<WorkspaceKnowledgeSearchData> {
-    requireLiveSearch()
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     input.signal?.throwIfAborted()
@@ -740,7 +734,6 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
   resolveContext: ({ input }: { input: LiveReadInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }) {
-    requireLiveSearch()
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 8)
@@ -845,7 +838,6 @@ export const listLiveSearchAccounts = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listPersonalSearchIntegrations,
   resolveContext: ({ input }: { input: ResourceOwner }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }) {
-    requireLiveSearch()
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     const accounts = await listLiveAccounts(input, requirePrincipalSubjectUserId(principal))
     return {

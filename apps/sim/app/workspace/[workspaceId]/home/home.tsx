@@ -178,7 +178,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     dispatchingHeadId,
     getCurrentRequestId,
   } = chat
-  const panel = useChatResourcePanel(chat, controller)
+  const panel = useChatResourcePanel(chat, controller, userId)
   const {
     isResourceCollapsed,
     skipResourceTransition,

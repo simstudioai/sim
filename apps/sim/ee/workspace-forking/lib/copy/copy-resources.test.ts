@@ -3,6 +3,7 @@ import { sha256Hex } from '@sim/security/hash'
 import {
   dbChainMockFns,
   flattenMockConditions,
+  queueTableRows,
   resetDbChainMock,
   schemaMock,
   storageServiceMock,
@@ -105,6 +106,12 @@ function mappedDocumentPlan(): ForkContentPlan {
 describe('copyForkResourceContent', () => {
   beforeEach(() => {
     resetDbChainMock()
+    for (let attempt = 0; attempt < 4; attempt++)
+      queueTableRows(schemaMock.knowledgeBase, [
+        { id: 'src-kb', isSearchIndex: false },
+        { id: 'child-kb', isSearchIndex: false },
+        { id: 'existing-target-kb', isSearchIndex: false },
+      ])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'activated-document' }])
     dbChainMockFns.for.mockResolvedValue([{ workspaceId: 'child-ws' }])
     storageServiceMockFns.mockHeadObject.mockResolvedValue(null)
@@ -1138,11 +1145,15 @@ describe('planForkMappedKbDocumentCopies', () => {
     let selectCalls = 0
     const tx = {
       select: () => {
-        const rows = selectCalls++ === 0 ? docs : existingTargets
         return {
-          from: () => ({
+          from: (table: unknown) => ({
             where: (condition: unknown) => {
+              if (table === schemaMock.knowledgeBase) {
+                const rows = Promise.resolve([{ id: 'target-kb' }])
+                return Object.assign(rows, { for: () => rows })
+              }
               wheres.push(condition)
+              const rows = selectCalls++ === 0 ? docs : existingTargets
               return Promise.resolve(rows)
             },
           }),

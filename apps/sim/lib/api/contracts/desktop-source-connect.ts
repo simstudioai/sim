@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { startSlackCredentialGroupConfigurationBodySchema } from '@/lib/api/contracts/credential-groups'
-import { connectSimSearchConnectorBodySchema } from '@/lib/api/contracts/knowledge/connectors'
 import { startGitHubSearchSetupBodySchema } from '@/lib/api/contracts/knowledge/github-setup'
 import { connectPersonalSearchIntegrationBodySchema } from '@/lib/api/contracts/knowledge/personal-integrations'
 import { knowledgeConnectorParamsSchema } from '@/lib/api/contracts/knowledge/shared'
@@ -17,7 +16,11 @@ export const desktopSourceRequestSchema = z.discriminatedUnion('kind', [
     organizationId: organizationIdSchema,
     body: startOrganizationAccountConnectionBodySchema,
   }),
-  z.object({ kind: z.literal('reconnect-account'), credentialId: z.string().min(1).max(128) }),
+  z.object({
+    kind: z.literal('reconnect-account'),
+    credentialId: z.string().min(1).max(128),
+    completionId: z.string().uuid().optional(),
+  }),
   z.object({
     kind: z.literal('personal-search'),
     body: connectPersonalSearchIntegrationBodySchema,
@@ -25,11 +28,6 @@ export const desktopSourceRequestSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('member-enrollment'),
     params: knowledgeConnectorParamsSchema,
-    completionId: z.string().uuid().optional(),
-  }),
-  z.object({
-    kind: z.literal('search-source'),
-    body: connectSimSearchConnectorBodySchema,
     completionId: z.string().uuid().optional(),
   }),
   z.object({

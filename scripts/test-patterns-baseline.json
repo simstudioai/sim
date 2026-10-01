@@ -59,7 +59,6 @@
   "local-factory\tapps/sim/executor/utils/output-filter.test.ts\t@/blocks",
   "local-factory\tapps/sim/hooks/use-table-undo.test.ts\t@/lib/table/constants",
   "local-factory\tapps/sim/lib/credentials/application/resolve-organization-personal-token.test.ts\t@/lib/sim-search/connectors",
-  "local-factory\tapps/sim/lib/knowledge/application/organization-search-overview.test.ts\t@/lib/sim-search/connectors",
   "local-factory\tapps/sim/lib/knowledge/application/search-integrations.test.ts\t@/lib/sim-search/connectors",
   "local-factory\tapps/sim/lib/knowledge/application/sim-search.test.ts\t@/lib/sim-search/connectors",
   "local-factory\tapps/sim/lib/knowledge/mcp/route-handler.test.ts\t@/lib/sim-search/connectors",

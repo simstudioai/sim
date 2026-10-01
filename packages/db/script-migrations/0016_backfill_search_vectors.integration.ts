@@ -396,6 +396,13 @@ describe('search projection upgrade in PostgreSQL', () => {
         AND s.vector_512 = subvector(e.embedding, 1, 512)::halfvec(512)
         AND k.content_tsv = e.content_tsv`
     expect(complete).toBe(1001)
+    /** Search retirement is an operator command; a deploy's full registry run never starts it. */
+    expect(
+      (
+        await sql`SELECT to_regclass('search_embedding_cleanup_progress') AS progress,
+          to_regclass('search_embedding_cleanup_targets') AS targets`
+      )[0]
+    ).toEqual({ progress: null, targets: null })
     await runScriptMigrations(sql)
     await sql`DELETE FROM embedding WHERE id LIKE 'upgrade-%'`
   }, 60_000)

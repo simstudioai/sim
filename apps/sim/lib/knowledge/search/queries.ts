@@ -646,8 +646,6 @@ interface ExecuteKnowledgeSearchParams {
   queryVector?: KnowledgeQueryVector
   structuredFilters?: StructuredFilter[]
   filters?: WorkspaceSearchFilters
-  /** Runs the search-index retrieval legs; see `usesIndexedRetrieval`. */
-  indexedRetrieval?: boolean
 }
 
 export interface RetrievalStatus {
@@ -704,27 +702,9 @@ export async function retrieveKnowledgeSearch(
   if (hasQuery && !queryVector) {
     throw new Error('Query vector is required when searching with a query')
   }
-  /**
-   * The one seam between the two retrieval strategies. A signed-in reader's search over search
-   * indexes, while indexed organization search is on, binds the reader's resolved plan and ranks
-   * on the projection rows; the dormant module loads only then. Everything else decides
-   * readability on each candidate's document, under the caller's own tokens and any live source
-   * proof they hold.
-   */
-  const legs: RetrievalLegs =
-    access.kind === 'user' && accessProvider && params.indexedRetrieval === true
-      ? await (await import('@/lib/sim-search/indexed/retrieval')).prepareIndexedRetrieval({
-          knowledgeBaseIds,
-          access,
-          accessProvider,
-          filters: params.filters,
-          signal: params.signal,
-          ranked: hasQuery,
-          budget: budgets.vector,
-        })
-      : documentRetrievalLegs(
-          await resolveDocumentReadAccess(knowledgeBaseIds, access, accessProvider, params.signal)
-        )
+  const legs = documentRetrievalLegs(
+    await resolveDocumentReadAccess(knowledgeBaseIds, access, accessProvider, params.signal)
+  )
   const common = {
     knowledgeBaseIds,
     access,

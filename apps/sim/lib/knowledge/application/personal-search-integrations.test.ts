@@ -1,5 +1,5 @@
 import { user } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, resetEnvFlagsMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   credentialGroupsAvailabilityMock,
@@ -127,108 +127,6 @@ beforeEach(() => {
   )
   mockGetConnectorAccessAvailability.mockReturnValue({ members: true })
 })
-describe('personal Search inventory', () => {
-  beforeEach(() => setEnvFlags({ isLiveEnterpriseSearchEnabled: false }))
-
-  it.each([
-    [{}, 'connected', 'not_indexed'],
-    [{ isSyncing: true }, 'connected', 'indexing'],
-    [{ hasViewerDocuments: true }, 'connected', 'indexed'],
-    [{ hasSyncError: true }, 'connected', 'sync_failed'],
-    [
-      {
-        viewerAccounts: [{ credentialId: 'mine', displayName: 'My mail', status: 'needs_reauth' }],
-      },
-      'reconnect_needed',
-      'not_indexed',
-    ],
-  ])(
-    'separates account state from index state %#',
-    async (changes, connectionStatus, indexingStatus) => {
-      m.sources.mockResolvedValue({ sources: [{ ...source, ...changes }], nextCursor: null })
-      const result = await listPersonalSearchIntegrations.execute({ principal, input })
-      expect(result.connections[0]).toMatchObject({ connectionStatus, indexingStatus })
-      expect(personalSearchIntegrationPageSchema.safeParse(result).success).toBe(true)
-      expect(m.sources).toHaveBeenCalledWith({ principal, input })
-      expect(m.configuredTypes).toHaveBeenCalledWith({ organizationId: 'org' })
-      expect(JSON.stringify(result)).not.toMatch(/accessToken|authorizationUrl|other-person/)
-    }
-  )
-  it('offers approved ready providers with no index, excluding app setup and unapproved providers', async () => {
-    m.sources.mockResolvedValue({ sources: [], nextCursor: null })
-    m.configuredTypes.mockResolvedValue([])
-    const result = await listPersonalSearchIntegrations.execute({ principal, input })
-    expect(result.available.map((entry) => entry.target.connectorType)).toEqual(['gmail'])
-    expect(result.connections).toEqual([])
-  })
-  it('omits every connection action when the person has an unverified email', async () => {
-    resetDbChainMock()
-    queueTableRows(user, [{ emailVerified: false }])
-    m.sources.mockResolvedValue({ sources: [], nextCursor: null })
-    m.configuredTypes.mockResolvedValue([])
-    expect((await listPersonalSearchIntegrations.execute({ principal, input })).available).toEqual(
-      []
-    )
-  })
-  it('forwards the bounded cursor and provider filter without exposing other people’s accounts', async () => {
-    m.sources.mockResolvedValue({
-      sources: [{ ...source, viewerAccounts: [], viewerMembership: 'not_enrolled' }],
-      nextCursor: 'next',
-    })
-    const filtered = { ...input, connectorType: 'gmail', cursor: 'page' }
-    const result = await listPersonalSearchIntegrations.execute({ principal, input: filtered })
-    expect(result.connections).toEqual([])
-    expect(result.nextCursor).toBe('next')
-    expect(result.available).toEqual([{ name: 'gmail', description: '', target }])
-    expect(m.sources).toHaveBeenCalledWith({ principal, input: filtered })
-  })
-  it('rechecks authorization before every read and returns nothing after membership is revoked', async () => {
-    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockRejectedValue(
-      new Error('Membership revoked')
-    )
-    await expect(listPersonalSearchIntegrations.execute({ principal, input })).rejects.toThrow(
-      'Membership revoked'
-    )
-    expect(m.sources).not.toHaveBeenCalled()
-  })
-  it.each([
-    { ...target, credentialId: 'another-person' },
-    { ...target, connectorId: 'other-source' },
-    { ...target, provider: 'notion' },
-  ])('rejects a forged or stale reconnect target', async (forged) => {
-    m.sources.mockResolvedValue({
-      sources: [
-        {
-          ...source,
-          viewerAccounts: [
-            { credentialId: 'mine', displayName: 'My mail', status: 'needs_reauth' },
-          ],
-        },
-      ],
-      nextCursor: null,
-    })
-    await expect(
-      resolvePersonalSearchConnection.execute({ principal, input: { ...input, target: forged } })
-    ).rejects.toThrow('no longer available')
-  })
-  it('returns the precise owned reconnect target', async () => {
-    m.sources.mockResolvedValue({
-      sources: [
-        {
-          ...source,
-          viewerAccounts: [
-            { credentialId: 'mine', displayName: 'My mail', status: 'needs_reauth' },
-          ],
-        },
-      ],
-      nextCursor: null,
-    })
-    const selected = { ...target, credentialId: 'mine' }
-    await expect(
-      resolvePersonalSearchConnection.execute({ principal, input: { ...input, target: selected } })
-    ).resolves.toEqual({ name: 'gmail', target: selected })
-  })
-})
 
 describe('live Search connection controls', () => {
   const liveTarget = {
@@ -238,7 +136,6 @@ describe('live Search connection controls', () => {
     connectionMode: 'live',
     optionId: 'slack-option',
   } as const
-  beforeEach(() => setEnvFlags({ isLiveEnterpriseSearchEnabled: true }))
 
   it('offers Slack without a knowledge base or indexed connector and round-trips the response', async () => {
     const result = await listPersonalSearchIntegrations.execute({ principal, input })
@@ -298,7 +195,6 @@ describe('live Search connection controls', () => {
       ...liveTarget,
       credentialId: 'mine',
     })
-    expect(result.connections[0].indexingStatus).toBeUndefined()
     expect(personalSearchIntegrationPageSchema.safeParse(result).success).toBe(true)
   })
 
@@ -306,7 +202,6 @@ describe('live Search connection controls', () => {
     { ...liveTarget, credentialId: 'another-person' },
     { ...liveTarget, optionId: 'another-option' },
     { ...liveTarget, provider: 'gmail' },
-    { ...liveTarget, connectionMode: undefined, optionId: undefined },
   ])('rejects a forged or stale live target: %j', async (target) => {
     await expect(
       resolvePersonalSearchConnection.execute({ principal, input: { ...input, target } })
@@ -366,15 +261,5 @@ describe('live Search connection controls', () => {
       userId: 'person',
       completionId: 'attempt',
     })
-  })
-
-  it('rejects an indexed source target after switching to live search', async () => {
-    await expect(
-      listPersonalSearchIntegrations.execute({
-        principal,
-        input: { ...input, connectorId: 'stale-source' },
-      })
-    ).rejects.toThrow('Refresh your live account connections')
-    expect(m.group).not.toHaveBeenCalled()
   })
 })

@@ -3,13 +3,12 @@ slug: what-is-an-mcp-server
 title: 'What Is an MCP Server?'
 description: 'Learn what an MCP server is, how Model Context Protocol tools, resources, and prompts work, and how Sim acts as both an MCP client and server.'
 date: 2026-07-24
-updated: 2026-09-07
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 7
 tags: [MCP, AI Agents, Model Context Protocol, Sim]
 ogImage: /library/what-is-an-mcp-server/cover.jpg
-canonical: https://www.sim.ai/library/what-is-an-mcp-server
 draft: false
 faq:
   - q: "What does MCP server mean?"
@@ -31,7 +30,7 @@ faq:
 - An MCP server gives AI applications access to external tools and data through the Model Context Protocol. An MCP server can also provide reusable prompts.
 - An MCP host is the AI application. The host creates an MCP client for each server connection. Each client handles capability discovery and requests.
 - MCP gives AI applications a consistent interface for discovering and using capabilities, while each MCP server handles the service-specific connection to a remote service or local file system. For example, an MCP server can connect an application to GitHub or a database.
-- [Sim is open source under Apache 2.0](https://github.com/simstudioai/sim). We support both MCP roles. You can use Sim as an MCP client to connect workflows to external servers or expose Sim workflows as MCP tools.
+- [Sim's core is open source under Apache 2.0](https://github.com/simstudioai/sim), while enterprise features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that is free for development, testing, and internal non-production use and requires an Enterprise subscription for production use. We support both MCP roles. You can use Sim as an MCP client to connect workflows to external servers or expose Sim workflows as MCP tools.
 
 ## What is an MCP server?
 
@@ -107,4 +106,4 @@ You can also publish a Sim workflow as a callable MCP tool. External MCP clients
 
 ## Getting started with MCP and Sim
 
-Use the [Sim workflow builder](https://sim.ai) to connect an external MCP server or publish a Sim workflow as an MCP tool. If you are still evaluating how to deploy your workflows, compare [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+Use the [Sim workflow builder](https://www.sim.ai) to connect an external MCP server or publish a Sim workflow as an MCP tool. If you are still evaluating how to deploy your workflows, compare [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).

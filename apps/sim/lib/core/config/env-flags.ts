@@ -722,7 +722,3 @@ export function getCostMultiplier(): number {
 }
 
 /** Backend selector. Kept independent of enterprise entitlement overrides. */
-const liveEnterpriseSearchSetting =
-  typeof window === 'undefined' ? env.SIM_SEARCH_LIVE : getEnv('NEXT_PUBLIC_SIM_SEARCH_LIVE')
-export const isLiveEnterpriseSearchEnabled =
-  liveEnterpriseSearchSetting === undefined || isTruthy(liveEnterpriseSearchSetting)

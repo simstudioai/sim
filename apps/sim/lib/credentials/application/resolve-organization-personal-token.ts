@@ -11,12 +11,11 @@ import {
 } from '@/lib/credential-groups/credentials'
 import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
 import { projectIntegrationToolsForViewer } from '@/lib/integrations/tool-projection'
-import { personalSearchIntegrationPages } from '@/lib/knowledge/application/personal-search-integration-pages'
+import { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
 import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { providerIdsForService } from '@/lib/oauth/utils'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
-import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { listLiveAccounts } from '@/lib/sim-search/live/accounts'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
@@ -84,36 +83,25 @@ export const resolveOrganizationPersonalToken = {
     ) {
       throw new OrchestrationError('forbidden', 'This integration operation is unavailable.')
     }
-    const indexed = isIndexedOrgSearchEnabled()
-    /** Loaded lazily: this resolver is on the executor's credential path, which never needs it otherwise. */
-    const owned = indexed
-      ? await (await import('@/lib/sim-search/indexed')).ownsIndexedPersonalSearchAccount(
-          principal,
-          {
-            organizationId: context.organizationId,
-            connectorType: connector.type,
-            credentialId: input.credentialId,
-          }
-        )
-      : (await listLiveAccounts({ organizationId: context.organizationId }, context.userId)).some(
-          (account) =>
-            account.id === input.credentialId &&
-            account.type === 'managed_oauth' &&
-            account.providerId === binding.providerId
-        )
+    const owned = (
+      await listLiveAccounts({ organizationId: context.organizationId }, context.userId)
+    ).some(
+      (account) =>
+        account.id === input.credentialId &&
+        account.type === 'managed_oauth' &&
+        account.providerId === binding.providerId
+    )
     if (!owned)
       throw new OrchestrationError(
         'forbidden',
         'Assistant can only use your own connected account for this integration.'
       )
-    if (!indexed) {
-      const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
-      if (requiresScopedRetrieval(connector.type, livePolicyFor(policies, connector.type)))
-        throw new OrchestrationError(
-          'forbidden',
-          'This organization restricts search scope for this app. Use search_workspace with nativeQueries and read_document so those restrictions are enforced.'
-        )
-    }
+    const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
+    if (requiresScopedRetrieval(connector.type, livePolicyFor(policies, connector.type)))
+      throw new OrchestrationError(
+        'forbidden',
+        'This organization restricts search scope for this app. Use search_workspace with nativeQueries and read_document so those restrictions are enforced.'
+      )
     const token = await resolveManagedOAuthToken({
       ...input,
       expectedProviderId: binding.providerId,
@@ -177,17 +165,16 @@ export const prepareOrganizationPersonalConnection = {
     )
     if (!connector)
       throw new OrchestrationError('validation', 'This integration is unavailable in Search.')
-    for await (const inventory of personalSearchIntegrationPages({
+    const inventory = await listPersonalSearchIntegrations.execute({
       principal,
       input: { organizationId: context.organizationId, connectorType: connector.type },
-    })) {
-      const target = input.credentialId
-        ? inventory.connections
-            .flatMap((connection) => connection.accounts)
-            .find((account) => account.credentialId === input.credentialId)?.action
-        : inventory.available[0]?.target
-      if (target) return { provider: connector.meta.name, providerId: connector.providerId, target }
-    }
+    })
+    const target = input.credentialId
+      ? inventory.connections
+          .flatMap((connection) => connection.accounts)
+          .find((account) => account.credentialId === input.credentialId)?.action
+      : inventory.available[0]?.target
+    if (target) return { provider: connector.meta.name, providerId: connector.providerId, target }
     throw new OrchestrationError(
       'validation',
       'No connection action is currently available. Check your integration connection status.'

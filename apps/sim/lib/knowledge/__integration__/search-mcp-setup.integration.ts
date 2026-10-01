@@ -1,6 +1,8 @@
 import { db, runOutsideTransactionContext } from '@sim/db'
 import {
+  credential,
   credentialGroup,
+  credentialGroupEnrollment,
   mcpServers,
   member,
   organization,
@@ -9,7 +11,9 @@ import {
   user,
 } from '@sim/db/schema'
 import * as dns from '@sim/security/dns'
+import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
@@ -17,13 +21,22 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
 import { env } from '@/lib/core/config/env'
+import { encryptSecret } from '@/lib/core/security/encryption'
+import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
+import {
+  emptyCredentialGroupProviderConfiguration,
+  encryptCredentialGroupProviderConfiguration,
+} from '@/lib/credential-groups/provider-configuration'
+import { getCredentialGroup } from '@/lib/credential-groups/service'
+import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { createOrganizationAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
-import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { acquireAdvisoryXactLock, tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   approveSearchIntegration,
   listSearchIntegrations,
 } from '@/lib/knowledge/application/search-integrations'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { SLACK_RTS_USER_SCOPES } from '@/lib/sim-search/live/scopes'
 
 /**
  * Real authorization, transactions, constraints and persistence; only DNS is a fixture.
@@ -97,7 +110,7 @@ describe('atomic organization live Search MCP setup', () => {
     })
 
   async function snapshot() {
-    const [groups, servers, approvals, policies, organizations] = await Promise.all([
+    const [groups, servers, approvals, policies, organizations, credentials] = await Promise.all([
       db.select().from(credentialGroup).where(eq(credentialGroup.organizationId, ids.organization)),
       db.select().from(mcpServers).where(eq(mcpServers.organizationId, ids.organization)),
       db
@@ -109,9 +122,130 @@ describe('atomic organization live Search MCP setup', () => {
         .select({ metadata: organization.metadata })
         .from(organization)
         .where(eq(organization.id, ids.organization)),
+      db.select().from(credential).where(eq(credential.organizationId, ids.organization)),
     ])
-    return { groups, servers, approvals, policies, metadata: toRecord(organizations[0]?.metadata) }
+    return {
+      groups,
+      servers,
+      approvals,
+      policies,
+      credentials,
+      metadata: toRecord(organizations[0]?.metadata),
+    }
   }
+
+  async function seedWorkflowSlack(scopes: readonly string[] = SLACK_MANAGED_USER_SCOPES) {
+    const option = {
+      id: generateId(),
+      provider: 'slack',
+      label: 'Slack',
+      authorizationAppId: 'slack:fixture-app:fixture-team',
+      requiredScopes: [...scopes],
+      scopeVersion: credentialGroupScopePolicyVersion([...scopes]),
+      required: false,
+      status: 'active' as const,
+    }
+    const other = { ...option, id: generateId(), provider: 'gmail', label: 'Gmail' }
+    const group = await db.transaction((tx) =>
+      createOrganizationAccountsGroup(tx, ids.organization, ids.owner, [option, other])
+    )
+    await db
+      .update(credentialGroup)
+      .set({
+        encryptedProviderConfiguration: await encryptCredentialGroupProviderConfiguration({
+          ...emptyCredentialGroupProviderConfiguration(),
+          slack: {
+            clientId: 'fixture-client',
+            clientSecret: 'fixture-secret',
+            appId: 'fixture-app',
+            teamId: 'fixture-team',
+            scopes: [...scopes],
+            verifiedAt: new Date().toISOString(),
+          },
+        }),
+      })
+      .where(eq(credentialGroup.id, group.id))
+    const enrollmentId = generateId()
+    await db.insert(credentialGroupEnrollment).values({
+      id: enrollmentId,
+      credentialGroupId: group.id,
+      userId: ids.owner,
+      email: `${ids.owner}@fixture.test`,
+      status: 'completed',
+      invitationTokenHash: sha256Hex(generateId()),
+      invitationExpiresAt: new Date(Date.now() + 60_000),
+      invitedAt: new Date(),
+    })
+    const encrypted = (await encryptSecret('{"access_token":"fixture-token"}')).encrypted
+    await db.insert(credential).values(
+      [option, other].map((entry) => ({
+        id: generateId(),
+        organizationId: ids.organization,
+        type: 'managed_oauth' as const,
+        providerId: entry.provider,
+        displayName: entry.label,
+        createdBy: ids.owner,
+        authorizationAppId: entry.authorizationAppId,
+        providerSubjectId: ids.owner,
+        credentialGroupEnrollmentId: enrollmentId,
+        credentialGroupOptionId: entry.id,
+        managedOauthStatus: 'active' as const,
+        managedOauthScopeVersion: entry.scopeVersion,
+        grantedScopes: [...scopes],
+        encryptedOauthTokenSet: encrypted,
+        grantedAt: new Date(),
+      }))
+    )
+    return { groupId: group.id, optionId: option.id, otherOptionId: other.id }
+  }
+
+  it.each([
+    { name: 'workflow policy', scopes: SLACK_MANAGED_USER_SCOPES },
+    { name: 'custom policy', scopes: ['chat:write', 'users:read', 'users:read.email'] },
+  ])(
+    'upgrades an existing Slack $name only through explicit Search approval',
+    async ({ scopes }) => {
+      const seeded = await seedWorkflowSlack(scopes)
+      const before = await snapshot()
+      await approve('slack')
+      const state = await snapshot()
+      const upgraded = state.groups[0].options.find((option) => option.id === seeded.optionId)!
+      expect(upgraded.requiredScopes).toEqual(
+        expect.arrayContaining([...scopes, ...SLACK_RTS_USER_SCOPES])
+      )
+      expect(upgraded.scopeVersion).not.toBe(before.groups[0].options[0].scopeVersion)
+      expect(state.groups[0].options.find((option) => option.id === seeded.otherOptionId)).toEqual(
+        before.groups[0].options[1]
+      )
+      expect(state.policies).toEqual(before.policies)
+      expect(state.groups[0].encryptedProviderConfiguration).toBe(
+        before.groups[0].encryptedProviderConfiguration
+      )
+      expect(
+        state.credentials.find((entry) => entry.credentialGroupOptionId === seeded.optionId)
+          ?.managedOauthStatus
+      ).toBe('needs_reauth')
+      expect(
+        state.credentials.find((entry) => entry.credentialGroupOptionId === seeded.otherOptionId)
+      ).toEqual(
+        before.credentials.find((entry) => entry.credentialGroupOptionId === seeded.otherOptionId)
+      )
+      expect(
+        await getCredentialGroup(
+          { kind: 'organization', organizationId: ids.organization },
+          seeded.groupId
+        )
+      ).toMatchObject({
+        options: expect.arrayContaining([
+          expect.objectContaining({ id: seeded.optionId, configurationStatus: 'needs_update' }),
+        ]),
+      })
+      await expect(approve('slack')).resolves.toMatchObject({ memberAccounts: { changed: false } })
+      const repeated = await snapshot()
+      expect(repeated.groups).toEqual(state.groups)
+      expect(repeated.credentials).toEqual(state.credentials)
+    }
+  )
 
   it('keeps disabled Zoom approvals visible and removable without permitting reapproval', async () => {
     const connectorType = 'zoom'
@@ -194,6 +328,63 @@ describe('atomic organization live Search MCP setup', () => {
       expect(result.memberAccounts?.groupId).toBe(group.id)
     }
   )
+
+  it('rejects Zoom approval when rollout is disabled while waiting for the accounts lock', async () => {
+    const group = await db.transaction((tx) =>
+      createOrganizationAccountsGroup(tx, ids.organization, ids.owner)
+    )
+    await db.insert(mcpServers).values({
+      id: generateId(),
+      organizationId: ids.organization,
+      credentialGroupId: group.id,
+      managedConnectorId: 'zoom',
+      name: 'Zoom',
+      transport: 'streamable-http',
+      url: 'https://mcp.zoom.us/mcp/meeting/streamable',
+      authType: 'oauth',
+      enabled: true,
+      createdBy: ids.owner,
+    })
+    Object.assign(env, { ZOOM_SEARCH: true })
+    const before = await snapshot()
+    const locked = createDeferred<number>()
+    const release = createDeferred<void>()
+    const blocker = db.transaction(async (tx) => {
+      await acquireAdvisoryXactLock(
+        tx,
+        'search_accounts',
+        `search-accounts:organization:${ids.organization}`
+      )
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      locked.resolve(connection.pid)
+      await release.promise
+    })
+    const blockerPid = await locked.promise
+    const attempt = approve('zoom').catch((error: unknown) => error)
+    try {
+      await vi.waitFor(
+        async () => {
+          const [state] = await db.execute<{ waiting: boolean }>(sql`
+            SELECT EXISTS (
+              SELECT 1 FROM pg_stat_activity
+              WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+            ) AS waiting
+          `)
+          expect(state.waiting).toBe(true)
+        },
+        { timeout: 5_000 }
+      )
+      Object.assign(env, { ZOOM_SEARCH: false })
+    } finally {
+      release.resolve()
+      await blocker
+      await attempt
+    }
+    expect(await attempt).toMatchObject({ code: 'forbidden' })
+    expect(await snapshot()).toEqual(before)
+    Object.assign(env, { ZOOM_SEARCH: true })
+    await expect(approve('zoom')).resolves.toMatchObject({ approved: true })
+  })
 
   it('resolves the sign-in server before the approval takes the accounts lock', async () => {
     const lockHeldDuringLookup: boolean[] = []
@@ -305,25 +496,29 @@ describe('atomic organization live Search MCP setup', () => {
     }
   )
 
-  it('rolls back sign-in resources and policy metadata when the final approval write fails', async () => {
-    const constraint = `search_setup_${generateId().replace(/-/g, '')}`
-    await db.execute(
-      sql`ALTER TABLE organization_search_integration ADD CONSTRAINT ${sql.identifier(constraint)} CHECK (organization_id <> ${sql.raw(`'${ids.organization}'`)}) NOT VALID`
-    )
-    const before = await snapshot()
-    try {
-      let failure: unknown
-      try {
-        await approve('fireflies')
-      } catch (error) {
-        failure = error
-      }
-      expect(getPostgresErrorCode(failure)).toBe('23514')
-      expect(await snapshot()).toEqual(before)
-    } finally {
+  it.each(['fireflies', 'slack'])(
+    'rolls back %s sign-in policy and credentials when the final approval write fails',
+    async (provider) => {
+      if (provider === 'slack') await seedWorkflowSlack()
+      const constraint = `search_setup_${generateId().replace(/-/g, '')}`
       await db.execute(
-        sql`ALTER TABLE organization_search_integration DROP CONSTRAINT ${sql.identifier(constraint)}`
+        sql`ALTER TABLE organization_search_integration ADD CONSTRAINT ${sql.identifier(constraint)} CHECK (organization_id <> ${sql.raw(`'${ids.organization}'`)}) NOT VALID`
       )
+      const before = await snapshot()
+      try {
+        let failure: unknown
+        try {
+          await approve(provider)
+        } catch (error) {
+          failure = error
+        }
+        expect(getPostgresErrorCode(failure)).toBe('23514')
+        expect(await snapshot()).toEqual(before)
+      } finally {
+        await db.execute(
+          sql`ALTER TABLE organization_search_integration DROP CONSTRAINT ${sql.identifier(constraint)}`
+        )
+      }
     }
-  })
+  )
 })

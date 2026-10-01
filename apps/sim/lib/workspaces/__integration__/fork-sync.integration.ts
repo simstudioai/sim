@@ -2,7 +2,10 @@ import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   auditLog,
+  document,
+  embedding,
   folder,
+  knowledgeBase,
   outboxEvent,
   permissions,
   user,
@@ -37,7 +40,13 @@ import {
 } from '@/ee/workspace-forking/application/create-and-sync'
 import { assertForkSourceVersions } from '@/ee/workspace-forking/application/revision'
 import { setForkSyncDefault } from '@/ee/workspace-forking/application/sync-default'
+import {
+  copyForkResourceContainers,
+  copyForkResourceContent,
+  planForkMappedKbDocumentCopies,
+} from '@/ee/workspace-forking/lib/copy/copy-resources'
 import { loadSourceDeployedStates } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import type { ForkCopyProgress } from '@/ee/workspace-forking/lib/copy/progress'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const userId = generateId()
@@ -917,4 +926,198 @@ describe('authorized fork and sync against PostgreSQL', () => {
       await setDefault(sourceWorkspaceId, false)
     }
   })
+  async function seedKnowledgeCopy() {
+    const childWorkspaceId = generateId()
+    const sourceWorkspaceId = generateId()
+    createdWorkspaceIds.push(sourceWorkspaceId, childWorkspaceId)
+    await db.insert(workspace).values(
+      [sourceWorkspaceId, childWorkspaceId].map((id) => ({
+        id,
+        name: 'Knowledge copy fixture',
+        ownerId: userId,
+        billedAccountUserId: userId,
+      }))
+    )
+    const sourceId = generateId()
+    const childId = generateId()
+    await db.insert(knowledgeBase).values([
+      { id: sourceId, workspaceId: sourceWorkspaceId, userId, name: `Source ${sourceId}` },
+      { id: childId, workspaceId: childWorkspaceId, userId, name: 'Target fixture' },
+    ])
+    const [source] = await db
+      .insert(document)
+      .values({
+        id: generateId(),
+        knowledgeBaseId: sourceId,
+        filename: 'Copy fixture',
+        fileUrl: '',
+        fileSize: 0,
+        mimeType: 'text/plain',
+        processingStatus: 'completed',
+      })
+      .returning()
+    return { sourceWorkspaceId, childWorkspaceId, sourceId, childId, source }
+  }
+
+  it('copies ordinary knowledge containers but excludes retired Search containers', async () => {
+    const fixture = await seedKnowledgeCopy()
+    const retiredId = generateId()
+    await db.insert(knowledgeBase).values({
+      id: retiredId,
+      workspaceId: fixture.sourceWorkspaceId,
+      userId,
+      name: 'Retired Search fixture',
+      isSearchIndex: true,
+    })
+    const copied = await db.transaction((tx) =>
+      copyForkResourceContainers({
+        tx,
+        sourceWorkspaceId: fixture.sourceWorkspaceId,
+        childWorkspaceId: fixture.childWorkspaceId,
+        userId,
+        now: new Date(),
+        selection: {
+          customTools: [],
+          skills: [],
+          mcpServers: [],
+          workflowMcpServers: [],
+          tables: [],
+          knowledgeBases: [fixture.sourceId, retiredId],
+        },
+        workflowIdMap: new Map(),
+        documentMappingContext: {
+          edgeChildWorkspaceId: fixture.childWorkspaceId,
+          sourceIsParent: true,
+        },
+      })
+    )
+    expect(copied.contentPlan.knowledgeBases.map((entry) => entry.sourceId)).toEqual([
+      fixture.sourceId,
+    ])
+    expect(
+      await db
+        .select()
+        .from(knowledgeBase)
+        .where(
+          and(
+            eq(knowledgeBase.workspaceId, fixture.childWorkspaceId),
+            eq(knowledgeBase.isSearchIndex, true)
+          )
+        )
+    ).toEqual([])
+  })
+
+  it.each(['source', 'target'] as const)(
+    'does not plan document copies for a retired Search %s',
+    async (retiredSide) => {
+      const fixture = await seedKnowledgeCopy()
+      const retiredId = retiredSide === 'source' ? fixture.sourceId : fixture.childId
+      await db
+        .update(knowledgeBase)
+        .set({ isSearchIndex: true })
+        .where(eq(knowledgeBase.id, retiredId))
+      const plan = () =>
+        db.transaction((tx) =>
+          planForkMappedKbDocumentCopies({
+            tx,
+            resolver: (kind, id) =>
+              kind === 'knowledge-base' && id === fixture.sourceId ? fixture.childId : null,
+            referencedDocumentIds: [fixture.source.id],
+            alreadyCopiedSourceDocIds: new Set(),
+            now: new Date(),
+          })
+        )
+      const refused = await plan()
+      expect(refused.documents).toEqual([])
+      expect(refused.mappingEntries).toEqual([])
+      expect(
+        await db.select().from(document).where(eq(document.knowledgeBaseId, fixture.childId))
+      ).toEqual([])
+
+      await db
+        .update(knowledgeBase)
+        .set({ isSearchIndex: false })
+        .where(eq(knowledgeBase.id, retiredId))
+      const allowed = await plan()
+      expect(allowed.documents).toHaveLength(1)
+      const [placeholder] = await db
+        .select()
+        .from(document)
+        .where(eq(document.knowledgeBaseId, fixture.childId))
+      expect(placeholder.archivedAt).not.toBeNull()
+      expect(allowed.docIdMap.get(fixture.source.id)).toBe(placeholder.id)
+    }
+  )
+
+  it.each(['source', 'target', 'target during copy', 'ordinary'] as const)(
+    'checks retired Search admission for queued content with %s',
+    async (retiredSide) => {
+      const fixture = await seedKnowledgeCopy()
+      const childDocId = generateId()
+      await db.insert(document).values({
+        ...fixture.source,
+        id: childDocId,
+        knowledgeBaseId: fixture.childId,
+        archivedAt: new Date(),
+      })
+      if (retiredSide === 'source' || retiredSide === 'target') {
+        await db
+          .update(knowledgeBase)
+          .set({ isSearchIndex: true })
+          .where(
+            eq(knowledgeBase.id, retiredSide === 'source' ? fixture.sourceId : fixture.childId)
+          )
+      }
+      const progress: ForkCopyProgress = { completed: [], tables: {}, embeddings: {} }
+      const result = await copyForkResourceContent({
+        contentPlan: {
+          sourceWorkspaceId: fixture.sourceWorkspaceId,
+          childWorkspaceId: fixture.childWorkspaceId,
+          userId,
+          tables: [],
+          knowledgeBases: [],
+          skills: [],
+          documents: [
+            {
+              sourceDocId: fixture.source.id,
+              childDocId,
+              childKnowledgeBaseId: fixture.childId,
+              storageKey: null,
+              fileUrl: '',
+              fileSize: 0,
+              filename: fixture.source.filename,
+              mimeType: fixture.source.mimeType,
+            },
+          ],
+        },
+        control: {
+          progress,
+          checkpoint: async () => {
+            if (retiredSide === 'target during copy')
+              await db
+                .update(knowledgeBase)
+                .set({ isSearchIndex: true })
+                .where(eq(knowledgeBase.id, fixture.childId))
+          },
+        },
+      })
+      const [copied] = await db.select().from(document).where(eq(document.id, childDocId))
+      if (retiredSide === 'ordinary') {
+        expect(result).toMatchObject({ copied: 1, failed: 0 })
+        expect(copied.archivedAt).toBeNull()
+      } else {
+        expect(result).toMatchObject({ copied: 0, failed: 1 })
+        expect(copied.archivedAt).not.toBeNull()
+        expect(
+          await db.select().from(embedding).where(eq(embedding.documentId, childDocId))
+        ).toEqual([])
+        if (retiredSide !== 'target during copy') expect(progress.embeddings).toEqual({})
+      }
+      const [targetWorkspace] = await db
+        .select()
+        .from(workspace)
+        .where(eq(workspace.id, fixture.childWorkspaceId))
+      expect(targetWorkspace.storageUsedBytes).toBe(0)
+    }
+  )
 })

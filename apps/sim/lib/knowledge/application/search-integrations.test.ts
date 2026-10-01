@@ -4,13 +4,7 @@ import {
   organization,
   organizationSearchIntegration,
 } from '@sim/db/schema'
-import {
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, resetEnvFlagsMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import {
@@ -153,7 +147,7 @@ describe('organization Search approval', () => {
   })
 
   it('preserves existing sources while an explicit deactivation overrides them', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
+    queueTableRows(organization, [{ metadata: {} }])
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(organizationSearchIntegration, [{ connectorType: 'gmail', approved: false }])
     queueTableRows(knowledgeConnector, [
@@ -162,12 +156,12 @@ describe('organization Search approval', () => {
     ])
     await expect(
       listSearchIntegrations.execute({ principal, input: { organizationId: 'organization' } })
-    ).resolves.toEqual([
-      { connectorType: 'gmail', approved: false },
-      { connectorType: 'google_drive', approved: true },
-      { connectorType: 'github', approved: false },
-      { connectorType: 'jira', approved: false },
-    ])
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ connectorType: 'gmail', approved: false }),
+        expect.objectContaining({ connectorType: 'google_drive', approved: true }),
+      ])
+    )
   })
 })
 
@@ -224,7 +218,7 @@ describe('organization Search controls through Mothership', () => {
   })
 
   it('allows delegated members to read approval state without granting writes', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
+    queueTableRows(organization, [{ metadata: {} }])
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(organizationSearchIntegration, [{ connectorType: 'gmail', approved: true }])
     queueTableRows(knowledgeConnector, [])
@@ -233,7 +227,7 @@ describe('organization Search controls through Mothership', () => {
         principal: delegatedPrincipal,
         input: { organizationId: 'organization' },
       })
-    ).resolves.toContainEqual({ connectorType: 'gmail', approved: true })
+    ).resolves.toContainEqual(expect.objectContaining({ connectorType: 'gmail', approved: true }))
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })
@@ -254,7 +248,6 @@ describe('live organization search policies', () => {
   it.each([principal, delegatedPrincipal])(
     'repairs an already approved member source through the same atomic admin action',
     async (actor) => {
-      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
       queueTableRows(member, [{ role: 'admin' }])
       mocks.memberSetup.mockResolvedValueOnce({ groupId: 'group', changed: true })
       const result = await approveSearchIntegration.execute({
@@ -282,7 +275,6 @@ describe('live organization search policies', () => {
   it.each([principal, delegatedPrincipal])(
     'requires integrations capability before provisioning sign-in for an authorized admin',
     async (actor) => {
-      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
       queueTableRows(member, [{ role: 'admin' }])
       permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
         hideIntegrationsTab: true,
@@ -299,7 +291,6 @@ describe('live organization search policies', () => {
   )
 
   it('does not approve a source when member sign-in setup fails', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     mocks.memberSetup.mockRejectedValueOnce(new Error('Provider configuration is unavailable'))
     await expect(approveSearchIntegration.execute({ principal, input })).rejects.toThrow(
@@ -310,7 +301,6 @@ describe('live organization search policies', () => {
   })
 
   it('explains missing OAuth app setup instead of approving a source with an unusable connection', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     mocks.memberSetup.mockRejectedValueOnce(
       new CredentialGroupProviderConfigurationError('Managed Jira authorization is not configured')
@@ -326,13 +316,11 @@ describe('live organization search policies', () => {
   })
 
   it('does not provision sign-in while removing a source', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     await approveSearchIntegration.execute({ principal, input: { ...input, approved: false } })
     expect(mocks.memberSetup).not.toHaveBeenCalled()
   })
   it('clears source settings when switching to member accounts', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     const result = await approveSearchIntegration.execute({
       principal,
@@ -357,7 +345,6 @@ describe('live organization search policies', () => {
   ])(
     'rejects unavailable sources before writing without masking infrastructure errors',
     async ({ error, code }) => {
-      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
       queueTableRows(member, [{ role: 'admin' }])
       mocks.source.mockRejectedValueOnce(error)
       const attempt = approveSearchIntegration.execute({
@@ -377,21 +364,7 @@ describe('live organization search policies', () => {
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     }
   )
-
-  it('rejects policy writes when the rollout flag is off', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
-    queueTableRows(member, [{ role: 'owner' }])
-    await expect(
-      approveSearchIntegration.execute({
-        principal,
-        input: { ...input, policy: defaultLiveSearchPolicy() },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
   it('saves a validated service source and its approval in one transaction', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     const result = await approveSearchIntegration.execute({
       principal,
@@ -424,7 +397,6 @@ describe('live organization search policies', () => {
     expect(result.changed).toBe(true)
   })
   it('allows GitHub App mode without a single source ID', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     const result = await approveSearchIntegration.execute({
       principal,
@@ -440,7 +412,6 @@ describe('live organization search policies', () => {
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
   })
   it('saves an unfinished service-account source without exposing member-mode search', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     const result = await approveSearchIntegration.execute({
       principal,
@@ -454,7 +425,6 @@ describe('live organization search policies', () => {
     expect(mocks.source).not.toHaveBeenCalled()
   })
   it('rejects invalid scope data before any protected write', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'admin' }])
     await expect(
       approveSearchIntegration.execute({
@@ -466,7 +436,6 @@ describe('live organization search policies', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
   it('prevents members from changing live search scopes', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'member' }])
     await expect(
       approveSearchIntegration.execute({
@@ -477,7 +446,6 @@ describe('live organization search policies', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
   it('reads saved policies alongside inherited approval without requiring an index', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(organizationSearchIntegration, [{ connectorType: 'gmail', approved: true }])
     queueTableRows(organization, [

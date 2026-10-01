@@ -12,6 +12,7 @@ import {
   defineOrganizationOperation,
   type OrganizationOperation,
 } from '@/lib/core/application/organization-operation'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { validateUpdateCredentialGroupInput } from '@/lib/credential-groups/application/validation'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
@@ -29,7 +30,10 @@ import {
 } from '@/lib/credential-groups/provider-availability'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
-import { startViewerCredentialGroupOAuth } from '@/lib/credential-groups/self-enrollment-oauth'
+import {
+  startViewerCredentialGroupMcpOAuth,
+  startViewerCredentialGroupOAuth,
+} from '@/lib/credential-groups/self-enrollment-oauth'
 import {
   ensureWorkspaceAccountsGroup,
   getOrganizationAccountsGroup,
@@ -116,41 +120,43 @@ export function defineOrganizationAccountsUseCase<
         if (group)
           await requireOrganizationAccountsSetup(context.organizationId, group.credentialGroupId)
       }
-      const result = await definition.execute({ input, context }).catch((error: unknown) => {
-        if (error instanceof ManagedMcpConnectorError)
-          throw new OrchestrationError(
-            error.code === 'bad_gateway' ? 'internal' : error.code,
-            error.message
-          )
-        if (error instanceof CredentialGroupEnrollmentError)
-          throw new OrchestrationError(
-            error.status === 404
-              ? 'not_found'
-              : error.status === 409
-                ? 'conflict'
-                : error.status === 400
-                  ? 'validation'
-                  : 'internal',
-            error.message
-          )
-        throw error
-      })
-      const audit = definition.projectAudit?.(result)
-      if (audit)
-        recordAudit({
-          ...audit,
-          actorId: context.userId,
-          action: AuditAction.CREDENTIAL_GROUP_UPDATED,
-          resourceType: AuditResourceType.CREDENTIAL_GROUP,
-          metadata: {
-            organizationId: context.organizationId,
-            operation: definition.operation.id,
-            actor: resolvePrincipalAuditAttribution(principal).actor,
-          },
-          request,
+      return runWithOutboundOrganization(context.organizationId, async () => {
+        const result = await definition.execute({ input, context }).catch((error: unknown) => {
+          if (error instanceof ManagedMcpConnectorError)
+            throw new OrchestrationError(
+              error.code === 'bad_gateway' ? 'internal' : error.code,
+              error.message
+            )
+          if (error instanceof CredentialGroupEnrollmentError)
+            throw new OrchestrationError(
+              error.status === 404
+                ? 'not_found'
+                : error.status === 409
+                  ? 'conflict'
+                  : error.status === 400
+                    ? 'validation'
+                    : 'internal',
+              error.message
+            )
+          throw error
         })
-      await definition.afterSuccess?.({ result, context })
-      return result
+        const audit = definition.projectAudit?.(result)
+        if (audit)
+          recordAudit({
+            ...audit,
+            actorId: context.userId,
+            action: AuditAction.CREDENTIAL_GROUP_UPDATED,
+            resourceType: AuditResourceType.CREDENTIAL_GROUP,
+            metadata: {
+              organizationId: context.organizationId,
+              operation: definition.operation.id,
+              actor: resolvePrincipalAuditAttribution(principal).actor,
+            },
+            request,
+          })
+        await definition.afterSuccess?.({ result, context })
+        return result
+      })
     },
   }
 }
@@ -250,7 +256,7 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
   }: {
     input: OrganizationAccountsInput &
       StartOrganizationAccountConnectionBody & {
-        oauthCompletionId?: string
+        returnTo?: 'integrations'
         connectionIntent?: CredentialGroupConnectionIntent
       }
     context: OrganizationMembershipContext
@@ -261,6 +267,16 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
     if ('mcpServerId' in input) {
       if (!group.mcpServers.some((server) => server.id === input.mcpServerId && server.enabled))
         throw new OrchestrationError('not_found', 'This account provider is no longer available')
+      if (input.oauthCompletionId) {
+        return startViewerCredentialGroupMcpOAuth({
+          organizationId: context.organizationId,
+          userId: context.userId,
+          credentialGroupId: group.id,
+          mcpServerId: input.mcpServerId,
+          completionId: input.oauthCompletionId,
+          returnTo: input.returnTo,
+        })
+      }
       const { invitationLink } = await createViewerCredentialGroupEnrollment({
         organizationId: context.organizationId,
         userId: context.userId,
@@ -283,6 +299,7 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
         credentialGroupId: group.id,
         optionId: input.optionId,
         completionId: input.oauthCompletionId,
+        returnTo: input.returnTo,
         connectionIntent: input.connectionIntent,
       })
     }

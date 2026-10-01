@@ -7,8 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DashboardPreview } from '@/components/dashboards/dashboard-preview'
 import { tableAnalyticsKeys } from '@/hooks/queries/table-analytics'
 
+const { layout } = vi.hoisted(() => ({ layout: vi.fn((_props: { now: number }) => null) }))
+
 /** Panels would issue analytics requests; this suite exercises the controls and query cache. */
-vi.mock('@/components/dashboards/dashboard-layout', () => ({ DashboardLayout: () => null }))
+vi.mock('@/components/dashboards/dashboard-layout', () => ({ DashboardLayout: layout }))
 
 const content =
   'title: Example\ntime: 7d\nsource: {tableId: table-1}\nblocks: [{stat: Total, source: {aggregate: {total: {op: count}}}}]'
@@ -20,6 +22,7 @@ describe('dashboard refresh', () => {
   let client: QueryClient
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    layout.mockClear()
     client = new QueryClient()
     container = document.createElement('div')
     document.body.append(container)
@@ -31,12 +34,13 @@ describe('dashboard refresh', () => {
     client.clear()
   })
 
-  it('refreshes only this workspace and this dashboard tables', async () => {
+  it('refreshes by re-keying its panels to a new now, leaving other caches alone', async () => {
     const key = (workspaceId: string, tableId: string) =>
-      tableAnalyticsKeys.query(tableId, {
-        workspaceId,
-        query: { ...range, aggregate: { total: { op: 'count' } } },
-      })
+      tableAnalyticsKeys.query(
+        tableId,
+        { workspaceId, query: { ...range, aggregate: { total: { op: 'count' } } } },
+        0
+      )
     const matching = key('workspace-1', 'table-1')
     const otherTable = key('workspace-1', 'other-table')
     const otherWorkspace = key('workspace-2', 'table-1')
@@ -60,9 +64,13 @@ describe('dashboard refresh', () => {
       if (!button) throw new Error('Refresh button not rendered')
       return button
     })
+    const before = layout.mock.lastCall?.[0].now
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 60_000)
     await act(async () => refresh.click())
-    expect(client.getQueryState(matching)?.isInvalidated).toBe(true)
-    expect(client.getQueryState(otherTable)?.isInvalidated).toBe(false)
-    expect(client.getQueryState(otherWorkspace)?.isInvalidated).toBe(false)
+    vi.useRealTimers()
+    expect(layout.mock.lastCall?.[0].now).toBeGreaterThan(before ?? Number.POSITIVE_INFINITY)
+    for (const queryKey of [matching, otherTable, otherWorkspace])
+      expect(client.getQueryState(queryKey)?.isInvalidated).toBe(false)
   })
 })

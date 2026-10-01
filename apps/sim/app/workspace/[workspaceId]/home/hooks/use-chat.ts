@@ -30,7 +30,6 @@ import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-
 import { useSession } from '@/lib/auth/auth-client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { readSSELines } from '@/lib/core/utils/sse'
@@ -126,6 +125,7 @@ import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-ca
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
+import { useChatPanelStore } from '@/stores/chat-panel/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -1183,6 +1183,9 @@ export function useChat(
           : pendingChatKeyRef.current
       chatIdRef.current = chatId
       const resolvedDesktopScopeId = desktopChatScopeId(scopeKey, chatId)
+      if (wasPending) {
+        useChatPanelStore.getState().migrate(pendingDesktopScopeId, resolvedDesktopScopeId)
+      }
       const activeActivityTracker = resourceActivityTrackerRef.current
       if (activeActivityTracker?.generation === streamGenRef.current) {
         if (wasPending) {
@@ -1753,6 +1756,7 @@ export function useChat(
               return
             }
 
+            useChatPanelStore.getState().migrate(previousDesktopScopeId, resolvedChatId)
             await migrateDesktopChatScopes(previousDesktopScopeId, resolvedChatId)
             if (pendingChatKey) {
               useMothershipQueueStore.getState().migrate(pendingChatKey, resolvedChatId)
@@ -1922,7 +1926,6 @@ export function useChat(
     )
     /** Recovery discards interim search tabs without taking an already visible panel away. */
     if (
-      getDeploymentShape().features.liveEnterpriseSearch &&
       requestModeRef.current === 'assistant' &&
       !sendingRef.current &&
       (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
@@ -1951,7 +1954,6 @@ export function useChat(
       ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
       : updatedResources
     const keepSearchPanelStable =
-      getDeploymentShape().features.liveEnterpriseSearch &&
       requestModeRef.current === 'assistant' &&
       (sendingRef.current ||
         (activeStreamId && !isTerminalStreamStatus(chatHistory.streamSnapshot?.status)))
@@ -2168,9 +2170,7 @@ export function useChat(
       }
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
-        citedSourcesEnabled:
-          getDeploymentShape().features.liveEnterpriseSearch &&
-          requestModeRef.current === 'assistant',
+        citedSourcesEnabled: requestModeRef.current === 'assistant',
         refreshRoute: () => router.refresh(),
         viewerId,
         workspaceId,
@@ -3423,6 +3423,7 @@ export function useChat(
           ? { viewId: (c.currentView ? c.currentView.viewId : c.viewId) ?? undefined }
           : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
+        ...('dashboardId' in c && c.dashboardId ? { dashboardId: c.dashboardId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
         ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),

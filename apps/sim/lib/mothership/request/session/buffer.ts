@@ -21,6 +21,11 @@ const logger = createLogger('SessionBuffer')
 
 const STREAM_OUTBOX_PREFIX = 'mothership_stream:'
 const DEFAULT_TTL_SECONDS = 60 * 60
+/**
+ * Floor for a configured live TTL: three of the 20 s chat-lock heartbeats that refresh
+ * an idle live buffer, so a parked run cannot expire between refreshes.
+ */
+const MIN_TTL_SECONDS = 60
 const DEFAULT_COMPLETED_TTL_SECONDS = 5 * 60
 const DEFAULT_EVENT_LIMIT = 100_000
 const RETRY_DELAYS_MS = [0, 50, 150] as const
@@ -67,7 +72,10 @@ export type StreamConfig = {
 
 export function getStreamConfig(): StreamConfig {
   return {
-    ttlSeconds: envNumber(env.COPILOT_STREAM_TTL_SECONDS, DEFAULT_TTL_SECONDS, { min: 1 }),
+    ttlSeconds: Math.max(
+      MIN_TTL_SECONDS,
+      envNumber(env.COPILOT_STREAM_TTL_SECONDS, DEFAULT_TTL_SECONDS, { min: 1 })
+    ),
     eventLimit: envNumber(env.COPILOT_STREAM_EVENT_LIMIT, DEFAULT_EVENT_LIMIT, { min: 1 }),
   }
 }

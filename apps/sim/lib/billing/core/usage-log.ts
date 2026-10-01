@@ -590,7 +590,9 @@ export interface RecordCumulativeUsageParams {
    * arrives after that subscription has moved past the period of the request's latest row is
    * recorded in a new row stamped with the subscription's current period, so a request that
    * outlives its billing period is invoiced by the period it was spent in rather than topping up
-   * a period that has already been closed. Omit it for reporting-window and free payers.
+   * a period that has already been closed. A charge into a period the subscription's close marker
+   * has already passed (its terminal settlement) throws {@link CumulativeUsagePeriodClosedError}.
+   * Omit it for reporting-window and free payers.
    *
    * Mixed versions: code that predates period rows reads only the request key. If such code
    * (during a deploy, or after a rollback) handles a later callback for a request that already
@@ -677,6 +679,23 @@ export class CumulativeUsageContextMismatchError extends Error {
       `Cumulative usage event "${eventKey}" is already bound to a different billing context (${mismatchedFields.join(', ')})`
     )
     this.name = 'CumulativeUsageContextMismatchError'
+  }
+}
+
+/**
+ * A cumulative charge whose billing period the payer has already settled: the subscription ended
+ * and its final invoice summed that period. The charge is refused rather than recorded where no
+ * invoice will ever read it.
+ */
+export class CumulativeUsagePeriodClosedError extends Error {
+  constructor(
+    readonly eventKey: string,
+    readonly billingPeriod: { start: Date; end: Date }
+  ) {
+    super(
+      `Cumulative usage event "${eventKey}" targets a billing period that has already been settled`
+    )
+    this.name = 'CumulativeUsagePeriodClosedError'
   }
 }
 
@@ -882,14 +901,15 @@ export async function recordCumulativeUsage(
         return { billed: false, delta: 0, total: recorded, billingPeriod: latestPeriod }
       }
 
-      // The payer's current period, share-locked so a change to the subscription's period (a
-      // rollover, or an anchor reset inside the old period) waits for this write to commit, and
-      // whatever a close later sums for the old period is final.
+      // The payer's current period and close marker, share-locked so a change to either (a
+      // rollover, an anchor reset inside the old period, or a terminal settlement) waits for this
+      // write to commit, and whatever a close later sums for the old period is final.
       const [currentPeriod] = payerSubscriptionId
         ? await tx
             .select({
               start: subscriptionTable.periodStart,
               end: subscriptionTable.periodEnd,
+              closedThrough: subscriptionTable.lastClosedPeriodStart,
             })
             .from(subscriptionTable)
             .where(eq(subscriptionTable.id, payerSubscriptionId))
@@ -910,6 +930,16 @@ export async function recordCumulativeUsage(
       if (rolledPeriod && latest && chain.length >= MAX_CUMULATIVE_PERIOD_ROWS) {
         throw new Error(`Cumulative usage event "${eventKey}" spans too many billing periods`)
       }
+      // A marker at or past the target period's end means that period is already settled — a
+      // terminal settlement marks it whatever the subscription's bounds — so nothing would
+      // ever invoice this charge.
+      const targetPeriod = rolledPeriod ?? latestPeriod
+      if (
+        currentPeriod?.closedThrough &&
+        currentPeriod.closedThrough.getTime() >= targetPeriod.end.getTime()
+      ) {
+        throw new CumulativeUsagePeriodClosedError(eventKey, targetPeriod)
+      }
 
       enterStage('write')
       if (latest && !rolledPeriod) {
@@ -929,7 +959,6 @@ export async function recordCumulativeUsage(
         return { billed: true, delta, total: newTotal, billingPeriod: latestPeriod }
       }
 
-      const targetPeriod = rolledPeriod ?? billingContext.billingPeriod
       const rowMetadata = periodUsageMetadata(metadata, chain)
       await recordUsage({
         userId,

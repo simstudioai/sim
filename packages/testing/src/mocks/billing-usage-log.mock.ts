@@ -24,6 +24,22 @@ export class MockCumulativeUsageContextMismatchError extends Error {
 }
 
 /**
+ * Stand-in for `CumulativeUsagePeriodClosedError` with the real `name`, constructor args,
+ * `eventKey`/`billingPeriod` fields, and message.
+ */
+export class MockCumulativeUsagePeriodClosedError extends Error {
+  constructor(
+    readonly eventKey: string,
+    readonly billingPeriod: { start: Date; end: Date }
+  ) {
+    super(
+      `Cumulative usage event "${eventKey}" targets a billing period that has already been settled`
+    )
+    this.name = 'CumulativeUsagePeriodClosedError'
+  }
+}
+
+/**
  * Stand-in for `UnknownUsageCursorError` with the real `name`, message, and `statusCode` 400.
  * It is NOT a subclass of the real `HttpError`, and its `cause` is a plain `Error` carrying
  * `code: 'validation'` rather than an `OrchestrationError`.
@@ -90,7 +106,8 @@ export const billingUsageLogMockFns = {
 
 /**
  * Static mock module for `@/lib/billing/core/usage-log`. Constants carry the real values;
- * `CumulativeUsageContextMismatchError` is {@link MockCumulativeUsageContextMismatchError} and
+ * `CumulativeUsageContextMismatchError` is {@link MockCumulativeUsageContextMismatchError},
+ * `CumulativeUsagePeriodClosedError` is {@link MockCumulativeUsagePeriodClosedError}, and
  * `UnknownUsageCursorError` is {@link MockUnknownUsageCursorError}.
  *
  * @example
@@ -104,6 +121,7 @@ export const billingUsageLogMock = {
   CUMULATIVE_COST_EPSILON,
   UNKNOWN_CURSOR_MESSAGE,
   CumulativeUsageContextMismatchError: MockCumulativeUsageContextMismatchError,
+  CumulativeUsagePeriodClosedError: MockCumulativeUsagePeriodClosedError,
   UnknownUsageCursorError: MockUnknownUsageCursorError,
   isUnbilledUsageCategory: billingUsageLogMockFns.mockIsUnbilledUsageCategory,
   stableEventKey: billingUsageLogMockFns.mockStableEventKey,

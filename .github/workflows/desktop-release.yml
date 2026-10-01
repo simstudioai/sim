@@ -172,6 +172,10 @@ jobs:
           SIM_DESKTOP_DEFAULT_ORIGIN: ${{ steps.channel.outputs.origin }}
         run: bun run build
 
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
+
       - name: Run Electron smoke tests
         working-directory: apps/desktop
         env:

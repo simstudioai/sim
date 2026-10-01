@@ -48,7 +48,7 @@ export function useStartSlackSearchOAuth() {
         await connectDesktopSource({ kind: 'slack-search', body }, signal)
         return null
       }
-      return requestJson(startSlackSearchOAuthContract, { body })
+      return requestJson(startSlackSearchOAuthContract, { body, signal })
     },
     onSettled: (_data, _error, input) =>
       Promise.all([

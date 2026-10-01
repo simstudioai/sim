@@ -26,7 +26,7 @@ const examples = {
     { action: 'update', scope: 'account', section: 'profile', changes: { timezone: 'UTC' } },
   ],
   search_sources: [
-    { action: 'list', connectorType: 'google_drive', mine: true },
+    { action: 'list', connectorType: 'google_drive' },
     { action: 'get', connectorId: 'source-1' },
     { action: 'providers' },
     { action: 'setup', connectorType: 'google_drive', accessMode: 'admin' },

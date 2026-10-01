@@ -1,3 +1,5 @@
+import { SLACK_RTS_USER_SCOPES } from '@/lib/sim-search/live/scopes'
+
 /**
  * User-token policy requested and verified by Credential Group Slack OAuth.
  * This is independent of the custom bot manifest and its configuration UI.
@@ -48,12 +50,13 @@ export const SLACK_CHANNEL_READ_SCOPES = [
 
 export const SLACK_DM_READ_SCOPES = ['im:history', 'im:read', 'mpim:history', 'mpim:read'] as const
 
-/** The shared organization app grants member access for channel and DM indexing. */
+/** Explicit Search setup grants channel, DM, and live retrieval permissions together. */
 export const SLACK_SEARCH_USER_SCOPES = [
   ...SLACK_CHANNEL_READ_SCOPES,
   ...SLACK_DM_READ_SCOPES,
   'users:read',
   'users:read.email',
+  ...SLACK_RTS_USER_SCOPES,
 ] as const
 
 /** Existing workflow options retain their scope policy; every user grant must attest identity. */

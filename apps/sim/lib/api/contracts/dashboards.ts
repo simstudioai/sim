@@ -13,7 +13,7 @@ export const dashboardRecordSchema = z.object({
   type: z.literal('dashboard'),
   name: z.string(),
   updatedAt: z.string(),
-  revision: z.string(),
+  revision: dashboardRevisionSchema,
 })
 
 /** A workspace has at most one dashboard, which Sim builds; both fields are null until then. */
@@ -25,7 +25,7 @@ export const readWorkspaceDashboardContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       dashboard: dashboardRecordSchema.nullable(),
-      content: z.string().nullable(),
+      content: dashboardContentSchema.nullable(),
     }),
   },
 })

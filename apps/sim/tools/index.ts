@@ -15,7 +15,7 @@ import {
   type BillingAttributionSnapshot,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
   createTimeoutAbortController,
@@ -1829,7 +1829,7 @@ async function executeToolImplementation(
     }
 
     if (operationContext?.requestMode === 'assistant' && tool) {
-      tool = projectAssistantConnectedAccountTool(tool, isLiveEnterpriseSearchEnabled)
+      tool = projectAssistantConnectedAccountTool(tool)
     }
 
     // Ensure context is preserved if it exists

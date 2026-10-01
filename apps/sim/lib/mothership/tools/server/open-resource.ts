@@ -56,7 +56,7 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
       assertServerToolNotAborted(context)
       if (resource.viewId && resource.type !== 'table')
         throw new OrchestrationError('validation', 'Saved views apply only to tables')
-      const base = { type: resource.type, id: resource.id, workspaceId }
+      const base = { type: resource.type, id: resource.id }
       switch (resource.type) {
         case 'workflow': {
           const { workflow } = await executeCopilotWorkflowUseCase(context, readWorkflowMetadata, {

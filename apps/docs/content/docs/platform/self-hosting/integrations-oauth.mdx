@@ -207,7 +207,7 @@ The private key must include its PEM header, footer, and contents. Sim accepts a
 
 Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
 
-The live Search application needs these five variables. If a worker also indexes ordinary GitHub knowledge bases, or Search has explicitly reverted to `SIM_SEARCH_LIVE=false`, configure the variables in that worker’s matching environment too. Updating the app’s secret store does not update a separately configured worker. Live Search does not schedule a GitHub indexing worker.
+The live Search application needs these five variables. If a worker also indexes ordinary GitHub knowledge bases, configure the variables in that worker’s matching environment too. Updating the app’s secret store does not update a separately configured worker. Live Search does not schedule a GitHub indexing worker.
 
 The **Client ID** is different from the numeric **App ID**. Use credentials from **Developer settings → GitHub Apps**. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` belong to the separate GitHub sign-in integration and remain unchanged. Search does not read `GITHUB_REPO_CLIENT_ID` or `GITHUB_REPO_CLIENT_SECRET`.
 

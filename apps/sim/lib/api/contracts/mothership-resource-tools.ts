@@ -29,7 +29,6 @@ export const openResourceOutputSchema = z.object({
       type: z.enum(['workflow', 'table', 'knowledgebase', 'file', 'dashboard', 'log']),
       id: z.string(),
       title: z.string(),
-      workspaceId: z.string(),
       viewId: z.string().optional(),
       executionId: z.string().optional(),
     })

@@ -1,6 +1,6 @@
 # Federated Search access and connector behavior
 
-This describes the live enterprise-search path. Credential Groups and ordinary knowledge-base indexing retain their existing behavior. Live Search is enabled by default; only an explicit `SIM_SEARCH_LIVE=false` selects the legacy indexed backend, which is kept dormant in `../indexed/` (see its README). Live Search sources do not create content-indexing jobs, and queued content or persisted-directory jobs stop before crawling, embedding, or building ACL snapshots. Ordinary KB jobs remain enabled. Administrators can still maintain GitLab CSV grants, and request-time source permission checks remain required.
+This describes the live enterprise-search path. Credential Groups and ordinary knowledge-base indexing retain their existing behavior. Enterprise Search uses this live backend. The legacy indexed backend and its runtime toggle have been removed. Live Search sources do not create content-indexing jobs, and queued content or persisted-directory jobs stop before crawling, embedding, or building ACL snapshots. Ordinary KB jobs remain enabled. Administrators can still maintain GitLab CSV grants, and request-time source permission checks remain required.
 
 ## Admin and member surfaces
 
@@ -159,7 +159,7 @@ Zoom Search defaults off for organization-scoped rollout. Enable selected organi
 }
 ```
 
-Only the canonical organization ID participates in this rollout check. For local or self-hosted deployments, `ZOOM_SEARCH=true` enables Zoom Search globally; leave that boolean fallback off for an organization-targeted rollout. Setup, enrollment and retrieval enforce the flag. The dedicated Zoom MCP Search connector is gated wherever it is invoked, including generic MCP tools; the standard workflow Zoom OAuth/tools remain available. Disabling the flag preserves saved grants and conversations while denying subsequent Search use; existing approvals can still be removed and connected accounts disconnected. Other providers retain the shared Search and credential-group availability policies without a separate provider rollout gate.
+Only the canonical organization ID participates in this rollout check. For local or self-hosted deployments, `ZOOM_SEARCH=true` enables Zoom Search for all otherwise eligible organization-owned scopes; personal workspaces without an organization cannot use managed connected accounts. Leave that boolean fallback off for an organization-targeted rollout. Setup, enrollment and retrieval enforce the flag. The dedicated Zoom MCP Search connector is gated wherever it is invoked, including generic MCP tools; the standard workflow Zoom OAuth/tools remain available. Disabling the flag preserves saved grants and conversations while denying subsequent Search use; existing approvals can still be removed and connected accounts disconnected. Other providers retain the shared Search and credential-group availability policies without a separate provider rollout gate.
 
 ### Shared invariants
 

@@ -3,14 +3,18 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
-import Link from 'next/link'
 import { HomeSection } from '@/components/home/home-section'
+import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
-import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import {
+  liveSearchProviderForCredential,
+  supportsLiveSearchMode,
+} from '@/lib/sim-search/live/provider-catalog'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { useSearchSourceOverview } from '@/hooks/queries/kb/connectors'
 import { useAuthorizedApps } from '@/hooks/queries/oauth-provider'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 
 type StepId = 'connect-integration' | 'connect-sim-search'
 
@@ -67,14 +71,18 @@ function StepMark({ complete }: { complete: boolean }) {
  * The organization home's onboarding list under the composer. Same chrome as
  * the workspace home's suggested actions: a hover-revealed disclosure header
  * over hairline-separated rows. Each step leads to the page that completes it,
- * and reads as done from the organization's real state: a source the viewer can
- * search and an OAuth app authorized to use Search.
+ * and reads as done from the organization's real state: a connected account and an OAuth app authorized to use Search.
  */
 export function GetStarted() {
-  const { organization, viewer } = useOrganizationContext()
+  const { organization, viewer, connectedAccountsAvailable } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
-  const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const { data: overview } = useSearchSourceOverview(scope)
+  const canConnectIntegrations = viewer.canConnectSearchIntegrations && connectedAccountsAvailable
+  const { data: accounts } = useOrganizationAccounts(
+    canConnectIntegrations ? organization.id : undefined
+  )
+  const { data: integrations } = useSearchIntegrations(organization.id, {
+    enabled: canConnectIntegrations,
+  })
   const {
     data: authorizedApps,
     fetchNextPage,
@@ -86,6 +94,46 @@ export function GetStarted() {
     authorizedApps?.pages.some((page) =>
       page.apps.some((app) => oauthScopeSatisfies(app.scopes, OAUTH_SEARCH_READ_SCOPE))
     ) ?? false
+  const approvedProviders = new Set(
+    integrations
+      ?.filter((integration) => integration.approved && integration.available !== false)
+      .map((integration) => integration.connectorType)
+  )
+  const readyOptions = new Set(
+    accounts?.credentialGroup?.options
+      .filter((option) => {
+        const provider = liveSearchProviderForCredential(option.provider)
+        return (
+          option.status === 'active' &&
+          option.configurationStatus === 'ready' &&
+          provider &&
+          supportsLiveSearchMode(provider, 'member') &&
+          approvedProviders.has(provider)
+        )
+      })
+      .map((option) => option.id)
+  )
+  const readyMcpServers = new Set(
+    accounts?.credentialGroup?.mcpServers
+      .filter((server) => {
+        const provider = liveSearchProviderForCredential(`mcp:${server.managedConnectorId}`)
+        return (
+          server.enabled &&
+          provider &&
+          approvedProviders.has(provider) &&
+          accounts.availableMcpConnectors.some((id) => id === server.managedConnectorId)
+        )
+      })
+      .map((server) => server.id)
+  )
+  const hasSearchConnection =
+    accounts?.credentialGroup?.status === 'active' &&
+    (accounts.viewerAccounts?.some(
+      (account) => account.status === 'active' && readyOptions.has(account.optionId)
+    ) ||
+      accounts.viewerMcpAccounts?.some(
+        (account) => account.status === 'active' && readyMcpServers.has(account.mcpServerId)
+      ))
 
   const hrefs: Record<StepId, string> = {
     'connect-integration': viewer.isAdmin
@@ -94,10 +142,12 @@ export function GetStarted() {
     'connect-sim-search': routes.settingsSection('search-mcp'),
   }
   const completed: Record<StepId, boolean> = {
-    'connect-integration': overview?.hasSearchableDocuments === true,
+    'connect-integration': Boolean(hasSearchConnection),
     'connect-sim-search': hasSearchAuthorization,
   }
-  const steps = STEPS.filter((step) => step.id !== 'connect-sim-search' || viewer.canUseSearchMcp)
+  const steps = STEPS.filter((step) =>
+    step.id === 'connect-sim-search' ? viewer.canUseSearchMcp : canConnectIntegrations
+  )
 
   const [expanded, setExpanded] = useState(true)
   /**
@@ -132,6 +182,8 @@ export function GetStarted() {
     setExpanded((prev) => !prev)
   }
 
+  if (steps.length === 0) return null
+
   return (
     <HomeSection
       title='Get started'
@@ -142,7 +194,11 @@ export function GetStarted() {
       {steps.map((step, i) => {
         const complete = completed[step.id]
         return (
-          <Link key={step.id} href={hrefs[step.id]} className={cn(ROW_CLASS, i > 0 && 'border-t')}>
+          <SettingsGuardedLink
+            key={step.id}
+            href={hrefs[step.id]}
+            className={cn(ROW_CLASS, i > 0 && 'border-t')}
+          >
             <StepMark complete={complete} />
             <span
               className={cn(
@@ -153,7 +209,7 @@ export function GetStarted() {
               {step.label}
             </span>
             <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-          </Link>
+          </SettingsGuardedLink>
         )
       })}
     </HomeSection>

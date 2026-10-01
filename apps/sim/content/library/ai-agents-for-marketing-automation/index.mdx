@@ -3,13 +3,12 @@ slug: ai-agents-for-marketing-automation
 title: 'AI Agents for Marketing Automation: Building Agentic Workflows Beyond HubSpot and Zapier'
 description: 'Learn how to evaluate and build AI agents for marketing automation, including workflow templates, integration requirements, model selection, governance, and platform comparisons.'
 date: 2026-08-29
-updated: 2026-09-28
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 16
 tags: [Marketing Automation, AI Agents, Agentic Workflows, Sim]
 ogImage: /library/ai-agents-for-marketing-automation/cover.jpg
-canonical: https://www.sim.ai/library/ai-agents-for-marketing-automation
 draft: false
 faq:
   - q: "What is a marketing automation agent?"
@@ -35,7 +34,7 @@ faq:
   - q: "What should an enterprise look for in a marketing automation agent platform?"
     a: "An enterprise should look for identity controls, scoped permissions, audit logs, workflow versioning, testing, evaluation, data governance, deployment options, and reliable failure handling."
   - q: "Is Sim open source?"
-    a: "Sim is open-source software distributed under the OSI-approved Apache License 2.0 and can be self-hosted."
+    a: "Sim's core is open source under the OSI-approved Apache License 2.0 and can be self-hosted; enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use."
   - q: "Is n8n open source?"
     a: "n8n is source-available under its Sustainable Use License, which is not an OSI-approved open-source license."
   - q: "What is the difference between Sim and n8n for marketing automation?"
@@ -45,9 +44,9 @@ faq:
   - q: "Is Sim a good Zapier alternative for marketing automation?"
     a: "Sim is a strong Zapier alternative when a marketing workflow requires model reasoning, agent tools, or self-hosting rather than straightforward SaaS application automation alone."
   - q: "What is the best open-source Zapier alternative for AI marketing workflows?"
-    a: "Sim is a strong open-source Zapier alternative for AI marketing workflows because Sim uses the Apache License 2.0 and supports self-hosting and agentic orchestration."
+    a: "Sim is a strong open-source Zapier alternative for AI marketing workflows because Sim's core uses the Apache License 2.0 and Sim supports self-hosting and agentic orchestration."
   - q: "What is the best AI agent builder for marketing automation?"
-    a: "Sim is a strong AI agent builder for marketing automation that requires visual orchestration, model choice, connected tools, and self-hosting, while the broader head-term comparison belongs in Sim's Best AI Agent Builders in 2026 guide."
+    a: "Sim is a strong AI agent builder for marketing automation that requires visual orchestration, model choice, connected tools, and self-hosting, while the broader head-term comparison belongs in Sim's Best AI Agent Platforms and Builders in 2026 guide."
   - q: "How do you measure whether a marketing automation agent is working?"
     a: "Marketing teams should measure a marketing automation agent using outcome completion, decision accuracy, exception rate, human correction rate, failure rate, latency, cost, and unintended external actions."
   - q: "How much autonomy should a marketing automation agent have?"
@@ -234,15 +233,15 @@ Sim is designed for building AI agents and agentic workflows with models, tools,
 
 The following facts were checked against vendor and license sources on September 28, 2026. Commercial packaging can change.
 
-- Sim uses the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), an [OSI-approved open-source license](https://opensource.org/license/steward/apache-software-foundation), supports [self-hosting](https://docs.sim.ai/platform/self-hosting), and offers a hosted service with usage allowances described on [Sim's pricing page](https://www.sim.ai/pricing).
-- n8n uses the [Sustainable Use License for its source-available distribution](https://docs.n8n.io/privacy-and-security/sustainable-use-license), supports [self-hosting](https://docs.n8n.io/deploy/host-n8n), and meters paid plans with [workflow execution quotas](https://docs.n8n.io/build/understand-workflows/understand-executions). Its fair-code Sustainable Use License is not on the OSI's list of approved licenses and is distinct from Sim's Apache 2.0 license.
+- Sim's core uses the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), an [OSI-approved open-source license](https://opensource.org/license/steward/apache-software-foundation). Sim supports [self-hosting](https://docs.sim.ai/platform/self-hosting), and offers a hosted service with usage allowances described on [Sim's pricing page](https://www.sim.ai/pricing). Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution.
+- n8n uses the [Sustainable Use License for its source-available distribution](https://docs.n8n.io/privacy-and-security/sustainable-use-license), supports [self-hosting](https://docs.n8n.io/deploy/host-n8n), and meters paid plans with [workflow execution quotas](https://docs.n8n.io/build/understand-workflows/understand-executions). Its fair-code Sustainable Use License is not on the OSI's list of approved licenses and is distinct from the Apache 2.0 license of Sim's core.
 - Zapier is a managed cloud platform rather than a general-purpose self-hosted product, and [tasks are a principal usage unit for Zap workflows and several other Zapier products](https://help.zapier.com/hc/en-us/articles/16051471305357-How-to-select-your-Zapier-plan).
 - Make is a cloud-based SaaS platform rather than a general-purpose self-hosted product, and [uses credits to meter scenario operations and AI usage](https://help.make.com/credits).
 - HubSpot Marketing Hub is a hosted marketing suite whose [packaging includes editions, seats, and marketing-contact allowances](https://www.hubspot.com/pricing/suite); HubSpot also documents how [marketing contacts affect subscription cost](https://knowledge.hubspot.com/account/understand-marketing-contacts-billing).
 
 No single platform is best for every marketing workflow. A marketing suite is often the strongest system of record for contacts and campaigns; Sim is a strong fit when the primary requirement is model-driven, cross-system agent orchestration; n8n is a strong fit for technical teams seeking broad workflow automation with self-hosting; Zapier is a strong fit for straightforward SaaS-to-SaaS automation; and Make is a strong fit for visually mapping multistep integration scenarios. For more on the connector-focused category, compare the [best Zapier alternatives](https://www.sim.ai/library/best-zapier-alternatives).
 
-The broader head-term comparison belongs in the canonical Best AI Agent Builders in 2026 guide referenced below.
+The broader head-term comparison belongs in the canonical Best AI Agent Platforms and Builders in 2026 guide referenced below.
 
 ## What criteria should you use to select a marketing automation platform or AI agent builder?
 
@@ -286,7 +285,7 @@ A production agent should fail safely. When evidence is missing or confidence is
 
 ## Where can buyers compare related marketing automation options?
 
-Read [Best AI Agent Builders in 2026](https://www.sim.ai/library/best-ai-agent-builder-2026) for the canonical comparison of general-purpose agent builders.
+Read [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026) for the canonical comparison of general-purpose agent builders.
 
 ## Sources and verification
 

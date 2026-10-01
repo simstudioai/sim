@@ -7163,7 +7163,6 @@ describe('organization scratch internal entrance', () => {
 
 describe('Live Search Assistant GitHub OAuth binding', () => {
   beforeEach(async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     const metadata = await import('@/tools/metadata')
     const actual = await vi.importActual<typeof import('@/tools/metadata')>('@/tools/metadata')
     vi.mocked(metadata.getToolMetadata).mockImplementation(actual.getToolMetadata)
@@ -7199,8 +7198,6 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
   })
   it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
     const { getToolMetadata } = await import('@/tools/metadata')
-    const { isLiveEnterpriseSearchEnabled } = await import('@/lib/core/config/env-flags')
-    expect(isLiveEnterpriseSearchEnabled).toBe(true)
     expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
       id: 'github_search_issues_v2',
       params: { apiKey: { required: true } },

@@ -7,7 +7,7 @@ import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import {
   type IntegrationGateConfig,
@@ -218,9 +218,7 @@ export async function buildIntegrationToolSchemas(
     return structuredClone(
       schemas.filter((schema) => {
         const original = getToolMetadata(schema.name)
-        const metadata = original
-          ? projectAssistantConnectedAccountTool(original, isLiveEnterpriseSearchEnabled)
-          : undefined
+        const metadata = original ? projectAssistantConnectedAccountTool(original) : undefined
         return (
           !metadata?.personalToken &&
           metadata?.oauth?.required &&
@@ -250,7 +248,7 @@ async function buildIntegrationToolSchemasUncached({
     const metadata = getToolMetadata(toolId)
     if (options.personalAccountsOnly && !isAssistantIntegrationTool(metadata)) continue
     const projectedTool = options.personalAccountsOnly
-      ? projectAssistantConnectedAccountTool(toolConfig, isLiveEnterpriseSearchEnabled)
+      ? projectAssistantConnectedAccountTool(toolConfig)
       : toolConfig
     const userSchema = createUserToolSchema(projectedTool, {
       surface: options.schemaSurface,

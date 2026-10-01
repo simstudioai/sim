@@ -2,7 +2,11 @@ import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
-import { isUnsettledToolState, withBlockTiming } from '@/lib/mothership/chat/persisted-message'
+import {
+  copyPersistedMessageContext,
+  isUnsettledToolState,
+  withBlockTiming,
+} from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -141,25 +145,10 @@ function toDisplayContexts(
   contexts: PersistedMessage['contexts']
 ): ChatMessageContext[] | undefined {
   if (!contexts || contexts.length === 0) return undefined
-  return contexts.map((c) => ({
-    kind: c.kind as ChatContextKind,
-    label: c.label,
-    ...(c.workflowId ? { workflowId: c.workflowId } : {}),
-    ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
-    ...(c.tableId ? { tableId: c.tableId } : {}),
-    ...(c.viewId ? { viewId: c.viewId } : {}),
-    ...(c.fileId ? { fileId: c.fileId } : {}),
-    ...(c.folderId ? { folderId: c.folderId } : {}),
-    ...(c.chatId ? { chatId: c.chatId } : {}),
-    ...(c.blockType ? { blockType: c.blockType } : {}),
-    ...(c.skillId ? { skillId: c.skillId } : {}),
-    ...(c.serverId ? { serverId: c.serverId } : {}),
-    ...(c.fileName ? { fileName: c.fileName } : {}),
-    ...(c.tableName ? { tableName: c.tableName } : {}),
-    ...(c.tabId ? { tabId: c.tabId } : {}),
-    ...(c.terminalId ? { terminalId: c.terminalId } : {}),
-    ...(c.selection ? { selection: { ...c.selection } } : {}),
-  }))
+  return contexts.map((c) => {
+    const copy = copyPersistedMessageContext(c)
+    return { ...copy, kind: copy.kind as ChatContextKind }
+  })
 }
 
 const WORKSPACE_FILE_TOOL = 'prepare_file_edit'
