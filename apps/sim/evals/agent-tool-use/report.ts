@@ -127,3 +127,132 @@ export function writeLiveEvalReport(summaries: LiveScenarioSummary[], reportPath
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`)
   writeFileSync(reportPath.replace(/\.json$/, '.md'), renderLiveMarkdown(report))
 }
+
+/** One trial of one model on one scenario, for the comparison report. */
+export interface LiveModelRun {
+  provider: string
+  model: string
+  scenarioId: string
+  result: AgentToolUseResult
+}
+
+/** Aggregate behavior of one model across the suite. */
+export interface LiveModelSummary {
+  provider: string
+  model: string
+  label: string
+  trials: number
+  passed: number
+  passRate: number
+  avgIterations: number
+  avgLatencyMs: number
+  totalTokens: number
+  /** Names of the checks this model failed at least once, sorted. */
+  failedChecks: string[]
+}
+
+/** Side-by-side comparison of several models on the same scenarios. */
+export interface LiveComparisonReport {
+  suite: 'agent-tool-use-compare'
+  generatedAt: string
+  scenarios: string[]
+  models: LiveModelSummary[]
+  /** scenarioId -> model label -> pass rate. */
+  matrix: Record<string, Record<string, number>>
+}
+
+function modelLabel(run: LiveModelRun): string {
+  return `${run.provider}/${run.model}`
+}
+
+export function buildLiveComparisonReport(runs: LiveModelRun[]): LiveComparisonReport {
+  const byModel = new Map<string, LiveModelRun[]>()
+  for (const run of runs) {
+    const key = modelLabel(run)
+    const list = byModel.get(key) ?? []
+    list.push(run)
+    byModel.set(key, list)
+  }
+
+  const scenarios = [...new Set(runs.map((run) => run.scenarioId))].sort()
+  const models: LiveModelSummary[] = []
+  const matrix: Record<string, Record<string, number>> = {}
+
+  for (const [label, modelRuns] of byModel) {
+    const results = modelRuns.map((run) => run.result)
+    const passed = results.filter((result) => result.passed).length
+    const [provider, model] = label.split('/')
+    const failedChecks = new Set<string>()
+    for (const result of results) {
+      for (const entry of result.checks) {
+        if (!entry.passed) failedChecks.add(entry.name)
+      }
+    }
+    models.push({
+      provider,
+      model,
+      label,
+      trials: results.length,
+      passed,
+      passRate: results.length === 0 ? 0 : passed / results.length,
+      avgIterations: average(results.map((result) => result.metrics.iterations)),
+      avgLatencyMs: average(results.map((result) => result.metrics.latencyMs)),
+      totalTokens: results.reduce((sum, result) => sum + result.metrics.totalTokens, 0),
+      failedChecks: [...failedChecks].sort(),
+    })
+
+    for (const scenario of scenarios) {
+      const scenarioRuns = modelRuns.filter((run) => run.scenarioId === scenario)
+      const scenarioPassed = scenarioRuns.filter((run) => run.result.passed).length
+      matrix[scenario] ??= {}
+      matrix[scenario][label] = scenarioRuns.length === 0 ? 0 : scenarioPassed / scenarioRuns.length
+    }
+  }
+
+  models.sort((a, b) => b.passRate - a.passRate)
+  return {
+    suite: 'agent-tool-use-compare',
+    generatedAt: new Date().toISOString(),
+    scenarios,
+    models,
+    matrix,
+  }
+}
+
+function renderComparisonMarkdown(report: LiveComparisonReport): string {
+  const labels = report.models.map((model) => model.label)
+  const lines = [
+    '# Agent tool-use model comparison',
+    '',
+    `Generated: ${report.generatedAt}`,
+    '',
+    '| Model | Pass rate | Trials | Avg iterations | Avg latency | Tokens | Failed checks |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | --- |',
+    ...report.models.map(
+      (model) =>
+        `| ${model.label} | ${(model.passRate * 100).toFixed(0)}% (${model.passed}/${model.trials}) | ${model.trials} | ${model.avgIterations.toFixed(1)} | ${Math.round(model.avgLatencyMs)}ms | ${model.totalTokens} | ${model.failedChecks.join(', ') || '—'} |`
+    ),
+    '',
+    `| Scenario | ${labels.join(' | ')} |`,
+    `| --- | ${labels.map(() => '---:').join(' | ')} |`,
+    ...report.scenarios.map(
+      (scenario) =>
+        `| ${escapeCell(scenario)} | ${labels
+          .map((label) => `${((report.matrix[scenario]?.[label] ?? 0) * 100).toFixed(0)}%`)
+          .join(' | ')} |`
+    ),
+    '',
+  ]
+  return lines.join('\n')
+}
+
+/**
+ * Writes the model-comparison JSON report and a sibling Markdown table.
+ * Unlike the single-model report, this is a matrix: scenario × model pass rates.
+ */
+export function writeLiveComparisonReport(runs: LiveModelRun[], reportPath: string): void {
+  const report = buildLiveComparisonReport(runs)
+  mkdirSync(dirname(reportPath), { recursive: true })
+  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`)
+  writeFileSync(reportPath.replace(/\.json$/, '.md'), renderComparisonMarkdown(report))
+}

@@ -28,6 +28,7 @@
     "test:evals:live": "EVAL_LIVE=1 vitest run --mode live evals/agent-tool-use",
     "test:evals:record": "EVAL_LIVE=1 EVAL_RECORD=1 vitest run --mode live evals/agent-tool-use",
     "test:evals:context": "EVAL_CONTEXT_REPORT_PATH=test-results/evals/agent-context.json vitest run evals/agent-context",
+    "test:evals:compare": "EVAL_LIVE=1 vitest run --mode live evals/agent-tool-use/agent-tool-use.compare.live.test.ts",
     "email:dev": "email dev --dir components/emails",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",

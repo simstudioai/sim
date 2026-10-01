@@ -94,6 +94,23 @@ each one through `createOpenAICompatStreamingToolLoopStream` and scores it with
 the same checks; the suite skips until at least one fixture exists. Re-record a
 fixture when the scenario, prompt, or model intentionally changes.
 
+### Compare models
+
+Run the same scenarios across several models and get a scenario × model matrix:
+
+```sh
+cd apps/sim
+EVAL_MODELS=deepseek:deepseek-chat,deepseek:deepseek-reasoner \
+  DEEPSEEK_API_KEY=... bun run test:evals:compare
+```
+
+A spec is `provider:model`; a bare model id defaults to DeepSeek. Providers are
+DeepSeek, OpenAI, Groq, and OpenRouter, each reading its key from
+`<PROVIDER>_API_KEY`. The report is
+`test-results/evals/agent-tool-use-compare.{json,md}`: per-model pass rate,
+iterations, latency, and tokens, plus a per-scenario pass-rate matrix.
+`EVAL_MIN_PASS_RATE` fails a model below a floor.
+
 ## Add a case
 
 1. Open [`agent-tool-use/scenarios.ts`](./agent-tool-use/scenarios.ts) and add
