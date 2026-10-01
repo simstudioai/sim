@@ -47,24 +47,21 @@ describe('parseUnifiedDiff', () => {
     })
   })
 
+  it('names each side of a two-document comparison', () => {
+    const diff = parseUnifiedDiff(
+      '--- sim:knowledge/kb/old\n+++ sim:knowledge/kb/new\n-Refunds are available within 14 days.\n+Annual plans can be refunded within 30 days.'
+    )
+    expect([diff.oldSource, diff.newSource]).toEqual([
+      { kind: 'knowledge', knowledgeBaseId: 'kb', documentId: 'old' },
+      { kind: 'knowledge', knowledgeBaseId: 'kb', documentId: 'new' },
+    ])
+  })
+
   it.each([
     ['a knowledge source without a document', '--- sim:knowledge/kb_1\n-x\n+y', 'sim:knowledge/'],
     ['a line without a marker', '@@ x @@\n-a\nplain', 'Line 3'],
     ['no changes', ' just context', 'at least one + or - line'],
   ])('rejects %s', (_, text, message) => {
     expect(() => parseUnifiedDiff(text)).toThrow(message)
-  })
-})
-
-describe('two-document comparisons', () => {
-  const diff = parseUnifiedDiff(
-    '--- sim:knowledge/kb/old\n+++ sim:knowledge/kb/new\n-Refunds are available within 14 days.\n+Annual plans can be refunded within 30 days.'
-  )
-
-  it('names each side', () => {
-    expect([diff.oldSource, diff.newSource]).toEqual([
-      { kind: 'knowledge', knowledgeBaseId: 'kb', documentId: 'old' },
-      { kind: 'knowledge', knowledgeBaseId: 'kb', documentId: 'new' },
-    ])
   })
 })

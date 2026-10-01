@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, type ReactNode, useMemo } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowUpRight, Database, File } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -223,7 +223,6 @@ function ExcerptCard({ heading, diff, side }: ExcerptCardProps) {
   )
 }
 
-/** An edit, line by line: tinted rows with word-level changes. */
 function CodeDiff({ diff, heading }: CodeDiffProps) {
   const Icon = heading.icon
   return (
@@ -262,7 +261,7 @@ function parse(
 export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
   const params = useParams()
   const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : null
-  const parsed = useMemo(() => parse(source), [source])
+  const parsed = parse(source)
   const diff = parsed.diff
   const comparison = Boolean(
     diff?.oldSource && diff.newSource && !sameSource(diff.oldSource, diff.newSource)

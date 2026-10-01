@@ -283,8 +283,7 @@
   overflow-x: auto;
 }
 
-/* A rendered Mermaid diagram sits on the workflow canvas surface: flat page background, a hairline
-   frame, centered. */
+/* A rendered Mermaid diagram matches the workflow canvas surface. */
 .rich-markdown-prose .mermaid-diagram-frame {
   display: flex;
   justify-content: center;

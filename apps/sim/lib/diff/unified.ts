@@ -1,6 +1,3 @@
-/** The fence language that renders a unified diff in markdown; kept apart from the parser. */
-export const DIFF_EMBED_LANGUAGE = 'diff'
-
 /** A workspace resource a diff was taken from, named in its `---` / `+++` header lines. */
 export type DiffSource =
   | { kind: 'file'; fileId: string }
