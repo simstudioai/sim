@@ -512,6 +512,47 @@ describe('persistent workbench output confidentiality', () => {
     expect(JSON.stringify(output.projected.result)).not.toContain(canary)
     expect(JSON.stringify(output.projected.result)).toContain('{{TOKEN}}')
   })
+  it('redacts session credentials when an export write fails', async () => {
+    io.write.mockRejectedValueOnce(new Error('Write unavailable'))
+    const current = context()
+    const raw = await inResourceScope(() =>
+      executeFunctionExecute(
+        {
+          code: 'printf "%s" "$SIM_API_KEY" > session-key.txt; cat session-key.txt; printf data > export.txt',
+          language: 'shell',
+          outputs: {
+            files: [{ path: 'files/export.txt', sandboxPath: 'export.txt' }],
+          },
+        },
+        current
+      )
+    )
+    const credential = await readFile(workerPath('session-key.txt'), 'utf8')
+    const projected = inspectToolResultForCopilot(
+      raw,
+      current.resolvedSecretTraceRegistry,
+      'function_execute'
+    )
+    expect(raw.success).toBe(false)
+    expect(projected.safe).toBe(true)
+    expect(JSON.stringify(projected.result)).not.toContain(credential)
+    expect(JSON.stringify(projected.result)).toContain('{{SIM_API_KEY}}')
+  })
+  it.each([
+    '{ nested: [process.env.SIM_API_KEY] }',
+    '{ nested: [{ [process.env.SIM_API_KEY]: true }] }',
+  ])('redacts session credentials in returned %s', async (value) => {
+    const result = await run(
+      `(await import("node:fs")).writeFileSync("session-key.txt", process.env.SIM_API_KEY); return ${value}`,
+      [],
+      'javascript'
+    )
+    const credential = await readFile(workerPath('session-key.txt'), 'utf8')
+    expect(result.raw.success).toBe(true)
+    expect(result.projected.safe).toBe(true)
+    expect(JSON.stringify(result.projected.result)).not.toContain(credential)
+    expect(JSON.stringify(result.projected.result)).toContain('{{SIM_API_KEY}}')
+  })
   it('keeps ordinary binary exports usable when only callback authentication is present', async () => {
     const result = await inResourceScope(() =>
       executeFunctionExecute(

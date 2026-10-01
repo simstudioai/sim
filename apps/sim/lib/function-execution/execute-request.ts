@@ -91,7 +91,11 @@ import {
   MAX_BLOCK_MOUNTED_FILES,
   SANDBOX_OUTPUT_DIR,
 } from '@/lib/execution/remote-sandbox/sandbox-paths'
-import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
+import type {
+  SandboxCollectedFile,
+  SandboxFile,
+  SandboxSessionRequest,
+} from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { MAX_FUNCTION_REFERENCES } from '@/lib/function-execution/limits'
 import type { SandboxExportedFile } from '@/lib/function-execution/output'
@@ -1030,7 +1034,7 @@ interface FunctionRouteExecutionContext {
   runtimeFileSecretTraceRegistry?: ResolvedSecretTraceRegistry
   runtimeInputProvenanceUnrecorded?: boolean
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
-  sessionOutputProvenance?: DurableSecretProvenance
+  sessionOutputProvenance?: SandboxSessionRequest['outputProvenance']
 }
 
 /** Keeps bound file provenance in both ordinary Function results and exported artifact bytes. */
@@ -1277,15 +1281,10 @@ async function functionJsonResponse<T>(
   context: FunctionRouteExecutionContext,
   init?: ResponseInit
 ) {
-  /**
-   * Narrow callback receipts to the returned JSON before compaction. Scanning serialized bytes
-   * avoids activating secret-only traversal limits on large results that contain no credential.
-   */
   if (context.sessionOutputProvenance && context.resolvedSecretTraceRegistry) {
     await importDurableSecretProvenance(
       context.resolvedSecretTraceRegistry,
-      context.sessionOutputProvenance,
-      JSON.stringify(body)
+      context.sessionOutputProvenance(body)
     )
   }
   const responseBody = {
@@ -1555,13 +1554,14 @@ function exportUnchangedNote(sandboxPath?: string): string {
 }
 
 function exportFailure(
+  context: FunctionRouteExecutionContext,
   error: string,
   status: number,
   stdout: string,
   executionTime: number,
   cost: FunctionExecutionCost | undefined
-): NextResponse {
-  return NextResponse.json(
+) {
+  return functionJsonResponse(
     {
       success: false,
       error,
@@ -1572,6 +1572,7 @@ function exportFailure(
         ...(cost ? { cost } : {}),
       },
     },
+    context,
     { status }
   )
 }
@@ -1661,6 +1662,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   if (!outputPath) {
     return exportFailure(
+      routeContext,
       'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
       400,
       stdout,
@@ -1674,6 +1676,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   if (!resolvedWorkspaceId || routeContext.principal.kind !== 'delegated') {
     return exportFailure(
+      routeContext,
       'Workspace context required to save sandbox file to workspace',
       400,
       stdout,
@@ -1684,6 +1687,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   if (exportedFileContent === undefined) {
     return exportFailure(
+      routeContext,
       `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
       500,
       stdout,
@@ -1707,6 +1711,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   const outputBytes = Buffer.byteLength(exportedFileContent, isBinary ? 'base64' : 'utf-8')
   if (outputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
     return exportFailure(
+      routeContext,
       `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
       400,
       stdout,
@@ -1791,6 +1796,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     })
   } catch (error) {
     return exportFailure(
+      routeContext,
       getErrorMessage(error, 'Failed to export sandbox file'),
       workspaceFileExportErrorStatus(error),
       stdout,
@@ -1817,6 +1823,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   if (sandboxFiles.length === 0) return null
   if (sandboxFiles.length > MAX_SANDBOX_OUTPUT_FILES) {
     return exportFailure(
+      args.routeContext,
       `Too many sandbox output files requested (${sandboxFiles.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
       400,
       args.stdout,
@@ -1852,6 +1859,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
   if (!resolvedWorkspaceId || args.routeContext.principal.kind !== 'delegated') {
     return exportFailure(
+      args.routeContext,
       'Workspace context required to save sandbox files to workspace',
       400,
       args.stdout,
@@ -1867,6 +1875,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     const content = args.exportedFiles?.[sandboxPath]
     if (content === undefined) {
       return exportFailure(
+        args.routeContext,
         `Sandbox file "${sandboxPath}" was not found or could not be read`,
         500,
         args.stdout,
@@ -1888,6 +1897,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
       return exportFailure(
+        args.routeContext,
         `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
         400,
         args.stdout,
@@ -1940,6 +1950,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     validationPaths = validations.map((validation) => validation.vfsPath)
   } catch (error) {
     return exportFailure(
+      args.routeContext,
       getErrorMessage(error, 'Invalid sandbox output destination'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
@@ -1952,6 +1963,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   )
   if (duplicateDestination) {
     return exportFailure(
+      args.routeContext,
       `Duplicate sandbox output destination: ${duplicateDestination}`,
       400,
       args.stdout,
@@ -2009,6 +2021,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     }
   } catch (error) {
     return exportFailure(
+      args.routeContext,
       getErrorMessage(error, 'Failed to export sandbox files'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
@@ -2157,7 +2170,8 @@ async function collectSandboxOutputFiles(args: {
   // reporting success without them would read as "your script wrote nothing".
   if (!resolvedWorkspaceId || !args.workflowId || !args.executionId) {
     return {
-      response: exportFailure(
+      response: await exportFailure(
+        routeContext,
         'Workspace, workflow, and execution context are required to return files from the sandbox.',
         400,
         args.stdout,
@@ -2188,7 +2202,8 @@ async function collectSandboxOutputFiles(args: {
       ) {
         await discardUploadedExecutionFiles(files)
         return {
-          response: exportFailure(
+          response: await exportFailure(
+            routeContext,
             `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
             400,
             args.stdout,

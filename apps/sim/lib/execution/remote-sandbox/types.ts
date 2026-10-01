@@ -93,10 +93,10 @@ export interface SandboxSessionRequest {
   /** Extra environment variables present on every execution in the session. */
   envs?: Record<string, string>
   /**
-   * Ephemeral callback credentials for model-output redaction after execution. They expire with
-   * the tool lease and do not contribute to durable machine or exported-file provenance.
+   * Selects ephemeral callback credentials present in the returned JSON for model redaction.
+   * They expire with the tool lease and do not contribute to machine or exported-file provenance.
    */
-  outputProvenance?: DurableSecretProvenance
+  outputProvenance?: (value: unknown) => DurableSecretProvenance
   /**
    * This execution mounts bytes whose secret provenance is unknown, so the machine's input
    * history must not stay certified clean even when the caller's own inputs are.
