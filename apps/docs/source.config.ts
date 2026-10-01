@@ -61,9 +61,10 @@ function readGitLastModified(): Map<string, Date> | undefined {
 const gitLastModified = readGitLastModified()
 
 export default defineConfig({
-  plugins: gitLastModified
-    ? [lastModified({ versionControl: async (file) => gitLastModified.get(path.resolve(file)) })]
-    : [],
+  /** Always registered so the generated page types are the same with or without git history. */
+  plugins: [
+    lastModified({ versionControl: async (file) => gitLastModified?.get(path.resolve(file)) }),
+  ],
   mdxOptions: {
     /**
      * Shiki defaults to `github-light` / `github-dark`, whose blues and purples appear nowhere
