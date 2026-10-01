@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-import { GET } from '@/app/api/cron/cleanup-stale-executions/route'
+import { GET } from '@/app/api/cron/cleanup-file-versions/route'
 
 const { mockVerifyCronAuth } = authInternalMockFns
 
@@ -17,7 +17,7 @@ function request() {
     'GET',
     undefined,
     {},
-    'http://localhost:3000/api/cron/cleanup-stale-executions'
+    'http://localhost:3000/api/cron/cleanup-file-versions'
   )
 }
 
@@ -29,10 +29,10 @@ async function dispatchedJobId(): Promise<string> {
   return body.jobId
 }
 
-describe('stale execution cleanup route', () => {
+describe('file version cleanup route', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-10-01T17:31:00Z'))
+    vi.setSystemTime(new Date('2026-10-01T03:30:00Z'))
     mockVerifyCronAuth.mockReturnValue(null)
     mockEnqueue.mockReset()
   })
@@ -41,16 +41,7 @@ describe('stale execution cleanup route', () => {
     vi.useRealTimers()
   })
 
-  it('answers with the dispatched job once the cleanup is enqueued', async () => {
-    mockEnqueue.mockResolvedValueOnce('job-stale-1')
-
-    const response = await GET(request())
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ triggered: true, jobId: 'job-stale-1' })
-  })
-
-  it('fails the cron invocation when the job cannot be enqueued', async () => {
+  it('fails the cron invocation when the dispatch cannot be enqueued', async () => {
     mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
 
     const response = await GET(request())
@@ -65,16 +56,16 @@ describe('stale execution cleanup route', () => {
       )
     })
 
-    it('dispatches a retry inside the same thirty-minute window as the same job', async () => {
+    it('dispatches a retry on the same day as the same job', async () => {
       const first = await dispatchedJobId()
-      vi.setSystemTime(new Date('2026-10-01T17:59:59.999Z'))
+      vi.setSystemTime(new Date('2026-10-01T23:59:59.999Z'))
 
       expect(await dispatchedJobId()).toBe(first)
     })
 
-    it('dispatches a new job once the next thirty-minute window begins', async () => {
+    it('dispatches a new job on the next day', async () => {
       const first = await dispatchedJobId()
-      vi.setSystemTime(new Date('2026-10-01T18:00:00.000Z'))
+      vi.setSystemTime(new Date('2026-10-02T00:00:00.000Z'))
 
       expect(await dispatchedJobId()).not.toBe(first)
     })
