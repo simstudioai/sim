@@ -166,6 +166,29 @@ describe('chart annotations', () => {
     expect(labels.markLine).toMatchObject({ data: [{ xAxis: 5, label: { position: 'start' } }] })
   })
 
+  it('prefers the axis index over the axis id, as ECharts does', () => {
+    const option = applyChartAnnotations(
+      {
+        xAxis: { type: 'time' },
+        yAxis: [
+          { id: 'stage', type: 'category' },
+          { id: 7, type: 'value' },
+        ],
+        series: [{ type: 'line', yAxisIndex: 1, yAxisId: 'stage' }],
+      },
+      { thresholds: [{ value: 5 }] },
+      palette
+    )
+    expect((option.series as Series[])[0].markLine).toMatchObject({ data: [{ yAxis: 5 }] })
+    expect(() =>
+      applyChartAnnotations(
+        { ...option, series: [{ type: 'line', yAxisId: '7' }] },
+        { thresholds: [{ value: 5 }] },
+        palette
+      )
+    ).not.toThrow()
+  })
+
   it('rejects a first series that references an axis the chart does not define', () => {
     for (const reference of [{ yAxisIndex: 1 }, { yAxisIndex: -1 }, { yAxisIndex: 0.5 }])
       expect(() =>

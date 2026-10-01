@@ -31,7 +31,10 @@ function firstSeries(option: Record<string, unknown>): Record<string, unknown> {
   return toRecord(Array.isArray(option.series) ? option.series[0] : option.series)
 }
 
-/** The axis the first series is plotted on, resolved through its `*AxisId` or `*AxisIndex`. */
+/**
+ * The axis the first series is plotted on. Like ECharts, `*AxisIndex` wins over `*AxisId`, and ids
+ * match across string and number.
+ */
 function seriesAxis(
   option: Record<string, unknown>,
   key: 'xAxis' | 'yAxis'
@@ -39,8 +42,8 @@ function seriesAxis(
   const axes = Array.isArray(option[key]) ? (option[key] as unknown[]) : [option[key]]
   const series = firstSeries(option)
   const id = series[`${key}Id`]
-  if (id !== undefined) {
-    const axis = axes.find((candidate) => toRecord(candidate).id === id)
+  if (series[`${key}Index`] === undefined && id !== undefined) {
+    const axis = axes.find((candidate) => String(toRecord(candidate).id) === String(id))
     if (axis === undefined) throw new Error(`The first series references a missing ${key} "${id}"`)
     return toRecord(axis)
   }
