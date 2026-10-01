@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CLEANUP_DISPATCH_MAX_ATTEMPTS } from '@/background/cleanup-dispatch'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       'cleanup-dispatch',
       { jobType: 'cleanup-file-versions' },
       {
-        maxAttempts: 1,
+        maxAttempts: CLEANUP_DISPATCH_MAX_ATTEMPTS,
         jobId: `cleanup-dispatch:cleanup-file-versions:${scheduleWindow}`,
         name: 'File version cleanup dispatch',
         concurrencyKey: 'cleanup-dispatch:cleanup-file-versions',
