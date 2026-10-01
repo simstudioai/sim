@@ -10,12 +10,13 @@ interface IdentityTileProps {
   className?: string
   /** `data-slot` hook for tests and styling. */
   slot?: string
-  /** `sm` is the 16px rail mark; `lg` is the 36px tile a row or card leads with. */
-  size?: 'sm' | 'lg'
+  /** `sm`: 16px rail mark; `md`: 24px toolbar mark; `lg`: 36px row or card tile. */
+  size?: 'sm' | 'md' | 'lg'
 }
 
 const SIZE_CLASS = {
   sm: 'size-[16px] rounded-sm text-micro',
+  md: 'size-6 rounded-md text-sm',
   lg: 'size-9 rounded-lg text-base',
 } as const
 
