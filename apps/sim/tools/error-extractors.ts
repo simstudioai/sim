@@ -515,6 +515,17 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'wiza-errors',
+    description:
+      'Wiza API error envelope: {status: {code, message}}. The message is nested under status, so the generic extractors miss it',
+    examples: ['Wiza'],
+    extract: (errorInfo) => {
+      const message = errorInfo?.data?.status?.message
+      if (typeof message === 'string' && message.trim()) return message.trim()
+      return errorInfo?.data?.message
+    },
+  },
+  {
     id: 'crunchbase-errors',
     description:
       'Crunchbase Data API error envelope: a top-level JSON array of {status, code, message}. Nothing else in this registry reads a bare array, so without it a rejected key or malformed predicate reports only its HTTP status',
@@ -680,6 +691,7 @@ export const ErrorExtractorId = {
   POSTHOG_ERRORS: 'posthog-errors',
   QUICKBOOKS_FAULT: 'quickbooks-fault',
   PROSPEO_ERRORS: 'prospeo-errors',
+  WIZA_ERRORS: 'wiza-errors',
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   PITCHBOOK_ERRORS: 'pitchbook-errors',
   SPLUNK_ERRORS: 'splunk-errors',
