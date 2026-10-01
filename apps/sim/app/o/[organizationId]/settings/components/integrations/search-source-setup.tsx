@@ -133,7 +133,7 @@ export function SearchSourceSetup({
   }
   const failedQuery = index.isError ? index : null
   const initialMode = (type: string) =>
-    type === 'github' ? ('members' as const) : ('admin' as const)
+    type === 'github' || type === 'slack' ? ('members' as const) : ('admin' as const)
 
   const selectedAccessMode = selectedType ? initialMode(selectedType) : undefined
   const selectedAvailability = selectedMeta
@@ -359,7 +359,7 @@ export function SearchSourceSetup({
                       isIntegrationAvailabilityReady,
                     }
                   )
-                  const available = type === 'github' ? members : central
+                  const available = initialMode(type) === 'members' ? members : central
                   return (
                     <SettingsResourceRow
                       key={type}

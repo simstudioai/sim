@@ -87,7 +87,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
                 })
           return {
             success: true,
-            message: `Found ${data.results.length} live results. Read a documentId when its passage does not answer the question or more context is needed. ${CITATION_INSTRUCTION}`,
+            message: `${data.retrieval.status === 'partial' ? 'Search coverage is incomplete. Continue with a more specific query or source filter; these results cannot establish absence or completeness. ' : ''}Found ${data.results.length} live results. Read a documentId when its passage does not answer the question or more context is needed. ${CITATION_INSTRUCTION}`,
             data: {
               ...data,
               results: data.results.map((item) => ({

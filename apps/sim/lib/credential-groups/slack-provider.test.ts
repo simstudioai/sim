@@ -39,7 +39,7 @@ describe('Slack member scope policy', () => {
       clientSecret: 'secret',
       appId: 'A1',
       teamId: 'T1',
-      scopes: [...SLACK_MANAGED_USER_SCOPES],
+      scopes: [...new Set([...SLACK_MANAGED_USER_SCOPES, ...SLACK_SEARCH_USER_SCOPES])],
     })
     mocks.exchange.mockResolvedValue({
       appId: 'A1',
@@ -79,7 +79,7 @@ describe('Slack member scope policy', () => {
   }
 
   it.each([{ scopes: SLACK_SEARCH_USER_SCOPES }, { scopes: SLACK_MANAGED_USER_SCOPES }])(
-    'requests RTS consent while retaining the stored option policy',
+    'requests exactly the configured permissions without broadening workflow consent',
     async ({ scopes }) => {
       const current = context(scopes)
       const policy = await adapter.getPolicy(current.option, {
@@ -90,17 +90,7 @@ describe('Slack member scope policy', () => {
       const url = new URL(
         await authorization.buildAuthorizationUrl({ state: 'state', nonce: 'nonce' })
       )
-      expect(url.searchParams.get('user_scope')?.split(',')).toEqual(
-        expect.arrayContaining([
-          ...scopes,
-          'search:read.public',
-          'search:read.private',
-          'search:read.im',
-          'search:read.mpim',
-          'search:read.files',
-          'files:read',
-        ])
-      )
+      expect(url.searchParams.get('user_scope')?.split(',')).toEqual([...scopes])
       expect(policy.requiredScopes).toEqual([...scopes])
     }
   )
