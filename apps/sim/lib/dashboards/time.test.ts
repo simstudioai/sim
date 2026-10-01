@@ -54,8 +54,7 @@ describe('dashboard time interactions', () => {
       { from: '2026-11-01T05:30:00.000Z', to: '2026-11-01T06:31:00.000Z' },
       'America/New_York'
     )
-    expect(text).toContain('01:30:00 EDT')
-    expect(text).toContain('01:31:00 EST')
+    expect(text).toBe('Nov 1, 01:30:00 EDT – Nov 1, 01:30:59 EST')
   })
 
   it('shows distinct endpoints for a sub-minute zoom range', () => {
@@ -64,6 +63,6 @@ describe('dashboard time interactions', () => {
         { from: '2026-09-20T14:30:00.000Z', to: '2026-09-20T14:30:01.000Z' },
         'UTC'
       )
-    ).toBe('Sep 20, 14:30:00 UTC – Sep 20, 14:30:01 UTC')
+    ).toBe('Sep 20, 14:30:00.000 UTC – Sep 20, 14:30:00.999 UTC')
   })
 })

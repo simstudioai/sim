@@ -141,6 +141,31 @@ describe('chart annotations', () => {
     ).toThrow('Thresholds require a value axis')
   })
 
+  it('resolves a value axis selected by id, including a value x-axis on horizontal bars', () => {
+    const byId = applyChartAnnotations(
+      {
+        xAxis: { type: 'time' },
+        yAxis: [{ type: 'category' }, { id: 'latency', type: 'value' }],
+        series: [{ type: 'line', yAxisId: 'latency' }],
+      },
+      { thresholds: [{ value: 5 }] },
+      palette
+    )
+    expect((byId.series as Series[])[0].markLine).toMatchObject({ data: [{ yAxis: 5 }] })
+    const horizontal = applyChartAnnotations(
+      {
+        xAxis: [{ type: 'category' }, { id: 'count', type: 'value' }],
+        yAxis: [{ type: 'value' }, { id: 'stage', type: 'category', inverse: true }],
+        series: [{ type: 'bar', xAxisId: 'count', yAxisIndex: 1 }],
+      },
+      { thresholds: [{ value: 5, label: 'Limit' }] },
+      palette
+    )
+    const [first, labels] = horizontal.series as Series[]
+    expect(first.markLine).toMatchObject({ data: [{ xAxis: 5 }] })
+    expect(labels.markLine).toMatchObject({ data: [{ xAxis: 5, label: { position: 'start' } }] })
+  })
+
   it('rejects a first series that references an axis the chart does not define', () => {
     for (const reference of [{ yAxisIndex: 1 }, { yAxisIndex: -1 }, { yAxisIndex: 0.5 }])
       expect(() =>
