@@ -53,6 +53,9 @@ interface ExcerptCardProps {
   diff: UnifiedDiff
   side: 'edit' | 'old' | 'new'
 }
+interface InlineMarkdownProps {
+  text: string
+}
 interface ProseLineProps {
   line: DiffLine
   side: ExcerptCardProps['side']
@@ -157,13 +160,43 @@ function heading(resolved: ResolvedSource | null, fallback: string, detail: stri
   }
 }
 
+const INLINE_MARKDOWN = /(\*\*[^*]+\*\*|`[^`]+`)/
+
+/** Renders the inline `**bold**` and `` `code` `` that source excerpts carry, as written. */
+function InlineMarkdown({ text }: InlineMarkdownProps) {
+  return (
+    <>
+      {text.split(INLINE_MARKDOWN).map((part, index) =>
+        part.startsWith('**') && part.endsWith('**') && part.length > 4 ? (
+          <strong key={index} className='font-medium'>
+            {part.slice(2, -2)}
+          </strong>
+        ) : part.startsWith('`') && part.endsWith('`') && part.length > 2 ? (
+          <code
+            key={index}
+            className='rounded-[3px] bg-[var(--surface-5)] px-1 font-mono text-caption dark:bg-[var(--surface-4)]'
+          >
+            {part.slice(1, -1)}
+          </code>
+        ) : (
+          part
+        )
+      )}
+    </>
+  )
+}
+
 /** Markdown headings read as headings; everything else is a paragraph of the source. */
 function ProseLine({ line, side }: ProseLineProps) {
   const headingMatch = /^#{1,6}\s+(.*)$/.exec(line.text)
   const text = headingMatch ? headingMatch[1] : line.text
   const weight = headingMatch && 'font-medium'
   if (line.type === 'context')
-    return <p className={cn('text-[var(--text-muted)]', weight)}>{text}</p>
+    return (
+      <p className={cn('text-[var(--text-muted)]', weight)}>
+        <InlineMarkdown text={text} />
+      </p>
+    )
   const highlight =
     side !== 'edit'
       ? 'bg-[var(--badge-amber-bg)]'
@@ -172,7 +205,9 @@ function ProseLine({ line, side }: ProseLineProps) {
         : 'bg-[var(--badge-error-bg)] line-through decoration-[var(--badge-error-text)]'
   return (
     <p>
-      <mark className={cn(MARK, highlight, weight)}>{text}</mark>
+      <mark className={cn(MARK, highlight, weight)}>
+        <InlineMarkdown text={text} />
+      </mark>
     </p>
   )
 }
