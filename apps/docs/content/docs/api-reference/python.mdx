@@ -30,7 +30,7 @@ from simstudio import SimStudioClient
 # Initialize the client
 client = SimStudioClient(
     api_key="your-api-key-here",
-    base_url="https://www.sim.ai"  # optional, defaults to https://sim.ai
+    base_url="https://www.sim.ai"  # optional; the default https://sim.ai redirects to this host
 )
 
 # Execute a workflow
@@ -53,7 +53,7 @@ SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
 
 **Parameters:**
 - `api_key` (str): Your Sim API key
-- `base_url` (str, optional): Base URL for the Sim API
+- `base_url` (str, optional): Base URL for the Sim API (defaults to `https://sim.ai`, which redirects to `https://www.sim.ai`; set the `www` host explicitly)
 
 #### Methods
 
