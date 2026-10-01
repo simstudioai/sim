@@ -707,6 +707,14 @@ export function usePromptEditor({
   const syncMentionState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
       if (!contextsEnabledRef.current) return
+      const dismissedStart = dismissedMentionStartRef.current
+      if (
+        dismissedStart !== null &&
+        textarea.selectionStart <= dismissedStart &&
+        textarea.selectionEnd > dismissedStart
+      ) {
+        dismissedMentionStartRef.current = null
+      }
       const active = getActiveMentionAtRef.current(caret, text)
       const isOpenable = active && !/[\r\n]/.test(active.query)
       if (!isOpenable) {

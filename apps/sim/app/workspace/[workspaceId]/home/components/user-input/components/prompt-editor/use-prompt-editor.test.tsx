@@ -166,6 +166,28 @@ describe.each([{ workspaceId: 'ws-1' }, { workspaceId: '', organizationId: 'org-
       }
     })
 
+    it('opens a fresh search when replacing a selected dismissed trigger', () => {
+      const { result, textarea, unmount } = renderPromptEditor(scope)
+      const input = (value: string) => {
+        act(() => {
+          typeInto(textarea, value)
+          result().handleInputChange({ target: textarea } as React.ChangeEvent<HTMLTextAreaElement>)
+        })
+      }
+      try {
+        input('@Quarterly')
+        act(() => result().handlePlusMenuClose())
+        act(() => {
+          textarea.setSelectionRange(0, textarea.value.length)
+          result().handleSelectAdjust()
+        })
+        input('@Roadmap')
+        expect(result().mentionQuery).toBe('Roadmap')
+      } finally {
+        unmount()
+      }
+    })
+
     it.each(['@ ', '@ name', '@Quarterly\n', 'person@example.com'])(
       'does not search across a dismissed boundary in %j',
       (value) => {

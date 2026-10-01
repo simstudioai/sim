@@ -82,6 +82,7 @@ interface ResourceFolderTreeItemsProps {
    */
   folderType?: MothershipResourceType
   onSelect: (resource: MothershipResource) => void
+  subContentClassName?: string
 }
 
 /** Renders a {@link buildResourceFolderTree} result as nested dropdown submenus. */
@@ -90,6 +91,7 @@ export function ResourceFolderTreeItems({
   type,
   folderType,
   onSelect,
+  subContentClassName,
 }: ResourceFolderTreeItemsProps) {
   const config = getResourceConfig(type)
   return (
@@ -108,7 +110,7 @@ export function ResourceFolderTreeItems({
               <Folder className='size-[14px]' />
               <DropdownMenuItemLabel label={node.name} />
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent className={subContentClassName}>
               {folderType && (
                 <DropdownMenuItem
                   onClick={() => onSelect({ type: folderType, id: node.id, title: node.name })}
@@ -122,6 +124,7 @@ export function ResourceFolderTreeItems({
                 type={type}
                 folderType={folderType}
                 onSelect={onSelect}
+                subContentClassName={subContentClassName}
               />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -275,6 +278,7 @@ export function ResourceMenuSections({
                   type={section.type}
                   folderType={section.folderType}
                   onSelect={onSelect}
+                  subContentClassName={subContentClassName}
                 />
               ) : (
                 items.map((item) => (
