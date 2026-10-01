@@ -64,6 +64,16 @@ export interface TrustedExecutionCost {
  * trace data while still allowing a handler to preserve cost when it throws.
  */
 const trustedExecutionCosts = new WeakMap<object, TrustedExecutionCost>()
+const toolFailureOutputs = new WeakMap<object, Record<string, unknown>>()
+
+/** Retains declared tool outputs across a failed handler without trusting thrown `.output` fields. */
+export function attachToolFailureOutput(error: object, output: Record<string, unknown>): void {
+  toolFailureOutputs.set(error, output)
+}
+
+export function readToolFailureOutput(error: unknown): Record<string, unknown> | undefined {
+  return isRecordedThrown(error) ? toolFailureOutputs.get(error) : undefined
+}
 
 /**
  * Names the run a failure belongs to once dispatch has been attempted.

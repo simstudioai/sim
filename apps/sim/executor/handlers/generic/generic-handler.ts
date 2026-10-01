@@ -5,7 +5,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
-import { readStatusCode } from '@/executor/utils/errors'
+import { attachToolFailureOutput, readStatusCode } from '@/executor/utils/errors'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
@@ -346,6 +346,16 @@ export class GenericBlockHandler implements BlockHandler {
             : `Block execution of ${tool?.name || block.config.tool} failed with no error message`
 
         const error = new Error(errorMessage)
+
+        const declaredOutput: Record<string, unknown> = {}
+        if (isPlainRecord(result.output)) {
+          for (const key of Object.keys(tool?.outputs ?? {})) {
+            if (key !== 'cost' && key !== 'error' && Object.hasOwn(result.output, key)) {
+              declaredOutput[key] = result.output[key]
+            }
+          }
+        }
+        attachToolFailureOutput(error, declaredOutput)
 
         Object.assign(error, {
           toolId: block.config.tool,

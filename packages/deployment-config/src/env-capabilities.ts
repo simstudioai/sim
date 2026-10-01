@@ -1617,6 +1617,7 @@ const MICROSOFT_OAUTH_SERVICES = new Set([
   'microsoft-excel',
   'microsoft-teams',
   'microsoft-planner',
+  'microsoft-powerbi',
   'microsoft-word',
 ])
 

@@ -5217,6 +5217,61 @@ export function MicrosoftSharepointIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function PowerBIIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  return (
+    <svg {...props} viewBox='0 0 630 630' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <defs>
+        <linearGradient id={`${id}-back`} x1='50%' y1='0%' x2='50%' y2='100%'>
+          <stop stopColor='#EBBB14' offset='0%' />
+          <stop stopColor='#B25400' offset='100%' />
+        </linearGradient>
+        <linearGradient id={`${id}-middle`} x1='50%' y1='0%' x2='50%' y2='100%'>
+          <stop stopColor='#F9E583' offset='0%' />
+          <stop stopColor='#DE9800' offset='100%' />
+        </linearGradient>
+        <path
+          id={`${id}-path`}
+          d='M346,604 L346,630 L320,630 L153,630 C138.641,630 127,618.359 127,604 L127,183 C127,168.641 138.641,157 153,157 L320,157 C334.359,157 346,168.641 346,183 L346,604 Z'
+        />
+        <filter
+          id={`${id}-shadow`}
+          x='-9.1%'
+          y='-6.3%'
+          width='136.5%'
+          height='116.9%'
+          filterUnits='objectBoundingBox'
+        >
+          <feOffset dx='20' dy='10' in='SourceAlpha' result='shadowOffsetOuter1' />
+          <feGaussianBlur stdDeviation='10' in='shadowOffsetOuter1' result='shadowBlurOuter1' />
+          <feColorMatrix
+            values='0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.0530211976 0'
+            type='matrix'
+            in='shadowBlurOuter1'
+          />
+        </filter>
+        <linearGradient id={`${id}-front`} x1='50%' y1='0%' x2='50%' y2='100%'>
+          <stop stopColor='#F9E68B' offset='0%' />
+          <stop stopColor='#F3CD32' offset='100%' />
+        </linearGradient>
+      </defs>
+      <g stroke='none' strokeWidth='1' fill='none' fillRule='evenodd'>
+        <g transform='translate(77.500000, 0.000000)'>
+          <rect fill={`url(#${id}-back)`} x='256' y='0' width='219' height='630' rx='26' />
+          <g>
+            <use fill='black' fillOpacity='1' filter={`url(#${id}-shadow)`} href={`#${id}-path`} />
+            <use fill={`url(#${id}-middle)`} fillRule='evenodd' href={`#${id}-path`} />
+          </g>
+          <path
+            d='M219,604 L219,630 L193,630 L26,630 C11.641,630 0,618.359 0,604 L0,341 C0,326.641 11.641,315 26,315 L193,315 C207.359,315 219,326.641 219,341 L219,604 Z'
+            fill={`url(#${id}-front)`}
+          />
+        </g>
+      </g>
+    </svg>
+  )
+}
+
 export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>

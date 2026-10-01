@@ -56,6 +56,7 @@ import {
   attachTrustedExecutionCost,
   buildBlockExecutionError,
   normalizeError,
+  readToolFailureOutput,
   readTrustedExecutionCost,
   type TrustedExecutionCost,
 } from '@/executor/utils/errors'
@@ -709,6 +710,7 @@ export class BlockExecutor {
 
     const trustedExecutionCost = readTrustedExecutionCost(error) ?? completedHandlerCost
     const errorOutput: NormalizedBlockOutput = {
+      ...readToolFailureOutput(error),
       error: errorMessage,
       ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),
     }

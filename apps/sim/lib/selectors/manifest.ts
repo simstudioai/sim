@@ -380,6 +380,15 @@ export const selectorManifest = {
     search: true,
     detail: true,
   }),
+  'powerbi.workspaces': providerSelector([], { listMode: 'paginated' }),
+  'powerbi.datasets': providerSelector(['groupId'], {
+    readiness: { all: ['oauthCredential', 'groupId'] },
+    detail: true,
+  }),
+  'powerbi.reports': providerSelector(['groupId'], {
+    readiness: { all: ['oauthCredential', 'groupId'] },
+    detail: true,
+  }),
   'planetscale.branches': rawProviderSelector(
     ['serviceTokenId', 'serviceToken', 'organization', 'database'],
     {

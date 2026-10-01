@@ -12,6 +12,10 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  'https://analysis.windows.net/powerbi/api/Workspace.Read.All': 'View Power BI workspaces',
+  'https://analysis.windows.net/powerbi/api/Report.Read.All': 'View Power BI reports',
+  'https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All':
+    'Read and query Power BI semantic models, request refreshes, and view refresh history',
   'users.profile:write': 'Update Slack user profiles',
   'users.profile:read': 'View Slack user profiles',
   'channels:join': 'Join public Slack channels',

@@ -38,6 +38,7 @@ afterAll(resetEnvMock)
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { getPerRequestOAuthLinkScopes, OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
+import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 
 /**
  * Default OAuth token response for successful requests.
@@ -106,6 +107,52 @@ describe('Monday OAuth connector', () => {
     )
 
     expect(userInfo).toBeNull()
+  })
+})
+
+describe('Power BI OAuth callback scope compatibility', () => {
+  it('preserves identity while making bare Power BI grants usable by the block', async () => {
+    const connector = buildConnectorProviders().find(
+      (item) => item.providerId === 'microsoft-powerbi'
+    )
+    if (!connector?.getUserInfo) throw new Error('Power BI OAuth connector is not configured')
+    const tokens = {
+      accessToken: 'powerbi-access',
+      idToken: oauthTestJwt({ sub: 'fixture-subject', email: 'fixture@example.invalid' }),
+      scopes: [
+        'Workspace.Read.All',
+        'Report.Read.All',
+        'Dataset.ReadWrite.All',
+        'openid',
+        'profile',
+        'email',
+      ],
+    }
+    const profile = await connector.getUserInfo(tokens)
+    expect(profile).toMatchObject({ email: 'fixture@example.invalid' })
+    expect(
+      getMissingRequiredScopes(
+        tokens,
+        OAUTH_PROVIDERS.microsoft.services['microsoft-powerbi'].scopes
+      )
+    ).toEqual([])
+  })
+
+  it('does not promote a Graph-qualified lookalike into a Power BI grant', async () => {
+    const connector = buildConnectorProviders().find(
+      (item) => item.providerId === 'microsoft-powerbi'
+    )
+    if (!connector?.getUserInfo) throw new Error('Power BI OAuth connector is not configured')
+    const tokens = {
+      accessToken: 'powerbi-access',
+      idToken: oauthTestJwt({ sub: 'fixture-subject', email: 'fixture@example.invalid' }),
+      scopes: ['https://graph.microsoft.com/Report.Read.All'],
+    }
+    await connector.getUserInfo(tokens)
+    expect(
+      getMissingRequiredScopes(tokens, ['https://analysis.windows.net/powerbi/api/Report.Read.All'])
+    ).toEqual(['https://analysis.windows.net/powerbi/api/Report.Read.All'])
+    expect(tokens.scopes).toEqual(['https://graph.microsoft.com/Report.Read.All'])
   })
 })
 
@@ -575,6 +622,32 @@ describe('OAuth Token Refresh', () => {
   })
 
   describe('Token Response Handling', () => {
+    it('refreshes Power BI with resource-qualified scopes before identity scopes', async () => {
+      const mockFetch = vi.fn(async (_url: string, init: RequestInit) => {
+        const scope = new URLSearchParams(init.body as string).get('scope')?.split(' ')
+        if (
+          scope?.[0] !== 'https://analysis.windows.net/powerbi/api/Workspace.Read.All' ||
+          !scope.includes('https://analysis.windows.net/powerbi/api/Report.Read.All') ||
+          !scope.includes('https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All') ||
+          !scope.includes('offline_access')
+        ) {
+          return Response.json({ error: 'invalid_scope' }, { status: 400 })
+        }
+        return Response.json({ access_token: 'powerbi-access', expires_in: 3600 })
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('microsoft-powerbi', 'powerbi-refresh')
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        accessToken: 'powerbi-access',
+        refreshToken: 'powerbi-refresh',
+        expiresIn: 3600,
+      })
+    })
+
     it.concurrent('should bound successful token responses before parsing them', async () => {
       const mockFetch = vi
         .fn()

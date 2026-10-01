@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-29",
+  "updatedAt": "2026-10-01",
   "integrations": [
     {
       "type": "onepassword",
@@ -18456,6 +18456,58 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-analytics", "monitoring", "feature-flags"]
+    },
+    {
+      "type": "powerbi",
+      "slug": "power-bi",
+      "name": "Power BI",
+      "description": "Query semantic models and manage reports and refreshes",
+      "longDescription": "Connect Power BI to your workflows with a delegated organizational Microsoft account. List accessible workspaces, reports, and semantic models; retrieve report and model details; execute one DAX query; request a standard semantic model refresh; and inspect refresh history. DAX queries require Read and Build permissions and the tenant Execute Queries setting. Refresh history requires model Write permission. Refresh requests return acceptance immediately; use a separate history operation to check their status.",
+      "bgColor": "#FFFFFF",
+      "iconName": "PowerBIIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/powerbi",
+      "operations": [
+        {
+          "name": "List Workspaces",
+          "description": "List accessible Power BI workspaces with optional OData filtering and pagination."
+        },
+        {
+          "name": "List Reports",
+          "description": "List reports in a Power BI workspace, including paginated reports."
+        },
+        {
+          "name": "Get Report",
+          "description": "Get report metadata from a Power BI workspace."
+        },
+        {
+          "name": "List Semantic Models",
+          "description": "List semantic models in a Power BI workspace; available metadata depends on permissions."
+        },
+        {
+          "name": "Get Semantic Model",
+          "description": "Get semantic model metadata from a Power BI workspace."
+        },
+        {
+          "name": "Execute DAX Query",
+          "description": "Execute one DAX query against a semantic model and preserve rows alongside reported query errors."
+        },
+        {
+          "name": "Refresh Semantic Model",
+          "description": "Request a standard asynchronous semantic model refresh; acceptance does not mean completion."
+        },
+        {
+          "name": "Get Refresh History",
+          "description": "Get recent semantic model refresh history; requires Write permission on the model."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-powerbi",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "microsoft-365", "automation"]
     },
     {
       "type": "profound",
