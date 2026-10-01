@@ -64,3 +64,30 @@ export function isAppSurfacePath(pathname: string): boolean {
     isPathOrDescendant(pathname, ORGANIZATIONS_PATH)
   )
 }
+
+/**
+ * Non-app routes that must never appear in search results: deployed chats,
+ * paused-run resume links, invitations, unsubscribe links, shared files, the
+ * legacy `/w` redirects, the design playground, and account, self-host, and
+ * upgrade utility pages.
+ */
+const NOINDEX_PATH_ROOTS = [
+  '/chat',
+  '/resume',
+  '/invite',
+  '/unsubscribe',
+  '/f',
+  '/w',
+  '/playground',
+  '/account',
+  '/selfhost',
+  '/upgrade',
+] as const
+
+/** Whether a pathname is an app or utility surface that search engines must not index. */
+export function isNoindexPath(pathname: string): boolean {
+  return (
+    isAppSurfacePath(pathname) ||
+    NOINDEX_PATH_ROOTS.some((root) => isPathOrDescendant(pathname, root))
+  )
+}

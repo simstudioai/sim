@@ -245,6 +245,14 @@ export interface CompetitorProfile {
    * can ask a category-clarifying question instead of a peer feature-gap one.
    */
   isWorkflowBuilder?: boolean
+  /**
+   * Phrases that identify this competitor in library article titles, tags,
+   * and descriptions, matched case-sensitively on word boundaries. Drives the
+   * links between comparison pages and library articles. Defaults to `[name]`;
+   * set it when articles use another name ("AgentKit") or when the bare name
+   * is also a common word ("Make").
+   */
+  mentions?: string[]
   /** Logo icon and brand colors, when available. */
   brand?: CompetitorBrand
   /** Free-text list of standout features, each independently sourced. */

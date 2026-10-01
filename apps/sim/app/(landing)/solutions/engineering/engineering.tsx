@@ -1,3 +1,4 @@
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import {
   PlatformHeroVisual,
   SolutionsPage,
@@ -36,10 +37,8 @@ const ENGINEERING_CONFIG: SolutionsPageConfig = {
   hero: {
     eyebrow: 'Engineering',
     heading: 'Automate code review, on-call, and docs with AI agents in Sim.',
-    description:
-      'Sim is the open-source AI workspace where engineering teams build AI agents for code review, on-call, and docs. Agents wire into GitHub, CI/CD, and hundreds of integrations across the software lifecycle.',
-    summary:
-      'Sim is the open-source AI workspace where engineering teams build, deploy, and manage AI agents for code review, on-call triage, and documentation. Agents wire into GitHub, CI/CD, and hundreds of integrations across the software lifecycle.',
+    description: `Sim is the open-source AI workspace where engineering teams build AI agents for code review, on-call, and docs. Agents wire into GitHub, CI/CD, and ${INTEGRATION_COUNT_LABEL} integrations across the software lifecycle.`,
+    summary: `Sim is the open-source AI workspace where engineering teams build, deploy, and manage AI agents for code review, on-call triage, and documentation. Agents wire into GitHub, CI/CD, and ${INTEGRATION_COUNT_LABEL} integrations across the software lifecycle.`,
     visual: (
       <PlatformHeroVisual>
         <EngineeringHeroLoop />

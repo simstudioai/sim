@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import { BLOG_SECTION, buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blog/seo'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { ContentPostPage } from '@/app/(landing)/components'
 
 /** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
@@ -39,7 +38,6 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       post={post}
       related={related}
       graphJsonLd={buildPostGraphJsonLd(post)}
-      shareUrl={`${getBaseUrl()}${BLOG_SECTION.basePath}/${slug}`}
     />
   )
 }

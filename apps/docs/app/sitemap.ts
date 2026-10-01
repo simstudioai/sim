@@ -7,5 +7,6 @@ export const revalidate = 3600
 export default function sitemap(): MetadataRoute.Sitemap {
   return source.getPages().map((page) => ({
     url: `${DOCS_BASE_URL}${page.url}`,
+    lastModified: 'lastModified' in page.data ? page.data.lastModified : undefined,
   }))
 }

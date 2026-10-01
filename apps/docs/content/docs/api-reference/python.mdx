@@ -30,7 +30,7 @@ from simstudio import SimStudioClient
 # Initialize the client
 client = SimStudioClient(
     api_key="your-api-key-here",
-    base_url="https://sim.ai"  # optional, defaults to https://sim.ai
+    base_url="https://www.sim.ai"  # optional, defaults to https://sim.ai
 )
 
 # Execute a workflow
@@ -678,7 +678,7 @@ def stream_workflow():
 
     def generate():
         response = requests.post(
-            'https://sim.ai/api/v2/workflows/WORKFLOW_ID/execute',
+            'https://www.sim.ai/api/v2/workflows/WORKFLOW_ID/execute',
             headers={
                 'Content-Type': 'application/json',
                 'X-API-Key': os.getenv('SIM_API_KEY')
@@ -732,7 +732,7 @@ Configure the client using environment variables:
     # Development configuration
     client = SimStudioClient(
         api_key=os.getenv("SIM_API_KEY"),
-        base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
+        base_url=os.getenv("SIM_BASE_URL", "https://www.sim.ai")
     )
     ```
   </Tab>
@@ -748,7 +748,7 @@ Configure the client using environment variables:
 
     client = SimStudioClient(
         api_key=api_key,
-        base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
+        base_url=os.getenv("SIM_BASE_URL", "https://www.sim.ai")
     )
     ```
   </Tab>

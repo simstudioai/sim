@@ -131,7 +131,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/changelog`,
-      lastModified: latestPostDateValue,
     },
     {
       url: `${baseUrl}/integrations`,

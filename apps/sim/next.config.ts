@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
@@ -8,6 +9,34 @@ import {
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
+
+/**
+ * AEO/GEO-style posts (listicles, comparisons, how-tos) split out of `/blog`
+ * into the dedicated `/library` section so `/blog` stays editorial-only.
+ */
+const LIBRARY_MOVED_BLOG_SLUGS = [
+  'best-zapier-alternatives',
+  'ai-agents-vs-rpa',
+  'ai-agent-vs-chatbot',
+  'openai-vs-n8n-vs-sim',
+  'ai-agent-ideas',
+  'how-to-create-an-ai-agent',
+] as const
+
+/**
+ * Library articles retired by merging into a stronger article on the same
+ * search intent, keyed by retired slug. Keeps indexed URLs and inbound links
+ * pointing at the surviving article.
+ */
+const LIBRARY_MERGED_SLUGS: Record<string, string> = {
+  'automation-anywhere-alternative': 'ai-agents-vs-rpa',
+  'ai-native-vs-traditional-workflow-automation':
+    'ai-native-workflow-automation-vs-traditional-automation',
+  'best-ai-workflow-builders-small-teams-2026': 'best-ai-workflow-builders',
+  'best-ai-agent-builder-2026': 'best-ai-agent-platforms-2026',
+  'best-ai-agent-builders-slack-crm-automation-2026': 'best-ai-agents-for-slack',
+  'best-open-source-ai-agent-frameworks': 'open-source-ai-agent-platforms',
+}
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -466,19 +495,25 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Redirect /building and /studio to /blog (legacy URL support)
-    redirects.push(
-      {
-        source: '/building/:path*',
-        destination: 'https://www.sim.ai/blog/:path*',
-        permanent: true,
-      },
-      {
-        source: '/studio/:path*',
-        destination: 'https://www.sim.ai/blog/:path*',
-        permanent: true,
+    /**
+     * Legacy `/building` and `/studio` URLs map to `/blog`. Posts since moved to
+     * `/library` get their own rules ahead of the wildcard (first match wins)
+     * so they land there in one hop instead of chaining through `/blog`.
+     */
+    for (const legacyPrefix of ['building', 'studio']) {
+      for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
+        redirects.push({
+          source: `/${legacyPrefix}/${slug}`,
+          destination: `${SIM_SITE_URL}/library/${slug}`,
+          permanent: true,
+        })
       }
-    )
+      redirects.push({
+        source: `/${legacyPrefix}/:path*`,
+        destination: `${SIM_SITE_URL}/blog/:path*`,
+        permanent: true,
+      })
+    }
 
     // The scheduled-tasks marketing page is retired with the feature. The URL is
     // indexed, so send it to the surface that still carries scheduled execution
@@ -565,22 +600,18 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
-    /**
-     * AEO/GEO-style posts (listicles, comparisons, how-tos) were split out of
-     * `/blog` into the dedicated `/library` section so `/blog` stays
-     * editorial-only. Preserve previously indexed URLs for the moved posts.
-     */
-    for (const slug of [
-      'best-zapier-alternatives',
-      'ai-agents-vs-rpa',
-      'ai-agent-vs-chatbot',
-      'openai-vs-n8n-vs-sim',
-      'ai-agent-ideas',
-      'how-to-create-an-ai-agent',
-    ]) {
+    for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
       redirects.push({
         source: `/blog/${slug}`,
         destination: `/library/${slug}`,
+        permanent: true,
+      })
+    }
+
+    for (const [retired, kept] of Object.entries(LIBRARY_MERGED_SLUGS)) {
+      redirects.push({
+        source: `/library/${retired}`,
+        destination: `/library/${kept}`,
         permanent: true,
       })
     }
