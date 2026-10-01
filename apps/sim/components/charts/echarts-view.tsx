@@ -5,9 +5,14 @@ import { cn } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { EChartsType } from 'echarts'
 import { useTheme } from 'next-themes'
+import { applyChartAnnotations, type ChartAnnotations } from '@/lib/charts/annotations'
 import { installBarRowHighlight } from '@/lib/charts/bar-row-highlight'
 import { chartSummaryExtension } from '@/lib/charts/summary'
-import { applyChartTooltipDefaults, readEmcnChartTheme } from '@/lib/charts/theme'
+import {
+  applyChartTooltipDefaults,
+  readChartTonePalette,
+  readEmcnChartTheme,
+} from '@/lib/charts/theme'
 
 interface EChartsViewProps {
   option: Record<string, unknown>
@@ -15,6 +20,8 @@ interface EChartsViewProps {
   className?: string
   createController?: (chart: EChartsType) => EChartsController
   revision?: string
+  /** Highlights and thresholds, coloured from the theme at render time. */
+  annotations?: ChartAnnotations
 }
 
 export interface EChartsController {
@@ -33,6 +40,7 @@ export function EChartsView({
   className,
   createController,
   revision,
+  annotations,
 }: EChartsViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<EChartsType | null>(null)
@@ -40,14 +48,24 @@ export function EChartsView({
   const rowHighlightRef = useRef<(() => void) | null>(null)
   const { resolvedTheme } = useTheme()
   const [status, setStatus] = useState<{ theme: string | undefined; error?: string } | null>(null)
-  const optionKey = JSON.stringify(option)
+  const optionKey = JSON.stringify({ option, annotations })
   const applyOption = useEffectEvent((chart: EChartsType, nextOption: string) => {
     try {
       controllerRef.current?.dispose()
       controllerRef.current = null
       const controller = createController?.(chart)
       controllerRef.current = controller ?? null
-      const parsed = applyChartTooltipDefaults(JSON.parse(nextOption))
+      const next: { option: Record<string, unknown>; annotations?: ChartAnnotations } =
+        JSON.parse(nextOption)
+      const parsed = applyChartTooltipDefaults(
+        next.annotations
+          ? applyChartAnnotations(
+              next.option,
+              next.annotations,
+              readChartTonePalette(chart.getDom())
+            )
+          : next.option
+      )
       chart.setOption(controller ? controller.prepareOption(parsed) : parsed, { notMerge: true })
       controller?.afterUpdate()
       rowHighlightRef.current?.()

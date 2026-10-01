@@ -15,6 +15,7 @@ import { EChartsView } from '@/components/charts/echarts-view'
 import { TimeSeriesChart } from '@/components/charts/time-series-chart'
 import { useDashboardInteractions } from '@/components/dashboards/dashboard-interactions'
 import type { QueryTableAnalyticsResponse } from '@/lib/api/contracts/table-analytics'
+import type { ChartAnnotations, ChartHighlight } from '@/lib/charts/annotations'
 import { buildChartRenderOption, horizontalBarChartHeight } from '@/lib/charts/option'
 import { isTimeSeriesOption } from '@/lib/charts/time-series'
 import {
@@ -36,6 +37,10 @@ interface DashboardPanelProps {
   workspaceId: string
   range: DashboardTimeRange
   now: number
+  /** Inside a markdown document, where headings belong to the document outline. */
+  embedded?: boolean
+  /** Drawn on time-series charts only. */
+  highlights?: ChartHighlight[]
 }
 
 function displayValue(value: string | number | boolean | null | undefined): string {
@@ -83,7 +88,15 @@ function ResultsTable({ data, timeField, timeZone }: ResultsTableProps) {
   )
 }
 
-export function DashboardPanel({ block, defaults, workspaceId, range, now }: DashboardPanelProps) {
+export function DashboardPanel({
+  block,
+  defaults,
+  workspaceId,
+  range,
+  now,
+  embedded = false,
+  highlights,
+}: DashboardPanelProps) {
   const interactions = useDashboardInteractions()
   const source = resolveDashboardSource(defaults, block.source)
   const panelRange = source.range ? relativeDashboardRange(source.range, now) : range
@@ -109,6 +122,10 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
           rows: data.rows,
         })
       : null
+  const annotations: ChartAnnotations | undefined =
+    'chart' in block && ((timeSeries && highlights) || block.thresholds)
+      ? { highlights: timeSeries ? highlights : undefined, thresholds: block.thresholds }
+      : undefined
   const barChartHeight =
     'chart' in block ? horizontalBarChartHeight(block.option, data?.rows.length ?? 10) : null
   const times =
@@ -144,6 +161,15 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
           unit={!query.isError && metric != null ? block.unit : undefined}
           loading={query.isPending}
         />
+      ) : embedded ? (
+        <p
+          className={cn(
+            'font-medium text-[var(--text-primary)] text-base',
+            timeSeries ? 'mb-2' : 'mb-3'
+          )}
+        >
+          {title}
+        </p>
       ) : (
         <h2
           className={cn(
@@ -199,6 +225,7 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
                   {...interactions}
                   label={title}
                   option={option!}
+                  annotations={annotations}
                   range={data.queryRange}
                   columnLabels={data.columnLabels}
                   firstTime={times.length ? Math.min(...times) : null}
@@ -209,6 +236,7 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
                   label={title}
                   className={barChartHeight !== null ? 'h-full' : 'h-[240px]'}
                   option={option!}
+                  annotations={annotations}
                 />
               )}
               {data.rows.length === 0 && (

@@ -68,6 +68,7 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 import { isPlainTextPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
+import { MarkdownStreamingContext } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-streaming-context'
 import { useEditorMentions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention'
 import { EditorBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/bubble-menu'
 import { LinkHoverCard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-hover-card'
@@ -1446,10 +1447,12 @@ export function LoadedRichMarkdownEditor({
             workspaceId={workspaceId}
           />
         )}
-        <EditorContent
-          editor={editor}
-          className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
-        />
+        <MarkdownStreamingContext value={isStreaming}>
+          <EditorContent
+            editor={editor}
+            className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
+          />
+        </MarkdownStreamingContext>
       </div>
     </div>
   )

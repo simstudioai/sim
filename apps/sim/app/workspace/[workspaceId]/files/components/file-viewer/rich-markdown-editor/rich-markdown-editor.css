@@ -391,6 +391,12 @@
   margin: 1rem 0;
 }
 
+/* A dashboard results table sizes its own columns and sits flush in its panel. */
+.rich-markdown-nodes .dashboard-embed table {
+  table-layout: auto;
+  margin: 0;
+}
+
 .rich-markdown-nodes th > p,
 .rich-markdown-nodes td > p {
   margin: 0;

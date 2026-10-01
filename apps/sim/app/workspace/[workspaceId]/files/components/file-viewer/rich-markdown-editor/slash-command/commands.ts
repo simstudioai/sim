@@ -1,5 +1,6 @@
 import type { ComponentType, SVGProps } from 'react'
 import {
+  ChartColumn,
   Code,
   Heading1,
   Heading2,
@@ -14,6 +15,26 @@ import {
   TextQuote,
 } from '@sim/emcn/icons'
 import type { Editor, Range } from '@tiptap/core'
+import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/spec'
+
+/** A time-series starter; the table id is left for the author to fill in. */
+const DASHBOARD_EMBED_STARTER = `title: Rows over time
+time: 7d
+source:
+  tableId: # table id
+blocks:
+  - chart: Rows per day
+    source:
+      groupBy: [createdAt]
+      bucket: day
+      aggregate:
+        rows: { op: count }
+    option:
+      xAxis: { type: time }
+      yAxis: { type: value }
+      series:
+        - { type: line, encode: { x: createdAt, y: rows } }
+`
 
 export interface SlashCommandContext {
   editor: Editor
@@ -120,6 +141,24 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
     aliases: ['codeblock', 'snippet', 'fence'],
     shortcut: '⌘⌥C',
     run: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
+  },
+  {
+    title: 'Chart',
+    group: 'Blocks',
+    icon: ChartColumn,
+    aliases: ['dashboard', 'graph', 'metric', 'live data'],
+    run: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({
+          type: 'codeBlock',
+          attrs: { language: DASHBOARD_EMBED_LANGUAGE },
+          content: [{ type: 'text', text: DASHBOARD_EMBED_STARTER }],
+        })
+        .setTextSelection(range.from + 1)
+        .run(),
   },
   {
     title: 'Table',
