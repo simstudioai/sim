@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useRef, useState } from 'react'
 import { ToastProvider } from '@sim/emcn'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
+import { isCredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import { startDesktopSourceBrowser } from '@/lib/desktop/source-browser'
 import { CredentialGroupCompletionHandoff } from '@/app/credential-groups/complete/completion-handoff'
 import { SlackCompletion } from '@/app/credential-groups/slack-complete/slack-completion'
@@ -63,7 +64,11 @@ function SourceConnectFixture() {
       <output aria-label='Account authorization'>{accountConnection.status}</output>
       <output aria-label='Account error'>{accountConnection.error?.message}</output>
       <output aria-label='Reconnect status'>{reconnect.status}</output>
-      <output aria-label='Account count'>{accounts.data?.viewerAccounts?.length ?? 0}</output>
+      <output aria-label='Reconnect error'>{reconnect.error?.message}</output>
+      <output aria-label='Account count'>
+        {(accounts.data?.viewerAccounts?.length ?? 0) +
+          (accounts.data?.viewerMcpAccounts?.length ?? 0)}
+      </output>
       <input aria-label='Source draft' defaultValue='Unsubmitted source name' />
       <button
         disabled={connection.isPending}
@@ -118,6 +123,8 @@ function BrowserLauncher() {
 }
 
 const params = new URLSearchParams(location.search)
+const oauth = params.get('oauth')
+const failure = oauth === null ? undefined : isCredentialGroupOAuthFailure(oauth) ? oauth : 'failed'
 const content =
   location.pathname === '/credential-groups/enroll/fixture-invitation' ? (
     params.has('connected') ? (
@@ -130,7 +137,7 @@ const content =
   ) : location.pathname === '/credential-groups/complete' ? (
     <CredentialGroupCompletionHandoff
       completionId={params.get('completionId')!}
-      failure={params.get('oauth') === 'denied' ? 'denied' : undefined}
+      failure={failure}
       returnHref={params.has('organizationId') ? '/o/fixture-organization/integrations' : undefined}
     />
   ) : location.pathname === '/desktop/connect' ? (

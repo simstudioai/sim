@@ -63,7 +63,11 @@ function useAccountConnectionMutation<Variables>(
   const pending = useRef<AbortController | null>(null)
   useEffect(() => () => pending.current?.abort(), [])
   return useMutation({
+    mutationKey: organizationAccountsKeys.connection(),
     mutationFn: async (variables: Variables) => {
+      if (client.isMutating({ mutationKey: organizationAccountsKeys.connection() }) > 1) {
+        throw new Error('Finish or cancel your current account connection before starting another.')
+      }
       pending.current?.abort()
       const controller = new AbortController()
       pending.current = controller
@@ -131,6 +135,7 @@ export function useDisconnectPersonalOrganizationAccount(organizationId: string)
 
 export const organizationAccountsKeys = {
   all: ['organization-accounts'] as const,
+  connection: () => [...organizationAccountsKeys.all, 'connection'] as const,
   workspaces: () => [...organizationAccountsKeys.all, 'workspace'] as const,
   workspace: (workspaceId?: string) =>
     [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,

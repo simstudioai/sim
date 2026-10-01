@@ -44,8 +44,9 @@ test('source authorization returns to its desktop screen and refreshes live', as
   }
   const tickets = new Map<string, unknown>()
   const attempts = new Map<string, string>()
-  const accountAttempts = new Map<string, string>()
+  const accountAttempts = new Map<string, { session: string; mcp: boolean }>()
   let accountConnected = false
+  let mcpAccountConnected = false
   const startSessions: string[] = []
   const callbackSessions: string[] = []
   const githubAttempts = new Map<string, { session: string; completed: boolean }>()
@@ -90,6 +91,16 @@ test('source authorization returns to its desktop screen and refreshes live', as
         availableMcpConnectors: [],
         canManage: false,
         indexingAvailable: true,
+        viewerMcpAccounts: mcpAccountConnected
+          ? [
+              {
+                credentialId: 'fixture-mcp-account',
+                displayName: 'Fixture MCP account',
+                mcpServerId: 'fixture-mcp',
+                status: 'active',
+              },
+            ]
+          : [],
         viewerAccounts: accountConnected
           ? [
               {
@@ -109,15 +120,13 @@ test('source authorization returns to its desktop screen and refreshes live', as
       path === '/api/organizations/fixture-organization/connected-accounts/connect' ||
       path === '/api/users/me/organization-accounts/fixture-account/reconnect'
     ) {
-      const completionId =
-        request.method === 'POST' && path.endsWith('/connect')
-          ? (await body()).oauthCompletionId
-          : url.searchParams.get('oauthCompletionId')
+      const input = request.method === 'POST' && path.endsWith('/connect') ? await body() : null
+      const completionId = input?.oauthCompletionId ?? url.searchParams.get('oauthCompletionId')
       if (!completionId) {
         json({ error: 'Missing completion ID' }, 400)
         return
       }
-      accountAttempts.set(completionId, session)
+      accountAttempts.set(completionId, { session, mcp: Boolean(input?.mcpServerId) })
       json({
         invitationLink: `${origin}/credential-groups/enroll/fixture-account-invitation`,
         authorizationUrl: `${origin}/account-provider?completionId=${completionId}`,
@@ -126,13 +135,17 @@ test('source authorization returns to its desktop screen and refreshes live', as
     }
     if (path === '/account-callback') {
       const completionId = url.searchParams.get('completionId') ?? ''
-      if (accountAttempts.get(completionId) !== session) {
+      const attempt = accountAttempts.get(completionId)
+      if (attempt?.session !== session) {
         json({ error: 'Wrong attempt' }, 403)
         return
       }
       accountAttempts.delete(completionId)
       const denied = url.searchParams.has('error')
-      if (!denied) accountConnected = true
+      if (!denied) {
+        if (attempt.mcp) mcpAccountConnected = true
+        else accountConnected = true
+      }
       redirect(
         `/credential-groups/complete?completionId=${completionId}&organizationId=fixture-organization${denied ? '&oauth=denied' : ''}`
       )
@@ -494,6 +507,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       'web authorization preserves the origin and refreshes after an isolated provider window',
       async () => {
         accountConnected = false
+        mcpAccountConnected = false
         await web.reload()
         await web.getByLabel('Source draft').fill('Web draft retained')
         await expect(web.getByLabel('Account count')).toHaveText('0')
@@ -507,6 +521,19 @@ test('source authorization returns to its desktop screen and refreshes live', as
         expect(web.url()).toBe(`${origin}/o/fixture-organization/integrations?search=fixture`)
       }
     )
+    await check('overlapping connect and reconnect preserve the active authorization', async () => {
+      const popupReady = context.waitForEvent('page')
+      await web.getByRole('button', { name: 'Connect account', exact: true }).click()
+      const popup = await popupReady
+      await popup.getByRole('link', { name: 'Authorize account' }).waitFor()
+      const pendingAttempts = accountAttempts.size
+      await web.getByRole('button', { name: 'Reconnect account', exact: true }).click()
+      await expect(web.getByLabel('Reconnect error')).toContainText('Finish or cancel')
+      expect(accountAttempts.size).toBe(pendingAttempts)
+      await expect(web.getByLabel('Account authorization', { exact: true })).toHaveText('pending')
+      await popup.getByRole('link', { name: 'Authorize account' }).click()
+      await expect(web.getByLabel('Account authorization', { exact: true })).toHaveText('success')
+    })
     await check('web denial and cancellation leave the initiating page usable', async () => {
       const popupReady = context.waitForEvent('page')
       await web.getByRole('button', { name: 'Connect account', exact: true }).click()
