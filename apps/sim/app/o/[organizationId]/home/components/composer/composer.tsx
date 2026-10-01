@@ -101,12 +101,11 @@ export function Composer({
     onPasteFiles: files.processFiles,
   })
   const { textareaRef } = editor
+  const searchBlocked =
+    editor.getActiveContexts().length > 0 ||
+    files.attachedFiles.some((file) => !isAssistantImageType(file.type))
   const handleModeChange = (mode: ChatRequestMode) => {
-    if (
-      mode === 'assistant' &&
-      (editor.getActiveContexts().length > 0 ||
-        files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
-    ) {
+    if (mode === 'assistant' && searchBlocked) {
       toast.info(
         'Remove resource and skill mentions and non-image attachments before switching to Search.'
       )
@@ -116,7 +115,7 @@ export function Composer({
   }
   const handleModeShortcut = useConversationModeShortcut({
     value: requestMode,
-    searchEnabled,
+    searchEnabled: searchEnabled && !searchBlocked,
     onChange: showModeSelector && onModeChange ? handleModeChange : undefined,
     textareaRef,
     pickerOpen: editor.mentionQuery !== null || editor.slashQuery !== null,

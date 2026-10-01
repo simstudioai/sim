@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
-import { act, type ComponentProps, useState } from 'react'
+import { act, type ComponentProps, useEffect, useState } from 'react'
+import { ToastProvider } from '@sim/emcn'
 import {
   createMockDeploymentShape,
   deploymentShapeMock,
@@ -257,9 +258,15 @@ it.each([
   { searchEnabled: true, planEnabled: true, modes: ['assistant', 'agent', 'plan', 'assistant'] },
   { searchEnabled: true, planEnabled: false, modes: ['assistant', 'agent', 'assistant'] },
   { searchEnabled: false, planEnabled: true, modes: ['agent', 'plan', 'agent'] },
-] satisfies { searchEnabled: boolean; planEnabled: boolean; modes: ChatRequestMode[] }[])(
-  'cycles available modes without losing the draft or selection (Search: $searchEnabled, Plan: $planEnabled)',
-  async ({ searchEnabled, planEnabled, modes }) => {
+  { searchEnabled: true, planEnabled: true, withDocument: true, modes: ['agent', 'plan', 'agent'] },
+] satisfies {
+  searchEnabled: boolean
+  planEnabled: boolean
+  withDocument?: boolean
+  modes: ChatRequestMode[]
+}[])(
+  'cycles available modes without losing the draft or selection (Search: $searchEnabled, Plan: $planEnabled, document: $withDocument)',
+  async ({ searchEnabled, planEnabled, modes, withDocument = false }) => {
     vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
     let currentMode = modes[0]
     function Harness() {
@@ -271,6 +278,22 @@ it.each([
         organizationId: 'organization-a',
         requestMode: mode,
       })
+      const { restoreAttachedFiles } = files
+      useEffect(() => {
+        if (withDocument) {
+          restoreAttachedFiles([
+            {
+              id: 'document-a',
+              name: 'Draft.pdf',
+              type: 'application/pdf',
+              size: 1024,
+              key: 'sample/draft.pdf',
+              path: '',
+              uploading: false,
+            },
+          ])
+        }
+      }, [restoreAttachedFiles])
       return (
         <Composer
           requestMode={mode}
@@ -299,6 +322,7 @@ it.each([
             }}
           >
             <Harness />
+            <ToastProvider />
           </FeatureFlagsProvider>
         </QueryClientProvider>
       )
