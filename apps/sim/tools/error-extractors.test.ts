@@ -388,6 +388,14 @@ describe('Error Extractors', () => {
       expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe('Bad gateway')
     })
 
+    it('ignores a non-string top-level message', () => {
+      const errorInfo: ErrorInfo = { status: 422, data: { message: ['bad filter'] } }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.WIZA_ERRORS)).toBe(
+        'Request failed with status 422'
+      )
+    })
+
     it('falls back to the status when Wiza sends an empty message', () => {
       const errorInfo: ErrorInfo = { status: 400, data: { status: { code: 400, message: '' } } }
 

@@ -521,10 +521,11 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     examples: ['Wiza'],
     extract: (errorInfo) => {
       const data = errorInfo?.data
-      if (typeof data === 'string') return data.trim() || undefined
-      const message = data?.status?.message
-      if (typeof message === 'string' && message.trim()) return message.trim()
-      return data?.message
+      const candidates = [data, data?.status?.message, data?.message]
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+      }
+      return undefined
     },
   },
   {
