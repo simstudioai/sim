@@ -27,7 +27,8 @@ import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { getToolMetadata } from '@/tools/metadata'
 
-const { mockCreateUserToolSchema, mockSecretNames } = vi.hoisted(() => ({
+const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames } = vi.hoisted(() => ({
+  mockDashboardAvailability: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
 }))
@@ -49,6 +50,9 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
     secrets: [],
     truncated: [],
   })),
+}))
+vi.mock('@/lib/dashboards/application/availability', () => ({
+  readDashboardAvailability: { execute: mockDashboardAvailability },
 }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 const mockGetHighestPrioritySubscription =
@@ -347,6 +351,44 @@ describe('buildIntegrationToolSchemas', () => {
 })
 
 describe('buildCopilotRequestPayload', () => {
+  it.each([true, false])(
+    'grants the dashboards entitlement from server availability: %s',
+    async (enabled) => {
+      const principal = { kind: 'session' as const, userId: 'actor' }
+      mockDashboardAvailability.mockResolvedValueOnce(enabled)
+      const payload = await buildCopilotRequestPayload(
+        {
+          message: 'Show my dashboard',
+          userId: 'actor',
+          userMessageId: 'message-1',
+          workspaceId: 'workspace-1',
+          principal,
+          mode: 'agent',
+          model: '',
+        },
+        { selectedModel: '' }
+      )
+      expect(payload.entitlements).toEqual(enabled ? ['dashboards'] : [])
+    }
+  )
+
+  it('never grants the workspace-only dashboards entitlement to an organization chat', async () => {
+    mockDashboardAvailability.mockResolvedValue(true)
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Show my dashboard',
+        userId: 'actor',
+        userMessageId: 'message-1',
+        organizationId: 'org-1',
+        principal: { kind: 'session' as const, userId: 'actor' },
+        mode: 'agent',
+        model: '',
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.entitlements).toEqual([])
+  })
+
   beforeEach(() => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
     mockSecretNames.mockResolvedValue({ names: [] })
@@ -584,7 +626,6 @@ describe('buildCopilotRequestPayload', () => {
     for (const legacy of [
       'workspaceContext',
       'vfs',
-      'entitlements',
       'userMetadata',
       'userPermission',
       'model',

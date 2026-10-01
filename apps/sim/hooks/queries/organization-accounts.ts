@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+import { generateId } from '@sim/utils/id'
 import {
   isServer,
   useInfiniteQuery,
@@ -10,6 +12,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import type { DesktopSourceRequest } from '@/lib/api/contracts/desktop-source-connect'
 import {
   type AddOrganizationAccountMcpProviderBody,
   addOrganizationAccountMcpProviderContract,
@@ -39,6 +42,9 @@ import {
   updateOrganizationAccountsContract,
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
+import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
@@ -48,11 +54,59 @@ import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
 
-export function useReconnectPersonalOrganizationAccount() {
+function useAccountConnectionMutation<Variables>(
+  requestFor: (
+    variables: Variables
+  ) => Extract<DesktopSourceRequest, { kind: 'organization-account' | 'reconnect-account' }>
+) {
+  const client = useQueryClient()
+  const pending = useRef<AbortController | null>(null)
+  useEffect(() => () => pending.current?.abort(), [])
   return useMutation({
-    mutationFn: (credentialId: string) =>
-      requestJson(reconnectPersonalOrganizationAccountContract, { params: { credentialId } }),
+    mutationKey: organizationAccountsKeys.connection(),
+    mutationFn: async (variables: Variables) => {
+      if (client.isMutating({ mutationKey: organizationAccountsKeys.connection() }) > 1) {
+        throw new Error('Finish or cancel your current account connection before starting another.')
+      }
+      pending.current?.abort()
+      const controller = new AbortController()
+      pending.current = controller
+      const completionId = generateId()
+      const input = requestFor(variables)
+      const request =
+        input.kind === 'organization-account'
+          ? { ...input, body: { ...input.body, oauthCompletionId: completionId } }
+          : { ...input, completionId }
+      if (isDesktopApp()) {
+        await connectDesktopSource(request, controller.signal)
+      } else {
+        await connectCredentialGroupInPopup(
+          completionId,
+          (signal) =>
+            request.kind === 'organization-account'
+              ? requestJson(startOrganizationAccountConnectionContract, {
+                  params: { id: request.organizationId },
+                  body: request.body,
+                  signal,
+                })
+              : requestJson(reconnectPersonalOrganizationAccountContract, {
+                  params: { credentialId: request.credentialId },
+                  query: { oauthCompletionId: completionId },
+                  signal,
+                }),
+          controller.signal
+        )
+      }
+    },
+    onSettled: () => refreshAccounts(client),
   })
+}
+
+export function useReconnectPersonalOrganizationAccount() {
+  return useAccountConnectionMutation((credentialId: string) => ({
+    kind: 'reconnect-account',
+    credentialId,
+  }))
 }
 
 /** Disconnects an owned grant; indexing and source setup do not gate this operation. */
@@ -81,6 +135,7 @@ export function useDisconnectPersonalOrganizationAccount(organizationId: string)
 
 export const organizationAccountsKeys = {
   all: ['organization-accounts'] as const,
+  connection: () => [...organizationAccountsKeys.all, 'connection'] as const,
   workspaces: () => [...organizationAccountsKeys.all, 'workspace'] as const,
   workspace: (workspaceId?: string) =>
     [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,
@@ -194,17 +249,26 @@ export function useUpdateOrganizationAccounts() {
   })
 }
 
+async function refreshAccounts(client: ReturnType<typeof useQueryClient>) {
+  await Promise.all([
+    client.invalidateQueries({ queryKey: organizationAccountsKeys.all }),
+    client.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+    client.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+    invalidateSelectorQueries(client),
+  ])
+}
+
 export function useConnectOrganizationAccount() {
-  return useMutation({
-    mutationFn: ({
+  return useAccountConnectionMutation(
+    ({
       organizationId,
       ...body
-    }: { organizationId: string } & StartOrganizationAccountConnectionBody) =>
-      requestJson(startOrganizationAccountConnectionContract, {
-        params: { id: organizationId },
-        body,
-      }),
-  })
+    }: { organizationId: string } & StartOrganizationAccountConnectionBody) => ({
+      kind: 'organization-account',
+      organizationId,
+      body,
+    })
+  )
 }
 
 export function useWorkspaceOrganizationAccounts(workspaceId?: string, enabled = true) {

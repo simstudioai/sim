@@ -145,6 +145,7 @@ export {
   billingUsageLogMock,
   billingUsageLogMockFns,
   MockCumulativeUsageContextMismatchError,
+  MockCumulativeUsagePeriodClosedError,
   MockUnknownUsageCursorError,
 } from './billing-usage-log.mock'
 export {

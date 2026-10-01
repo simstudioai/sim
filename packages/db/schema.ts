@@ -1479,7 +1479,9 @@ export const subscription = pgTable(
      * closes the previous period whenever this lags the row's `periodStart`,
      * then advances it. Null = never initialized; the first sweep initializes
      * it to the current `periodStart` without billing so historical periods
-     * are never retroactively closed.
+     * are never retroactively closed. A deleted subscription's terminal
+     * settlement advances it to `periodEnd`: every period ending at or before
+     * the marker is settled, and a later charge into one is refused.
      */
     lastClosedPeriodStart: timestamp('last_closed_period_start'),
   },
@@ -2331,6 +2333,29 @@ export const workspaceFile = pgTable(
     workspaceDeletedAtPartialIdx: index('workspace_file_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+  })
+)
+
+/**
+ * A dashboard: YAML over live tables, built by Sim. `revision` guards against lost updates.
+ * The unique workspace index keeps one dashboard per workspace; dropping it allows several.
+ */
+export const dashboard = pgTable(
+  'dashboard',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    revision: integer('revision').notNull().default(1),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceUnique: uniqueIndex('dashboard_workspace_id_unique').on(table.workspaceId),
   })
 )
 

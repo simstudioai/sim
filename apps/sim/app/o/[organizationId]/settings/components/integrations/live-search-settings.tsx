@@ -82,12 +82,16 @@ export function LiveSearchSettings() {
     secretSource && GENERIC_SECRETS_META.name.toLowerCase().includes(search.toLowerCase())
   const availableToAdd = [
     ...LIVE_SEARCH_SOURCE_TYPES.filter(
-      ([type]) => LIVE_SEARCH_SCOPE_FIELDS[type] && !added.some((row) => row.connectorType === type)
+      ([type]) =>
+        (type !== 'zoom' ||
+          policies.data?.some((row) => row.connectorType === type && row.available !== false)) &&
+        LIVE_SEARCH_SCOPE_FIELDS[type] &&
+        !added.some((row) => row.connectorType === type)
     ).map(([type, meta]) => ({
       type,
       meta,
       availabilityStatus:
-        type !== 'hubspot' || accounts.isSuccess
+        (type !== 'hubspot' && type !== 'zoom') || accounts.isSuccess
           ? undefined
           : accounts.isError
             ? ('error' as const)
@@ -160,6 +164,7 @@ export function LiveSearchSettings() {
               const mcpProvider = liveSearchMcpConnector(type)
               const group = accounts.data?.credentialGroup
               const needsMemberSetup =
+                integration.available !== false &&
                 accounts.data &&
                 (memberProvider || mcpProvider) &&
                 (group?.status !== 'active' ||
@@ -188,7 +193,7 @@ export function LiveSearchSettings() {
                   iconVariant='custom'
                   icon={<IntegrationTile blockType={type} icon={meta.icon} />}
                   title={meta.name}
-                  description={scope}
+                  description={integration.available === false ? 'Currently unavailable' : scope}
                   trailing={
                     <div className='flex gap-2'>
                       {serviceAccount && (

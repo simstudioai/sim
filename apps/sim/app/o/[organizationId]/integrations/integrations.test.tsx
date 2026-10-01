@@ -22,7 +22,6 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
-import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
 
 const mocks = vi.hoisted(() => ({
@@ -287,22 +286,6 @@ function menuItem(label: string) {
   )!
 }
 
-function expectConnectionRedirect(
-  onSuccess: (response: OrganizationAccountConnectionResponse) => void,
-  authorizationUrl?: string
-) {
-  const invitationLink = 'https://sim.test/credential-groups/enroll/fixture-token'
-  const assign = vi.fn()
-  const browserWindow = window
-  vi.stubGlobal('window', { location: { assign } })
-  try {
-    onSuccess({ invitationLink, ...(authorizationUrl ? { authorizationUrl } : {}) })
-    expect(assign).toHaveBeenCalledExactlyOnceWith(authorizationUrl ?? invitationLink)
-  } finally {
-    vi.stubGlobal('window', browserWindow)
-  }
-}
-
 describe('GitHub member account inventory', () => {
   const githubAccount = {
     credentialId: 'github-account',
@@ -346,10 +329,7 @@ describe('GitHub member account inventory', () => {
     })
   })
 
-  it.each([
-    undefined,
-    'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/github-option?returnTo=search',
-  ])('connects once through the account operation with compatible redirect %s', async (url) => {
+  it('connects once through the account operation', async () => {
     await render()
     expect(buttons('Connect')).toHaveLength(1)
     expect(container.textContent).toContain('Connect once')
@@ -358,7 +338,6 @@ describe('GitHub member account inventory', () => {
       { organizationId: scope.organizationId, optionId: 'github-option' },
       expect.any(Object)
     )
-    expectConnectionRedirect(mocks.connectOrganizationAccount.mock.calls[0][1].onSuccess, url)
     expect(mockUseSearchSources).not.toHaveBeenCalled()
     expect(mocks.connect).not.toHaveBeenCalled()
     expect(mocks.connectSearchSource).not.toHaveBeenCalled()
@@ -430,10 +409,7 @@ describe('GitHub member account inventory', () => {
     }
   )
 
-  it.each([
-    undefined,
-    'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/github-option?returnTo=accounts',
-  ])('allows personal reauthorization while Search is disabled with redirect %s', async (url) => {
+  it('allows personal reauthorization while Search is disabled', async () => {
     mockUseSearchSourceOverview.mockReturnValue({ data: { providers: [] }, isPending: false })
     mocks.integrations.mockReturnValue({
       data: [{ connectorType: 'github', approved: false }],
@@ -457,7 +433,6 @@ describe('GitHub member account inventory', () => {
       'github-account',
       expect.any(Object)
     )
-    expectConnectionRedirect(mocks.reconnectOrganizationAccount.mock.calls[0][1].onSuccess, url)
     expect(mocks.connect).not.toHaveBeenCalled()
   })
 

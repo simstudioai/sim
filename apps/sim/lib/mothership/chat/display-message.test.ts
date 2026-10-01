@@ -154,6 +154,20 @@ describe('display-message', () => {
     ])
   })
 
+  it('keeps the dashboard id on a reopened dashboard mention', () => {
+    const display = toDisplayMessage({
+      id: 'msg-dashboard',
+      role: 'user',
+      content: '@Dashboard',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      contexts: [{ kind: 'dashboard', label: 'Dashboard', dashboardId: 'dash-1' }],
+    })
+
+    expect(display.contexts).toEqual([
+      { kind: 'dashboard', label: 'Dashboard', dashboardId: 'dash-1' },
+    ])
+  })
+
   it('preserves browser and terminal selection metadata for reopened messages', () => {
     const display = toDisplayMessage({
       id: 'msg-selection',

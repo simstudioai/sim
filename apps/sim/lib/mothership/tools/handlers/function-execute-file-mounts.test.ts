@@ -3,7 +3,7 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
-import { toolsMock } from '@sim/testing/mocks/tools.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
   workspaceFileManagerMock,
@@ -37,7 +37,11 @@ vi.mock('@/tools', () => toolsMock)
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
-import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
+import {
+  executeFunctionExecute,
+  resolveInputFiles,
+} from '@/lib/mothership/tools/handlers/function-execute'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -191,6 +195,75 @@ describe('Mothership file mounts bind content and classification to the same rec
         'run_code'
       )
       expect(JSON.stringify(observation.result).includes(content)).toBe(kind === 'safe')
+    }
+  )
+
+  /**
+   * The run's code can read every mounted byte, so the per-call registry the Copilot projection
+   * and output-file writers read must carry the mount's own verdict across the crossing: a
+   * tainted mount stays a taint (never the `unrecorded` absence) and names the guard that tripped,
+   * while exact mounts keep redacting and clean mounts stay readable.
+   */
+  it.each(['safe', 'secret', 'unknown'] as const)(
+    'carries a %s mount verdict across the run_code crossing',
+    async (kind) => {
+      queueProvenance(kind === 'unknown' ? 'unknown' : 'exact', revision, kind === 'secret')
+      toolsMockFns.mockExecuteTool.mockResolvedValue({
+        success: true,
+        output: { result: content, stdout: content },
+      })
+      const trace = new ResolvedSecretTraceRegistry([], {
+        userId: 'reader',
+        workspaceId: 'workspace',
+      })
+      const result = await executeFunctionExecute(
+        {
+          code: "print(open('/tmp/source.txt').read())",
+          language: 'python',
+          inputs: { files: [{ path: 'file', sandboxPath: '/tmp/source.txt' }] },
+        },
+        { ...context, resolvedSecretTraceRegistry: trace }
+      )
+
+      const observation = inspectToolResultForCopilot(result, trace, 'run_code')
+      const written = await createWorkspaceFileSecretProvenanceFromRegistry(trace, result.output, {
+        userId: 'reader',
+        workspaceId: 'workspace',
+      })
+      expect(JSON.stringify(observation.result).includes(content)).toBe(kind === 'safe')
+      if (kind === 'unknown') {
+        expect(observation.safe).toBe(false)
+        expect.soft(observation.safe ? undefined : observation.cause).toMatchObject({
+          kind: 'registry-incomplete',
+          reasons: expect.arrayContaining(['mounted-file-provenance-unavailable']),
+        })
+        expect.soft(written).toEqual({ safe: false })
+        expect(observation.result.output).toEqual({
+          resultWithheld: true,
+          withheldReason: expect.stringMatching(
+            /file, table, or document .* unknown secret provenance/
+          ),
+        })
+      } else {
+        expect(observation.safe).toBe(true)
+        expect(written).toMatchObject({
+          safe: true,
+          provenance: {
+            status: 'exact',
+            // A mounted file's secret crosses anonymously: its ciphertext binds it, not a name.
+            entries:
+              kind === 'secret'
+                ? [
+                    {
+                      encryptedValue: 'fixture-ciphertext',
+                      sourceUserId: 'reader',
+                      sourceWorkspaceId: 'workspace',
+                    },
+                  ]
+                : [],
+          },
+        })
+      }
     }
   )
 

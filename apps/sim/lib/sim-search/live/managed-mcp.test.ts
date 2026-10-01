@@ -9,7 +9,8 @@ vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
 }))
 
 import { NativeSearchError } from '@/lib/sim-search/live/http'
-import { createManagedSearchMcpClient, managedMcpPayload } from '@/lib/sim-search/live/managed-mcp'
+import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
+import { managedMcpPayload } from '@/lib/sim-search/live/managed-mcp-payload'
 
 /** Failure modes: a write tool escapes the allowlist; replaced grants stay usable; payloads exhaust memory; schema drift changes tool meaning. */
 describe('managed search MCP read boundary', () => {
@@ -126,4 +127,30 @@ describe('managed search MCP read boundary', () => {
     expect((failure as NativeSearchError).message).toContain('existing Granola account')
     expect((failure as NativeSearchError).message).not.toContain('private-provider-detail')
   })
+
+  it('rejects escaped MCP payload overflow before allocating its JSON representation', () => {
+    const result = { structuredContent: { ['\u0000'.repeat(800_000)]: 'value' } }
+    const serialize = vi.spyOn(JSON, 'stringify').mockImplementation(() => {
+      throw new Error('Oversized payload reached serialization')
+    })
+    try {
+      expect(() => managedMcpPayload(result, 'Fireflies')).toThrow('size limit')
+      expect(serialize).not.toHaveBeenCalled()
+    } finally {
+      serialize.mockRestore()
+    }
+  })
+
+  it.each(['wide', 'deep'] as const)(
+    'preserves byte-small %s MCP responses without imposing capture limits',
+    (shape) => {
+      let content: unknown = shape === 'wide' ? Array.from({ length: 100_000 }, () => 0) : 'leaf'
+      if (shape === 'deep') {
+        for (let index = 0; index < 128; index++) content = { child: content }
+      }
+      const result = { structuredContent: content }
+      expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThan(4 * 1024 * 1024)
+      expect(managedMcpPayload(result, 'Fireflies')).toEqual(content)
+    }
+  )
 })

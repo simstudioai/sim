@@ -155,6 +155,7 @@ function isDesktopToolCallId(raw: unknown): raw is string {
 }
 
 export interface OAuthConnectScope {
+  sourceRequestId?: string
   workspaceId?: string
   credentialId?: string
   draftId?: string
@@ -361,6 +362,8 @@ export interface IpcDeps {
     ) => boolean
   }
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
+  prepareSourceConnect: () => string
+  cancelSourceConnect: (requestId: string) => boolean
   updates: {
     getState: () => DesktopUpdateState
     check: () => void
@@ -716,6 +719,34 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
         return deps.beginOAuthConnect(providerId, parsedScope)
       },
+    },
+    'desktop:source-connect-prepare': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: null,
+      handler: () => deps.prepareSourceConnect(),
+    },
+    'desktop:source-connect': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: false,
+      handler: (requestId) =>
+        typeof requestId === 'string' && /^[A-Za-z0-9_-]{32}$/.test(requestId)
+          ? deps.beginOAuthConnect('source', { sourceRequestId: requestId })
+          : false,
+    },
+    'desktop:source-connect-cancel': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: false,
+      handler: (requestId) =>
+        typeof requestId === 'string' && /^[A-Za-z0-9_-]{32}$/.test(requestId)
+          ? deps.cancelSourceConnect(requestId)
+          : false,
     },
     'desktop:local-files': {
       kind: 'invoke',

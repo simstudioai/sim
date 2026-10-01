@@ -87,7 +87,7 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
           recordSessionFileInput(
             scope.sessionKey,
             machine,
-            provenance.status === 'exact' && provenance.entries.length === 0
+            provenance.status === 'exact' ? provenance : { status: 'unknown' }
           )
       )
   const observeDownload: SessionFileObserver = (machine, stream) =>

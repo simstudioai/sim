@@ -13,6 +13,8 @@ import {
   type StartSlackSearchOAuthBody,
   startSlackSearchOAuthContract,
 } from '@/lib/api/contracts/knowledge/slack'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
@@ -36,9 +38,28 @@ export function useSlackSearchManifest(organizationId: string, name = SLACK_SEAR
 }
 
 export function useStartSlackSearchOAuth() {
+  const client = useQueryClient()
   return useMutation({
-    mutationFn: (body: StartSlackSearchOAuthBody) =>
-      requestJson(startSlackSearchOAuthContract, { body }),
+    mutationFn: async ({
+      signal,
+      ...body
+    }: StartSlackSearchOAuthBody & { signal?: AbortSignal }) => {
+      if (isDesktopApp()) {
+        await connectDesktopSource({ kind: 'slack-search', body }, signal)
+        return null
+      }
+      return requestJson(startSlackSearchOAuthContract, { body, signal })
+    },
+    onSettled: (_data, _error, input) =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: slackSearchKeys.list(input.organizationId) }),
+        client.invalidateQueries({
+          queryKey: slackSearchKeys.organizationManifests(input.organizationId),
+        }),
+        client.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(input.organizationId),
+        }),
+      ]),
   })
 }
 

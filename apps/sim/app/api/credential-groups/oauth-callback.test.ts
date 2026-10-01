@@ -238,3 +238,33 @@ describe('GitHub installation setup OAuth return target', () => {
     expect(url.searchParams.get('setupId')).toBe(completionId)
   })
 })
+
+describe('Integrations OAuth completion', () => {
+  it.each([undefined, 'denied'])(
+    'returns the originating organization on completion: %s',
+    async (error) => {
+      mocks.consumeAttempt.mockResolvedValueOnce({
+        ...attempt,
+        returnTo: 'integrations',
+        organizationId: 'organization-1',
+        completionRedirect: true,
+        completionId,
+      })
+      mocks.authenticate.mockResolvedValueOnce({ kind: 'credential_group_enrollment' })
+      mocks.completeOAuth.mockResolvedValueOnce({ connectedOptionId: 'option-1' })
+      const response = await handleCredentialGroupOAuthCallback({
+        request: createMockRequest({
+          url: 'https://sim.test/api/auth/oauth2/callback/github-repositories',
+        }),
+        provider: 'github-repositories',
+        query: { state: 'cg_state', code: 'code-1', ...(error ? { error } : {}) },
+        limited: null,
+      })
+      const destination = new URL(response.headers.get('location')!, 'https://sim.test')
+      expect(destination.pathname).toBe('/credential-groups/complete')
+      expect(destination.searchParams.get('completionId')).toBe(completionId)
+      expect(destination.searchParams.get('organizationId')).toBe('organization-1')
+      expect(destination.searchParams.get('oauth')).toBe(error ?? null)
+    }
+  )
+})

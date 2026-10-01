@@ -312,6 +312,7 @@ export const env = createEnv({
 
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
+    FREEBUFF_API_KEY:                      z.string().min(1).optional(),           // Freebuff Ads key for server-side conversion postbacks (unset disables them)
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
     GRAFANA_OTLP_ENDPOINT:                 z.string().url().optional(),            // Grafana Cloud OTLP HTTP gateway base URL (e.g., https://otlp-gateway-prod-us-east-0.grafana.net/otlp). Trigger.dev exporters append /v1/traces, /v1/logs, /v1/metrics.
@@ -580,6 +581,9 @@ export const env = createEnv({
     INSTAGRAM_CLIENT_SECRET:               z.string().optional(),                  // Instagram App Secret (Business Login)
     SHOPIFY_CLIENT_ID:                     z.string().optional(),                  // Shopify OAuth client ID
     SHOPIFY_CLIENT_SECRET:                 z.string().optional(),                  // Shopify OAuth client secret
+    ZOOM_SEARCH:                           z.boolean().optional(),
+    ZOOM_MCP_CLIENT_ID:                    z.string().optional(),                  // Zoom Search MCP OAuth client ID
+    ZOOM_MCP_CLIENT_SECRET:                z.string().optional(),                  // Zoom Search MCP OAuth client secret
     ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID
     ZOOM_CLIENT_SECRET:                    z.string().optional(),                  // Zoom OAuth client secret
     WORDPRESS_CLIENT_ID:                   z.string().optional(),                  // WordPress.com OAuth client ID
@@ -594,6 +598,7 @@ export const env = createEnv({
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
     MSHIP_PLAN_MODE: z.boolean().optional(),
+    DASHBOARDS: z.boolean().optional(),
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     SIM_SEARCH_LIVE: z.boolean().optional(), // Query connected providers directly; false preserves indexed search
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)

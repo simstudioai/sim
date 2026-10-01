@@ -166,6 +166,7 @@ export interface ChatMessageContext {
   tableId?: string
   viewId?: string
   fileId?: string
+  dashboardId?: string
   folderId?: string
   chatId?: string
   blockType?: string

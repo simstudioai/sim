@@ -97,6 +97,35 @@ describe('runEmbeddedCli', () => {
     expect(JSON.parse(a.stdout).data[0].id).toBe(wsA)
     expect(JSON.parse(b.stdout).data[0].id).toBe(wsB)
   })
+
+  it('reports a thrown error with its own exit code, as the installed CLI does', async () => {
+    const receipt = {
+      operationId: 'op-1',
+      requestId: 'req-1',
+      workspaceId: IDENTITY.workspaceId,
+      kind: 'workflow_import',
+      applied: true,
+      status: 'processing',
+      issues: [],
+    }
+    // The clock moves only when a status is served, so the wait can time out
+    // only after it has a receipt to print, however slow the runner is.
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const result = await runEmbeddedCli(
+      ['--output', 'json', 'workspaces', 'operations', 'wait', 'op-1', '--wait-timeout', '60'],
+      {
+        ...IDENTITY,
+        transport: async () => {
+          now += 61_000
+          return jsonResponse({ data: receipt })
+        },
+      }
+    )
+    expect(result.exitCode).toBe(4)
+    expect(JSON.parse(result.stdout)).toMatchObject({ operationId: 'op-1', status: 'processing' })
+    expect(result.stderr).toContain('OPERATION_WAIT_TIMEOUT')
+  })
 })
 
 describe('embedded artifact destinations', () => {

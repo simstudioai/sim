@@ -24,6 +24,8 @@ import {
   SLACK_MANAGED_USER_SCOPES,
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { useStartSlackCredentialGroupConfiguration } from '@/hooks/queries/credential-groups'
 import {
@@ -133,6 +135,7 @@ export function SlackManagedUsersModal({
   const expectedState = useRef<string | null>(null)
   const expectedCredentialId = useRef<string | null>(null)
   const popup = useRef<Window | null>(null)
+  const nativeAbort = useRef<AbortController | null>(null)
   const authorizationTimeout = useRef<number | null>(null)
 
   const defaultCredentialId = initialCredentialId
@@ -164,6 +167,8 @@ export function SlackManagedUsersModal({
         : [...(access === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES)]
 
   const reset = () => {
+    nativeAbort.current?.abort()
+    nativeAbort.current = null
     popup.current?.close()
     popup.current = null
     if (authorizationTimeout.current !== null) window.clearTimeout(authorizationTimeout.current)
@@ -250,6 +255,7 @@ export function SlackManagedUsersModal({
 
   useEffect(
     () => () => {
+      nativeAbort.current?.abort()
       if (authorizationTimeout.current !== null) window.clearTimeout(authorizationTimeout.current)
       popup.current?.close()
       popup.current = null
@@ -287,6 +293,50 @@ export function SlackManagedUsersModal({
     )
       return
 
+    if (isDesktopApp()) {
+      const controller = new AbortController()
+      nativeAbort.current = controller
+      setPending(true)
+      try {
+        await connectDesktopSource(
+          {
+            kind: 'slack-managed-users',
+            owner: resourceScopeFields(scope),
+            credentialGroupId,
+            body: {
+              ...(organizationSetup
+                ? { appId: selectedApp?.appId, teamId: selectedApp?.teamId }
+                : {
+                    slackBotCredentialId: selectedBot?.id,
+                    clientId: clientId.trim(),
+                    clientSecret: clientSecret.trim(),
+                  }),
+              requiredScopes,
+            },
+          },
+          controller.signal
+        )
+        controller.signal.throwIfAborted()
+        if (scope.kind === 'organization')
+          await queryClient.invalidateQueries({
+            queryKey: organizationAccountsKeys.detail(scope.organizationId),
+          })
+        else await queryClient.invalidateQueries({ queryKey: credentialGroupKeys.all })
+        controller.signal.throwIfAborted()
+        toast.success('Slack configured')
+        onOpenChange(false)
+        reset()
+      } catch (failure) {
+        if (!controller.signal.aborted)
+          toast.error(getErrorMessage(failure, 'Could not connect Slack'))
+      } finally {
+        if (nativeAbort.current === controller) {
+          nativeAbort.current = null
+          setPending(false)
+        }
+      }
+      return
+    }
     const opened = window.open('about:blank', 'slack-managed-users', 'width=720,height=760')
     if (!opened) {
       toast.error('Allow popups to verify the Slack app')

@@ -181,10 +181,10 @@ describe('workflow mutation Copilot adapters', () => {
     }
     expect(code.length).toBeGreaterThan(240)
     expect(output.logs[0].input.code).toBe(
-      `${code.slice(0, 200)} …[${code.length} chars, see logs get execution-1 --trace]`
+      '…[input omitted; inspect with logs get execution-1 --trace]'
     )
     expect(output.logs[0].input.note).toBe(
-      `${'n'.repeat(200)} …[2001 chars, see logs get execution-1 --trace]`
+      '…[input omitted; inspect with logs get execution-1 --trace]'
     )
     expect(output.logs[0].input.language).toBe('javascript')
     expect(output.logs[0].output.result).toBe(code)

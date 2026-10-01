@@ -11,12 +11,15 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'
 import {
   getAccessibleCopilotChatAuth,
   getAccessibleCopilotChatWithMessages,
 } from '@/lib/mothership/chat/lifecycle'
+import {
+  type LiveTurnSnapshot,
+  readLiveTurnSnapshot,
+} from '@/lib/mothership/chat/live-turn-snapshot'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
@@ -25,10 +28,6 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import type { FilePreviewSession } from '@/lib/mothership/request/session'
-import { readEvents } from '@/lib/mothership/request/session/buffer'
-import { readFilePreviewSessions } from '@/lib/mothership/request/session/file-preview-session'
-import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('MothershipChatAPI')
@@ -55,11 +54,7 @@ export const GET = withRouteHandler(
       // to the client: when `activeStreamId` is set, the client reconnects to
       // the replay buffer (from seq 0) via the stream resume endpoint, which
       // is the source of truth for streaming state.
-      let liveTurnSnapshot: {
-        events: StreamBatchEvent[]
-        previewSessions: FilePreviewSession[]
-        status: string
-      } | null = null
+      let liveTurnSnapshot: LiveTurnSnapshot | null = null
 
       const reconciledMarkers = await reconcileChatStreamMarkers(
         [{ chatId: chat.id, streamId: chat.conversationId }],
@@ -69,36 +64,7 @@ export const GET = withRouteHandler(
 
       if (liveStreamId) {
         try {
-          const [events, previewSessions] = await Promise.all([
-            readEvents(liveStreamId, '0'),
-            readFilePreviewSessions(liveStreamId).catch((error) => {
-              logger.warn('Failed to read preview sessions for mothership chat', {
-                chatId,
-                streamId: liveStreamId,
-                error: toError(error).message,
-              })
-              return []
-            }),
-          ])
-          const run = await getLatestRunForStream(liveStreamId, userId).catch((error) => {
-            logger.warn('Failed to fetch latest run for mothership chat snapshot', {
-              chatId,
-              streamId: liveStreamId,
-              error: toError(error).message,
-            })
-            return null
-          })
-
-          liveTurnSnapshot = {
-            events: events.map(toStreamBatchEvent),
-            previewSessions,
-            status:
-              typeof run?.status === 'string'
-                ? run.status
-                : events.length > 0
-                  ? 'active'
-                  : 'unknown',
-          }
+          liveTurnSnapshot = await readLiveTurnSnapshot(liveStreamId, userId)
         } catch (error) {
           logger.warn('Failed to read stream snapshot for mothership chat', {
             chatId,

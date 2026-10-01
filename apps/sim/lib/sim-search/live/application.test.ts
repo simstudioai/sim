@@ -1,5 +1,6 @@
-import { resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import {
   inputValidationMock,
   inputValidationMockFns,
@@ -136,6 +137,113 @@ describe('authorized live retrieval', () => {
     })
     mocks.adminVerify.mockResolvedValue(true)
   })
+  describe('Zoom continuation integrity', () => {
+    const connected = {
+      ...account,
+      provider: 'zoom' as const,
+      providerId: 'mcp:zoom',
+      type: 'managed_mcp' as const,
+      displayName: 'Fixture meetings',
+    }
+    const ids = {
+      first: '00000000-0000-4000-8000-000000000001',
+      prior: '00000000-0000-4000-8000-000000000002',
+      later: '00000000-0000-4000-8000-000000000003',
+    }
+    const listing = {
+      ...input,
+      query: '',
+      topK: 2,
+      filters: { sortBy: 'newest' as const },
+      nativeQueries: [{ provider: 'zoom' as const, accountId: connected.id, query: '' }],
+    }
+    let providerUsesCutoff = true
+    beforeEach(() => {
+      providerUsesCutoff = true
+      setEnv({ ZOOM_SEARCH: true })
+      dbChainMockFns.limit.mockResolvedValue([{ organizationId: 'org' }])
+      mocks.accounts.mockResolvedValue([connected])
+      mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+        if (name === 'search_meetings') {
+          const pageIds = !args.next_page_token
+            ? [ids.first]
+            : providerUsesCutoff
+              ? [
+                  Date.parse(String(args.to)) <= Date.parse('2026-09-01T12:00:00Z')
+                    ? ids.prior
+                    : ids.later,
+                ]
+              : [ids.prior, ids.later]
+          return {
+            meetings: pageIds.map((id) => ({ meeting_uuid: id, meeting_category: 'history' })),
+            next_page_token: args.next_page_token ? '' : 'fixture-second-page',
+          }
+        }
+        if (name !== 'get_meeting_assets') throw new Error('Unexpected meeting tool')
+        return {
+          meeting_uuid: args.meetingId,
+          meeting_category: 'history',
+          topic: 'Fixture meeting',
+          start_time:
+            args.meetingId === ids.later ? '2026-09-01T12:30:00Z' : '2026-09-01T11:30:00Z',
+          deep_url: 'https://zoom.us/meeting/insights/fixture',
+        }
+      })
+    })
+    it.each(['inferred cutoff', 'provider cursor'] as const)(
+      'rejects a caller-edited %s from an otherwise valid continuation',
+      async (changed) => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
+          const first = await searchLiveKnowledge.execute({ principal, input: listing })
+          expect(first.results).toHaveLength(1)
+          const cursor = first.live?.accounts[0]?.nextCursor
+          expect(cursor).toBeTruthy()
+          const payload = JSON.parse(Buffer.from(cursor!.slice(5), 'base64url').toString('utf8'))
+          if (changed === 'inferred cutoff') payload.listingEndDate = '2026-09-01T14:00:00Z'
+          else payload.cursor = 'different-second-page'
+          const altered = `zoom:${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
+          const result = await searchLiveKnowledge.execute({
+            principal,
+            input: {
+              ...listing,
+              nativeQueries: [{ ...listing.nativeQueries[0]!, cursor: altered }],
+            },
+          })
+          expect(result.results).toEqual([])
+          expect(result.live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+        } finally {
+          vi.useRealTimers()
+        }
+      }
+    )
+    it.each(['provider window', 'local date filtering'] as const)(
+      'continues the original inferred cutoff after time advances: %s',
+      async (stage) => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
+          const first = await searchLiveKnowledge.execute({ principal, input: listing })
+          expect(first.results).toHaveLength(1)
+          const cursor = first.live?.accounts[0]?.nextCursor
+          expect(cursor).toBeTruthy()
+          providerUsesCutoff = stage === 'provider window'
+          vi.setSystemTime(new Date('2026-09-01T13:00:00Z'))
+          const result = await searchLiveKnowledge.execute({
+            principal,
+            input: { ...listing, nativeQueries: [{ ...listing.nativeQueries[0]!, cursor }] },
+          })
+          expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+            ids.prior,
+          ])
+          expect(result.live?.accounts[0]?.status).not.toBe('unavailable')
+        } finally {
+          vi.useRealTimers()
+        }
+      }
+    )
+  })
   describe('HubSpot continuation context', () => {
     const connected = {
       ...account,
@@ -215,33 +323,34 @@ describe('authorized live retrieval', () => {
         })
       }
     )
-    it.each(['remove implicit cutoff', 'override explicit cutoff'] as const)(
-      'rejects a continuation that would %s',
-      async (mode) => {
-        const query = mode === 'remove implicit cutoff' ? '' : 'launch'
-        const searchInput = {
-          ...input,
-          query,
-          topK: 1,
-          filters: mode === 'remove implicit cutoff' ? { sortBy: 'newest' as const } : filters,
-          nativeQueries: [{ ...native, query }],
-        }
-        const first = await searchLiveKnowledge.execute({ principal, input: searchInput })
-        expect(first.results).toHaveLength(1)
-        const cursor = first.live?.accounts[0]?.nextCursor
-        expect(cursor).toBeTruthy()
-        const payload = JSON.parse(Buffer.from(cursor!.slice(8), 'base64url').toString('utf8'))
-        if (mode === 'remove implicit cutoff') payload.listingEndDate = undefined
-        else payload.listingEndDate = '2026-11-01T00:00:00Z'
-        const altered = `hubspot:${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
-        const result = await searchLiveKnowledge.execute({
-          principal,
-          input: { ...searchInput, nativeQueries: [{ ...native, query, cursor: altered }] },
-        })
-        expect(result.results).toEqual([])
-        expect(result.live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+    it.each([
+      'remove implicit cutoff',
+      'edit implicit cutoff',
+      'override explicit cutoff',
+    ] as const)('rejects a continuation that would %s', async (mode) => {
+      const query = mode === 'override explicit cutoff' ? 'launch' : ''
+      const searchInput = {
+        ...input,
+        query,
+        topK: 1,
+        filters: mode === 'override explicit cutoff' ? filters : { sortBy: 'newest' as const },
+        nativeQueries: [{ ...native, query }],
       }
-    )
+      const first = await searchLiveKnowledge.execute({ principal, input: searchInput })
+      expect(first.results).toHaveLength(1)
+      const cursor = first.live?.accounts[0]?.nextCursor
+      expect(cursor).toBeTruthy()
+      const payload = JSON.parse(Buffer.from(cursor!.slice(8), 'base64url').toString('utf8'))
+      if (mode === 'remove implicit cutoff') payload.listingEndDate = undefined
+      else payload.listingEndDate = '2026-11-01T00:00:00Z'
+      const altered = `hubspot:${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
+      const result = await searchLiveKnowledge.execute({
+        principal,
+        input: { ...searchInput, nativeQueries: [{ ...native, query, cursor: altered }] },
+      })
+      expect(result.results).toEqual([])
+      expect(result.live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+    })
     it.each(['provider window', 'local date filtering'] as const)(
       'keeps the original implicit listing boundary after time advances: %s',
       async (stage) => {
@@ -287,20 +396,34 @@ describe('authorized live retrieval', () => {
       }
     )
   })
-  it.each([
-    { startDate: '2026-08-01T00:00:00Z' },
-    { source: ' notion ', startDate: '2026-08-01T00:00:00Z' },
-    { sortBy: 'newest' as const },
-    { sortBy: 'oldest' as const },
-  ])('rejects a Notion-only live listing with %j', async (bound) => {
-    await expect(
-      searchLiveKnowledge.execute({
-        principal,
-        input: { ...input, query: ' \t ', filters: { source: 'notion', ...bound } },
+  describe.each(['notion', 'lucid'] as const)('%s requires terms before dispatch', (provider) => {
+    it.each([
+      { startDate: '2026-08-01T00:00:00Z' },
+      { source: ` ${provider} `, startDate: '2026-08-01T00:00:00Z' },
+      { sortBy: 'newest' as const },
+      { sortBy: 'oldest' as const },
+    ])('rejects a provider-only listing with %j', async (bound) => {
+      await expect(
+        searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, query: ' \t ', filters: { source: provider, ...bound } },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+    })
+    it('rejects an empty native query even with a date bound', async () => {
+      await expect(
+        searchLiveKnowledge.execute({
+          principal,
+          input: {
+            ...input,
+            query: 'topology',
+            filters: { startDate: '2026-08-01T00:00:00Z' },
+            nativeQueries: [{ provider, query: ' \t ' }],
+          },
+        })
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([expect.objectContaining({ path: [0, 'query'] })]),
       })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: 'Notion requires search terms. Add keywords or a concise question.',
     })
   })
   it.each([undefined, 'google_drive'])(

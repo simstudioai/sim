@@ -92,6 +92,21 @@ describe('Credential Group MCP OAuth state', () => {
     await expect(consumeCredentialGroupMcpOAuthAttempt(state)).resolves.toBeNull()
   })
 
+  it('preserves the direct completion destination through one-time state consumption', async () => {
+    const completionId = '00000000-0000-4000-8000-000000000002'
+    await createCredentialGroupMcpOAuthAttempt({
+      ...ATTEMPT,
+      state: 'mcp_cg_direct',
+      completionId,
+      returnTo: 'integrations',
+    })
+    await expect(consumeCredentialGroupMcpOAuthAttempt('mcp_cg_direct')).resolves.toMatchObject({
+      completionId,
+      returnTo: 'integrations',
+    })
+    await expect(consumeCredentialGroupMcpOAuthAttempt('mcp_cg_direct')).resolves.toBeNull()
+  })
+
   it('fails closed when Redis is unavailable', async () => {
     vi.mocked(getRedisClient).mockReturnValue(null)
 

@@ -1,4 +1,6 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -10,11 +12,12 @@ import {
   type LiveSearchAccountStatus,
   liveSearchProviderSchema,
   type NativeSearchQuery,
-  NOTION_SEARCH_TERMS_REQUIRED,
   nativeSearchQueriesSchema,
+  SEARCH_TERMS_REQUIRED,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
+import { env } from '@/lib/core/config/env'
 import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -58,32 +61,57 @@ import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const hubspotContinuationSchema = z
+const boundContinuationSchema = z
   .object({
-    v: z.literal(1),
+    v: z.literal(2),
     scope: z.string().regex(/^[A-Za-z0-9_-]{22}$/),
-    cursor: z.string().regex(/^[1-9]\d{0,3}$/),
+    cursor: z.string().min(1).max(2048),
     listingEndDate: z.string().datetime({ offset: true }).optional(),
   })
   .strict()
-type HubSpotContinuation = z.output<typeof hubspotContinuationSchema>
+type BoundContinuation = z.output<typeof boundContinuationSchema>
+const signedContinuationSchema = boundContinuationSchema.extend({
+  signature: z.string().regex(/^[a-f0-9]{64}$/),
+})
 
-function readHubSpotContinuation(value: string): HubSpotContinuation {
+function continuationSignature(provider: 'hubspot' | 'zoom', value: BoundContinuation): string {
+  return hmacSha256Hex(
+    `live-search-continuation:${provider}:${canonicalJson(value)}`,
+    env.BETTER_AUTH_SECRET
+  )
+}
+
+function readBoundContinuation(provider: 'hubspot' | 'zoom', value: string): BoundContinuation {
   try {
-    if (!value.startsWith('hubspot:') || value.length > 512) throw new Error('Invalid continuation')
-    return hubspotContinuationSchema.parse(
-      JSON.parse(Buffer.from(value.slice(8), 'base64url').toString('utf8'))
+    const prefix = `${provider}:`
+    if (!value.startsWith(prefix) || value.length > (provider === 'hubspot' ? 512 : 4000))
+      throw new Error('Invalid continuation')
+    const { signature, ...continuation } = signedContinuationSchema.parse(
+      JSON.parse(Buffer.from(value.slice(prefix.length), 'base64url').toString('utf8'))
     )
+    if (!safeCompare(signature, continuationSignature(provider, continuation)))
+      throw new Error('Invalid continuation signature')
+    if (provider === 'hubspot' && !/^[1-9]\d{0,3}$/.test(continuation.cursor))
+      throw new Error('Invalid HubSpot continuation')
+    return continuation
   } catch {
     throw new NativeSearchError(
       'unavailable',
-      'Invalid HubSpot cursor. Restart this search without a cursor.'
+      `Invalid ${provider === 'zoom' ? 'Zoom' : 'HubSpot'} cursor. Restart this search without a cursor.`
     )
   }
 }
 
-function writeHubSpotContinuation(value: HubSpotContinuation): string {
-  return `hubspot:${Buffer.from(JSON.stringify(hubspotContinuationSchema.parse(value))).toString('base64url')}`
+function writeBoundContinuation(provider: 'hubspot' | 'zoom', value: BoundContinuation): string {
+  const payload = boundContinuationSchema.parse(value)
+  const signed = { ...payload, signature: continuationSignature(provider, payload) }
+  const cursor = `${provider}:${Buffer.from(JSON.stringify(signed)).toString('base64url')}`
+  if (cursor.length > (provider === 'hubspot' ? 512 : 4000))
+    throw new NativeSearchError(
+      'unavailable',
+      'The provider continuation is too large. Narrow the query and restart without a cursor.'
+    )
+  return cursor
 }
 
 const referenceSchema = z
@@ -344,8 +372,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     )
       throw new OrchestrationError('validation', 'Invalid live search query or result limit')
     const filters = input.filters
-    if (!queries && filters?.source === 'notion' && !input.query.trim())
-      throw new OrchestrationError('validation', NOTION_SEARCH_TERMS_REQUIRED)
+    if (
+      !queries &&
+      (filters?.source === 'notion' || filters?.source === 'lucid') &&
+      !input.query.trim()
+    )
+      throw new OrchestrationError('validation', SEARCH_TERMS_REQUIRED[filters.source])
     if (
       filters?.startDate &&
       filters.endDate &&
@@ -393,12 +425,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     ): Promise<SearchedQuery> => {
       let queryFilters = filters
       let queryNative = native
-      let hubspotScope: string | undefined
+      let continuationScope: string | undefined
       let listingEndDate: string | undefined
-      if (account.provider === 'hubspot') {
-        hubspotScope = fingerprint(
+      if (account.provider === 'hubspot' || account.provider === 'zoom') {
+        continuationScope = fingerprint(
           canonicalJson({
-            provider: 'hubspot',
+            provider: account.provider,
             user: userId,
             owner: resourceScopeKey(resourceScopeFromOwner(input)),
             account: account.id,
@@ -415,17 +447,17 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           })
         )
         if (native?.cursor) {
-          const continuation = readHubSpotContinuation(native.cursor)
+          const continuation = readBoundContinuation(account.provider, native.cursor)
           const allowsListingBound =
             Boolean(dateSortDirection(requestedFilters)) && !hasDateBounds(requestedFilters)
           if (
-            continuation.scope !== hubspotScope ||
+            continuation.scope !== continuationScope ||
             (continuation.listingEndDate && !allowsListingBound) ||
             (allowsListingBound && !native.query && !continuation.listingEndDate)
           )
             throw new NativeSearchError(
               'unavailable',
-              'HubSpot cursor does not match this account, query, kind, or filters. Restart without a cursor.'
+              'The cursor does not match this account, query, kind, or filters. Restart without a cursor.'
             )
           listingEndDate = continuation.listingEndDate
           queryFilters = listingEndDate
@@ -515,10 +547,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               : undefined,
           ]),
           nextCursor:
-            page.nextCursor && hubspotScope
-              ? writeHubSpotContinuation({
-                  v: 1,
-                  scope: hubspotScope,
+            page.nextCursor &&
+            continuationScope &&
+            (account.provider === 'hubspot' || account.provider === 'zoom')
+              ? writeBoundContinuation(account.provider, {
+                  v: 2,
+                  scope: continuationScope,
                   cursor: page.nextCursor,
                   ...(listingEndDate ? { listingEndDate } : {}),
                 })

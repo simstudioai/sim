@@ -38,7 +38,7 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
   enforcePublicCredentialGroupIpRateLimit: mockEnforceCallbackRateLimit,
 }))
 
-import { GET } from './route'
+import { GET } from '@/app/api/mcp/oauth/callback/route'
 
 const { mockDiscoverServerTools } = mcpServiceMockFns
 
@@ -87,6 +87,31 @@ describe('MCP OAuth callback route', () => {
     })
     mockEnforceCallbackRateLimit.mockResolvedValue(null)
   })
+
+  it.each([undefined, 'denied'])(
+    'finishes a direct connection without the invitation form: %s',
+    async (error) => {
+      const completionId = '00000000-0000-4000-8000-000000000002'
+      mockConsumeManagedAttempt.mockResolvedValueOnce({
+        state: 'mcp_cg_direct',
+        organizationId: 'organization-1',
+        invitationToken: 'invitation-token',
+        mcpServerId: 'server-1',
+        completionId,
+        returnTo: 'integrations',
+      })
+      const response = await GET(
+        new NextRequest(
+          `http://localhost:3000/api/mcp/oauth/callback?state=mcp_cg_direct&${error ? 'error=denied' : 'code=code-1'}`
+        )
+      )
+      const destination = new URL(response.headers.get('location')!, 'http://localhost:3000')
+      expect(destination.pathname).toBe('/credential-groups/complete')
+      expect(destination.searchParams.get('completionId')).toBe(completionId)
+      expect(destination.searchParams.get('organizationId')).toBe('organization-1')
+      expect(destination.searchParams.get('oauth')).toBe(error ?? null)
+    }
+  )
 
   it('performs the token exchange through the SSRF-guarded mcpAuthGuarded wrapper', async () => {
     const request = new NextRequest(

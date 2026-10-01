@@ -70,8 +70,8 @@ export function createEmbeddedClient(identity: EmbeddedCliIdentity): SimClient {
 /**
  * Runs one CLI invocation in-process. `argv` is the token list exactly as the
  * terminal would receive it (no leading node/binary tokens). Errors the
- * installed CLI would print-and-exit-1 on come back the same way: rendered to
- * stderr, exitCode 1 — never thrown.
+ * installed CLI would print-and-exit on come back the same way: rendered to
+ * stderr with the same exit code — never thrown.
  */
 export async function runEmbeddedCli(
   argv: string[],
@@ -191,7 +191,7 @@ function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
     if (error.details !== undefined) {
       for (const line of formatApiErrorDetails(error.details)) ctx.stderr.diagnostic(sanitize(line))
     }
-    return 1
+    return error.exitCode
   }
   ctx.stderr.diagnostic(
     // utils-lint-allow: this published standalone CLI cannot import the private @sim/utils package.

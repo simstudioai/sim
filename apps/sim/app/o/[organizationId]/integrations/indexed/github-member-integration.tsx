@@ -1,7 +1,6 @@
 'use client'
 
 import { Chip, toast } from '@sim/emcn'
-import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
 import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
@@ -40,8 +39,6 @@ export function GitHubMemberIntegration({
   const loading = inventory.isPending && !inventory.data
   const failed = inventory.isError
   const meta = CONNECTOR_META_REGISTRY.github
-  const navigate = ({ authorizationUrl, invitationLink }: OrganizationAccountConnectionResponse) =>
-    window.location.assign(authorizationUrl ?? invitationLink)
   const onError = (error: Error) => toast.error(error.message)
   const description = account
     ? `${accounts.map((entry) => entry.displayName).join(', ')} · ${account.status === 'needs_reauth' ? 'Reconnect required' : 'Connected'}`
@@ -74,9 +71,7 @@ export function GitHubMemberIntegration({
             <Chip
               variant='primary'
               disabled={reconnect.isPending}
-              onClick={() =>
-                reconnect.mutate(account.credentialId, { onSuccess: navigate, onError })
-              }
+              onClick={() => reconnect.mutate(account.credentialId, { onError })}
             >
               Reconnect
             </Chip>
@@ -84,12 +79,7 @@ export function GitHubMemberIntegration({
             <Chip
               variant='primary'
               disabled={connect.isPending}
-              onClick={() =>
-                connect.mutate(
-                  { organizationId, optionId: option.id },
-                  { onSuccess: navigate, onError }
-                )
-              }
+              onClick={() => connect.mutate({ organizationId, optionId: option.id }, { onError })}
             >
               Connect
             </Chip>
