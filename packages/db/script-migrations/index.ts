@@ -60,7 +60,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   userTableSchemaForWriteMigration,
   /**
    * Search retirement (0027–0029) is an operator-run maintenance command, not a deploy step:
-   * see `search-embedding-retirement.md`.
+   * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.
    */
 ]
 

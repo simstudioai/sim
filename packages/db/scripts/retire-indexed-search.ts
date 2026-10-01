@@ -39,8 +39,26 @@ Every write except abort requires --health-file PATH --health-policy PATH.
 Policy databaseId must equal the identity command's fingerprint.
 Run options: --page-size 25 (1–100), --pages 1 (1–120), --seconds 60 (1–600).
 A fixed pause of at least 5 seconds follows each page. Timeouts stop; no automatic retry.
-Connection: MIGRATION_DATABASE_URL, direct primary or session pooling only.
-See packages/db/maintenance/search-retirement.md before use.`
+Connection: MIGRATION_DATABASE_URL, PostgreSQL 17+, direct primary or session pooling only.
+
+Deploy the code-removal release and drain old workers first. Then:
+  prepare -> run until ready -> cutover -> verify retrieval -> begin-purge
+  -> run until finalize -> finalize. Repeat run if late writes return the phase to purge.
+Reads use the old projection until cutover. The retained backup is not an instant rollback.
+Cutover requires pg_read_all_stats and no old snapshots; never automatically retry DDL gates.
+Abort, backup removal and finalization cap implicit DROP lock waits at 1 ms.
+After retirement starts, use versioned migrations; db:push would restore old projection machinery.
+
+Health files are UTF-8 JSON, at most 8 KiB, atomically refreshed by trusted telemetry.
+Sample fields: observedAt (oldest metric timestamp, UTC ISO), databaseId, healthy,
+  maintenanceAllowed, cutoverAllowed, replicaLagBytes, replicaLagSeconds,
+  walBytesPerSecond, databaseP95Ms, cpuPercent, freeStorageBytes.
+Policy fields: databaseId, maxReplicaLagBytes, maxReplicaLagSeconds, maxWalBytesPerSecond,
+  maxDatabaseP95Ms, maxCpuPercent, minFreeStorageBytes, maxSampleAgeMs (at most 30000).
+Choose limits from actual capacity and latency requirements; missing/stale telemetry stops work.
+Use worst replica lag and CPU, and minimum free storage; healthy includes application error/latency checks.
+Set cutoverAllowed only after primary and replica snapshots are clear for DDL.
+Pacing limits load but cannot eliminate latency or replica-conflict risk.`
 
 function integerOption(value: string | undefined, fallback: number, ceiling: number): number {
   const parsed = value === undefined ? fallback : Number(value)
@@ -201,7 +219,7 @@ try {
         ? error.message
         : code
           ? 'Database refused the operation'
-          : 'Preflight or command failed; check the runbook and options',
+          : 'Preflight or command failed; use --help to check options',
     ...(code ? { code } : {}),
   })
   process.exitCode = 1
