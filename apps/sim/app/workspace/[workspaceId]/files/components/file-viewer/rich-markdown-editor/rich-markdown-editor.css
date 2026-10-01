@@ -276,19 +276,23 @@
   color: var(--brand-secondary);
 }
 
-.rich-markdown-prose pre,
-.rich-markdown-prose .mermaid-diagram-frame {
+.rich-markdown-prose pre {
   background: var(--surface-5);
   border-radius: 8px;
   padding: 1rem;
   overflow-x: auto;
 }
 
-/* A rendered Mermaid diagram wears the same frame as a code block (single source of truth above),
-   centered within it. */
+/* A rendered Mermaid diagram sits on the workflow canvas surface: flat page background, a hairline
+   frame, centered. */
 .rich-markdown-prose .mermaid-diagram-frame {
   display: flex;
   justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
 }
 
 /* Override ProseMirror's built-in `.ProseMirror pre { white-space: pre-wrap }` (the
@@ -309,8 +313,7 @@
   overflow-wrap: anywhere;
 }
 
-.dark .rich-markdown-prose pre,
-.dark .rich-markdown-prose .mermaid-diagram-frame {
+.dark .rich-markdown-prose pre {
   background: var(--code-bg);
 }
 

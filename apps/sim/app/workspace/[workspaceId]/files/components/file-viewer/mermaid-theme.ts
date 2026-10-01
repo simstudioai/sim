@@ -38,7 +38,7 @@ export function readMermaidThemeVariables(
     mainBkg: node,
     nodeBorder: border,
     textColor: body,
-    lineColor: line,
+    lineColor: token('--workflow-edge'),
     clusterBkg: token('--surface-3'),
     clusterBorder: border,
     edgeLabelBackground: background,
@@ -66,3 +66,16 @@ export function readMermaidThemeVariables(
     pieLegendTextColor: body,
   }
 }
+
+/**
+ * Flowcharts drawn like workflow canvas blocks and edges: rounded cards with a 1.5px outline,
+ * 1.5px edges without arrowheads, and subgraphs as rounded subflow containers. Scoped to
+ * flowchart classes so sequence and other diagrams keep their arrows.
+ */
+export const MERMAID_WORKFLOW_CSS = `
+  .node rect, .node polygon, .node circle, .node path { stroke-width: 1.5px; }
+  .node rect { rx: 10px; ry: 10px; }
+  .cluster rect { rx: 14px; ry: 14px; stroke-width: 1.5px; }
+  .flowchart-link { stroke-width: 1.5px; marker-end: none !important; }
+  .edgeLabel, .edgeLabel p { font-size: 12px; }
+`
