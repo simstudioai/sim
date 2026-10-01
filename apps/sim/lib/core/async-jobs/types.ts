@@ -163,6 +163,8 @@ export interface EnqueueOptions {
 export interface ExecutionJobBinding {
   workflowId: string
   executionId: string
+  /** Known root job identity; cancellation must still verify workflow, execution, and scope. */
+  rootJobId?: string
 }
 
 export type ExecutionJobCancellationScope = 'standalone' | 'resume'
