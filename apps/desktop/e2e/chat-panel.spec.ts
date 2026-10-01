@@ -99,13 +99,17 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
     page.on('pageerror', (error) => errors.push(error.message))
     await shell.evaluate(({ app, BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0]
-      window.setContentSize(1440, 800)
+      // Keep the physical window inside the small displays used by macOS CI.
+      window.setMinimumSize(0, 0)
+      window.setContentSize(720, 400)
+      window.webContents.setZoomFactor(0.5)
       window.webContents.setBackgroundThrottling(false)
       app.focus({ steal: true })
       window.focus()
     })
     await page.reload()
     expect(errors).toEqual([])
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1440)
     const panel = page.locator('[data-mothership-panel]')
     const divider = page.getByRole('separator', { name: 'Resize resource view' })
     const width = () => panel.evaluate((element) => element.getBoundingClientRect().width)
@@ -177,14 +181,14 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
       await page.getByRole('button', { name: 'Resize container' }).click()
       await expectWidth(798)
       await shell.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].setContentSize(1050, 800)
+        BrowserWindow.getAllWindows()[0].setContentSize(525, 400)
       )
       await expectWidth(570)
       await page.getByRole('button', { name: 'Settings', exact: true }).click()
       await page.getByRole('button', { name: 'Back', exact: true }).click()
       await expectWidth(570)
       await shell.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].setContentSize(1440, 800)
+        BrowserWindow.getAllWindows()[0].setContentSize(720, 400)
       )
       await expectWidth(798)
     })
@@ -203,6 +207,66 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
       expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(before)
       await page.mouse.up()
       expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toBe(before)
+    })
+
+    for (const interruption of ['pointercancel', 'capture loss', 'blur', 'detach'] as const) {
+      await check(`${interruption} keeps the previous saved width`, async () => {
+        const before = await page.evaluate(() => JSON.stringify(localStorage))
+        await divider.hover({ position: { x: 4, y: 100 } })
+        const rect = await panel.boundingBox()
+        if (!rect) throw new Error('Missing panel bounds')
+        await page.mouse.down()
+        await expect
+          .poll(() => divider.evaluate((element) => element.hasPointerCapture(1)))
+          .toBe(true)
+        await page.mouse.move(rect.x + 100, rect.y + 100, { steps: 12 })
+        await expectWidth(598)
+        if (interruption === 'pointercancel') {
+          await divider.dispatchEvent('pointercancel', { pointerId: 1 })
+        } else if (interruption === 'capture loss') {
+          await divider.evaluate((element) => element.releasePointerCapture(1))
+          await page.mouse.move(rect.x + 101, rect.y + 100)
+        } else if (interruption === 'blur') {
+          await page.evaluate(() => window.dispatchEvent(new Event('blur')))
+        } else {
+          await page
+            .getByRole('button', { name: 'Settings', exact: true })
+            .evaluate((element: HTMLButtonElement) => element.click())
+          await expect(panel).toHaveCount(0)
+        }
+        await page.mouse.up()
+        if (interruption === 'detach') {
+          await page.getByRole('button', { name: 'Back', exact: true }).click()
+        }
+        await expectWidth(698)
+        expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(before)
+      })
+    }
+
+    await check('a viewport change during a drag clamps the committed display width', async () => {
+      await page.getByRole('button', { name: 'Resize container' }).click()
+      await expectWidth(520)
+      await divider.hover({ position: { x: 4, y: 100 } })
+      const rect = await panel.boundingBox()
+      if (!rect) throw new Error('Missing panel bounds')
+      await page.mouse.down()
+      await expect
+        .poll(() => divider.evaluate((element) => element.hasPointerCapture(1)))
+        .toBe(true)
+      await page.mouse.move(rect.x + 20, rect.y + 100, { steps: 12 })
+      await expectWidth(500)
+      await shell.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0].setContentSize(300, 400)
+      )
+      await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(600)
+      await page.mouse.up()
+      await expectWidth(480)
+      await shell.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0].setContentSize(720, 400)
+      )
+      await expectWidth(500)
+      await page.getByRole('button', { name: 'Resize container' }).click()
+      await dragTo(698)
     })
 
     await check('another account cannot inherit the current chat width', async () => {

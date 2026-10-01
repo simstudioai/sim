@@ -98,6 +98,16 @@ function writeWidthInstantly(el: HTMLElement, width: number) {
   el.style.transition = prevTransition
 }
 
+/** Restores the preference within the current layout without changing the saved width. */
+function restorePanelWidth(el: HTMLElement, preferred: number | undefined) {
+  if (preferred === undefined) {
+    el.style.removeProperty('width')
+    return
+  }
+  const width = Math.min(preferred, measureMaxWidth(el))
+  if (el.style.width !== `${width}px`) writeWidthInstantly(el, width)
+}
+
 /** Mirrors the panel's current width and bounds onto the divider for assistive tech. */
 function syncDividerValue(handle: HTMLElement, el: HTMLElement, maxWidth = measureMaxWidth(el)) {
   handle.setAttribute('aria-valuemin', String(MOTHERSHIP_WIDTH.MIN))
@@ -150,13 +160,7 @@ export function useMothershipResize(
       const restoreWidth = () => {
         rafId = null
         if (cleanupRef.current) return
-        const preferred = preferredWidthRef.current
-        if (collapsed || preferred === undefined) {
-          el.style.removeProperty('width')
-        } else {
-          const width = Math.min(preferred, measureMaxWidth(el))
-          if (el.style.width !== `${width}px`) writeWidthInstantly(el, width)
-        }
+        restorePanelWidth(el, collapsed ? undefined : preferredWidthRef.current)
         const divider = focusedDividerRef.current
         if (divider && document.activeElement === divider) syncDividerValue(divider, el)
       }
@@ -195,8 +199,7 @@ export function useMothershipResize(
       const startRect = el.getBoundingClientRect()
       el.style.width = `${startRect.width}px`
 
-      // Nothing moves the panel's right edge mid-drag, and the pointer keeps the
-      // offset it grabbed at, so one measurement serves the whole gesture.
+      // Snapshot geometry avoids layout reads on every move; release applies fresh bounds.
       const geometry: DragGeometry = {
         panelRight: startRect.right,
         grabOffset: e.clientX - startRect.left,
@@ -227,30 +230,31 @@ export function useMothershipResize(
       const ac = new AbortController()
       const { signal } = ac
 
-      const cleanup = () => {
+      const finish = (commit: boolean) => {
         ac.abort()
         if (rafId !== null) {
           cancelAnimationFrame(rafId)
           rafId = null
         }
-        // Land on the exact final pointer position before transitions come back,
-        // so a fast flick whose last move never got a frame is not lost. The
-        // flush is what stops that catch-up delta from animating: without it the
-        // width write and the transition restore land in one style change, and
-        // the panel eases into its final width over 200ms while the native view
-        // chases it.
-        if (lastClientX !== null) {
-          applyWidth(lastClientX)
+        if (commit && lastClientX !== null) {
           rememberWidth(panelWidthAt(lastClientX, geometry))
         }
+        // Flush the restored width before transitions return, so the native view
+        // does not chase a 200ms catch-up animation.
+        restorePanelWidth(el, preferredWidthRef.current)
         void el.offsetWidth
         el.style.transition = prevTransition
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
         cleanupRef.current = null
+        if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
         syncDividerValue(handle, el)
       }
-      cleanupRef.current = cleanup
+      const cancel = () => finish(false)
+      const cancelPointer = (event: PointerEvent) => {
+        if (event.pointerId === pointerId) cancel()
+      }
+      cleanupRef.current = cancel
 
       handle.addEventListener(
         'pointermove',
@@ -276,18 +280,18 @@ export function useMothershipResize(
         'pointerup',
         (upEvent: PointerEvent) => {
           if (upEvent.pointerId !== pointerId) return
-          handle.releasePointerCapture(upEvent.pointerId)
-          cleanup()
+          finish(true)
         },
         { signal }
       )
 
       // Browser fires pointercancel when it reclaims the gesture (scroll, palm rejection, etc.)
       // Without this, body cursor/userSelect and transition would be permanently stuck
-      handle.addEventListener('pointercancel', cleanup, { signal })
+      handle.addEventListener('pointercancel', cancelPointer, { signal })
+      handle.addEventListener('lostpointercapture', cancelPointer, { signal })
       // A blur mid-drag (cmd-tab, window switch) would otherwise strand the
       // body cursor/userSelect overrides with no pointerup coming
-      window.addEventListener('blur', cleanup, { signal })
+      window.addEventListener('blur', cancel, { signal })
     },
     [desktopScopeId, rememberWidth]
   )

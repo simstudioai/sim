@@ -15,6 +15,8 @@ on:
       - 'apps/sim/app/workspace/**/home/hooks/use-resource-panel.ts'
       - 'apps/sim/app/workspace/**/home/components/chat-panel-layout.tsx'
       - 'apps/sim/stores/chat-panel/**'
+      - 'apps/sim/stores/constants.ts'
+      - 'apps/sim/lib/browser-agent/transport.ts'
       - 'apps/sim/scripts/fixtures/chat-panel.tsx'
       - 'apps/sim/app/layout.tsx'
       - 'apps/sim/hooks/use-desktop-update-state.ts'
