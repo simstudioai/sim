@@ -2,6 +2,7 @@
 
 import {
   ChipDropdown,
+  ChipTag,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -10,13 +11,15 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Check, ChevronDown, Settings } from '@sim/emcn/icons'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { BrowseRow, BrowseSection } from '@/app/playground/org/components/browse-rows'
 import { Changelog } from '@/app/playground/org/components/changelog'
 import { IssuesList } from '@/app/playground/org/components/issues-list'
 import { ProjectSettings } from '@/app/playground/org/components/project-settings'
 import { ProtoDashboard } from '@/app/playground/org/components/proto-dashboard'
 import { ResourceKinds } from '@/app/playground/org/components/resource-kinds'
 import { ResourceSection } from '@/app/playground/org/components/resource-section'
-import { WORKSPACES, workspaceById } from '@/app/playground/org/lib/mock-data'
+import { ORGANIZATION, WORKSPACES, workspaceById } from '@/app/playground/org/lib/mock-data'
 import {
   MAIN_SECTION_IDS,
   MAIN_SECTIONS,
@@ -36,6 +39,7 @@ const TABS = [
  */
 export function WorkspaceView() {
   const { projectId, section, setProject, setSection } = useWorkspacePane()
+  if (!projectId) return <ProjectPicker onPick={setProject} />
   const workspace = workspaceById(projectId)
   const activeTab: ProjectSection = MAIN_SECTION_IDS.includes(section as never)
     ? section
@@ -104,8 +108,34 @@ export function WorkspaceView() {
   )
 }
 
+/** The workspace tab with nothing selected: the org's projects. */
+function ProjectPicker({ onPick }: { onPick: (projectId: string) => void }) {
+  return (
+    <div className='min-h-0 flex-1 overflow-y-auto px-8 py-8'>
+      <div className='mx-auto flex w-full max-w-[560px] flex-col gap-6'>
+        <h1 className='text-[20px] text-[var(--text-primary)] leading-tight'>
+          {ORGANIZATION.name}
+        </h1>
+        <BrowseSection label='Projects'>
+          {WORKSPACES.map((workspace) => (
+            <BrowseRow key={workspace.id} onClick={() => onPick(workspace.id)}>
+              <IdentityTile initial={workspace.name[0]} />
+              <span className='shrink-0 text-[var(--text-body)]'>{workspace.name}</span>
+              <span className='min-w-0 flex-1 truncate text-[var(--text-muted)]'>
+                {workspace.description}
+              </span>
+              {workspace.needsYou > 0 && <ChipTag variant='gray'>{workspace.needsYou}</ChipTag>}
+            </BrowseRow>
+          ))}
+        </BrowseSection>
+      </div>
+    </div>
+  )
+}
+
 function SectionBody({ section }: { section: ProjectSection }) {
   const { projectId, settingsSection, setSettingsSection } = useWorkspacePane()
+  if (!projectId) throw new Error('SectionBody needs a project')
   const workspace = workspaceById(projectId)
   switch (section) {
     case 'dashboard':

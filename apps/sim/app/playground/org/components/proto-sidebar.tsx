@@ -49,7 +49,7 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 const RUNNING_CHAT_IDS = new Set(DRAFTS.flatMap((draft) => draft.running.map((w) => w.chat.id)))
 
 const NAV_ITEMS: SidebarNavItemData[] = [
-  { id: 'home', label: 'New chat', icon: Home, href: PROTO_BASE },
+  { id: 'home', label: 'New chat', icon: Home, href: protoRoutes.home },
   { id: 'search', label: 'Search', icon: Search, href: protoRoutes.search },
   { id: 'connectors', label: 'Connectors', icon: Integration, href: protoRoutes.connectors },
 ]
@@ -194,12 +194,12 @@ interface ProjectRowProps {
   railCollapsed: boolean
 }
 
-/** A project row: opens it in the workspace pane beside whatever chat is open. */
+/** A project row: opens it on Home in the workspace pane; the selected one deselects. */
 function ProjectRow({ workspace, active, railCollapsed }: ProjectRowProps) {
   return (
     <SidebarTooltip label={workspace.name} enabled={railCollapsed}>
       <Link
-        href={protoRoutes.workspace(workspace.id)}
+        href={active ? protoRoutes.home : protoRoutes.workspace(workspace.id)}
         className={cn(chipVariants({ active, fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
       >
         <IdentityTile initial={workspace.name[0]} />

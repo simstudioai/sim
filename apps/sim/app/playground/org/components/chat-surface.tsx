@@ -34,7 +34,12 @@ import {
   resolvePanelResource,
 } from '@/app/playground/org/lib/chat-resources'
 import { useProtoChats } from '@/app/playground/org/lib/chat-store'
-import { type Chat, WORKSPACES, workspaceById } from '@/app/playground/org/lib/mock-data'
+import {
+  type Chat,
+  ORGANIZATION,
+  WORKSPACES,
+  workspaceById,
+} from '@/app/playground/org/lib/mock-data'
 import type { ProjectSection } from '@/app/playground/org/lib/routes'
 import { WORKSPACE_SECTIONS } from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
@@ -207,8 +212,9 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
     if (!openRef) return
     if (openRef.startsWith('workspace:')) {
       const [, workspaceId, section] = openRef.split(':')
-      if (!WORKSPACES.some((w) => w.id === workspaceId)) throw new Error(`Bad ref ${openRef}`)
-      setProject(workspaceId)
+      if (workspaceId && !WORKSPACES.some((w) => w.id === workspaceId))
+        throw new Error(`Bad ref ${openRef}`)
+      setProject(workspaceId || null)
       if (section) {
         if (!isProjectSection(section)) throw new Error(`Bad ref ${openRef}`)
         setSection(section)
@@ -235,12 +241,12 @@ export function ChatSurface({ chat, fresh = false }: ChatSurfaceProps) {
           ? { type: active.kind }
           : { type: 'resource', resource: active }
 
-  const project = workspaceById(projectId)
+  const project = projectId ? workspaceById(projectId) : null
   const stripTabs: TabStripItem[] = [
     {
       id: WORKSPACE_TAB,
-      title: project.name,
-      icon: <IdentityTile initial={project.name[0]} />,
+      title: project?.name ?? ORGANIZATION.name,
+      icon: <IdentityTile initial={(project ?? ORGANIZATION).name[0]} />,
       pinned: true,
       active: activeKey === WORKSPACE_TAB,
     },

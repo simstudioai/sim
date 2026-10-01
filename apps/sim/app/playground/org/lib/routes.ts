@@ -41,7 +41,8 @@ export type ProjectSection = WorkspaceSection | 'resources'
  * surface reads once and turns into the workspace tab or a resource tab.
  */
 export const protoRoutes = {
-  home: PROTO_BASE,
+  /** Home, with no project selected in the workspace tab. */
+  home: `${PROTO_BASE}?open=workspace`,
   search: `${PROTO_BASE}/search`,
   connectors: `${PROTO_BASE}/connectors`,
   /** Every chat opens on its own page with the workspace pane beside it; the page 404s an unknown id. */
