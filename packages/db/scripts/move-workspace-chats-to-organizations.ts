@@ -1,8 +1,9 @@
 /**
- * Moves every Sim Chat conversation owned by an organization's workspace to that organization,
- * so the chat can act in any of the organization's workspaces the user may access. Chats of a
- * personal workspace (no organization) keep their workspace owner, as do workflow-panel chats,
- * which the schema forbids from having an organization.
+ * Moves every Sim Chat conversation an organization member holds in one of the organization's
+ * workspaces to that organization, so the chat can act in any of the organization's workspaces the
+ * user may access. Chats of a personal workspace (no organization) keep their workspace owner, as
+ * do external collaborators' chats, since opening an organization chat requires membership, and
+ * workflow-panel chats.
  *
  * Run by hand, not as an automatic migration: the workspace sidebar still lists chats by their
  * workspace owner, so this must wait until it lists organization chats. It records each chat's
@@ -27,6 +28,9 @@ async function main() {
       SELECT count(*)::int AS count
       FROM copilot_chats c JOIN workspace w ON w.id = c.workspace_id
       WHERE c.type = 'mothership' AND c.workflow_id IS NULL AND w.organization_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM member m WHERE m.organization_id = w.organization_id AND m.user_id = c.user_id
+        )
     `
     logger.info('Workspace chats to move to their organization', { count, dryRun })
     if (dryRun) return
@@ -43,6 +47,10 @@ async function main() {
         WHERE c.id IN (
           SELECT c2.id FROM copilot_chats c2 JOIN workspace w2 ON w2.id = c2.workspace_id
           WHERE c2.type = 'mothership' AND c2.workflow_id IS NULL AND w2.organization_id IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM member m
+              WHERE m.organization_id = w2.organization_id AND m.user_id = c2.user_id
+            )
           ORDER BY c2.id LIMIT ${BATCH_SIZE}
         )
           AND w.id = c.workspace_id
