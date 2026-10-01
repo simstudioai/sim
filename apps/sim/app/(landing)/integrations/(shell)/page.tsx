@@ -45,7 +45,7 @@ const CATALOG_FAQS: FAQItem[] = [
   },
   {
     question: 'Can external events trigger my agents automatically?',
-    answer: `Yes. ${TRIGGER_INTEGRATION_COUNT} Sim integrations include real-time webhook triggers. Add a trigger block to your agent, copy its webhook URL into the external service, and every matching event starts your agent instantly, no polling, no delay.`,
+    answer: `Yes. ${TRIGGER_INTEGRATION_COUNT} Sim integrations include triggers, delivered by webhook or by polling depending on the service. Add a trigger block to your agent, and every matching event in the external service starts a run.`,
   },
   {
     question: 'How many integrations does Sim support?',
@@ -99,7 +99,7 @@ export async function generateMetadata({
 
   return withFilteredNoindex(
     {
-      title: 'Integrations',
+      title: 'Integrations for AI Agents',
       description: `Connect ${INTEGRATION_COUNT}+ apps and services in Sim's AI workspace. Build agents that automate real work with ${TOP_NAMES.join(', ')}, and more.`,
       keywords: [
         'AI workspace integrations',
@@ -144,14 +144,9 @@ export default async function IntegrationsPage({
     itemListElement: allIntegrations.map((integration, index) => ({
       '@type': 'ListItem',
       position: index + 1,
-      item: {
-        '@type': 'SoftwareApplication',
-        name: integration.name,
-        description: integration.description,
-        url: `${baseUrl}/integrations/${integration.slug}`,
-        applicationCategory: 'BusinessApplication',
-        featureList: integration.operations.map((o) => o.name),
-      },
+      name: integration.name,
+      description: integration.description,
+      url: `${baseUrl}/integrations/${integration.slug}`,
     })),
   }
 
@@ -173,12 +168,19 @@ export default async function IntegrationsPage({
 
       {/* Hero */}
       <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
+        <p className='sr-only'>
+          Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
+          Sim&apos;s catalog lists {INTEGRATION_COUNT} integrations that together give AI agents{' '}
+          {TOTAL_TOOL_COUNT.toLocaleString('en-US')} tools. {TRIGGER_INTEGRATION_COUNT} integrations
+          include triggers that start an agent from an external event, and {OAUTH_COUNT} connect
+          with one-click OAuth.
+        </p>
         <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
           <h1
             id='integrations-heading'
             className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'
           >
-            Integrations
+            Integrations for AI agents
           </h1>
           <p className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
             Connect every tool your team uses. Build agents that automate real work across{' '}

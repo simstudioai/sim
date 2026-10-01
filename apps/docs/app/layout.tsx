@@ -11,7 +11,7 @@ import { Navbar } from '@/components/navbar/navbar'
 import { SimWordmark } from '@/components/ui/sim-logo'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { source } from '@/lib/source'
-import { DOCS_BASE_URL } from '@/lib/urls'
+import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 import { season } from '@/app/fonts/season'
 import './global.css'
 
@@ -31,7 +31,7 @@ const structuredData = {
   publisher: {
     '@type': 'Organization',
     name: 'Sim',
-    url: 'https://sim.ai',
+    url: SIM_SITE_URL,
     logo: {
       '@type': 'ImageObject',
       url: `${DOCS_BASE_URL}/static/logo.png`,
@@ -138,7 +138,7 @@ export const metadata = {
     'AI agent deployment',
     'AI tools',
   ],
-  authors: [{ name: 'Sim Team', url: 'https://sim.ai' }],
+  authors: [{ name: 'Sim Team', url: SIM_SITE_URL }],
   creator: 'Sim',
   publisher: 'Sim',
   category: 'Developer Tools',
@@ -185,18 +185,16 @@ export const metadata = {
     site: '@simdotai',
     images: [`${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`],
   },
+  /**
+   * Preview hints only. Indexable is the default, and asserting `index` or a
+   * root canonical here would also reach the not-found page, contradicting
+   * the `noindex` Next adds there; each doc page sets its own canonical.
+   */
   robots: {
-    index: true,
-    follow: true,
     googleBot: {
-      index: true,
-      follow: true,
       'max-video-preview': -1,
       'max-image-preview': 'large',
       'max-snippet': -1,
     },
-  },
-  alternates: {
-    canonical: DOCS_BASE_URL,
   },
 }

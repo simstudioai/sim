@@ -70,6 +70,7 @@
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
     "check:native-typecheck": "bun run scripts/check-native-typecheck.ts",
     "check:source-text": "bun run scripts/check-source-text.ts",
+    "check:site-urls": "bun run scripts/check-site-urls.ts",
     "check:spec-example-ids": "bun run scripts/check-spec-example-ids.ts",
     "check:script-tests": "bun run scripts/check-script-test-coverage.ts",
     "check:test-patterns": "bun run scripts/check-test-patterns.ts",

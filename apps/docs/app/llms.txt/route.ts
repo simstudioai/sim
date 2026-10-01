@@ -51,8 +51,8 @@ ${Object.entries(sections)
 
 - [Full documentation content](${baseUrl}/llms-full.txt)
 - Individual page content: ${baseUrl}/llms.mdx/[page-path]
-- [API documentation](${baseUrl}/api-reference/)
-- [Tool integrations](${baseUrl}/tools/)
+- [API documentation](${baseUrl}/api-reference/getting-started)
+- [Integrations](${baseUrl}/integrations)
 
 ## Statistics
 

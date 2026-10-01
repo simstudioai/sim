@@ -88,6 +88,7 @@
       "dependencies": {
         "@sim/db": "workspace:*",
         "@sim/emcn": "workspace:*",
+        "@sim/utils": "workspace:*",
         "@sim/workflow-renderer": "workspace:*",
         "@xyflow/react": "12.11.3",
         "class-variance-authority": "^0.7.1",
