@@ -4,6 +4,10 @@ import { memo, useEffect, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { useTheme } from 'next-themes'
+import {
+  mermaidWorkflowCss,
+  readMermaidThemeVariables,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/mermaid-theme'
 import { PreviewLoadingFrame } from './preview-shared'
 import { ZoomablePreview } from './zoomable-preview'
 
@@ -124,10 +128,23 @@ export const MermaidDiagram = memo(function MermaidDiagram({
         const { default: mermaid } = await import('mermaid')
         if (cancelled) return
 
+        const themeVariables = readMermaidThemeVariables(
+          document.documentElement,
+          mermaidTheme === 'dark'
+        )
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',
-          theme: mermaidTheme,
+          theme: 'base',
+          themeCSS: mermaidWorkflowCss(String(themeVariables.fontFamily)),
+          flowchart: {
+            curve: 'basis',
+            padding: 12,
+            nodeSpacing: 36,
+            rankSpacing: 56,
+            wrappingWidth: 180,
+          },
+          themeVariables,
         })
         mermaid.setParseErrorHandler?.(() => undefined)
 
