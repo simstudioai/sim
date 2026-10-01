@@ -350,35 +350,7 @@ export class BlockExecutor {
         })) as NormalizedBlockOutput
       }
 
-      if (blockCtx.piiBlockOutputRedaction?.enabled) {
-        // In-flight redaction before the log/state split below, so both the
-        // downstream state copy and the persisted log copy are masked.
-        // `onFailure: 'throw'` aborts the run rather than feeding corrupted/leaked
-        // data downstream.
-        const redactionOptions = {
-          entityTypes: blockCtx.piiBlockOutputRedaction.entityTypes,
-          language: blockCtx.piiBlockOutputRedaction.language,
-          customPatterns: blockCtx.piiBlockOutputRedaction.customPatterns,
-          onFailure: 'throw' as const,
-        }
-        // Tools like the function executor offload large outputs to large-value
-        // refs BEFORE they reach here, and the string walk treats a ref as opaque.
-        // So hydrate → mask → re-store any refs first, then mask inline strings —
-        // otherwise PII inside an offloaded output is never redacted.
-        normalizedOutput = await redactLargeValueRefsInValue(normalizedOutput, {
-          ...redactionOptions,
-          store: {
-            workspaceId: blockCtx.workspaceId,
-            workflowId: blockCtx.workflowId,
-            executionId: blockCtx.executionId,
-            largeValueExecutionIds: blockCtx.largeValueExecutionIds,
-            largeValueKeys: blockCtx.largeValueKeys,
-            allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
-            userId: blockCtx.userId,
-          },
-        })
-        normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
-      }
+      normalizedOutput = await this.redactBlockOutput(normalizedOutput, blockCtx)
 
       const compacted = await compactBlockOutput(normalizedOutput, {
         workspaceId: blockCtx.workspaceId,
@@ -622,6 +594,33 @@ export class BlockExecutor {
     }
   }
 
+  private async redactBlockOutput(
+    output: NormalizedBlockOutput,
+    ctx: ExecutionContext
+  ): Promise<NormalizedBlockOutput> {
+    if (!ctx.piiBlockOutputRedaction?.enabled) return output
+    const options = {
+      entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
+      language: ctx.piiBlockOutputRedaction.language,
+      customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
+      onFailure: 'throw' as const,
+    }
+    // Offloaded content must be hydrated, masked, and re-stored before inline strings.
+    const redacted = await redactLargeValueRefsInValue(output, {
+      ...options,
+      store: {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        largeValueExecutionIds: ctx.largeValueExecutionIds,
+        largeValueKeys: ctx.largeValueKeys,
+        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+        userId: ctx.userId,
+      },
+    })
+    return redactObjectStrings(redacted, options)
+  }
+
   private async handleBlockError(
     error: unknown,
     ctx: ExecutionContext,
@@ -637,10 +636,10 @@ export class BlockExecutor {
     streamingPartialOutput?: Record<string, any>,
     completedHandlerCost?: TrustedExecutionCost
   ): Promise<NormalizedBlockOutput> {
-    const endedAt = new Date().toISOString()
-    const duration = performance.now() - startTime
+    let endedAt = new Date().toISOString()
+    let duration = performance.now() - startTime
     const isDatabaseError = error instanceof DrizzleQueryError
-    const errorMessage = isDatabaseError ? INTERNAL_DATABASE_ERROR_MESSAGE : normalizeError(error)
+    let errorMessage = isDatabaseError ? INTERNAL_DATABASE_ERROR_MESSAGE : normalizeError(error)
     const hasLogInputs =
       inputsForLog && typeof inputsForLog === 'object' && Object.keys(inputsForLog).length > 0
     const input = hasLogInputs
@@ -709,8 +708,19 @@ export class BlockExecutor {
     }
 
     const trustedExecutionCost = readTrustedExecutionCost(error) ?? completedHandlerCost
+    let partialOutput = readToolFailureOutput(error)
+    if (partialOutput) {
+      try {
+        partialOutput = await this.redactBlockOutput(partialOutput, ctx)
+      } catch {
+        partialOutput = undefined
+        errorMessage = 'PII redaction failed. Partial tool output was omitted.'
+      }
+    }
+    endedAt = new Date().toISOString()
+    duration = performance.now() - startTime
     const errorOutput: NormalizedBlockOutput = {
-      ...readToolFailureOutput(error),
+      ...partialOutput,
       error: errorMessage,
       ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),
     }

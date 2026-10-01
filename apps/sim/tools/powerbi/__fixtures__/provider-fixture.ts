@@ -2,6 +2,11 @@ import dns from 'node:dns/promises'
 import type NodeHTTP from 'node:http'
 import type NodeHTTPS from 'node:https'
 import { syncBuiltinESMExports } from 'node:module'
+import type NodeNet from 'node:net'
+
+// This pin must pass the real public-address egress policy. TEST-NET is reserved and rejected;
+// the active socket fence below confines Node TCP dialing to loopback.
+const SYNTHETIC_PUBLIC_PIN = '8.8.8.8'
 
 export const POWERBI_FIXTURE_TOKEN = 'powerbi-synthetic-access-token'
 export const POWERBI_FIXTURE_REFRESH_TOKEN = 'powerbi-synthetic-refresh-token'
@@ -127,6 +132,12 @@ export async function startPowerBIProviderFixture(http: typeof NodeHTTP) {
       return
     }
     const root = '/v1.0/myorg'
+    if (
+      entry.method === 'GET' &&
+      url.pathname === `${root}/groups/${POWERBI_FIXTURE_IDS.groupId}`
+    ) {
+      return send(200, WORKSPACE)
+    }
     if (url.pathname === `${root}/groups`) {
       const skip = Number(url.searchParams.get('$skip') ?? 0)
       if (scenario === 'paged-workspaces' || scenario === 'oversized-workspaces') {
@@ -222,7 +233,7 @@ export async function startPowerBIProviderFixture(http: typeof NodeHTTP) {
 /** Redirects only the fixed Power BI destination; unexpected external traffic fails closed. */
 export function installPowerBITransport(
   origin: string,
-  { http, https }: { http: typeof NodeHTTP; https: typeof NodeHTTPS }
+  { http, https, net }: { http: typeof NodeHTTP; https: typeof NodeHTTPS; net: typeof NodeNet }
 ) {
   const fixture = new URL(origin)
   if (fixture.protocol !== 'http:' || fixture.hostname !== '127.0.0.1') {
@@ -231,10 +242,11 @@ export function installPowerBITransport(
   const realLookup = dns.lookup
   const realRequest = https.request
   const realFetch = globalThis.fetch
+  const realSocketConnect = net.Socket.prototype.connect
   const loopback = (host: string) => ['localhost', '127.0.0.1', '[::1]', '::1'].includes(host)
   const lookup = (async (hostname: string, options?: { all?: boolean } | number) => {
     if (hostname === 'api.powerbi.com') {
-      const resolved = { address: '8.8.8.8', family: 4 }
+      const resolved = { address: SYNTHETIC_PUBLIC_PIN, family: 4 }
       return typeof options === 'object' && options.all ? [resolved] : resolved
     }
     if (!loopback(hostname)) throw new Error(`Blocked unexpected fixture DNS: ${hostname}`)
@@ -243,7 +255,72 @@ export function installPowerBITransport(
       ? realLookup(hostname, { ...options, all: true })
       : realLookup(hostname, { ...options, all: false })
   }) as typeof dns.lookup
-  dns.lookup = lookup
+  const connect = function (this: NodeNet.Socket, ...args: unknown[]) {
+    let options: Record<string, unknown>
+    let callback: unknown
+    const first = args[0]
+    const reject = () => {
+      throw new Error('Blocked unexpected fixture socket: explicit loopback TCP required')
+    }
+
+    if (Array.isArray(first)) {
+      // net.connect/createConnection pass Node's normalized [options, callback] array.
+      // Forward a fresh options object, never the original array: an unmarked array's
+      // own host/port properties otherwise mean something different to Node.
+      if (
+        args.length !== 1 ||
+        first.length !== 2 ||
+        !first[0] ||
+        typeof first[0] !== 'object' ||
+        Array.isArray(first[0]) ||
+        (first[1] !== null && typeof first[1] !== 'function') ||
+        Object.getOwnPropertyNames(first).some((key) => !['0', '1', 'length'].includes(key))
+      ) {
+        return reject()
+      }
+      options = { ...first[0] }
+      callback = first[1]
+    } else if (first && typeof first === 'object') {
+      if (args.length > 2 || (args[1] !== undefined && typeof args[1] !== 'function')) {
+        return reject()
+      }
+      options = { ...first }
+      callback = args[1]
+    } else if (typeof first === 'number' || (typeof first === 'string' && /^\d+$/.test(first))) {
+      if (
+        args.length < 2 ||
+        args.length > 3 ||
+        typeof args[1] !== 'string' ||
+        (args[2] !== undefined && typeof args[2] !== 'function')
+      ) {
+        return reject()
+      }
+      options = { port: first, host: args[1] }
+      callback = args[2]
+    } else {
+      return reject()
+    }
+
+    // Snapshot getters before validation and delegate using the same captured host.
+    // Literal destinations skip DNS, including an explicit localhost rewritten below.
+    const host = options.host === 'localhost' ? '127.0.0.1' : options.host
+    const port = options.port
+    if (
+      (host !== '127.0.0.1' && host !== '::1') ||
+      options.path != null ||
+      options.socketPath != null ||
+      !(
+        (typeof port === 'number' && Number.isInteger(port)) ||
+        (typeof port === 'string' && /^\d+$/.test(port))
+      ) ||
+      Number(port) < 1 ||
+      Number(port) > 65_535
+    ) {
+      return reject()
+    }
+    options.host = host
+    return Reflect.apply(realSocketConnect, this, callback ? [options, callback] : [options])
+  } as typeof net.Socket.prototype.connect
   const request = ((
     options: NodeHTTPS.RequestOptions,
     callback?: (response: NodeHTTP.IncomingMessage) => void
@@ -272,8 +349,7 @@ export function installPowerBITransport(
       callback
     )
   }) as typeof https.request
-  https.request = request
-  globalThis.fetch = async (input, init) => {
+  const fetch: typeof globalThis.fetch = async (input, init) => {
     const request = new Request(input, init)
     const url = new URL(request.url)
     if (url.origin === 'https://api.powerbi.com' && !url.username && !url.password) {
@@ -294,11 +370,22 @@ export function installPowerBITransport(
       throw new Error(`Blocked unexpected fixture fetch: ${url.hostname}`)
     return realFetch(request)
   }
-  syncBuiltinESMExports()
-  return () => {
+  const restore = () => {
+    net.Socket.prototype.connect = realSocketConnect
     dns.lookup = realLookup
     https.request = realRequest
     globalThis.fetch = realFetch
     syncBuiltinESMExports()
   }
+  try {
+    net.Socket.prototype.connect = connect
+    dns.lookup = lookup
+    https.request = request
+    globalThis.fetch = fetch
+    syncBuiltinESMExports()
+  } catch (error) {
+    restore()
+    throw error
+  }
+  return restore
 }

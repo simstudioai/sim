@@ -10,6 +10,7 @@ import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import { isToolDiagnosticFailure } from '@/tools/errors'
 import { isInternalToolConfig, type ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
@@ -348,7 +349,7 @@ export class GenericBlockHandler implements BlockHandler {
         const error = new Error(errorMessage)
 
         const declaredOutput: Record<string, unknown> = {}
-        if (isPlainRecord(result.output)) {
+        if (!isToolDiagnosticFailure(result) && isPlainRecord(result.output)) {
           for (const key of Object.keys(tool?.outputs ?? {})) {
             if (key !== 'cost' && key !== 'error' && Object.hasOwn(result.output, key)) {
               declaredOutput[key] = result.output[key]

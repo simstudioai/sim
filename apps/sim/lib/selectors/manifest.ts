@@ -380,7 +380,7 @@ export const selectorManifest = {
     search: true,
     detail: true,
   }),
-  'powerbi.workspaces': providerSelector([], { listMode: 'paginated' }),
+  'powerbi.workspaces': providerSelector([], { listMode: 'paginated', detail: true }),
   'powerbi.datasets': providerSelector(['groupId'], {
     readiness: { all: ['oauthCredential', 'groupId'] },
     detail: true,

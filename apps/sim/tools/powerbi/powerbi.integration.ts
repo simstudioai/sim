@@ -1,6 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import https from 'node:https'
+import net from 'node:net'
 import path from 'node:path'
 import { db } from '@sim/db'
 import {
@@ -32,6 +33,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { executeSelector } from '@/lib/selectors/application/execute-selector'
+import { getSelectorOption } from '@/lib/selectors/application/get-selector-option'
 import type { SelectorRequest } from '@/lib/selectors/types'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { executeManualWorkflowOperation } from '@/lib/workflows/application/execute-manual-workflow'
@@ -92,7 +94,13 @@ async function checked(name: string, run: () => Promise<void>) {
   }
 }
 
-async function savedWorkflow(operations: string[], connection = credentialId) {
+type ConfigureWorkflowFixture = (state: WorkflowState, blockIds: string[]) => void
+
+async function savedWorkflow(
+  operations: string[],
+  connection = credentialId,
+  configure?: ConfigureWorkflowFixture
+) {
   const workflowId = generateId()
   workflowIds.push(workflowId)
   const now = new Date()
@@ -144,18 +152,20 @@ async function savedWorkflow(operations: string[], connection = credentialId) {
     edges.push({ id: generateId(), source: previousId, target: blockId })
     previousId = blockId
   }
-  const saved = await saveWorkflowToNormalizedTables(workflowId, {
-    blocks,
-    edges,
-    loops: {},
-    parallels: {},
-  })
+  const state: WorkflowState = { blocks, edges, loops: {}, parallels: {} }
+  configure?.(state, blockIds)
+  const saved = await saveWorkflowToNormalizedTables(workflowId, state)
   expect(saved.success, saved.error).toBe(true)
   return { workflowId, blockIds }
 }
 
-async function runWorkflow(operations: string[], signal?: AbortSignal, connection = credentialId) {
-  const saved = await savedWorkflow(operations, connection)
+async function runWorkflow(
+  operations: string[],
+  signal?: AbortSignal,
+  connection = credentialId,
+  configure?: ConfigureWorkflowFixture
+) {
+  const saved = await savedWorkflow(operations, connection, configure)
   const executionId = generateId()
   executionIds.push(executionId)
   const result = await executeManualWorkflowOperation.execute({
@@ -206,7 +216,7 @@ function selector(
 
 beforeAll(async () => {
   provider = await startPowerBIProviderFixture(http)
-  restoreTransport = installPowerBITransport(provider.origin, { http, https })
+  restoreTransport = installPowerBITransport(provider.origin, { http, https, net })
   const now = new Date()
   await db.insert(user).values(
     [ownerId, outsiderId].map((id) => ({
@@ -472,11 +482,48 @@ describe('Power BI with persisted delegated credentials and provider wire respon
       })
     }))
 
-  it('stores partial DAX rows and the provider error while marking the run failed', () =>
-    checked('partial DAX durable failure', async () => {
+  it.each([
+    { handling: 'unhandled', status: 'failed' },
+    { handling: 'error port', status: 'completed' },
+  ] as const)('keeps partial DAX rows available with $handling handling', ({ handling, status }) =>
+    checked(`partial DAX durable ${handling}`, async () => {
       provider.setScenario('partial-query')
-      const run = await runWorkflow(['powerbi_execute_query'])
-      expect(run.result).toMatchObject({ ok: true, status: 'failed' })
+      const consumerId = generateId()
+      const configure: ConfigureWorkflowFixture | undefined =
+        handling === 'error port'
+          ? (state, blockIds) => {
+              state.blocks[consumerId] = createBlock({
+                id: consumerId,
+                type: 'function',
+                name: 'Consume partial query',
+                subBlocks: {
+                  language: { id: 'language', type: 'dropdown', value: 'javascript' },
+                  code: {
+                    id: 'code',
+                    type: 'code',
+                    value: [
+                      'const rows = <powerbi_execute_query.rows>;',
+                      'const incomplete = <powerbi_execute_query.incomplete>;',
+                      'return {',
+                      '  revenue: rows.reduce((sum, row) => sum + row["[Revenue]"], 0),',
+                      '  rowCount: rows.length,',
+                      '  incomplete,',
+                      '};',
+                    ].join('\n'),
+                  },
+                },
+              })
+              state.edges.push({
+                id: generateId(),
+                source: blockIds[0],
+                target: consumerId,
+                sourceHandle: 'error',
+                targetHandle: 'target',
+              })
+            }
+          : undefined
+      const run = await runWorkflow(['powerbi_execute_query'], undefined, credentialId, configure)
+      expect(run.result).toMatchObject({ ok: true, status })
       expect(provider.requests).toHaveLength(1)
       const errorLog = run.state?.blockLogs.find((log) => log.blockId === run.blockIds[0])
       expect(errorLog).toMatchObject({
@@ -490,7 +537,20 @@ describe('Power BI with persisted delegated credentials and provider wire respon
           ],
         },
       })
-    }))
+      if (handling === 'error port') {
+        expect(errorLog?.errorHandled).toBe(true)
+        const result = { revenue: 125, rowCount: 1, incomplete: true }
+        expect(run.state?.blockLogs.find((log) => log.blockId === consumerId)).toMatchObject({
+          success: true,
+          output: { result },
+        })
+        expect(run.state?.blockStates[consumerId]).toMatchObject({
+          executed: true,
+          output: { result },
+        })
+      }
+    })
+  )
 
   it('projects all selectors safely, hydrates saved IDs, and follows only bounded workspace offsets', () =>
     checked('selector projection and bounded pagination', async () => {
@@ -519,6 +579,44 @@ describe('Power BI with persisted delegated credentials and provider wire respon
         item: { id: POWERBI_FIXTURE_IDS.reportId, label: 'Fixture Revenue' },
       })
       provider.setScenario('paged-workspaces')
+      const workspaceSelection = {
+        selectorKey: 'powerbi.workspaces' as const,
+        scope: { kind: 'workspace' as const, workspaceId },
+        context: { oauthCredential: credentialId },
+      }
+      const beforeHydration = provider.requests.length
+      expect(
+        await getSelectorOption.execute({
+          principal,
+          input: { ...workspaceSelection, id: POWERBI_FIXTURE_IDS.groupId },
+        })
+      ).toEqual({ id: POWERBI_FIXTURE_IDS.groupId, label: 'Fixture Analytics' })
+      expect(provider.requests.slice(beforeHydration)).toEqual([
+        {
+          method: 'GET',
+          path: `/v1.0/myorg/groups/${POWERBI_FIXTURE_IDS.groupId}`,
+          body: null,
+          authorized: true,
+          status: 200,
+        },
+      ])
+      const deletedWorkspaceId = '44444444-4444-4444-8444-444444444444'
+      const beforeDeletedHydration = provider.requests.length
+      expect(
+        await getSelectorOption.execute({
+          principal,
+          input: { ...workspaceSelection, id: deletedWorkspaceId },
+        })
+      ).toBeNull()
+      expect(provider.requests.slice(beforeDeletedHydration)).toEqual([
+        {
+          method: 'GET',
+          path: `/v1.0/myorg/groups/${deletedWorkspaceId}`,
+          body: null,
+          authorized: true,
+          status: 404,
+        },
+      ])
       const first = await selector('powerbi.workspaces')
       expect(first).toMatchObject({ kind: 'list', nextCursor: '100' })
       if (first.kind !== 'list') throw new Error('Expected a selector list')
@@ -569,7 +667,51 @@ describe('Power BI with persisted delegated credentials and provider wire respon
     }))
 
   it('turns malformed, oversized, forbidden, and rate-limited provider responses into bounded failures', () =>
-    checked('provider failure and response budgets', async () => {
+    checked('provider failure, response budgets, and socket confinement', async () => {
+      // Replace the native dial with a no-I/O delegate so a broken fence cannot contact a provider.
+      restoreTransport?.()
+      const nativeConnect = vi.spyOn(net.Socket.prototype, 'connect').mockImplementation(function (
+        this: net.Socket
+      ) {
+        return this
+      })
+      let restoreFallback: (() => void) | undefined
+      try {
+        restoreFallback = installPowerBITransport(provider.origin, { http, https, net })
+        const local = net.createConnection({
+          host: '127.0.0.1',
+          port: Number(new URL(provider.origin).port),
+        })
+        local.destroy()
+        expect(nativeConnect).toHaveBeenCalledTimes(1)
+
+        const external = new URL('https://api.powerbi.com/')
+        const forgedNormalized = Object.assign([{ host: '127.0.0.1', port: 443 }, null], {
+          host: '8.8.8.8',
+          port: 443,
+        })
+        for (const args of [
+          [443, '8.8.8.8'],
+          [{ host: external.hostname, port: 443 }],
+          ['/tmp/powerbi-unexpected-fixture.sock'],
+          [forgedNormalized],
+        ]) {
+          const socket = new net.Socket()
+          try {
+            expect(() => Reflect.apply(socket.connect, socket, args)).toThrow(
+              'Blocked unexpected fixture socket: explicit loopback TCP required'
+            )
+          } finally {
+            socket.destroy()
+          }
+        }
+        expect(nativeConnect).toHaveBeenCalledTimes(1)
+      } finally {
+        restoreFallback?.()
+        nativeConnect.mockRestore()
+        restoreTransport = installPowerBITransport(provider.origin, { http, https, net })
+      }
+
       for (const scenario of ['malformed', 'oversized', 'forbidden', 'rate-limited'] as const) {
         provider.setScenario(scenario)
         await expect(selector('powerbi.datasets')).rejects.toThrow(

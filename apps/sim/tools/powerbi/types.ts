@@ -139,8 +139,8 @@ export interface PowerBIGetRefreshHistoryResponse extends ToolResponse {
   output: { refreshes: PowerBIRefresh[]; refreshCount: number }
 }
 
-const nullableString = { type: 'string', optional: true, nullable: true } as const
-const nullableBoolean = { type: 'boolean', optional: true, nullable: true } as const
+const nullableString = { type: 'string', nullable: true } as const
+const nullableBoolean = { type: 'boolean', nullable: true } as const
 
 export const POWERBI_WORKSPACE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Workspace ID' },
@@ -209,7 +209,6 @@ export const POWERBI_DATASET_OUTPUT_PROPERTIES = {
 export const POWERBI_REFRESH_ATTEMPT_OUTPUT_PROPERTIES = {
   attemptId: {
     type: 'number',
-    optional: true,
     nullable: true,
     description: 'Refresh attempt index',
   },
@@ -237,7 +236,6 @@ export const POWERBI_REFRESH_OUTPUT_PROPERTIES = {
   },
   refreshAttempts: {
     type: 'array',
-    optional: true,
     description: 'Refresh attempts supplied by the provider',
     items: { type: 'object', properties: POWERBI_REFRESH_ATTEMPT_OUTPUT_PROPERTIES },
   },
@@ -249,7 +247,6 @@ export const POWERBI_QUERY_ERROR_OUTPUT_PROPERTIES = {
   message: { ...nullableString, description: 'Direct provider error message, when supplied' },
   details: {
     type: 'json',
-    optional: true,
     nullable: true,
     description: 'Dynamic nested provider error details, when supplied',
   },

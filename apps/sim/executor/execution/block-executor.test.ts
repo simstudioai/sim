@@ -5,7 +5,11 @@ import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import {
+  createLargeArrayManifest,
+  isLargeArrayManifest,
+  readLargeArrayManifestSlice,
+} from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { validateBlockType } from '@/ee/access-control/utils/permission-check'
@@ -14,7 +18,7 @@ import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { attachTrustedExecutionCost } from '@/executor/utils/errors'
+import { attachToolFailureOutput, attachTrustedExecutionCost } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -127,6 +131,143 @@ describe('BlockExecutor', () => {
     await Promise.all(blocks.map((block) => executor.execute(context, createNode(block), block)))
     expect(contexts[0]).not.toBe(contexts[1])
     expect(context.mcpBlockId).toBeUndefined()
+  })
+
+  function createFailedToolExecution(output: Record<string, unknown>) {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const failure = new Error('query incomplete')
+    attachToolFailureOutput(failure, output)
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => {
+        throw failure
+      },
+    }
+    const onBlockComplete = vi.fn(async () => {})
+    const executor = new BlockExecutor(
+      [handler],
+      new VariableResolver(workflow, {}, state),
+      { onBlockComplete },
+      state
+    )
+    const ctx = createContext(state)
+    ctx.piiBlockOutputRedaction = {
+      enabled: true,
+      entityTypes: ['EMAIL_ADDRESS'],
+      language: 'en',
+    }
+    const node = createNode(block)
+    node.outgoingEdges.set('error-edge', { sourceHandle: EDGE.ERROR, target: 'error-handler' })
+    return { executor, block, state, ctx, node, failure, onBlockComplete }
+  }
+
+  it('masks partial failed tool rows before error-port state and completion output', async () => {
+    mockMaskBatch.mockImplementation(async (texts: string[]) =>
+      texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>'))
+    )
+    const { executor, block, state, ctx, node, onBlockComplete } = createFailedToolExecution({
+      rows: [{ email: 'alice@example.com', count: 7 }],
+      rowCount: 1,
+      incomplete: true,
+    })
+
+    const output = await executor.execute(ctx, node, block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    const expected = {
+      rows: [{ email: '<EMAIL_ADDRESS>', count: 7 }],
+      rowCount: 1,
+      incomplete: true,
+      error: 'query incomplete',
+    }
+    expect(output).toEqual(expected)
+    expect(state.getBlockOutput(block.id)).toEqual(expected)
+    expect(ctx.blockLogs[0]?.output).toEqual(expected)
+    expect(onBlockComplete.mock.calls[0]?.[3]?.output).toEqual(expected)
+    expect(ctx.blockLogs[0]).toMatchObject({ success: false, errorHandled: true })
+  })
+
+  it('masks and re-stores partial failed tool manifests under the current execution', async () => {
+    const items = [{ email: 'alice@example.com', count: 7 }]
+    const manifest = await createLargeArrayManifest(items, {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'source-execution',
+    })
+    clearLargeValueCacheForTests()
+    mockDownloadFile.mockResolvedValue(Buffer.from(JSON.stringify(items)))
+    mockMaskBatch.mockImplementation(async (texts: string[]) =>
+      texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>'))
+    )
+    const { executor, block, state, ctx, node, onBlockComplete } = createFailedToolExecution({
+      rows: manifest,
+      rowCount: 1,
+      incomplete: true,
+    })
+    ctx.largeValueExecutionIds = ['source-execution']
+
+    const output = await executor.execute(ctx, node, block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(output).toMatchObject({ rowCount: 1, incomplete: true, error: 'query incomplete' })
+    expect(output.rows).toMatchObject({
+      preview: [{ email: '<EMAIL_ADDRESS>', count: 7 }],
+      chunks: [{ ref: { executionId: 'execution-1' } }],
+    })
+    if (!isLargeArrayManifest(output.rows)) throw new Error('Expected a masked row manifest')
+    expect(
+      await readLargeArrayManifestSlice(output.rows, 0, 1, {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+      })
+    ).toEqual([{ email: '<EMAIL_ADDRESS>', count: 7 }])
+    expect(state.getBlockOutput(block.id)).toEqual(output)
+    expect(ctx.blockLogs[0]?.output).toEqual(output)
+    expect(onBlockComplete.mock.calls[0]?.[3]?.output).toEqual(output)
+  })
+
+  it('omits failed tool payloads when masking fails while preserving trusted cost', async () => {
+    const unsafeFailure = 'mask service failed while processing alice@example.com'
+    mockMaskBatch.mockRejectedValueOnce(new Error(unsafeFailure))
+    const { executor, block, state, ctx, node, failure, onBlockComplete } =
+      createFailedToolExecution({
+        rows: [{ email: 'alice@example.com', count: 7 }],
+        rowCount: 1,
+        incomplete: true,
+      })
+    const cost = { input: 0.1, output: 0.2, total: 0.3 }
+    attachTrustedExecutionCost(failure, cost)
+
+    const output = await executor.execute(ctx, node, block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    const expected = {
+      error: 'PII redaction failed. Partial tool output was omitted.',
+      cost,
+    }
+    expect(output).toEqual(expected)
+    expect(state.getBlockOutput(block.id)).toEqual(expected)
+    expect(ctx.blockLogs[0]?.output).toEqual(expected)
+    expect(ctx.blockLogs[0]?.error).toBe(expected.error)
+    expect(onBlockComplete.mock.calls[0]?.[3]?.output).toEqual(expected)
+    expect(ctx.blockLogs[0]).toMatchObject({ success: false, errorHandled: true })
+    const surfaced = JSON.stringify([
+      output,
+      ctx.blockLogs,
+      onBlockComplete.mock.calls,
+      blockExecutorBaseLogger.error.mock.calls,
+    ])
+    expect(surfaced).not.toContain('alice@example.com')
+    expect(surfaced).not.toContain(unsafeFailure)
   })
 
   it('redacts an authorized prior-execution manifest returned by a block under the current execution', async () => {

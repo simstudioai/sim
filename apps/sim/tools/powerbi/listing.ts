@@ -29,7 +29,7 @@ function workspaceOffset(value: string | undefined): number {
   return offset
 }
 
-/** Lists one documented Power BI page and projects only endpoint IDs and display names. */
+/** Reads one documented Power BI page or detail and projects only endpoint IDs and display names. */
 export async function listPowerBIOptions(input: {
   kind: PowerBIListingKind
   accessToken: string
@@ -45,9 +45,12 @@ export async function listPowerBIOptions(input: {
   try {
     headers = powerBIHeaders(accessToken)
     if (kind === 'workspaces') {
-      if (request.kind !== 'list') throw new SelectorContextUnavailableError()
-      offset = workspaceOffset(request.cursor)
-      url = powerBIUrl(['groups'], { $top: WORKSPACE_PAGE_SIZE, $skip: offset })
+      if (request.kind === 'detail') {
+        url = powerBIUrl(['groups', request.id])
+      } else {
+        offset = workspaceOffset(request.cursor)
+        url = powerBIUrl(['groups'], { $top: WORKSPACE_PAGE_SIZE, $skip: offset })
+      }
     } else {
       if (!groupId || (request.kind === 'list' && request.cursor !== undefined)) {
         throw new SelectorContextUnavailableError()

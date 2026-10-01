@@ -67,13 +67,11 @@ export const powerbiRefreshDatasetTool: ToolConfig<
     },
     requestId: {
       type: 'string',
-      optional: true,
       nullable: true,
       description: 'Provider x-ms-request-id header, when supplied',
     },
     location: {
       type: 'string',
-      optional: true,
       nullable: true,
       description: 'Provider Location header, when supplied',
     },

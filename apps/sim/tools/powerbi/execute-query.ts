@@ -133,7 +133,6 @@ export const powerbiExecuteQueryTool: ToolConfig<
     },
     informationProtectionLabel: {
       type: 'object',
-      optional: true,
       nullable: true,
       description: 'Information protection label, when supplied',
       properties: POWERBI_INFORMATION_PROTECTION_LABEL_OUTPUT_PROPERTIES,

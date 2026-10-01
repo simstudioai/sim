@@ -161,30 +161,47 @@ describe('Power BI selector provider boundary', () => {
     }
   )
 
-  it.each(['datasets', 'reports'] as const)(
-    'resolves a saved %s selection without loading the full resource list',
+  it.each(['workspaces', 'datasets', 'reports'] as const)(
+    'resolves a saved %s selection through one direct encoded provider request',
     async (kind) => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'resource-id', name: 'Saved resource' }))
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          id: 'resource#id',
+          name: 'Saved resource',
+          rawProviderSecret: 'must-not-escape',
+        })
+      )
       const key = `powerbi.${kind}` as const
       expect(
         await powerBISelectorAttachments[key].execute(
           args({ selectorKey: key, request: { kind: 'detail', id: ' resource#id ' } })
         )
-      ).toEqual({ kind: 'detail', item: { id: 'resource-id', label: 'Saved resource' } })
-      expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe(
-        `/v1.0/myorg/groups/workspace-one/${kind}/resource%23id`
+      ).toEqual({ kind: 'detail', item: { id: 'resource#id', label: 'Saved resource' } })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const url = new URL(String(fetchMock.mock.calls[0]?.[0]))
+      expect(url.origin).toBe('https://api.powerbi.com')
+      expect(url.pathname).toBe(
+        kind === 'workspaces'
+          ? '/v1.0/myorg/groups/resource%23id'
+          : `/v1.0/myorg/groups/workspace-one/${kind}/resource%23id`
       )
+      expect(url.search).toBe('')
+      expect(url.hash).toBe('')
     }
   )
 
-  it('returns no detail for a deleted semantic model', async () => {
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
-    expect(
-      await powerBISelectorAttachments['powerbi.datasets'].execute(
-        args({ selectorKey: 'powerbi.datasets', request: { kind: 'detail', id: 'removed-model' } })
-      )
-    ).toEqual({ kind: 'detail', item: null })
-  })
+  it.each(['workspaces', 'datasets'] as const)(
+    'returns no detail for a deleted %s selection',
+    async (kind) => {
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
+      const key = `powerbi.${kind}` as const
+      expect(
+        await powerBISelectorAttachments[key].execute(
+          args({ selectorKey: key, request: { kind: 'detail', id: 'removed-resource' } })
+        )
+      ).toEqual({ kind: 'detail', item: null })
+    }
+  )
 
   it.each([
     {},
