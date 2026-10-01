@@ -30,6 +30,7 @@ import {
 import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
+  CumulativeUsagePeriodClosedError,
   recordCumulativeUsage,
 } from '@/lib/billing/core/usage-log'
 import {
@@ -512,7 +513,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     const pgCode = getPostgresErrorCode(error)
     const pgConstraint = getPostgresConstraintName(error)
     const reconciliationOutcome =
-      error instanceof ThresholdSettlementError && !error.retryable
+      (error instanceof ThresholdSettlementError && !error.retryable) ||
+      error instanceof CumulativeUsagePeriodClosedError
         ? BILLING_CALLBACK_OUTCOME.billingPeriodElapsed
         : pgCode === '23503' && pgConstraint === 'usage_log_user_id_user_id_fk'
           ? BILLING_CALLBACK_OUTCOME.billingUserNotFound
