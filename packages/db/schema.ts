@@ -1479,7 +1479,9 @@ export const subscription = pgTable(
      * closes the previous period whenever this lags the row's `periodStart`,
      * then advances it. Null = never initialized; the first sweep initializes
      * it to the current `periodStart` without billing so historical periods
-     * are never retroactively closed.
+     * are never retroactively closed. A deleted subscription's terminal
+     * settlement advances it to `periodEnd`: every period ending at or before
+     * the marker is settled, and a later charge into one is refused.
      */
     lastClosedPeriodStart: timestamp('last_closed_period_start'),
   },

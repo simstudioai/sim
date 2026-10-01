@@ -24,6 +24,7 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({ isOrgScopedSubscription: v
 
 import {
   CumulativeUsageContextMismatchError,
+  CumulativeUsagePeriodClosedError,
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostByUser,
   getStampedPeriodRangeUsageCostByUser,
@@ -121,7 +122,10 @@ describe('Cumulative billing with PostgreSQL', () => {
       CREATE UNIQUE INDEX usage_log_event_key_unique ON usage_log(event_key)
       WHERE event_key IS NOT NULL;
       CREATE TABLE driver_probe (id text PRIMARY KEY);
-      CREATE TABLE subscription (id text PRIMARY KEY, period_start timestamp, period_end timestamp)
+      CREATE TABLE subscription (
+        id text PRIMARY KEY, period_start timestamp, period_end timestamp,
+        last_closed_period_start timestamp
+      )
     `)
     transaction.mockImplementation(async (callback: (tx: Transaction) => Promise<unknown>) => {
       const pause = nextPause
@@ -362,12 +366,16 @@ describe('Cumulative billing with PostgreSQL', () => {
     ]
     const payer = { type: 'organization', id: 'payer' } as const
 
+    /** Moves the subscription to a window whose predecessor the cycle close has settled. */
     async function setSubscriptionWindow(start: Date, end: Date) {
       await connection`
-        insert into subscription (id, period_start, period_end)
-        values ('sub-1', ${start.toISOString()}::timestamptz at time zone 'UTC', ${end.toISOString()}::timestamptz at time zone 'UTC')
+        insert into subscription (id, period_start, period_end, last_closed_period_start)
+        values ('sub-1', ${start.toISOString()}::timestamptz at time zone 'UTC', ${end.toISOString()}::timestamptz at time zone 'UTC', ${start.toISOString()}::timestamptz at time zone 'UTC')
         on conflict (id) do update
-          set period_start = excluded.period_start, period_end = excluded.period_end
+          set period_start = excluded.period_start, period_end = excluded.period_end,
+            last_closed_period_start = greatest(
+              subscription.last_closed_period_start, excluded.last_closed_period_start
+            )
       `
     }
 
@@ -525,6 +533,19 @@ describe('Cumulative billing with PostgreSQL', () => {
         name: CumulativeUsageContextMismatchError.name,
         mismatchedFields: ['billing period'],
       })
+      expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '0.4' }])
+    })
+
+    it('refuses a charge that would roll into a period the terminal settlement already summed', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      await setSubscriptionPeriod(1)
+      await connection`
+        update subscription
+        set last_closed_period_start = ${periods[2].toISOString()}::timestamptz at time zone 'UTC'
+      `
+
+      await expect(charge(1)).rejects.toBeInstanceOf(CumulativeUsagePeriodClosedError)
       expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '0.4' }])
     })
 
