@@ -77,6 +77,7 @@ import {
   readSandboxResourceScope,
   withSandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
+import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
@@ -369,6 +370,31 @@ describe('persistent workbench output confidentiality', () => {
     expect(result.raw.output).toHaveProperty('result.length', 100_001)
     expect(result.projected.safe).toBe(true)
   })
+  it.each([
+    ['array', '[', ']'],
+    ['object', '{"nested":', '}'],
+  ])(
+    'classifies deeply nested %s output without exhausting the call stack',
+    async (_kind, open, close) => {
+      await inResourceScope(async () => {
+        const session = await buildMothershipSandboxSession({
+          ...scope,
+          sessionKey: chatSandboxSessionKey(chatId),
+        })
+        const credential = session.envs!.SIM_API_KEY
+        const nested = (leaf: string) =>
+          JSON.parse(open.repeat(12_000) + JSON.stringify(leaf) + close.repeat(12_000))
+        expect(session.outputProvenance!(nested('ordinary output'))).toEqual({
+          status: 'exact',
+          entries: [],
+        })
+        expect(session.outputProvenance!(nested(credential))).toMatchObject({
+          status: 'exact',
+          entries: [{ name: 'SIM_API_KEY' }],
+        })
+      })
+    }
+  )
   it('revokes callback authentication before a result reaches the model', async () => {
     const result = await run(
       'printf "%s" "$SIM_API_KEY" > session-key.txt; printf "%s" "$SIM_ENDPOINT" > session-endpoint.txt; printf done'

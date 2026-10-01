@@ -27,16 +27,30 @@ import {
 
 const logger = createLogger('MothershipSandboxSession')
 
-/** Scans parsed sandbox JSON in place, including keys, without allocating a second payload. */
+/** Scans parsed sandbox JSON without copying the payload or consuming the call stack. */
 function containsSessionCredential(value: unknown, matcher: ResolvedSecretMatcher): boolean {
-  if (typeof value === 'string') return containsResolvedSecret(value, matcher)
-  if (value === null || typeof value !== 'object') return false
-  if (Array.isArray(value)) return value.some((item) => containsSessionCredential(item, matcher))
-  const record = toRecord(value)
-  for (const key in record) {
-    if (!Object.hasOwn(record, key)) continue
-    if (containsResolvedSecret(key, matcher) || containsSessionCredential(record[key], matcher)) {
-      return true
+  function* fields(record: Record<string, unknown>): Generator<unknown> {
+    for (const key in record) {
+      if (!Object.hasOwn(record, key)) continue
+      yield key
+      yield record[key]
+    }
+  }
+
+  const pending: Iterator<unknown>[] = [[value].values()]
+  while (pending.length > 0) {
+    const next = pending[pending.length - 1].next()
+    if (next.done) {
+      pending.pop()
+      continue
+    }
+    const current = next.value
+    if (typeof current === 'string') {
+      if (containsResolvedSecret(current, matcher)) return true
+    } else if (Array.isArray(current)) {
+      pending.push(current.values())
+    } else if (current !== null && typeof current === 'object') {
+      pending.push(fields(toRecord(current)))
     }
   }
   return false
