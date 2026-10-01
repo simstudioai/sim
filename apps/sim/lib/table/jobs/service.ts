@@ -462,24 +462,6 @@ export async function listWorkspaceExportJobs(workspaceId: string): Promise<Work
   })
 }
 
-/** Reads one job row (type/status/payload) scoped to its table. Null when absent. */
-export async function getTableJob(
-  tableId: string,
-  jobId: string
-): Promise<{ id: string; type: string; status: string; payload: unknown } | null> {
-  const [job] = await db
-    .select({
-      id: tableJobs.id,
-      type: tableJobs.type,
-      status: tableJobs.status,
-      payload: tableJobs.payload,
-    })
-    .from(tableJobs)
-    .where(and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId)))
-    .limit(1)
-  return job ?? null
-}
-
 /** Stamps an export result only while the canonical workspace-scoped job is active. */
 export async function setJobResultKeyInWorkspace(
   tableId: string,

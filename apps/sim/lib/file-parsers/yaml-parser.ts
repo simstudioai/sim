@@ -30,14 +30,6 @@ export class YamlComplexityError extends FileParserError {
 }
 
 /**
- * Type guard for {@link YamlComplexityError}. Callers use this to fail closed on
- * a complexity-limit rejection instead of falling back to a generic parse.
- */
-export function isYamlComplexityError(error: unknown): error is YamlComplexityError {
-  return error instanceof YamlComplexityError
-}
-
-/**
  * Validate that a parsed YAML value stays within the file parser's expansion
  * limits, returning the document depth.
  *

@@ -108,4 +108,3 @@ export const TOKENIZATION_CONFIG = {
 export const LLM_BLOCK_TYPES = ['agent', 'router', 'evaluator'] as const
 
 export const MIN_TEXT_LENGTH_FOR_ESTIMATION = 1
-export const MAX_PREVIEW_LENGTH = 100

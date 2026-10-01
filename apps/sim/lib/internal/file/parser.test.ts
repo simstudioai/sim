@@ -177,7 +177,7 @@ vi.mock('fs/promises', () => ({
   writeFile: mockFsWriteFile,
 }))
 
-const { mockGetStorageProvider, mockIsUsingCloudStorage } = uploadsMockFns
+const { mockIsUsingCloudStorage } = uploadsMockFns
 const { mockGetBoundWorkspaceFileSecretProvenance } = workspaceFileSecretProvenanceMockFns
 
 import { fileParseBodySchema } from '@/lib/api/contracts/storage-transfer'
@@ -237,14 +237,8 @@ async function POST(request: NextRequest): Promise<Response> {
   })
 }
 
-function setupFileApiMocks(
-  options: {
-    authenticated?: boolean
-    storageProvider?: 's3' | 'blob' | 'local'
-    cloudEnabled?: boolean
-  } = {}
-) {
-  const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
+function setupFileApiMocks(options: { authenticated?: boolean; cloudEnabled?: boolean } = {}) {
+  const { authenticated = true, cloudEnabled = true } = options
 
   if (authenticated) {
     authMockFns.mockGetSession.mockResolvedValue({
@@ -272,7 +266,6 @@ function setupFileApiMocks(
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  mockGetStorageProvider.mockReturnValue(storageProvider)
   mockIsUsingCloudStorage.mockReturnValue(cloudEnabled)
 }
 
@@ -475,7 +468,6 @@ describe('file parser operation', () => {
   it('should keep known binary extensions as binary even when the bytes are valid UTF-8', async () => {
     setupFileApiMocks({
       cloudEnabled: true,
-      storageProvider: 's3',
       authenticated: true,
     })
     mockIsSupportedFileType.mockReturnValue(false)
@@ -496,7 +488,6 @@ describe('file parser operation', () => {
   it('should parse unknown extensions as text when the bytes look like UTF-8 text', async () => {
     setupFileApiMocks({
       cloudEnabled: true,
-      storageProvider: 's3',
       authenticated: true,
     })
     mockIsSupportedFileType.mockReturnValue(false)
@@ -521,7 +512,6 @@ describe('file parser operation', () => {
   it('reports degraded parser output as a failure instead of returning it as content', async () => {
     setupFileApiMocks({
       cloudEnabled: false,
-      storageProvider: 'local',
       authenticated: true,
     })
     mockParseBuffer.mockResolvedValue({
@@ -546,7 +536,6 @@ describe('file parser operation', () => {
   it('should reject parser complexity limits instead of returning raw text', async () => {
     setupFileApiMocks({
       cloudEnabled: true,
-      storageProvider: 's3',
       authenticated: true,
     })
     storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('{"value":true}'))
@@ -743,7 +732,6 @@ describe('file parser operation', () => {
   it('should reject oversized local files before materializing them', async () => {
     setupFileApiMocks({
       cloudEnabled: false,
-      storageProvider: 'local',
       authenticated: true,
     })
     mockFsStat.mockResolvedValue({ isFile: () => true, size: 104857601 })
