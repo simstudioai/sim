@@ -47,6 +47,7 @@ export type JobType =
   | 'cleanup-logs'
   | 'cleanup-soft-deletes'
   | 'cleanup-table-row-ttl'
+  | 'cleanup-stale-executions'
   | 'cleanup-tasks'
   | 'cleanup-file-versions'
   | 'run-data-drain'

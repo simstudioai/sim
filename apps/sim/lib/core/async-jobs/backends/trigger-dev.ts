@@ -253,6 +253,7 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'cleanup-logs': 'cleanup-logs',
   'cleanup-soft-deletes': 'cleanup-soft-deletes',
   'cleanup-table-row-ttl': 'cleanup-table-row-ttl',
+  'cleanup-stale-executions': 'cleanup-stale-executions',
   'cleanup-tasks': 'cleanup-tasks',
   'cleanup-file-versions': 'cleanup-file-versions',
   'run-data-drain': 'run-data-drain',
