@@ -10,11 +10,14 @@ const CONTEXT_EDGE = 3
 /** A run of unchanged lines collapses once it is longer than this. */
 const COLLAPSE_AFTER = CONTEXT_EDGE * 2 + 2
 
-const ADD_ROW = 'bg-[color-mix(in_srgb,var(--badge-success-bg)_40%,transparent)]'
-const DEL_ROW = 'bg-[color-mix(in_srgb,var(--badge-error-bg)_40%,transparent)]'
-const ADD_WORD = 'rounded-sm bg-[var(--badge-success-bg)]'
-const DEL_WORD = 'rounded-sm bg-[var(--badge-error-bg)]'
-const GUTTER = 'select-none px-2 text-right text-[var(--text-muted)] tabular-nums'
+const ADD_ROW = 'bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]'
+const DEL_ROW = 'bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]'
+const CONTEXT_ROW = 'text-[var(--text-body)]'
+const ADD_WORD = 'rounded-sm bg-[color-mix(in_srgb,var(--badge-success-text)_18%,transparent)]'
+const DEL_WORD = 'rounded-sm bg-[color-mix(in_srgb,var(--badge-error-text)_18%,transparent)]'
+const GUTTER = 'select-none pl-3 text-right text-[var(--text-muted)] tabular-nums'
+const MARKER = 'select-none pl-3'
+const TEXT = 'whitespace-pre py-0.5 pr-3 pl-1'
 
 export type DiffViewMode = 'unified' | 'split'
 
@@ -88,7 +91,7 @@ function CollapsedRun({ count, onExpand }: CollapsedRunProps) {
     <button
       type='button'
       onClick={onExpand}
-      className='col-span-full w-full bg-[var(--surface-5)] py-1 text-center text-[var(--text-muted)] text-caption transition-colors hover:text-[var(--text-body)] dark:bg-[var(--surface-4)]'
+      className='sticky left-0 col-span-full w-full bg-[var(--surface-2)] py-1 text-center font-sans text-[var(--text-muted)] text-caption transition-colors hover:text-[var(--text-body)]'
     >
       ⋯ {count} unchanged {count === 1 ? 'line' : 'lines'}
     </button>
@@ -122,11 +125,11 @@ function visibleItems(lines: DiffLine[], expanded: boolean) {
 }
 
 function rowClass(line: DiffLine | undefined) {
-  return line?.type === 'add' ? ADD_ROW : line?.type === 'del' ? DEL_ROW : undefined
+  return line?.type === 'add' ? ADD_ROW : line?.type === 'del' ? DEL_ROW : line && CONTEXT_ROW
 }
 
 function marker(line: DiffLine | undefined) {
-  return line?.type === 'add' ? '+' : line?.type === 'del' ? '−' : ' '
+  return line?.type === 'add' ? '+' : line?.type === 'del' ? '-' : ' '
 }
 
 /** Aligns removed and added runs side by side; unchanged lines fill both columns. */
@@ -172,86 +175,76 @@ export function DiffView({ hunks, mode }: DiffViewProps) {
   const columns =
     mode === 'split'
       ? numbered
-        ? 'grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_minmax(0,1fr)]'
-        : 'grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)]'
+        ? 'grid-cols-[auto_auto_1fr_auto_auto_1fr]'
+        : 'grid-cols-[auto_1fr_auto_1fr]'
       : numbered
-        ? 'grid-cols-[auto_auto_auto_minmax(0,1fr)]'
-        : 'grid-cols-[auto_minmax(0,1fr)]'
+        ? 'grid-cols-[auto_auto_auto_1fr]'
+        : 'grid-cols-[auto_1fr]'
   return (
-    <div
-      className={cn(
-        'grid overflow-hidden rounded-lg border border-[var(--border)] font-mono text-small leading-[1.6]',
-        columns
-      )}
-    >
-      {hunks.map((hunk, hunkIndex) => {
-        const segments = wordSegments(hunk.lines)
-        const items = visibleItems(hunk.lines, expanded.has(hunkIndex))
-        const expand = () => setExpanded((current) => new Set(current).add(hunkIndex))
-        return (
-          <Fragment key={hunkIndex}>
-            {(hunk.heading || hunkIndex > 0) && (
-              <div className='col-span-full border-[var(--border)] border-y bg-[var(--surface-5)] px-3 py-1 font-sans text-[var(--text-muted)] text-caption first:border-t-0 dark:bg-[var(--surface-4)]'>
-                {hunk.heading || '⋯'}
-              </div>
-            )}
-            {mode === 'unified'
-              ? items.map((item, index) =>
-                  'line' in item ? (
-                    <div
-                      key={index}
-                      className={cn('col-span-full grid grid-cols-subgrid', rowClass(item.line))}
-                    >
-                      {numbered && <span className={GUTTER}>{item.line.oldLine ?? ''}</span>}
-                      {numbered && <span className={GUTTER}>{item.line.newLine ?? ''}</span>}
-                      <span className='select-none pl-2 text-[var(--text-muted)]'>
-                        {marker(item.line)}
-                      </span>
-                      <span className='whitespace-pre-wrap break-words px-2 text-[var(--text-primary)]'>
-                        <LineText line={item.line} segments={segments.get(item.line)} />
-                      </span>
-                    </div>
-                  ) : (
-                    <CollapsedRun key={`c${item.key}`} count={item.collapsed} onExpand={expand} />
+    <div className='overflow-x-auto py-1'>
+      <div className={cn('grid w-max min-w-full font-mono text-caption leading-[1.6]', columns)}>
+        {hunks.map((hunk, hunkIndex) => {
+          const segments = wordSegments(hunk.lines)
+          const items = visibleItems(hunk.lines, expanded.has(hunkIndex))
+          const expand = () => setExpanded((current) => new Set(current).add(hunkIndex))
+          return (
+            <Fragment key={hunkIndex}>
+              {(hunk.heading || hunkIndex > 0) && (
+                <div className='sticky left-0 col-span-full px-3 pt-2 pb-1 font-sans text-[var(--text-muted)] text-caption'>
+                  {hunk.heading || '⋯'}
+                </div>
+              )}
+              {mode === 'unified'
+                ? items.map((item, index) =>
+                    'line' in item ? (
+                      <div
+                        key={index}
+                        className={cn('col-span-full grid grid-cols-subgrid', rowClass(item.line))}
+                      >
+                        {numbered && <span className={GUTTER}>{item.line.oldLine ?? ''}</span>}
+                        {numbered && <span className={GUTTER}>{item.line.newLine ?? ''}</span>}
+                        <span className={MARKER}>{marker(item.line)}</span>
+                        <span className={TEXT}>
+                          <LineText line={item.line} segments={segments.get(item.line)} />
+                        </span>
+                      </div>
+                    ) : (
+                      <CollapsedRun key={`c${item.key}`} count={item.collapsed} onExpand={expand} />
+                    )
                   )
-                )
-              : splitRows(items).map((row, index) =>
-                  'collapsed' in row ? (
-                    <CollapsedRun key={`c${row.key}`} count={row.collapsed} onExpand={expand} />
-                  ) : (
-                    <div key={index} className='col-span-full grid grid-cols-subgrid'>
-                      {[row.left, row.right].map((line, side) => (
-                        <Fragment key={side}>
-                          {numbered && (
-                            <span className={cn(GUTTER, rowClass(line))}>
-                              {(side === 0 ? line?.oldLine : line?.newLine) ?? ''}
+                : splitRows(items).map((row, index) =>
+                    'collapsed' in row ? (
+                      <CollapsedRun key={`c${row.key}`} count={row.collapsed} onExpand={expand} />
+                    ) : (
+                      <div key={index} className='col-span-full grid grid-cols-subgrid'>
+                        {[row.left, row.right].map((line, side) => (
+                          <Fragment key={side}>
+                            {numbered && (
+                              <span className={cn(rowClass(line), GUTTER)}>
+                                {(side === 0 ? line?.oldLine : line?.newLine) ?? ''}
+                              </span>
+                            )}
+                            <span className={cn(MARKER, rowClass(line))}>
+                              {line ? marker(line) : ''}
                             </span>
-                          )}
-                          <span
-                            className={cn(
-                              'select-none pl-2 text-[var(--text-muted)]',
-                              rowClass(line)
-                            )}
-                          >
-                            {line ? marker(line) : ''}
-                          </span>
-                          <span
-                            className={cn(
-                              'whitespace-pre-wrap break-words px-2 text-[var(--text-primary)]',
-                              rowClass(line),
-                              side === 0 && 'border-[var(--border)] border-r'
-                            )}
-                          >
-                            {line && <LineText line={line} segments={segments.get(line)} />}
-                          </span>
-                        </Fragment>
-                      ))}
-                    </div>
-                  )
-                )}
-          </Fragment>
-        )
-      })}
+                            <span
+                              className={cn(
+                                TEXT,
+                                rowClass(line),
+                                side === 0 && 'border-[var(--border)] border-r'
+                              )}
+                            >
+                              {line && <LineText line={line} segments={segments.get(line)} />}
+                            </span>
+                          </Fragment>
+                        ))}
+                      </div>
+                    )
+                  )}
+            </Fragment>
+          )
+        })}
+      </div>
     </div>
   )
 }

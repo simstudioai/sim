@@ -22,6 +22,8 @@ export interface DiffHunk {
 
 export interface UnifiedDiff {
   source: DiffSource | null
+  /** The file path from a plain `+++ b/<path>` header, for diffs without a `sim:` source. */
+  path: string | null
   hunks: DiffHunk[]
 }
 
@@ -70,6 +72,7 @@ function sameSource(a: DiffSource, b: DiffSource): boolean {
 export function parseUnifiedDiff(text: string): UnifiedDiff {
   const rows = text.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n')
   let source: DiffSource | null = null
+  let path: string | null = null
   const hunks: DiffHunk[] = []
   let hunk: DiffHunk | null = null
   let oldLine: number | undefined
@@ -77,10 +80,13 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
 
   for (const [index, row] of rows.entries()) {
     if (!hunk && (row.startsWith('--- ') || row.startsWith('+++ '))) {
-      const parsed = parseSource(row.slice(4))
+      const target = row.slice(4).trim()
+      const parsed = parseSource(target)
       if (parsed && source && !sameSource(source, parsed))
         throw new Error('A diff compares one source: --- and +++ must name the same resource')
       source = parsed ?? source
+      if (!parsed && target !== '/dev/null' && (row.startsWith('+++ ') || !path))
+        path = target.replace(/^[ab]\//, '').split('\t')[0]
       continue
     }
     if (!hunk && GIT_HEADER.test(row)) continue
@@ -113,7 +119,7 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
 
   if (!hunks.some((entry) => entry.lines.some((line) => line.type !== 'context')))
     throw new Error('A diff needs at least one + or - line')
-  return { source, hunks }
+  return { source, path: source ? null : path, hunks }
 }
 
 /** Whitespace-insensitive, so reflowed indentation or line endings never read as a change. */

@@ -391,6 +391,13 @@
   margin: 1rem 0;
 }
 
+/* A diff's links are chips, so they keep their own colour instead of the prose link style. */
+.rich-markdown-prose .diff-embed a,
+.rich-markdown-prose .diff-embed a:hover {
+  color: revert-layer;
+  text-decoration: revert-layer;
+}
+
 /* A dashboard results table sizes its own columns and sits flush in its panel. */
 .rich-markdown-nodes .dashboard-embed table {
   table-layout: auto;

@@ -29,6 +29,7 @@ describe('parseUnifiedDiff', () => {
       'diff --git a/x.ts b/x.ts\nindex 1..2 100644\n--- a/x.ts\n+++ b/x.ts\n@@ -10,2 +10,2 @@ fn\n keep\n-old\n+new\n\\ No newline at end of file'
     )
     expect(diff.source).toBeNull()
+    expect(diff.path).toBe('x.ts')
     expect(diff.hunks[0].heading).toBe('fn')
     expect(diff.hunks[0].lines).toEqual([
       { type: 'context', text: 'keep', oldLine: 10, newLine: 10 },

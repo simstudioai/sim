@@ -236,7 +236,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
         // Select the whole node instead of placing a caret, which would flip the block to source.
         <div
           contentEditable={false}
-          className={cn(isDashboard && 'dashboard-embed')}
+          className={cn(isDashboard && 'dashboard-embed', isDiff && 'diff-embed')}
           onMouseDown={(event) => {
             const target = event.target
             if (!(target instanceof Element) || !event.currentTarget.contains(target)) return
