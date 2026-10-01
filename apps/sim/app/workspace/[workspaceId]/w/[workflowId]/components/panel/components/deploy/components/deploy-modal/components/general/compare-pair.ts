@@ -5,16 +5,26 @@ export interface ComparePair {
   target: CompareSide
 }
 
-/**
- * Which two sides a "Compare" on a version opens: the older version on the
- * left and the newer on the right, except that the live version (or any
- * version when nothing is live) compares against the draft, since that is
- * what a redeploy would ship.
- */
-export function resolveComparePair(version: number, activeVersion: number | null): ComparePair {
-  if (activeVersion === null || activeVersion === version) {
+/** Compares against the previous saved version, or the draft when no predecessor exists. */
+export function resolveComparePair(
+  version: number,
+  versions: readonly { version: number }[]
+): ComparePair {
+  let previousVersion: number | null = null
+  for (const candidate of versions) {
+    if (
+      candidate.version < version &&
+      (previousVersion === null || candidate.version > previousVersion)
+    ) {
+      previousVersion = candidate.version
+    }
+  }
+
+  if (previousVersion === null) {
     return { base: { kind: 'version', version }, target: { kind: 'draft' } }
   }
-  const [low, high] = version < activeVersion ? [version, activeVersion] : [activeVersion, version]
-  return { base: { kind: 'version', version: low }, target: { kind: 'version', version: high } }
+  return {
+    base: { kind: 'version', version: previousVersion },
+    target: { kind: 'version', version },
+  }
 }

@@ -88,11 +88,8 @@ export function GeneralDeploy({
     workflowId: string
     version: number
   } | null>(null)
-  const activeVersion = versions.find((v) => v.isActive)?.version ?? null
-
-  /** See resolveComparePair for which two sides a version opens against. */
   const handleCompareVersion = (version: number) => {
-    setComparePair(resolveComparePair(version, activeVersion))
+    setComparePair(resolveComparePair(version, versions))
   }
 
   const selectedVersionInfo = versions.find((v) => v.version === selectedVersion)
