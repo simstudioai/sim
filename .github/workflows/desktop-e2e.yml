@@ -17,6 +17,7 @@ on:
       - 'apps/sim/stores/chat-panel/**'
       - 'apps/sim/stores/constants.ts'
       - 'apps/sim/lib/browser-agent/transport.ts'
+      - 'apps/sim/lib/core/utils/separator-keys.ts'
       - 'apps/sim/scripts/fixtures/chat-panel.tsx'
       - 'apps/sim/app/layout.tsx'
       - 'apps/sim/hooks/use-desktop-update-state.ts'

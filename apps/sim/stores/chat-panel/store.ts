@@ -14,6 +14,7 @@ const adoptedChatKeys = new LRUCache<string, string>({ max: MAX_SAVED_CHATS })
 
 interface ChatPanelState {
   widths: Record<string, number>
+  resolveChatId: (chatId: string) => string
   setWidth: (userId: string, chatId: string, width: number) => void
   migrate: (fromChatId: string, toChatId: string) => void
   reset: () => void
@@ -62,10 +63,11 @@ export const useChatPanelStore = create<ChatPanelState>()(
     persist(
       (set, get) => ({
         widths: {},
+        resolveChatId: (chatId) => adoptedChatKeys.get(chatId) ?? chatId,
         setWidth: (userId, chatId, width) => {
           if (!validWidth(width)) return
           if (!useChatPanelStore.persist.hasHydrated()) void useChatPanelStore.persist.rehydrate()
-          const key = `${userId}:${adoptedChatKeys.get(chatId) ?? chatId}`
+          const key = `${userId}:${get().resolveChatId(chatId)}`
           if (get().widths[key] === width) return
           set((state) => {
             const { [key]: _previous, ...rest } = state.widths

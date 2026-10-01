@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { beginBrowserPanelDividerDrag } from '@/lib/browser-agent/transport'
 import { readSeparatorKey, type SeparatorKey } from '@/lib/core/utils/separator-keys'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
@@ -115,6 +115,12 @@ function syncDividerValue(handle: HTMLElement, el: HTMLElement, maxWidth = measu
   handle.setAttribute('aria-valuenow', String(Math.round(el.getBoundingClientRect().width)))
 }
 
+/** Synchronous storage hydration also covers panels that arrive after a lazy fallback. */
+function readPreferredWidth(userId: string | undefined, scopeId: string): number | undefined {
+  if (!useChatPanelStore.persist.hasHydrated()) void useChatPanelStore.persist.rehydrate()
+  return userId ? useChatPanelStore.getState().widths[`${userId}:${scopeId}`] : undefined
+}
+
 interface MothershipResizeOptions {
   userId?: string
   collapsed: boolean
@@ -134,6 +140,7 @@ export function useMothershipResize(
   desktopScopeId: string,
   { userId, collapsed }: MothershipResizeOptions
 ) {
+  const scopeRef = useRef(desktopScopeId)
   const mothershipRef = useRef<HTMLDivElement | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
   const focusedDividerRef = useRef<HTMLElement | null>(null)
@@ -147,25 +154,34 @@ export function useMothershipResize(
     [userId, desktopScopeId]
   )
 
-  /** Callback attachment also covers the resource view arriving after its lazy fallback. */
+  const restoreWidth = useCallback(() => {
+    const el = mothershipRef.current
+    if (!el || cleanupRef.current) return
+    restorePanelWidth(el, collapsed ? undefined : preferredWidthRef.current)
+    const divider = focusedDividerRef.current
+    if (divider && document.activeElement === divider) syncDividerValue(divider, el)
+  }, [collapsed])
+
+  useLayoutEffect(() => {
+    const store = useChatPanelStore.getState()
+    if (store.resolveChatId(scopeRef.current) !== desktopScopeId) cleanupRef.current?.()
+    scopeRef.current = desktopScopeId
+    preferredWidthRef.current = readPreferredWidth(userId, desktopScopeId)
+    restoreWidth()
+  }, [desktopScopeId, userId, restoreWidth])
+
+  /** DOM attachment owns gesture cleanup; pending chat adoption leaves the same panel attached. */
   const attachPanel = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return
       mothershipRef.current = el
-      if (!useChatPanelStore.persist.hasHydrated()) void useChatPanelStore.persist.rehydrate()
-      preferredWidthRef.current = userId
-        ? useChatPanelStore.getState().widths[`${userId}:${desktopScopeId}`]
-        : undefined
+      preferredWidthRef.current = readPreferredWidth(userId, scopeRef.current)
       let rafId: number | null = null
-      const restoreWidth = () => {
-        rafId = null
-        if (cleanupRef.current) return
-        restorePanelWidth(el, collapsed ? undefined : preferredWidthRef.current)
-        const divider = focusedDividerRef.current
-        if (divider && document.activeElement === divider) syncDividerValue(divider, el)
-      }
       const scheduleRestore = () => {
-        rafId ??= requestAnimationFrame(restoreWidth)
+        rafId ??= requestAnimationFrame(() => {
+          rafId = null
+          restoreWidth()
+        })
       }
       restoreWidth()
       const observer = new ResizeObserver(scheduleRestore)
@@ -179,7 +195,7 @@ export function useMothershipResize(
         mothershipRef.current = null
       }
     },
-    [userId, desktopScopeId, collapsed]
+    [userId, restoreWidth]
   )
 
   const handleResizePointerDown = useCallback(
@@ -243,6 +259,16 @@ export function useMothershipResize(
         // does not chase a 200ms catch-up animation.
         restorePanelWidth(el, preferredWidthRef.current)
         void el.offsetWidth
+        // A cancelled frame may never change DOM size, so ResizeObserver cannot undo its prediction.
+        const restoredRect = el.getBoundingClientRect()
+        if (
+          restoredRect.left === startRect.left &&
+          restoredRect.top === startRect.top &&
+          restoredRect.width === startRect.width &&
+          restoredRect.height === startRect.height
+        ) {
+          predictBrowserBounds?.(restoredRect.left, scopeRef.current)
+        }
         el.style.transition = prevTransition
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
@@ -264,7 +290,7 @@ export function useMothershipResize(
           // Fast path first: hand the native browser view its next rect at
           // pointer-event time (clamped exactly like the width write below), a
           // full layout pass ahead of the measured geometry report
-          predictBrowserBounds?.(dividerXAt(moveEvent.clientX, geometry))
+          predictBrowserBounds?.(dividerXAt(moveEvent.clientX, geometry), scopeRef.current)
           // Coalesce to one width write per frame: pointermove can outpace the
           // display refresh, and every unbatched write forces an extra layout
           // pass that the embedded browser view then has to chase
