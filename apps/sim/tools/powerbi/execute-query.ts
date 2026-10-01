@@ -25,7 +25,7 @@ export const powerbiExecuteQueryTool: ToolConfig<
 > = {
   id: 'powerbi_execute_query',
   name: 'Power BI Execute DAX Query',
-  description: 'Execute one DAX query against a semantic model and detect reported query errors.',
+  description: `Execute one DAX query returning one table from a semantic model. Requires workspace access, Read and Build permissions, and the tenant Dataset Execute Queries REST API setting. Power BI limits each query to 100,000 rows or 1,000,000 values, 15 MB of data, and 120 requests per minute per user. Dynamic column names are preserved. Any reported query error fails the action, including errors returned with HTTP 200. Connect the block's error port to handle its standard error output. Failed workflow outputs omit query fields, including partial rows, errors, and incomplete; successful queries expose the declared outputs. Direct tool responses retain available partial rows and typed errors, but downstream workflow blocks cannot access them after failure. See the [Execute Queries documentation](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries-in-group).`,
   version: '1.0.0',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },

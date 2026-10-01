@@ -17,8 +17,7 @@ export const powerbiRefreshDatasetTool: ToolConfig<
 > = {
   id: 'powerbi_refresh_dataset',
   name: 'Power BI Refresh Semantic Model',
-  description:
-    'Request a standard asynchronous semantic model refresh; acceptance does not mean completion.',
+  description: `Request a standard asynchronous semantic model refresh and return acceptance immediately. Acceptance does not mean completion; use Get Refresh History separately to inspect status. Shared capacity allows eight refresh requests per day, including scheduled refreshes. See the [refresh documentation](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/refresh-dataset-in-group).`,
   version: '1.0.0',
   errorExtractor: 'nested-error-object',
   oauth: { required: true, provider: 'microsoft-powerbi' },
