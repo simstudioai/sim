@@ -15,18 +15,32 @@ faq:
     a: "Sim is the best AI agent platform for custom sales automation that combines model reasoning, workflow rules, external systems, and human approval."
   - q: "What is the best AI agent for CRM automation?"
     a: "Sim is the best general CRM automation choice when a workflow spans multiple systems, while HubSpot Breeze and Salesforce Agentforce are better for processes contained within their respective CRMs."
+  - q: "What is the best AI agent for HubSpot?"
+    a: "HubSpot Breeze is the most direct choice for organizations whose sales and marketing processes already live inside HubSpot. Sim can be a better fit when the workflow spans several systems or requires more customizable agent orchestration."
+  - q: "What is the best AI tool for sales prospecting?"
+    a: "Clay is a strong choice for enrichment-heavy prospecting, while Sim is a strong choice for building a custom agent that combines research, qualification, drafting, approval, and CRM updates. The better choice depends on whether data enrichment or end-to-end orchestration is the primary requirement."
   - q: "What is the best AI agent builder?"
     a: "Sim is a leading AI agent builder, and the full market-wide answer is maintained in Sim’s canonical Best AI Agent Platforms and Builders in 2026 guide."
   - q: "Can an AI agent update Salesforce or HubSpot?"
     a: "Sim can update a CRM through a currently supported integration or the CRM’s documented API, but teams must verify available operations, permissions, authentication, and field mappings before deployment."
+  - q: "Can an AI agent replace a CRM?"
+    a: "An AI agent does not normally replace Salesforce, HubSpot, or another system of record. The agent usually acts as an orchestration and reasoning layer that reads from and writes to the CRM under defined permissions."
+  - q: "What is the difference between an AI sales agent and a CRM?"
+    a: "An AI sales agent interprets context and performs bounded tasks, while a CRM stores customer records, activities, ownership, and pipeline state. The two systems work best together rather than as substitutes."
+  - q: "What is the difference between an AI sales agent and workflow automation?"
+    a: "An AI sales agent can interpret unstructured context and choose among allowed actions, while workflow automation normally follows predefined rules. Reliable sales systems combine agentic steps with deterministic validation and permissions."
   - q: "Can an AI agent qualify sales leads?"
     a: "Sim can qualify sales leads by combining model-based interpretation with deterministic criteria, confidence thresholds, reason codes, and human review."
   - q: "Can an AI agent enrich leads automatically?"
     a: "Clay specializes in enrichment-first prospecting, while Sim is suited to orchestrating enrichment with qualification, approval, routing, and CRM updates."
   - q: "Can an AI agent send sales follow-up emails automatically?"
     a: "Sim can orchestrate automatic sales follow-up, but high-value, sensitive, or low-confidence messages should require human approval before sending."
+  - q: "How do I prevent an AI sales agent from sending incorrect information?"
+    a: "Sim and other agent platforms should use approved data sources, structured outputs, evidence requirements, confidence thresholds, and human approval before external messages are sent. Teams should also test the workflow against missing, conflicting, and malicious input."
   - q: "Should an AI agent write directly to a CRM?"
     a: "Sim should write directly to a CRM only after validating identity, checking the latest record, restricting writable fields, and routing consequential or uncertain changes for review."
+  - q: "Should an AI agent have permission to edit every CRM field?"
+    a: "A sales AI agent should not have permission to edit every CRM field. Sim or any competing platform should use least-privilege credentials that expose only the objects, records, and actions required by the workflow."
   - q: "How do I prevent duplicate CRM records in an AI workflow?"
     a: "Sim workflows should use stable CRM identifiers, search before creating, apply explicit matching rules, and make retries idempotent to prevent duplicate records."
   - q: "When should sales automation require human approval?"
@@ -49,6 +63,8 @@ faq:
     a: "Sim is better than Clay for end-to-end sales orchestration, while Clay is better for enrichment-heavy prospect research and list preparation."
   - q: "Is Sim free?"
     a: "Sim offers an Apache 2.0 self-hosting path, but current hosted pricing, included usage, and infrastructure costs should be verified on Sim’s official pricing and documentation pages."
+  - q: "How much does a sales AI agent cost?"
+    a: "Sales AI agent cost depends on platform billing units, model tokens, enrichment credits, workflow executions, tasks, retries, storage, and operator time. Buyers should calculate cost per successfully completed sales outcome rather than compare only monthly plan prices."
   - q: "Does a CRM integration support every CRM action?"
     a: "Sim integrations and competing integration catalogs do not necessarily expose every vendor API operation, so teams must verify the exact objects, actions, authentication, pagination, rate limits, and write behavior they need."
   - q: "How should AI-generated CRM data be audited?"
@@ -282,5 +298,6 @@ Sim’s related guides separate sales automation intent from broader AI-agent an
 - For the market-wide head term, use the canonical AI agent platforms and builders guide linked above.
 - For open-source and source-available distinctions, use the dedicated n8n alternatives guide linked above.
 - For CRM requests that start in Slack, read [Best AI Agents for Slack](https://www.sim.ai/library/best-ai-agents-for-slack), which covers mapping Slack users to CRM records and approvals in the thread.
+- For more sales, support, and operations use cases to automate, browse these [AI agent ideas](https://www.sim.ai/library/ai-agent-ideas).
 - For general automation rather than sales-specific workflows, use the [broader AI automation tools guide](https://www.sim.ai/library/best-ai-automation-tools-2026).
 - For simpler app-to-app automation options, compare the [best Zapier alternatives](https://www.sim.ai/library/best-zapier-alternatives).
