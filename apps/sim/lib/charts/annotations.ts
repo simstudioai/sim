@@ -27,17 +27,39 @@ export interface ChartAnnotations {
 
 const BAND_OPACITY = 0.08
 
-function firstAxis(axis: unknown): Record<string, unknown> {
-  return toRecord(Array.isArray(axis) ? axis[0] : axis)
+function firstSeries(option: Record<string, unknown>): Record<string, unknown> {
+  return toRecord(Array.isArray(option.series) ? option.series[0] : option.series)
 }
 
-/** The axis a threshold is measured on; ECharts defaults an unspecified yAxis to a value axis. */
+/** The axis the first series is plotted on, resolved through its `*AxisId` or `*AxisIndex`. */
+function seriesAxis(
+  option: Record<string, unknown>,
+  key: 'xAxis' | 'yAxis'
+): Record<string, unknown> {
+  const axes = Array.isArray(option[key]) ? (option[key] as unknown[]) : [option[key]]
+  const series = firstSeries(option)
+  const id = series[`${key}Id`]
+  if (id !== undefined) {
+    const axis = axes.find((candidate) => toRecord(candidate).id === id)
+    if (axis === undefined) throw new Error(`The first series references a missing ${key} "${id}"`)
+    return toRecord(axis)
+  }
+  const index = series[`${key}Index`] ?? 0
+  if (typeof index !== 'number' || (index > 0 && axes[index] === undefined))
+    throw new Error(`The first series references a missing ${key} at index ${String(index)}`)
+  return toRecord(axes[index])
+}
+
+/**
+ * The axis a threshold is measured on, among the axes the first series is plotted on; ECharts
+ * defaults an unspecified yAxis to a value axis.
+ */
 export function valueAxisKey(option: Record<string, unknown>): 'xAxis' | 'yAxis' {
   if (option.xAxis === undefined && option.yAxis === undefined)
     throw new Error('Thresholds require a value axis')
-  const y = firstAxis(option.yAxis)
+  const y = seriesAxis(option, 'yAxis')
   if (y.type === undefined || y.type === 'value' || y.type === 'log') return 'yAxis'
-  const x = firstAxis(option.xAxis)
+  const x = seriesAxis(option, 'xAxis')
   if (x.type === 'value' || x.type === 'log') return 'xAxis'
   throw new Error('Thresholds require a value axis')
 }
@@ -47,7 +69,7 @@ export function valueAxisKey(option: Record<string, unknown>): 'xAxis' | 'yAxis'
  * y axis is inverted (as horizontal bar charts usually are).
  */
 function verticalTop(option: Record<string, unknown>): 'start' | 'end' {
-  return firstAxis(option.yAxis).inverse === true ? 'start' : 'end'
+  return seriesAxis(option, 'yAxis').inverse === true ? 'start' : 'end'
 }
 
 /** A chart annotations can draw on: a first series with no hand-written marks to collide with. */

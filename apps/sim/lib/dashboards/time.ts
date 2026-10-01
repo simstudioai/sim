@@ -89,6 +89,20 @@ export function dashboardRangeText(range: DashboardTimeRange, timeZone: string):
   const to = new Date(Date.parse(range.to) - 1)
   const fromLocal = zonedWallClock(from, timeZone)
   const toLocal = zonedWallClock(to, timeZone)
+  if (fromLocal === toLocal) {
+    // Same wall-clock minute (e.g. a DST fall-back repeat): formatRange would collapse both ends.
+    const exact = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+      timeZoneName: 'short',
+    })
+    return `${exact.format(from)} – ${exact.format(to)}`
+  }
   const sameDay = fromLocal.slice(0, 10) === toLocal.slice(0, 10)
   return new Intl.DateTimeFormat('en-US', {
     timeZone,

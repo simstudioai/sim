@@ -116,4 +116,28 @@ describe('chart annotations', () => {
       )
     ).toThrow('Use highlights and thresholds instead of markArea or markLine on the series')
   })
+
+  it('measures thresholds on the axes the first series is plotted on', () => {
+    const option = applyChartAnnotations(
+      {
+        xAxis: { type: 'time' },
+        yAxis: [{ type: 'category' }, { id: 'latency', type: 'value' }],
+        series: [{ type: 'line', yAxisIndex: 1 }],
+      },
+      { thresholds: [{ value: 5 }] },
+      palette
+    )
+    expect((option.series as Series[])[0].markLine).toMatchObject({ data: [{ yAxis: 5 }] })
+    expect(() =>
+      applyChartAnnotations(
+        {
+          xAxis: { type: 'time' },
+          yAxis: [{ type: 'value' }, { id: 'stage', type: 'category' }],
+          series: [{ type: 'line', yAxisId: 'stage' }],
+        },
+        { thresholds: [{ value: 5 }] },
+        palette
+      )
+    ).toThrow('Thresholds require a value axis')
+  })
 })
