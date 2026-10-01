@@ -15,7 +15,7 @@ function result(passed: boolean): AgentToolUseResult {
     name: 'scenario',
     category: 'recovery',
     passed,
-    checks: [],
+    checks: passed ? [] : [{ name: 'final-content', passed: false, detail: 'mismatch' }],
     finalContent: '',
     toolInvocations: [],
     metrics: {
@@ -52,7 +52,12 @@ describe('model comparison report', () => {
       'deepseek/reasoner',
     ])
     expect(report.models[0]).toMatchObject({ passRate: 1, passed: 2, trials: 2 })
-    expect(report.models[1]).toMatchObject({ passRate: 0.5, passed: 1, trials: 2 })
+    expect(report.models[1]).toMatchObject({
+      passRate: 0.5,
+      passed: 1,
+      trials: 2,
+      failedChecks: ['final-content'],
+    })
     expect(report.matrix.scenario['deepseek/chat']).toBe(1)
     expect(report.matrix.scenario['deepseek/reasoner']).toBe(0.5)
   })

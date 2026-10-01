@@ -147,6 +147,8 @@ export interface LiveModelSummary {
   avgIterations: number
   avgLatencyMs: number
   totalTokens: number
+  /** Names of the checks this model failed at least once, sorted. */
+  failedChecks: string[]
 }
 
 /** Side-by-side comparison of several models on the same scenarios. */
@@ -180,6 +182,12 @@ export function buildLiveComparisonReport(runs: LiveModelRun[]): LiveComparisonR
     const results = modelRuns.map((run) => run.result)
     const passed = results.filter((result) => result.passed).length
     const [provider, model] = label.split('/')
+    const failedChecks = new Set<string>()
+    for (const result of results) {
+      for (const entry of result.checks) {
+        if (!entry.passed) failedChecks.add(entry.name)
+      }
+    }
     models.push({
       provider,
       model,
@@ -190,6 +198,7 @@ export function buildLiveComparisonReport(runs: LiveModelRun[]): LiveComparisonR
       avgIterations: average(results.map((result) => result.metrics.iterations)),
       avgLatencyMs: average(results.map((result) => result.metrics.latencyMs)),
       totalTokens: results.reduce((sum, result) => sum + result.metrics.totalTokens, 0),
+      failedChecks: [...failedChecks].sort(),
     })
 
     for (const scenario of scenarios) {
@@ -217,11 +226,11 @@ function renderComparisonMarkdown(report: LiveComparisonReport): string {
     '',
     `Generated: ${report.generatedAt}`,
     '',
-    '| Model | Pass rate | Trials | Avg iterations | Avg latency | Tokens |',
-    '| --- | ---: | ---: | ---: | ---: | ---: |',
+    '| Model | Pass rate | Trials | Avg iterations | Avg latency | Tokens | Failed checks |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | --- |',
     ...report.models.map(
       (model) =>
-        `| ${model.label} | ${(model.passRate * 100).toFixed(0)}% (${model.passed}/${model.trials}) | ${model.trials} | ${model.avgIterations.toFixed(1)} | ${Math.round(model.avgLatencyMs)}ms | ${model.totalTokens} |`
+        `| ${model.label} | ${(model.passRate * 100).toFixed(0)}% (${model.passed}/${model.trials}) | ${model.trials} | ${model.avgIterations.toFixed(1)} | ${Math.round(model.avgLatencyMs)}ms | ${model.totalTokens} | ${model.failedChecks.join(', ') || '—'} |`
     ),
     '',
     `| Scenario | ${labels.join(' | ')} |`,
