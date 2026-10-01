@@ -23,15 +23,12 @@ vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
-  deleteCustomTool: vi.fn(),
   deleteWorkspaceCustomTool: vi.fn(),
   getAvailableCustomTool: hoisted.getAvailableTool,
-  getCustomToolById: vi.fn(),
   getWorkspaceCustomTool: hoisted.getWorkspaceTool,
   getWorkspaceCustomToolByTitle: hoisted.getByTitle,
   listCustomTools: hoisted.listAvailable,
   listWorkspaceCustomTools: vi.fn(),
-  updateCustomTool: vi.fn(),
   updateWorkspaceCustomTool: hoisted.updateWorkspaceTool,
   upsertCustomTools: hoisted.upsert,
 }))
@@ -41,7 +38,6 @@ import {
   createWorkspaceCustomToolUseCase,
   listAvailableCustomToolsUseCase,
   readAvailableCustomToolByIdOrTitleUseCase,
-  saveWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 
@@ -363,36 +359,6 @@ describe('custom tool application use cases', () => {
           title: tool.title,
           schema: tool.schema,
           code: tool.code,
-        },
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
-
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('normalizes the in-transaction duplicate-title error for compatibility saves', async () => {
-    mocks.upsert.mockRejectedValueOnce(
-      new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
-    )
-
-    await expect(
-      saveWorkspaceCustomToolUseCase.execute({
-        principal: {
-          kind: 'delegated',
-          serviceId: 'copilot',
-          subjectUserId: 'user-1',
-          workspaceId: workspace.workspaceId,
-          delegationId: 'delegation-1',
-          audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
-          issuedAt: new Date(Date.now() - 1_000),
-          expiresAt: new Date(Date.now() + 60_000),
-        },
-        input: {
-          workspaceId: workspace.workspaceId,
-          title: tool.title,
-          schema: tool.schema,
-          code: tool.code,
-          source: 'tool_input',
         },
       })
     ).rejects.toMatchObject({ code: 'conflict' })
