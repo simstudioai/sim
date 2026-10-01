@@ -56,14 +56,6 @@ export const workflowOperations = {
     capability: 'none',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
-  // permission-group-exempt: reporting where a workflow is already deployed is a read of existing state; a group withholds the act of deploying, not the record of it
-  readDeploymentOverview: defineWorkspaceOperation({
-    id: 'workflows.deployment_overview.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
   /** Full diagnostics retain the caller's subject for protected reference and secret reads. */
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies
   readLint: defineWorkspaceOperation({
@@ -86,22 +78,6 @@ export const workflowOperations = {
   // permission-group-exempt: inspecting saved tool bindings reads workflow content; protected dependencies reauthorize separately
   inspectTools: defineWorkspaceOperation({
     id: 'workflows.tools.inspect',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: reading a block's declared outputs is workflow content; Chat itself is withheld by copilot.use at the chat surface
-  readCopilotBlockOutputs: defineWorkspaceOperation({
-    id: 'workflows.copilot.block_outputs.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: resolving which upstream blocks a block may reference is workflow content; Chat itself is withheld by copilot.use at the chat surface
-  readCopilotUpstreamReferences: defineWorkspaceOperation({
-    id: 'workflows.copilot.upstream_references.read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
@@ -219,38 +195,6 @@ export const workflowOperations = {
     capability: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
-  // permission-group-exempt: the workflow file tree has no hide key; arranging it is governed by workspace role
-  createVfsFolders: defineWorkspaceOperation({
-    id: 'workflows.vfs.folders.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: the workflow file tree has no hide key; arranging it is governed by workspace role
-  moveVfsItems: defineWorkspaceOperation({
-    id: 'workflows.vfs.move',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: the workflow file tree has no hide key; arranging it is governed by workspace role
-  copyVfsItems: defineWorkspaceOperation({
-    id: 'workflows.vfs.copy',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: the workflow file tree has no hide key; arranging it is governed by workspace role
-  deleteVfsItems: defineWorkspaceOperation({
-    id: 'workflows.vfs.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
   // permission-group-exempt: duplicating copies a graph the caller may already read into the same workspace, so it crosses no capability boundary
   duplicate: defineWorkspaceOperation({
     id: 'workflows.duplicate',
@@ -356,14 +300,6 @@ export const workflowOperations = {
   }),
   deployChat: defineWorkspaceOperation({
     id: 'workflows.chat.deploy',
-    oauthScope: 'api:write',
-    minimumRole: 'admin',
-    workspaceApiKey: 'deny',
-    capability: 'deploy.chat',
-    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  undeployChat: defineWorkspaceOperation({
-    id: 'workflows.chat.undeploy',
     oauthScope: 'api:write',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',

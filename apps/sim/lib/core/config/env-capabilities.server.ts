@@ -26,10 +26,6 @@ export function getConfiguredStorageProviderId() {
   return requireCapability(STORAGE_CAPABILITY, env).providerId
 }
 
-export function getConfiguredSandboxProviderId() {
-  return requireCapability(SANDBOX_CAPABILITY, env).providerId
-}
-
 /**
  * Selects the sandbox adapter without requiring a Function-specific base image.
  * Each adapter validates the API key and image required by the requested sandbox

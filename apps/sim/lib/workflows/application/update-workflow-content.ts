@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -13,9 +13,8 @@ import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import {
   coerceWorkflowVariableValue,
@@ -44,19 +43,6 @@ const BLOCK_ENABLEMENT_REFUSAL_CODES: Record<
 interface WorkflowContentInput {
   workflowId: string
   assertedWorkspaceId?: string
-}
-
-function resolveWorkflowContentContext<I extends WorkflowContentInput>({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: I
-}) {
-  return resolveActiveWorkflowApplicationContext({
-    workflowId: input.workflowId,
-    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-  })
 }
 
 export interface WorkflowVariableOperation {
@@ -105,7 +91,7 @@ function applyVariableOperations(
 
 export const applyWorkflowVariableOperations = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.applyVariableOperations,
-  resolveContext: resolveWorkflowContentContext<ApplyWorkflowVariableOperationsInput>,
+  resolveContext: resolvePrincipalWorkflowContext<ApplyWorkflowVariableOperationsInput>,
   async execute({ input, context }) {
     if (input.operations.length > MAX_WORKFLOW_VARIABLE_OPERATIONS) {
       throw new OrchestrationError(
@@ -189,7 +175,7 @@ export interface SetWorkflowBlockEnabledInput extends WorkflowContentInput {
  */
 export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.setBlockEnabled,
-  resolveContext: resolveWorkflowContentContext<SetWorkflowBlockEnabledInput>,
+  resolveContext: resolvePrincipalWorkflowContext<SetWorkflowBlockEnabledInput>,
   async execute({ principal, input, context }) {
     await requireMutableWorkflow(context.workflowId)
 

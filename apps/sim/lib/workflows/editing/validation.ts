@@ -1385,67 +1385,6 @@ function collectSelectorFields(
 }
 
 /**
- * Validates selector IDs in the workflow state exist in the database.
- * Returns validation errors for any invalid selector IDs.
- *
- * `options.includeCredentials` controls whether oauth-input credential fields
- * are validated (the edit path defaults to skipping them since they are
- * pre-validated; the lint opts in to close that gap).
- */
-export async function validateWorkflowSelectorIds(
-  workflowState: any,
-  context: { userId: string; workspaceId?: string },
-  options: { includeCredentials?: boolean } = {}
-): Promise<ValidationError[]> {
-  const logger = createLogger('EditWorkflowSelectorValidation')
-  const errors: ValidationError[] = []
-
-  const selectorsToValidate = collectSelectorFields(workflowState, options)
-
-  if (selectorsToValidate.length === 0) {
-    return errors
-  }
-
-  logger.info('Validating selector IDs', {
-    selectorCount: selectorsToValidate.length,
-    userId: context.userId,
-    workspaceId: context.workspaceId,
-  })
-
-  // Validate each selector field
-  for (const selector of selectorsToValidate) {
-    const result = await validateSelectorIds(selector.selectorType, selector.value, context)
-
-    if (result.invalid.length > 0) {
-      // Include warning info (like available credentials) in the error message for better LLM feedback
-      const warningInfo = result.warning ? `. ${result.warning}` : ''
-      errors.push({
-        blockId: selector.blockId,
-        blockType: selector.blockType,
-        field: selector.fieldName,
-        value: selector.value,
-        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} — they do not exist in this workspace or you lack access. Discover valid ids first (glob/read the matching workspace resource, e.g. environment/credentials.json, knowledgebases/*/meta.json, tables/*/meta.json) instead of guessing${warningInfo}`,
-      })
-    } else if (result.warning) {
-      // Log warnings that don't have errors (shouldn't happen for credentials but may for other selectors)
-      logger.warn(result.warning, {
-        blockId: selector.blockId,
-        fieldName: selector.fieldName,
-      })
-    }
-  }
-
-  if (errors.length > 0) {
-    logger.warn('Found invalid selector IDs', {
-      errorCount: errors.length,
-      errors: errors.map((e) => ({ blockId: e.blockId, field: e.field, error: e.error })),
-    })
-  }
-
-  return errors
-}
-
-/**
  * Lint-facing Tier-2 resolution: validate every ACTIVE credential/resource
  * member (including oauth-input) against the workspace and return the references
  * that do not resolve to an accessible entity. This is the "set in basic mode
