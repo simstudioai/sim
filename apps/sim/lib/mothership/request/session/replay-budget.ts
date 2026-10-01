@@ -1,4 +1,5 @@
 import type { RedisBudgetRefusal } from '@/lib/core/redis/byte-budget.server'
+import { StreamTurnFailure } from '@/lib/mothership/request/session/turn-failure'
 
 /** Run-error code for a turn stopped because its replay buffer refused a write. */
 export const REPLAY_BUDGET_EXHAUSTED_CODE = 'replay_budget_exhausted'
@@ -11,10 +12,9 @@ const HOURLY_LIMIT_MESSAGE =
 
 /**
  * The replay buffer refused an event a leased controller had to persist before
- * delivering it. Unlike {@link StreamControllerSupersededError} this is not a
- * handoff: no replacement can persist the same event either, so the turn ends.
+ * delivering it. No replacement can persist the same event either, so the turn ends.
  */
-export class StreamReplayBudgetExhaustedError extends Error {
+export class StreamReplayBudgetExhaustedError extends StreamTurnFailure {
   readonly code = REPLAY_BUDGET_EXHAUSTED_CODE
 
   constructor(readonly refusal: RedisBudgetRefusal) {
@@ -28,9 +28,4 @@ export class StreamReplayBudgetExhaustedError extends Error {
       ? HOURLY_LIMIT_MESSAGE
       : STREAM_LIMIT_MESSAGE
   }
-}
-
-/** The refusal an abort reason or thrown value carries, if it is one. */
-export function replayRefusal(value: unknown): StreamReplayBudgetExhaustedError | undefined {
-  return value instanceof StreamReplayBudgetExhaustedError ? value : undefined
 }

@@ -60,11 +60,9 @@ import {
   holdsChatStreamLease,
   StreamControllerSupersededError,
 } from '@/lib/mothership/request/session/controller-lease'
-import {
-  replayRefusal,
-  type StreamReplayBudgetExhaustedError,
-} from '@/lib/mothership/request/session/replay-budget'
+import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
 import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
+import { type StreamTurnFailure, turnFailure } from '@/lib/mothership/request/session/turn-failure'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
@@ -95,6 +93,8 @@ export interface StreamingOrchestrationParams {
   /** Interactive admission commits before the HTTP stream is exposed. */
   admittedRun?: Awaited<ReturnType<typeof createRunSegment>>
   resumeSeq?: number
+  /** Ends the turn with this failure instead of contacting the worker. */
+  failure?: StreamTurnFailure
   /** Pre-started root; omit to let the stream start its own root. */
   otelRoot?: ReturnType<typeof startCopilotOtelRoot>
 }
@@ -133,17 +133,32 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     })
 
   const abortController = new AbortController()
+  if (params.failure) abortController.abort(params.failure)
   registerActiveStream(streamId, abortController)
 
   const lease = chatId ? getLocalChatStreamLease(chatId, streamId) : undefined
+  /**
+   * Only a lease another controller holds proves a takeover. A lease that cannot be read
+   * proves nothing: the fenced writes that follow (the leased replay append and the
+   * token-checked run updates) decide, instead of leaving the run to a successor.
+   */
   const assertControllerOwnership = async () => {
     if (!chatId) return
-    try {
-      if (!lease || abortController.signal.reason instanceof StreamControllerSupersededError) {
-        throw new StreamControllerSupersededError()
-      }
-      await assertChatStreamLease(lease)
-    } catch {
+    const superseded =
+      !lease ||
+      abortController.signal.reason instanceof StreamControllerSupersededError ||
+      (await assertChatStreamLease(lease).then(
+        () => false,
+        (error: unknown) => {
+          if (error instanceof StreamControllerSupersededError) return true
+          logger.warn(`[${requestId}] Chat stream lease is unreadable`, {
+            streamId,
+            error: getErrorMessage(error),
+          })
+          return false
+        }
+      ))
+    if (superseded) {
       const error = new StreamControllerSupersededError()
       abortController.abort(error)
       throw error
@@ -211,11 +226,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   const collector = new TraceCollector()
 
   /**
-   * The replay refusal that ends this turn. Once the controller is aborted its
-   * reason is authoritative, so a refusal that follows a Stop stays a Stop.
+   * The failure that ends this turn. Once the controller is aborted its reason is
+   * authoritative, so a failure that follows a Stop stays a Stop.
    */
-  const refusalOf = (thrown?: unknown) =>
-    replayRefusal(abortController.signal.aborted ? abortController.signal.reason : thrown)
+  const failureOf = (thrown?: unknown) =>
+    turnFailure(abortController.signal.aborted ? abortController.signal.reason : thrown)
 
   /**
    * Set once this controller ended the turn, even if publishing its terminal
@@ -234,21 +249,26 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   }
 
   /**
-   * A refused replay write ends the turn as an error: every replacement would be
-   * refused the same event. The run is marked terminal before the lock is
-   * released, and the worker is told to stop so it does not wait out a tool call
-   * that was never dispatched.
+   * A turn failure ends the turn as an error: every replacement would fail the same
+   * way. The run is marked terminal before the lock is released, and the worker is told
+   * to stop so it does not wait out a tool call that was never dispatched.
    */
-  const finalizeAfterReplayRefusal = async (
-    refusal: StreamReplayBudgetExhaustedError,
+  const finalizeAfterTurnFailure = async (
+    failure: StreamTurnFailure,
     result?: OrchestratorResult
   ) => {
-    logger.warn(`[${requestId}] Stream replay budget exhausted; ending the turn`, {
+    logger.warn(`[${requestId}] ${failure.message}; ending the turn`, {
       streamId,
-      resource: refusal.refusal.resource,
-      attemptedBytes: refusal.refusal.attemptedBytes,
-      currentBytes: refusal.refusal.currentBytes,
-      limitBytes: refusal.refusal.limitBytes,
+      code: failure.code,
+      ...(failure instanceof StreamReplayBudgetExhaustedError
+        ? {
+            resource: failure.refusal.resource,
+            attemptedBytes: failure.refusal.attemptedBytes,
+            currentBytes: failure.refusal.currentBytes,
+            limitBytes: failure.refusal.limitBytes,
+          }
+        : {}),
+      ...(failure.cause === undefined ? {} : { cause: getErrorMessage(failure.cause) }),
     })
     await endTurn(
       {
@@ -258,8 +278,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         ...result,
         success: false,
         cancelled: false,
-        error: refusal.userMessage,
-        errorCode: refusal.code,
+        error: failure.userMessage,
+        errorCode: failure.code,
       },
       publisher,
       runId,
@@ -272,7 +292,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       )
       await requestExplicitStreamAbort({ streamId, userId, chatId })
     } catch (error) {
-      logger.warn(`[${requestId}] Worker stop after replay refusal was not delivered`, {
+      logger.warn(`[${requestId}] Worker stop after a turn failure was not delivered`, {
         streamId,
         error: getErrorMessage(error),
       })
@@ -427,11 +447,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                     A refused write is a terminal failure, not a handoff: leaving it
                     recoverable made each replacement re-receive and re-refuse the same
                     event. Any other failure to persist means this controller can no
-                    longer prove ownership of the replay, so a successor takes over.
+                    longer prove ownership of the replay, so a successor takes over; the
+                    run's recovery budget bounds how often that repeats.
                   */
                   if (!abortController.signal.aborted) {
                     abortController.abort(
-                      replayRefusal(error) ?? new StreamControllerSupersededError()
+                      turnFailure(error) ?? new StreamControllerSupersededError()
                     )
                   }
                   throw error
@@ -445,11 +466,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
 
             lifecycleResult = result
-            const refusal = refusalOf()
+            const failure = failureOf()
             // A completed result wins a late Stop; passive disconnection never cancels.
             outcome = result.success
               ? RequestTraceV1Outcome.success
-              : refusal
+              : failure
                 ? RequestTraceV1Outcome.error
                 : result.cancelled || abortController.signal.aborted
                   ? RequestTraceV1Outcome.cancelled
@@ -458,8 +479,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               cancelReason = recordCancelled()
             }
             await assertControllerOwnership()
-            if (refusal && !result.success) {
-              await finalizeAfterReplayRefusal(refusal, result)
+            if (failure && !result.success) {
+              await finalizeAfterTurnFailure(failure, result)
             } else {
               await endTurn(result, publisher, runId, outcome, requestId)
             }
@@ -472,10 +493,10 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               return
             }
             await assertControllerOwnership()
-            const refusal = refusalOf(error)
-            if (refusal) {
+            const failure = failureOf(error)
+            if (failure) {
               outcome = RequestTraceV1Outcome.error
-              await finalizeAfterReplayRefusal(refusal)
+              await finalizeAfterTurnFailure(failure)
               return
             }
             const wasCancelled = abortController.signal.aborted

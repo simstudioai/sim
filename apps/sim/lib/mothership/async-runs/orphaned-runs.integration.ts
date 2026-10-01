@@ -69,6 +69,9 @@ import {
   chatStreamLockKey,
 } from '@/lib/mothership/request/session/controller-lease'
 
+/** A recovering controller's first takeover of a run. */
+const FIRST_RECOVERY = { attempts: 1, claimedAt: 0, notBefore: 0 }
+
 function redis() {
   const client = getRedisClient()
   if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
@@ -466,6 +469,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
           chatId: orphan.chatId,
           previousToken: orphan.controllerToken!,
           token: `${orphan.streamId}\n${generateId()}`,
+          recoveryBackoff: FIRST_RECOVERY,
         }),
         sweepOrphanedRuns(),
       ])
@@ -533,6 +537,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
               chatId: orphan.chatId,
               previousToken: orphan.controllerToken!,
               token: `${orphan.streamId}\n${generateId()}`,
+              recoveryBackoff: FIRST_RECOVERY,
             })
           )
         ),
@@ -570,6 +575,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
           chatId: orphan.chatId,
           previousToken: orphan.controllerToken!,
           token: `${orphan.streamId}\n${generateId()}`,
+          recoveryBackoff: FIRST_RECOVERY,
         }),
         settleStoppedRunWithoutController(orphan.runId),
       ])
@@ -604,6 +610,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
             chatId: orphan.chatId,
             previousToken: orphan.controllerToken!,
             token: lease.value,
+            recoveryBackoff: FIRST_RECOVERY,
           })
           return { owned, claimed }
         } finally {

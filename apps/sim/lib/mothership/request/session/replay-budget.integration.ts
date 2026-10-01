@@ -17,6 +17,8 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
     onAbort: undefined as (() => Promise<void>) | undefined,
     /** The read-only replay's answer; a worker that does not know the run by default. */
     replay: { status: 404, frames: [] as unknown[] },
+    /** How many coming reads of the controller's own lease fail, as a Redis error would. */
+    leaseReadFailures: 0,
   }
   const replayRequests: Array<Record<string, unknown>> = []
   const server = createHttpServer(async (request, response) => {
@@ -72,6 +74,20 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
 })
 
 vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/lib/mothership/request/session/controller-lease', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/mothership/request/session/controller-lease')>()
+  return {
+    ...actual,
+    assertChatStreamLease: async (...args: Parameters<typeof actual.assertChatStreamLease>) => {
+      if (worker.hooks.leaseReadFailures > 0) {
+        worker.hooks.leaseReadFailures--
+        throw new Error('simulated Redis read failure')
+      }
+      return actual.assertChatStreamLease(...args)
+    },
+  }
+})
 vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   /**
    * Stands in for the worker leg: forwards each scripted event to the controller's
@@ -678,6 +694,23 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored.status).toBe('active')
     expect(worker.abortRequests).toEqual([])
+  })
+
+  it('settles a finished turn whose lease could not be read instead of handing it off', async () => {
+    try {
+      const { runId, frames } = await runTurn([
+        text('Done.'),
+        async () => {
+          worker.hooks.leaseReadFailures = 1
+        },
+      ])
+
+      expect(frames.at(-1)).toMatchObject({ type: 'complete', payload: { status: 'complete' } })
+      const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+      expect(stored.status).toBe('complete')
+    } finally {
+      worker.hooks.leaseReadFailures = 0
+    }
   })
 
   it('still cleans up a finished turn whose terminal events could not be published', async () => {
