@@ -26,11 +26,9 @@ import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/cus
 import type { SubBlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
 import {
-  findProviderFromModel as findProviderFromDefinitions,
+  findProviderFromModel,
   getComputerUseModels,
   getHostedModels as getHostedModelsFromDefinitions,
-  getMaxOutputTokensForModel as getMaxOutputTokensForModelFromDefinitions,
-  getMaxTemperature as getMaxTempFromDefinitions,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
@@ -38,14 +36,9 @@ import {
   getModelsWithThinking,
   getModelsWithVerbosity,
   getProviderDefaultModel as getProviderDefaultModelFromDefinitions,
-  getProviderModels as getProviderModelsFromDefinitions,
-  getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
-  getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
-  getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
+  getProviderModels,
   isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
-  supportsTemperature as supportsTemperatureFromDefinitions,
-  supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import {
@@ -58,7 +51,12 @@ import {
   getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
-import type { ModelPricing, ProviderId, ProviderToolConfig } from '@/providers/types'
+import type {
+  ModelPricing,
+  ProviderId,
+  ProviderRequest,
+  ProviderToolConfig,
+} from '@/providers/types'
 import { mergeToolParameters } from '@/tools/merge-params'
 import { buildToolParamShapes, decodeToolParams } from '@/tools/param-shape'
 import type { WorkflowToolExecutionContext } from '@/tools/types'
@@ -128,7 +126,7 @@ function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
     name: def?.name || providerId,
     description: def?.description || '',
     version: '1.0.0',
-    models: getProviderModelsFromDefinitions(providerId),
+    models: getProviderModels(providerId),
     defaultModel: getProviderDefaultModelFromDefinitions(providerId),
     modelPatterns: def?.modelPatterns,
   }
@@ -146,7 +144,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   anthropic: {
     ...buildProviderMetadata('anthropic'),
     computerUseModels: getComputerUseModels().filter((model) =>
-      getProviderModelsFromDefinitions('anthropic').includes(model)
+      getProviderModels('anthropic').includes(model)
     ),
   },
   google: buildProviderMetadata('google'),
@@ -174,49 +172,49 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
 
 export function updateOllamaProviderModels(models: string[]): void {
   updateOllamaModelsInDefinitions(models)
-  providers.ollama.models = getProviderModelsFromDefinitions('ollama')
+  providers.ollama.models = getProviderModels('ollama')
 }
 
 export function updateVLLMProviderModels(models: string[]): void {
   const { updateVLLMModels } = require('@/providers/models')
   updateVLLMModels(models)
-  providers.vllm.models = getProviderModelsFromDefinitions('vllm')
+  providers.vllm.models = getProviderModels('vllm')
 }
 
 export function updateLiteLLMProviderModels(models: string[]): void {
   const { updateLiteLLMModels } = require('@/providers/models')
   updateLiteLLMModels(models)
-  providers.litellm.models = getProviderModelsFromDefinitions('litellm')
+  providers.litellm.models = getProviderModels('litellm')
 }
 
 export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
   const { updateOpenRouterModels } = await import('@/providers/models')
   updateOpenRouterModels(models)
-  providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
+  providers.openrouter.models = getProviderModels('openrouter')
 }
 
 export async function updateFireworksProviderModels(models: string[]): Promise<void> {
   const { updateFireworksModels } = await import('@/providers/models')
   updateFireworksModels(models)
-  providers.fireworks.models = getProviderModelsFromDefinitions('fireworks')
+  providers.fireworks.models = getProviderModels('fireworks')
 }
 
 export async function updateOllamaCloudProviderModels(models: string[]): Promise<void> {
   const { updateOllamaCloudModels } = await import('@/providers/models')
   updateOllamaCloudModels(models)
-  providers['ollama-cloud'].models = getProviderModelsFromDefinitions('ollama-cloud')
+  providers['ollama-cloud'].models = getProviderModels('ollama-cloud')
 }
 
 export async function updateTogetherProviderModels(models: string[]): Promise<void> {
   const { updateTogetherModels } = await import('@/providers/models')
   updateTogetherModels(models)
-  providers.together.models = getProviderModelsFromDefinitions('together')
+  providers.together.models = getProviderModels('together')
 }
 
 export async function updateBasetenProviderModels(models: string[]): Promise<void> {
   const { updateBasetenModels } = await import('@/providers/models')
   updateBasetenModels(models)
-  providers.baseten.models = getProviderModelsFromDefinitions('baseten')
+  providers.baseten.models = getProviderModels('baseten')
 }
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
@@ -260,19 +258,6 @@ function filterBlacklistedModelsFromProviderMap(
   return filtered
 }
 
-/**
- * The provider that declares `model`, or `null` when none does.
- *
- * The non-guessing half of {@link getProviderFromModel}. A caller that *gates*
- * on the answer needs "unknown" to stay distinct from "ollama": this registry
- * holds chat models only, so every embedding, speech, image and video model id
- * would otherwise read as an Ollama model and be judged against an allowlist
- * that was never about it.
- */
-export function findProviderFromModel(model: string): ProviderId | null {
-  return findProviderFromDefinitions(model)
-}
-
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
 
@@ -301,10 +286,6 @@ export function getProvider(id: string): ProviderMetadata | undefined {
 
 export function getAllProviderIds(): ProviderId[] {
   return Object.keys(providers) as ProviderId[]
-}
-
-export function getProviderModels(providerId: ProviderId): string[] {
-  return getProviderModelsFromDefinitions(providerId)
 }
 
 export function isProviderBlacklisted(providerId: string): boolean {
@@ -346,9 +327,33 @@ export function filterBlacklistedModels(models: string[]): string[] {
   return models.filter((model) => !isModelBlacklisted(model))
 }
 
-export function getProviderIcon(model: string): React.ComponentType<{ className?: string }> | null {
-  const providerId = getProviderFromModel(model)
-  return PROVIDER_DEFINITIONS[providerId]?.icon || null
+/** OpenAI-compatible `json_schema` response format sent to chat-completions providers. */
+export interface JsonSchemaResponseFormat {
+  type: 'json_schema'
+  json_schema: {
+    name: string
+    schema: Record<string, unknown>
+    strict?: boolean
+  }
+}
+
+/**
+ * Builds the OpenAI-compatible `json_schema` response format from a request's `responseFormat`.
+ * Strict mode is on unless the caller set `strict: false`; `includeStrict: false` leaves the
+ * `strict` flag out of the payload entirely.
+ */
+export function buildJsonSchemaResponseFormat(
+  responseFormat: NonNullable<ProviderRequest['responseFormat']>,
+  { includeStrict = true }: { includeStrict?: boolean } = {}
+): JsonSchemaResponseFormat {
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: responseFormat.name || 'response_schema',
+      schema: responseFormat.schema || responseFormat,
+      ...(includeStrict ? { strict: responseFormat.strict !== false } : {}),
+    },
+  }
 }
 
 /**
@@ -1482,10 +1487,6 @@ export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
 export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 
-export function supportsTemperature(model: string): boolean {
-  return supportsTemperatureFromDefinitions(model)
-}
-
 /**
  * Levels the pickers offer on top of what a model declares. `auto` means "say nothing" and
  * `none` means "explicitly off"; provider adapters special-case both, so neither is an
@@ -1540,51 +1541,6 @@ export function isGemini3Model(model: string): boolean {
       ''
     )
   return normalized.startsWith('gemini-3')
-}
-
-/**
- * Get the maximum temperature value for a model
- * @returns Maximum temperature value (1 or 2) or undefined if temperature not supported
- */
-export function getMaxTemperature(model: string): number | undefined {
-  return getMaxTempFromDefinitions(model)
-}
-
-export function supportsToolUsageControl(provider: string): boolean {
-  return supportsToolUsageControlFromDefinitions(provider)
-}
-
-/**
- * Get reasoning effort values for a specific model
- * Returns the valid options for that model, or null if the model doesn't support reasoning effort
- */
-export function getReasoningEffortValuesForModel(model: string): string[] | null {
-  return getReasoningEffortValuesForModelFromDefinitions(model)
-}
-
-/**
- * Get verbosity values for a specific model
- * Returns the valid options for that model, or null if the model doesn't support verbosity
- */
-export function getVerbosityValuesForModel(model: string): string[] | null {
-  return getVerbosityValuesForModelFromDefinitions(model)
-}
-
-/**
- * Get thinking levels for a specific model
- * Returns the valid levels for that model, or null if the model doesn't support thinking
- */
-export function getThinkingLevelsForModel(model: string): string[] | null {
-  return getThinkingLevelsForModelFromDefinitions(model)
-}
-
-/**
- * Get max output tokens for a specific model.
- *
- * @param model - The model ID
- */
-export function getMaxOutputTokensForModel(model: string): number {
-  return getMaxOutputTokensForModelFromDefinitions(model)
 }
 
 /**

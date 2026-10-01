@@ -37,6 +37,7 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
+  buildJsonSchemaResponseFormat,
   calculateCost,
   generateSchemaInstructions,
   isFunctionToolCall,
@@ -125,14 +126,7 @@ export const nvidiaProvider: ProviderConfig = {
       const responseFormatPayload = request.responseFormat
         ? useJsonMode
           ? { type: 'json_object' as const }
-          : {
-              type: 'json_schema' as const,
-              json_schema: {
-                name: request.responseFormat.name || 'response_schema',
-                schema: request.responseFormat.schema || request.responseFormat,
-                strict: request.responseFormat.strict !== false,
-              },
-            }
+          : buildJsonSchemaResponseFormat(request.responseFormat)
         : undefined
 
       if (useJsonMode) payload.chat_template_kwargs = { enable_thinking: false }

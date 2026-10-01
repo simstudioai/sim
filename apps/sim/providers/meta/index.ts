@@ -32,6 +32,7 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
+  buildJsonSchemaResponseFormat,
   calculateCost,
   isFunctionToolCall,
   prepareToolExecution,
@@ -105,14 +106,7 @@ export const metaProvider: ProviderConfig = {
       }
 
       const responseFormatPayload = request.responseFormat
-        ? {
-            type: 'json_schema' as const,
-            json_schema: {
-              name: request.responseFormat.name || 'response_schema',
-              schema: request.responseFormat.schema || request.responseFormat,
-              strict: request.responseFormat.strict !== false,
-            },
-          }
+        ? buildJsonSchemaResponseFormat(request.responseFormat)
         : undefined
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null

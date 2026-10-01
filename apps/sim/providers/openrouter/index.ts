@@ -15,7 +15,7 @@ import {
 } from '@/providers/openrouter/utils'
 import { openAICompatTransport } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
-import { generateSchemaInstructions } from '@/providers/utils'
+import { buildJsonSchemaResponseFormat, generateSchemaInstructions } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterProvider')
 
@@ -33,14 +33,7 @@ async function applyResponseFormat(
 
   if (useNative) {
     logger.info('Using native structured outputs for OpenRouter model', { model })
-    targetPayload.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: responseFormat.name || 'response_schema',
-        schema: responseFormat.schema || responseFormat,
-        strict: responseFormat.strict !== false,
-      },
-    }
+    targetPayload.response_format = buildJsonSchemaResponseFormat(responseFormat)
     targetPayload.provider = { ...targetPayload.provider, require_parameters: true }
     return messages
   }

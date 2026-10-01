@@ -57,6 +57,7 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
+  buildJsonSchemaResponseFormat,
   calculateCost,
   checkForForcedToolUsageOpenAI,
   isFunctionToolCall,
@@ -176,14 +177,7 @@ async function executeChatCompletionsRequest(
     payload.verbosity = request.verbosity as ChatCompletionVerbosity
 
   if (request.responseFormat) {
-    payload.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: request.responseFormat.name || 'response_schema',
-        schema: request.responseFormat.schema || request.responseFormat,
-        strict: request.responseFormat.strict !== false,
-      },
-    }
+    payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
 
     logger.info('Added JSON schema response format to Azure OpenAI request')
   }

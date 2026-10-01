@@ -37,6 +37,7 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
+  buildJsonSchemaResponseFormat,
   calculateCost,
   isFunctionToolCall,
   prepareToolExecution,
@@ -121,14 +122,7 @@ export const groqProvider: ProviderConfig = {
     }
 
     if (request.responseFormat) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
-      }
+      payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
     }
 
     let originalToolChoice: any
