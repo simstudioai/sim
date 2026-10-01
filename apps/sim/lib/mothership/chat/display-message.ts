@@ -149,6 +149,7 @@ function toDisplayContexts(
     ...(c.tableId ? { tableId: c.tableId } : {}),
     ...(c.viewId ? { viewId: c.viewId } : {}),
     ...(c.fileId ? { fileId: c.fileId } : {}),
+    ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
     ...(c.folderId ? { folderId: c.folderId } : {}),
     ...(c.chatId ? { chatId: c.chatId } : {}),
     ...(c.blockType ? { blockType: c.blockType } : {}),

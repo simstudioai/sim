@@ -53,7 +53,7 @@ describe('dashboard repository in PostgreSQL', () => {
   })
 
   it('updates only at the expected revision and advances it', async () => {
-    const current = (await getWorkspaceDashboard('ws-a'))!
+    const current = (await insertWorkspaceDashboard('ws-c', 'first', 'user-1'))!
     const updated = await updateDashboardContent(current.id, 'edited', 'user-2', current.revision)
     expect(updated).toMatchObject({
       content: 'edited',
@@ -61,6 +61,6 @@ describe('dashboard repository in PostgreSQL', () => {
       updatedBy: 'user-2',
     })
     expect(await updateDashboardContent(current.id, 'stale', 'user-3', current.revision)).toBeNull()
-    expect((await getWorkspaceDashboard('ws-a'))?.content).toBe('edited')
+    expect((await getWorkspaceDashboard('ws-c'))?.content).toBe('edited')
   })
 })

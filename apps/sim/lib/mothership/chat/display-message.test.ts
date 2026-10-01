@@ -208,6 +208,20 @@ describe('display-message', () => {
     ])
   })
 
+  it('keeps the dashboard id of a reopened dashboard mention', () => {
+    const display = toDisplayMessage({
+      id: 'msg-dashboard',
+      role: 'user',
+      content: '@Dashboard',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      contexts: [{ kind: 'dashboard', label: 'Dashboard', dashboardId: 'dashboard-1' }],
+    })
+
+    expect(display.contexts).toEqual([
+      { kind: 'dashboard', label: 'Dashboard', dashboardId: 'dashboard-1' },
+    ])
+  })
+
   it.each(['pending', 'executing', 'awaiting_approval'])(
     'shows a %s row of a stored message as interrupted, not running',
     (state) => {
