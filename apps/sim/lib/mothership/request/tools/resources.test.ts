@@ -24,6 +24,7 @@ vi.mock('@/lib/mothership/resources/persistence', () => ({
 
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import type { StreamEvent } from '@/lib/mothership/request/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 describe('handleResourceSideEffects', () => {
@@ -105,25 +106,25 @@ describe('handleResourceSideEffects', () => {
     async ({ organizationId, expected }) => {
       const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
       mocks.extractResourcesFromToolResult.mockReturnValue([resource])
-      mocks.persistChatResources.mockClear()
-      const onEvent = vi.fn()
+      const events: StreamEvent[] = []
       await handleResourceSideEffects(
         'run_function',
         undefined,
         { success: true, output: {} },
         { success: true, output: {} },
         'chat',
-        onEvent,
+        (event) => {
+          events.push(event)
+        },
         () => false,
         { organizationId, workspaceId: 'workspace-a' }
       )
-      expect(mocks.persistChatResources).toHaveBeenCalledWith('chat', [
-        { ...resource, ...expected },
+      expect(events).toEqual([
+        {
+          type: 'resource',
+          payload: { op: 'upsert', resource: { ...resource, ...expected } },
+        },
       ])
-      expect(onEvent).toHaveBeenCalledWith({
-        type: 'resource',
-        payload: { op: 'upsert', resource: { ...resource, ...expected } },
-      })
     }
   )
 })
