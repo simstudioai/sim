@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -163,10 +163,15 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
   it('resumes copy, includes late writes, replaces all widths, and only then purges Search chunks', async () => {
     expect(await getSearchRetirementStatus(sql)).toBeNull()
     await initializeSearchRetirement(sql)
-    await nextPage()
-    await nextPage()
+    for (let page = 0; page < 10; page++) {
+      if ((await nextPage()).copied > 0) break
+    }
+    expect((await getSearchRetirementStatus(sql))?.copied).toBeGreaterThan(0)
+    expect(
+      await sql`SELECT id FROM embedding_search_retirement_shadow WHERE id = 'full-1024-1'`
+    ).toHaveLength(1)
     await writer`UPDATE embedding SET enabled = false WHERE id = 'full-1024-1'`
-    await writer`DELETE FROM embedding WHERE id = 'full-384-1'`
+    await writer`DELETE FROM embedding WHERE id = 'full-1024-3'`
     await writer`INSERT INTO embedding (id, knowledge_base_id, document_id, chunk_index, chunk_hash,
         content, content_length, token_count, start_offset, end_offset, embedding)
       VALUES ('000-late', 'prefix', 'prefix-doc', 5, 'late', 'Late synthetic content', 22, 4, 0, 22,
@@ -192,7 +197,10 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
       await sql`SELECT id FROM embedding_search WHERE knowledge_base_id = 'search'`
     ).toHaveLength(0)
     expect(await sql`SELECT id FROM embedding_search WHERE id = 'prefix-4'`).toHaveLength(1)
-    expect(await sql`SELECT id FROM embedding_search WHERE id = 'full-384-1'`).toHaveLength(0)
+    expect(await sql`SELECT id FROM embedding_search WHERE id = 'full-1024-3'`).toHaveLength(0)
+    expect(await sql`SELECT enabled FROM embedding_search WHERE id = 'full-1024-1'`).toEqual([
+      { enabled: false },
+    ])
     expect(
       (
         await sql`SELECT vector_dims(vector_512) AS width FROM embedding_search WHERE id = '000-late'`
@@ -568,7 +576,124 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
     expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(28)
   })
 
-  it('the CLI refuses missing or unhealthy telemetry before initializing and status stays read-only', async () => {
+  it('refuses db:push while retirement holds its maintenance fence before creating a receipt', async () => {
+    await writer`SELECT pg_advisory_lock(hashtextextended('sim:search-retirement-maintenance', 0))`
+    try {
+      const fixtureUrl = new URL(databaseUrl)
+      fixtureUrl.pathname = `/${database}`
+      const result = spawnSync(
+        'bun',
+        ['--no-env-file', './scripts/push.ts', '--retirement-test-invalid-option'],
+        {
+          cwd: fileURLToPath(new URL('..', import.meta.url)),
+          env: { ...process.env, NODE_ENV: 'development', DATABASE_URL: fixtureUrl.toString() },
+          encoding: 'utf8',
+          timeout: 10_000,
+          maxBuffer: 64 * 1_024,
+        }
+      )
+      expect(result.status).toBe(1)
+      expect(`${result.stdout}${result.stderr}`).toContain(
+        'Another migration or retirement operation'
+      )
+      expect(`${result.stdout}${result.stderr}`).not.toContain('Unrecognized options')
+      expect(await getSearchRetirementStatus(sql)).toBeNull()
+    } finally {
+      await writer`SELECT pg_advisory_unlock_all()`
+    }
+  })
+
+  it('fences retirement during db:push and stops database preparation when its fence connection closes', async () => {
+    await sql`ALTER TABLE workspace_files ADD COLUMN size bigint`
+    await writer`BEGIN`
+    await writer`LOCK TABLE workspace_files IN ACCESS EXCLUSIVE MODE`
+    const fixtureUrl = new URL(databaseUrl)
+    fixtureUrl.pathname = `/${database}`
+    const child = spawn(
+      'bun',
+      ['--no-env-file', './scripts/push.ts', '--force', '--retirement-test-invalid-option'],
+      {
+        cwd: fileURLToPath(new URL('..', import.meta.url)),
+        env: { ...process.env, NODE_ENV: 'development', DATABASE_URL: fixtureUrl.toString() },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 10_000,
+      }
+    )
+    let output = ''
+    child.stdout.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    const exited = new Promise<number | null>((resolve, reject) => {
+      child.once('error', reject)
+      child.once('close', resolve)
+    })
+    try {
+      await vi.waitFor(
+        async () => {
+          expect(
+            await sql`SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock'
+            AND query = 'LOCK TABLE public.workspace_files IN ACCESS EXCLUSIVE MODE'`
+          ).toHaveLength(1)
+        },
+        { timeout: 5_000 }
+      )
+      await expect(initializeSearchRetirement(sql)).rejects.toThrow(
+        /Another migration or retirement operation/
+      )
+      const [guard] = await sql`SELECT pid, backend_xmin FROM pg_stat_activity
+        WHERE datname = current_database() AND application_name = 'sim-db-push'`
+      expect(guard.backend_xmin).toBeNull()
+      await sql`SELECT pg_terminate_backend(${guard.pid})`
+      expect(await exited).toBe(1)
+      expect(output).toContain('Schema-push lock connection closed')
+      expect(output).not.toContain('Unrecognized options')
+      await writer`ROLLBACK`
+      await vi.waitFor(async () => {
+        expect(
+          await sql`SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock'
+            AND query = 'LOCK TABLE public.workspace_files IN ACCESS EXCLUSIVE MODE'`
+        ).toHaveLength(0)
+      })
+      expect(
+        await sql`SELECT attname FROM pg_attribute
+        WHERE attrelid = 'workspace_files'::regclass AND attname = 'size' AND NOT attisdropped`
+      ).toHaveLength(1)
+      expect(await getSearchRetirementStatus(sql)).toBeNull()
+    } finally {
+      await writer`ROLLBACK`
+      await exited
+    }
+  })
+
+  it('the operator CLI refuses unverified endpoints and connection overrides before connecting', () => {
+    const script = fileURLToPath(new URL('../scripts/retire-indexed-search.ts', import.meta.url))
+    for (const url of [
+      'postgresql://reader@pool.example.invalid:5432/postgres',
+      'postgresql://reader@fixture.pg.psdb.cloud:6432/postgres?sslmode=verify-full&sslrootcert=system',
+      'postgresql://reader@fixture.pg.psdb.cloud.example.invalid:5432/postgres',
+      'postgresql://reader@localhost:5432/production',
+      'postgresql://reader@fixture.pg.psdb.cloud:5432/postgres?sslmode=disable',
+      'postgresql://fixture.pg.psdb.cloud:5432/postgres?sslmode=verify-full&sslrootcert=system',
+      'postgresql://reader@fixture.pg.psdb.cloud:5432/?sslmode=verify-full&sslrootcert=system',
+      `${databaseUrl}?statement_timeout=0`,
+    ]) {
+      const result = spawnSync('bun', ['--no-env-file', script, 'identity'], {
+        env: { ...process.env, NODE_ENV: 'development', MIGRATION_DATABASE_URL: url },
+        encoding: 'utf8',
+        timeout: 5_000,
+        maxBuffer: 64 * 1_024,
+      })
+      expect(result.status).toBe(1)
+      expect(`${result.stdout}${result.stderr}`).not.toContain(url)
+    }
+  })
+
+  it('the CLI respects health gates, keeps status read-only, and stops after losing its session', async () => {
     const fixtureUrl = new URL(databaseUrl)
     fixtureUrl.pathname = `/${database}`
     const script = fileURLToPath(new URL('../scripts/retire-indexed-search.ts', import.meta.url))
@@ -608,22 +733,20 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
           maxSampleAgeMs: 30_000,
         })
       )
-      await writeFile(
-        health,
-        JSON.stringify({
-          databaseId,
-          observedAt: new Date().toISOString(),
-          healthy: false,
-          maintenanceAllowed: true,
-          cutoverAllowed: false,
-          replicaLagBytes: 0,
-          replicaLagSeconds: 0,
-          walBytesPerSecond: 0,
-          databaseP95Ms: 1,
-          cpuPercent: 1,
-          freeStorageBytes: 1_000,
-        })
-      )
+      const sample = {
+        databaseId,
+        observedAt: new Date().toISOString(),
+        healthy: false,
+        maintenanceAllowed: true,
+        cutoverAllowed: false,
+        replicaLagBytes: 0,
+        replicaLagSeconds: 0,
+        walBytesPerSecond: 0,
+        databaseP95Ms: 1,
+        cpuPercent: 1,
+        freeStorageBytes: 1_000,
+      }
+      await writeFile(health, JSON.stringify(sample))
       const refused = invoke(
         'prepare',
         '--ack-release-drained',
@@ -636,6 +759,61 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
       expect(`${refused.stdout}${refused.stderr}`).toContain('unhealthy')
       expect(await getSearchRetirementStatus(sql)).toBeNull()
       expect(invoke('status').status).toBe(0)
+      await writeFile(health, JSON.stringify({ ...sample, healthy: true }))
+      expect(
+        invoke(
+          'prepare',
+          '--ack-release-drained',
+          '--health-file',
+          health,
+          '--health-policy',
+          policy
+        ).status
+      ).toBe(0)
+      const runner = spawn(
+        'bun',
+        [
+          '--no-env-file',
+          script,
+          'run',
+          '--pages',
+          '2',
+          '--health-file',
+          health,
+          '--health-policy',
+          policy,
+        ],
+        {
+          env: environment,
+          stdio: 'ignore',
+          timeout: 20_000,
+        }
+      )
+      const exited = new Promise<number | null>((resolve, reject) => {
+        runner.once('error', reject)
+        runner.once('close', resolve)
+      })
+      try {
+        await vi.waitFor(
+          async () => {
+            expect(
+              (await sql`SELECT after_id FROM search_retirement_state WHERE id = 1`)[0].after_id
+            ).not.toBe('')
+          },
+          { timeout: 5_000 }
+        )
+        const before = await getSearchRetirementStatus(sql)
+        const [session] = await sql`SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database() AND application_name = 'sim-search-data-retirement'`
+        await sql`SELECT pg_terminate_backend(${session.pid})`
+        const exitCode = await exited
+        expect(await getSearchRetirementStatus(sql)).toEqual(before)
+        expect(exitCode).toBe(1)
+      } finally {
+        runner.kill('SIGKILL')
+        await exited
+      }
+      await abortSearchRetirement(sql)
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

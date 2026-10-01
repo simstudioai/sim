@@ -39,11 +39,14 @@ Every write except abort requires --health-file PATH --health-policy PATH.
 Policy databaseId must equal the identity command's fingerprint.
 Run options: --page-size 25 (1–100), --pages 1 (1–120), --seconds 60 (1–600).
 A fixed pause of at least 5 seconds follows each page. Timeouts stop; no automatic retry.
-Connection: MIGRATION_DATABASE_URL, PostgreSQL 17+, direct primary or session pooling only.
+Connection: MIGRATION_DATABASE_URL, PostgreSQL 17+, verified PlanetScale primary on port 5432.
+Other endpoints are refused; loopback databases with a test name segment are for local fixtures only.
 
 Deploy the code-removal release and drain old workers first. Then:
-  prepare -> run until ready -> cutover -> verify retrieval -> begin-purge
+  prepare -> run until ready -> cutover -> verify behavior -> begin-purge
   -> run until finalize -> finalize. Repeat run if late writes return the phase to purge.
+Start with default one-page runs and watch telemetry before requesting longer runs.
+Before begin-purge, verify ordinary-KB retrieval, ACL denials, connector ingestion and live Search.
 Reads use the old projection until cutover. The retained backup is not an instant rollback.
 Cutover requires pg_read_all_stats and no old snapshots; never automatically retry DDL gates.
 Abort, backup removal and finalization cap implicit DROP lock waits at 1 ms.
@@ -111,6 +114,39 @@ async function main(): Promise<void> {
   const url = new URL(rawUrl)
   if (!['postgres:', 'postgresql:'].includes(url.protocol))
     throw new RetirementCommandError('Expected a PostgreSQL URL')
+  if (!url.username || !url.pathname.slice(1)) {
+    throw new RetirementCommandError('The connection URL must include its role and database name')
+  }
+  const localFixture =
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
+    /(^|_)test(_|$)/.test(decodeURIComponent(url.pathname.slice(1)))
+  const hosted =
+    /^[a-z0-9-]+\.(?:pg|horizon)\.psdb\.cloud$/.test(url.hostname) &&
+    (url.port || '5432') === '5432' &&
+    !decodeURIComponent(url.username).includes('|')
+  if (!hosted && !localFixture) {
+    throw new RetirementCommandError(
+      'Use a direct PlanetScale primary endpoint on port 5432; unverified endpoints and poolers are unsupported'
+    )
+  }
+  if (
+    [...url.searchParams.keys()].some(
+      (key) => !['sslmode', 'sslrootcert', 'sslnegotiation'].includes(key)
+    )
+  ) {
+    throw new RetirementCommandError(
+      'Connection overrides are unsupported; only TLS URL parameters are allowed'
+    )
+  }
+  if (
+    hosted &&
+    (url.searchParams.get('sslmode') !== 'verify-full' ||
+      url.searchParams.get('sslrootcert') !== 'system')
+  ) {
+    throw new RetirementCommandError(
+      'PlanetScale requires sslmode=verify-full and sslrootcert=system'
+    )
+  }
   const databaseId = createHash('sha256')
     .update(
       JSON.stringify([url.hostname.toLowerCase(), url.port || '5432', url.pathname, url.username])
@@ -119,11 +155,6 @@ async function main(): Promise<void> {
   if (command === 'identity') {
     process.stdout.write(`${databaseId}\n`)
     return
-  }
-  if (url.hostname.endsWith('.pg.psdb.cloud') && url.port === '6432') {
-    throw new RetirementCommandError(
-      'PlanetScale transaction pooling is unsupported; use a direct primary connection'
-    )
   }
   const pageSize = integerOption(values['page-size'], 25, 100)
   const pages = integerOption(values.pages, 1, 120)
@@ -156,6 +187,8 @@ async function main(): Promise<void> {
     await checkHealth()
   }
   const sql = postgres(rawUrl, {
+    port: Number(url.port || '5432'),
+    ssl: hosted ? 'verify-full' : false,
     max: 1,
     prepare: false,
     connect_timeout: 5,
@@ -167,6 +200,9 @@ async function main(): Promise<void> {
       idle_in_transaction_session_timeout: 5_000,
     },
     onnotice: () => undefined,
+    onclose: () => {
+      void sql.end({ timeout: 0 }).catch(() => undefined)
+    },
   })
   try {
     if (command === 'status') {
