@@ -23,6 +23,7 @@ export function TimeSeriesChart({ label, option, ...config }: TimeSeriesChartPro
     <div className='h-full min-w-0'>
       <div
         className='mb-2 flex h-8 min-w-0 items-center justify-between gap-4 text-sm tabular-nums'
+        role='group'
         aria-label={`${label} values`}
       >
         <div

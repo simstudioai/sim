@@ -3423,6 +3423,7 @@ export function useChat(
           ? { viewId: (c.currentView ? c.currentView.viewId : c.viewId) ?? undefined }
           : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
+        ...('dashboardId' in c && c.dashboardId ? { dashboardId: c.dashboardId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
         ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),

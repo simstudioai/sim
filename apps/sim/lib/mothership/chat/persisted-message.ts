@@ -38,7 +38,7 @@ export interface PersistedFileAttachment {
   size: number
 }
 
-interface PersistedMessageContext {
+export interface PersistedMessageContext {
   kind: string
   label: string
   workflowId?: string
@@ -84,6 +84,30 @@ function copyTextSelection(
     text: selection.text,
     ...(selection.url ? { url: selection.url } : {}),
     ...(selection.title ? { title: selection.title } : {}),
+  }
+}
+
+/** The one field-wise copy of a message context, shared by every write, read and display path. */
+export function copyPersistedMessageContext(c: PersistedMessageContext): PersistedMessageContext {
+  return {
+    kind: c.kind,
+    label: c.label,
+    ...(c.workflowId ? { workflowId: c.workflowId } : {}),
+    ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
+    ...(c.tableId ? { tableId: c.tableId } : {}),
+    ...(c.viewId ? { viewId: c.viewId } : {}),
+    ...(c.fileId ? { fileId: c.fileId } : {}),
+    ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
+    ...(c.folderId ? { folderId: c.folderId } : {}),
+    ...(c.chatId ? { chatId: c.chatId } : {}),
+    ...(c.blockType ? { blockType: c.blockType } : {}),
+    ...(c.skillId ? { skillId: c.skillId } : {}),
+    ...(c.serverId ? { serverId: c.serverId } : {}),
+    ...(c.fileName ? { fileName: c.fileName } : {}),
+    ...(c.tableName ? { tableName: c.tableName } : {}),
+    ...(c.tabId ? { tabId: c.tabId } : {}),
+    ...(c.terminalId ? { terminalId: c.terminalId } : {}),
+    ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
   }
 }
 
@@ -464,26 +488,7 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
   }
 
   if (params.contexts && params.contexts.length > 0) {
-    message.contexts = params.contexts.map((c) => ({
-      kind: c.kind,
-      label: c.label,
-      ...(c.workflowId ? { workflowId: c.workflowId } : {}),
-      ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
-      ...(c.tableId ? { tableId: c.tableId } : {}),
-      ...(c.viewId ? { viewId: c.viewId } : {}),
-      ...(c.fileId ? { fileId: c.fileId } : {}),
-      ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
-      ...(c.folderId ? { folderId: c.folderId } : {}),
-      ...(c.chatId ? { chatId: c.chatId } : {}),
-      ...(c.blockType ? { blockType: c.blockType } : {}),
-      ...(c.skillId ? { skillId: c.skillId } : {}),
-      ...(c.serverId ? { serverId: c.serverId } : {}),
-      ...(c.fileName ? { fileName: c.fileName } : {}),
-      ...(c.tableName ? { tableName: c.tableName } : {}),
-      ...(c.tabId ? { tabId: c.tabId } : {}),
-      ...(c.terminalId ? { terminalId: c.terminalId } : {}),
-      ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
-    }))
+    message.contexts = params.contexts.map(copyPersistedMessageContext)
   }
 
   return message
@@ -816,26 +821,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
 
   const rawContexts = raw.contexts as PersistedMessageContext[] | undefined
   if (Array.isArray(rawContexts) && rawContexts.length > 0) {
-    msg.contexts = rawContexts.map((c) => ({
-      kind: c.kind,
-      label: c.label,
-      ...(c.workflowId ? { workflowId: c.workflowId } : {}),
-      ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
-      ...(c.tableId ? { tableId: c.tableId } : {}),
-      ...(c.viewId ? { viewId: c.viewId } : {}),
-      ...(c.fileId ? { fileId: c.fileId } : {}),
-      ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
-      ...(c.folderId ? { folderId: c.folderId } : {}),
-      ...(c.chatId ? { chatId: c.chatId } : {}),
-      ...(c.blockType ? { blockType: c.blockType } : {}),
-      ...(c.skillId ? { skillId: c.skillId } : {}),
-      ...(c.serverId ? { serverId: c.serverId } : {}),
-      ...(c.fileName ? { fileName: c.fileName } : {}),
-      ...(c.tableName ? { tableName: c.tableName } : {}),
-      ...(c.tabId ? { tabId: c.tabId } : {}),
-      ...(c.terminalId ? { terminalId: c.terminalId } : {}),
-      ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
-    }))
+    msg.contexts = rawContexts.map(copyPersistedMessageContext)
   }
 
   return msg
