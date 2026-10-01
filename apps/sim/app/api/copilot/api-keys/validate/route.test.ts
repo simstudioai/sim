@@ -251,15 +251,15 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })
 
-  it("sends a new turn's usage refusal in the shape its contract declares", async () => {
+  it("sends a new turn's usage refusal as the empty 402 its contract declares", async () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
 
     const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
-    const text = await res.text()
 
     expect(res.status).toBe(402)
+    expect(await res.text()).toBe('')
     const refusalSchema = validateCopilotApiKeyContract.response.statusSchemas?.[402]
-    expect(refusalSchema?.safeParse(text ? JSON.parse(text) : undefined).success).toBe(true)
+    expect(refusalSchema?.safeParse(undefined).success).toBe(true)
   })
 
   it('preserves the actor member cap for markerless self-hosted admission', async () => {
