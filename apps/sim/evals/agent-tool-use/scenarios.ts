@@ -84,9 +84,80 @@ const getNews: EvalToolDefinition = {
   },
 }
 
+const getCurrentWeather: EvalToolDefinition = {
+  name: 'get_current_weather',
+  description: 'Get the current weather for a city right now.',
+  parameters: {
+    type: 'object',
+    properties: { city: { type: 'string' } },
+    required: ['city'],
+  },
+}
+
+const getWeatherForecast: EvalToolDefinition = {
+  name: 'get_weather_forecast',
+  description: 'Get the weather forecast for a city on a future date.',
+  parameters: {
+    type: 'object',
+    properties: { city: { type: 'string' }, date: { type: 'string' } },
+    required: ['city', 'date'],
+  },
+}
+
+const getUser: EvalToolDefinition = {
+  name: 'get_user',
+  description: 'Get a user profile by id.',
+  parameters: {
+    type: 'object',
+    properties: { userId: { type: 'string' } },
+    required: ['userId'],
+  },
+}
+
+const getUserSettings: EvalToolDefinition = {
+  name: 'get_user_settings',
+  description: "Get a user's account settings, including timezone and locale.",
+  parameters: {
+    type: 'object',
+    properties: { userId: { type: 'string' } },
+    required: ['userId'],
+  },
+}
+
+const listOrders: EvalToolDefinition = {
+  name: 'list_orders',
+  description: 'List order ids for a user.',
+  parameters: {
+    type: 'object',
+    properties: { userId: { type: 'string' } },
+    required: ['userId'],
+  },
+}
+
+const getOrder: EvalToolDefinition = {
+  name: 'get_order',
+  description: 'Get an order by id.',
+  parameters: {
+    type: 'object',
+    properties: { orderId: { type: 'string' } },
+    required: ['orderId'],
+  },
+}
+
+const getShipping: EvalToolDefinition = {
+  name: 'get_shipping',
+  description: 'Get the shipping status for an order.',
+  parameters: {
+    type: 'object',
+    properties: { orderId: { type: 'string' } },
+    required: ['orderId'],
+  },
+}
+
 /**
- * The first suite: eight agent tool-use reliability cases. Each script is the
- * model transcript; the loop, not the model, is what the assertions score.
+ * The tool-use suite: reliability plus adversarial cases (no-tool-needed,
+ * near-duplicate tools, empty results, long chains). Each script is the model
+ * transcript; the loop, not the model, is what the assertions score.
  */
 export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
   {
@@ -355,6 +426,167 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       maxIterations: 4,
       successfulToolCalls: 1,
       erroredToolCalls: 1,
+    },
+  },
+  {
+    id: 'no-tool-needed',
+    name: 'answers directly without calling a tool',
+    category: 'tool-selection',
+    description:
+      'The answer needs no tool. The loop must not invoke one even though tools are available.',
+    userMessage: 'What is 2 + 2? Answer directly, no tools.',
+    tools: [searchDocs, getWeather],
+    script: [{ kind: 'answer', content: '4' }],
+    expect: {
+      finalContent: '4',
+      forbiddenTools: ['search_docs', 'get_weather'],
+      successfulToolCalls: 0,
+      maxIterations: 2,
+    },
+  },
+  {
+    id: 'disambiguate-similar-tools',
+    name: 'picks the forecast tool over the current-weather tool',
+    category: 'tool-selection',
+    description:
+      'Two near-identical weather tools; only the forecast tool answers a future-date question.',
+    userMessage: 'Will it rain tomorrow in Berlin?',
+    tools: [getCurrentWeather, getWeatherForecast],
+    script: [
+      {
+        kind: 'tools',
+        calls: [
+          {
+            name: 'get_weather_forecast',
+            args: { city: 'Berlin', date: 'tomorrow' },
+            result: { success: true, output: { rain: true } },
+          },
+        ],
+      },
+      { kind: 'answer', content: 'Yes, it will rain in Berlin tomorrow.' },
+    ],
+    expect: {
+      requiredTools: ['get_weather_forecast'],
+      forbiddenTools: ['get_current_weather'],
+      finalContent: /rain/i,
+      maxIterations: 3,
+    },
+  },
+  {
+    id: 'empty-result-no-hallucination',
+    name: 'does not invent an answer when the tool returns nothing',
+    category: 'retrieval',
+    description:
+      'The search returns no results. The model must say it could not find the policy, not fabricate one.',
+    userMessage: 'What is the refund policy?',
+    tools: [searchDocs],
+    script: [
+      {
+        kind: 'tools',
+        calls: [
+          {
+            name: 'search_docs',
+            args: { query: 'refund policy' },
+            result: { success: true, output: { results: [] } },
+          },
+        ],
+      },
+      {
+        kind: 'answer',
+        content: 'I could not find the refund policy in the documentation.',
+      },
+    ],
+    expect: {
+      requiredTools: ['search_docs'],
+      finalContent:
+        /could ?n[o']t find|cannot find|can'?t find|no results|not find|unable to find|no .*policy/i,
+      maxIterations: 3,
+    },
+  },
+  {
+    id: 'long-chain-dependency',
+    name: 'runs a four-tool dependency chain in order',
+    category: 'planning',
+    description:
+      'Each call depends on the previous result; the loop must preserve order across four turns.',
+    userMessage: 'Where is my latest order?',
+    tools: [getUser, listOrders, getOrder, getShipping],
+    script: [
+      {
+        kind: 'tools',
+        calls: [
+          {
+            name: 'get_user',
+            args: { userId: 'me' },
+            result: { success: true, output: { id: 'u1' } },
+          },
+        ],
+      },
+      {
+        kind: 'tools',
+        calls: [
+          {
+            name: 'list_orders',
+            args: { userId: 'u1' },
+            result: { success: true, output: { orderIds: ['o9'] } },
+          },
+        ],
+      },
+      {
+        kind: 'tools',
+        calls: [
+          {
+            name: 'get_order',
+            args: { orderId: 'o9' },
+            result: { success: true, output: { orderId: 'o9', status: 'shipped' } },
+          },
+        ],
+      },
+      {
+        kind: 'tools',
+        calls: [
+          {
+            name: 'get_shipping',
+            args: { orderId: 'o9' },
+            result: { success: true, output: { carrier: 'DHL', tracking: 'T-1' } },
+          },
+        ],
+      },
+      { kind: 'answer', content: 'Order o9 is shipped with DHL, tracking T-1.' },
+    ],
+    expect: {
+      toolCallSequence: ['get_user', 'list_orders', 'get_order', 'get_shipping'],
+      finalContent: /DHL/,
+      maxIterations: 5,
+      successfulToolCalls: 4,
+    },
+  },
+  {
+    id: 'near-duplicate-names',
+    name: 'picks settings over the profile for a settings question',
+    category: 'tool-selection',
+    description:
+      'get_user and get_user_settings differ by suffix; only the settings tool has the timezone.',
+    userMessage: 'What timezone is set in my account settings?',
+    tools: [getUser, getUserSettings],
+    script: [
+      {
+        kind: 'tools',
+        calls: [
+          {
+            name: 'get_user_settings',
+            args: { userId: 'me' },
+            result: { success: true, output: { timezone: 'Europe/Berlin' } },
+          },
+        ],
+      },
+      { kind: 'answer', content: 'Your account timezone is Europe/Berlin.' },
+    ],
+    expect: {
+      requiredTools: ['get_user_settings'],
+      forbiddenTools: ['get_user'],
+      finalContent: /Europe\/Berlin/,
+      maxIterations: 3,
     },
   },
 ]
