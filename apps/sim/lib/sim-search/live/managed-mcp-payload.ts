@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import type { McpToolResult } from '@/lib/mcp/types'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 
@@ -6,7 +7,7 @@ const MAX_SEARCH_MCP_PAYLOAD_BYTES = 4 * 1024 * 1024
 
 /** MCP text is untrusted provider data; malformed structured search output is never an empty success. */
 export function managedMcpPayload(result: McpToolResult, label: string): unknown {
-  if (Buffer.byteLength(JSON.stringify(result), 'utf8') > MAX_SEARCH_MCP_PAYLOAD_BYTES)
+  if (stringifyBoundedJson(result, MAX_SEARCH_MCP_PAYLOAD_BYTES) === undefined)
     throw new NativeSearchError(
       'unavailable',
       `${label} response exceeded the search size limit. Narrow the query.`

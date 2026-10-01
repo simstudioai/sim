@@ -127,4 +127,17 @@ describe('managed search MCP read boundary', () => {
     expect((failure as NativeSearchError).message).toContain('existing Granola account')
     expect((failure as NativeSearchError).message).not.toContain('private-provider-detail')
   })
+
+  it('rejects escaped MCP payload overflow before allocating its JSON representation', () => {
+    const result = { structuredContent: { ['\u0000'.repeat(800_000)]: 'value' } }
+    const serialize = vi.spyOn(JSON, 'stringify').mockImplementation(() => {
+      throw new Error('Oversized payload reached serialization')
+    })
+    try {
+      expect(() => managedMcpPayload(result, 'Fireflies')).toThrow('size limit')
+      expect(serialize).not.toHaveBeenCalled()
+    } finally {
+      serialize.mockRestore()
+    }
+  })
 })
