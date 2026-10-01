@@ -442,16 +442,16 @@
       }
     },
     "app/workspace/[workspaceId]/skills/[skillId]/page.tsx": {
-      "modules": 1421,
+      "modules": 1457,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/[skillId]/skill-detail.tsx": 1420,
+        "apps/sim/app/workspace/[workspaceId]/skills/[skillId]/skill-detail.tsx": 1456,
         "apps/sim/triggers/registry.ts": 528,
-        "apps/sim/blocks/registry.ts": 376,
-        "apps/sim/blocks/registry-maps.ts": 374,
-        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 232,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 229,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 93,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts": 82
+        "apps/sim/blocks/registry.ts": 374,
+        "apps/sim/blocks/registry-maps.ts": 372,
+        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 268,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 265,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 117,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts": 92
       }
     },
     "app/workspace/[workspaceId]/skills/error.tsx": {
@@ -459,16 +459,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/skills/new/page.tsx": {
-      "modules": 1419,
+      "modules": 1455,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/new/skill-create.tsx": 1418,
+        "apps/sim/app/workspace/[workspaceId]/skills/new/skill-create.tsx": 1454,
         "apps/sim/triggers/registry.ts": 528,
-        "apps/sim/blocks/registry.ts": 376,
-        "apps/sim/blocks/registry-maps.ts": 374,
-        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 232,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 229,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 93,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts": 82
+        "apps/sim/blocks/registry.ts": 374,
+        "apps/sim/blocks/registry-maps.ts": 372,
+        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 268,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 265,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 117,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts": 92
       }
     },
     "app/workspace/[workspaceId]/skills/page.tsx": {

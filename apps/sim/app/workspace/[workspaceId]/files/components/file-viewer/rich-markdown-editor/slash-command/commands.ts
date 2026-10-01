@@ -15,7 +15,7 @@ import {
   TextQuote,
 } from '@sim/emcn/icons'
 import type { Editor, Range } from '@tiptap/core'
-import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/spec'
+import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
 
 /** A time-series starter; the table id is left for the author to fill in. */
 const DASHBOARD_EMBED_STARTER = `title: Rows over time

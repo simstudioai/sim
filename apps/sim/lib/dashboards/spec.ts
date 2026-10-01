@@ -23,8 +23,6 @@ import {
 
 /** Dashboard YAML is bounded before parsing; writes report the same limit without decoding. */
 export const MAX_DASHBOARD_SOURCE_BYTES = 128 * 1024
-/** A dashboard fence embedded in a markdown document. */
-export const DASHBOARD_EMBED_LANGUAGE = 'dashboard'
 const MAX_DASHBOARD_EMBED_SOURCE_BYTES = 32 * 1024
 const MAX_DASHBOARD_EMBED_BLOCKS = 12
 export const DASHBOARD_SOURCE_TOO_LARGE = 'Dashboard source exceeds 128 KB'

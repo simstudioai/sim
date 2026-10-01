@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react'
+import { lazy, Suspense, useContext, useEffect, useState } from 'react'
 import {
   chipVariants,
   cn,
@@ -11,13 +11,17 @@ import {
 import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn/icons'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { DashboardEmbed } from '@/components/dashboards/dashboard-embed'
-import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/spec'
+import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
 import { MarkdownStreamingContext } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-streaming-context'
 import { looksLikeMermaid, MermaidDiagram } from '../mermaid-diagram'
 import { MarkdownCodeBlock } from './code-block-schema'
 import { detectLanguage } from './detect-language'
 import { useEditorEditable } from './use-editor-editable'
+
+/** Kept out of every rich-markdown surface's graph until a document actually holds a dashboard. */
+const DashboardEmbed = lazy(() =>
+  import('@/components/dashboards/dashboard-embed').then((m) => ({ default: m.DashboardEmbed }))
+)
 
 const PLAIN = 'plain'
 const MERMAID = 'mermaid'
@@ -232,7 +236,9 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
           }}
         >
           {isDashboard ? (
-            <DashboardEmbed source={text} isStreaming={isStreaming} />
+            <Suspense fallback={null}>
+              <DashboardEmbed source={text} isStreaming={isStreaming} />
+            </Suspense>
           ) : (
             <MermaidDiagram definition={text} className='mermaid-diagram-frame' />
           )}
