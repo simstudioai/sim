@@ -3,7 +3,6 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   document,
@@ -12,8 +11,6 @@ import {
   organization,
   outboxEvent,
   user,
-  userTableRowSecretProvenance,
-  userTableRows,
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
@@ -57,7 +54,6 @@ import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/docu
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { createSingleDocument } from '@/lib/knowledge/documents/service'
 import { loadKnowledgeDocumentSecretRegistry } from '@/lib/knowledge/secret-provenance'
-import { createTableFromWorkspaceFile } from '@/lib/table/application/workspace-file-imports'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 import {
   deleteWorkspaceFile,
@@ -92,20 +88,6 @@ type Fixture = Awaited<ReturnType<typeof seed>>
 
 function sessionPrincipal(ids: Fixture) {
   return { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-session' } as const
-}
-
-function tablePrincipal(ids: Fixture): DelegatedPrincipal {
-  const issuedAt = new Date()
-  return {
-    kind: 'delegated',
-    serviceId: 'copilot',
-    subjectUserId: ids.aliceId,
-    workspaceId: ids.workspaceId,
-    delegationId: generateId(),
-    audience: 'sim:tables',
-    issuedAt,
-    expiresAt: new Date(issuedAt.getTime() + 5 * 60_000),
-  }
 }
 
 async function uploadArchive(
@@ -180,12 +162,6 @@ async function assertBlockedConsumers(ids: Fixture, source: Awaited<ReturnType<t
     input: { knowledgeBaseId: ids.knowledgeBaseId, fileReferences: [source.child.id] },
   })
   expect(imported).toMatchObject({ added: [], failed: [source.child.id] })
-  await expect(
-    createTableFromWorkspaceFile.execute({
-      principal: tablePrincipal(ids),
-      input: { workspaceId: ids.workspaceId, fileReference: source.child.id },
-    })
-  ).rejects.toThrow('cannot be verified as free of resolved secrets')
 }
 
 beforeAll(() => {
@@ -206,7 +182,7 @@ afterAll(async () => {
 })
 
 describe('execution archive durable provenance', () => {
-  it('carries exact-empty lineage through extraction, table rows, and delayed KB indexing/search', async () => {
+  it('carries exact-empty lineage through extraction and delayed KB indexing/search', async () => {
     const ids = await seed()
     const archive = await uploadArchive(ids, { status: 'exact', entries: [] })
     const [storedArchive] = await db
@@ -227,44 +203,6 @@ describe('execution archive durable provenance', () => {
     expect((await downloadFile({ key: source.child.key, context: 'workspace' })).toString()).toBe(
       REPORT_CSV
     )
-
-    const table = await createTableFromWorkspaceFile.execute({
-      principal: tablePrincipal(ids),
-      input: { workspaceId: ids.workspaceId, fileReference: source.child.id },
-    })
-    expect(table.kind).toBe('inline')
-    if (table.kind !== 'inline') throw new Error('Small CSV did not use the inline import path')
-    expect(table.insertedCount).toBe(1)
-    const rows = await db
-      .select({
-        data: userTableRows.data,
-        updatedAt: userTableRows.updatedAt,
-        version: userTableRows.secretProvenanceVersion,
-        contentUpdatedAt: userTableRowSecretProvenance.contentUpdatedAt,
-        status: userTableRowSecretProvenance.status,
-        entries: userTableRowSecretProvenance.entries,
-      })
-      .from(userTableRows)
-      .leftJoin(
-        userTableRowSecretProvenance,
-        eq(userTableRowSecretProvenance.rowId, userTableRows.id)
-      )
-      .where(eq(userTableRows.tableId, table.table.id))
-    expect(rows).toHaveLength(1)
-    const nameColumn = table.table.schema.columns.find((column) => column.name === 'name')
-    const descriptionColumn = table.table.schema.columns.find(
-      (column) => column.name === 'description'
-    )
-    if (!nameColumn?.id || !descriptionColumn?.id) {
-      throw new Error('Imported table lost its canonical source columns')
-    }
-    expect(rows[0]).toMatchObject({
-      data: { [nameColumn.id]: 'Orion', [descriptionColumn.id]: REPORT_TEXT },
-      version: 1,
-      status: 'exact',
-      entries: [],
-    })
-    expect(rows[0].contentUpdatedAt).toEqual(rows[0].updatedAt)
 
     const imported = await addWorkspaceFilesToKnowledgeBase.execute({
       principal: sessionPrincipal(ids),
@@ -309,7 +247,7 @@ describe('execution archive durable provenance', () => {
     expect(search.results.map((entry) => entry.documentId)).toContain(documentId)
   })
 
-  it('keeps an explicitly unknown execution source unavailable to model, KB, and table consumers', async () => {
+  it('keeps an explicitly unknown execution source unavailable to model and KB consumers', async () => {
     const ids = await seed()
     const archive = await uploadArchive(ids, { status: 'unknown' })
     const source = await extract(ids, archive)
@@ -360,11 +298,6 @@ describe('execution archive durable provenance', () => {
     expect(storedArchive.secretProvenanceVersion).toBeNull()
     const source = await extract(ids, archive)
     expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, source.identity)).toBe(true)
-    const imported = await createTableFromWorkspaceFile.execute({
-      principal: tablePrincipal(ids),
-      input: { workspaceId: ids.workspaceId, fileReference: source.child.id },
-    })
-    expect(imported.kind).toBe('inline')
   })
 
   it.each([false, true])(

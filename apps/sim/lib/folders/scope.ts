@@ -39,8 +39,8 @@ export function isWithinFolderScope(
  *
  * `isWithinFolderScope` answers "is this folder inside that scope" one folder
  * at a time. This is the same question asked of many items at once,
- * after the paths have been walked to ids: a listing filters against it in
- * memory, and a query pushes it down into SQL.
+ * after the paths have been walked to ids, so a query can push it down into
+ * SQL.
  *
  * The root is carried as its own flag rather than as an entry in `folderIds`,
  * because an item at the root has no folder id to match. A sentinel string

@@ -244,26 +244,6 @@ export async function releaseJobClaim(tableId: string, jobId: string): Promise<v
     )
 }
 
-/** Releases only the active claim in the canonical workspace and reports no-op races. */
-export async function releaseJobClaimInWorkspace(
-  tableId: string,
-  workspaceId: string,
-  jobId: string
-): Promise<boolean> {
-  const released = await db
-    .delete(tableJobs)
-    .where(
-      and(
-        eq(tableJobs.id, jobId),
-        eq(tableJobs.tableId, tableId),
-        eq(tableJobs.workspaceId, workspaceId),
-        eq(tableJobs.status, 'running')
-      )
-    )
-    .returning({ id: tableJobs.id })
-  return released.length > 0
-}
-
 /**
  * Records job progress (rows processed so far) and bumps `updated_at` so the stale-job janitor
  * (`cleanup-stale-executions`) sees a live heartbeat.

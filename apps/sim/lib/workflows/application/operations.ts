@@ -178,14 +178,6 @@ export const workflowOperations = {
     capability: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
-  // permission-group-exempt: toggling a block edits workflow content; which integrations a member may use is allowedIntegrations, enforced against the block type rather than the operation
-  setBlockEnabled: defineWorkspaceOperation({
-    id: 'workflows.blocks.set_enabled',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
   // permission-group-exempt: moving workflows between folders is placement, governed by workspace role
   moveBulk: defineWorkspaceOperation({
     id: 'workflows.bulk.move',

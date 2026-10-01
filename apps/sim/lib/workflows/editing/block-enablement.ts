@@ -55,10 +55,8 @@ export type BlockEnablementDecision =
  * Pure, and the single source of truth for the three protection rules — a
  * locked block or locked container cannot be toggled, a block cannot be enabled
  * while a container above it is disabled, and toggling a loop or parallel
- * cascades to its unlocked descendants. Both the dedicated
- * `workflows.blocks.set_enabled` use case and the `setBlockEnabled` slice of a
- * `workflows.operations.apply` batch call it, so the two cannot drift into
- * disagreeing about what is protected.
+ * cascades to its unlocked descendants. The `setBlockEnabled` slice of a
+ * `workflows.operations.apply` batch calls it.
  */
 export function decideBlockEnablement(
   blocks: Record<string, BlockState>,

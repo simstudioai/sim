@@ -30,10 +30,6 @@ vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
   executeCopilotCredentialUseCase: mocks.credential,
 }))
 
-vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
-  sanitizeForCopilot: vi.fn((state) => state),
-}))
-
 /**
  * The use cases these handlers dispatch are only passed through to the mocked
  * use-case executor above, so their execution-side leaves — the workflow

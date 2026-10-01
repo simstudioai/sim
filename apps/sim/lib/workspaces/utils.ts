@@ -68,7 +68,7 @@ export async function getWorkspaceOrganizationId(workspaceId: string): Promise<s
  * with no explicit permission row required. Empty when the user is not an org
  * owner/admin. Implements the workspace-permission inheritance model.
  */
-export async function getOrgAdminWorkspaceRows(
+async function getOrgAdminWorkspaceRows(
   userId: string,
   scope: WorkspaceScope = 'active',
   organizationId?: string

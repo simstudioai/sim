@@ -11,20 +11,12 @@ export interface Member {
   user?: User
 }
 
-interface Invitation {
-  id: string
-  email: string
-  status: string
-  membershipIntent?: 'internal' | 'external'
-}
-
 export interface Organization {
   id: string
   name: string
   slug: string
   logo?: string | null
   members?: Member[]
-  invitations?: Invitation[]
   createdAt: string | Date
   [key: string]: unknown
 }

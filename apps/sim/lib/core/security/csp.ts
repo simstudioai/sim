@@ -72,7 +72,7 @@ function getS3EndpointSources(
   return [origin, `${url.protocol}//*.${url.host}`]
 }
 
-export interface CSPDirectives {
+interface CSPDirectives {
   'default-src'?: string[]
   'script-src'?: string[]
   'style-src'?: string[]
@@ -208,7 +208,7 @@ const STATIC_FRAME_SRC = [
 ] as const
 
 // Build-time CSP directives (for next.config.ts)
-export const buildTimeCSPDirectives: CSPDirectives = {
+const buildTimeCSPDirectives: CSPDirectives = {
   'default-src': ["'self'"],
   'script-src': [...STATIC_SCRIPT_SRC],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],

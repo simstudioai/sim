@@ -5,21 +5,10 @@ import {
   replaceProjectedWireRows,
 } from '@/lib/table/application/rows'
 
-const INHERITED_COPILOT_RATE_POLICY = {
-  kind: 'inherited_copilot_request',
-  reason: 'The authenticated Copilot request owns request-rate admission.',
-} as const
-
-const NO_DIRECT_PROVIDER_COST_POLICY = {
-  kind: 'none',
-  reason: 'This command does not invoke a paid provider; table quota and storage limits apply.',
-} as const
-
-export const copilotReplaceProjectedWireRowsPolicy = {
-  rate: INHERITED_COPILOT_RATE_POLICY,
-  cost: NO_DIRECT_PROVIDER_COST_POLICY,
-} as const
-
+/**
+ * Request-rate admission is inherited from the authenticated Copilot request, and
+ * no paid provider is invoked, so only table quota and storage limits apply.
+ */
 export function executeCopilotReplaceProjectedWireRows(
   context: CopilotTableDelegationContext | undefined,
   input: ReplaceProjectedWireRowsInput

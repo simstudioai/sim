@@ -34,7 +34,6 @@ export const workspacesUtilsMockFns = {
   mockGetWorkspaceBillingSettings: vi.fn(),
   mockGetWorkspaceBilledAccountUserId: vi.fn(),
   mockGetWorkspaceOrganizationId: vi.fn(),
-  mockGetOrgAdminWorkspaceRows: vi.fn(),
   mockListAccessibleWorkspaceRowsForUser: vi.fn(),
   mockTransferWorkspaceOwnershipToBilledAccountForMemberRemovalTx: vi.fn(),
   mockReassignWorkflowOwnershipForWorkspaceMemberRemovalTx: vi.fn(),
@@ -74,7 +73,6 @@ export const workspacesUtilsMock = {
   getWorkspaceBillingSettings: workspacesUtilsMockFns.mockGetWorkspaceBillingSettings,
   getWorkspaceBilledAccountUserId: workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId,
   getWorkspaceOrganizationId: workspacesUtilsMockFns.mockGetWorkspaceOrganizationId,
-  getOrgAdminWorkspaceRows: workspacesUtilsMockFns.mockGetOrgAdminWorkspaceRows,
   listAccessibleWorkspaceRowsForUser: workspacesUtilsMockFns.mockListAccessibleWorkspaceRowsForUser,
   transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx:
     workspacesUtilsMockFns.mockTransferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
