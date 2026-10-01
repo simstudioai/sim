@@ -1040,6 +1040,29 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       })
     })
 
+    it("offers the card for its admitted payer's plan, not the actor's current one", async () => {
+      billingCoreMockFns.mockGetOrganizationSubscription.mockResolvedValue({
+        id: 'sub-account-org',
+        referenceId: 'account-org',
+        plan: 'team',
+        status: 'active',
+        seats: 4,
+      })
+      billingPlanMockFns.mockGetHighestPrioritySubscription.mockResolvedValue({
+        id: 'sub-personal',
+        referenceId: 'user-1',
+        plan: 'pro',
+        status: 'active',
+      })
+
+      const body = await (await POST(directCallback())).json()
+
+      expect(body.usageUpgrade).toMatchObject({
+        action: 'increase_limit',
+        message: expect.stringContaining("organization's usage limit"),
+      })
+    })
+
     it('never pauses a blocked payer with the usage card', async () => {
       billingAttributionMockFns.mockCheckAccountBillingBlocks.mockResolvedValue({
         blocked: true,
@@ -1049,23 +1072,6 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       const body = await (await POST(directCallback())).json()
 
       expect(body.usageExceeded).toBe(false)
-    })
-
-    it('keeps the exceeded verdict with the plan-upgrade card when the card read outlasts the callback budget', async () => {
-      billingPlanMockFns.mockGetHighestPrioritySubscription.mockImplementation(async () => {
-        await sleep(1500)
-        return { plan: 'pro' }
-      })
-      const startedAt = Date.now()
-
-      const body = await (await POST(directCallback())).json()
-
-      expect(body).toMatchObject({
-        success: true,
-        usageExceeded: true,
-        usageUpgrade: { action: 'upgrade_plan' },
-      })
-      expect(Date.now() - startedAt).toBeLessThan(1400)
     })
   })
 

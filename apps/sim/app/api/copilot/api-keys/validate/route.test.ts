@@ -140,7 +140,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
-import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
+import {
+  validateCopilotApiKeyBodySchema,
+  validateCopilotApiKeyContract,
+} from '@/lib/api/contracts/copilot'
 import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
@@ -246,6 +249,17 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     })
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it("sends a new turn's usage refusal as the empty 402 its contract declares", async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
+
+    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
+
+    expect(res.status).toBe(402)
+    expect(await res.text()).toBe('')
+    const refusalSchema = validateCopilotApiKeyContract.response.statusSchemas?.[402]
+    expect(refusalSchema?.safeParse(undefined).success).toBe(true)
   })
 
   it('preserves the actor member cap for markerless self-hosted admission', async () => {
@@ -590,6 +604,28 @@ describe('validation lifecycle purposes', () => {
     await expect(response.json()).resolves.toMatchObject({
       code: 'USAGE_LIMIT_EXCEEDED',
       usageUpgrade: { reason: 'usage_limit' },
+    })
+  })
+
+  it("refuses a direct-v1 continuation with the card for its admitted payer's plan", async () => {
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 12, limit: 10 })
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-account-org',
+      referenceId: 'account-org',
+      plan: 'team',
+      status: 'active',
+      seats: 4,
+    })
+    mockGetHighestPrioritySubscription.mockResolvedValue(null)
+
+    const response = await POST(request(body, directHeaders))
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toMatchObject({
+      usageUpgrade: {
+        action: 'increase_limit',
+        message: expect.stringContaining("organization's usage limit"),
+      },
     })
   })
 
