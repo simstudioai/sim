@@ -43,7 +43,10 @@ export const getWorkspaceAccountsSettings = defineAuthorizedWorkspaceUseCase({
     return {
       credentialGroup,
       availableProviders: listConfiguredCredentialGroupProviders(),
-      availableMcpConnectors: await listConfiguredManagedMcpConnectors(credentialGroup?.id),
+      availableMcpConnectors: await listConfiguredManagedMcpConnectors(credentialGroup?.id, {
+        kind: 'workspace',
+        workspaceId: context.workspaceId,
+      }),
     }
   },
 })

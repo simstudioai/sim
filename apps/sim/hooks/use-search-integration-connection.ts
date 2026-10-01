@@ -9,6 +9,7 @@ import {
   credentialGroupOAuthCompletionChannel,
   isCredentialGroupOAuthFailure,
 } from '@/lib/credential-groups/oauth-completion'
+import { isDesktopApp } from '@/lib/desktop'
 import {
   readSearchConnectionAttempt,
   SEARCH_CONNECTION_ATTEMPT_EVENT,
@@ -51,6 +52,8 @@ export function useSearchIntegrationConnection({
   const [localError, setLocalError] = useState<string | null>(null)
   const popup = useRef<Window | null>(null)
   const starting = useRef(false)
+  const nativeAbort = useRef<AbortController | null>(null)
+  useEffect(() => () => nativeAbort.current?.abort(), [])
   const callback = useRef(onConnected)
   useEffect(() => {
     callback.current = onConnected
@@ -156,19 +159,25 @@ export function useSearchIntegrationConnection({
         popup.current.focus()
         return
       }
-      const tab = window.open('about:blank', '_blank', 'width=600,height=700')
-      if (!tab) {
+      const desktop = isDesktopApp()
+      const tab = desktop ? null : window.open('about:blank', '_blank', 'width=600,height=700')
+      if (!desktop && !tab) {
         setLocalError('Allow pop-ups for this site to connect your account.')
         return
       }
-      tab.opener = null
+      if (tab) tab.opener = null
       popup.current = tab
       starting.current = true
+      const controller = new AbortController()
+      nativeAbort.current = controller
       setLocalError(null)
       let next: SearchConnectionAttempt | undefined
       try {
-        const fresh = await refetch()
-        if (!fresh.isSuccess) throw fresh.error
+        if (!desktop) {
+          const fresh = await refetch()
+          if (!fresh.isSuccess) throw fresh.error
+        }
+        controller.signal.throwIfAborted()
         next = {
           completionId: generateId(),
           requestedAt: Date.now(),
@@ -182,7 +191,9 @@ export function useSearchIntegrationConnection({
           target: connectorId ? { ...target, connectorId } : target,
           sourceConfig,
           oauthCompletionId: next.completionId,
+          signal: controller.signal,
         })
+        if (!result || !tab) return true
         const url = new URL(result.url)
         if (
           url.protocol !== 'https:' &&
@@ -193,10 +204,12 @@ export function useSearchIntegrationConnection({
         tab.location.href = url.href
         return true
       } catch (error) {
-        tab.close()
+        tab?.close()
         const message = getErrorMessage(error, 'Could not start the connection')
-        if (next) writeSearchConnectionAttempt(key, { ...next, status: 'failed', error: message })
-        setLocalError(message)
+        const current = readSearchConnectionAttempt(key)
+        if (next && current?.completionId === next.completionId && current.status === 'pending')
+          writeSearchConnectionAttempt(key, { ...current, status: 'failed', error: message })
+        if (!controller.signal.aborted) setLocalError(message)
         return false
       } finally {
         starting.current = false
@@ -205,6 +218,7 @@ export function useSearchIntegrationConnection({
     [isPending, connected, pending, refetch, mutateAsync, organizationId, target, connectorId, key]
   )
   const cancel = useCallback(() => {
+    nativeAbort.current?.abort()
     popup.current?.close()
     if (attempt?.status === 'pending')
       writeSearchConnectionAttempt(key, {

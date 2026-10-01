@@ -1,4 +1,6 @@
 import { type EmbeddedCliIdentity, runEmbeddedCli } from 'sim/embed'
+import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
 import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import {
@@ -7,6 +9,8 @@ import {
   writeSessionSandboxFile,
 } from '@/lib/execution/remote-sandbox/session-files'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
  * Runs one real-CLI invocation in-process through the installed CLI's own command tree,
@@ -64,7 +68,21 @@ export async function readCliInputFile(
   signal?.throwIfAborted()
   const read = await readSessionSandboxFile(sessionKey, path, 'base64', signal)
   signal?.throwIfAborted()
-  if (read.outcome === 'read') return Buffer.from(read.content, 'base64')
+  if (read.outcome === 'read') {
+    const provenance = read.secretProvenance
+    if (!provenance || provenance.status !== 'exact')
+      throw new Error('CLI input withheld because workbench secret provenance is unavailable')
+    const buffer = Buffer.from(read.content, 'base64')
+    if (provenance.entries.length === 0) return buffer
+    const registry = new ResolvedSecretTraceRegistry([])
+    if (!(await importDurableSecretProvenance(registry, provenance)))
+      throw new Error('CLI input withheld because workbench secret provenance is unavailable')
+    const text = buffer.toString('utf8')
+    const projection = projectResolvedSecretModelContent(text, registry)
+    if (!projection.safe || isBinarySandboxPath(path) || projection.value !== text)
+      throw new Error('CLI input may contain protected workbench values')
+    return buffer
+  }
   throw new Error(
     read.outcome === 'no-session'
       ? `No workbench exists for this chat; write "${path}" first or pass the value inline.`

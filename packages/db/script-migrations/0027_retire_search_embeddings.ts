@@ -2,15 +2,82 @@ import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { retryOnLockTimeout } from '@sim/db/scripts/lock-timeout-retry'
 import { createLogger } from '@sim/logger'
+import { getPostgresCancellationReason } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import postgres, { type Sql, type TransactionSql } from 'postgres'
 
 const logger = createLogger('RetireSearchEmbeddings')
-const BATCH_SIZE = 25_000
+/** Most IDs one page reads in primary-key order; reading is cheap next to the mutation. */
+const SCAN_PAGE_SIZE = 25_000
+/**
+ * A page reads at most this many IDs per row it may mutate. A page that reaches the row limit is
+ * re-read from its last mutated row, so a window far wider than the limit would be read again and
+ * again as the limit shrinks, exactly when the database is already slow.
+ */
+const SCAN_ROWS_PER_MUTATION = 4
+/**
+ * Rows one page may update or delete. Every retired document is a non-HOT update touching each of
+ * its indexes, and every deleted chunk cascades into its projections, so the write cost of a page,
+ * not its scan, is what can outrun the statement timeout.
+ */
+const ROW_LIMIT = { initial: 2_000, min: 25, max: 8_000 } as const
+/** A page slower than this halves the row limit. */
+const SLOW_PAGE_MS = 30_000
+/**
+ * A page faster than this doubles the row limit, widening its scan window with it, but never back
+ * to a size that timed out.
+ */
+const FAST_PAGE_MS = SLOW_PAGE_MS / 4
+/**
+ * Each page, committed or timed out, is followed by a pause as long as the page, up to this, to
+ * leave the primary headroom.
+ */
+const MAX_PAGE_PAUSE_MS = 5_000
 const LOCK_RETRY_BUDGET_MS = 60_000
+
+type Phase = 'documents' | 'embeddings' | 'done'
+
+interface PageResult {
+  done: boolean
+  /** The phase the page ran in. */
+  phase: Phase
+  /** The cursor the page committed. */
+  afterId: string
+  /** Rows the page updated or deleted. */
+  mutated: number
+  /** A phase change the page committed. */
+  transition?: 'embeddings' | 'documents_rescan' | 'embeddings_rescan'
+}
+
+/**
+ * A statement timeout from a page's mutating statement, the only statement a smaller page speeds
+ * up. Any other timeout, such as a completion recheck, propagates unchanged and fails the run.
+ */
+class PageMutationTimeout extends Error {
+  override name = 'PageMutationTimeout'
+  constructor(readonly timeout: unknown) {
+    super('Search retirement page mutation timed out', { cause: timeout })
+  }
+}
+
+async function pageMutation<T>(statement: PromiseLike<T>): Promise<T> {
+  try {
+    return await statement
+  } catch (error) {
+    if (getPostgresCancellationReason(error) === 'statement_timeout') {
+      throw new PageMutationTimeout(error)
+    }
+    throw error
+  }
+}
+
+function halve(rowLimit: number): number {
+  return Math.max(ROW_LIMIT.min, Math.floor(rowLimit / 2))
+}
 
 interface Progress {
   knowledge_base_id: string
-  phase: 'documents' | 'embeddings' | 'done'
+  phase: Phase
   after_id: string
 }
 
@@ -48,7 +115,7 @@ export const retireSearchEmbeddingsMigration: ScriptMigration = {
           WITH targets AS (
             INSERT INTO search_embedding_cleanup_targets (knowledge_base_id)
             SELECT id FROM knowledge_base WHERE is_search_index AND id > ${afterId}
-            ORDER BY id LIMIT ${BATCH_SIZE}
+            ORDER BY id LIMIT ${SCAN_PAGE_SIZE}
             RETURNING knowledge_base_id
           ) SELECT max(knowledge_base_id) AS after_id FROM targets`
         if (page.after_id === null) break
@@ -72,42 +139,111 @@ export const retireSearchEmbeddingsMigration: ScriptMigration = {
 
     const startedAt = Date.now()
     let batches = 0
-    while (!(await retirePage(sql))) {
+    let mutated = 0
+    let rowLimit: number = ROW_LIMIT.initial
+    /** The largest limit the run may still try: half of the smallest limit that timed out. */
+    let ceiling: number = ROW_LIMIT.max
+    for (;;) {
+      /** Timed around the whole call, so the synchronous-replication wait at commit counts. */
+      const pageStartedAt = performance.now()
+      let page: PageResult
+      try {
+        page = await retirePage(sql, rowLimit)
+      } catch (error) {
+        if (!(error instanceof PageMutationTimeout)) throw error
+        /** The timed-out page rolled back with its cursor, so it is retried with fewer rows. */
+        if (rowLimit <= ROW_LIMIT.min) throw error.timeout
+        ceiling = halve(rowLimit)
+        rowLimit = ceiling
+        logger.warn('Search retirement page timed out; retrying with fewer rows', { rowLimit })
+        await sleep(Math.min(performance.now() - pageStartedAt, MAX_PAGE_PAUSE_MS))
+        continue
+      }
+      if (page.done) break
+      const pageMs = performance.now() - pageStartedAt
       batches++
+      mutated += page.mutated
+      if (page.transition) {
+        /** A phase change may include a full recheck, which says nothing about page cost. */
+        logger.info('Search retirement phase changed', {
+          transition: page.transition,
+          batches,
+          mutated,
+        })
+      } else if (pageMs > SLOW_PAGE_MS) {
+        rowLimit = halve(rowLimit)
+        logger.warn('Search retirement page was slow; halving the row limit', {
+          pageMs: Math.round(pageMs),
+          rowLimit,
+        })
+      } else if (pageMs < FAST_PAGE_MS) {
+        rowLimit = Math.min(ceiling, rowLimit * 2)
+      }
       if (batches % 10 === 0) {
         logger.info('Search embedding retirement progress', {
           batches,
+          phase: page.phase,
+          afterId: page.afterId,
+          mutated,
+          rowLimit,
           elapsedMs: Date.now() - startedAt,
         })
       }
+      await sleep(Math.min(pageMs, MAX_PAGE_PAUSE_MS))
     }
     logger.info('Selected Search knowledge bases retired', {
       batches,
+      mutated,
       elapsedMs: Date.now() - startedAt,
     })
   },
 }
 
-async function retirePage(sql: Sql): Promise<boolean> {
+/**
+ * Retires one page: the target rows among the next `rowLimit * SCAN_ROWS_PER_MUTATION` IDs (at
+ * most `SCAN_PAGE_SIZE`), capped at `rowLimit`.
+ * A capped page advances the cursor only to its last mutated row, so the rest of the scan is
+ * read again by the next page; an uncapped page advances past its whole scan.
+ */
+async function retirePage(sql: Sql, rowLimit: number): Promise<PageResult> {
   return retryOnLockTimeout(
     () =>
       sql.begin(async (tx) => {
+        const scanLimit = Math.min(SCAN_PAGE_SIZE, rowLimit * SCAN_ROWS_PER_MUTATION)
         await tx`SET LOCAL statement_timeout = '120s'`
         await tx`SET LOCAL lock_timeout = '1s'`
         const [progress] = await tx<Progress[]>`
           SELECT knowledge_base_id, phase, after_id FROM search_embedding_cleanup_progress WHERE id = 1 FOR UPDATE`
+        const result = (page: Partial<PageResult> = {}): PageResult => ({
+          done: false,
+          phase: progress.phase,
+          afterId: progress.after_id,
+          mutated: 0,
+          ...page,
+        })
         if (progress.phase === 'done') {
+          /** A retry after maintenance failed rechecks every captured KB, as completion did. */
+          await tx`SET LOCAL statement_timeout = '30min'`
           await validateTargetMarkers(tx)
-          return true
+          return result({ done: true })
         }
 
         if (progress.phase === 'documents') {
-          const [page] = await tx<{ after_id: string | null; invalid_target: boolean }[]>`
+          /** Already-retired documents are skipped so they never spend the row limit. */
+          const [page] = await pageMutation(tx<
+            { after_id: string; mutated: number; invalid_target: boolean }[]
+          >`
             WITH source_page AS MATERIALIZED (
-              SELECT id, knowledge_base_id FROM document WHERE id > ${progress.after_id} ORDER BY id LIMIT ${BATCH_SIZE}
+              SELECT id, knowledge_base_id,
+                (NOT user_excluded OR enabled OR processing_queue_token IS NOT NULL
+                 OR processing_queued_at IS NOT NULL OR processing_deferred_until IS NOT NULL) AS unretired
+              FROM document WHERE id > ${progress.after_id} ORDER BY id LIMIT ${scanLimit}
             ), target_page AS MATERIALIZED (
-              SELECT p.* FROM source_page p
+              SELECT p.id, p.knowledge_base_id FROM source_page p
               JOIN search_embedding_cleanup_targets t ON t.knowledge_base_id = p.knowledge_base_id
+              WHERE p.unretired ORDER BY p.id LIMIT ${rowLimit}
+            ), page_end AS MATERIALIZED (
+              SELECT count(*) >= ${rowLimit} AS limited, max(id) AS last_target FROM target_page
             ), locked_targets AS MATERIALIZED (
               SELECT kb.id, kb.is_search_index FROM knowledge_base kb
               WHERE kb.id IN (SELECT knowledge_base_id FROM target_page)
@@ -125,26 +261,38 @@ async function retirePage(sql: Sql): Promise<boolean> {
                 AND NOT EXISTS (SELECT 1 FROM invalid_target)
                 AND (NOT d.user_excluded OR d.enabled OR d.processing_queue_token IS NOT NULL
                      OR d.processing_queued_at IS NOT NULL OR d.processing_deferred_until IS NOT NULL)
-            ) SELECT max(id) AS after_id, EXISTS (SELECT 1 FROM invalid_target) AS invalid_target FROM source_page`
+              RETURNING d.id
+            ) SELECT CASE WHEN e.limited THEN e.last_target ELSE max(p.id) END AS after_id,
+                (SELECT count(*) FROM retired)::int AS mutated,
+                EXISTS (SELECT 1 FROM invalid_target) AS invalid_target
+              FROM source_page p CROSS JOIN page_end e GROUP BY e.limited, e.last_target`)
+          if (!page) {
+            await tx`UPDATE search_embedding_cleanup_progress SET phase = 'embeddings', after_id = '' WHERE id = 1`
+            return result({ afterId: '', transition: 'embeddings' })
+          }
           if (page.invalid_target)
             throw new Error('Cleanup target is no longer a Search knowledge base')
-          if (page.after_id === null) {
-            await tx`UPDATE search_embedding_cleanup_progress SET phase = 'embeddings', after_id = '' WHERE id = 1`
-            return false
-          }
           await tx`UPDATE search_embedding_cleanup_progress SET after_id = ${page.after_id} WHERE id = 1`
-          return false
+          return result({ afterId: page.after_id, mutated: page.mutated })
         }
 
         /** Keep page IDs in PostgreSQL; foreign keys cascade projection and provenance deletes. */
-        const [page] = await tx<
-          { after_id: string | null; unretired: boolean; invalid_target: boolean }[]
+        const [page] = await pageMutation(tx<
+          {
+            after_id: string
+            mutated: number
+            unretired: boolean
+            invalid_target: boolean
+          }[]
         >`
           WITH source_page AS MATERIALIZED (
-            SELECT id, knowledge_base_id, document_id FROM embedding WHERE id > ${progress.after_id} ORDER BY id LIMIT ${BATCH_SIZE}
+            SELECT id, knowledge_base_id, document_id FROM embedding WHERE id > ${progress.after_id} ORDER BY id LIMIT ${scanLimit}
           ), target_page AS MATERIALIZED (
             SELECT p.* FROM source_page p
             JOIN search_embedding_cleanup_targets t ON t.knowledge_base_id = p.knowledge_base_id
+            ORDER BY p.id LIMIT ${rowLimit}
+          ), page_end AS MATERIALIZED (
+            SELECT count(*) >= ${rowLimit} AS limited, max(id) AS last_target FROM target_page
           ), locked_targets AS MATERIALIZED (
             SELECT kb.id, kb.is_search_index FROM knowledge_base kb
             WHERE kb.id IN (SELECT knowledge_base_id FROM target_page)
@@ -161,34 +309,43 @@ async function retirePage(sql: Sql): Promise<boolean> {
             DELETE FROM embedding e USING target_page p
             WHERE e.id = p.id AND e.knowledge_base_id = p.knowledge_base_id
               AND NOT EXISTS (SELECT 1 FROM unretired) AND NOT EXISTS (SELECT 1 FROM invalid_target)
-          ) SELECT max(id) AS after_id, EXISTS (SELECT 1 FROM unretired) AS unretired,
-              EXISTS (SELECT 1 FROM invalid_target) AS invalid_target FROM source_page`
-        if (page.invalid_target)
+            RETURNING e.id
+          ) SELECT CASE WHEN e.limited THEN e.last_target ELSE max(p.id) END AS after_id,
+              (SELECT count(*) FROM deleted)::int AS mutated,
+              EXISTS (SELECT 1 FROM unretired) AS unretired,
+              EXISTS (SELECT 1 FROM invalid_target) AS invalid_target
+            FROM source_page p CROSS JOIN page_end e GROUP BY e.limited, e.last_target`)
+        if (page?.invalid_target)
           throw new Error('Cleanup target is no longer a Search knowledge base')
-        if (page.unretired)
+        if (page?.unretired)
           throw new Error('Search content changed after retirement; stop writers before resuming')
-        if (page.after_id === null) {
-          /** A late insert may sort behind either UUID cursor; completion must recheck the target. */
+        if (!page) {
+          /**
+           * A late insert may sort behind either UUID cursor; completion must recheck the target.
+           * These rechecks walk every captured KB once, which no single page does.
+           */
+          await tx`SET LOCAL statement_timeout = '30min'`
+          logger.info('Rechecking captured Search knowledge bases before completion')
           const [unretired] = await tx`SELECT d.id FROM document d
               JOIN search_embedding_cleanup_targets t ON t.knowledge_base_id = d.knowledge_base_id
               WHERE (NOT user_excluded OR enabled OR processing_queue_token IS NOT NULL
                    OR processing_queued_at IS NOT NULL OR processing_deferred_until IS NOT NULL) LIMIT 1`
           if (unretired) {
             await tx`UPDATE search_embedding_cleanup_progress SET phase = 'documents', after_id = '' WHERE id = 1`
-            return false
+            return result({ afterId: '', transition: 'documents_rescan' })
           }
           const [remaining] = await tx`SELECT e.id FROM embedding e
               JOIN search_embedding_cleanup_targets t ON t.knowledge_base_id = e.knowledge_base_id LIMIT 1`
           if (remaining) {
             await tx`UPDATE search_embedding_cleanup_progress SET after_id = '' WHERE id = 1`
-            return false
+            return result({ afterId: '', transition: 'embeddings_rescan' })
           }
           await validateTargetMarkers(tx)
           await tx`UPDATE search_embedding_cleanup_progress SET phase = 'done' WHERE id = 1`
-          return true
+          return result({ done: true })
         }
         await tx`UPDATE search_embedding_cleanup_progress SET after_id = ${page.after_id} WHERE id = 1`
-        return false
+        return result({ afterId: page.after_id, mutated: page.mutated })
       }),
     {
       budgetMs: LOCK_RETRY_BUDGET_MS,
@@ -209,7 +366,7 @@ async function validateTargetMarkers(tx: TransactionSql): Promise<void> {
     const [page] = await tx<{ after_id: string | null; invalid_target: boolean }[]>`
       WITH target_page AS MATERIALIZED (
         SELECT knowledge_base_id FROM search_embedding_cleanup_targets
-        WHERE knowledge_base_id > ${afterId} ORDER BY knowledge_base_id LIMIT ${BATCH_SIZE}
+        WHERE knowledge_base_id > ${afterId} ORDER BY knowledge_base_id LIMIT ${SCAN_PAGE_SIZE}
       ), locked_targets AS MATERIALIZED (
         SELECT kb.id, kb.is_search_index FROM knowledge_base kb
         WHERE kb.id IN (SELECT knowledge_base_id FROM target_page)

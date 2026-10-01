@@ -40,8 +40,9 @@ export function GitHubMemberIntegration({
   const loading = inventory.isPending && !inventory.data
   const failed = inventory.isError
   const meta = CONNECTOR_META_REGISTRY.github
-  const navigate = ({ authorizationUrl, invitationLink }: OrganizationAccountConnectionResponse) =>
-    window.location.assign(authorizationUrl ?? invitationLink)
+  const navigate = (result: OrganizationAccountConnectionResponse | null) => {
+    if (result) window.location.assign(result.authorizationUrl ?? result.invitationLink)
+  }
   const onError = (error: Error) => toast.error(error.message)
   const description = account
     ? `${accounts.map((entry) => entry.displayName).join(', ')} · ${account.status === 'needs_reauth' ? 'Reconnect required' : 'Connected'}`

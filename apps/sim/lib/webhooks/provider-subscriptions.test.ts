@@ -33,6 +33,30 @@ describe('createExternalWebhookSubscription', () => {
     mockGetEffectiveDecryptedEnv.mockResolvedValue({ ASHBY_API_KEY: 'real-secret-key' })
   })
 
+  it.each([
+    ['{{ASHBY_API_KEY}}', '{{ASHBY_API_KEY}}'],
+    ['real-secret-key', '[REDACTED_SECRET]'],
+  ])(
+    'projects configured credential %s out of provider failures while preserving status',
+    async (apiKey, replacement) => {
+      const failure = Object.assign(new Error('Provider refused real-secret-key'), { status: 429 })
+      mockGetProviderHandler.mockReturnValue({
+        createSubscription: async () => {
+          throw failure
+        },
+      })
+      await expect(
+        createExternalWebhookSubscription(
+          {} as NextRequest,
+          { provider: 'ashby', providerConfig: { apiKey } },
+          { workspaceId: 'ws-1' },
+          'user-1',
+          'req-1'
+        )
+      ).rejects.toMatchObject({ message: `Provider refused ${replacement}`, status: 429 })
+    }
+  )
+
   it('resolves {{ENV_VAR}} references in providerConfig before calling the provider', async () => {
     const createSubscription = vi.fn().mockResolvedValue({
       providerConfigUpdates: { externalId: 'ext-1' },
@@ -100,6 +124,28 @@ describe('cleanupExternalWebhook', () => {
    * non-admin owner without a credential grant leave `{{VAR}}` unresolved, and
    * the provider was handed the literal reference as its credential.
    */
+  it.each([
+    ['{{CALENDLY_API_KEY}}', '{{CALENDLY_API_KEY}}'],
+    ['real-secret-key', '[REDACTED_SECRET]'],
+  ])(
+    'keeps configured cleanup credential %s out of retryable deployment failures',
+    async (apiKey, replacement) => {
+      mockGetProviderHandler.mockReturnValue({
+        deleteSubscription: async () => {
+          throw new Error('Provider refused real-secret-key')
+        },
+      })
+      await expect(
+        cleanupExternalWebhook(
+          { provider: 'calendly', providerConfig: { apiKey } },
+          { userId: 'user-1', workspaceId: 'workspace-1' },
+          'req-1',
+          { throwOnError: true }
+        )
+      ).rejects.toThrow(`Provider refused ${replacement}`)
+    }
+  )
+
   it('resolves {{ENV_VAR}} references before deleting the provider subscription', async () => {
     const deleteSubscription = vi.fn().mockResolvedValue(undefined)
     mockGetProviderHandler.mockReturnValue({ deleteSubscription })

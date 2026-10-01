@@ -14,7 +14,11 @@ import {
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
 import { withToolServiceMeter } from '@/lib/mothership/billing/service-meter'
-import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
+import {
+  PERMISSION_WAIT_TIMEOUT_MS,
+  TOOL_WATCHDOG_DEFAULT_MS,
+  TOOL_WATCHDOG_LONG_RUNNING_MS,
+} from '@/lib/mothership/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
   MothershipStreamV1EventType,
@@ -67,6 +71,7 @@ import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
 import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
+  measureWithheldContent,
 } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
 import {
@@ -250,7 +255,7 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 
 /**
  * How long the resume gate may wait on one pending tool call. Permission
- * prompts receive the long-running budget. Browser calls share the renderer's
+ * prompts wait as long as the permission wait itself. Browser calls share the renderer's
  * budget so authorization and native queueing cannot outlive the resume gate.
  */
 export function pendingToolWaitBudgetMs(
@@ -258,7 +263,7 @@ export function pendingToolWaitBudgetMs(
     | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params' | 'execName'>>)
     | undefined
 ): number {
-  if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
+  if (toolCall?.status === 'awaiting_approval') return PERMISSION_WAIT_TIMEOUT_MS
   const executableName = toolCall?.execName ?? toolCall?.name
   if (executableName && isCurrentBrowserToolName(executableName)) {
     return browserToolRendererTimeoutMs(executableName, toolCall?.params)
@@ -915,6 +920,7 @@ async function executeToolAndReportInner(
         toolName: toolCall.name,
         runtimeSucceeded: result.success,
         ...describeWithholdingCause(projection.cause),
+        ...measureWithheldContent(result),
       })
     }
 

@@ -4,8 +4,10 @@ import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog
 export const liveSearchProviderSchema = z.enum(LIVE_SEARCH_PROVIDER_IDS)
 export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
 
-export const NOTION_SEARCH_TERMS_REQUIRED =
-  'Notion requires search terms. Add keywords or a concise question.'
+export const SEARCH_TERMS_REQUIRED = {
+  notion: 'Notion requires search terms. Add keywords or a concise question.',
+  lucid: 'Lucid requires search terms. Add document-title keywords or a literal shape-text query.',
+} as const
 
 /**
  * Native queries one call may send to the same provider account. Alternatives run as separate
@@ -24,6 +26,9 @@ const PROVIDER_KIND_SCHEMAS = {
   github: z.enum(['issues', 'code', 'repositories', 'commits']),
   gitlab: z.enum(['issues', 'code', 'merge_requests', 'wiki']),
   hubspot: z.enum(['contacts', 'companies', 'deals', 'tickets']),
+  lucid: z.enum(['lucidchart', 'lucidspark']),
+  google_meet: z.enum(['transcript', 'smart_notes']),
+  zoom: z.enum(['meeting']),
 } as const
 
 function hasSearchKinds(
@@ -36,6 +41,9 @@ const nativeSearchKindSchema = z.enum([
   ...PROVIDER_KIND_SCHEMAS.github.options,
   ...PROVIDER_KIND_SCHEMAS.gitlab.options,
   ...PROVIDER_KIND_SCHEMAS.hubspot.options,
+  ...PROVIDER_KIND_SCHEMAS.lucid.options,
+  ...PROVIDER_KIND_SCHEMAS.google_meet.options,
+  ...PROVIDER_KIND_SCHEMAS.zoom.options,
 ])
 
 /** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */
@@ -53,20 +61,22 @@ export const nativeSearchQuerySchema = z
   })
   .strict()
   .superRefine((input, context) => {
-    if (input.kind && hasSearchKinds(input.provider)) {
-      const kinds = PROVIDER_KIND_SCHEMAS[input.provider]
-      if (!kinds.safeParse(input.kind).success)
+    if (input.kind) {
+      const kinds = hasSearchKinds(input.provider) ? PROVIDER_KIND_SCHEMAS[input.provider] : null
+      if (!kinds?.safeParse(input.kind).success)
         context.addIssue({
           code: 'custom',
           path: ['kind'],
-          message: `${input.provider} kind must be one of: ${kinds.options.join(', ')}.`,
+          message: kinds
+            ? `${input.provider} kind must be one of: ${kinds.options.join(', ')}.`
+            : `${input.provider} does not support kind selection.`,
         })
     }
-    if (input.provider === 'notion' && !input.query)
+    if ((input.provider === 'notion' || input.provider === 'lucid') && !input.query)
       context.addIssue({
         code: 'custom',
         path: ['query'],
-        message: NOTION_SEARCH_TERMS_REQUIRED,
+        message: SEARCH_TERMS_REQUIRED[input.provider],
       })
   })
 export type NativeSearchQuery = z.output<typeof nativeSearchQuerySchema>
@@ -106,7 +116,7 @@ export const nativeSearchQueriesSchema = z
         earlier.some((previous) => !previous.kind || !query.kind)
       )
         addIssue(
-          'A GitHub, GitLab, or HubSpot query without a kind already searches every kind; give each query on this account a kind.'
+          'A GitHub, GitLab, HubSpot, Lucid, Google Meet, or Zoom query without a kind already searches its default kinds; give each query on this account a kind.'
         )
       else if (busiestAccountLoad(earlier) >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
         addIssue(
@@ -141,7 +151,7 @@ export const workspaceSearchFiltersSchema = z.object({
     .datetime({ offset: true })
     .optional()
     .describe(
-      'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.'
+      'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Google Meet, Zoom, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.'
     ),
   endDate: z
     .string()
@@ -188,7 +198,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion always requires search terms. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; ownership filters are unsupported. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
+        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion and Lucid always require search terms. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid searches titles with no search continuation; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
       ),
     query: z
       .string()

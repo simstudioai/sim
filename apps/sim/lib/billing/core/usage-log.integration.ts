@@ -10,7 +10,7 @@ import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,6 +26,7 @@ import {
   CumulativeUsageContextMismatchError,
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostByUser,
+  getStampedPeriodRangeUsageCostByUser,
   type RecordCumulativeUsageParams,
   recordCumulativeUsage,
 } from '@/lib/billing/core/usage-log'
@@ -119,7 +120,8 @@ describe('Cumulative billing with PostgreSQL', () => {
       );
       CREATE UNIQUE INDEX usage_log_event_key_unique ON usage_log(event_key)
       WHERE event_key IS NOT NULL;
-      CREATE TABLE driver_probe (id text PRIMARY KEY)
+      CREATE TABLE driver_probe (id text PRIMARY KEY);
+      CREATE TABLE subscription (id text PRIMARY KEY, period_start timestamp, period_end timestamp)
     `)
     transaction.mockImplementation(async (callback: (tx: Transaction) => Promise<unknown>) => {
       const pause = nextPause
@@ -142,6 +144,7 @@ describe('Cumulative billing with PostgreSQL', () => {
   beforeEach(async () => {
     nextPause = undefined
     await connection`truncate usage_log`
+    await connection`truncate subscription`
   })
 
   it.each([
@@ -216,12 +219,12 @@ describe('Cumulative billing with PostgreSQL', () => {
         expect(recovered.billed).toBe(true)
         expect(recovered.delta).toBeCloseTo(0.8 - initial, 9)
         expect(recovered.total).toBe(0.8)
-        expect(await recordCumulativeUsage(usage(0.8))).toEqual({
+        expect(await recordCumulativeUsage(usage(0.8))).toMatchObject({
           billed: false,
           delta: 0,
           total: 0.8,
         })
-        expect(await recordCumulativeUsage(usage(0.3))).toEqual({
+        expect(await recordCumulativeUsage(usage(0.3))).toMatchObject({
           billed: false,
           delta: 0,
           total: 0.8,
@@ -245,7 +248,11 @@ describe('Cumulative billing with PostgreSQL', () => {
       )
     )
     expect(await ledgerRows()).toHaveLength(33)
-    expect(await recordCumulativeUsage(usage(0.8))).toEqual({ billed: false, delta: 0, total: 0.8 })
+    expect(await recordCumulativeUsage(usage(0.8))).toMatchObject({
+      billed: false,
+      delta: 0,
+      total: 0.8,
+    })
   })
 
   it('reads committed pooled and member charges freshly after concurrent executions', async () => {
@@ -305,4 +312,243 @@ describe('Cumulative billing with PostgreSQL', () => {
       expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '0.8' }])
     }
   )
+
+  it("counts a reporting run's top-ups after its window ends in that window, and a later run's charges in the next", async () => {
+    const payer = { type: 'organization', id: 'payer' } as const
+    const dayMs = 24 * 60 * 60 * 1000
+    // A reporting window is summed by when each row was created; the stamped period only binds a
+    // request's rows to each other.
+    const stamp = {
+      start: new Date('2026-01-01'),
+      end: new Date('2027-01-01'),
+      source: 'reporting' as const,
+    }
+    await recordCumulativeUsage({ ...usage(0.4, 'update-cost:long-run'), billingPeriod: stamp })
+    const [first] = await database
+      .select({ createdAt: schema.usageLog.createdAt })
+      .from(schema.usageLog)
+      .where(eq(schema.usageLog.eventKey, 'update-cost:long-run'))
+    // The admitted window ends right after the run's first charge, and every later write starts
+    // once the database clock has passed that boundary.
+    const boundary = new Date(first.createdAt.getTime() + 1)
+    for (;;) {
+      const [{ passed }] = await connection<{ passed: boolean }[]>`
+        select clock_timestamp()::timestamp > created_at + interval '1 millisecond' as passed
+        from usage_log where event_key = 'update-cost:long-run'
+      `
+      if (passed) break
+    }
+
+    await recordCumulativeUsage({ ...usage(1, 'update-cost:long-run'), billingPeriod: stamp })
+    await recordCumulativeUsage({ ...usage(0.25, 'update-cost:next-run'), billingPeriod: stamp })
+
+    const windowTotal = (start: Date, end: Date) =>
+      getBillingPeriodUsageCost(payer, { start, end, source: 'reporting' }, undefined, database)
+    expect(await windowTotal(new Date(boundary.getTime() - 30 * dayMs), boundary)).toBeCloseTo(1, 9)
+    expect(await windowTotal(boundary, new Date(boundary.getTime() + 30 * dayMs))).toBeCloseTo(
+      0.25,
+      9
+    )
+  })
+
+  describe('a request that outlives its billing period', () => {
+    // Past periods: the old period's row is written under the subscription lock only once
+    // that period has ended.
+    const periods = [
+      new Date('2025-09-01T00:00:00.000Z'),
+      new Date('2025-10-01T00:00:00.000Z'),
+      new Date('2025-11-01T00:00:00.000Z'),
+      new Date('2025-12-01T00:00:00.000Z'),
+    ]
+    const payer = { type: 'organization', id: 'payer' } as const
+
+    async function setSubscriptionWindow(start: Date, end: Date) {
+      await connection`
+        insert into subscription (id, period_start, period_end)
+        values ('sub-1', ${start.toISOString()}::timestamptz at time zone 'UTC', ${end.toISOString()}::timestamptz at time zone 'UTC')
+        on conflict (id) do update
+          set period_start = excluded.period_start, period_end = excluded.period_end
+      `
+    }
+
+    async function setSubscriptionPeriod(index: number) {
+      await setSubscriptionWindow(periods[index], periods[index + 1])
+    }
+
+    function charge(cost: number, frozen = { start: periods[0], end: periods[1] }) {
+      return recordCumulativeUsage({
+        ...usage(cost),
+        billingPeriod: frozen,
+        payerSubscriptionId: 'sub-1',
+      })
+    }
+
+    /** What the cycle close invoices for one period: the ledger rows stamped with it. */
+    async function stampedWindowTotal(from: Date, to: Date) {
+      const byUser = await getStampedPeriodRangeUsageCostByUser(
+        payer,
+        { from, to },
+        undefined,
+        database
+      )
+      return [...byUser.values()].reduce((total, cost) => total + cost, 0)
+    }
+
+    function stampedTotal(index: number) {
+      return stampedWindowTotal(periods[index], periods[index + 1])
+    }
+
+    it('invoices a charge that spans a period close exactly once in total', async () => {
+      await setSubscriptionPeriod(0)
+      expect(await charge(0.4)).toMatchObject({ billed: true, total: 0.4 })
+
+      await setSubscriptionPeriod(1)
+      const closedTotal = await stampedTotal(0)
+      expect(closedTotal).toBeCloseTo(0.4, 9)
+
+      const afterClose = await charge(1)
+      expect(afterClose).toMatchObject({ billed: true, total: 1 })
+      expect(afterClose.billingPeriod).toEqual({ start: periods[1], end: periods[2] })
+      expect(await charge(0.9)).toMatchObject({ billed: false, total: 1 })
+      expect(await charge(1.3)).toMatchObject({ billed: true, total: 1.3 })
+      expect(await charge(1.3)).toMatchObject({ billed: false, total: 1.3 })
+
+      await setSubscriptionPeriod(2)
+      expect(await charge(1.5)).toMatchObject({ billed: true, total: 1.5 })
+
+      expect(await stampedTotal(0)).toBeCloseTo(closedTotal, 9)
+      expect(await stampedTotal(1)).toBeCloseTo(0.9, 9)
+      expect(await stampedTotal(2)).toBeCloseTo(0.2, 9)
+      const invoiced = (await stampedTotal(0)) + (await stampedTotal(1)) + (await stampedTotal(2))
+      expect(invoiced).toBeCloseTo(1.5, 9)
+    })
+
+    it('gives each period row only the tokens spent after the rows before it', async () => {
+      await setSubscriptionPeriod(0)
+      await recordCumulativeUsage({
+        ...usage(0.4),
+        billingPeriod: { start: periods[0], end: periods[1] },
+        payerSubscriptionId: 'sub-1',
+      })
+      await setSubscriptionPeriod(1)
+      await recordCumulativeUsage({
+        ...usage(1),
+        billingPeriod: { start: periods[0], end: periods[1] },
+        payerSubscriptionId: 'sub-1',
+        metadata: { inputTokens: 25, outputTokens: 12 },
+      })
+
+      const rows = await connection<{ event_key: string; metadata: Record<string, number> }[]>`
+        select event_key, metadata from usage_log order by event_key
+      `
+      expect(rows.map((row) => [row.event_key, row.metadata])).toEqual([
+        ['update-cost:shared-request', { inputTokens: 10, outputTokens: 5 }],
+        ['update-cost:shared-request@1', { inputTokens: 15, outputTokens: 7 }],
+      ])
+    })
+
+    it('never stamps a charge into a period earlier than its latest row', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      await setSubscriptionPeriod(1)
+      await charge(1)
+      await setSubscriptionPeriod(0)
+      expect(await charge(1.2)).toMatchObject({ billed: true, total: 1.2 })
+      expect(await stampedTotal(0)).toBeCloseTo(0.4, 9)
+      expect(await stampedTotal(1)).toBeCloseTo(0.8, 9)
+    })
+
+    it('stamps a first charge that lands after the close into the current period', async () => {
+      await setSubscriptionPeriod(1)
+      expect(await charge(0.7)).toMatchObject({ billed: true, total: 0.7 })
+      expect(await charge(0.9)).toMatchObject({ billed: true, total: 0.9 })
+      expect(await stampedTotal(0)).toBe(0)
+      expect(await stampedTotal(1)).toBeCloseTo(0.9, 9)
+    })
+
+    it('holds the period advance until an in-flight top-up of the old period commits', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      const pause = pauseNextTransaction()
+      const inFlight = charge(0.6)
+      try {
+        await pause.reached.promise
+        const advance = await connection
+          .begin(async (tx) => {
+            await tx`select set_config('lock_timeout', '300ms', true)`
+            await tx`update subscription set period_start = ${periods[1].toISOString()}::timestamptz at time zone 'UTC' where id = 'sub-1'`
+          })
+          .catch((error: unknown) => error)
+        expect(getPostgresErrorCode(advance)).toBe('55P03')
+      } finally {
+        pause.release.resolve()
+        await inFlight
+      }
+      expect(await stampedTotal(0)).toBeCloseTo(0.6, 9)
+    })
+
+    it('rolls into a period whose start moved forward before the old period ended', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+      const resetStart = new Date('2025-09-15T00:00:00.000Z')
+      const resetEnd = new Date('2025-10-15T00:00:00.000Z')
+      await setSubscriptionWindow(resetStart, resetEnd)
+
+      expect(await charge(1)).toMatchObject({
+        billed: true,
+        billingPeriod: { start: resetStart, end: resetEnd },
+      })
+      expect(await stampedTotal(0)).toBeCloseTo(0.4, 9)
+      expect(await stampedWindowTotal(resetStart, resetEnd)).toBeCloseTo(0.6, 9)
+    })
+
+    it('keeps billing a request whose period start moved forward before its first charge', async () => {
+      const resetStart = new Date('2025-09-15T00:00:00.000Z')
+      const resetEnd = new Date('2025-10-15T00:00:00.000Z')
+      await setSubscriptionWindow(resetStart, resetEnd)
+
+      expect(await charge(0.4)).toMatchObject({ billed: true, total: 0.4 })
+      expect(await charge(1)).toMatchObject({
+        billed: true,
+        total: 1,
+        billingPeriod: { start: resetStart, end: resetEnd },
+      })
+      expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '1' }])
+      expect(await stampedWindowTotal(resetStart, resetEnd)).toBeCloseTo(1, 9)
+    })
+
+    it('refuses a request admitted after the period its first charge was stamped with', async () => {
+      await setSubscriptionPeriod(0)
+      await charge(0.4)
+
+      await expect(charge(1, { start: periods[1], end: periods[2] })).rejects.toMatchObject({
+        name: CumulativeUsageContextMismatchError.name,
+        mismatchedFields: ['billing period'],
+      })
+      expect(await ledgerRows()).toEqual([{ event_key: usage(0).eventKey, cost: '0.4' }])
+    })
+
+    it('holds an early period-start move until an in-flight top-up commits', async () => {
+      const start = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      const end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      await setSubscriptionWindow(start, end)
+      await charge(0.4, { start, end })
+      const pause = pauseNextTransaction()
+      const inFlight = charge(0.6, { start, end })
+      try {
+        await pause.reached.promise
+        const reset = await connection
+          .begin(async (tx) => {
+            await tx`select set_config('lock_timeout', '300ms', true)`
+            await tx`update subscription set period_start = now() at time zone 'UTC' where id = 'sub-1'`
+          })
+          .catch((error: unknown) => error)
+        expect(getPostgresErrorCode(reset)).toBe('55P03')
+      } finally {
+        pause.release.resolve()
+        await inFlight
+      }
+      expect(await stampedWindowTotal(start, end)).toBeCloseTo(0.6, 9)
+    })
+  })
 })

@@ -1,5 +1,6 @@
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { ResourceOwner } from '@/lib/core/resource-scope'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import type { ResolvedLiveAccount } from '@/lib/sim-search/live/accounts'
 import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
@@ -12,6 +13,7 @@ import {
   NativeSearchError,
 } from '@/lib/sim-search/live/http'
 import { readHubSpotMcp, searchHubSpotMcp } from '@/lib/sim-search/live/hubspot-mcp'
+import { readLucidMcp, searchLucidMcp } from '@/lib/sim-search/live/lucid-mcp'
 import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 import { readNotionMcp, searchNotionMcp } from '@/lib/sim-search/live/notion-mcp'
@@ -19,10 +21,12 @@ import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import { readNativeProvider, searchNativeProvider } from '@/lib/sim-search/live/providers'
 import { searchWithinPolicy } from '@/lib/sim-search/live/scoped-search'
 import { createLiveServiceSession } from '@/lib/sim-search/live/service-session'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
+import { readZoomMcp, searchZoomMcp } from '@/lib/sim-search/live/zoom-mcp'
 
 type Reference = Pick<
   NativeDocument,
@@ -65,6 +69,11 @@ export async function openLiveAccountSession(
   const { owner, userId, resolved, signal } = input
   const { account } = resolved
   const provider = account.provider
+  if (!(await isSearchProviderEnabled(provider, resourceScopeFromOwner(owner))))
+    throw new NativeSearchError(
+      'unavailable',
+      'This Search provider is not available for this organization'
+    )
   const origin =
     'origin' in resolved ? resolved.origin : LIVE_SEARCH_PROVIDER_CATALOG[provider].origin
   const client =
@@ -113,11 +122,16 @@ export async function openLiveAccountSession(
         return searchNotionMcp(mcp, search)
       case 'hubspot':
         return searchHubSpotMcp(mcp, search)
+      case 'lucid':
+        return searchLucidMcp(mcp, search)
+      case 'zoom':
+        return searchZoomMcp(mcp, search)
       default:
         throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
     }
   }
-  const readMcp = (id: string) => {
+  const readMcp = (reference: Reference) => {
+    const { id } = reference
     if (!mcp) throw new NativeSearchError('unavailable', 'Managed MCP connection unavailable.')
     switch (provider) {
       case 'coda':
@@ -130,6 +144,10 @@ export async function openLiveAccountSession(
         return readNotionMcp(mcp, id)
       case 'hubspot':
         return readHubSpotMcp(mcp, id)
+      case 'lucid':
+        return readLucidMcp(mcp, reference)
+      case 'zoom':
+        return readZoomMcp(mcp, id, reference.revision)
       default:
         throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
     }
@@ -184,9 +202,10 @@ export async function openLiveAccountSession(
           signal,
           verify: boundary.verify,
         })
-      return readMcp(reference.id)
+      return readMcp(reference)
     },
     async verifyCurrent(document) {
+      if (!(await isSearchProviderEnabled(provider, resourceScopeFromOwner(owner)))) return false
       const current = await sourceBoundary(
         livePolicyFor(await loadLiveSearchPolicies(owner), provider),
         true

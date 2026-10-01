@@ -303,7 +303,7 @@ it.each([
     expect(await response.text()).toBe('filebytes')
     expect(recordInput).toHaveBeenCalledWith(
       'mothership-chat:chat',
-      provenance.status === 'exact' && provenance.entries.length === 0
+      provenance.status === 'exact' ? provenance : false
     )
     expect(fetcher).toHaveBeenCalledOnce()
   }

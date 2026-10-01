@@ -54,10 +54,12 @@ describe('table operation registry', () => {
     ])
 
     for (const operation of Object.values(tableOperations)) {
-      expect(operation.delegatedServices).toEqual(
-        uploadAndExportOperations.has(operation.id) || sharedToolOperations.has(operation.id)
-          ? ['copilot', 'executor']
-          : ['copilot']
+      expect(operation.delegatedServices, operation.id).toEqual(
+        !operation.principalKinds.includes('delegated')
+          ? undefined
+          : uploadAndExportOperations.has(operation.id) || sharedToolOperations.has(operation.id)
+            ? ['copilot', 'executor']
+            : ['copilot']
       )
     }
   })

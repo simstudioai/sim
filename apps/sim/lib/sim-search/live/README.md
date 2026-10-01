@@ -94,7 +94,7 @@ Content types, code branch/tag, path prefix, file extensions, and issue state/la
 
 ## Adding a live Search connector
 
-A workspace KB connector and a live Search provider are different runtime integrations. `listDocuments`/`getDocument`, hashes, chunks, and embeddings remain the KB contract; adding those functions alone does not implement live Search. There are currently thirteen live providers, while the broader KB registry contains additional providers that are not advertised for Search.
+A workspace KB connector and a live Search provider are different runtime integrations. `listDocuments`/`getDocument`, hashes, chunks, and embeddings remain the KB contract; adding those functions alone does not implement live Search. The live provider catalog is independent of the broader KB registry, which contains additional providers that are not advertised for Search.
 
 ### Registration and ownership
 
@@ -130,6 +130,7 @@ Self-managed GitLab is resolved from the saved source's validated host/project i
 | Confluence | `/ex/confluence/{cloudId}/wiki/rest/api/search` with CQL | v2 `/wiki/api/v2/pages/{id}` or `/blogposts/{id}` (`body-format=view`); a space reads as its homepage | Same site, spaces, current type/status/labels, source readability |
 | GitHub | `/search/issues`, `/search/code`, `/search/repositories`, `/search/commits` | Issue, repository, commit, or contents endpoint for returned kind | Added repositories; installation coverage/stable IDs and code filters |
 | GitLab | Configured `/api/v4/projects/{project}/search`, or supported date listing | Project issue/MR/wiki/file endpoint | Current request-local admin ACL evidence or saved CSV grants, plus content filters |
+| Lucid | MCP `search` for titles; `lucid_search_document` within a known document | Bounded complete `fetch` pages/regions | Member only; official read-only MCP, current grant and stable document version |
 | Linear | GraphQL `searchIssues` including comments/archived, or dated `issues` listing | Issue description and paginated comments | Member only; current OAuth grant |
 | Fireflies | MCP `fireflies_get_transcripts` with `scope: all` | Transcript sentences plus summary | Member only; fixed official OAuth server |
 | Granola | MCP meeting query or date listing, hydrated cited meetings | Notes and transcript when available | Member only; source evidence and explicit bounded coverage |
@@ -137,6 +138,28 @@ Self-managed GitLab is resolved from the saved source's validated host/project i
 | Coda | Personal MCP `search`; REST `/apis/v1/docs` title-search compatibility | MCP read allowlist; REST compatibility document/page reads | Selected parent doc and current source-token visibility; optional Enterprise org membership |
 
 GitHub members use App user tokens. The deployment App needs read permissions for Contents, Issues, and Pull requests for full supported search/read coverage, plus Metadata, organization Members, and user Email addresses for existing setup/identity checks. Installation tokens used to prove repository coverage stay narrowed to contents/metadata; do not use them to replace the member's content grant.
+
+### Lucid
+
+Uses the official `https://mcp.lucid.app/mcp/readonly` server with dynamic OAuth registration through the existing managed-MCP member flow. No custom OAuth client, new env variables, email-identity exception or schema change is required. Only search, document-text search, metadata and content fetch are allowlisted; feedback submission is excluded. Lucid enforces an account boundary and does not expose externally owned documents even when shared.
+
+Document search is title-oriented, relevance-ranked, capped at 200 provider candidates and 10 current metadata reads, with no continuation. A known document UUID or Lucid URL in `project` enables literal case-insensitive shape-text search. Modification-date filters and sorting cover the retrieved candidates; status and guidance disclose that limitation. Metadata previews are not diagram evidence.
+
+Reads preserve provider page/region JSON, including node and edge properties, without interpreting layout as connectivity or fetching image/link references. The adapter validates all declared page regions, current document identity and revision, and rejects incomplete, changed or oversized reads. It permits at most 8 region calls plus a manifest and two metadata calls within the shared 12-call budget; output is capped at 512 KiB of UTF-8 JSON. Signed revisions bind read continuations to the original version. Comments, rendered images and Lucidscale are outside this integration.
+
+`test-search-lucid-e2e.ts` exercises the production MCP transport, payload parser and adapter over loopback HTTP with synthetic provider responses and writes `SEARCH_LUCID_REPORT_PATH`. It is separate from real-account acceptance; do not present deterministic fixtures as live Lucid evidence.
+
+### Zoom Search rollout
+
+Zoom Search defaults off for organization-scoped rollout. Enable selected organizations through the `feature-flags` AppConfig profile:
+
+```json
+{
+  "zoom-search": { "enabled": false, "orgIds": ["<approved-organization-id>"] }
+}
+```
+
+Only the canonical organization ID participates in this rollout check. For local or self-hosted deployments, `ZOOM_SEARCH=true` enables Zoom Search globally; leave that boolean fallback off for an organization-targeted rollout. Setup, enrollment and retrieval enforce the flag. The dedicated Zoom MCP Search connector is gated wherever it is invoked, including generic MCP tools; the standard workflow Zoom OAuth/tools remain available. Disabling the flag preserves saved grants and conversations while denying subsequent Search use; existing approvals can still be removed and connected accounts disconnected. Other providers retain the shared Search and credential-group availability policies without a separate provider rollout gate.
 
 ### Shared invariants
 

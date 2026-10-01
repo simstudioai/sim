@@ -15,9 +15,14 @@ import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
+import { env } from '@/lib/core/config/env'
 import { createOrganizationAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
 import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
-import { approveSearchIntegration } from '@/lib/knowledge/application/search-integrations'
+import {
+  approveSearchIntegration,
+  listSearchIntegrations,
+} from '@/lib/knowledge/application/search-integrations'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 
 /**
@@ -30,13 +35,20 @@ describe('atomic organization live Search MCP setup', () => {
 
   beforeAll(() => {
     vi.spyOn(dns, 'resolveHostAddresses').mockImplementation(async (hostname) => {
-      if (!['api.fireflies.ai', 'mcp.granola.ai', 'mcp.notion.com'].includes(hostname))
+      if (
+        !['api.fireflies.ai', 'mcp.granola.ai', 'mcp.notion.com', 'mcp.lucid.app'].includes(
+          hostname
+        )
+      )
         throw new Error(`Unexpected DNS lookup in setup fixture: ${hostname}`)
       return { addresses: ['93.184.216.34'], preferred: '93.184.216.34' }
     })
   })
 
   beforeEach(async () => {
+    Object.assign(env, {
+      ZOOM_SEARCH: false,
+    })
     ids = {
       organization: generateId(),
       owner: generateId(),
@@ -101,10 +113,41 @@ describe('atomic organization live Search MCP setup', () => {
     return { groups, servers, approvals, policies, metadata: toRecord(organizations[0]?.metadata) }
   }
 
+  it('keeps disabled Zoom approvals visible and removable without permitting reapproval', async () => {
+    const connectorType = 'zoom'
+    await db.insert(organizationSearchIntegration).values({
+      organizationId: ids.organization,
+      connectorType,
+      approved: true,
+    })
+    const principal = createSessionPrincipal({ userId: ids.owner, sessionId: generateId() })
+    const data = await listSearchIntegrations.execute({
+      principal,
+      input: { organizationId: ids.organization },
+    })
+    const response = listSearchIntegrationsContract.response.schema.parse({ success: true, data })
+    expect(response.data).toContainEqual(
+      expect.objectContaining({ connectorType, approved: true, available: false })
+    )
+    expect(response.data).toContainEqual(
+      expect.objectContaining({ connectorType: 'gmail', available: true })
+    )
+    await approveSearchIntegration.execute({
+      principal,
+      input: { organizationId: ids.organization, connectorType, approved: false },
+    })
+    await expect(approve(connectorType)).rejects.toThrow(/Search.*not available/)
+    const state = await snapshot()
+    expect(state.approvals).toEqual([expect.objectContaining({ connectorType, approved: false })])
+    expect(state.groups).toEqual([])
+    expect(state.policies).toEqual([])
+  })
+
   it.each([
     ['fireflies', 'https://api.fireflies.ai/mcp'],
     ['granola', 'https://mcp.granola.ai/mcp'],
     ['notion', 'https://mcp.notion.com/mcp'],
+    ['lucid', 'https://mcp.lucid.app/mcp/readonly'],
   ])(
     'approves %s with an organization-owned sign-in server and access policy',
     async (provider, url) => {

@@ -21,7 +21,11 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { ContentBlock, OrchestratorResult } from '@/lib/mothership/request/types'
+import type {
+  ContentBlock,
+  LocalToolCallStatus,
+  OrchestratorResult,
+} from '@/lib/mothership/request/types'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
@@ -42,6 +46,7 @@ interface PersistedMessageContext {
   tableId?: string
   viewId?: string
   fileId?: string
+  dashboardId?: string
   folderId?: string
   chatId?: string
   blockType?: string
@@ -336,8 +341,9 @@ export function buildPersistedAssistantMessage(
         'An unexpected error occurred while processing the response.'
     )
     normalized.contentBlocks = [
-      ...(normalized.contentBlocks ??
-        (message.content
+      ...(normalized.contentBlocks
+        ? settleUnfinishedToolCalls(normalized.contentBlocks, 'error')
+        : message.content
           ? [
               {
                 type: MothershipStreamV1EventType.text,
@@ -345,7 +351,7 @@ export function buildPersistedAssistantMessage(
                 content: message.content,
               },
             ]
-          : [])),
+          : []),
       {
         type: MothershipStreamV1EventType.error,
         content: buildMothershipErrorTag({ message: error }),
@@ -354,25 +360,48 @@ export function buildPersistedAssistantMessage(
     return normalized
   }
 
+  // A finished turn settles its stragglers as the live view did at its terminal;
+  // background and API callers persist a stopped turn without withStoppedContentBlock.
+  if (message.contentBlocks) {
+    message.contentBlocks = result.success
+      ? settleUnfinishedToolCalls(message.contentBlocks, 'success')
+      : settleUnfinishedToolCalls(message.contentBlocks, 'cancelled', STOPPED_TOOL_DISPLAY)
+  }
   return message
 }
 
+const STOPPED_TOOL_DISPLAY = { title: 'Stopped by user' } as const
+
+const UNSETTLED_TOOL_STATES: ReadonlySet<LocalToolCallStatus> = new Set<LocalToolCallStatus>([
+  'pending',
+  'executing',
+  'awaiting_approval',
+])
+
+/** A tool row that has not finished: waiting to run, running, or awaiting a decision. */
+export function isUnsettledToolState(state: string | undefined): boolean {
+  const unsettled: ReadonlySet<string | undefined> = UNSETTLED_TOOL_STATES
+  return unsettled.has(state)
+}
+
+/** Settles every unfinished tool row at a turn terminal so none reloads as a spinner. */
+function settleUnfinishedToolCalls(
+  blocks: PersistedContentBlock[],
+  state: 'success' | 'cancelled' | 'error',
+  display?: { title: string }
+): PersistedContentBlock[] {
+  return blocks.map((block) =>
+    block.toolCall && isUnsettledToolState(block.toolCall.state)
+      ? { ...block, toolCall: { ...block.toolCall, state, ...(display ? { display } : {}) } }
+      : block
+  )
+}
+
 export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
-  const contentBlocks = (message.contentBlocks ?? []).map(
-    (block): PersistedContentBlock =>
-      block.toolCall &&
-      (block.toolCall.state === 'executing' ||
-        block.toolCall.state === 'pending' ||
-        block.toolCall.state === 'awaiting_approval')
-        ? {
-            ...block,
-            toolCall: {
-              ...block.toolCall,
-              state: 'cancelled',
-              display: { title: 'Stopped by user' },
-            },
-          }
-        : block
+  const contentBlocks = settleUnfinishedToolCalls(
+    message.contentBlocks ?? [],
+    'cancelled',
+    STOPPED_TOOL_DISPLAY
   )
   const hasAssistantText = contentBlocks.some(
     (block) =>
@@ -443,6 +472,7 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
       ...(c.tableId ? { tableId: c.tableId } : {}),
       ...(c.viewId ? { viewId: c.viewId } : {}),
       ...(c.fileId ? { fileId: c.fileId } : {}),
+      ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
       ...(c.folderId ? { folderId: c.folderId } : {}),
       ...(c.chatId ? { chatId: c.chatId } : {}),
       ...(c.blockType ? { blockType: c.blockType } : {}),
@@ -794,6 +824,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
       ...(c.tableId ? { tableId: c.tableId } : {}),
       ...(c.viewId ? { viewId: c.viewId } : {}),
       ...(c.fileId ? { fileId: c.fileId } : {}),
+      ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
       ...(c.folderId ? { folderId: c.folderId } : {}),
       ...(c.chatId ? { chatId: c.chatId } : {}),
       ...(c.blockType ? { blockType: c.blockType } : {}),

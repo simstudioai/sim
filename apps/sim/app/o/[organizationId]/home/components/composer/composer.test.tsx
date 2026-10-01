@@ -234,6 +234,7 @@ async function render(
       <QueryClientProvider client={queryClient}>
         <FeatureFlagsProvider
           flags={{
+            dashboards: false,
             'table-row-ttl': false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
@@ -303,6 +304,7 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
       <QueryClientProvider client={queryClient}>
         <FeatureFlagsProvider
           flags={{
+            dashboards: false,
             'table-row-ttl': false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,

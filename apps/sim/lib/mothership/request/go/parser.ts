@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
+import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
 
 const logger = createLogger('CopilotSseParser')
 
@@ -24,15 +25,19 @@ function createParseFailure(message: string, preview: string): FatalSseEventErro
  * all come from the shared engine.
  *
  * @param onEvent Called per parsed event. Return true to stop processing.
+ * @param idleTimeoutMs Fails the read once the stream sends nothing, comments included,
+ *   for this long.
  */
 export async function processSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   abortSignal: AbortSignal | undefined,
-  onEvent: (event: unknown) => boolean | undefined | Promise<boolean | undefined>
+  onEvent: (event: unknown) => boolean | undefined | Promise<boolean | undefined>,
+  idleTimeoutMs?: number
 ): Promise<void> {
   try {
     await readSSELines(reader, {
       signal: abortSignal,
+      idleTimeoutMs,
       onData: async (jsonStr) => {
         let parsed: unknown
         try {
@@ -49,7 +54,8 @@ export async function processSSEStream(
         } catch (error) {
           if (
             error instanceof FatalSseEventError ||
-            error instanceof StreamControllerSupersededError
+            error instanceof StreamControllerSupersededError ||
+            error instanceof StreamReplayBudgetExhaustedError
           )
             throw error
           logger.warn('Failed to handle SSE event', {

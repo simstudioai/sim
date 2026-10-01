@@ -13,6 +13,7 @@ import {
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import type { DbTransaction } from '@/lib/db/types'
 import type { ManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 
 /**
  * A search provider ready for source approval. `validated` is set only when approval will create
@@ -62,6 +63,8 @@ export async function prepareSearchMcpProvider(
   organizationId: string,
   provider: ManagedSearchMcpProvider
 ): Promise<SearchMcpProviderSetup> {
+  if (!(await isSearchProviderEnabled(provider, { kind: 'organization', organizationId })))
+    throw new OrchestrationError('forbidden', 'Zoom Search is not available for this organization')
   if (await hasProviderServer(organizationId, provider)) return { provider, validated: null }
   try {
     return {

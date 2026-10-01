@@ -1702,6 +1702,7 @@ type CreateFileResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type CreateFileResponse = {

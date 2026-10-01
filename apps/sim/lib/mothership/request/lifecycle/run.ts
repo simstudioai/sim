@@ -53,6 +53,7 @@ import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-ret
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
+import { replayRefusal } from '@/lib/mothership/request/session/replay-budget'
 import {
   getToolCallTerminalData,
   requireToolCallStateResult,
@@ -88,6 +89,12 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 const logger = createLogger('CopilotLifecycle')
 
 const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
+
+/**
+ * Shown when the worker ends a turn with an error terminal but gives no reason. Every surface
+ * (Chat, workflow execute, inbox) reports it, so it carries no surface-specific next step.
+ */
+const ENDED_RUN_MESSAGE = 'This run had already ended before it could continue.'
 
 class CopilotModelContentProjectionError extends Error {
   constructor() {
@@ -246,7 +253,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
  *
  * Beyond the flag, gating is limited to interactive mothership chats: that is
  * the only surface with a UI that can answer a prompt, so enabling it anywhere
- * else would hang the turn until the orchestration timeout with nothing to click.
+ * else would hang the turn until the permission wait expires with nothing to click.
  */
 async function resolveToolPermissions(
   options: CopilotLifecycleOptions
@@ -508,7 +515,13 @@ export async function runCopilotLifecycle(
         // The worker terminal was already delivered before the relay died.
         // Rebuild persistence from that receipt without charging its usage twice.
       } else if (admission.isExceeded) {
-        await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
+        await handleBillingLimitResponse(
+          execContext.userId,
+          context,
+          execContext,
+          lifecycleOptions,
+          'scope' in admission ? admission.scope : undefined
+        )
       } else {
         if (!isContinuation && hostedBillingRequest)
           await lifecycleOptions.onBillingAdmission?.(hostedBillingRequest)
@@ -517,14 +530,29 @@ export async function runCopilotLifecycle(
           requestPayload,
           lifecycleOptions.workspaceId
         )
-        await runCheckpointLoop(
-          modelSafeRequestPayload,
-          context,
-          execContext,
-          lifecycleOptions,
-          goRoute,
-          hostedBillingRequest
-        )
+        try {
+          await runCheckpointLoop(
+            modelSafeRequestPayload,
+            context,
+            execContext,
+            lifecycleOptions,
+            goRoute,
+            hostedBillingRequest
+          )
+        } catch (error) {
+          // A continuation refused on spend, or a worker 402 on any leg, ends the turn with the
+          // same card as a refused dispatch and stops the worker run.
+          if (!(error instanceof BillingLimitError)) throw error
+          context.awaitingAsyncContinuation = undefined
+          await handleBillingLimitResponse(
+            error.userId,
+            context,
+            execContext,
+            lifecycleOptions,
+            error.scope
+          )
+          await stopWorkerRunAfterUsageRefusal(context.messageId, execContext)
+        }
       }
 
       // The backend's terminal `complete` is the turn's verdict. A failure it
@@ -534,18 +562,31 @@ export async function runCopilotLifecycle(
       // the work the user watched succeed.
       const backendFinishedTurn =
         context.completionStatus === MothershipStreamV1CompletionStatus.complete
+      // A refused replay write aborts the turn to stop it, but the turn failed; it
+      // was not stopped by the user.
+      const refusal = replayRefusal(lifecycleOptions.abortSignal?.reason)
       // Consult the lifecycle signal as well as the flag. `context.wasAborted` is
       // only reached from a fanout leg through the (deliberately asymmetric) merge
       // in `mergeResumeLegOutputs`, so a Stop landing mid-fanout could otherwise
       // classify the turn as a success. Mirrors the check already used below on
       // the throw path.
       const turnWasAborted =
-        context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
-        context.wasAborted ||
-        (lifecycleOptions.abortSignal?.aborted ?? false)
+        !refusal &&
+        (context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
+          context.wasAborted ||
+          (lifecycleOptions.abortSignal?.aborted ?? false))
       const succeeded =
+        !refusal &&
         !turnWasAborted &&
         (backendFinishedTurn || (!context.completionStatus && context.errors.length === 0))
+      // The worker sends an error terminal with no `error` event only when it replays a run
+      // that already ended (for example at its deadline) to a resume or reattach, because
+      // that replay does not carry the run's stored reason. Say so rather than leave the turn
+      // to a generic failure; a reported reason or a replay refusal always wins.
+      const endedWithoutReason =
+        !turnWasAborted &&
+        context.completionStatus === MothershipStreamV1CompletionStatus.error &&
+        context.errors.length === 0
 
       const result: OrchestratorResult = {
         success: succeeded,
@@ -564,6 +605,8 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
+        ...(endedWithoutReason ? { error: ENDED_RUN_MESSAGE } : {}),
+        ...(refusal ? { error: refusal.userMessage, errorCode: refusal.code } : {}),
         errors: !succeeded && context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -586,6 +629,7 @@ export async function runCopilotLifecycle(
       // explained, not just reduced to a message string.
       logger.error('Copilot orchestration failed', {
         error: err.message,
+        ...causeForLog(err),
         name: err.name,
         ...(error instanceof CopilotBackendError
           ? { backendStatus: error.status, backendBody: error.body?.slice(0, 2000) }
@@ -601,7 +645,8 @@ export async function runCopilotLifecycle(
       // partial content can be appended.
       // Return `cancelled: true` so upstream classification stays
       // consistent with the success-path cancel result.
-      const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
+      const refusal = replayRefusal(lifecycleOptions.abortSignal?.reason)
+      const wasCancelled = !refusal && (lifecycleOptions.abortSignal?.aborted ?? false)
       // Preserve whatever streamed before the throw for both terminals. A thrown
       // backend error (as opposed to an `error` SSE event that lets the loop finish
       // normally) must still carry the partial assistant turn so onError can
@@ -616,7 +661,8 @@ export async function runCopilotLifecycle(
         toolCalls: buildToolCallSummaries(context),
         chatId: context.chatId,
         requestId: context.requestId,
-        error: err.message,
+        error: refusal?.userMessage ?? err.message,
+        ...(refusal ? { errorCode: refusal.code } : {}),
         errors: context.errors.length ? context.errors : undefined,
         usage: context.usage,
         cost: context.cost,
@@ -836,6 +882,14 @@ async function runResumeLegWithRetry(
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
   const retry = new StreamRetryWindow(options.timeout)
+  /** A leg that streams again has recovered; a later outage gets its own budget. */
+  const legOptions: CopilotLifecycleOptions = {
+    ...options,
+    onEvent: async (event) => {
+      retry.recovered()
+      await options.onEvent?.(event)
+    },
+  }
   for (;;) {
     options.abortSignal?.throwIfAborted()
     const errorsBeforeAttempt = leg.errors.length
@@ -850,7 +904,7 @@ async function runResumeLegWithRetry(
         },
         leg,
         execContext,
-        { ...options, timeout: retry.remainingMs() }
+        { ...legOptions, timeout: retry.remainingMs() }
       )
       return
     } catch (error) {
@@ -858,9 +912,10 @@ async function runResumeLegWithRetry(
       if (backoff !== null) {
         leg.errors.length = errorsBeforeAttempt
         logger.warn('Child resume leg failed, retrying', {
-          attempt: retry.attempt + 1,
+          attempt: retry.attempts + 1,
           backoffMs: backoff,
           error: toError(error).message,
+          ...causeForLog(error),
         })
         await interruptibleSleep(backoff, options.abortSignal)
         continue
@@ -1128,6 +1183,7 @@ async function runCheckpointLoop(
          has an HTTP buffer worth a per-event macrotask flush. */
       flushAfterEvent: options.flushAfterEvent ?? Boolean(callerOnEvent),
       onEvent: async (event: StreamEvent) => {
+        retry?.recovered()
         if (
           event.type === MothershipStreamV1EventType.run &&
           event.payload.kind === MothershipStreamV1RunKind.checkpoint_pause &&
@@ -1153,7 +1209,7 @@ async function runCheckpointLoop(
       {
         route,
         isResume,
-        ...(isResume ? { attempt: retry.attempt } : {}),
+        ...(isResume ? { attempt: retry.attempts } : {}),
       }
     )
     context.trace.setActiveSpan(streamSpan)
@@ -1161,7 +1217,7 @@ async function runCheckpointLoop(
     logger.info('Starting stream loop', {
       route,
       isResume,
-      resumeAttempt: retry.attempt,
+      resumeAttempt: retry.attempts,
       pendingToolPromises: context.pendingToolPromises.size,
       toolCallCount: context.toolCalls.size,
       hasCheckpoint: !!context.awaitingAsyncContinuation,
@@ -1208,10 +1264,6 @@ async function runCheckpointLoop(
     } catch (streamError) {
       context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
       context.trace.setActiveSpan(undefined)
-      if (streamError instanceof BillingLimitError) {
-        await handleBillingLimitResponse(streamError.userId, context, execContext, options)
-        break
-      }
       const backoff = retry?.nextDelay(streamError, options.abortSignal) ?? null
       if (backoff !== null) {
         /** A recovered connection must not finalize with an earlier transport failure. */
@@ -1219,9 +1271,10 @@ async function runCheckpointLoop(
         logger.warn(
           isResume ? 'Resume stream failed, retrying' : 'Initial stream failed, retrying',
           {
-            attempt: (retry?.attempt ?? 0) + 1,
+            attempt: (retry?.attempts ?? 0) + 1,
             backoffMs: backoff,
             error: toError(streamError).message,
+            ...causeForLog(streamError),
           }
         )
         await interruptibleSleep(backoff, options.abortSignal)
@@ -1625,8 +1678,16 @@ async function ensureHeadlessRunIdentity(input: {
       },
     })
     return { executionId, runId, cancelled: run.status === 'cancelled' }
-  } catch {
-    throw new Error('Chat could not start because its execution record is unavailable')
+  } catch (error) {
+    logger.error('Headless run record could not be created', {
+      chatId: input.chatId,
+      streamId: input.messageId,
+      error: getErrorMessage(error),
+      ...causeForLog(error),
+    })
+    throw new Error('Chat could not start because its execution record is unavailable', {
+      cause: error,
+    })
   }
 }
 
@@ -1660,8 +1721,40 @@ async function withEnterpriseByokKey(
   return byokApiKey ? { ...refreshed, byokApiKey } : refreshed
 }
 
+/** The underlying failure behind a generic user-facing error, for logs. */
+function causeForLog(error: unknown): { cause?: string } {
+  const cause = error instanceof Error ? error.cause : undefined
+  return cause === undefined ? {} : { cause: getErrorMessage(cause) }
+}
+
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
   return !!(options.abortSignal?.aborted || context.wasAborted)
+}
+
+/**
+ * A refused continuation leaves the worker run parked on its checkpoint, and a parked run holds
+ * the chat: the next message would be refused as busy until the sweeper expires it. Stopping it
+ * frees the chat, so the message sent after an upgrade continues the conversation.
+ */
+async function stopWorkerRunAfterUsageRefusal(
+  streamId: string,
+  execContext: Pick<ExecutionContext, 'userId' | 'chatId'>
+): Promise<void> {
+  try {
+    const { requestExplicitStreamAbort } = await import(
+      '@/lib/mothership/request/session/explicit-abort'
+    )
+    await requestExplicitStreamAbort({
+      streamId,
+      userId: execContext.userId,
+      chatId: execContext.chatId,
+    })
+  } catch (error) {
+    logger.warn('Worker stop after a usage-limit refusal was not delivered', {
+      streamId,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 function cancelPendingTools(context: StreamingContext): void {

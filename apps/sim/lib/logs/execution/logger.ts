@@ -105,6 +105,39 @@ const STATE_SNAPSHOT_FOREIGN_KEY = 'workflow_execution_logs_state_snapshot_id_wo
 
 type ExecutionData = WorkflowExecutionLog['executionData']
 
+/** What one completion boundary wrote to the usage ledger. */
+interface ExecutionUsageRecording {
+  /** Billable cost recorded at this boundary — the increment, not the run total. */
+  recordedIncrement: number
+  /** Whether the ledger write also set `cost_total` to the exact reconciled sum. */
+  costTotalRefined: boolean
+}
+
+const NO_USAGE_RECORDED: ExecutionUsageRecording = { recordedIncrement: 0, costTotalRefined: false }
+
+/**
+ * The payer's usage before a boundary records its increment, read for the threshold
+ * email so usage after = before + increment never counts the boundary twice.
+ */
+type UsageThresholdEmailContext =
+  | {
+      scope: 'user'
+      userId: string
+      userEmail: string
+      userName: string | null
+      planName: string
+      periodStart: Date
+      before: Awaited<ReturnType<typeof checkResolvedUsageStatus>>
+    }
+  | {
+      scope: 'organization'
+      organizationId: string
+      planName: string
+      periodStart: Date
+      orgLimit: number
+      orgUsageBefore: number
+    }
+
 function getJsonByteSize(
   value: unknown,
   maxBytes = MAX_EXECUTION_DATA_BYTES + 1
@@ -1129,6 +1162,101 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
     const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(storedExecutionData)
 
+    const exactBillingContext = billingAttribution
+      ? toBillingContext(billingAttribution)
+      : undefined
+
+    /**
+     * The usage ledger is written before the terminal status commits, so a reader that
+     * sees a finished run also sees its itemized cost: `buildCostLedger` reads a run with
+     * no ledger rows as one that has no ledger at all. Skipped without a log row, whose
+     * completion below throws before this boundary could bill anything.
+     */
+    let usageRecording = NO_USAGE_RECORDED
+    let emailContext: UsageThresholdEmailContext | undefined
+    if (existingLog) {
+      try {
+        // Skip workflow lookup if workflow was deleted.
+        const wf = existingLog.workflowId
+          ? (await db.select().from(workflow).where(eq(workflow.id, existingLog.workflowId)))[0]
+          : undefined
+
+        const payerContactUserId = billingAttribution?.billedAccountUserId ?? actorUserId
+        const usr =
+          wf && payerContactUserId
+            ? (
+                await db
+                  .select({ id: userTable.id, email: userTable.email, name: userTable.name })
+                  .from(userTable)
+                  .where(eq(userTable.id, payerContactUserId))
+                  .limit(1)
+              )[0]
+            : undefined
+
+        /**
+         * The pre-increment usage for the threshold email is read BEFORE recording. The
+         * organization read is the soft one: the email is level-triggered and claimed
+         * once per period, so a lagging sum only delays it.
+         */
+        if (
+          billingAttribution?.billingEntity.type === 'organization' &&
+          billingAttribution.payerSubscription &&
+          exactBillingContext
+        ) {
+          const organizationId = billingAttribution.billingEntity.id
+          const payerSubscription = billingAttribution.payerSubscription
+          const [{ getDisplayPlanName }, { limit: orgLimit }, orgUsageBefore] = await Promise.all([
+            import('@/lib/billing/plan-helpers'),
+            getOrgUsageLimit(organizationId, payerSubscription.plan, payerSubscription.seats),
+            readSoftGateUsageCost(
+              billingAttribution.billingEntity,
+              exactBillingContext.billingPeriod
+            ),
+          ])
+          emailContext = {
+            scope: 'organization',
+            organizationId,
+            planName: getDisplayPlanName(payerSubscription.plan),
+            periodStart: exactBillingContext.billingPeriod.start,
+            orgLimit,
+            orgUsageBefore,
+          }
+        } else if (
+          billingAttribution?.billingEntity.type === 'user' &&
+          exactBillingContext &&
+          usr?.email
+        ) {
+          const sub = await getHighestPriorityPersonalSubscription(usr.id)
+          const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
+          emailContext = {
+            scope: 'user',
+            userId: usr.id,
+            userEmail: usr.email,
+            userName: usr.name,
+            planName: getDisplayPlanName(sub?.plan),
+            periodStart: exactBillingContext.billingPeriod.start,
+            before: await checkResolvedUsageStatus(usr.id, sub, exactBillingContext),
+          }
+        }
+      } catch (e) {
+        execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
+      }
+
+      // Record usage exactly once for every path; a failed threshold read above must
+      // never leave the run unbilled. The recorded increment is the amount billed at
+      // this boundary, not the cumulative run total — so resumed runs don't
+      // double-count pre-pause cost in the threshold email.
+      usageRecording = await this.recordExecutionUsage(
+        existingLog.workflowId,
+        costSummary,
+        existingLog.trigger as ExecutionTrigger['type'],
+        executionId,
+        actorUserId,
+        exactBillingContext,
+        status !== 'pending'
+      )
+    }
+
     const { updatedLog, completionPersisted } = await execDb.transaction(async (tx) => {
       await setExecutionLogWriteTimeouts(tx)
 
@@ -1147,8 +1275,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
           // resumes into an empty-span error/cancel/cost-only fallback produces a
           // base-only summary. GREATEST keeps the higher cumulative cost_total,
           // and models_used is overwritten only when this boundary actually has
-          // models — so both stay == SUM(usage_log) on every monotonic path.
-          costTotal: sql`GREATEST(COALESCE(${workflowExecutionLogs.costTotal}, 0), ${costSummary.totalCost.toString()}::numeric)`,
+          // models — so both stay == SUM(usage_log) on every monotonic path. When
+          // this boundary's ledger write already set the exact reconciled sum, that
+          // value stands.
+          ...(usageRecording.costTotalRefined
+            ? {}
+            : {
+                costTotal: sql`GREATEST(COALESCE(${workflowExecutionLogs.costTotal}, 0), ${costSummary.totalCost.toString()}::numeric)`,
+              }),
           ...(Object.keys(costSummary.models).length > 0
             ? { modelsUsed: Object.keys(costSummary.models) }
             : {}),
@@ -1201,161 +1335,38 @@ export class ExecutionLogger implements IExecutionLoggerService {
     })
 
     if (progressMarkers !== null) void clearProgressMarkers(executionId)
-    const exactBillingContext = billingAttribution
-      ? toBillingContext(billingAttribution)
-      : undefined
 
-    try {
-      // Skip workflow lookup if workflow was deleted.
-      const wf = updatedLog.workflowId
-        ? (await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId)))[0]
-        : undefined
-
-      const payerContactUserId = billingAttribution?.billedAccountUserId ?? actorUserId
-      const usr =
-        wf && payerContactUserId
-          ? (
-              await db
-                .select({ id: userTable.id, email: userTable.email, name: userTable.name })
-                .from(userTable)
-                .where(eq(userTable.id, payerContactUserId))
-                .limit(1)
-            )[0]
-          : undefined
-
-      /**
-       * The billing context and pre-increment usage for the threshold email are read BEFORE
-       * recording, so usage after = before + costDelta doesn't double-count this boundary's own
-       * increment. The organization read is the soft one: the email is level-triggered and
-       * claimed once per period, so a lagging sum only delays it.
-       */
-      type EmailContext =
-        | {
-            scope: 'user'
-            userId: string
-            userEmail: string
-            userName: string | null
-            planName: string
-            periodStart: Date
-            before: Awaited<ReturnType<typeof checkResolvedUsageStatus>>
-          }
-        | {
-            scope: 'organization'
-            organizationId: string
-            planName: string
-            periodStart: Date
-            orgLimit: number
-            orgUsageBefore: number
-          }
-      const billingContext = exactBillingContext
-      let emailContext: EmailContext | undefined
-
-      if (
-        billingAttribution?.billingEntity.type === 'organization' &&
-        billingAttribution.payerSubscription &&
-        exactBillingContext
-      ) {
-        const organizationId = billingAttribution.billingEntity.id
-        const payerSubscription = billingAttribution.payerSubscription
-        const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
-        const { limit: orgLimit } = await getOrgUsageLimit(
-          organizationId,
-          payerSubscription.plan,
-          payerSubscription.seats
-        )
-        emailContext = {
-          scope: 'organization',
-          organizationId,
-          planName: getDisplayPlanName(payerSubscription.plan),
-          periodStart: exactBillingContext.billingPeriod.start,
-          orgLimit,
-          orgUsageBefore: await readSoftGateUsageCost(
-            billingAttribution.billingEntity,
-            exactBillingContext.billingPeriod
-          ),
-        }
-      } else if (
-        billingAttribution?.billingEntity.type === 'user' &&
-        exactBillingContext &&
-        usr?.email
-      ) {
-        const sub = await getHighestPriorityPersonalSubscription(usr.id)
-        const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
-        emailContext = {
-          scope: 'user',
-          userId: usr.id,
-          userEmail: usr.email,
-          userName: usr.name,
-          planName: getDisplayPlanName(sub?.plan),
-          periodStart: exactBillingContext.billingPeriod.start,
-          before: await checkResolvedUsageStatus(usr.id, sub, exactBillingContext),
-        }
-      }
-
-      // Record usage exactly once for every path. costDelta is the amount
-      // actually recorded at this boundary (the increment), not the cumulative
-      // run total — so resumed runs don't double-count pre-pause cost below.
-      const costDelta = await this.recordExecutionUsage(
-        updatedLog.workflowId,
-        costSummary,
-        updatedLog.trigger as ExecutionTrigger['type'],
-        executionId,
-        actorUserId,
-        billingContext,
-        status !== 'pending'
-      )
-
-      // Best-effort usage-threshold email.
-      if (emailContext?.scope === 'user') {
-        await maybeSendUsageThresholdEmail({
-          scope: 'user',
-          userId: emailContext.userId,
-          userEmail: emailContext.userEmail,
-          userName: emailContext.userName || undefined,
-          planName: emailContext.planName,
-          periodStart: emailContext.periodStart,
-          workspaceId: updatedLog.workspaceId,
-          usageBefore: emailContext.before.currentUsage,
-          costDelta,
-          limit: emailContext.before.limit,
-        })
-      } else if (emailContext?.scope === 'organization') {
-        await maybeSendUsageThresholdEmail({
-          scope: 'organization',
-          organizationId: emailContext.organizationId,
-          planName: emailContext.planName,
-          periodStart: emailContext.periodStart,
-          workspaceId: updatedLog.workspaceId,
-          usageBefore: emailContext.orgUsageBefore,
-          costDelta,
-          limit: emailContext.orgLimit,
-        })
-      }
-    } catch (e) {
-      // Safety net: if a step above threw BEFORE the single record call, ensure
-      // the run is still billed. Reconciliation is idempotent, so re-recording
-      // after a successful call is a no-op.
+    if (emailContext) {
+      const costDelta = usageRecording.recordedIncrement
       try {
-        await this.recordExecutionUsage(
-          updatedLog.workflowId,
-          costSummary,
-          updatedLog.trigger as ExecutionTrigger['type'],
-          executionId,
-          actorUserId,
-          exactBillingContext,
-          status !== 'pending'
-        )
-      } catch (recordError) {
-        /* The safety net is the last thing between a completed run and an unbilled
-           one. Swallowing it left the only emitted line saying a notification check
-           had failed and was non-fatal. */
-        execLog.error('Failed to record execution usage — this run may be unbilled', {
-          error: recordError,
-          executionId,
-          workflowId: updatedLog.workflowId,
-        })
+        if (emailContext.scope === 'user') {
+          await maybeSendUsageThresholdEmail({
+            scope: 'user',
+            userId: emailContext.userId,
+            userEmail: emailContext.userEmail,
+            userName: emailContext.userName || undefined,
+            planName: emailContext.planName,
+            periodStart: emailContext.periodStart,
+            workspaceId: updatedLog.workspaceId,
+            usageBefore: emailContext.before.currentUsage,
+            costDelta,
+            limit: emailContext.before.limit,
+          })
+        } else {
+          await maybeSendUsageThresholdEmail({
+            scope: 'organization',
+            organizationId: emailContext.organizationId,
+            planName: emailContext.planName,
+            periodStart: emailContext.periodStart,
+            workspaceId: updatedLog.workspaceId,
+            usageBefore: emailContext.orgUsageBefore,
+            costDelta,
+            limit: emailContext.orgLimit,
+          })
+        }
+      } catch (e) {
+        execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
       }
-      execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
     }
 
     if (completionPersisted) {
@@ -1489,7 +1500,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
      * boundary, where the summary already holds the run's cumulative tokens.
      */
     isTerminalBoundary = true
-  ): Promise<number> {
+  ): Promise<ExecutionUsageRecording> {
     const statsLog = logger.withMetadata({ workflowId: workflowId ?? undefined, executionId })
 
     // The usage ledger (recordUsage below) is written regardless of
@@ -1501,10 +1512,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     if (!workflowId) {
       statsLog.debug('Workflow was deleted, skipping usage recording')
-      return 0
+      return NO_USAGE_RECORDED
     }
 
     let recordedIncrement = 0
+    let costTotalRefined = false
     try {
       const [workflowRecord] = await db
         .select()
@@ -1514,7 +1526,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
       if (!workflowRecord) {
         statsLog.error('Workflow not found for usage recording')
-        return 0
+        return NO_USAGE_RECORDED
       }
 
       const userId = actorUserId?.trim() || null
@@ -1522,7 +1534,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         statsLog.error('Missing actor in execution context; skipping usage recording', {
           trigger,
         })
-        return 0
+        return NO_USAGE_RECORDED
       }
 
       // Build the run's *cumulative* target ledger lines from the cost summary.
@@ -1623,7 +1635,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // error for a charge that does not exist.
       if (targets.length === 0 && !canRecordUnbilled) {
         statsLog.debug('No cost to record')
-        return 0
+        return NO_USAGE_RECORDED
       }
 
       if (workflowRecord.workspaceId && !billingContext) {
@@ -1775,6 +1787,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
                 .update(workflowExecutionLogs)
                 .set({ costTotal: displayedCostTotal.toString() })
                 .where(eq(workflowExecutionLogs.executionId, executionId))
+              costTotalRefined = true
             }
           }
         })
@@ -1819,7 +1832,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       )
     }
 
-    return recordedIncrement
+    return { recordedIncrement, costTotalRefined }
   }
 
   /**

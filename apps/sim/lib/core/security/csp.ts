@@ -1,5 +1,5 @@
 import { CONSENT_BACKEND_URL } from '../../consent/constants'
-import { env, getEnv } from '../config/env'
+import { env, envBoolean, getEnv } from '../config/env'
 import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
 
 /**
@@ -42,6 +42,34 @@ function getHostnameFromUrl(url: string | undefined): string[] {
   } catch {
     return []
   }
+}
+
+const IPV4_HOSTNAME = /^\d{1,3}(\.\d{1,3}){3}$/
+
+/**
+ * Origins the browser PUTs presigned uploads to for a custom `S3_ENDPOINT`. The
+ * endpoint origin itself is always allowed: the S3 SDK falls back to path-style
+ * for IP hosts and bucket names that aren't DNS-safe even without
+ * `S3_FORCE_PATH_STYLE`. Virtual-hosted addressing also needs the bucket
+ * subdomains, which a `*.` source matches (never the bare host). Ports are kept
+ * because a host-source without one only matches the scheme's default port.
+ */
+function getS3EndpointSources(
+  endpoint: string | undefined,
+  forcePathStyle: string | undefined
+): string[] {
+  if (!endpoint) return []
+  let url: URL
+  try {
+    url = new URL(endpoint)
+  } catch {
+    return []
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return []
+  const origin = `${url.protocol}//${url.host}`
+  const isIpHost = IPV4_HOSTNAME.test(url.hostname) || url.hostname.startsWith('[')
+  if (envBoolean(forcePathStyle) || isIpHost) return [origin]
+  return [origin, `${url.protocol}//*.${url.host}`]
 }
 
 export interface CSPDirectives {
@@ -199,6 +227,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
+    ...getS3EndpointSources(env.S3_ENDPOINT, env.S3_FORCE_PATH_STYLE),
   ],
 
   'frame-src': [...STATIC_FRAME_SRC],
@@ -247,6 +276,10 @@ export function generateRuntimeCSP(): string {
   const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
   const privacyDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_PRIVACY_URL'))
   const termsDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_TERMS_URL'))
+  const s3EndpointSources = getS3EndpointSources(
+    getEnv('S3_ENDPOINT'),
+    getEnv('S3_FORCE_PATH_STYLE')
+  )
 
   const runtimeDirectives: CSPDirectives = {
     ...buildTimeCSPDirectives,
@@ -262,6 +295,7 @@ export function generateRuntimeCSP(): string {
       ...brandLogoDomains,
       ...privacyDomains,
       ...termsDomains,
+      ...s3EndpointSources,
     ],
   }
 

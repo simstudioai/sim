@@ -165,8 +165,8 @@ export function OrganizationAccountProviders({
       .map((server) => ({
         id: server.id,
         name:
-          server.managedConnectorId === 'hubspot'
-            ? 'HubSpot (member access)'
+          server.managedConnectorId === 'hubspot' || server.managedConnectorId === 'zoom'
+            ? `${MANAGED_MCP_CONNECTORS[server.managedConnectorId].name} (member access)`
             : MANAGED_MCP_CONNECTORS[server.managedConnectorId].name,
         icon: getManagedMcpConnectorIcon(server.managedConnectorId),
         configure:

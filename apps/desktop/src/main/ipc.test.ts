@@ -294,6 +294,8 @@ describe('registerIpcHandlers', () => {
       isLocalPageUrl,
       retryLoad: vi.fn(),
       beginOAuthConnect: vi.fn(async () => true),
+      prepareSourceConnect: vi.fn(() => 's'.repeat(32)),
+      cancelSourceConnect: vi.fn(() => true),
       localFilesystem: new LocalFilesystemService({
         chooseDirectory: vi.fn(async () => null),
       }),

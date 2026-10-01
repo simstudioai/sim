@@ -27,6 +27,7 @@ import {
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import { loadLiveServiceSource } from '@/lib/sim-search/live/service-sources'
 import {
   LIVE_SEARCH_SOURCE_TYPES,
@@ -54,11 +55,19 @@ export const listSearchIntegrations = defineAuthorizedKnowledgeUseCase({
     const policies = isLiveEnterpriseSearchEnabled
       ? await loadLiveSearchPolicies({ organizationId: context.organizationId })
       : undefined
+    const scope = { kind: 'organization', organizationId: context.organizationId } as const
+    const zoomEnabled =
+      !isLiveEnterpriseSearchEnabled || (await isSearchProviderEnabled('zoom', scope))
     return (isLiveEnterpriseSearchEnabled ? LIVE_SEARCH_SOURCE_TYPES : SEARCH_SOURCE_TYPES).map(
       ([connectorType]) => ({
         connectorType,
         approved: approvals.get(connectorType) ?? false,
-        ...(policies ? { policy: livePolicyFor(policies, connectorType) } : {}),
+        ...(policies
+          ? {
+              policy: livePolicyFor(policies, connectorType),
+              available: connectorType !== 'zoom' || zoomEnabled,
+            }
+          : {}),
       })
     )
   },
@@ -78,6 +87,18 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
     if (!source) {
       throw new OrchestrationError('validation', 'This integration is not supported by Sim Search')
     }
+    if (
+      isLiveEnterpriseSearchEnabled &&
+      input.approved &&
+      !(await isSearchProviderEnabled(input.connectorType, {
+        kind: 'organization',
+        organizationId: context.organizationId,
+      }))
+    )
+      throw new OrchestrationError(
+        'forbidden',
+        'Zoom Search is not available for this organization'
+      )
     if (input.policy && !isLiveEnterpriseSearchEnabled)
       throw new OrchestrationError('validation', 'Live search settings are not enabled')
     const memberProvider =

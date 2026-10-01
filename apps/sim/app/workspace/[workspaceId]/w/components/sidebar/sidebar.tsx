@@ -25,6 +25,7 @@ import {
 } from '@sim/emcn'
 import {
   Building,
+  Dashboard,
   Database,
   Files,
   Integration,
@@ -53,6 +54,7 @@ import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -705,6 +707,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     [workspaces, workspaceId]
   )
 
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const topNavItems = useMemo(
     () =>
       [
@@ -720,6 +723,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
             (!chatEnabled && !permissionsLoading && !canEdit) ||
             (chatEnabled && permissionConfig.hideCopilot && !accessRequestsEnabled),
           restricted: chatEnabled && permissionConfig.hideCopilot,
+        },
+        {
+          id: 'dashboards',
+          label: 'Dashboard',
+          icon: Dashboard,
+          href: `/workspace/${workspaceId}/dashboards`,
+          hidden: !dashboardsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
         },
         {
           id: 'integrations',
@@ -738,8 +749,10 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       permissionsLoading,
       permissionConfig.hideIntegrationsTab,
       permissionConfig.hideCopilot,
+      permissionConfig.hideFilesTab,
       accessRequestsEnabled,
       chatEnabled,
+      dashboardsEnabled,
     ]
   )
 

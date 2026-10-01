@@ -42,13 +42,13 @@ import {
   retainSealedClientToolContext,
   sealClientToolCompletion,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
   getWorkflowToolLaunchError,
-  isWorkflowToolName,
   resolveWorkflowToolTargetId,
   WORKFLOW_EXECUTION_BUSY,
   type WorkflowToolLaunchError,

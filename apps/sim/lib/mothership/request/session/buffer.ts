@@ -24,6 +24,19 @@ const DEFAULT_TTL_SECONDS = 60 * 60
 const DEFAULT_COMPLETED_TTL_SECONDS = 5 * 60
 const DEFAULT_EVENT_LIMIT = 100_000
 const RETRY_DELAYS_MS = [0, 50, 150] as const
+/**
+ * Share of the owner ceiling the replay ring retains before trimming its oldest events.
+ * The rest is headroom, so a long run trims instead of being refused.
+ */
+const RETAINED_BYTES_FRACTION = 0.75
+/** Existing ring members read per page while choosing which to trim. */
+const TRIM_PAGE_SIZE = 256
+/**
+ * Most members one append trims for bytes beyond what the count limit requires. A ring
+ * already past its byte target (written before byte trimming existed) catches up over
+ * several appends instead of in one long script.
+ */
+const MAX_BYTE_TRIM_MEMBERS = 16 * TRIM_PAGE_SIZE
 
 type RedisOperationMetadata = {
   operation: string
@@ -40,6 +53,11 @@ function getSeqKey(streamId: string) {
 
 function getAbortKey(streamId: string) {
   return `${STREAM_OUTBOX_PREFIX}${streamId}:abort`
+}
+
+/** Marks a stream whose cleanup is scheduled, so a late heartbeat cannot revive it. */
+function getClosedKey(streamId: string) {
+  return `${STREAM_OUTBOX_PREFIX}${streamId}:closed`
 }
 
 export type StreamConfig = {
@@ -127,7 +145,45 @@ export async function clearBuffer(streamId: string, operation = 'clear_outbox'):
       getEventsKey(streamId),
       getSeqKey(streamId),
       getAbortKey(streamId),
+      getClosedKey(streamId),
       ownerBudgetKey
+    )
+  })
+}
+
+/**
+ * KEYS: [events, seq, ownerBudget, closed]
+ * ARGV: [ttlSeconds, budgetTtlSeconds]
+ */
+const REFRESH_BUFFER_TTL_SCRIPT = `
+if redis.call('EXISTS', KEYS[4]) == 1 then return 0 end
+redis.call('EXPIRE', KEYS[1], ARGV[1])
+redis.call('EXPIRE', KEYS[2], ARGV[1])
+redis.call('EXPIRE', KEYS[3], ARGV[2])
+return 1
+`
+
+/**
+ * Slides a live stream's replay TTLs, and its byte counter's, without an append. They
+ * otherwise move only when an event lands, so a run parked on a long tool call or
+ * approval would lose its replay history and restart its numbering while it still
+ * runs, or keep its history after the counter that accounts for it expired. A stream
+ * whose cleanup is already scheduled is left to expire.
+ */
+export async function refreshBufferTtl(streamId: string): Promise<void> {
+  const { ttlSeconds } = getStreamConfig()
+  const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
+  const budgetTtlSeconds = Math.max(getRedisBudgetLimits('copilot_stream').ttlSeconds, ttlSeconds)
+  await withRedisRetry({ operation: 'refresh_outbox_ttl', streamId }, async (redis) => {
+    await redis.eval(
+      REFRESH_BUFFER_TTL_SCRIPT,
+      4,
+      getEventsKey(streamId),
+      getSeqKey(streamId),
+      ownerBudgetKey,
+      getClosedKey(streamId),
+      ttlSeconds,
+      budgetTtlSeconds
     )
   })
 }
@@ -138,7 +194,10 @@ export async function scheduleBufferCleanup(
 ): Promise<void> {
   try {
     await withRedisRetry({ operation: 'schedule_outbox_cleanup', streamId }, async (redis) => {
+      // The marker goes first: a refresh that lands before it is overridden by the
+      // expirations below, and one that lands after it sees the marker and does nothing.
       const pipeline = redis.pipeline()
+      pipeline.set(getClosedKey(streamId), '1', 'EX', ttlSeconds)
       pipeline.expire(getEventsKey(streamId), ttlSeconds)
       pipeline.expire(getSeqKey(streamId), ttlSeconds)
       pipeline.expire(getAbortKey(streamId), ttlSeconds)
@@ -158,25 +217,40 @@ export async function scheduleBufferCleanup(
  * the stream's budget — in one script, so the reservation and the write it pays for
  * commit together.
  *
+ * The ring is a sliding window bounded by count and by bytes: the lowest-ranked
+ * members are trimmed until both fit, and exactly the trimmed bytes are refunded.
+ * The owner counter is the ring's byte total, so a stream of any length stays under
+ * its retained-bytes target and never reaches the owner ceiling. A byte trim drops an
+ * incoming member only when a replay reintroduces it below a retained one, which keeps
+ * the ring contiguous; it never drops the newest, so a counter already past the
+ * ceiling still refuses rather than silently discarding the write.
+ *
  * Entries already present are skipped when counting, which makes the script
  * idempotent: `withRedisRetry` may run it up to three times, and a retry after a
  * partial failure must not charge the same bytes twice.
  *
- * KEYS: [events, seq, budgetOwner, budgetUser?]
+ * KEYS: [events, seq, lease?, budgetOwner, budgetUser?]
  * ARGV: [ttlSeconds, eventLimit, ownerLimit, userLimit, budgetTtlSeconds, lastSeq,
- *        score, member, ...]
+ *        retainedBytesLimit, leaseValue?, score, member, ...]
  * Returns {1} on success, or {0, resource, currentBytes} when the budget refuses.
  */
 function appendEventsScript(leased: boolean): string {
-  const firstMember = leased ? 8 : 7
+  const firstMember = leased ? 9 : 8
+  const ownerKey = `KEYS[${leased ? 4 : 3}]`
   return `
-${leased ? "if redis.call('GET', KEYS[3]) ~= ARGV[7] then return {-1} end" : ''}
+${leased ? "if redis.call('GET', KEYS[3]) ~= ARGV[8] then return {-1} end" : ''}
 local ttl_seconds = tonumber(ARGV[1])
 local event_limit = tonumber(ARGV[2])
 local owner_limit = tonumber(ARGV[3])
 local user_limit = tonumber(ARGV[4])
 local budget_ttl_seconds = tonumber(ARGV[5])
 local last_seq = ARGV[6]
+local retained_bytes_limit = tonumber(ARGV[7])
+
+local function ranks_before(a, b)
+  if a.score == b.score then return a.member < b.member end
+  return a.score < b.score
+end
 
 local new_count = 0
 local new_bytes = 0
@@ -191,28 +265,47 @@ for i = ${firstMember}, #ARGV, 2 do
     table.insert(new_members, {member = member, score = tonumber(ARGV[i])})
   end
 end
+table.sort(new_members, ranks_before)
 
 local current_count = redis.call('ZCARD', KEYS[1])
-local prune_count = math.max(current_count + new_count - event_limit, 0)
+local count_excess = math.max(current_count + new_count - event_limit, 0)
+local byte_excess = 0
+if retained_bytes_limit > 0 then
+  local retained_bytes = tonumber(redis.call('GET', ${ownerKey}) or '0')
+  byte_excess = math.max(retained_bytes + new_bytes - retained_bytes_limit, 0)
+end
+
+-- Walk the union of the ring and this batch in rank order, paging the ring so a
+-- trim reads only as many existing members as it removes.
+local prune_count = 0
 local pruned_bytes = 0
-if prune_count > 0 then
-  -- A replay can reintroduce an already-trimmed member before the retained ring.
-  -- Price the actual lowest-ranked union, not all existing members before new ones.
-  -- Only this many existing members can be pruned, so never scan the whole ring.
-  local existing_prune_count = math.min(prune_count, current_count)
-  if existing_prune_count > 0 then
-    local existing = redis.call('ZRANGE', KEYS[1], 0, existing_prune_count - 1, 'WITHSCORES')
-    for i = 1, #existing, 2 do
-      table.insert(new_members, {member = existing[i], score = tonumber(existing[i + 1])})
-    end
+local next_new = 1
+local page = {}
+local page_index = 1
+local fetched = 0
+local max_prune_count = count_excess + ${MAX_BYTE_TRIM_MEMBERS}
+while prune_count < count_excess or (pruned_bytes < byte_excess and prune_count < max_prune_count) do
+  if page_index > #page and fetched < current_count then
+    page = redis.call('ZRANGE', KEYS[1], fetched, fetched + ${TRIM_PAGE_SIZE} - 1, 'WITHSCORES')
+    fetched = fetched + #page / 2
+    page_index = 1
   end
-  table.sort(new_members, function(a, b)
-    if a.score == b.score then return a.member < b.member end
-    return a.score < b.score
-  end)
-  for i = 1, prune_count do
-    pruned_bytes = pruned_bytes + string.len(new_members[i].member)
+  local existing = nil
+  if page_index <= #page then
+    existing = {member = page[page_index], score = tonumber(page[page_index + 1])}
   end
+  local incoming = new_members[next_new]
+  if incoming and (not existing or ranks_before(incoming, existing)) then
+    if not existing and prune_count >= count_excess then break end
+    pruned_bytes = pruned_bytes + string.len(incoming.member)
+    next_new = next_new + 1
+  elseif existing then
+    pruned_bytes = pruned_bytes + string.len(existing.member)
+    page_index = page_index + 2
+  else
+    break
+  end
+  prune_count = prune_count + 1
 end
 
 local net_bytes = new_bytes - pruned_bytes
@@ -221,7 +314,9 @@ ${renderRedisBudgetLua(leased ? 3 : 2)}
 for i = ${firstMember}, #ARGV, 2 do
   redis.call('ZADD', KEYS[1], ARGV[i], ARGV[i + 1])
 end
-redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -event_limit - 1)
+if prune_count > 0 then
+  redis.call('ZREMRANGEBYRANK', KEYS[1], 0, prune_count - 1)
+end
 redis.call('EXPIRE', KEYS[1], ttl_seconds)
 redis.call('SET', KEYS[2], last_seq, 'EX', ttl_seconds)
 return {1}
@@ -271,6 +366,7 @@ export async function appendEvents(
     break that invariant silently.
   */
   const budgetTtlSeconds = Math.max(limits.ttlSeconds, config.ttlSeconds)
+  const retainedBytesLimit = Math.floor(limits.maxOwnerBytes * RETAINED_BYTES_FRACTION)
 
   /*
     Redis measures a member in UTF-8 bytes, so the ceiling has to be measured the same
@@ -335,6 +431,7 @@ export async function appendEvents(
         limits.maxUserBytes,
         budgetTtlSeconds,
         String(chunk.members[chunk.members.length - 1].seq),
+        retainedBytesLimit,
         ...(lease ? [lease.value] : []),
         ...zaddArgs
       )
@@ -390,7 +487,7 @@ export async function readEvents(
       logger.warn('Skipping corrupt outbox entry', {
         streamId,
         reason: parsed.reason,
-        message: parsed.message,
+        detail: parsed.message,
         errors: parsed.errors,
       })
       continue
@@ -425,6 +522,23 @@ export async function getLatestSeq(streamId: string): Promise<number | null> {
     const parsed = Number(currentSeq)
     return Number.isFinite(parsed) ? parsed : null
   })
+}
+
+/** The streams among these whose replay buffer has not yet expired. */
+export async function findStreamsWithReplay(streamIds: string[]): Promise<Set<string>> {
+  const redis = getRedisClient()
+  if (!redis) throw new Error('Redis is required for mothership stream durability')
+  if (streamIds.length === 0) return new Set()
+  const pipeline = redis.pipeline()
+  for (const streamId of streamIds) pipeline.exists(getSeqKey(streamId))
+  const replies = (await pipeline.exec()) ?? []
+  const withReplay = new Set<string>()
+  streamIds.forEach((streamId, index) => {
+    const [error, count] = replies[index] ?? [new Error('Redis returned no reply')]
+    if (error) throw error
+    if (count === 1) withReplay.add(streamId)
+  })
+  return withReplay
 }
 
 export async function writeAbortMarker(streamId: string): Promise<void> {
