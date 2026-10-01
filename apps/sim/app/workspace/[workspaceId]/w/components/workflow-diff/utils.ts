@@ -1,17 +1,19 @@
 import { isContainerType } from '@/lib/workflows/autolayout'
+import { shapeSubBlockValue } from '@/lib/workflows/canonical/subblock-value'
 import {
   type BlockDiffStatus,
   type ContainerConfigField,
   containerConfigFields,
   type WorkflowDiffSummary,
 } from '@/lib/workflows/comparison'
+import { filterSubBlockIds, normalizeValue } from '@/lib/workflows/comparison/normalize'
 import { formatValueForDisplay } from '@/lib/workflows/comparison/resolve-values'
 import { getBlock } from '@/blocks/registry'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** How a changed value should be rendered in the change list. */
-type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle' | 'messages' | 'list'
+type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle'
 
 /** Sub-block types whose values read as prose or code, so they get a line diff. */
 const TEXT_SUB_BLOCK_TYPES = new Set<string>([
@@ -24,317 +26,6 @@ const TEXT_SUB_BLOCK_TYPES = new Set<string>([
 ])
 
 const INLINE_TEXT_MAX_LENGTH = 60
-
-/**
- * Sub-block types whose values are lists of identifiable items, diffed item by
- * item. A value that turns out not to be a list (a checkbox group persists a
- * record of option flags) falls back to the shape-based rules.
- */
-const LIST_SUB_BLOCK_TYPES = new Set<string>([
-  'tool-input',
-  'skill-input',
-  'condition-input',
-  'router-input',
-  'input-format',
-  'checkbox-list',
-  'grouped-checkbox-list',
-  'variables-input',
-])
-
-/** Reads a stored list value, tolerating the JSON-string form some fields persist. */
-export function toItemList(value: unknown): unknown[] | null {
-  if (Array.isArray(value)) return value
-  if (typeof value === 'string' && value.trim().startsWith('[')) {
-    try {
-      const parsed: unknown = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : null
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
-/** Lists whose items are ordered branches: a rewritten item pairs by position, not identity. */
-export function isPositionalListField(blockType: string, field: string): boolean {
-  const type = findSubBlockConfig(blockType, field)?.type
-  return type === 'condition-input' || type === 'router-input'
-}
-
-/** How one list item is identified, named, and compared. */
-export interface ListItemView {
-  key: string
-  label: string
-  /** The item's comparable body as shown, secrets masked; a change here renders as a text diff */
-  text: string
-  /**
-   * The body before masking, used only to decide whether two items differ, so
-   * a change to a secret alone still reads as a change without being shown.
-   */
-  signature?: string
-}
-
-export type ListRowKind = 'added' | 'removed' | 'changed'
-
-/** One row of an item-by-item list diff. */
-export interface ListDiffRow {
-  kind: ListRowKind
-  label: string
-  /** The item's previous label when only its position or name changed */
-  oldLabel?: string
-  oldText: string
-  newText: string
-  /** The only difference is in a masked value, so the texts read the same */
-  secretChanged?: boolean
-}
-
-/**
- * Pairs items across the two sides: by key first, then by identical body for
- * items whose keys differ (a route or condition re-created with a fresh id is
- * still the same route), and finally by position so a rewritten item reads as
- * changed rather than as a removal plus an addition.
- */
-export function pairListItems(
-  oldItems: ListItemView[],
-  newItems: ListItemView[],
-  positional: boolean
-): ListDiffRow[] {
-  const rows: ListDiffRow[] = []
-  const oldLeft = [...oldItems]
-  const newLeft = [...newItems]
-
-  const take = (
-    list: ListItemView[],
-    predicate: (item: ListItemView) => boolean
-  ): ListItemView | undefined => {
-    const index = list.findIndex(predicate)
-    return index === -1 ? undefined : list.splice(index, 1)[0]
-  }
-  const body = (item: ListItemView) => item.signature ?? item.text
-  const same = (a: ListItemView, b: ListItemView) => body(a) === body(b) && a.label === b.label
-
-  for (const item of newItems) {
-    const previous = take(oldLeft, (candidate) => candidate.key === item.key)
-    if (!previous) continue
-    take(newLeft, (candidate) => candidate === item)
-    if (!same(previous, item)) {
-      rows.push({
-        kind: 'changed',
-        label: item.label,
-        oldLabel: previous.label !== item.label ? previous.label : undefined,
-        oldText: previous.text,
-        newText: item.text,
-        ...(previous.text === item.text && body(previous) !== body(item)
-          ? { secretChanged: true }
-          : {}),
-      })
-    }
-  }
-  for (const item of [...newLeft]) {
-    const previous = take(oldLeft, (candidate) => same(candidate, item))
-    if (previous) take(newLeft, (candidate) => candidate === item)
-  }
-  while (positional && newLeft.length && oldLeft.length) {
-    const item = newLeft.shift()!
-    const previous = oldLeft.shift()!
-    rows.push({ kind: 'changed', label: item.label, oldText: previous.text, newText: item.text })
-  }
-  for (const item of newLeft) {
-    rows.push({ kind: 'added', label: item.label, oldText: '', newText: item.text })
-  }
-  for (const item of oldLeft) {
-    rows.push({ kind: 'removed', label: item.label, oldText: item.text, newText: '' })
-  }
-  return rows
-}
-
-/**
- * Whether two item lists hold the same items in a different order. Pairing
- * reports nothing for a list that only moved, so this tells a reorder apart
- * from a change the item view cannot see (the same items stored differently).
- */
-export function listOrderChanged(oldItems: ListItemView[], newItems: ListItemView[]): boolean {
-  if (oldItems.length !== newItems.length) return false
-  const identity = (item: ListItemView) => `${item.key}\u0000${item.signature ?? item.text}`
-  return oldItems.some((item, index) => identity(item) !== identity(newItems[index]))
-}
-
-/** Tool item fields, beyond its params, that change what the tool may do or how it runs. */
-const TOOL_EXECUTION_FIELDS = [
-  'operation',
-  'usageControl',
-  'usageControlExpression',
-  'operationPolicy',
-  'code',
-  'schema',
-] as const
-
-function pick(item: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const key of keys) if (key in item) out[key] = item[key]
-  return out
-}
-
-function filterBlank(record: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(record)) if (!isBlankValue(value)) out[key] = value
-  return out
-}
-
-function readString(item: Record<string, unknown>, keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = item[key]
-    if (typeof value === 'string' && value) return value
-  }
-  return undefined
-}
-
-/**
- * Projects a list item to key, label and body according to the field it lives
- * in. Conditions and routes are positional ("if", "else if", "Route 2") since
- * their ids are opaque; everything else names itself.
- */
-export function describeListItems(
-  blockType: string,
-  field: string,
-  items: unknown[]
-): ListItemView[] {
-  const config = findSubBlockConfig(blockType, field)
-  const type = config?.type
-  return items.map((raw, index) => {
-    if (raw === null || typeof raw !== 'object') {
-      const text = String(raw)
-      return { key: text, label: text, text: '' }
-    }
-    const item = raw as Record<string, unknown>
-    const id = readString(item, ['id', 'toolId', 'name'])
-    if (type === 'condition-input') {
-      const label = index === 0 ? 'if' : index === items.length - 1 ? 'else' : 'else if'
-      return { key: id ?? `cond-${index}`, label, text: readString(item, ['value']) ?? '' }
-    }
-    if (type === 'router-input') {
-      return {
-        key: id ?? `route-${index}`,
-        label: `Route ${index + 1}`,
-        text: readString(item, ['value']) ?? '',
-      }
-    }
-    if (type === 'tool-input') {
-      const params = item.params
-      const paramRecord =
-        params && typeof params === 'object' ? (params as Record<string, unknown>) : {}
-      const toolType = readString(item, ['type'])
-      /* MCP tools name themselves by server tool; custom tools by their saved id or function name. */
-      const mcpName = toolType === 'mcp' ? readString(paramRecord, ['toolName']) : undefined
-      const customName =
-        toolType === 'custom-tool'
-          ? (readString(item, ['customToolId', 'title']) ??
-            readString(
-              ((item.schema as { function?: Record<string, unknown> } | undefined)?.function ??
-                {}) as Record<string, unknown>,
-              ['name']
-            ))
-          : undefined
-      const { serverId, toolName: _toolName, ...rawParams } = paramRecord
-      /* What the tool is allowed to do, where it runs and how it runs matter as much as its params. */
-      const rawBody = filterBlank({
-        ...pick(item, TOOL_EXECUTION_FIELDS),
-        server: serverId,
-        params: Object.keys(rawParams).length ? rawParams : undefined,
-      })
-      const body = maskSecretsDeep(maskToolPasswordParams(toolType, rawBody))
-      return {
-        key:
-          mcpName ?? customName ?? readString(item, ['toolId', 'type', 'title']) ?? `tool-${index}`,
-        label:
-          mcpName ??
-          readString(item, ['title']) ??
-          customName ??
-          readString(item, ['type']) ??
-          `Tool ${index + 1}`,
-        text: Object.keys(rawBody).length ? JSON.stringify(body, null, 2) : '',
-        signature: Object.keys(rawBody).length ? JSON.stringify(rawBody) : '',
-      }
-    }
-    if (type === 'input-format') {
-      const name = readString(item, ['name']) ?? `Field ${index + 1}`
-      const fieldType = readString(item, ['type'])
-      const description = readString(item, ['description'])
-      const hasDefault = !isBlankValue(item.value)
-      const describe = (defaultText: string | undefined) =>
-        [fieldType, description, defaultText].filter(Boolean).join(' · ')
-      const text = describe(hasDefault ? `default ${toDiffText(item.value)}` : undefined)
-      const rawDefault =
-        typeof item.value === 'string' ? item.value : JSON.stringify(item.value, null, 2)
-      /* Unmasked, so a default that differs only inside a secret still reads as changed. */
-      const signature = describe(hasDefault ? `default ${rawDefault}` : undefined)
-      return {
-        key: id ?? name,
-        label: name,
-        text,
-        ...(signature !== text ? { signature } : {}),
-      }
-    }
-    const label = readString(item, ['title', 'name', 'label', 'id']) ?? `Item ${index + 1}`
-    const { id: _id, title: _title, name: _name, label: _label, ...rest } = item
-    return {
-      key: id ?? label,
-      label,
-      text: Object.keys(rest).length ? JSON.stringify(maskSecretsDeep(rest), null, 2) : '',
-      signature: Object.keys(rest).length ? JSON.stringify(rest) : '',
-    }
-  })
-}
-
-/**
- * Sub-block types whose value names something that lives in a workspace rather
- * than in the workflow's logic: a credential, a picked resource, a trigger path.
- * Two environments differ on these by design, so a fork comparison sets them
- * apart from prompt and logic changes.
- */
-const ENVIRONMENT_BOUND_TYPES = new Set<string>([
-  'oauth-input',
-  'webhook-config',
-  'file-selector',
-  'sheet-selector',
-  'project-selector',
-  'channel-selector',
-  'user-selector',
-  'folder-selector',
-  'knowledge-base-selector',
-  'document-selector',
-  'mcp-server-selector',
-  'mcp-tool-selector',
-  'table-selector',
-  'workflow-selector',
-])
-
-const ENVIRONMENT_BOUND_FIELDS = new Set<string>([
-  'apiKey',
-  'credential',
-  'triggerPath',
-  'webhookPath',
-])
-
-function isEnvironmentBinding(blockType: string, field: string): boolean {
-  if (ENVIRONMENT_BOUND_FIELDS.has(field)) return true
-  const config = findSubBlockConfig(blockType, field)
-  if (!config) return false
-  return Boolean(config.password) || ENVIRONMENT_BOUND_TYPES.has(config.type)
-}
-
-/** Splits a block's changes into logic rows and workspace-bound rows. */
-export function splitEnvironmentBindings<T extends { field: string }>(
-  blockType: string,
-  changes: T[]
-): { logic: T[]; bindings: T[] } {
-  const logic: T[] = []
-  const bindings: T[] = []
-  for (const change of changes) {
-    ;(isEnvironmentBinding(blockType, change.field) ? bindings : logic).push(change)
-  }
-  return { logic, bindings }
-}
 
 /** Labels for container configuration fields, which no block definition declares. */
 const CONTAINER_FIELD_LABELS: Record<ContainerConfigField, string> = {
@@ -367,59 +58,17 @@ export const ENGINE_FIELD_LABELS: Record<string, string> = {
   advancedMode: 'Advanced mode',
 }
 
-/** A chat message as an agent block stores it. */
-interface DiffMessage {
-  role: string
-  content: string
-}
-
-function isMessageList(value: unknown): value is DiffMessage[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(
-      (item) =>
-        item !== null &&
-        typeof item === 'object' &&
-        typeof (item as DiffMessage).role === 'string' &&
-        typeof (item as DiffMessage).content === 'string'
-    )
-  )
-}
-
-/** Reads a stored messages value as a list, tolerating the JSON-string form older drafts used. */
-export function toMessageList(value: unknown): DiffMessage[] {
-  if (isMessageList(value)) return value
-  if (typeof value === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(value)
-      if (isMessageList(parsed)) return parsed
-    } catch {
-      return []
-    }
-  }
-  return []
-}
-
-/**
- * Each block definition's sub-blocks are indexed once, keyed by the definition
- * object itself so a re-registered definition (custom blocks, tests) is never
- * served from a stale index.
- */
-const subBlockIndex = new WeakMap<BlockConfig, Map<string, SubBlockConfig>>()
-
 function findSubBlockConfig(blockType: string, field: string): SubBlockConfig | undefined {
-  const config = getBlock(blockType)
-  if (!config) return undefined
-  let index = subBlockIndex.get(config)
-  if (!index) {
-    index = new Map()
-    for (const subBlock of config.subBlocks ?? []) {
-      if (!index.has(subBlock.id)) index.set(subBlock.id, subBlock)
-    }
-    subBlockIndex.set(config, index)
-  }
-  return index.get(field)
+  return getBlock(blockType)?.subBlocks.find((config) => config.id === field)
+}
+
+function isSensitiveField(blockType: string | undefined, field: string): boolean {
+  const configs = blockType
+    ? getBlock(blockType)?.subBlocks.filter((config) => config.id === field)
+    : undefined
+  return configs?.length
+    ? configs.some((config) => config.password || config.type === 'oauth-input')
+    : isSecretKey(field)
 }
 
 function isTextLike(value: unknown): boolean {
@@ -456,19 +105,10 @@ export function classifyChange(
   newValue: unknown
 ): ValueKind {
   const config = findSubBlockConfig(blockType, field)
-  /* A definition this viewer cannot resolve (a source-side custom block, a retired block) still hides secrets by name. */
-  if (config?.password || (!config && isSecretKey(field))) return 'secret'
-  if (config?.type === 'messages-input' || isMessageList(oldValue) || isMessageList(newValue)) {
-    return 'messages'
-  }
-  const oldList = toItemList(oldValue)
-  const newList = toItemList(newValue)
-  const eitherList = oldList !== null || newList !== null
-  const bothListOrBlank =
-    (oldList !== null || isBlankValue(oldValue)) && (newList !== null || isBlankValue(newValue))
-  if (bothListOrBlank && ((config && LIST_SUB_BLOCK_TYPES.has(config.type)) || eitherList)) {
-    return 'list'
-  }
+  if (isSensitiveField(blockType, field)) return 'secret'
+  if ([oldValue, newValue].some((value) => value !== null && typeof value === 'object'))
+    return 'json'
+  if (oldValue != null && newValue != null && typeof oldValue !== typeof newValue) return 'json'
   if (config && TEXT_SUB_BLOCK_TYPES.has(config.type)) return 'text'
   if (typeof oldValue === 'boolean' || typeof newValue === 'boolean') return 'toggle'
   if (isTextLike(oldValue) || isTextLike(newValue)) return 'text'
@@ -497,11 +137,12 @@ export function formatScalar(blockType: string, field: string, value: unknown): 
  * A string for the line diff; objects are pretty-printed, with secret-looking
  * leaves masked, so structure diffs line by line.
  */
-export function toDiffText(value: unknown): string {
+export function toDiffText(value: unknown, blockType?: string, field?: string): string {
   if (value === null || value === undefined) return ''
-  /* Structured values are often stored as JSON text, so a string is masked the same way. */
-  if (typeof value === 'string') return maskEncodedSecrets(value)
-  return JSON.stringify(maskSecretsDeep(value), null, 2)
+  const config = blockType && field ? findSubBlockConfig(blockType, field) : undefined
+  const shaped = field ? shapeSubBlockValue(field, value, config?.type) : value
+  const masked = maskSecretsDeep(shaped)
+  return typeof masked === 'string' ? masked : JSON.stringify(normalizeValue(masked), null, 2)
 }
 
 /** One side of a block that only exists in one version: what it has, as a change from nothing. */
@@ -545,25 +186,6 @@ function isSecretKey(key: string): boolean {
 }
 
 /**
- * A block used as an agent tool keeps its params under the block's own
- * sub-block ids, so the block's `password` flags say which ones are secrets,
- * whatever they are named (an access key id is as sensitive as its secret).
- */
-function maskToolPasswordParams(
-  toolType: string | undefined,
-  body: Record<string, unknown>
-): Record<string, unknown> {
-  const params = body.params
-  if (!toolType || !params || typeof params !== 'object' || Array.isArray(params)) return body
-  const masked: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
-    masked[key] =
-      !isBlankValue(value) && findSubBlockConfig(toolType, key)?.password ? MASKED_VALUE : value
-  }
-  return { ...body, params: masked }
-}
-
-/**
  * Tool params persist structured values as JSON strings, so a header map with
  * an Authorization entry arrives encoded; decode, mask and re-encode it.
  */
@@ -586,11 +208,11 @@ function maskEncodedSecrets(value: string): string {
  * depth: object keys, and the `Value` of a key/value table row whose `Key`
  * names a secret (an API block's headers).
  */
-export function maskSecretsDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(maskSecretsDeep)
+export function maskSecretsDeep(value: unknown, blockType?: string): unknown {
+  if (Array.isArray(value)) return value.map((entry) => maskSecretsDeep(entry))
   if (typeof value === 'string') return maskEncodedSecrets(value)
   if (value === null || typeof value !== 'object') return value
-  const record = value as Record<string, unknown>
+  let record = value as Record<string, unknown>
   const cells = record.cells
   if (cells && typeof cells === 'object' && !Array.isArray(cells)) {
     const row = cells as Record<string, unknown>
@@ -600,13 +222,18 @@ export function maskSecretsDeep(value: unknown): unknown {
       row.Value !== '' &&
       row.Value != null
     ) {
-      return { ...record, cells: { ...row, Value: MASKED_VALUE } }
+      record = { ...record, cells: { ...row, Value: MASKED_VALUE } }
     }
   }
   const out: Record<string, unknown> = {}
   for (const [key, entry] of Object.entries(record)) {
     out[key] =
-      isSecretKey(key) && entry !== '' && entry != null ? MASKED_VALUE : maskSecretsDeep(entry)
+      isSensitiveField(blockType, key) && entry !== '' && entry != null
+        ? MASKED_VALUE
+        : maskSecretsDeep(
+            entry,
+            key === 'params' && typeof record.type === 'string' ? record.type : undefined
+          )
   }
   return out
 }
@@ -629,10 +256,11 @@ export function isBlankValue(value: unknown): boolean {
  */
 export function listOneSidedFields(block: BlockState, side: 'added' | 'removed'): OneSidedField[] {
   const declared = getBlock(block.type)?.subBlocks ?? []
+  const fields = new Set(filterSubBlockIds(Object.keys(block.subBlocks ?? {})))
   const out: OneSidedField[] = []
   const seen = new Set<string>()
   const push = (field: string, value: unknown) => {
-    if (seen.has(field)) return
+    if (!fields.has(field) || seen.has(field)) return
     seen.add(field)
     if (isBlankValue(value)) return
     out.push({

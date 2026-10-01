@@ -1,6 +1,6 @@
 import { workspaceForkResourceMap } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { forkResourceTypeSchema } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
@@ -118,41 +118,6 @@ export async function getEdgeMappingRows(
     // ever exist (the push edit + rollback cleanup prevent them, this is defense).
     .orderBy(asc(workspaceForkResourceMap.createdAt), asc(workspaceForkResourceMap.id))
   return rows as ForkMappingRow[]
-}
-
-/**
- * The target a source workflow is identity-mapped to on an edge, read from the
- * one workflow mapping row that names it, or null when it has none. Agrees with
- * the identity map {@link getEdgeMappingRows} feeds the promote plan: a row with
- * no child side is ignored, and should duplicates ever exist the newest wins.
- */
-export async function getMappedWorkflowTarget(
-  executor: DbOrTx,
-  childWorkspaceId: string,
-  sourceIsParent: boolean,
-  sourceWorkflowId: string
-): Promise<string | null> {
-  const sourceColumn = sourceIsParent
-    ? workspaceForkResourceMap.parentResourceId
-    : workspaceForkResourceMap.childResourceId
-  const rows = await executor
-    .select({
-      parentResourceId: workspaceForkResourceMap.parentResourceId,
-      childResourceId: workspaceForkResourceMap.childResourceId,
-    })
-    .from(workspaceForkResourceMap)
-    .where(
-      and(
-        eq(workspaceForkResourceMap.childWorkspaceId, childWorkspaceId),
-        eq(workspaceForkResourceMap.resourceType, 'workflow'),
-        eq(sourceColumn, sourceWorkflowId),
-        isNotNull(workspaceForkResourceMap.childResourceId)
-      )
-    )
-    .orderBy(asc(workspaceForkResourceMap.createdAt), asc(workspaceForkResourceMap.id))
-  const row = rows.at(-1)
-  if (!row) return null
-  return sourceIsParent ? row.childResourceId : row.parentResourceId
 }
 
 /**

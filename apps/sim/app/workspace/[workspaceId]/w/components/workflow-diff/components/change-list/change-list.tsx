@@ -10,12 +10,20 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Badge, cn, OverflowText } from '@sim/emcn'
+import {
+  ChipModalField,
+  ChipTag,
+  CollapsibleCard,
+  cn,
+  disclosureChevronClass,
+  InfoCard,
+  Label,
+  OverflowText,
+} from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import { humanizeBlockName } from '@sim/workflow-renderer'
-import type { BlockDiffStatus, WorkflowDiffSummary } from '@/lib/workflows/comparison'
+import type { WorkflowDiffSummary } from '@/lib/workflows/comparison'
 import { DIFF_LABEL } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
-import { BindingChangeRow } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/binding-change-row'
 import {
   DIFF_SIGN,
   DIFF_SIGN_CLASS,
@@ -26,16 +34,9 @@ import {
   type BlockChangeEntry,
   listBlockChanges,
   listOneSidedFields,
-  splitEnvironmentBindings,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-
-const STATUS_BADGE_VARIANT: Record<BlockDiffStatus, 'green' | 'amber' | 'red'> = {
-  added: 'green',
-  modified: 'amber',
-  removed: 'red',
-}
 
 interface ChangeListProps {
   summary: WorkflowDiffSummary
@@ -49,11 +50,6 @@ interface ChangeListProps {
   }
   selectedBlockId: string | null
   onSelectBlock: Dispatch<SetStateAction<string | null>>
-  /**
-   * The two sides live in different workspaces, so credentials, picked
-   * resources and trigger paths differ by design; group them apart, muted.
-   */
-  environmentBindings?: boolean
 }
 
 /** Whether the selected block is this entry or one nested under it. */
@@ -75,7 +71,6 @@ export function ChangeList({
   containers,
   selectedBlockId,
   onSelectBlock,
-  environmentBindings = false,
 }: ChangeListProps) {
   const entries = useMemo(
     () => listBlockChanges(summary, baseBlocks, targetBlocks, containers),
@@ -89,7 +84,7 @@ export function ChangeList({
     if (node) cardRefs.current?.set(id, node)
     else cardRefs.current?.delete(id)
   }, [])
-  /* Stable across selections, so only the cards whose selection changed re-render. */
+  // Stable across selections, so only the cards whose selection changed re-render.
   const toggleSelected = useCallback(
     (id: string) => onSelectBlock((current) => (current === id ? null : id)),
     [onSelectBlock]
@@ -117,28 +112,23 @@ export function ChangeList({
   return (
     <div className='flex flex-col gap-4 p-4'>
       {entries.length > 0 && (
-        <Section title='Blocks' count={entries.length}>
+        <Section title='Blocks'>
           {entries.map((entry) => (
             <BlockCard
               key={entry.id}
               entry={entry}
               blocks={blocks}
-              /* Only a card holding the selection needs the id; every other card sees null. */
               selectedBlockId={containsSelection(entry, selectedBlockId) ? selectedBlockId : null}
               onToggleSelected={toggleSelected}
               registerCard={registerCard}
-              environmentBindings={environmentBindings}
             />
           ))}
         </Section>
       )}
 
       {hasConnectionChanges && (
-        <Section
-          title='Connections'
-          count={summary.edgeChanges.added + summary.edgeChanges.removed}
-        >
-          <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3'>
+        <Section title='Connections'>
+          <InfoCard className='flex flex-col gap-1.5 p-3'>
             {summary.edgeChanges.addedDetails.map((edge, index) => (
               <NamedRow
                 key={`a-${index}`}
@@ -153,20 +143,13 @@ export function ChangeList({
                 name={`${humanizeBlockName(edge.sourceName)} → ${humanizeBlockName(edge.targetName)}`}
               />
             ))}
-          </div>
+          </InfoCard>
         </Section>
       )}
 
       {hasVariableChanges && (
-        <Section
-          title='Variables'
-          count={
-            summary.variableChanges.added +
-            summary.variableChanges.removed +
-            summary.variableChanges.modified
-          }
-        >
-          <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3 text-small'>
+        <Section title='Variables'>
+          <InfoCard className='flex flex-col gap-1.5 p-3'>
             {summary.variableChanges.addedNames.map((name, index) => (
               <NamedRow key={`a-${index}-${name}`} kind='added' name={name} />
             ))}
@@ -176,7 +159,7 @@ export function ChangeList({
             {summary.variableChanges.removedNames.map((name, index) => (
               <NamedRow key={`r-${index}-${name}`} kind='removed' name={name} />
             ))}
-          </div>
+          </InfoCard>
         </Section>
       )}
     </div>
@@ -185,17 +168,13 @@ export function ChangeList({
 
 interface SectionProps {
   title: string
-  count: number
   children: React.ReactNode
 }
 
-function Section({ title, count, children }: SectionProps) {
+function Section({ title, children }: SectionProps) {
   return (
     <div className='flex flex-col gap-2'>
-      <div className='flex items-center gap-2 px-0.5'>
-        <span className='font-medium text-[var(--text-primary)] text-small'>{title}</span>
-        <span className='text-[var(--text-muted)] text-caption tabular-nums'>{count}</span>
-      </div>
+      <Label>{title}</Label>
       <div className='flex flex-col gap-2'>{children}</div>
     </div>
   )
@@ -208,9 +187,6 @@ interface BlockCardProps {
   selectedBlockId: string | null
   onToggleSelected: (id: string) => void
   registerCard: (id: string, node: HTMLDivElement | null) => void
-  environmentBindings: boolean
-  /** Rendered inside the card of the container it was added or removed with */
-  nested?: boolean
 }
 
 /**
@@ -226,13 +202,11 @@ const BlockCard = memo(function BlockCard({
   selectedBlockId,
   onToggleSelected,
   registerCard,
-  environmentBindings,
-  nested = false,
 }: BlockCardProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [seenSelection, setSeenSelection] = useState(selectedBlockId)
   const selected = selectedBlockId === entry.id
-  /* Selecting a block nested in this card on the canvas opens the card so its row can show. */
+  // Selecting a block nested in this card on the canvas opens the card so its row can show.
   if (seenSelection !== selectedBlockId) {
     setSeenSelection(selectedBlockId)
     if (selectedBlockId !== null && !selected) setCollapsed(false)
@@ -242,20 +216,12 @@ const BlockCard = memo(function BlockCard({
     (node: HTMLDivElement | null) => registerCard(entry.id, node),
     [registerCard, entry.id]
   )
-  const { logic, bindings } = useMemo(() => {
-    /* A block on one side only is every field arriving or leaving; same rows, one side empty. */
-    const fields =
-      entry.status === 'modified'
-        ? entry.changes
-        : [...entry.changes, ...(block ? listOneSidedFields(block, entry.status) : [])]
-    return environmentBindings
-      ? splitEnvironmentBindings(entry.type, fields)
-      : { logic: fields, bindings: [] }
-  }, [entry, block, environmentBindings])
-  const bindingsOnly = entry.status === 'modified' && logic.length === 0 && bindings.length > 0
+  const fields =
+    entry.status === 'modified'
+      ? entry.changes
+      : [...entry.changes, ...(block ? listOneSidedFields(block, entry.status) : [])]
   const hasBody =
-    logic.length > 0 ||
-    bindings.length > 0 ||
+    fields.length > 0 ||
     entry.children.length > 0 ||
     Boolean(entry.moved) ||
     Boolean(entry.membership)
@@ -266,57 +232,30 @@ const BlockCard = memo(function BlockCard({
   }
 
   return (
-    <div
-      ref={setCardRef}
-      className={cn(
-        'flex flex-col overflow-hidden rounded-md border transition-colors',
-        nested ? 'bg-[var(--surface-1)]' : 'bg-[var(--surface-2)]',
-        selected ? 'border-[var(--text-secondary)]' : 'border-[var(--border)]'
-      )}
-    >
-      <div
-        role='button'
-        tabIndex={0}
-        aria-pressed={selected}
-        aria-expanded={hasBody ? !collapsed : undefined}
-        onClick={toggle}
-        onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            toggle()
-          }
-        }}
-        className={cn(
-          'flex cursor-pointer items-center gap-2 transition-colors hover-hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-[1.5px] focus-visible:ring-[var(--text-secondary)] focus-visible:ring-inset',
-          nested ? 'p-2' : 'p-3'
-        )}
-      >
-        <BlockTile blockType={entry.type} size={nested ? 'sm' : 'lg'} />
-        <OverflowText
-          label={humanizeBlockName(entry.name)}
-          className='flex-1 font-medium text-[var(--text-primary)] text-small'
-        />
-        <Badge variant={bindingsOnly ? 'gray' : STATUS_BADGE_VARIANT[entry.status]} size='sm'>
-          {bindingsOnly ? 'Bindings only' : DIFF_LABEL[entry.status]}
-        </Badge>
-        {hasBody && (
-          <ChevronDown
-            className={cn(
-              'size-[14px] shrink-0 text-[var(--text-muted)] transition-transform',
-              collapsed && '-rotate-90'
+    <div ref={setCardRef}>
+      <CollapsibleCard
+        collapsed={!hasBody || collapsed}
+        onToggleCollapse={toggle}
+        title={
+          <span className='flex min-w-0 items-center gap-2'>
+            <BlockTile blockType={entry.type} size='sm' />
+            <OverflowText
+              label={humanizeBlockName(entry.name)}
+              className={cn('min-w-0 flex-1', selected && 'font-medium')}
+              focusTarget='nearest-interactive'
+            />
+          </span>
+        }
+        badge={
+          <>
+            <ChipTag variant='gray'>{DIFF_LABEL[entry.status]}</ChipTag>
+            {hasBody && (
+              <ChevronDown className={cn(disclosureChevronClass, collapsed && '-rotate-90')} />
             )}
-          />
-        )}
-      </div>
-
-      {hasBody && !collapsed && (
-        <div
-          className={cn(
-            'flex flex-col gap-3 border-[var(--border)] border-t',
-            nested ? 'p-2' : 'px-3 pt-3 pb-3'
-          )}
-        >
+          </>
+        }
+      >
+        <div className='flex flex-col gap-4'>
           {entry.moved && (
             <div className='flex flex-col gap-1'>
               {entry.moved.into && (
@@ -334,7 +273,7 @@ const BlockCard = memo(function BlockCard({
             </div>
           )}
 
-          {logic.map((change) => (
+          {fields.map((change) => (
             <FieldChangeRow
               key={change.field}
               blockType={entry.type}
@@ -344,56 +283,40 @@ const BlockCard = memo(function BlockCard({
             />
           ))}
 
-          {bindings.length > 0 && (
-            <div className='flex flex-col gap-1.5 rounded-sm bg-[var(--surface-3)] px-2.5 py-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Environment bindings</span>
-              {bindings.map((change) => (
-                <BindingChangeRow
-                  key={change.field}
-                  blockType={entry.type}
-                  field={change.field}
-                  oldValue={change.oldValue}
-                  newValue={change.newValue}
-                />
-              ))}
-            </div>
-          )}
-
           {(entry.membership || entry.children.length > 0) && (
-            <div className='flex flex-col gap-1.5'>
-              <span className='text-[var(--text-tertiary)] text-caption'>Blocks inside</span>
-              {entry.children.map((child) => (
-                <BlockCard
-                  key={child.id}
-                  entry={child}
-                  blocks={blocks}
-                  selectedBlockId={
-                    containsSelection(child, selectedBlockId) ? selectedBlockId : null
-                  }
-                  onToggleSelected={onToggleSelected}
-                  registerCard={registerCard}
-                  environmentBindings={environmentBindings}
-                  nested
-                />
-              ))}
-              {entry.membership?.added.map((row, index) => (
-                <NamedRow
-                  key={`a-${index}-${row.name}`}
-                  kind='added'
-                  name={`${humanizeBlockName(row.name)}${row.moved ? ' (moved in)' : ''}`}
-                />
-              ))}
-              {entry.membership?.removed.map((row, index) => (
-                <NamedRow
-                  key={`r-${index}-${row.name}`}
-                  kind='removed'
-                  name={`${humanizeBlockName(row.name)}${row.moved ? ' (moved out)' : ''}`}
-                />
-              ))}
-            </div>
+            <ChipModalField type='custom' title='Blocks inside' flush>
+              <div className='flex flex-col gap-2'>
+                {entry.children.map((child) => (
+                  <BlockCard
+                    key={child.id}
+                    entry={child}
+                    blocks={blocks}
+                    selectedBlockId={
+                      containsSelection(child, selectedBlockId) ? selectedBlockId : null
+                    }
+                    onToggleSelected={onToggleSelected}
+                    registerCard={registerCard}
+                  />
+                ))}
+                {entry.membership?.added.map((row, index) => (
+                  <NamedRow
+                    key={`a-${index}-${row.name}`}
+                    kind='added'
+                    name={`${humanizeBlockName(row.name)}${row.moved ? ' (moved in)' : ''}`}
+                  />
+                ))}
+                {entry.membership?.removed.map((row, index) => (
+                  <NamedRow
+                    key={`r-${index}-${row.name}`}
+                    kind='removed'
+                    name={`${humanizeBlockName(row.name)}${row.moved ? ' (moved out)' : ''}`}
+                  />
+                ))}
+              </div>
+            </ChipModalField>
           )}
         </div>
-      )}
+      </CollapsibleCard>
     </div>
   )
 })

@@ -48,8 +48,6 @@ interface GeneralDeployProps {
   versionsLoading: boolean
   isPromotingVersion: boolean
   deployReadiness: DeployReadiness
-  /** The draft differs from the live version, so a "View changes" affordance is offered */
-  needsRedeployment: boolean
   onPromoteToLive: (version: number) => Promise<void>
   onLoadDeploymentComplete: () => void
   onLoadDeploymentBlocked: (message: string) => void
@@ -69,7 +67,6 @@ export function GeneralDeploy({
   versionsLoading,
   isPromotingVersion,
   deployReadiness,
-  needsRedeployment,
   onPromoteToLive,
   onLoadDeploymentComplete,
   onLoadDeploymentBlocked,
@@ -219,22 +216,11 @@ export function GeneralDeploy({
       <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
-            <div className='flex items-center gap-2'>
-              <Label className='block truncate pl-0.5 text-small'>
-                {previewMode === 'selected' && selectedVersionInfo
-                  ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                  : 'Live Workflow'}
-              </Label>
-              {needsRedeployment && activeVersion !== null && !showToggle && (
-                <button
-                  type='button'
-                  onClick={() => handleCompareVersion(activeVersion)}
-                  className='text-[var(--text-primary)] text-small underline-offset-2 hover-hover:underline focus-visible:underline focus-visible:outline-none'
-                >
-                  View changes
-                </button>
-              )}
-            </div>
+            <Label className='block truncate pl-0.5 text-small'>
+              {previewMode === 'selected' && selectedVersionInfo
+                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
+                : 'Live Workflow'}
+            </Label>
             <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
               <ChipButtonGroup
                 value={previewMode}

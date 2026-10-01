@@ -585,7 +585,6 @@ export function DeployModal({
               versionsLoading={versionsLoading}
               isPromotingVersion={isActivatingVersion || activateVersionMutation.isPending}
               deployReadiness={deployReadiness}
-              needsRedeployment={needsRedeployment}
               onPromoteToLive={handlePromoteToLive}
               onLoadDeploymentComplete={handleCloseModal}
               onLoadDeploymentBlocked={setDeployError}

@@ -45,8 +45,6 @@ interface WorkflowDiffViewProps {
   /** Shown in the strip above the panes; omit when the host already names the sides */
   baseLabel?: string
   targetLabel?: string
-  /** The sides live in different workspaces; set workspace-bound fields apart, muted */
-  environmentBindings?: boolean
 }
 
 /**
@@ -59,7 +57,6 @@ export function WorkflowDiffView({
   targetState,
   baseLabel,
   targetLabel,
-  environmentBindings = false,
 }: WorkflowDiffViewProps) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [listElement, setListElement] = useState<HTMLDivElement | null>(null)
@@ -78,12 +75,12 @@ export function WorkflowDiffView({
     [baseState, targetState]
   )
 
-  const handleNodeClick = useCallback((blockId: string) => {
+  const handleNodeClick = (blockId: string) => {
     setSelectedBlockId((current) => (current === blockId ? null : blockId))
-  }, [])
+  }
   const handlePaneClick = useCallback(() => setSelectedBlockId(null), [])
 
-  /* A reconfigured container counts as modified even when no field of its own changed. */
+  // A reconfigured container counts as modified even when no field of its own changed.
   const modifiedCount = new Set([
     ...summary.modifiedBlocks.map((block) => block.id),
     ...summary.containerChanges.map((container) => container.id),
@@ -162,7 +159,6 @@ export function WorkflowDiffView({
             containers={containers}
             selectedBlockId={selectedBlockId}
             onSelectBlock={setSelectedBlockId}
-            environmentBindings={environmentBindings}
           />
         </div>
       </div>

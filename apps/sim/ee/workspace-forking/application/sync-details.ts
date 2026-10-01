@@ -26,7 +26,6 @@ import {
   collectForkClearedRefCandidates,
 } from '@/ee/workspace-forking/lib/promote/cleared-refs'
 import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
-import { listUnchangedSyncSources } from '@/ee/workspace-forking/lib/promote/sync-preview'
 import { buildForkTriggerPlan } from '@/ee/workspace-forking/lib/promote/trigger-urls'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 
@@ -91,7 +90,6 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
       sourceCandidates,
       sourceWorkflowRows,
       excludedSourceWorkflows,
-      unchangedSourceIds,
     ] = await Promise.all([
       loadForkDependentValues(db, auth.edge.childWorkspaceId, allTargetIds),
       loadTargetDraftSubBlocks(db, replaceTargetIds),
@@ -103,14 +101,6 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
         .where(eq(workflow.workspaceId, auth.sourceWorkspaceId)),
       // Deployed-but-excluded source workflows, so the preview can show what a sync skips.
       listForkExcludedDeployedWorkflows(db, auth.sourceWorkspaceId),
-      // Rows the sync would not change offer no comparison. Same projection and rule as the
-      // per-workflow preview, so a row and its preview never disagree.
-      listUnchangedSyncSources({
-        items: plan.items,
-        sourceStates,
-        targetWorkspaceId: auth.targetWorkspaceId,
-        resolveBlockId,
-      }),
     ])
     const storedByKey = new Map(
       storedValues.map((entry) => [
@@ -263,8 +253,6 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
             action: 'create' as const,
             currentName: item.sourceMeta.name,
             otherName: item.sourceMeta.name,
-            sourceWorkflowId: item.sourceWorkflowId,
-            hasChanges: true,
           }
         }
         const targetName = item.targetName ?? item.sourceMeta.name
@@ -272,8 +260,6 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
           action: 'update' as const,
           currentName: currentIsSource ? item.sourceMeta.name : targetName,
           otherName: currentIsSource ? targetName : item.sourceMeta.name,
-          sourceWorkflowId: item.sourceWorkflowId,
-          hasChanges: !unchangedSourceIds.has(item.sourceWorkflowId),
         }
       }),
       ...plan.archivedTargets.map((target) => ({

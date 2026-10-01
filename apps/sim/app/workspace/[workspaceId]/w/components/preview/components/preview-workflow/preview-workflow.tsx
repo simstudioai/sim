@@ -20,7 +20,6 @@ import {
   BLOCK_Z_BASE,
   CANVAS_Z_INDEX_MODE,
   CONTAINER_CHILD_Z_BASE,
-  CONTAINER_DIMENSIONS,
   EDGE_Z_BASE,
   EDGE_Z_MAX,
   getEdgeZIndexForTarget,
@@ -29,54 +28,16 @@ import {
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import type { BlockDiffStatus, EdgeDiffStatus } from '@/lib/workflows/comparison'
-import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { SUBFLOW_CHILD_NODE_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
 import { getPreviewBlockDimensions } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-dimensions'
+import { PreviewEdge } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-edge'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.css'
 
 const logger = createLogger('PreviewWorkflow')
-
-/** Calculates container dimensions from child block positions. */
-function calculateContainerDimensions(
-  containerId: string,
-  blocks: Record<string, BlockState>
-): { width: number; height: number } {
-  const childBlocks = Object.values(blocks).filter((block) => block?.data?.parentId === containerId)
-
-  if (childBlocks.length === 0) {
-    return {
-      width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-      height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-    }
-  }
-
-  let maxRight = 0
-  let maxBottom = 0
-
-  for (const child of childBlocks) {
-    if (!child?.position) continue
-
-    const { width: childWidth, height: childHeight } = getPreviewBlockDimensions(child)
-
-    maxRight = Math.max(maxRight, child.position.x + childWidth)
-    maxBottom = Math.max(maxBottom, child.position.y + childHeight)
-  }
-
-  const width = Math.max(
-    CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-    maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
-  )
-  const height = Math.max(
-    CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-    maxBottom + CONTAINER_DIMENSIONS.BOTTOM_PADDING
-  )
-
-  return { width, height }
-}
 
 /** Finds the leftmost block ID, excluding subflow containers. */
 export function getLeftmostBlockId(workflowState: WorkflowState | null | undefined): string | null {
@@ -159,8 +120,8 @@ const previewNodeTypes: NodeTypes = {
 }
 
 const edgeTypes: EdgeTypes = {
-  default: WorkflowEdge,
-  workflowEdge: WorkflowEdge,
+  default: PreviewEdge,
+  workflowEdge: PreviewEdge,
 }
 
 interface FitViewOnChangeProps {
@@ -399,7 +360,7 @@ export function PreviewWorkflow({
 
       if (block.type === 'loop' || block.type === 'parallel') {
         const isSelected = selectedBlockId === blockId
-        const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
+        const dimensions = getPreviewBlockDimensions(block, workflowState.blocks)
 
         // Check for direct error on the subflow block itself (e.g., loop resolution errors)
         // before falling back to children-derived status

@@ -11,8 +11,8 @@ export const DIFF_LABEL: Record<BlockDiffStatus, string> = {
 }
 
 const DIFF_LABEL_CLASS: Record<BlockDiffStatus, string> = {
-  added: 'bg-[var(--brand-accent)] text-white',
-  modified: 'bg-[var(--warning)] text-white',
+  added: 'bg-[var(--brand-accent)] text-[var(--text-inverse)]',
+  modified: 'bg-[var(--warning)] text-[var(--text-inverse)]',
   removed: 'bg-[var(--surface-7)] text-[var(--text-secondary)]',
 }
 

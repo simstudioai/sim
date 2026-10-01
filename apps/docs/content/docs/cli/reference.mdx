@@ -6277,6 +6277,113 @@ sim workflows runs wait <runId> [options]
 
 </CommandTable>
 
+### sim workflows versions compare
+
+Compare Workflow Versions
+
+```bash
+sim workflows versions compare <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--base <value>` | Yes | Deployment version to compare from. |
+| `--target <value>` | Yes | Deployment version to compare to, in the same workflow. |
+
+</CommandTable>
+
+### sim workflows versions get
+
+Get Workflow Version
+
+```bash
+sim workflows versions get <workflowId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+### sim workflows versions list
+
+List Workflow Versions
+
+```bash
+sim workflows versions list <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim workflows versions update
+
+Update Workflow Version
+
+```bash
+sim workflows versions update <workflowId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New label for the deployment version. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
+
+</CommandTable>
+
 ### sim workflows create
 
 Create Workflow
@@ -6747,84 +6854,6 @@ sim workflows state replace <workflowId> [options]
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
 | `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
-
-</CommandTable>
-
-### sim workflows versions get
-
-Get Workflow Version
-
-```bash
-sim workflows versions get <workflowId> <version>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-| `version` | Yes | Numeric deployment version. |
-
-</CommandTable>
-
-### sim workflows versions list
-
-List Workflow Versions
-
-```bash
-sim workflows versions list <workflowId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-### sim workflows versions update
-
-Update Workflow Version
-
-```bash
-sim workflows versions update <workflowId> <version> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-| `version` | Yes | Numeric deployment version. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | No | New label for the deployment version. |
-| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
 
 </CommandTable>
 

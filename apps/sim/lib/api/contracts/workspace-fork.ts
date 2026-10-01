@@ -1,10 +1,5 @@
 import { z } from 'zod'
-import { deployedWorkflowStateSchema } from '@/lib/api/contracts/deployments'
-import {
-  nonEmptyIdSchema,
-  workflowIdSchema,
-  workspaceIdSchema,
-} from '@/lib/api/contracts/primitives'
+import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspaceSchema } from '@/lib/api/contracts/workspaces'
 import { WORKFLOW_RESOURCE_KINDS } from '@/lib/workflows/references/types'
@@ -319,38 +314,13 @@ export const forkUnmappedReferenceSchema = z.object({
   blockName: z.string().optional(),
 })
 
-const forkWorkflowChangeNames = {
+export const forkWorkflowChangeSchema = z.object({
+  action: z.enum(['update', 'create', 'archive']),
   /** Workflow name in the workspace the modal is open in. */
   currentName: z.string(),
   /** Workflow name in the sync-partner workspace (differs from `currentName` after a rename). */
   otherName: z.string(),
-}
-
-export const forkWorkflowChangeSchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('update'),
-    ...forkWorkflowChangeNames,
-    /** The deployed source workflow this sync copies; optional so a new client tolerates an old server during rollout. */
-    sourceWorkflowId: workflowIdSchema.optional(),
-    /**
-     * Whether the sync would change the target's draft. False when the draft already matches
-     * the source's deployment; defaulted so a new client tolerates an old server during rollout.
-     */
-    hasChanges: z.boolean().default(true),
-  }),
-  z.object({
-    action: z.literal('create'),
-    ...forkWorkflowChangeNames,
-    /** The deployed source workflow this sync copies; optional so a new client tolerates an old server during rollout. */
-    sourceWorkflowId: workflowIdSchema.optional(),
-    /**
-     * Whether the sync would change the target's draft. False when the draft already matches
-     * the source's deployment; defaulted so a new client tolerates an old server during rollout.
-     */
-    hasChanges: z.boolean().default(true),
-  }),
-  z.object({ action: z.literal('archive'), ...forkWorkflowChangeNames }),
-])
+})
 
 /**
  * A configured selector field (Gmail label, Slack channel, KB document, ...) that
@@ -1020,37 +990,4 @@ export type UpdateForkSyncDefaultResponse = z.output<
 export type UpdateForkExcludedWorkflowsBody = z.input<typeof updateForkExcludedWorkflowsBodySchema>
 export type UpdateForkExcludedWorkflowsResponse = z.output<
   typeof updateForkExcludedWorkflowsContract.response.schema
->
-
-export const getForkWorkflowDiffQuerySchema = getForkDiffQuerySchema.extend({
-  /** The deployed source workflow to preview, as listed by the sync details. */
-  sourceWorkflowId: workflowIdSchema,
-})
-
-/**
- * Block-level preview of what a sync would do to ONE workflow: the target's
- * current state (`before`, null when the sync would create the workflow) and
- * the source's deployed state re-keyed to the target's block ids (`after`), so
- * the two compare block for block the way two versions of one workflow do.
- */
-export const getForkWorkflowDiffContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]/fork/workflow-diff',
-  params: workspaceIdParamsSchema,
-  query: getForkWorkflowDiffQuerySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      /** The workflow the sync overwrites; null when the sync would create it (its id is provisional). */
-      targetWorkflowId: workflowIdSchema.nullable(),
-      before: deployedWorkflowStateSchema.nullable(),
-      after: deployedWorkflowStateSchema,
-      beforeLabel: z.string(),
-      afterLabel: z.string(),
-    }),
-  },
-})
-export type GetForkWorkflowDiffQuery = z.input<typeof getForkWorkflowDiffQuerySchema>
-export type GetForkWorkflowDiffResponse = z.output<
-  typeof getForkWorkflowDiffContract.response.schema
 >

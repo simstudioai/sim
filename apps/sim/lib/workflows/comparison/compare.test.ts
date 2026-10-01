@@ -49,6 +49,25 @@ function createBlock(id: string, overrides: Record<string, any> = {}): any {
 }
 
 describe('hasWorkflowChanged', () => {
+  it('distinguishes nested JSON null from an omitted operation argument', () => {
+    const state = (value: unknown) =>
+      createWorkflowState({
+        blocks: {
+          mcp: createBlock('mcp', {
+            type: 'mcp',
+            subBlocks: {
+              arguments: { id: 'arguments', type: 'mcp-dynamic-args', value },
+            },
+          }),
+        },
+      })
+    const base = state({ patch: { owner: null, active: true } })
+    const target = state({ patch: { active: true } })
+    expect(hasWorkflowChanged(target, base)).toBe(true)
+    expect(hasWorkflowChanged(base, target)).toBe(true)
+    expect(hasWorkflowChanged(base, state({ patch: { active: true, owner: null } }))).toBe(false)
+  })
+
   describe('Basic Cases', () => {
     it.concurrent('should return true when deployedState is null', () => {
       const currentState = createWorkflowState()

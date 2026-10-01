@@ -1,12 +1,11 @@
 import { db, runOutsideTransactionContext } from '@sim/db'
-import { webhook, workflow, workflowBlocks, workflowDeploymentVersion } from '@sim/db/schema'
+import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, exists, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
-  loadWorkflowFromNormalizedTables,
   materializeDeploymentState,
 } from '@/lib/workflows/persistence/utils'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
@@ -25,13 +24,6 @@ const logger = createLogger('WorkspaceForkDeployBridge')
  * workspace to a few hundred MB of transient state instead of an unbounded load.
  */
 export const MAX_FORK_DEPLOYED_WORKFLOWS = 1000
-
-/**
- * Workflow states read at once from the global pool: keeps concurrent checkouts
- * well under the pool max even at the workflow ceiling. Callers run these reads
- * before any transaction.
- */
-const READ_CONCURRENCY = 5
 
 /** Aggregate serialized source state admitted before any graph materialization. */
 export const MAX_FORK_STATE_BYTES = 64 * 1024 * 1024
@@ -63,82 +55,35 @@ export async function listDeployedWorkflows(
   workspaceId: string
 ): Promise<DeployedWorkflowSummary[]> {
   return executor
-    .select(DEPLOYED_WORKFLOW_SUMMARY)
-    .from(workflow)
-    .where(syncableSourcePredicate(workspaceId))
-    .limit(MAX_FORK_DEPLOYED_WORKFLOWS + 1)
-}
-
-const DEPLOYED_WORKFLOW_SUMMARY = {
-  id: workflow.id,
-  name: workflow.name,
-  description: workflow.description,
-  folderId: workflow.folderId,
-  sortOrder: workflow.sortOrder,
-  isPublicApi: workflow.isPublicApi,
-}
-
-/** The one definition of a workflow that takes part in a sync as a source; see {@link listDeployedWorkflows}. */
-function syncableSourcePredicate(workspaceId: string) {
-  return and(
-    eq(workflow.workspaceId, workspaceId),
-    eq(workflow.isDeployed, true),
-    eq(workflow.forkSyncExcluded, false),
-    isNull(workflow.archivedAt),
-    exists(
-      db
-        .select({ one: sql`1` })
-        .from(workflowDeploymentVersion)
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, workflow.id),
-            eq(workflowDeploymentVersion.isActive, true)
-          )
-        )
-    )
-  )
-}
-
-/**
- * One source workflow's summary and active deployed state, admitted by the
- * same predicate and materialized the same way as {@link loadSourceDeployedStates},
- * without reading the rest of the workspace. Null when the workflow is not a
- * sync source in `sourceWorkspaceId` (not there, not deployed, excluded, or
- * archived).
- */
-export async function loadSourceDeployedWorkflow(
-  sourceWorkspaceId: string,
-  workflowId: string
-): Promise<{ summary: DeployedWorkflowSummary; state: WorkflowState } | null> {
-  const [summary] = await db
-    .select(DEPLOYED_WORKFLOW_SUMMARY)
-    .from(workflow)
-    .where(and(eq(workflow.id, workflowId), syncableSourcePredicate(sourceWorkspaceId)))
-    .limit(1)
-  if (!summary) return null
-  const [version] = await db
     .select({
-      id: workflowDeploymentVersion.id,
-      bytes: sql<number>`octet_length(${workflowDeploymentVersion.state}::text)`,
-      digest: sql<string>`md5(${workflowDeploymentVersion.state}::text)`,
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description,
+      folderId: workflow.folderId,
+      sortOrder: workflow.sortOrder,
+      isPublicApi: workflow.isPublicApi,
     })
-    .from(workflowDeploymentVersion)
+    .from(workflow)
     .where(
       and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.isActive, true)
+        eq(workflow.workspaceId, workspaceId),
+        eq(workflow.isDeployed, true),
+        eq(workflow.forkSyncExcluded, false),
+        isNull(workflow.archivedAt),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(workflowDeploymentVersion)
+            .where(
+              and(
+                eq(workflowDeploymentVersion.workflowId, workflow.id),
+                eq(workflowDeploymentVersion.isActive, true)
+              )
+            )
+        )
       )
     )
-    .limit(1)
-  if (!version) return null
-  if (Number(version.bytes) > MAX_FORK_STATE_BYTES) {
-    throw new ForkError(
-      `The deployed workflow state exceeds the ${MAX_FORK_STATE_BYTES} byte fork/sync limit`,
-      413
-    )
-  }
-  const state = await readAdmittedSourceState(workflowId, sourceWorkspaceId, version)
-  return { summary, state }
+    .limit(MAX_FORK_DEPLOYED_WORKFLOWS + 1)
 }
 
 /**
@@ -301,6 +246,7 @@ export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promi
   // under the pool max even at the workflow ceiling, and this runs BEFORE any transaction.
   const sourceStates = new Map<string, WorkflowState>()
   let materializedBytes = 0
+  const READ_CONCURRENCY = 5
   for (let i = 0; i < deployedWorkflows.length; i += READ_CONCURRENCY) {
     const batch = deployedWorkflows.slice(i, i + READ_CONCURRENCY)
     const states = await Promise.all(
@@ -353,81 +299,6 @@ async function readAdmittedSourceState(
     loops: data.loops,
     parallels: data.parallels,
     variables: (data.variables ?? {}) as Record<string, Variable>,
-  }
-}
-
-/**
- * The target workflow as its editor currently holds it: the draft tables plus
- * the variables on the workflow row, read in one repeatable-read snapshot and
- * in the same shape as a deployed state. A sync overwrites exactly this, so it
- * is the honest "before" of a preview. Null when the workflow is not in
- * `workspaceId` (or does not exist), never for a workflow elsewhere.
- */
-export async function loadTargetDraftState(
-  workflowId: string,
-  workspaceId: string
-): Promise<WorkflowState | null> {
-  return db.transaction(
-    async (tx) => {
-      const [draft, [row]] = await Promise.all([
-        loadWorkflowFromNormalizedTables(workflowId, tx),
-        tx
-          .select({ workspaceId: workflow.workspaceId, variables: workflow.variables })
-          .from(workflow)
-          .where(eq(workflow.id, workflowId))
-          .limit(1),
-      ])
-      if (!draft || !row || row.workspaceId !== workspaceId) return null
-      return {
-        blocks: draft.blocks,
-        edges: draft.edges,
-        loops: draft.loops,
-        parallels: draft.parallels,
-        variables: (row.variables ?? {}) as Record<string, Variable>,
-      }
-    },
-    { isolationLevel: 'repeatable read', accessMode: 'read only' }
-  )
-}
-
-/**
- * Serialized size of the blocks in these workflows' drafts (sub-blocks, outputs
- * and data, the block columns a draft load materializes), from one query, so
- * a caller can decide whether reading the drafts in full is affordable before
- * it reads any of them.
- */
-export async function measureTargetDraftBytes(workflowIds: string[]): Promise<number> {
-  if (workflowIds.length === 0) return 0
-  const [row] = await db
-    .select({
-      bytes: sql<string>`coalesce(sum(
-        octet_length(${workflowBlocks.subBlocks}::text) +
-          octet_length(${workflowBlocks.outputs}::text) +
-          coalesce(octet_length(${workflowBlocks.data}::text), 0)
-      ), 0)`,
-    })
-    .from(workflowBlocks)
-    .where(inArray(workflowBlocks.workflowId, workflowIds))
-  return Number(row?.bytes ?? 0)
-}
-
-/**
- * {@link loadTargetDraftState} for many workflows, a few at a time, handing
- * each draft to `visit` and keeping none of them, so memory stays at one batch
- * however many workflows there are. A workflow not in `workspaceId` is skipped.
- */
-export async function forEachTargetDraft(
-  workflowIds: string[],
-  workspaceId: string,
-  visit: (workflowId: string, draft: WorkflowState) => void
-): Promise<void> {
-  for (let i = 0; i < workflowIds.length; i += READ_CONCURRENCY) {
-    const batch = workflowIds.slice(i, i + READ_CONCURRENCY)
-    const loaded = await Promise.all(batch.map((id) => loadTargetDraftState(id, workspaceId)))
-    batch.forEach((id, index) => {
-      const draft = loaded[index]
-      if (draft) visit(id, draft)
-    })
   }
 }
 

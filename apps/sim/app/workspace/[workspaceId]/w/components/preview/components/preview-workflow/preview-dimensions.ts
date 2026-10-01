@@ -3,20 +3,31 @@ import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workfl
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
- * The size a block is drawn at on the read-only canvas: stored values when
- * present, clamped to the minimums, else the type's estimate. Shared with the
- * comparison overlay so its ghost collision boxes match what is drawn.
+ * Shared preview and overlay dimensions. Containers enclose their children,
+ * including nested containers and removed blocks, without changing stored layout.
  */
-export function getPreviewBlockDimensions(block: BlockState): { width: number; height: number } {
+export function getPreviewBlockDimensions(
+  block: BlockState,
+  blocks?: Record<string, BlockState>,
+  ancestors: ReadonlySet<string> = new Set()
+): { width: number; height: number } {
   if (block.type === 'loop' || block.type === 'parallel') {
-    return {
-      width: block.data?.width
-        ? Math.max(block.data.width, CONTAINER_DIMENSIONS.MIN_WIDTH)
-        : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-      height: block.data?.height
-        ? Math.max(block.data.height, CONTAINER_DIMENSIONS.MIN_HEIGHT)
-        : CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    const visited = new Set(ancestors).add(block.id)
+    let width: number = CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+    let height: number = CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+    for (const child of Object.values(blocks ?? {})) {
+      if (child.data?.parentId !== block.id || visited.has(child.id)) continue
+      const dimensions = getPreviewBlockDimensions(child, blocks, visited)
+      width = Math.max(
+        width,
+        child.position.x + dimensions.width + CONTAINER_DIMENSIONS.RIGHT_PADDING
+      )
+      height = Math.max(
+        height,
+        child.position.y + dimensions.height + CONTAINER_DIMENSIONS.BOTTOM_PADDING
+      )
     }
+    return { width, height }
   }
 
   if (block.height) {

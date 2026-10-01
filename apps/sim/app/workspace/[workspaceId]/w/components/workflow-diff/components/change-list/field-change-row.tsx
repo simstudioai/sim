@@ -1,10 +1,9 @@
 'use client'
 
-import { cn } from '@sim/emcn'
+import { ChipModalField, ChipTag, cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { isContainerType } from '@/lib/workflows/autolayout'
 import { resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
-import { KeyedListDiff } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/keyed-list-diff'
 import {
   InlineDiff,
   TextDiff,
@@ -17,7 +16,6 @@ import {
   isBlankValue,
   isSentenceLike,
   toDiffText,
-  toMessageList,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
 import { formatParameterLabel } from '@/tools/params'
 
@@ -42,26 +40,20 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
   const resolvedLabel = isContainerType(blockType)
     ? containerFieldLabel(field)
     : (ENGINE_FIELD_LABELS[field] ?? resolveFieldLabel(blockType, field))
-  /* A field its definition never titled comes back as the raw id; humanize it. */
   const label = resolvedLabel === field ? formatParameterLabel(field) : resolvedLabel
   const textual = kind === 'text' || kind === 'json'
   const scalar = kind === 'scalar' || kind === 'toggle'
-  const oldText = textual
-    ? toDiffText(oldValue)
-    : scalar
-      ? formatScalar(blockType, field, oldValue)
-      : ''
-  const newText = textual
-    ? toDiffText(newValue)
-    : scalar
-      ? formatScalar(blockType, field, newValue)
-      : ''
-  /* The summary saw a change the masked text cannot show, so the change is inside a secret. */
+  const text = (value: unknown) => {
+    const formatted = toDiffText(value, blockType, field)
+    return kind === 'json' && typeof value === 'string' ? JSON.stringify(formatted) : formatted
+  }
+  const oldText = textual ? text(oldValue) : scalar ? formatScalar(blockType, field, oldValue) : ''
+  const newText = textual ? text(newValue) : scalar ? formatScalar(blockType, field, newValue) : ''
+  // The summary saw a change the masked text cannot show, so the change is inside a secret.
   const maskedOnly = (textual || (scalar && !oneSided)) && oldText === newText
 
   return (
-    <div className='flex flex-col gap-1.5'>
-      <span className='text-[var(--text-tertiary)] text-caption'>{label}</span>
+    <ChipModalField type='custom' title={label} flush>
       {kind === 'secret' && (
         <span className='text-[var(--text-secondary)] text-small'>
           {isBlankValue(oldValue) ? 'Set' : isBlankValue(newValue) ? 'Cleared' : 'Value changed'}
@@ -71,15 +63,6 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
         <span className='text-[var(--text-secondary)] text-small'>A masked value changed</span>
       )}
       {textual && !maskedOnly && <TextDiff oldText={oldText} newText={newText} />}
-      {kind === 'messages' && <MessagesDiff oldValue={oldValue} newValue={newValue} />}
-      {kind === 'list' && (
-        <KeyedListDiff
-          blockType={blockType}
-          field={field}
-          oldValue={oldValue}
-          newValue={newValue}
-        />
-      )}
       {scalar &&
         !maskedOnly &&
         (oneSided ? (
@@ -92,86 +75,28 @@ export function FieldChangeRow({ blockType, field, oldValue, newValue }: FieldCh
         ) : (
           <OldNewPair oldText={oldText} newText={newText} />
         ))}
-    </div>
+    </ChipModalField>
   )
 }
-
-interface MessagesDiffProps {
-  oldValue: unknown
-  newValue: unknown
-}
-
-/**
- * Agent messages diff one slot at a time, paired by position, so a system
- * prompt edit reads as a prompt diff rather than a JSON diff of the array.
- */
-function MessagesDiff({ oldValue, newValue }: MessagesDiffProps) {
-  const oldMessages = toMessageList(oldValue)
-  const newMessages = toMessageList(newValue)
-  const count = Math.max(oldMessages.length, newMessages.length)
-  const slots = Array.from({ length: count }, (_, index) => ({
-    index,
-    old: oldMessages[index],
-    next: newMessages[index],
-  }))
-    .filter(
-      (slot) => slot.old?.content !== slot.next?.content || slot.old?.role !== slot.next?.role
-    )
-    .map((slot) => {
-      const oldText = toDiffText(slot.old?.content)
-      const newText = toDiffText(slot.next?.content)
-      /* The content changed but masking hides where, as with any other field. */
-      const maskedOnly =
-        Boolean(slot.old && slot.next) &&
-        oldText === newText &&
-        slot.old?.content !== slot.next?.content
-      return { ...slot, oldText, newText, maskedOnly }
-    })
-
-  return (
-    <div className='flex flex-col gap-2'>
-      {slots.map((slot) => (
-        <div key={slot.index} className='flex flex-col gap-1'>
-          <span className='text-[var(--text-muted)] text-caption capitalize'>
-            {slot.old && slot.next && slot.old.role !== slot.next.role
-              ? `${slot.old.role} → ${slot.next.role}`
-              : (slot.next?.role ?? slot.old?.role)}{' '}
-            message
-            {!slot.old && ' (added)'}
-            {!slot.next && ' (removed)'}
-          </span>
-          {slot.maskedOnly ? (
-            <span className='text-[var(--text-secondary)] text-small'>A masked value changed</span>
-          ) : (
-            <TextDiff oldText={slot.oldText} newText={slot.newText} />
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-const CHIP_CLASS = {
-  removed: 'bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] text-[var(--text-secondary)]',
-  added: 'bg-[color-mix(in_srgb,var(--brand-accent)_14%,transparent)] text-[var(--text-primary)]',
-} as const
 
 interface ValueChipProps {
-  tone: keyof typeof CHIP_CLASS
+  tone: 'removed' | 'added'
   text: string
 }
 
-/** A single value in its side's tint; wraps rather than truncates so nothing hides. */
 function ValueChip({ tone, text }: ValueChipProps) {
   return (
-    <span
-      className={cn(
-        'min-w-0 self-start whitespace-pre-wrap break-words rounded-sm px-1.5 py-px text-small',
-        CHIP_CLASS[tone]
-      )}
-    >
-      {text}
-    </span>
+    <div className='flex min-w-0 items-start gap-1.5'>
+      <span
+        className={cn(
+          'shrink-0 font-mono text-small',
+          tone === 'added' ? 'text-[var(--badge-success-text)]' : 'text-[var(--badge-error-text)]'
+        )}
+      >
+        {tone === 'added' ? '+' : '−'}
+      </span>
+      <ChipTag variant='mono'>{text}</ChipTag>
+    </div>
   )
 }
 
@@ -182,7 +107,7 @@ interface OldNewPairProps {
 
 function OldNewPair({ oldText, newText }: OldNewPairProps) {
   return (
-    <div className='flex min-w-0 items-center gap-2'>
+    <div className='flex min-w-0 flex-wrap items-center gap-2'>
       <ValueChip tone='removed' text={oldText} />
       <ArrowRight className='size-[12px] shrink-0 text-[var(--text-icon)]' />
       <ValueChip tone='added' text={newText} />

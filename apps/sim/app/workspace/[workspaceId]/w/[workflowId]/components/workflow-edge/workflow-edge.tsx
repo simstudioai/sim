@@ -6,7 +6,6 @@ import {
 } from '@sim/workflow-renderer'
 import { type EdgeProps, useStore } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
-import type { EdgeDiffStatus as PreviewEdgeDiffStatus } from '@/lib/workflows/comparison'
 import {
   isEdgeConnectedToEditor,
   isEdgeHighlighted,
@@ -73,12 +72,7 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
   )?.executionStatus
   const runStatus = previewExecutionStatus || lastRunEdges.get(id)
 
-  /** A preview comparing two versions hands the edge its status directly. */
-  const previewDiffStatus = (data as { diffStatus?: PreviewEdgeDiffStatus } | undefined)?.diffStatus
-
   const diffStatus = useMemo((): EdgeDiffStatus => {
-    if (previewDiffStatus === 'added') return 'new'
-    if (previewDiffStatus === 'removed') return 'ghost'
     if (data?.isDeleted) return 'deleted'
     if (!diffAnalysis?.edge_diff || !isDiffReady) return null
 
@@ -94,7 +88,6 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     }
     return null
   }, [
-    previewDiffStatus,
     data?.isDeleted,
     diffAnalysis,
     isDiffReady,

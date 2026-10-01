@@ -265,7 +265,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>
     diffStatus,
     changedFields,
   } = data
-  const changedFieldSet = useMemo(() => new Set(changedFields ?? []), [changedFields])
+  const changedFieldSet = new Set(changedFields)
 
   const blockConfig = getBlock(type)
   const effectiveTrigger = isTrigger || type === 'starter'

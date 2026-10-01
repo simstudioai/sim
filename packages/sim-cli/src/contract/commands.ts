@@ -546,6 +546,7 @@ export const CLI_CONTRACT: CliContract = {
       operations: { json: true, describe: WORKFLOW_VARIABLE_OPERATIONS_HELP },
     },
   },
+  compareWorkflowVersions: { command: 'workflows versions compare' },
   // A revert is a graph write too: it overwrites the draft with an older
   // deployment's graph. Nothing about the name says "delete", so the destructive
   // sweep does not reach it, and the work it discards is whatever is in the

@@ -34,6 +34,7 @@ import {
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
   v2CancelWorkflowRunContract,
+  v2CompareWorkflowVersionsContract,
   v2CreateWorkflowContract,
   v2CreateWorkflowFolderContract,
   v2DeleteWorkflowContract,
@@ -619,6 +620,55 @@ const declaredRoutes = [
         'Workflow version list response',
         'A cursor-paginated page of deployment versions.',
         [{ data: [WORKFLOW_VERSION_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CompareWorkflowVersionsContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.compareVersions,
+      operationId: 'compareWorkflowVersionsV2',
+      summary: 'Compare Workflow Versions',
+      description:
+        'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. The combined snapshots must fit within 16 MiB.',
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: jsonSuccess('Changes from the base deployment to the target deployment.'),
+    }),
+    {
+      params: v2CompareWorkflowVersionsContract.params,
+      query: v2CompareWorkflowVersionsContract.query,
+      response: documentedSchema(
+        v2CompareWorkflowVersionsContract.response.schema,
+        'WorkflowVersionComparisonResponse',
+        'Workflow version comparison response',
+        'Changes from base to target, with credential values withheld.',
+        [
+          {
+            data: {
+              workflowId: WORKFLOW_ID,
+              base: 1,
+              target: 2,
+              diff: {
+                addedBlocks: [],
+                removedBlocks: [],
+                modifiedBlocks: [],
+                edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
+                loopChanges: { added: 0, removed: 0, modified: 0 },
+                parallelChanges: { added: 0, removed: 0, modified: 0 },
+                containerChanges: [],
+                variableChanges: {
+                  added: 0,
+                  removed: 0,
+                  modified: 0,
+                  addedNames: [],
+                  removedNames: [],
+                  modifiedNames: [],
+                },
+                hasChanges: false,
+              },
+            },
+          },
+        ]
       ),
     }
   ),

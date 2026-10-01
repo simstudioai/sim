@@ -37,13 +37,15 @@ function edgeKey(edge: WorkflowState['edges'][number]): string {
 }
 
 const GHOST_GAP = 32
-const MAX_NUDGES = 8
 
 /** Sub-block fields whose list items each own a source handle on the canvas card. */
 const BRANCH_LIST_FIELDS = ['conditions', 'routes'] as const
 
 /** How big a block is drawn; the canvas passes its own measurement so ghost boxes match it. */
-export type MeasureBlock = (block: BlockState) => { width: number; height: number }
+export type MeasureBlock = (
+  block: BlockState,
+  blocks: Record<string, BlockState>
+) => { width: number; height: number }
 
 /**
  * Stored sizes clamped to the canvas minimums: the fallback when the caller
@@ -67,8 +69,12 @@ const measureStoredSize: MeasureBlock = (block) => {
   }
 }
 
-function boxOf(block: BlockState, measure: MeasureBlock): BoundingBox {
-  return { x: block.position?.x ?? 0, y: block.position?.y ?? 0, ...measure(block) }
+function boxOf(
+  block: BlockState,
+  measure: MeasureBlock,
+  blocks: Record<string, BlockState>
+): BoundingBox {
+  return { x: block.position?.x ?? 0, y: block.position?.y ?? 0, ...measure(block, blocks) }
 }
 
 /**
@@ -76,19 +82,18 @@ function boxOf(block: BlockState, measure: MeasureBlock): BoundingBox {
  * that spot since. Slide the ghost straight down until it clears every card in
  * `occupied` so it reads as "used to be around here" rather than sitting
  * underneath something, and record its final box so later ghosts avoid it too.
- * Children of a container stay put: their coordinates are relative to the
- * parent and the parent already frames them.
+ * Occupied boxes belong to the same parent coordinate space as the ghost.
  */
 function nudgeOutOfCollision(
   ghost: BlockState,
   occupied: BoundingBox[],
-  measure: MeasureBlock
+  measure: MeasureBlock,
+  blocks: Record<string, BlockState>
 ): BlockState {
-  if (ghost.data?.parentId) return ghost
-  const box = boxOf(ghost, measure)
+  const box = boxOf(ghost, measure, blocks)
   let nudges = 0
   let hit = occupied.find((other) => boxesOverlap(box, other))
-  while (hit && nudges < MAX_NUDGES) {
+  while (hit) {
     box.y = hit.y + hit.height + GHOST_GAP
     nudges += 1
     hit = occupied.find((other) => boxesOverlap(box, other))
@@ -187,13 +192,27 @@ export function buildWorkflowDiffOverlay(
     blocks[id] = withRemovedBranches(before, block)
   }
 
-  const occupied = Object.values(blocks)
-    .filter((block) => !block.data?.parentId)
-    .map((block) => boxOf(block, measure))
-  for (const block of summary.removedBlocks) {
-    const baseBlock = baseState.blocks[block.id]
-    if (baseBlock && !blocks[block.id])
-      blocks[block.id] = nudgeOutOfCollision(baseBlock, occupied, measure)
+  for (const removed of summary.removedBlocks) {
+    if (baseState.blocks[removed.id]) blocks[removed.id] = baseState.blocks[removed.id]
+  }
+  const depth = (block: BlockState) => {
+    const visited = new Set<string>([block.id])
+    let parentId = block.data?.parentId
+    while (parentId && blocks[parentId] && !visited.has(parentId)) {
+      visited.add(parentId)
+      parentId = blocks[parentId].data?.parentId
+    }
+    return visited.size
+  }
+  const ghosts = summary.removedBlocks.map(({ id }) => blocks[id]).filter(Boolean)
+  ghosts.sort((a, b) => depth(b) - depth(a))
+  const placed = new Set(Object.keys(targetState.blocks))
+  for (const ghost of ghosts) {
+    const occupied = Object.values(blocks)
+      .filter((block) => placed.has(block.id) && block.data?.parentId === ghost.data?.parentId)
+      .map((block) => boxOf(block, measure, blocks))
+    blocks[ghost.id] = nudgeOutOfCollision(ghost, occupied, measure, blocks)
+    placed.add(ghost.id)
   }
 
   const loops = { ...(targetState.loops ?? {}) }

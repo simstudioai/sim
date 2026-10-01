@@ -275,6 +275,7 @@ import {
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
   v2CancelWorkflowRunContract,
+  v2CompareWorkflowVersionsContract,
   v2CreateWorkflowContract,
   v2CreateWorkflowFolderContract,
   v2DeleteWorkflowContract,
@@ -554,6 +555,16 @@ export const V2_MCP_OPERATIONS = {
   chat: {
     contract: v2ChatContract,
     handler: () => import('@/app/api/v2/chat/route').then((route) => route.POST),
+  },
+  compareWorkflowVersions: {
+    contract: v2CompareWorkflowVersionsContract,
+    summary: 'Compare Workflow Versions',
+    description:
+      'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. The combined snapshots must fit within 16 MiB.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/versions/compare/route').then(
+        (route) => route.GET
+      ),
   },
   completeFileUpload: {
     contract: v2CompleteFileUploadContract,

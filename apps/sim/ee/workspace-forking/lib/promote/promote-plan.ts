@@ -25,7 +25,6 @@ import {
   buildForkResolver,
   type ForkMappingRow,
   getEdgeMappingRows,
-  getMappedWorkflowTarget,
   resourceTypeToForkKind,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -341,55 +340,6 @@ export function collectForkUnreferencedCopyables(
     if (resolver(resource.kind, resource.sourceId) != null) return []
     return [{ ...resource, referenced: false }]
   })
-}
-
-/**
- * The plan item one deployed source workflow would get, resolved from that
- * workflow's identity mapping and its target alone rather than the whole
- * workspace: the same {@link buildForkPromotePlanItems} decision the full plan
- * makes, fed only the rows it would read for this source. Null when the
- * mapped target is marked "Exclude from sync", which the full plan skips too.
- */
-export async function resolveForkPlanItem(params: {
-  executor: DbOrTx
-  edge: ForkEdge
-  sourceWorkspaceId: string
-  targetWorkspaceId: string
-  source: DeployedWorkflowSummary
-}): Promise<ForkPromotePlanItem | null> {
-  const { executor, edge, sourceWorkspaceId, targetWorkspaceId, source } = params
-  const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
-  const mappedTargetId = await getMappedWorkflowTarget(
-    executor,
-    edge.childWorkspaceId,
-    sourceIsParent,
-    source.id
-  )
-  const targetWorkflows = mappedTargetId
-    ? await executor
-        .select({
-          id: workflow.id,
-          name: workflow.name,
-          forkSyncExcluded: workflow.forkSyncExcluded,
-        })
-        .from(workflow)
-        .where(
-          and(
-            eq(workflow.id, mappedTargetId),
-            eq(workflow.workspaceId, targetWorkspaceId),
-            isNull(workflow.archivedAt)
-          )
-        )
-    : []
-  const { items } = buildForkPromotePlanItems({
-    deployedSourceWorkflows: [source],
-    sourceStateIds: new Set([source.id]),
-    identityMap: new Map(mappedTargetId ? [[source.id, mappedTargetId]] : []),
-    targetActiveIds: new Set(targetWorkflows.map((w) => w.id)),
-    targetNameById: new Map(targetWorkflows.map((w) => [w.id, w.name])),
-    excludedTargetIds: new Set(targetWorkflows.filter((w) => w.forkSyncExcluded).map((w) => w.id)),
-  })
-  return items[0] ?? null
 }
 
 /**

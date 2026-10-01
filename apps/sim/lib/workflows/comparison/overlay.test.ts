@@ -58,6 +58,69 @@ function emptySummary(): WorkflowDiffSummary {
 }
 
 describe('buildWorkflowDiffOverlay', () => {
+  it('keeps removed children clear of surviving siblings in their parent coordinate space', () => {
+    const base = asState({
+      blocks: {
+        loop: block('loop', { type: 'loop' }),
+        old: block('old', { data: { parentId: 'loop' }, position: { x: 100, y: 100 } }),
+      },
+      edges: [],
+    })
+    const target = asState({
+      blocks: {
+        loop: block('loop', { type: 'loop' }),
+        current: block('current', { data: { parentId: 'loop' }, position: { x: 100, y: 100 } }),
+      },
+      edges: [],
+    })
+    const overlay = buildWorkflowDiffOverlay(
+      generateWorkflowDiffSummary(target, base),
+      base,
+      target,
+      () => ({ width: 200, height: 100 })
+    )
+    expect(overlay.mergedState.blocks.old.position.y).toBeGreaterThanOrEqual(200)
+    expect(overlay.mergedState.blocks.current.position).toEqual({ x: 100, y: 100 })
+    expect(base.blocks.old.position).toEqual({ x: 100, y: 100 })
+  })
+
+  it('measures containers after placing their removed children', () => {
+    const base = asState({
+      blocks: {
+        loop: block('loop', { type: 'loop' }),
+        old: block('old', { data: { parentId: 'loop' }, position: { x: 0, y: 80 } }),
+        rootGhost: block('rootGhost', { position: { x: 0, y: 180 } }),
+      },
+      edges: [],
+    })
+    const target = asState({
+      blocks: {
+        loop: block('loop', { type: 'loop' }),
+        current: block('current', { data: { parentId: 'loop' }, position: { x: 0, y: 80 } }),
+      },
+      edges: [],
+    })
+    const overlay = buildWorkflowDiffOverlay(
+      generateWorkflowDiffSummary(target, base),
+      base,
+      target,
+      (node, nodes) => ({
+        width: 200,
+        height:
+          node.type === 'loop'
+            ? Math.max(
+                100,
+                ...Object.values(nodes)
+                  .filter((child) => child.data?.parentId === node.id)
+                  .map((child) => child.position.y + 120)
+              )
+            : 100,
+      })
+    )
+    const placed = overlay.mergedState.blocks
+    expect(placed.rootGhost.position.y).toBeGreaterThan(placed.old.position.y + 100)
+  })
+
   it('maps the summary onto block status and changed fields, including moves and containers', () => {
     const base = asState({
       blocks: {
@@ -152,7 +215,7 @@ describe('buildWorkflowDiffOverlay', () => {
     })
   })
 
-  it('slides a ghost below the live card that took its place, but leaves container children put', () => {
+  it('slides root and child ghosts below siblings in the same coordinate space', () => {
     const base = asState({
       blocks: {
         gone: block('gone', { position: { x: 10, y: 10 }, height: 100 }),
@@ -199,8 +262,7 @@ describe('buildWorkflowDiffOverlay', () => {
     /* 0 + 120 + 32 = 152 hits `second`, drawn at the 100px minimum, so it lands at 152 + 100 + 32. */
     expect(merged.blocks.gone.position).toEqual({ x: 10, y: 284 })
     expect(merged.blocks.gone).not.toBe(base.blocks.gone)
-    expect(merged.blocks.goneChild).toBe(base.blocks.goneChild)
-    expect(merged.blocks.goneChild.position).toEqual({ x: 0, y: 0 })
+    expect(merged.blocks.goneChild.position.y).toBeGreaterThanOrEqual(110)
   })
 
   it('sizes a removed container with no stored size the way the preview draws it', () => {
@@ -408,7 +470,7 @@ describe('buildWorkflowDiffOverlay', () => {
     expect(overlay.mergedState.blocks.b).toBe(target.blocks.b)
   })
 
-  it('stacks a second ghost below the first and stops sliding after the nudge cap', () => {
+  it('stacks ghosts below every overlapping sibling, including more than eight', () => {
     const base = asState({
       blocks: {
         goneA: block('goneA', { position: { x: 0, y: 0 }, height: 100 }),
@@ -445,8 +507,7 @@ describe('buildWorkflowDiffOverlay', () => {
       base,
       asState({ blocks: stack, edges: [] })
     ).mergedState
-    /* Eight nudges of one 132px card each, then the slide gives up. */
-    expect(capped.blocks.goneA.position).toEqual({ x: 0, y: 8 * 132 })
+    expect(capped.blocks.goneA.position.y).toBeGreaterThanOrEqual(11 * 132 + 100)
   })
 
   it('slots a deleted branch back where it sat so the surviving else keeps its role', () => {

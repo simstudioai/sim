@@ -414,6 +414,15 @@ export const workflowOperations = {
     capability: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  // permission-group-exempt: comparing deployment versions reads workflow content, governed by workspace role
+  compareVersions: defineWorkspaceOperation({
+    id: 'workflows.versions.compare',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: version history is workflow content, governed by workspace role
   listVersions: defineWorkspaceOperation({
     id: 'workflows.versions.list',
