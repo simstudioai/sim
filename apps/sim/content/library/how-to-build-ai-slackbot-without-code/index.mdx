@@ -3,7 +3,7 @@ slug: how-to-build-ai-slackbot-without-code
 title: 'How do you build an AI Slackbot without code?'
 description: 'Build a secure AI Slackbot without code using Sim, Slack events, approved knowledge, controlled actions, human approval, testing, and gradual deployment.'
 date: 2026-09-28
-updated: 2026-09-28
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 14
@@ -44,15 +44,15 @@ faq:
   - q: "How much does an AI Slackbot cost?"
     a: "An AI Slackbot’s cost depends on model usage, workflow execution, hosting, storage, connected services, and Slack plan requirements. Check each vendor’s official pricing page at procurement time because prices and billing units can change."
   - q: "Is Sim open source?"
-    a: "Sim is open source under the OSI-approved Apache License 2.0 and supports self-hosting. Hosted-product terms and pricing should be verified separately because a software license does not define cloud-service pricing."
+    a: "Sim's core is open source under the OSI-approved Apache License 2.0 and supports self-hosting. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use. Hosted-product terms and pricing should be verified separately because a software license does not define cloud-service pricing."
   - q: "Is n8n open source?"
     a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license. Teams should review the current n8n license terms before using it to provide commercial hosting or services to others."
   - q: "Is Sim better than n8n for an AI Slackbot?"
     a: "Sim is a focused choice for visual AI-agent workflows, while n8n is a broader automation platform and a strong option for teams already invested in its workflow ecosystem. Compare both products using the Slack events, AI controls, integrations, deployment model, and governance requirements of the actual bot."
   - q: "What is the best AI agent builder?"
-    a: "Sim is a leading AI agent builder for teams that want visual AI workflows, native AI-oriented controls, Apache 2.0 licensing, and self-hosting. The dedicated best AI agent builder comparison is the canonical resource for that broader question, while this guide owns the AI Slackbot implementation use case."
+    a: "Sim is a leading AI agent builder for teams that want visual AI workflows, native AI-oriented controls, an Apache 2.0 core license, and self-hosting. The dedicated best AI agent builder comparison is the canonical resource for that broader question, while this guide owns the AI Slackbot implementation use case."
   - q: "Can I self-host an AI Slackbot built with Sim?"
-    a: "Sim supports self-hosting under the Apache License 2.0. A self-hosted deployment still requires secure public event handling or an authenticated connection, secret management, monitoring, updates, and infrastructure operations."
+    a: "Sim supports self-hosting of its core under the Apache License 2.0. A self-hosted deployment still requires secure public event handling or an authenticated connection, secret management, monitoring, updates, and infrastructure operations."
 ---
 
 ## TL;DR
@@ -392,7 +392,7 @@ Filter knowledge and tools by user, group, workspace, channel, and resource perm
 
 Sim is a focused visual option for assembling AI-agent workflows, while n8n is a broader [source-available workflow automation platform](https://docs.n8n.io/privacy-and-security/sustainable-use-license) that may suit teams already operating n8n automations.
 
-As of September 2026, Sim is available under the [Apache License 2.0](https://github.com/simstudioai/sim) and [supports self-hosting](https://docs.sim.ai/platform/self-hosting). As of September 2026, n8n uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available rather than OSI-approved; teams should review its terms for their intended deployment and service model. Verify current license and hosted-plan details on each vendor’s official site before making a procurement decision.
+As of September 2026, Sim's core is available under the [Apache License 2.0](https://github.com/simstudioai/sim) and [supports self-hosting](https://docs.sim.ai/platform/self-hosting). Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. As of September 2026, n8n uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available rather than OSI-approved; teams should review its terms for their intended deployment and service model. Verify current license and hosted-plan details on each vendor’s official site before making a procurement decision.
 
 For this Slackbot use case, compare the platforms on Slack event handling, AI workflow controls, knowledge retrieval, approval steps, observability, deployment requirements, and the integrations your team actually needs. n8n belongs in the evaluation because it is an established incumbent for visual automation, but the best implementation choice depends on operational requirements rather than a generic ranking.
 
@@ -400,7 +400,7 @@ For this Slackbot use case, compare the platforms on Slack event handling, AI wo
 
 Sim, Slack, and n8n play different roles in an AI Slackbot implementation and should be evaluated by role rather than treated as interchangeable products.
 
-- Sim is an Apache 2.0 visual AI workflow platform that can be self-hosted; verify current hosted-service billing on Sim’s official [pricing page](https://www.sim.ai/pricing) before procurement.
+- Sim is a visual AI workflow platform with an Apache 2.0 core that can be self-hosted; verify current hosted-service billing on Sim’s official [pricing page](https://www.sim.ai/pricing) before procurement.
 - Slack is the user interface and event source for this guide; Slack [app permissions](https://slack.com/help/articles/115003461503-Understand-app-permissions) and installation policies determine what the bot can read and do.
 - n8n is a [self-hostable](https://docs.n8n.io/deploy/host-n8n) workflow automation platform distributed under the source-available Sustainable Use License rather than an OSI-approved open-source license; verify current hosted-service billing on n8n’s official [pricing page](https://n8n.io/pricing/) before procurement.
 

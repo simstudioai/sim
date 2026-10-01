@@ -1,9 +1,9 @@
 ---
 slug: sim-open-source-zapier-alternative
 title: 'Sim vs Zapier: Open-Source AI Agents vs Zaps, Compared'
-description: 'Sim vs Zapier, head to head: an Apache 2.0, self-hostable, BYOK AI workspace versus proprietary cloud Zaps and Zapier Agents across licensing, building, agent depth, deployment, and pricing.'
+description: 'Sim vs Zapier, head to head: an Apache 2.0-core, self-hostable, BYOK AI workspace versus proprietary cloud Zaps and Zapier Agents across licensing, building, agent depth, deployment, and pricing.'
 date: 2026-09-01
-updated: 2026-09-30
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 9
@@ -12,7 +12,7 @@ ogImage: /library/sim-open-source-zapier-alternative/cover.jpg
 draft: false
 faq:
   - q: "Is Sim an open-source alternative to Zapier?"
-    a: "Yes. Sim is an Apache 2.0-licensed open-source alternative to Zapier. Sim combines AI agents and deterministic workflow logic in one workspace. You can inspect the code, self-host the platform, and use your own API keys."
+    a: "Yes. Sim is an open-source alternative to Zapier whose core is licensed under Apache 2.0. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use. Sim combines AI agents and deterministic workflow logic in one workspace. You can inspect the code, self-host the platform, and use your own API keys."
   - q: "Can I self-host Sim?"
     a: "Sim supports self-hosting through Docker, Kubernetes, or npx sim-setup. Zapier operates as a proprietary cloud service without customer-managed hosting. Self-hosting gives you more control over deployment and data handling."
   - q: "Does Sim support BYOK?"
@@ -29,7 +29,7 @@ faq:
 
 This is a head-to-head comparison of Sim and Zapier. If you are still building a shortlist across several vendors, start with the [best Zapier alternatives](https://www.sim.ai/library/best-zapier-alternatives), which compares Sim, Make, n8n, Pipedream, Workato, and others by use case.
 
-- Sim is an Apache 2.0-licensed, self-hostable, bring-your-own-key alternative to Zapier. [Zapier provides proprietary cloud automation](https://zapier.com/blog/cloud-vs-self-hosting/), while Sim provides an open-source, agent-native workspace.
+- Sim is a self-hostable, bring-your-own-key alternative to Zapier with an Apache 2.0-licensed core. [Zapier provides proprietary cloud automation](https://zapier.com/blog/cloud-vs-self-hosting/), while Sim provides an open-source, agent-native workspace.
 - Sim combines natural-language building, a visual block canvas, and API or SDK access. Zapier centers on [trigger-action Zaps](https://help.zapier.com/hc/en-us/articles/8496309697421-What-is-a-Zap) and [offers Agents separately](https://zapier.com/agents).
 - Sim places AI reasoning and deterministic functions, conditions, routers, and loops in one graph. [Zapier adds AI capabilities to an automation-first product](https://zapier.com/blog/zapier-ai-guide/).
 - Sim charges per user plus credit-based usage. Zapier meters [Zap tasks](https://zapier.com/pricing) and [Agent activities](https://help.zapier.com/hc/en-us/articles/26559132765325-How-is-Zapier-Agents-usage-measured) separately, so both meters can contribute to costs.
@@ -44,7 +44,7 @@ Zapier fits users who want familiar no-code automation and [broad access to pack
 
 ## License, hosting, and who controls the data
 
-Sim provides an open source Zapier alternative through an Apache 2.0 license, customer-operated hosting, and bring-your-own-key model access. The [public repository and license](https://github.com/simstudioai/sim) let you inspect, modify, and deploy the software under the license terms. Zapier remains proprietary software delivered through Zapier’s cloud, without a customer-operated self-hosting option; Zapier's own discussion of [cloud versus self-hosting](https://zapier.com/blog/cloud-vs-self-hosting/) describes requests to run the platform entirely on customer infrastructure as a self-hosting scenario rather than an available deployment path.
+Sim provides an open source Zapier alternative through an Apache 2.0 core license, customer-operated hosting, and bring-your-own-key model access. The [public repository and license](https://github.com/simstudioai/sim) let you inspect, modify, and deploy the core software under the license terms. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. Zapier remains proprietary software delivered through Zapier’s cloud, without a customer-operated self-hosting option; Zapier's own discussion of [cloud versus self-hosting](https://zapier.com/blog/cloud-vs-self-hosting/) describes requests to run the platform entirely on customer infrastructure as a self-hosting scenario rather than an available deployment path.
 
 You can run Sim with Docker or Kubernetes, or bootstrap its Docker deployment with `npx sim-setup`, using the paths covered in the [Sim self-hosting documentation](https://docs.sim.ai/platform/self-hosting). Self-hosting lets you choose where the application runs and where its workspace data resides. It can also help you apply your own network controls, retention policies, and access rules instead of relying entirely on a vendor-operated application.
 
@@ -100,7 +100,7 @@ The units do not support a direct one-to-one comparison. A Zapier task, a Zapier
 
 | Product | License and hosting | Builder model | Agent depth | Native context | Deployment surfaces | Pricing model |
 | --- | --- | --- | --- | --- | --- | --- |
-| Sim | Apache 2.0. Self-hosted or managed. BYOK. | Chat, visual blocks, and API or SDK. | Agent reasoning and deterministic logic share one graph. | Tables, Files, and Knowledge Bases sit inside the workspace. | One workflow can run as an API, hosted chat, or MCP server. | Per-user plans plus [credit-based usage](https://www.sim.ai/pricing). |
+| Sim | Apache 2.0 core; enterprise features separately licensed. Self-hosted or managed. BYOK. | Chat, visual blocks, and API or SDK. | Agent reasoning and deterministic logic share one graph. | Tables, Files, and Knowledge Bases sit inside the workspace. | One workflow can run as an API, hosted chat, or MCP server. | Per-user plans plus [credit-based usage](https://www.sim.ai/pricing). |
 | Zapier | [Proprietary cloud service without customer-operated self-hosting](https://zapier.com/blog/cloud-vs-self-hosting/). | [Trigger-action Zaps](https://help.zapier.com/hc/en-us/articles/8496309697421-What-is-a-Zap) with [Agents](https://zapier.com/agents) offered separately. | [AI steps extend an automation-first product](https://zapier.com/blog/zapier-ai-guide/). | [Tables](https://help.zapier.com/hc/en-us/articles/9804340895245-Create-tables-and-store-data-with-Zapier-Tables), [Chatbots](https://zapier.com/ai/chatbot), and Copilot operate as separate products. | Zaps, [Agents](https://zapier.com/agents), and [Chatbots](https://help.zapier.com/hc/en-us/articles/21958023866381-Share-and-embed-a-chatbot) cover separate deployment surfaces. | [Task-based Zaps](https://zapier.com/pricing) and [activity-based Agents](https://help.zapier.com/hc/en-us/articles/26559132765325-How-is-Zapier-Agents-usage-measured). |
 
 ## Where Zapier is still the better choice

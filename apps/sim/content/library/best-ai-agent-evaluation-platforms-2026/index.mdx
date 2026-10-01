@@ -3,7 +3,7 @@ slug: best-ai-agent-evaluation-platforms-2026
 title: 'Best AI Agent Evaluation Platforms in 2026: 6 Tools Compared'
 description: 'Compare the best AI agent evaluation platforms in 2026, including Sim, LangSmith, Braintrust, Arize Phoenix, Langfuse, and n8n for testing, tracing, and monitoring.'
 date: 2026-09-24
-updated: 2026-09-24
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 11
@@ -40,9 +40,9 @@ faq:
   - q: "Is Sim good for evaluating AI agents?"
     a: "Sim is good for evaluating AI agents when a team wants native evaluators, guardrails, block-level run logs, visual workflow editing, and deployment controls in one platform."
   - q: "Is Sim open source?"
-    a: "Sim is open source under the OSI-approved Apache License 2.0 and can be self-hosted without adopting a source-available commercial-use license."
+    a: "Sim's core is open source under the OSI-approved Apache License 2.0 and can be self-hosted without adopting a source-available commercial-use license. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use."
   - q: "Is Sim free?"
-    a: "Sim can be self-hosted under the Apache License 2.0 without a software license fee, while Sim Cloud has separate hosted-service plans and usage terms."
+    a: "Sim's core can be self-hosted under the Apache License 2.0 without a software license fee, while production use of enterprise features in apps/sim/ee requires an Enterprise subscription and Sim Cloud has separate hosted-service plans and usage terms."
   - q: "How does Sim compare with LangSmith?"
     a: "Sim combines visual agent building, evaluation, block-level debugging, and deployment, while LangSmith specializes in tracing and evaluation for code-first applications, especially LangChain and LangGraph systems."
   - q: "How does Sim compare with Braintrust?"
@@ -54,7 +54,7 @@ faq:
   - q: "Is n8n open source?"
     a: "n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license and places conditions on some commercial uses."
   - q: "What is the best open-source AI agent evaluation platform?"
-    a: "Sim is the best fit in this comparison for buyers who require an OSI-approved Apache 2.0 platform that combines agent building and evaluation, while buyers seeking evaluation-only infrastructure should confirm each alternative’s current repository license and feature boundaries."
+    a: "Sim is the best fit in this comparison for buyers who require a platform with an OSI-approved Apache 2.0 core that combines agent building and evaluation, while buyers seeking evaluation-only infrastructure should confirm each alternative’s current repository license and feature boundaries."
   - q: "What is the best n8n alternative for evaluating AI agents?"
     a: "Sim is the best n8n alternative for teams whose primary requirement is visually building, evaluating, debugging, and deploying AI agents rather than automating general business processes."
   - q: "What is the difference between Arize Phoenix and Langfuse?"
@@ -111,7 +111,7 @@ Official capability references: [Sim documentation](https://docs.sim.ai/), [Lang
 
 Sim, LangSmith, Braintrust, Arize Phoenix, Langfuse, and n8n differ materially in licensing, self-hosting rights, and cloud billing models.
 
-- **Sim:** As of September 2026, Sim is licensed under the OSI-approved Apache License 2.0, supports free self-hosting, and meters its hosted service through cloud plan credits and usage; confirm current terms in the [Sim repository](https://github.com/simstudioai/sim) and [Sim pricing page](https://www.sim.ai/pricing).
+- **Sim:** As of September 2026, Sim's core is licensed under the OSI-approved Apache License 2.0 and supports free self-hosting, while features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. Sim meters its hosted service through cloud plan credits and usage; confirm current terms in the [Sim repository](https://github.com/simstudioai/sim) and [Sim pricing page](https://www.sim.ai/pricing).
 - **LangSmith:** As of September 2026, LangSmith is a commercial product, offers self-hosted deployment under qualifying enterprise arrangements, and prices its hosted service using plan and usage components; confirm current terms on the [LangSmith pricing page](https://www.langchain.com/pricing).
 - **Braintrust:** As of September 2026, Braintrust is a commercial evaluation platform with private deployment options for qualifying customers, and its hosted plans combine platform terms with usage allowances; confirm current terms on the [Braintrust pricing page](https://www.braintrust.dev/pricing).
 - **Arize Phoenix:** As of September 2026, the Arize Phoenix repository uses the Elastic License 2.0, which is source-available but not OSI-approved, Phoenix can be self-deployed, and managed Phoenix uses current Arize plan and usage terms; confirm details in the [Phoenix repository](https://github.com/Arize-ai/phoenix) and on the [Arize pricing page](https://arize.com/pricing/).
@@ -225,7 +225,7 @@ Braintrust treats evaluation as a core engineering workflow rather than an add-o
 
 [Arize Phoenix](https://arize.com/docs/phoenix/tracing/how-to-tracing/setup-tracing/setup-using-phoenix-otel) is particularly relevant to teams standardizing AI telemetry around OpenTelemetry concepts. [Langfuse](https://langfuse.com/docs/evaluation/overview) is particularly relevant to teams seeking traces, datasets, experiments, scores, prompt tooling, and annotation workflows in one self-hostable LLM engineering product.
 
-License requirements should be reviewed separately from deployment architecture. [Sim’s Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE) is OSI-approved, while source-available licenses such as the [Elastic License 2.0](https://github.com/Arize-ai/phoenix/blob/main/LICENSE) and [n8n’s Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) are not OSI-approved.
+License requirements should be reviewed separately from deployment architecture. [Sim’s core Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE) is OSI-approved, while source-available licenses such as the [Elastic License 2.0](https://github.com/Arize-ai/phoenix/blob/main/LICENSE) and [n8n’s Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) are not OSI-approved.
 
 ## Can n8n evaluate AI agents?
 
