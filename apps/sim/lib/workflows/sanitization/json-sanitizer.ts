@@ -1,4 +1,8 @@
 import { isRecordLike, sortObjectKeysDeep, toRecord } from '@sim/utils/object'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -11,7 +15,6 @@ import type {
   Parallel,
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 import { blockAdvertisesWebhookUrl, resolveBlockTriggerId } from '@/triggers/webhook-url'
 

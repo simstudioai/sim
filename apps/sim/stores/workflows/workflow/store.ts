@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import {
+  clampParallelBatchSize,
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
@@ -26,13 +31,7 @@ import type {
   WorkflowState,
   WorkflowStore,
 } from '@/stores/workflows/workflow/types'
-import {
-  clampParallelBatchSize,
-  findAllDescendantNodes,
-  generateLoopBlocks,
-  generateParallelBlocks,
-  isBlockProtected,
-} from '@/stores/workflows/workflow/utils'
+import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('WorkflowStore')

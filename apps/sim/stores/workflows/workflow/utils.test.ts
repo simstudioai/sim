@@ -1,11 +1,8 @@
 import { createAgentBlock, createLoopBlock } from '@sim/testing'
+import { convertLoopBlockToLoop } from '@sim/workflow-persistence/subflow-helpers'
 import { describe, expect, it } from 'vitest'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import {
-  convertLoopBlockToLoop,
-  isAncestorProtected,
-  isBlockProtected,
-} from '@/stores/workflows/workflow/utils'
+import { isAncestorProtected, isBlockProtected } from '@/stores/workflows/workflow/utils'
 
 describe('convertLoopBlockToLoop', () => {
   it.concurrent('should keep string as-is if not valid JSON', () => {

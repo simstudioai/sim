@@ -4,7 +4,6 @@
  * @packageDocumentation
  */
 
-import { env } from '@/lib/core/config/env'
 import {
   ASYNC_JOBS_CAPABILITY,
   CACHE_CAPABILITY,
@@ -20,7 +19,8 @@ import {
   STORAGE_CAPABILITY,
   type WireFallbackOptions,
   wireFallback,
-} from '@/lib/core/config/env-capabilities'
+} from '@sim/deployment-config/env-capabilities'
+import { env } from '@/lib/core/config/env'
 
 export function getConfiguredStorageProviderId() {
   return requireCapability(STORAGE_CAPABILITY, env).providerId

@@ -3,6 +3,10 @@ import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { principalAuditSource } from '@/lib/core/application'
@@ -24,7 +28,6 @@ import {
 } from '@/lib/workflows/editing/block-enablement'
 import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
 

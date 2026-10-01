@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
@@ -21,7 +25,6 @@ import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { getToolParams } from '@/tools/metadata'
 import { expandSubBlockValueToParams } from '@/tools/param-shape'
 

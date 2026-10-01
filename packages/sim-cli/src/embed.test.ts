@@ -1,6 +1,6 @@
+import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from './embed'
-import { sleep } from './helpers'
 
 const IDENTITY = {
   endpoint: 'https://sim.internal.test',

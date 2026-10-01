@@ -35,7 +35,7 @@ vi.mock('@/lib/workflows/autolayout/constants', () => ({
   DEFAULT_LAYOUT_OPTIONS: {},
 }))
 
-vi.mock('@/stores/workflows/workflow/utils', () => ({
+vi.mock('@sim/workflow-persistence/subflow-helpers', () => ({
   generateLoopBlocks: () => ({}),
   generateParallelBlocks: () => ({}),
 }))

@@ -3,6 +3,10 @@ import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/application'
@@ -56,7 +60,6 @@ import {
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('ApplyWorkflowOperations')

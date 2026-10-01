@@ -1,20 +1,4 @@
-import type { BlockState } from '@sim/workflow-types/workflow'
-
-/** Whether a block, or any container above it, is locked against edits. */
-export function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
-  const block = blocksById[blockId]
-  if (!block) return false
-  if (block.locked) return true
-
-  const visited = new Set<string>()
-  let parentId = block.data?.parentId
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    if (blocksById[parentId]?.locked) return true
-    parentId = blocksById[parentId]?.data?.parentId
-  }
-  return false
-}
+import { type BlockState, isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 
 /** Whether any container above a block is disabled, which keeps the block from running. */
 export function hasDisabledAncestor(
@@ -88,7 +72,7 @@ export function decideBlockEnablement(
       refusal: { reason: 'not_found', message: `Block ${blockId} not found` },
     }
   }
-  if (isBlockProtected(blockId, blocks)) {
+  if (isWorkflowBlockProtected(blockId, blocks)) {
     return {
       outcome: 'refused',
       refusal: {
@@ -110,7 +94,7 @@ export function decideBlockEnablement(
   const affectedBlockIds = new Set<string>([blockId])
   if (targetBlock.type === 'loop' || targetBlock.type === 'parallel') {
     for (const descendantId of findDescendants(blockId, blocks)) {
-      if (!isBlockProtected(descendantId, blocks)) {
+      if (!isWorkflowBlockProtected(descendantId, blocks)) {
         affectedBlockIds.add(descendantId)
       }
     }
