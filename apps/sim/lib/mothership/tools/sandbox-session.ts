@@ -5,7 +5,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { env } from '@/lib/core/config/env'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { SandboxSessionRequest } from '@/lib/execution/remote-sandbox/types'
 import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
@@ -79,11 +81,23 @@ export async function buildMothershipSandboxSession(args: {
   if (getSimConnection().mode === 'checkpoint') return { key: args.sessionKey }
   const cli = await workbenchCli(args.userId, args.signal)
   let cliEnvs: Record<string, string> | undefined
+  let outputProvenance: DurableSecretProvenance | undefined
   try {
     const apiKey = `mothership-sandbox:${generateId()}`
     const endpoint = env.MOTHERSHIP_SANDBOX_CLI_ENDPOINT?.trim() || getBaseUrl()
     const scopedEndpoint = await sandboxResourceEndpoint(endpoint, args, apiKey)
     if (scopedEndpoint !== endpoint) {
+      outputProvenance = {
+        status: 'exact',
+        entries: [
+          {
+            name: 'SIM_API_KEY',
+            encryptedValue: (await encryptSecret(apiKey)).encrypted,
+            sourceUserId: args.userId,
+            ...(args.workspaceId ? { sourceWorkspaceId: args.workspaceId } : {}),
+          },
+        ],
+      }
       cliEnvs = {
         SIM_API_KEY: apiKey,
         ...(args.organizationId
@@ -101,6 +115,6 @@ export async function buildMothershipSandboxSession(args: {
   return {
     key: args.sessionKey,
     cli,
-    ...(cliEnvs ? { envs: cliEnvs } : {}),
+    ...(cliEnvs ? { envs: cliEnvs, outputProvenance } : {}),
   }
 }

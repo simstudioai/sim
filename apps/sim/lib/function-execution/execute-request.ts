@@ -1030,6 +1030,7 @@ interface FunctionRouteExecutionContext {
   runtimeFileSecretTraceRegistry?: ResolvedSecretTraceRegistry
   runtimeInputProvenanceUnrecorded?: boolean
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  sessionOutputProvenance?: DurableSecretProvenance
 }
 
 /** Keeps bound file provenance in both ordinary Function results and exported artifact bytes. */
@@ -1276,6 +1277,17 @@ async function functionJsonResponse<T>(
   context: FunctionRouteExecutionContext,
   init?: ResponseInit
 ) {
+  /**
+   * Narrow callback receipts to the returned JSON before compaction. Scanning serialized bytes
+   * avoids activating secret-only traversal limits on large results that contain no credential.
+   */
+  if (context.sessionOutputProvenance && context.resolvedSecretTraceRegistry) {
+    await importDurableSecretProvenance(
+      context.resolvedSecretTraceRegistry,
+      context.sessionOutputProvenance,
+      JSON.stringify(body)
+    )
+  }
   const responseBody = {
     ...body,
     largeValueKeys: context.largeValueKeys,
@@ -2487,6 +2499,7 @@ export async function executeFunctionRequest(
       ),
       mountedFileSecretProvenanceScanner,
       resolvedSecretTraceRegistry: auth.resolvedSecretTraceRegistry,
+      sessionOutputProvenance: admittedSession?.outputProvenance,
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE

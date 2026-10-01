@@ -31,7 +31,7 @@ const fetchBootstrap = mothershipGoFetchMockFns.mockFetchGo
 const baseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://unused.test')
-setEnv({ MOTHERSHIP_SANDBOX_CLI_ENDPOINT: 'https://sim.test' })
+setEnv({ MOTHERSHIP_SANDBOX_CLI_ENDPOINT: 'https://sim.test', ENCRYPTION_KEY: 'a'.repeat(64) })
 
 const request = { sessionKey: 'chat', workspaceId: 'workspace', userId: 'user' }
 
