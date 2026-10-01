@@ -33,6 +33,7 @@ import {
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
+import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
 import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
 import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
@@ -579,7 +580,10 @@ export async function createSlackManagedUsersAttempt(params: {
       )
       .limit(1)
     searchApproval = {
-      approved: approval?.approved ?? false,
+      approved:
+        approval?.approved ??
+        (await listOrganizationSearchApprovals(scope.organizationId)).get('slack') ??
+        false,
       updatedAt: approval?.updatedAt.getTime() ?? null,
     }
     if (searchApproval.approved)
@@ -837,9 +841,13 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         )
         .limit(1)
         .for('share')
+      const approved =
+        approval?.approved ??
+        (await listOrganizationSearchApprovals(params.attempt.organizationId, tx)).get('slack') ??
+        false
       if (
         !params.attempt.searchApproval ||
-        (approval?.approved ?? false) !== params.attempt.searchApproval.approved ||
+        approved !== params.attempt.searchApproval.approved ||
         (approval?.updatedAt.getTime() ?? null) !== params.attempt.searchApproval.updatedAt
       )
         throw new SlackManagedUsersError(

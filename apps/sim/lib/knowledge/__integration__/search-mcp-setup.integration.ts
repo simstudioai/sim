@@ -332,6 +332,78 @@ describe('atomic organization live Search MCP setup', () => {
     restoreSlackHttp = () => spy.mockRestore()
   }
 
+  async function seedImplicitSlackApproval() {
+    const knowledgeBaseId = generateId()
+    const connectorId = generateId()
+    await db.insert(knowledgeBase).values({
+      id: knowledgeBaseId,
+      userId: ids.owner,
+      organizationId: ids.organization,
+      isSearchIndex: true,
+      name: 'Slack Search fixture',
+    })
+    await db.insert(knowledgeConnector).values({
+      id: connectorId,
+      knowledgeBaseId,
+      connectorType: 'slack',
+      status: 'active',
+      sourceConfig: {},
+    })
+    return connectorId
+  }
+
+  it.each([false, true])(
+    'verifies implicitly approved Search permissions unless explicitly disabled (disabled: %s)',
+    async (disabled) => {
+      const setup = await seedSlackAuthorization()
+      await seedImplicitSlackApproval()
+      if (disabled)
+        await approveSearchIntegration.execute({
+          principal: createSessionPrincipal({ userId: ids.owner, sessionId: generateId() }),
+          input: { organizationId: ids.organization, connectorType: 'slack', approved: false },
+        })
+      expect(await integrationStatus('slack')).toMatchObject({ approved: !disabled })
+      const pending = await setup.start()
+      const scopes = disabled
+        ? [...SLACK_MANAGED_USER_SCOPES]
+        : [...new Set([...SLACK_MANAGED_USER_SCOPES, ...SLACK_SEARCH_USER_SCOPES])]
+      expect(new URL(pending.authorizationUrl).searchParams.get('user_scope')!.split(',')).toEqual(
+        expect.arrayContaining(scopes)
+      )
+      if (disabled)
+        expect(new URL(pending.authorizationUrl).searchParams.get('user_scope')).not.toContain(
+          'search:read.public'
+        )
+      provideSlackConsent(scopes)
+      await expect(setup.complete(pending.state)).resolves.toMatchObject({ ok: true })
+      const state = await snapshot()
+      expect(
+        state.groups[0].options.find((entry) => entry.id === setup.optionId)?.requiredScopes
+      ).toEqual(expect.arrayContaining(scopes))
+      if (disabled)
+        await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+    }
+  )
+
+  it.each(['added', 'removed'] as const)(
+    'rejects pending authorization when implicit Search approval is %s',
+    async (change) => {
+      const setup = await seedSlackAuthorization()
+      const connectorId = change === 'removed' ? await seedImplicitSlackApproval() : null
+      const pending = await setup.start()
+      if (connectorId)
+        await db
+          .update(knowledgeConnector)
+          .set({ archivedAt: new Date() })
+          .where(eq(knowledgeConnector.id, connectorId))
+      else await seedImplicitSlackApproval()
+      provideSlackConsent([...SLACK_MANAGED_USER_SCOPES, ...SLACK_SEARCH_USER_SCOPES])
+      await expect(setup.complete(pending.state)).rejects.toThrow('Search approval changed')
+      expect((await snapshot()).groups).toEqual(setup.before.groups)
+      await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+    }
+  )
+
   it.each([
     { name: 'workflow policy', scopes: SLACK_MANAGED_USER_SCOPES },
     { name: 'custom policy', scopes: ['chat:write', 'users:read', 'users:read.email'] },
