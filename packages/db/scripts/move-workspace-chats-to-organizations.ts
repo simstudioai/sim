@@ -3,7 +3,8 @@
  * workspaces to that organization, so the chat can act in any of the organization's workspaces the
  * user may access. Chats of a personal workspace (no organization) keep their workspace owner, as
  * do external collaborators' chats, since opening an organization chat requires membership, and
- * workflow-panel chats.
+ * workflow-panel chats. A workspace chat with no stored mode was an agent chat, but an organization
+ * chat with none reads as a search chat, so the move stamps the mode explicitly.
  *
  * Run by hand, not as an automatic migration: the workspace sidebar still lists chats by their
  * workspace owner, so this must wait until it lists organization chats. It records each chat's
@@ -42,7 +43,13 @@ async function main() {
     for (;;) {
       const result = await sql`
         UPDATE copilot_chats c
-        SET organization_id = w.organization_id, workspace_id = NULL
+        SET organization_id = w.organization_id,
+          workspace_id = NULL,
+          config = jsonb_set(
+            coalesce(c.config, '{}'::jsonb),
+            '{conversationMode}',
+            to_jsonb(coalesce(c.config ->> 'conversationMode', 'agent'))
+          )
         FROM workspace w
         WHERE c.id IN (
           SELECT c2.id FROM copilot_chats c2 JOIN workspace w2 ON w2.id = c2.workspace_id
