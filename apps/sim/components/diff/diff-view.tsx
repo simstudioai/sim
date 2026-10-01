@@ -21,15 +21,12 @@ const GUTTER = 'select-none pl-3 text-right text-[var(--text-muted)] tabular-num
 const MARKER = 'select-none pl-3'
 const TEXT = 'whitespace-pre py-0.5 pr-3 pl-1'
 
-export type DiffViewMode = 'unified' | 'split'
-
 interface Segment {
   text: string
   changed: boolean
 }
 interface DiffViewProps {
   hunks: DiffHunk[]
-  mode: DiffViewMode
 }
 interface LineTextProps {
   line: DiffLine
@@ -142,54 +139,16 @@ function marker(line: DiffLine | undefined) {
   return line?.type === 'add' ? '+' : line?.type === 'del' ? '-' : ' '
 }
 
-/** Aligns removed and added runs side by side; unchanged lines fill both columns. */
-function splitRows(items: ReturnType<typeof visibleItems>) {
-  const rows: Array<{ left?: DiffLine; right?: DiffLine } | { collapsed: number; key: number }> = []
-  for (let index = 0; index < items.length; ) {
-    const item = items[index]
-    if (!('line' in item)) {
-      rows.push(item)
-      index++
-      continue
-    }
-    if (item.line.type === 'context') {
-      rows.push({ left: item.line, right: item.line })
-      index++
-      continue
-    }
-    const dels: DiffLine[] = []
-    const adds: DiffLine[] = []
-    while (index < items.length) {
-      const next = items[index]
-      if (!('line' in next) || next.line.type === 'context') break
-      if (next.line.type === 'del' && adds.length === 0) dels.push(next.line)
-      else if (next.line.type === 'add') adds.push(next.line)
-      else break
-      index++
-    }
-    for (let pair = 0; pair < Math.max(dels.length, adds.length); pair++)
-      rows.push({ left: dels[pair], right: adds[pair] })
-  }
-  return rows
-}
-
 /**
  * A unified diff rendered with word-level highlights, collapsed unchanged runs, and line numbers
- * when the hunk headers carry them. Split mode aligns removals and additions side by side.
+ * when the hunk headers carry them.
  */
-export function DiffView({ hunks, mode }: DiffViewProps) {
+export function DiffView({ hunks }: DiffViewProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set())
   const numbered = hunks.some((hunk) =>
     hunk.lines.some((line) => line.oldLine !== undefined || line.newLine !== undefined)
   )
-  const columns =
-    mode === 'split'
-      ? numbered
-        ? 'grid-cols-[auto_auto_1fr_auto_auto_1fr]'
-        : 'grid-cols-[auto_1fr_auto_1fr]'
-      : numbered
-        ? 'grid-cols-[auto_auto_auto_1fr]'
-        : 'grid-cols-[auto_1fr]'
+  const columns = numbered ? 'grid-cols-[auto_auto_auto_1fr]' : 'grid-cols-[auto_1fr]'
   return (
     <div className='overflow-x-auto py-1'>
       <div className={cn('grid w-max min-w-full font-mono text-caption leading-[1.6]', columns)}>
@@ -204,55 +163,23 @@ export function DiffView({ hunks, mode }: DiffViewProps) {
                   {hunk.heading || '⋯'}
                 </div>
               )}
-              {mode === 'unified'
-                ? items.map((item, index) =>
-                    'line' in item ? (
-                      <div
-                        key={index}
-                        className={cn('col-span-full grid grid-cols-subgrid', rowClass(item.line))}
-                      >
-                        {numbered && <span className={GUTTER}>{item.line.oldLine ?? ''}</span>}
-                        {numbered && <span className={GUTTER}>{item.line.newLine ?? ''}</span>}
-                        <span className={cn(MARKER, markerClass(item.line))}>
-                          {marker(item.line)}
-                        </span>
-                        <span className={TEXT}>
-                          <LineText line={item.line} segments={segments.get(item.line)} />
-                        </span>
-                      </div>
-                    ) : (
-                      <CollapsedRun key={`c${item.key}`} count={item.collapsed} onExpand={expand} />
-                    )
-                  )
-                : splitRows(items).map((row, index) =>
-                    'collapsed' in row ? (
-                      <CollapsedRun key={`c${row.key}`} count={row.collapsed} onExpand={expand} />
-                    ) : (
-                      <div key={index} className='col-span-full grid grid-cols-subgrid'>
-                        {[row.left, row.right].map((line, side) => (
-                          <Fragment key={side}>
-                            {numbered && (
-                              <span className={cn(rowClass(line), GUTTER)}>
-                                {(side === 0 ? line?.oldLine : line?.newLine) ?? ''}
-                              </span>
-                            )}
-                            <span className={cn(MARKER, rowClass(line), markerClass(line))}>
-                              {line ? marker(line) : ''}
-                            </span>
-                            <span
-                              className={cn(
-                                TEXT,
-                                rowClass(line),
-                                side === 0 && 'border-[var(--border)] border-r'
-                              )}
-                            >
-                              {line && <LineText line={line} segments={segments.get(line)} />}
-                            </span>
-                          </Fragment>
-                        ))}
-                      </div>
-                    )
-                  )}
+              {items.map((item, index) =>
+                'line' in item ? (
+                  <div
+                    key={index}
+                    className={cn('col-span-full grid grid-cols-subgrid', rowClass(item.line))}
+                  >
+                    {numbered && <span className={GUTTER}>{item.line.oldLine ?? ''}</span>}
+                    {numbered && <span className={GUTTER}>{item.line.newLine ?? ''}</span>}
+                    <span className={cn(MARKER, markerClass(item.line))}>{marker(item.line)}</span>
+                    <span className={TEXT}>
+                      <LineText line={item.line} segments={segments.get(item.line)} />
+                    </span>
+                  </div>
+                ) : (
+                  <CollapsedRun key={`c${item.key}`} count={item.collapsed} onExpand={expand} />
+                )
+              )}
             </Fragment>
           )
         })}

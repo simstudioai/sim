@@ -86,6 +86,4 @@ export const knowledgeKeys = {
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'chunks', paramsKey] as const,
   chunkSearch: (knowledgeBaseId: string, documentId: string, searchKey: string) =>
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'search', searchKey] as const,
-  documentText: (knowledgeBaseId: string, documentId: string) =>
-    [...knowledgeKeys.document(knowledgeBaseId, documentId), 'text'] as const,
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchUnifiedDiff, parseUnifiedDiff } from '@/lib/diff/unified'
+import { parseUnifiedDiff } from '@/lib/diff/unified'
 
 const runbook = `--- sim:file/wf_runbook
 +++ sim:file/wf_runbook
@@ -56,40 +56,7 @@ describe('parseUnifiedDiff', () => {
   })
 })
 
-describe('matchUnifiedDiff', () => {
-  const diff = parseUnifiedDiff(runbook)
-
-  it('is current when the result is in the source, wherever it moved', () => {
-    expect(
-      matchUnifiedDiff(diff, [
-        '# Slack\n\nIntro moved things around.\n\n## Re-authorizing\nTokens rotate every 12h;   the refresh job handles it.\n',
-      ])
-    ).toBe('current')
-  })
-
-  it('is proposed while the source still holds the original', () => {
-    expect(
-      matchUnifiedDiff(diff, [
-        '## Re-authorizing\nTokens never expire, so rotation is not required.',
-      ])
-    ).toBe('proposed')
-  })
-
-  it('is outdated when the source matches neither side', () => {
-    expect(matchUnifiedDiff(diff, ['## Re-authorizing\nTokens rotate hourly.'])).toBe('outdated')
-  })
-
-  it('matches across stored segments', () => {
-    expect(
-      matchUnifiedDiff(diff, [
-        '## Re-authorizing',
-        'Tokens rotate every 12h; the refresh job handles it.',
-      ])
-    ).toBe('current')
-  })
-})
-
-describe('comparing two documents', () => {
+describe('two-document comparisons', () => {
   const diff = parseUnifiedDiff(
     '--- sim:knowledge/kb/old\n+++ sim:knowledge/kb/new\n-Refunds are available within 14 days.\n+Annual plans can be refunded within 30 days.'
   )
@@ -99,25 +66,5 @@ describe('comparing two documents', () => {
       { kind: 'knowledge', knowledgeBaseId: 'kb', documentId: 'old' },
       { kind: 'knowledge', knowledgeBaseId: 'kb', documentId: 'new' },
     ])
-  })
-
-  it('is current while each document still says its side', () => {
-    expect(
-      matchUnifiedDiff(
-        diff,
-        ['Refunds are available within 14 days. Issued in 5 days.'],
-        ['Annual plans can be refunded within 30 days.']
-      )
-    ).toBe('current')
-  })
-
-  it('is outdated once either document changes', () => {
-    expect(
-      matchUnifiedDiff(
-        diff,
-        ['Refunds within 30 days.'],
-        ['Annual plans can be refunded within 30 days.']
-      )
-    ).toBe('outdated')
   })
 })

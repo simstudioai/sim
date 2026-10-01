@@ -1,26 +1,22 @@
 'use client'
 
-import { type ComponentType, type ReactNode, useMemo, useState } from 'react'
+import { type ComponentType, type ReactNode, useMemo } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowUpRight, Database, File } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { DiffView, type DiffViewMode } from '@/components/diff/diff-view'
+import { DiffView } from '@/components/diff/diff-view'
 import {
   type DiffLine,
-  type DiffMatch,
   type DiffSource,
-  matchUnifiedDiff,
   parseUnifiedDiff,
   sameSource,
   type UnifiedDiff,
 } from '@/lib/diff/unified'
 import { workspaceResourcePath } from '@/lib/resources'
-import { useDocumentQuery, useKnowledgeDocumentText } from '@/hooks/queries/kb/knowledge'
-import { useWorkspaceFileContent, useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
-
-type DiffState = DiffMatch | 'unavailable' | null
+import { useDocumentQuery } from '@/hooks/queries/kb/knowledge'
+import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 
 interface DiffEmbedProps {
   /** The fence body: a unified diff, optionally naming its `sim:` sources in `---`/`+++`. */
@@ -32,15 +28,13 @@ interface NoticeProps {
   children: ReactNode
   tone?: 'muted' | 'error'
 }
-/** A diff source resolved to what the card header shows and the text its hunks are matched to. */
+/** A diff source resolved to what its card header shows. */
 interface ResolvedSource {
   title: string
   kindLabel: string
   icon: ComponentType<{ className?: string }>
   updated: string | null
   href: string
-  segments: readonly string[] | undefined
-  unavailable: boolean
 }
 interface CardHeading {
   title: string
@@ -67,12 +61,6 @@ interface CodeDiffProps {
 const NOTICE_CLASS =
   'rounded-lg bg-[var(--surface-5)] p-4 pr-16 text-caption dark:bg-[var(--surface-4)]'
 const MARK = 'rounded-[3px] px-1 text-[var(--text-primary)]'
-
-const STATE_LABELS: Record<Exclude<DiffMatch, 'current'> | 'unavailable', string> = {
-  proposed: 'Proposed · not applied',
-  outdated: 'Outdated · source changed',
-  unavailable: 'Source unavailable',
-}
 
 function Notice({ children, tone = 'muted' }: NoticeProps) {
   return (
@@ -110,8 +98,8 @@ function formatDate(value: string | Date | null | undefined): string | null {
 }
 
 /**
- * Resolves a `sim:` source for a header and its current text. Every query is disabled unless the
- * source is of its kind, so one hook serves both kinds and either side of a comparison.
+ * Resolves a `sim:` source for its card header. Every query is disabled unless the source is of
+ * its kind, so one hook serves both kinds and either side of a comparison.
  */
 function useDiffSource(
   workspaceId: string | null,
@@ -122,9 +110,7 @@ function useDiffSource(
     workspaceId && source?.kind === 'knowledge' ? source.knowledgeBaseId : undefined
   const documentId = workspaceId && source?.kind === 'knowledge' ? source.documentId : undefined
   const fileRecord = useWorkspaceFileRecord(workspaceId ?? '', fileId)
-  const fileContent = useWorkspaceFileContent(workspaceId ?? '', fileId, fileRecord.data?.key ?? '')
   const documentRecord = useDocumentQuery(knowledgeBaseId, documentId)
-  const documentText = useKnowledgeDocumentText(knowledgeBaseId, documentId)
   if (!workspaceId || !source) return null
   if (source.kind === 'file')
     return {
@@ -133,8 +119,6 @@ function useDiffSource(
       icon: File,
       updated: formatDate(fileRecord.data?.updatedAt),
       href: workspaceResourcePath(workspaceId, 'file', source.fileId),
-      segments: fileContent.data === undefined ? undefined : [fileContent.data],
-      unavailable: (fileRecord.isSuccess && !fileRecord.data) || Boolean(fileContent.error),
     }
   return {
     title: documentRecord.data?.filename ?? 'Document',
@@ -142,8 +126,6 @@ function useDiffSource(
     icon: Database,
     updated: formatDate(documentRecord.data?.uploadedAt),
     href: `${workspaceResourcePath(workspaceId, 'knowledge', source.knowledgeBaseId)}/${encodeURIComponent(source.documentId)}`,
-    segments: documentText.data,
-    unavailable: documentRecord.isError || documentText.isError,
   }
 }
 
@@ -241,10 +223,9 @@ function ExcerptCard({ heading, diff, side }: ExcerptCardProps) {
   )
 }
 
-/** An edit, line by line: tinted rows with word-level changes and a unified/split toggle. */
+/** An edit, line by line: tinted rows with word-level changes. */
 function CodeDiff({ diff, heading }: CodeDiffProps) {
   const Icon = heading.icon
-  const [mode, setMode] = useState<DiffViewMode>('unified')
   return (
     <div className='overflow-hidden rounded-lg border border-[var(--border)] font-season'>
       <div className='flex items-center gap-2 border-[var(--border)] border-b bg-[var(--surface-2)] py-1.5 pr-[68px] pl-3 text-caption'>
@@ -256,22 +237,8 @@ function CodeDiff({ diff, heading }: CodeDiffProps) {
           </Link>
         )}
         <span className='min-w-0 flex-1 truncate text-[var(--text-muted)]'>{heading.meta}</span>
-        {(['unified', 'split'] as const).map((option) => (
-          <button
-            key={option}
-            type='button'
-            aria-pressed={mode === option}
-            onClick={() => setMode(option)}
-            className={cn(
-              'shrink-0 capitalize transition-colors hover:text-[var(--text-body)]',
-              mode === option ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)]'
-            )}
-          >
-            {option}
-          </button>
-        ))}
       </div>
-      <DiffView hunks={diff.hunks} mode={mode} />
+      <DiffView hunks={diff.hunks} />
     </div>
   )
 }
@@ -288,10 +255,9 @@ function parse(
 
 /**
  * A ```diff fence: the change is written into the document, so it renders without any history.
- * When its header names workspace files or knowledge documents, the hunks are matched against
- * their current text and marked proposed or outdated when they no longer hold. An edit renders
- * line by line; two different documents render as side-by-side excerpts. A public share has no
- * workspace session, so it renders without checking.
+ * `sim:` sources in its header name the workspace files or knowledge documents it quotes, shown
+ * with a link in each card header. An edit renders line by line; two different documents render
+ * as side-by-side excerpts. A public share has no workspace session, so it shows no source names.
  */
 export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
   const params = useParams()
@@ -306,22 +272,14 @@ export function DiffEmbed({ source, isStreaming }: DiffEmbedProps) {
   if (isStreaming) return <Notice>The diff loads when Sim finishes writing.</Notice>
   if (!diff) return <Notice tone='error'>{parsed.error}</Notice>
 
-  const state: DiffState =
-    !oldSide || (comparison && !newSide)
-      ? null
-      : oldSide.unavailable || newSide?.unavailable
-        ? 'unavailable'
-        : !oldSide.segments || (comparison && !newSide?.segments)
-          ? null
-          : matchUnifiedDiff(diff, oldSide.segments, newSide?.segments)
-  const detail = state && state !== 'current' ? STATE_LABELS[state] : changeCounts(diff)
-
   if (comparison)
     return (
       <div className='grid grid-cols-1 gap-3 font-season sm:grid-cols-2'>
-        <ExcerptCard diff={diff} side='old' heading={heading(oldSide, 'Before', detail)} />
-        <ExcerptCard diff={diff} side='new' heading={heading(newSide, 'After', detail)} />
+        <ExcerptCard diff={diff} side='old' heading={heading(oldSide, 'Before', '')} />
+        <ExcerptCard diff={diff} side='new' heading={heading(newSide, 'After', '')} />
       </div>
     )
-  return <CodeDiff diff={diff} heading={heading(oldSide, diff.path ?? 'Diff', detail)} />
+  return (
+    <CodeDiff diff={diff} heading={heading(oldSide, diff.path ?? 'Diff', changeCounts(diff))} />
+  )
 }

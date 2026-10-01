@@ -89,9 +89,6 @@ export const KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_SEARCH_STALE_TIME = 60 * 1000
-export const KNOWLEDGE_DOCUMENT_TEXT_STALE_TIME = 60 * 1000
-/** Bounds how much of a document is read to reconstruct its text (100 chunks per page). */
-const DOCUMENT_TEXT_MAX_PAGES = 20
 export const WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_USAGE_STALE_TIME = 60 * 1000
@@ -321,35 +318,6 @@ export const serializeChunkParams = (params: KnowledgeChunksParams) =>
     sortBy: params.sortBy ?? 'chunkIndex',
     sortOrder: params.sortOrder ?? 'asc',
   })
-
-/** A document's stored text as its chunks in order; fails rather than reading a partial document. */
-async function fetchKnowledgeDocumentText(
-  knowledgeBaseId: string,
-  documentId: string,
-  signal?: AbortSignal
-): Promise<string[]> {
-  const chunks: string[] = []
-  for (let page = 0; page < DOCUMENT_TEXT_MAX_PAGES; page++) {
-    const result = await requestJson(listKnowledgeChunksContract, {
-      params: { id: knowledgeBaseId, documentId },
-      query: { limit: 100, offset: page * 100, sortBy: 'chunkIndex', sortOrder: 'asc' },
-      signal,
-    })
-    chunks.push(...result.data.map((chunk) => chunk.content))
-    if (!result.pagination.hasMore) return chunks
-  }
-  throw new Error('This document is too large to compare')
-}
-
-export function useKnowledgeDocumentText(knowledgeBaseId?: string, documentId?: string) {
-  return useQuery({
-    queryKey: knowledgeKeys.documentText(knowledgeBaseId ?? '', documentId ?? ''),
-    queryFn: ({ signal }) =>
-      fetchKnowledgeDocumentText(knowledgeBaseId as string, documentId as string, signal),
-    enabled: Boolean(knowledgeBaseId && documentId),
-    staleTime: KNOWLEDGE_DOCUMENT_TEXT_STALE_TIME,
-  })
-}
 
 export function useKnowledgeChunksQuery(
   params: KnowledgeChunksParams,

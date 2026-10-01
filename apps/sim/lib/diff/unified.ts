@@ -30,14 +30,6 @@ export interface UnifiedDiff {
   hunks: DiffHunk[]
 }
 
-/**
- * How a diff relates to its sources' current text. For an edit to one resource, `current`: every
- * hunk's result is present; `proposed`: every hunk's original is present and not its result;
- * `outdated`: neither. For a comparison of two resources, `current` while each still contains
- * its side.
- */
-export type DiffMatch = 'current' | 'proposed' | 'outdated'
-
 /** Git metadata that precedes `---`/`+++` in `git diff` output and carries nothing to render. */
 const GIT_HEADER =
   /^(?:diff --git |index |new file mode |deleted file mode |similarity |rename |old mode |new mode |Binary files )/
@@ -126,51 +118,4 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
   oldSource ??= newSource
   newSource ??= oldSource
   return { oldSource, newSource, path: oldSource ? null : path, hunks }
-}
-
-/** Whitespace-insensitive, so reflowed indentation or line endings never read as a change. */
-function normalize(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
-}
-
-function sideText(hunk: DiffHunk, side: 'before' | 'after'): string {
-  const skip = side === 'before' ? 'add' : 'del'
-  return normalize(
-    hunk.lines
-      .filter((line) => line.type !== skip)
-      .map((line) => line.text)
-      .join('\n')
-  )
-}
-
-/**
- * Matches each hunk by content rather than line numbers, so edits elsewhere never mark a diff
- * outdated. Segments are the pieces a source is stored in (a knowledge document's chunks); a hunk
- * may match inside one segment or across their concatenation. Pass `newSegments` when the diff
- * compares two different resources.
- */
-export function matchUnifiedDiff(
-  diff: UnifiedDiff,
-  oldSegments: readonly string[],
-  newSegments?: readonly string[]
-): DiffMatch {
-  const inOld = containsIn(oldSegments)
-  if (newSegments) {
-    const inNew = containsIn(newSegments)
-    return diff.hunks.every(
-      (hunk) => inOld(sideText(hunk, 'before')) && inNew(sideText(hunk, 'after'))
-    )
-      ? 'current'
-      : 'outdated'
-  }
-  if (diff.hunks.every((hunk) => inOld(sideText(hunk, 'after')))) return 'current'
-  if (diff.hunks.every((hunk) => inOld(sideText(hunk, 'before')))) return 'proposed'
-  return 'outdated'
-}
-
-function containsIn(segments: readonly string[]) {
-  const whole = normalize(segments.join('\n'))
-  const pieces = segments.map(normalize)
-  return (text: string) =>
-    text === '' || whole.includes(text) || pieces.some((piece) => piece.includes(text))
 }
