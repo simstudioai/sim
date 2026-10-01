@@ -32,6 +32,7 @@ import {
 import { getCredentialGroup } from '@/lib/credential-groups/service'
 import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { createOrganizationAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
+import { deleteConnectionCredential } from '@/lib/credentials/deletion'
 import { acquireAdvisoryXactLock, tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   approveSearchIntegration,
@@ -374,6 +375,19 @@ describe('atomic organization live Search MCP setup', () => {
       expect(await integrationStatus(provider)).toMatchObject({ configuredServiceSource: false })
     }
   )
+
+  it('stops reporting a service source as configured after its credential is deleted', async () => {
+    const source = await seedServiceSource('google_drive')
+    expect(await integrationStatus('google_drive')).toMatchObject({ configuredServiceSource: true })
+    await deleteConnectionCredential({
+      credentialId: source.credentialId,
+      organizationId: ids.organization,
+      reason: 'user_delete',
+    })
+    expect(await integrationStatus('google_drive')).toMatchObject({
+      configuredServiceSource: false,
+    })
+  })
 
   it('requires the selected service source to belong to this organization and provider', async () => {
     const source = await seedServiceSource('google_drive')

@@ -149,7 +149,8 @@ export const listSearchIntegrations = defineAuthorizedKnowledgeUseCase({
                           ),
                           and(
                             sql`requested.provider <> 'gitlab'`,
-                            eq(knowledgeConnector.id, sql`requested.source_id`)
+                            eq(knowledgeConnector.id, sql`requested.source_id`),
+                            isNotNull(knowledgeConnector.credentialId)
                           )
                         )
                       )
