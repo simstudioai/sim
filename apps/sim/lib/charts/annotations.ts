@@ -48,6 +48,15 @@ function verticalTop(option: Record<string, unknown>): 'start' | 'end' {
   return firstAxis(option.yAxis).inverse === true ? 'start' : 'end'
 }
 
+/** A chart annotations can draw on: a first series with no hand-written marks to collide with. */
+export function assertAnnotatable(option: Record<string, unknown>): void {
+  const series = Array.isArray(option.series) ? option.series : [option.series]
+  if (series[0] === undefined) throw new Error('Highlights and thresholds require a series')
+  const first = toRecord(series[0])
+  if (first.markArea !== undefined || first.markLine !== undefined)
+    throw new Error('Use highlights and thresholds instead of markArea or markLine on the series')
+}
+
 /**
  * Id of the empty series that carries annotation labels. ECharts draws a mark's label at the mark's
  * depth, so the marks sit under the data and their labels ride on this series above it.
@@ -77,11 +86,9 @@ export function applyChartAnnotations(
   const highlights = annotations.highlights ?? []
   const thresholds = annotations.thresholds ?? []
   if (highlights.length === 0 && thresholds.length === 0) return option
+  assertAnnotatable(option)
   const series = Array.isArray(option.series) ? option.series : [option.series]
-  if (series[0] === undefined) throw new Error('Highlights and thresholds require a series')
   const first = toRecord(series[0])
-  if (first.markArea !== undefined || first.markLine !== undefined)
-    throw new Error('Use highlights and thresholds instead of markArea or markLine on the series')
 
   const bands: Array<AnnotationMark & { from: string; to: string }> = []
   const lines: Array<AnnotationMark & { coord: Record<string, string | number> }> = []

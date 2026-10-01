@@ -237,6 +237,21 @@ describe('highlights and thresholds', () => {
     ).toBe('highlights.0.tone: Invalid option: expected one of "neutral"|"error"|"info"')
   })
 
+  it('rejects highlights or thresholds on a chart with hand-written marks', () => {
+    const marked =
+      'blocks:\n  - chart: Weekly\n    source: {groupBy: [createdAt], bucket: week, aggregate: {n: {op: count}}}\n    option: {xAxis: {type: time}, yAxis: {type: value}, series: [{type: line, markLine: {data: []}}]}\n'
+    const message = 'Use highlights and thresholds instead of markArea or markLine on the series'
+    expect(
+      parseDashboardEmbed(
+        `source: {tableId: tbl_1}\nhighlights: [{at: 2026-09-10T00:00:00Z}]\n${marked}`
+      ).error
+    ).toBe(message)
+    expect(
+      parseDashboardEmbed(`source: {tableId: tbl_1}\n${marked}    thresholds: [{value: 5}]\n`).error
+    ).toBe(message)
+    expect(parseDashboardEmbed(`source: {tableId: tbl_1}\n${marked}`).error).toBeUndefined()
+  })
+
   it('accepts thresholds on a chart with a value axis and rejects them without one', () => {
     expect(
       parseDashboardEmbed(

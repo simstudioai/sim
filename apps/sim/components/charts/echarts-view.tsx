@@ -57,16 +57,14 @@ export function EChartsView({
       controllerRef.current = controller ?? null
       const next: { option: Record<string, unknown>; annotations?: ChartAnnotations } =
         JSON.parse(nextOption)
-      const parsed = applyChartTooltipDefaults(
-        next.annotations
-          ? applyChartAnnotations(
-              next.option,
-              next.annotations,
-              readChartTonePalette(chart.getDom())
-            )
-          : next.option
-      )
-      chart.setOption(controller ? controller.prepareOption(parsed) : parsed, { notMerge: true })
+      const parsed = applyChartTooltipDefaults(next.option)
+      // Annotate after the bar helpers read the option: the label series would read as a non-bar chart.
+      const rendered = next.annotations
+        ? applyChartAnnotations(parsed, next.annotations, readChartTonePalette(chart.getDom()))
+        : parsed
+      chart.setOption(controller ? controller.prepareOption(rendered) : rendered, {
+        notMerge: true,
+      })
       controller?.afterUpdate()
       rowHighlightRef.current?.()
       rowHighlightRef.current = installBarRowHighlight(chart, parsed)

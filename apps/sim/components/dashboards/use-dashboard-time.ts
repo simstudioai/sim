@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
@@ -32,7 +32,10 @@ interface UseDashboardTimeProps {
   time: DashboardTime | undefined
   workspaceId: string
   tableIds: ReadonlySet<string>
-  /** Advances relative ranges to the present every minute, so the view keeps up with new rows. */
+  /**
+   * Refreshes every minute while true and the page is visible: relative ranges advance to the
+   * present, fixed and zoomed ranges refetch in place.
+   */
   live?: boolean
 }
 
@@ -79,19 +82,20 @@ export function useDashboardTime({
     }
   }
 
-  const relative = period !== 'custom'
+  const tick = useEffectEvent(() => {
+    if (document.visibilityState !== 'visible') return
+    if (period === 'custom') void queryClient.invalidateQueries(queryFilter)
+    else setNow(Date.now())
+  })
   useEffect(() => {
-    if (!live || !relative) return
-    const tick = () => {
-      if (document.visibilityState === 'visible') setNow(Date.now())
-    }
+    if (!live) return
     const interval = setInterval(tick, LIVE_TICK_MS)
     document.addEventListener('visibilitychange', tick)
     return () => {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', tick)
     }
-  }, [live, relative])
+  }, [live])
 
   const onZoom = (selected: DashboardTimeRange) => {
     setInputError(null)

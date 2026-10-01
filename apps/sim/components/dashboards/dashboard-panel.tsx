@@ -17,7 +17,7 @@ import { useDashboardInteractions } from '@/components/dashboards/dashboard-inte
 import type { QueryTableAnalyticsResponse } from '@/lib/api/contracts/table-analytics'
 import type { ChartAnnotations, ChartHighlight } from '@/lib/charts/annotations'
 import { buildChartRenderOption, horizontalBarChartHeight } from '@/lib/charts/option'
-import { isTimeSeriesOption } from '@/lib/charts/time-series'
+import { isTimeSeriesOption } from '@/lib/charts/spec'
 import {
   type DashboardDataBlock,
   type DashboardSource,

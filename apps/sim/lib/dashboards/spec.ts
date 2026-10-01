@@ -3,12 +3,13 @@ import { omit } from '@sim/utils/object'
 import { JSON_SCHEMA, load } from 'js-yaml'
 import { z } from 'zod'
 import {
+  assertAnnotatable,
   CHART_TONES,
   type ChartHighlight,
   type ChartThreshold,
   valueAxisKey,
 } from '@/lib/charts/annotations'
-import { parseChartSpec } from '@/lib/charts/spec'
+import { isTimeSeriesOption, parseChartSpec } from '@/lib/charts/spec'
 import {
   type DashboardTimeRange,
   parseDashboardCustomRange,
@@ -307,7 +308,8 @@ function loadBoundedYaml(content: string, maxBytes: number, tooLarge: string): u
 function validateDashboardBlocks(
   blocks: DashboardBlock[],
   defaults: DashboardSource | undefined,
-  maxBlocks: number
+  maxBlocks: number,
+  highlights: ChartHighlight[] | undefined
 ): void {
   let count = 0
   const visit = (children: DashboardBlock[], depth: number): void => {
@@ -339,6 +341,8 @@ function validateDashboardBlocks(
           if (!chart.spec) throw new Error(chart.error)
           block.option = chart.spec.option
           if (block.thresholds) valueAxisKey(block.option)
+          if (block.thresholds || (highlights && isTimeSeriesOption(block.option)))
+            assertAnnotatable(block.option)
         }
       }
     }
@@ -353,7 +357,7 @@ export function parseDashboardSpec(content: string): ParseResult<DashboardSpec> 
     const parsed = dashboardSchema.safeParse(raw)
     if (!parsed.success)
       throw new Error(describeSchemaIssues(parsed.error.issues, BLOCK_KINDS).join('\n'))
-    validateDashboardBlocks(parsed.data.blocks, parsed.data.source, 48)
+    validateDashboardBlocks(parsed.data.blocks, parsed.data.source, 48, parsed.data.highlights)
     return { spec: parsed.data }
   } catch (error) {
     return { error: getErrorMessage(error, 'Invalid dashboard') }
@@ -371,7 +375,12 @@ export function parseDashboardEmbed(content: string): ParseResult<DashboardEmbed
     const parsed = dashboardEmbedSchema.safeParse(raw)
     if (!parsed.success)
       throw new Error(describeSchemaIssues(parsed.error.issues, EMBED_BLOCK_KINDS).join('\n'))
-    validateDashboardBlocks(parsed.data.blocks, parsed.data.source, MAX_DASHBOARD_EMBED_BLOCKS)
+    validateDashboardBlocks(
+      parsed.data.blocks,
+      parsed.data.source,
+      MAX_DASHBOARD_EMBED_BLOCKS,
+      parsed.data.highlights
+    )
     return { spec: parsed.data }
   } catch (error) {
     return { error: getErrorMessage(error, 'Invalid dashboard embed') }

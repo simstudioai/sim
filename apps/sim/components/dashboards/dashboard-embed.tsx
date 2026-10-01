@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useId, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { cn, Tooltip } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { DashboardFeatureGate } from '@/components/dashboards/dashboard-feature-gate'
@@ -81,7 +81,9 @@ function LiveDashboardEmbed({ source, workspaceId }: LiveDashboardEmbedProps) {
 }
 
 function EmbedView({ spec, workspaceId }: EmbedViewProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
   const embedId = useId()
+  const [inView, setInView] = useState(false)
   const [state, setState] = useState<DashboardTimeState>({
     range: null,
     from: null,
@@ -94,8 +96,15 @@ function EmbedView({ spec, workspaceId }: EmbedViewProps) {
     time: spec.time,
     workspaceId,
     tableIds: dashboardTableIds(spec.blocks, spec.source),
-    live: true,
+    live: inView,
   })
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting))
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [])
   const zoomed = state.range !== null
   const { period } = time.controls
   const caption =
@@ -103,7 +112,10 @@ function EmbedView({ spec, workspaceId }: EmbedViewProps) {
       ? dashboardRangeText(time.range, time.interactions.timeZone)
       : DASHBOARD_RANGE_LABELS[period]
   return (
-    <div className='@container/dashboard relative flex flex-col gap-3 pt-8 font-season'>
+    <div
+      ref={rootRef}
+      className='@container/dashboard relative flex flex-col gap-3 pt-8 font-season'
+    >
       {spec.title && (
         <p className='pr-40 font-medium text-[var(--text-primary)] text-base'>{spec.title}</p>
       )}
