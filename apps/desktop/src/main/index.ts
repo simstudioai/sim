@@ -851,6 +851,9 @@ function main(): void {
       allowHttpLocalhost,
       openSettings,
       openServerSettings: () => serverWindow.open(),
+      openFolderAccess: (parent) => {
+        if (accountDataAvailable()) localFilesystem.showAccessMenu(parent)
+      },
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       handleFocusedResourceShortcut: (win, shortcut) =>

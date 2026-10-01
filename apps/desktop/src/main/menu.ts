@@ -19,6 +19,7 @@ export interface MenuDeps {
   openSettings: () => void
   /** Opens the native server picker (see main/server-window.ts). */
   openServerSettings: () => void
+  openFolderAccess: (parent: BrowserWindow) => void
   newWindow: () => void
   newChat: () => void
   /**
@@ -212,6 +213,14 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     {
       label: 'File',
       submenu: [
+        {
+          label: 'Folder Access…',
+          click: (_item, focusedWindow) => {
+            const win = focusedMainOrFallback(focusedWindow)
+            if (win) deps.openFolderAccess(win)
+          },
+        },
+        { type: 'separator' },
         {
           label: 'New Window',
           accelerator: 'CmdOrCtrl+Shift+N',
