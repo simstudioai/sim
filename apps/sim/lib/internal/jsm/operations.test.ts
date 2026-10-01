@@ -19,11 +19,6 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/internal/jsm/client', () => ({
-  asArray: (value: unknown) => (Array.isArray(value) ? value : []),
-  asObject: (value: unknown) =>
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {},
   nested: (value: unknown, ...keys: string[]) => {
     let current = value
     for (const key of keys) {
