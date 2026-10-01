@@ -192,10 +192,11 @@ jobs:
       # The first request cold-compiles the app under Turbopack, which took 42-150s
       # on this runner class: a fixed 120s readiness deadline failed on the slow
       # tail. The deadline only has to catch a hung boot; an exited server fails
-      # immediately, and either way the server log tail lands in the job log.
+      # immediately, and either way the server log tail lands in the job log. No
+      # step timeout: the job's bound covers a hang without cutting a slow but
+      # healthy suite short of writing its report.
       - name: Verify SCIM and administration over real HTTP
         working-directory: apps/sim
-        timeout-minutes: 12
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3017
           BETTER_AUTH_URL: http://127.0.0.1:3017
