@@ -3,7 +3,7 @@ slug: ai-agent-workflow-builders-multi-step-tasks
 title: 'AI Agent Workflow Builders for Multi-Step Tasks: 6-Platform Comparison'
 description: 'Compare Sim, n8n, Gumloop, Dust, Relevance AI, and Dify for multi-step agent orchestration, memory, approvals, guardrails, debugging, logs, and deployment.'
 date: 2026-09-28
-updated: 2026-09-30
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 12
@@ -26,11 +26,11 @@ faq:
   - q: "How does Sim debug a failed AI agent workflow?"
     a: "Sim exposes block-level run logs that let a builder review each step's inputs, outputs, status, and failure point. This makes debugging more precise than treating the entire agent run as one opaque response."
   - q: "What is the difference between Sim and n8n for AI agent workflows?"
-    a: "Sim emphasizes explicit agent-workflow controls such as Human in the Loop, Guardrails, Evaluator, Wait, and block-level run logs, while n8n combines AI nodes with a broad general-purpose automation model. Sim uses the Apache License 2.0, whereas n8n uses the source-available Sustainable Use License."
+    a: "Sim emphasizes explicit agent-workflow controls such as Human in the Loop, Guardrails, Evaluator, Wait, and block-level run logs, while n8n combines AI nodes with a broad general-purpose automation model. Sim's core uses the Apache License 2.0, with enterprise features in apps/sim/ee under the separate Sim Enterprise License, which requires an Enterprise subscription for production use, whereas n8n uses the source-available Sustainable Use License."
   - q: "What is the difference between Sim and Gumloop?"
     a: "Sim provides explicit approval, guardrail, evaluation, waiting, and block-level review primitives in an agent workflow. Gumloop is positioned around accessible visual AI automation, but buyers should verify its current native support for each governance control they require."
   - q: "Which AI agent workflow builders can be self-hosted?"
-    a: "Sim can be self-hosted under Apache 2.0, and n8n provides a self-hosted edition under its source-available Sustainable Use License. Buyers should verify the current licenses, deployment modes, and enterprise restrictions for Dify, Gumloop, Dust, and Relevance AI directly with each vendor before making a deployment decision."
+    a: "Sim's core can be self-hosted under Apache 2.0, while enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use, and n8n provides a self-hosted edition under its source-available Sustainable Use License. Buyers should verify the current licenses, deployment modes, and enterprise restrictions for Dify, Gumloop, Dust, and Relevance AI directly with each vendor before making a deployment decision."
   - q: "Can Dify build multi-step AI workflows?"
     a: "Dify is designed to compose multi-step AI applications through workflow and chatflow concepts. Teams should verify current support for required human approvals, guardrails, execution review, and deployment conditions in Dify's official documentation."
   - q: "Is Dust an AI agent workflow builder?"
@@ -57,7 +57,7 @@ This comparison focuses on those operational requirements rather than declaring 
 
 | Platform | Primary fit | Orchestration model | Human approval | Guardrails and evaluation | Execution review | Deployment and license notes |
 |---|---|---|---|---|---|---|
-| **Sim** | Workflow-first agent automation with explicit control points | Visual block graph with agents, tools, branching, Wait, Human in the Loop, Guardrails, and Evaluator blocks | Dedicated Human in the Loop block | Dedicated Guardrails and Evaluator blocks | Block-level run logs | [Apache 2.0 and self-hostable](https://github.com/simstudioai/sim/blob/main/LICENSE); confirm current hosted billing on Sim's pricing page |
+| **Sim** | Workflow-first agent automation with explicit control points | Visual block graph with agents, tools, branching, Wait, Human in the Loop, Guardrails, and Evaluator blocks | Dedicated Human in the Loop block | Dedicated Guardrails and Evaluator blocks | Block-level run logs | [Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) and self-hostable; enterprise features use a [separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); confirm current hosted billing on Sim's pricing page |
 | **n8n** | General automation that combines application workflows with [AI nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent.md) | Node-based workflows with branching, code, tool calls, and AI components | Approval patterns are available, but teams should confirm the current native mechanism for their chosen channel | Controls can be composed from workflow logic and AI components | [Execution history supports step-level investigation](https://docs.n8n.io/build/understand-workflows/understand-executions/view-executions-for-a-single-workflow) | [Cloud and self-hosted options](https://docs.n8n.io/deploy/host-n8n); the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) is source-available and does not appear on the [OSI-approved license list](https://opensource.org/licenses) |
 | **Gumloop** | Accessible [visual AI automation](https://docs.gumloop.com/core-concepts/workbooks) for operations teams | Visual flows composed from application and AI steps | Verify current native approval behavior for the intended workflow | Verify whether required controls are dedicated primitives or composed flow logic | Vendor documentation describes [run inspection](https://docs.gumloop.com/core-concepts/run_log); verify required retention and detail | Current license, self-hosting availability, and billing unit should be verified with Gumloop |
 | **Dust** | Agents grounded in [company knowledge and connected tools](https://docs.dust.tt/docs/user-documentation/getting-started/dust-rollout-guide/welcome-to-dust) | Agent configurations, knowledge, actions, and triggers rather than a conventional automation canvas | Verify current approval support for each tool action | Permissions and tool configuration can constrain agents; verify required output evaluation controls | Verify current conversation, trace, and administrative review depth | Current deployment, license, and billing details should be verified with Dust |
@@ -113,7 +113,7 @@ Sim's relevant controls include:
 - **Wait:** Pauses the workflow for a configured time interval.
 - **Block-level run logs:** Exposes execution details at the individual-block level for debugging and review.
 
-Sim is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), an [OSI-approved open-source license](https://opensource.org/licenses), and can be self-hosted. That combination is relevant when a team needs to inspect, modify, or operate the workflow system in its own environment.
+Sim's core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), an [OSI-approved open-source license](https://opensource.org/licenses), and can be self-hosted. That combination is relevant when a team needs to inspect, modify, or operate the workflow system in its own environment. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution.
 
 ## How does n8n handle multi-step AI agent workflows?
 
@@ -187,7 +187,7 @@ A final transcript is not enough for a workflow that modifies records, sends mes
 
 **Sim should be chosen for explicit agent-workflow controls, while n8n, Gumloop, Dust, Relevance AI, and Dify are better evaluated according to their distinct automation, knowledge, multi-agent, or application strengths.**
 
-- **Choose Sim** when the process needs visible approval, guardrail, evaluation, waiting, and block-level review stages or when Apache 2.0 self-hosting matters.
+- **Choose Sim** when the process needs visible approval, guardrail, evaluation, waiting, and block-level review stages or when self-hosting an Apache 2.0 core matters.
 - **Choose n8n** when AI must be embedded in broad application automation and the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) fits the intended use.
 - **Evaluate Gumloop** when ease of [visual automation](https://docs.gumloop.com/core-concepts/workbooks) for an operations team is the main priority.
 - **Evaluate Dust** when [agents grounded in company knowledge and controlled tool access](https://docs.dust.tt/docs/user-documentation/agents/tools) are the central requirement.

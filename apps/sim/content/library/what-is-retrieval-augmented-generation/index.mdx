@@ -3,7 +3,7 @@ slug: what-is-retrieval-augmented-generation
 title: 'What Is Retrieval-Augmented Generation (RAG)?'
 description: 'Learn how retrieval-augmented generation connects language models to current or private knowledge, how RAG compares with fine-tuning, and how agentic RAG works.'
 date: 2026-08-11
-updated: 2026-09-06
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 6
@@ -80,7 +80,7 @@ For example, an agent reviewing a contract might retrieve the standard cancellat
 
 [Sim's native Knowledge Bases](https://www.sim.ai) make retrieval a workspace resource that an Agent block can call during reasoning. Knowledge bases sit alongside workflow logic and other tools, rather than requiring a separate vector-store integration built around one LLM application. [Dify can suit application-centered workflows](https://docs.dify.ai/en/cloud/use-dify/knowledge/integrate-knowledge-within-application), while Sim places retrieval inside an agent-native workspace so multiple workflow steps can query the same Knowledge Base. See the [Sim and Dify comparison](https://www.sim.ai/library/sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform) for more context.
 
-Sim's [Apache 2.0 repository](https://github.com/simstudioai/sim) also supports self-hosting, which gives you control over the agent runtime and retrieval infrastructure. Agentic RAG still costs more than a single retrieval pass because every retry adds model work and latency. You can limit reasoning depth, cache common searches, and rerank retrieved passages when response time or usage cost requires tighter bounds.
+Sim's [Apache 2.0 core](https://github.com/simstudioai/sim) also supports self-hosting, which gives you control over the agent runtime and retrieval infrastructure. Enterprise features in `apps/sim/ee`, such as SSO, SCIM, access control, and audit logs, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use but requires an Enterprise subscription for production use. Agentic RAG still costs more than a single retrieval pass because every retry adds model work and latency. You can limit reasoning depth, cache common searches, and rerank retrieved passages when response time or usage cost requires tighter bounds.
 
 ## RAG tradeoffs
 
