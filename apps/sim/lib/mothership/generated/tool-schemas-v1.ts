@@ -8064,10 +8064,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           maxLength: 200,
         },
-        mine: {
-          description: 'Only used for action: list. Omit for other actions.',
-          type: 'boolean',
-        },
         connectorId: {
           description:
             'Required for action: get. Only used for action: get. Omit for other actions.',
