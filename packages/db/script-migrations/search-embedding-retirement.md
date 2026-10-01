@@ -43,7 +43,8 @@ MIGRATION_DATABASE_URL=<direct DSN> bun run packages/db/script-migrations/0027_r
 Run it as the migration role: maintenance needs `pg_maintain`, which the application roles lack. Run
 it outside peak traffic, and run `--maintenance` in the quietest window you have: concurrent HNSW
 rebuilds are long and write a lot of WAL (GitLab, for example, schedules automatic reindexing for
-weekends). Keep one run at a time.
+weekends). One run at a time: a second run refuses to start while another holds the retirement
+lock, and maintenance has its own lock.
 
 **Pausing.** Ctrl-C is safe at any point. The in-flight page rolls back with its cursor, and an
 interrupted concurrent rebuild's leftover index is removed on the next run. Rerun the same command to

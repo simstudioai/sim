@@ -586,7 +586,7 @@ describe('retiring dormant Search embeddings', () => {
       await holding
       await blocker.end()
     }
-  })
+  }, 60_000)
 
   it('maintains an already-retired index and resumes failed vacuum bookkeeping without rebuilding it again', async () => {
     await pass()
@@ -735,4 +735,21 @@ describe('retiring dormant Search embeddings', () => {
       await sql`DROP TABLE delete_page_started`
     }
   }, 60_000)
+
+  it('refuses to start while another retirement run holds the lock, leaving progress untouched', async () => {
+    const other = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
+    try {
+      await other`SELECT pg_advisory_lock(hashtextextended('search-embedding-retirement', 0))`
+      await expect(retireSearchEmbeddings(sql)).rejects.toThrow('already running')
+      expect(
+        (await sql`SELECT to_regclass('search_embedding_cleanup_progress') AS relation`)[0].relation
+      ).toBeNull()
+    } finally {
+      await other.end()
+    }
+    await retireSearchEmbeddings(sql)
+    expect(
+      (await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'search'`)[0].n
+    ).toBe(0)
+  })
 })

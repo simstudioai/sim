@@ -33,6 +33,7 @@ const FAST_PAGE_MS = SLOW_PAGE_MS / 4
 /** The longest pause after one page, however slow the page was. */
 const MAX_PAGE_PAUSE_MS = 60_000
 const LOCK_RETRY_BUDGET_MS = 60_000
+const RETIREMENT_LOCK = 'search-embedding-retirement'
 
 /**
  * How hard one run pushes the primary. Each page, committed or timed out, is followed by a pause of
@@ -118,6 +119,18 @@ export async function retireSearchEmbeddings(
       `Search retirement pacing needs a pause ratio of at least 0 and ${ROW_LIMIT.min}-${ROW_LIMIT.max} max rows`
     )
   }
+  /** Session-level, like maintenance's lock, so overlapping operator runs never double the load. */
+  const [{ locked }] =
+    await sql`SELECT pg_try_advisory_lock(hashtextextended(${RETIREMENT_LOCK}, 0)) AS locked`
+  if (!locked) throw new Error('Search retirement is already running')
+  try {
+    await retireTargets(sql, pacing)
+  } finally {
+    await sql`SELECT pg_advisory_unlock(hashtextextended(${RETIREMENT_LOCK}, 0))`
+  }
+}
+
+async function retireTargets(sql: Sql, pacing: RetirementPacing): Promise<void> {
   const pause = (pageMs: number) => sleep(Math.min(pageMs * pacing.pauseRatio, MAX_PAGE_PAUSE_MS))
   const hasTargets = await sql.begin('isolation level repeatable read', async (tx) => {
     await tx`SET LOCAL statement_timeout = '120s'`
