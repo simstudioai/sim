@@ -335,7 +335,7 @@ export function General() {
                           width={36}
                           height={36}
                           unoptimized
-                          className={`h-full w-full object-cover transition-opacity duration-300 ${
+                          className={`size-full object-cover transition-opacity duration-300 ${
                             isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
                           }`}
                         />
@@ -385,7 +385,7 @@ export function General() {
                           onChange={(e) => setName(e.target.value)}
                           onKeyDown={handleKeyDown}
                           onBlur={handleInputBlur}
-                          className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 text-base outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
+                          className='absolute top-0 left-0 size-full border-0 bg-transparent p-0 text-base outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
                           maxLength={100}
                           disabled={updateProfile.isPending}
                           autoComplete='off'

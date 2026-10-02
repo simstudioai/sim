@@ -68,8 +68,8 @@
  *    path and one on a once-a-month webhook read identically, which is why the
  *    deferred check stops at the edge's own target rather than walking past it.
  */
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { basename, dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -108,7 +108,7 @@ const ROUTE_WRAPPER_FORBIDDEN_PREFIXES: Record<string, string> = {
     'the permission-group resolver — the wrapper only opens the memo scope; the resolver ' +
     'belongs to the gate call sites, and it is what dragged billing in',
   'lib/auth': 'the auth graph — the wrapper wraps handlers that authenticate, it does not',
-  'lib/copilot/': 'the copilot graph',
+  'lib/mothership/': 'the Mothership (Chat agent) graph',
   'lib/knowledge/': 'the knowledge-base graph',
 }
 
@@ -283,7 +283,34 @@ export function findViolations({ root, forbidden }: GuardedRoot): GraphViolation
   return violations
 }
 
+/**
+ * Whether `prefix` names a directory or an importable module under `apps/sim`. A prefix that
+ * matches nothing guards nothing: the tree was renamed, and the audit would keep passing over it.
+ * A test file left behind does not count, because no runtime import resolves to it.
+ */
+function prefixMatchesAnything(prefix: string): boolean {
+  if (prefix.endsWith('/')) return existsSync(resolve(APP_ROOT, prefix))
+  const dir = resolve(APP_ROOT, dirname(prefix))
+  if (!existsSync(dir)) return false
+  return readdirSync(dir, { withFileTypes: true }).some(
+    (entry) =>
+      entry.name.startsWith(basename(prefix)) &&
+      (entry.isDirectory() || /(?<!\.test)\.tsx?$/.test(entry.name))
+  )
+}
+
 function main(): void {
+  const prefixes = new Set(GUARDED_ROOTS.flatMap((guarded) => Object.keys(guarded.forbidden)))
+  const dead = [...prefixes].filter((prefix) => !prefixMatchesAnything(prefix))
+  if (dead.length > 0) {
+    console.error(
+      `Application-graph audit forbids prefixes that match nothing under apps/sim: ${dead.join(', ')}\n` +
+        'The tree was renamed or removed. Point the key at its current path rather than leaving a\n' +
+        'guard that can never fire.\n'
+    )
+    process.exit(1)
+  }
+
   const violations: GraphViolation[] = []
   for (const guarded of GUARDED_ROOTS) {
     if (!existsSync(resolve(APP_ROOT, guarded.root))) {
@@ -310,10 +337,9 @@ function main(): void {
     process.exit(1)
   }
 
-  const trees = new Set(GUARDED_ROOTS.flatMap((guarded) => Object.keys(guarded.forbidden)))
   console.log(
     `✅ Application graph clean: ${GUARDED_ROOTS.length} roots reach none of ` +
-      `${trees.size} forbidden module trees`
+      `${prefixes.size} forbidden module trees`
   )
 }
 

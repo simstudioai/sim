@@ -7,7 +7,7 @@ This route group owns `/` and the entire public marketing surface - the home pag
 ## What this is
 
 - `app/(landing)/` - the marketing site. A shared `layout.tsx` renders the chrome once (the `LandingShell`: light tokens, navbar with server-side GitHub stars, painted pre-footer CTA, footer, site-wide JSON-LD); each page supplies only its `<main>` content. The painted light/dark CTA and footer are owned by `LandingShell`; never add page-specific closing CTA bands or footer instances.
-- The legacy `app/(home)/` group (old dark landing + `--landing-*` tokens) has been **deleted** - its marketing pages were migrated here and its chrome retired. Do not reintroduce `--landing-*` tokens, Martian Mono accents, or a separate marketing theme.
+- There is one marketing theme: the platform's. Never add `--landing-*` tokens, Martian Mono accents, or a separate marketing palette (the retired dark landing used them).
 
 ## Styling - draw from the platform's tokens
 

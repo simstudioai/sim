@@ -19,7 +19,7 @@ import {
 } from '@sim/desktop-bridge/local-filesystem-limits'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { escapeRegExp } from '@sim/utils/string'
+import { escapeRegExp, truncate } from '@sim/utils/string'
 import { app, dialog, shell } from 'electron'
 import micromatch from 'micromatch'
 import safeRegex from 'safe-regex2'
@@ -1236,8 +1236,7 @@ export class LocalFilesystemService {
           matches.push({
             uri: resultUri,
             line: request.lineNumbers === false ? 0 : contextIndex + 1,
-            text:
-              line.length > MAX_GREP_LINE_LENGTH ? `${line.slice(0, MAX_GREP_LINE_LENGTH)}…` : line,
+            text: truncate(line, MAX_GREP_LINE_LENGTH, '…'),
           })
           if (matches.length >= maxResults) {
             truncated = true

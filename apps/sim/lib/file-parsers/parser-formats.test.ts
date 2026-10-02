@@ -45,7 +45,7 @@ function buildPptx(slideBodyXml: string, macroEnabled = false): Promise<Buffer> 
   return zip.generateAsync({ type: 'nodebuffer' }) as Promise<Buffer>
 }
 
-function buildDocx(bodyXml: string, macroEnabled = false): Promise<Buffer> {
+function buildDocx(bodyXml: string, macroEnabled = false, stylesXml?: string): Promise<Buffer> {
   const mainType = macroEnabled
     ? 'application/vnd.ms-word.document.macroEnabled.main+xml'
     : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
@@ -62,6 +62,16 @@ function buildDocx(bodyXml: string, macroEnabled = false): Promise<Buffer> {
     'word/document.xml',
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${bodyXml}</w:body></w:document>`
   )
+  if (stylesXml) {
+    zip.file(
+      'word/_rels/document.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`
+    )
+    zip.file(
+      'word/styles.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${stylesXml}</w:styles>`
+    )
+  }
   return zip.generateAsync({ type: 'nodebuffer' }) as Promise<Buffer>
 }
 
@@ -137,6 +147,24 @@ describe('DocxParser', () => {
 
     expect(error).toBeInstanceOf(FileParserError)
     expect(error).toMatchObject({ code: 'no_extractable_text' })
+  })
+
+  it('ignores a style definition with an unrecognized type', async () => {
+    const key = 'unrecognizedStyleType'
+    const buffer = await buildDocx(
+      '<w:p><w:r><w:t>Quarterly plan</w:t></w:r></w:p>',
+      false,
+      `<w:style w:type="__proto__" w:styleId="${key}"><w:name w:val="Custom"/></w:style>`
+    )
+
+    try {
+      const result = await new DocxParser().parseBuffer(buffer)
+
+      expect(result.content).toContain('Quarterly plan')
+      expect(Object.hasOwn(Object.prototype, key)).toBe(false)
+    } finally {
+      delete (Object.prototype as Record<string, unknown>)[key]
+    }
   })
 })
 

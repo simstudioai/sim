@@ -46,12 +46,22 @@
  * Escape hatch: `// client-boundary-allow: <reason>` on the line directly above
  * the import (reason required). Use only for a genuinely browser-only code path.
  *
+ * ## Deployment-shape flags in client code
+ *
+ * Client code — `stores/`, `hooks/`, `blocks/`, and any `'use client'` module or hook
+ * under the workspace, organization, or standalone settings surfaces — must not import the
+ * deployment-shape flags from `env-flags` (named or namespace); it reads them through
+ * `@/lib/core/config/deployment-shape`. The flag list is that module's own `env-flags`
+ * import, so it cannot drift. Same escape hatch as above. Why: CLAUDE.md "Deployment flags
+ * in the browser".
+ *
  * Usage:
  *   bun run scripts/check-client-boundary-imports.ts          # report
  *   bun run scripts/check-client-boundary-imports.ts --check  # CI gate (fail on any)
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { directiveOn, leadingDirective } from './source-kind'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const APP_DIR = path.join(ROOT, 'apps/sim')
@@ -65,6 +75,42 @@ function isServerSurface(rel: string): boolean {
   if (/^triggers\//.test(rel)) return true
   if (/^blocks\//.test(rel)) return true
   return false
+}
+
+const ENV_FLAGS = '@/lib/core/config/env-flags'
+const DEPLOYMENT_SHAPE_MODULE = path.join(APP_DIR, 'lib/core/config/deployment-shape.ts')
+
+/** Surfaces whose shell seeds the server-resolved deployment shape (paths relative to apps/sim). */
+function isDeploymentShapeSurface(rel: string): boolean {
+  return /^(?:app\/(?:workspace|o|account|selfhost\/settings)|components\/settings|ee)\//.test(rel)
+}
+
+/**
+ * Client code bound by the deployment-shape rule: client-only directories by path, and
+ * `'use client'` modules or hooks (a `hooks/` folder or `use-*` file) inside a surface.
+ */
+async function isDeploymentShapeClient(rel: string, absFile: string): Promise<boolean> {
+  if (/\.(?:test|spec|integration)\.tsx?$/.test(rel)) return false
+  if (/^(?:stores|hooks|blocks)\//.test(rel)) return true
+  if (!isDeploymentShapeSurface(rel)) return false
+  return /(?:^|\/)(?:hooks\/|use-[^/]+\.tsx?$)/.test(rel) || isUseClientModule(absFile)
+}
+
+/**
+ * Exports of `env-flags` an import clause reads: its named members, or, for a namespace
+ * import (`* as flags`), every `flags.<name>` access in the file.
+ */
+function envFlagReads(clause: string, content: string): string[] {
+  const namespace = /^\*\s+as\s+(\w+)$/.exec(clause.trim())?.[1]
+  if (namespace) {
+    return [...content.matchAll(new RegExp(`\\b${namespace}\\.(\\w+)`, 'g'))].map((m) => m[1])
+  }
+  if (!clause.includes('{')) return []
+  return clause
+    .slice(clause.indexOf('{') + 1, clause.lastIndexOf('}'))
+    .split(',')
+    .map((member) => member.trim().split(/\s+as\s+/)[0])
+    .filter(Boolean)
 }
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx']
@@ -99,34 +145,6 @@ async function listFiles(dir: string): Promise<string[]> {
   return out
 }
 
-/**
- * Drops a trailing `//` or `/* *\/` comment from an already-trimmed line. A
- * directive keeps its meaning when a note follows it on the same line, so the
- * comment has to come off before the directive is matched.
- */
-function stripTrailingComment(line: string): string {
-  return line.replace(/(?:\/\/.*|\/\*.*?\*\/)\s*$/, '').trim()
-}
-
-/** A lone directive statement, e.g. `'use server'` or `"use client";`. */
-const DIRECTIVE_STATEMENT = /^(['"])(use [a-z-]+)\1\s*;?$/
-
-/**
- * Returns the module's leading directive prologue string, if any. A directive
- * must be the first statement; comments and blank lines may precede it.
- */
-function leadingDirective(content: string): string | null {
-  for (const raw of content.split('\n')) {
-    const line = raw.trim()
-    if (line === '' || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
-      continue
-    }
-    const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(line))
-    return match ? match[2] : null
-  }
-  return null
-}
-
 const useClientCache = new Map<string, boolean>()
 
 async function isUseClientModule(absFile: string): Promise<boolean> {
@@ -149,8 +167,7 @@ async function findUseServerDirectives(files: readonly string[]): Promise<string
   for (const absFile of files) {
     const lines = (await readSource(absFile)).split('\n')
     for (let i = 0; i < lines.length; i++) {
-      const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(lines[i].trim()))
-      if (match?.[2] === 'use server') {
+      if (directiveOn(lines[i]) === 'use server') {
         found.push(`${path.relative(ROOT, absFile)}:${i + 1}`)
       }
     }
@@ -196,9 +213,11 @@ function parseImports(content: string): ImportInfo[] {
   const imports: ImportInfo[] = []
   const re = /^\s*import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"]/
   for (let i = 0; i < lines.length; i++) {
-    if (!/^\s*import\b/.test(lines[i]) || !lines[i].includes('import')) continue
-    // Join up to 12 following lines to capture multi-line import clauses.
-    const block = lines.slice(i, i + 12).join('\n')
+    if (!/^\s*import\b/.test(lines[i]) || /^\s*import\s*['"(]/.test(lines[i])) continue
+    // Join through the `from` line so a long multi-line clause is captured whole.
+    let end = i
+    while (end < lines.length - 1 && !/\bfrom\s+['"]/.test(lines[end])) end++
+    const block = lines.slice(i, end + 1).join('\n')
     const match = re.exec(block)
     if (!match) continue
     imports.push({ line: i + 1, clause: match[1], specifier: match[2] })
@@ -307,6 +326,45 @@ async function main() {
     )
     for (const v of violations) {
       console.error(`  ${v.file}:${v.line}  imports from '${v.specifier}'`)
+    }
+  }
+
+  const shapeFlags = new Set(
+    parseImports(await readSource(DEPLOYMENT_SHAPE_MODULE))
+      .filter((imp) => imp.specifier === ENV_FLAGS)
+      .flatMap((imp) => envFlagReads(imp.clause, ''))
+  )
+  if (shapeFlags.size === 0) {
+    throw new Error(
+      `${DEPLOYMENT_SHAPE_MODULE} no longer imports from env-flags; update this check`
+    )
+  }
+  const shapeViolations: Array<Violation & { flags: string[] }> = []
+  for (const absFile of allFiles) {
+    if (!absFile.startsWith(`${APP_DIR}${path.sep}`)) continue
+    const rel = path.relative(APP_DIR, absFile)
+    if (!(await isDeploymentShapeClient(rel, absFile))) continue
+    const content = await readSource(absFile)
+    for (const imp of parseImports(content)) {
+      if (imp.specifier !== ENV_FLAGS || !importsAValue(imp.clause)) continue
+      const flags = [...new Set(envFlagReads(imp.clause, content))].filter((name) =>
+        shapeFlags.has(name)
+      )
+      if (flags.length === 0 || hasAllowDirective(content, imp.line)) continue
+      shapeViolations.push({ file: rel, line: imp.line, specifier: imp.specifier, flags })
+    }
+  }
+
+  if (shapeViolations.length === 0) {
+    console.log('✓ No client code reads deployment-shape flags from env-flags.')
+  } else {
+    failed = true
+    console.error(
+      `\n✗ ${shapeViolations.length} client module(s) read deployment-shape flags from env-flags.\n` +
+        `  Read them via useDeploymentShape() (components) or getDeploymentShape() (helpers) from @/lib/core/config/deployment-shape.\n`
+    )
+    for (const v of shapeViolations) {
+      console.error(`  ${v.file}:${v.line}  imports ${v.flags.join(', ')} from '${v.specifier}'`)
     }
   }
 

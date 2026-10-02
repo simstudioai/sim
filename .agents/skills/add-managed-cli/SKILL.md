@@ -43,7 +43,7 @@ Use `<tool>@<upstream-version>-r<recipe-revision>`.
 - New upstream version: append a new ID ending in `-r1`.
 - Recipe-only change for the same upstream version: append `-r2`, `-r3`, and so on.
 - Never mutate or delete an existing ID or recipe. Persisted sandboxes must continue resolving to the bytes and behavior they selected.
-- On upgrade, retain the old ID and recipe and set its metadata to `selectable: false`. Only the newest version keeps the public label selectable.
+- On upgrade, retain the old ID and recipe and mark the old metadata non-selectable; only the newest version keeps the public label selectable. `SandboxCliToolMetadata` has no retirement field yet, so the first upgrade adds one generically (type, selector, and contract validation) per the next paragraph.
 
 Before shipping the first upgrade for a tool family, verify that editing a sandbox cannot leave both the retired and replacement IDs selected. If the generic selector and API validation do not already replace or reject colliding versions, address that once at the generic registry boundary with focused UI and contract tests; never special-case the individual CLI or silently install two versions that expose the same executable.
 
@@ -123,7 +123,7 @@ From the repository root:
 
 ```bash
 bun run type-check
-bun run check:api-validation
+bun run check:api-validation:strict
 bunx biome check \
   apps/sim/lib/execution/remote-sandbox/cli-tools.ts \
   apps/sim/lib/execution/remote-sandbox/cli-tools.server.ts \

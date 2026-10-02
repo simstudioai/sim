@@ -1,5 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
-import { describeError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
@@ -1264,7 +1264,7 @@ export class BlockExecutor {
       if (onStreamPromise) {
         await onStreamPromise.catch(() => {})
       }
-      throw error instanceof Error ? error : new Error(String(error))
+      throw toError(error)
     }
 
     if (onStreamPromise) {

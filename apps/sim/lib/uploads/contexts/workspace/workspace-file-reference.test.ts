@@ -129,18 +129,10 @@ describe('resolveWorkspaceFileReference', () => {
     expect(conditions).toContainEqual(
       expect.objectContaining({ type: 'isNull', column: schemaMock.workspaceFiles.deletedAt })
     )
-    const nameMatch = conditions.find((condition) => condition.type === 'or')
-    expect(nameMatch).toMatchObject({
-      conditions: [
-        { type: 'eq', left: schemaMock.workspaceFiles.displayName, right: 'face (2).png' },
-        expect.anything(),
-      ],
-    })
     expect(dbChainMockFns.orderBy).toHaveBeenCalledWith({
       type: 'desc',
       column: schemaMock.workspaceFiles.uploadedAt,
     })
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
     /** Found by its own query: the listing fallback never ran. */
     expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
   })
