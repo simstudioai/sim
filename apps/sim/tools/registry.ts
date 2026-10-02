@@ -3847,6 +3847,16 @@ import {
   posthogUpdateSurveyTool,
 } from '@/tools/posthog'
 import {
+  powerbiExecuteQueryTool,
+  powerbiGetDatasetTool,
+  powerbiGetRefreshHistoryTool,
+  powerbiGetReportTool,
+  powerbiListDatasetsTool,
+  powerbiListReportsTool,
+  powerbiListWorkspacesTool,
+  powerbiRefreshDatasetTool,
+} from '@/tools/powerbi'
+import {
   profoundBotLogsTool,
   profoundBotsReportTool,
   profoundCategoryAssetsTool,
@@ -8059,6 +8069,14 @@ export const tools: Record<string, ExecutableToolConfig> = {
   postgresql_delete: postgresDeleteTool,
   postgresql_execute: postgresExecuteTool,
   postgresql_introspect: postgresIntrospectTool,
+  powerbi_execute_query: powerbiExecuteQueryTool,
+  powerbi_get_dataset: powerbiGetDatasetTool,
+  powerbi_get_refresh_history: powerbiGetRefreshHistoryTool,
+  powerbi_get_report: powerbiGetReportTool,
+  powerbi_list_datasets: powerbiListDatasetsTool,
+  powerbi_list_reports: powerbiListReportsTool,
+  powerbi_list_workspaces: powerbiListWorkspacesTool,
+  powerbi_refresh_dataset: powerbiRefreshDatasetTool,
   quickbooks_add_attachment: quickbooksAddAttachmentTool,
   quickbooks_create_bill: quickbooksCreateBillTool,
   quickbooks_create_bill_payment: quickbooksCreateBillPaymentTool,

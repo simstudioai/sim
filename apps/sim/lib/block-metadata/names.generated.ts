@@ -209,6 +209,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   polymarket: 'Polymarket',
   postgresql: 'PostgreSQL',
   posthog: 'PostHog',
+  powerbi: 'Power BI',
   profound: 'Profound',
   prospeo: 'Prospeo',
   pulse_v2: 'Pulse',

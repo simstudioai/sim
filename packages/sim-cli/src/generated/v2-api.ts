@@ -1706,6 +1706,7 @@ export type CreateCredentialConnectionBody =
         | 'microsoft-dataverse'
         | 'microsoft-excel'
         | 'microsoft-planner'
+        | 'microsoft-powerbi'
         | 'microsoft-teams'
         | 'microsoft-word'
         | 'outlook'
@@ -6340,6 +6341,9 @@ export type GetSelectorBody = {
     | 'webflow.collections'
     | 'webflow.items'
     | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
@@ -9140,6 +9144,9 @@ export type ListSelectorBody = {
     | 'webflow.collections'
     | 'webflow.items'
     | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
@@ -17114,6 +17121,9 @@ export const V2_OPERATIONS = {
           'webflow.collections',
           'webflow.items',
           'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
@@ -19201,6 +19211,9 @@ export const V2_OPERATIONS = {
           'webflow.collections',
           'webflow.items',
           'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',

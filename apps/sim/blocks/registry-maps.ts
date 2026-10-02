@@ -270,6 +270,7 @@ import { PlanetScaleBlock, PlanetScaleBlockMeta } from '@/blocks/blocks/planetsc
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
+import { PowerBIBlock, PowerBIBlockMeta } from '@/blocks/blocks/powerbi'
 import { ProfoundBlock, ProfoundBlockMeta } from '@/blocks/blocks/profound'
 import { ProspeoBlock, ProspeoBlockMeta } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseBlockMeta, PulseV2Block } from '@/blocks/blocks/pulse'
@@ -624,6 +625,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
+  powerbi: PowerBIBlock,
   profound: ProfoundBlock,
   prospeo: ProspeoBlock,
   pulse: PulseBlock,
@@ -956,6 +958,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   polymarket: PolymarketBlockMeta,
   postgresql: PostgreSQLBlockMeta,
   posthog: PostHogBlockMeta,
+  powerbi: PowerBIBlockMeta,
   profound: ProfoundBlockMeta,
   prospeo: ProspeoBlockMeta,
   pulse: PulseBlockMeta,

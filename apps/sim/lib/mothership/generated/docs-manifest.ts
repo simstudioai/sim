@@ -269,6 +269,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/polymarket.mdx',
   'integrations/postgresql.mdx',
   'integrations/posthog.mdx',
+  'integrations/powerbi.mdx',
   'integrations/profound.mdx',
   'integrations/prospeo.mdx',
   'integrations/pulse.mdx',
