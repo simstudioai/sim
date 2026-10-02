@@ -2,11 +2,17 @@ import { dbFor } from '@sim/db'
 import { copilotChats, copilotMessages, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
 import { and, inArray, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
+import {
+  inlineChatImageKey,
+  inlineChatImageReferences,
+} from '@/lib/mothership/chat/inline-image-key'
 import { SIM_AGENT_API_URL } from '@/lib/mothership/constants'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('ChatCleanup')
 
@@ -33,9 +39,47 @@ interface FileRef {
 }
 
 /**
- * Collect all file storage keys for the given chat IDs from two sources:
+ * The chat images an assistant message published under its request id, keyed by chat id,
+ * so they are purged with the chat. A row this cannot read as such a message has none.
+ */
+function inlineChatImageKeys(chatId: string, content: Record<string, unknown>): string[] {
+  if (content.role !== 'assistant' || typeof content.requestId !== 'string') return []
+  const published = inlineChatImageReferences({
+    role: 'assistant',
+    requestId: content.requestId,
+    content: typeof content.content === 'string' ? content.content : '',
+    contentBlocks: Array.isArray(content.contentBlocks)
+      ? content.contentBlocks.flatMap((block) =>
+          isRecordLike(block) && block.type === 'text' && typeof block.content === 'string'
+            ? [{ type: 'text' as const, content: block.content }]
+            : []
+        )
+      : undefined,
+  })
+  if (!published) return []
+  const keys: string[] = []
+  for (const reference of published.references) {
+    try {
+      keys.push(inlineChatImageKey(chatId, published.requestId, reference))
+    } catch {
+      // A chat or request id outside the key grammar never had an image stored under it.
+    }
+  }
+  return keys
+}
+
+/**
+ * Collect all file storage keys for the given chat IDs from three sources:
  * 1. workspaceFiles rows with chatId FK (chat-scoped contexts only)
- * 2. fileAttachments[].key inside each copilot_messages.content
+ * 2. fileAttachments[].key inside each copilot_messages.content, for copilot-storage keys only
+ * 3. the chat-scoped inline images each assistant message published
+ *
+ * An attachment whose key belongs to another storage context is owned by its
+ * `workspace_files` row (source 1, or the workspace file lifecycle), never by the message:
+ * a fork carries the same attachment when its copy failed or its file was deleted, and the
+ * copilot bucket falls back to the workspace bucket on GCS (and may be configured to it on
+ * S3), so deleting such a key as copilot storage could delete a file another chat or the
+ * workspace still uses.
  */
 export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   const files: FileRef[] = []
@@ -77,6 +121,12 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
     for (const row of messageRows) {
       const msg = row.content
       if (!msg || typeof msg !== 'object') continue
+      for (const key of inlineChatImageKeys(row.chatId, msg as Record<string, unknown>)) {
+        if (!seen.has(key)) {
+          seen.add(key)
+          files.push({ key, context: 'mothership', chatId: row.chatId })
+        }
+      }
       const attachments = (msg as Record<string, unknown>).fileAttachments
       if (!Array.isArray(attachments)) continue
       for (const attachment of attachments) {
@@ -86,6 +136,7 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
           (attachment as Record<string, unknown>).key
         ) {
           const key = (attachment as Record<string, unknown>).key as string
+          if (tryInferContextFromKey(key) !== 'copilot') continue
           if (!seen.has(key)) {
             seen.add(key)
             files.push({ key, context: 'copilot', chatId: row.chatId })
