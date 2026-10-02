@@ -76,6 +76,8 @@ const BANNED_PATTERNS: Array<{
   suggestion: string
   /** Restricts the pattern to matching files; unrestricted patterns apply everywhere. */
   appliesTo?: (rel: string, content: string) => boolean
+  /** Cheap literal test that gates a backreference-heavy pattern, which is slow over every file. */
+  prefilter?: RegExp
 }> = [
   // Randomness / ID generation — global property access that import bans miss
   {
@@ -116,6 +118,7 @@ const BANNED_PATTERNS: Array<{
       /\b([\w.]+)\s+instanceof\s+Error\s*\?\s*\1\s*:\s*new\s+Error\(\s*String\(\s*\1\s*\)\s*\)/g,
     description: 'e instanceof Error ? e : new Error(String(e))',
     suggestion: 'toError(e) from @sim/utils/errors',
+    prefilter: /new\s+Error\(\s*String\(/,
   },
   {
     pattern:
@@ -139,12 +142,14 @@ const BANNED_PATTERNS: Array<{
     pattern:
       /\b([\w.]+)\.length\s*>\s*([\w.]+)\s*\?\s*(?:`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^`$]*`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))\s*:\s*\1\b(?!\.)/g,
     description: 's.length > n ? s.slice(0, n) + suffix : s',
+    prefilter: /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/,
     suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
   },
   {
     pattern:
       /\b([\w.]+)\.length\s*<=\s*([\w.]+)\s*\?\s*\1\s*:\s*(?:`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^`$]*`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))/g,
     description: 's.length <= n ? s : s.slice(0, n) + suffix',
+    prefilter: /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/,
     suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
   },
   {
@@ -166,7 +171,8 @@ const BANNED_PATTERNS: Array<{
   },
   {
     pattern:
-      /(?<=[\s'"`]|^)((?:[\w-]+:)*)(?:h-(\[[^\]\s]+\]|[\d.]+|px|full|screen|auto|fit|min|max)\s+\1w-\2|w-(\[[^\]\s]+\]|[\d.]+|px|full|screen|auto|fit|min|max)\s+\1h-\3)(?=[\s'"`]|$)/gm,
+      /(?:^|[ \t'"`])((?:[\w-]+:)*)(?:h-(\[[^\]\s]+\]|[\d.]+|px|full|screen|auto|fit|min|max)\s+\1w-\2|w-(\[[^\]\s]+\]|[\d.]+|px|full|screen|auto|fit|min|max)\s+\1h-\3)(?=[\s'"`]|$)/gm,
+    prefilter: /[hw]-\S+\s+(?:[\w-]+:)*[hw]-/,
     description: 'h-N w-N with equal N',
     suggestion: 'size-N (Tailwind) — e.g. `size-4`, `size-full`',
   },
@@ -260,8 +266,9 @@ async function main() {
       suggestion: string
     }> = []
 
-    for (const { pattern, description, suggestion, appliesTo } of BANNED_PATTERNS) {
+    for (const { pattern, description, suggestion, appliesTo, prefilter } of BANNED_PATTERNS) {
       if (appliesTo && !appliesTo(rel, content)) continue
+      if (prefilter && !prefilter.test(content)) continue
       pattern.lastIndex = 0
       for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
         matches.push({ index: match.index, description, suggestion })
