@@ -25,8 +25,9 @@
 import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 const SCAN_DIRS = [path.join(ROOT, 'apps'), path.join(ROOT, 'packages')]
 
@@ -293,6 +294,51 @@ function es2023LibViolations(): Violation[] {
   return violations
 }
 
+/** Every banned-pattern hit in one file; `file` is repo-relative, which decides its exemptions. */
+export function findViolations(file: string, content: string): Violation[] {
+  const violations: Violation[] = []
+  const helperSource = file.startsWith(UTILS_SOURCE) || ALLOWLISTED_FILES.has(file)
+
+  const matches: Array<{
+    index: number
+    description: string
+    suggestion: string
+  }> = []
+
+  const prefilterHits = new Map<RegExp, boolean>()
+  for (const { pattern, description, suggestion, prefilter, replacesHelper } of BANNED_PATTERNS) {
+    if (helperSource && replacesHelper) continue
+    if (prefilter) {
+      let hit = prefilterHits.get(prefilter)
+      if (hit === undefined) {
+        hit = prefilter.test(content)
+        prefilterHits.set(prefilter, hit)
+      }
+      if (!hit) continue
+    }
+    pattern.lastIndex = 0
+    for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
+      matches.push({ index: match.index, description, suggestion })
+    }
+  }
+  if (matches.length === 0) return []
+
+  const lines = content.split('\n')
+  const lineStarts = buildLineStarts(content)
+  for (const match of matches) {
+    const line = lineAt(lineStarts, match.index)
+    if (hasAllow(lines, line)) continue
+    violations.push({
+      file,
+      line,
+      description: match.description,
+      suggestion: match.suggestion,
+      snippet: (lines[line - 1] ?? '').trim(),
+    })
+  }
+  return violations
+}
+
 async function main() {
   const allFiles: string[] = []
   for (const dir of SCAN_DIRS) {
@@ -303,46 +349,7 @@ async function main() {
 
   for (const file of allFiles) {
     const rel = path.relative(ROOT, file)
-    const helperSource = rel.startsWith(UTILS_SOURCE) || ALLOWLISTED_FILES.has(rel)
-
-    const content = await readFile(file, 'utf8')
-    const matches: Array<{
-      index: number
-      description: string
-      suggestion: string
-    }> = []
-
-    const prefilterHits = new Map<RegExp, boolean>()
-    for (const { pattern, description, suggestion, prefilter, replacesHelper } of BANNED_PATTERNS) {
-      if (helperSource && replacesHelper) continue
-      if (prefilter) {
-        let hit = prefilterHits.get(prefilter)
-        if (hit === undefined) {
-          hit = prefilter.test(content)
-          prefilterHits.set(prefilter, hit)
-        }
-        if (!hit) continue
-      }
-      pattern.lastIndex = 0
-      for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
-        matches.push({ index: match.index, description, suggestion })
-      }
-    }
-    if (matches.length === 0) continue
-
-    const lines = content.split('\n')
-    const lineStarts = buildLineStarts(content)
-    for (const match of matches) {
-      const line = lineAt(lineStarts, match.index)
-      if (hasAllow(lines, line)) continue
-      violations.push({
-        file: rel,
-        line,
-        description: match.description,
-        suggestion: match.suggestion,
-        snippet: (lines[line - 1] ?? '').trim(),
-      })
-    }
+    violations.push(...findViolations(rel, await readFile(file, 'utf8')))
   }
 
   violations.push(...es2023LibViolations())
@@ -361,4 +368,4 @@ async function main() {
   process.exit(1)
 }
 
-main()
+if (import.meta.main) main()
