@@ -63,40 +63,48 @@ const BANNED_PATTERNS: Array<{
   suggestion: string
   /** Cheap literal test that skips the pattern on files that cannot match; memoized per file. */
   prefilter?: RegExp
+  /** Bans re-implementing a helper, so `@sim/utils` and the allowlisted files are exempt. */
+  replacesHelper?: true
 }> = [
   // Randomness / ID generation — global property access that import bans miss
   {
     pattern: /\bMath\.random\s*\(/g,
     description: 'Math.random()',
     suggestion: 'randomInt / randomFloat / randomItem from @sim/utils/random',
+    replacesHelper: true,
   },
   {
     pattern: /\bcrypto\.randomUUID\s*\(/g,
     description: 'crypto.randomUUID()',
     suggestion: 'generateId() or generateShortId() from @sim/utils/id',
+    replacesHelper: true,
   },
   {
     pattern: /\bcrypto\.randomBytes\s*\(/g,
     description: 'crypto.randomBytes()',
     suggestion: 'generateRandomBytes() or generateRandomHex() from @sim/utils/random',
+    replacesHelper: true,
   },
   // Deep clone idiom
   {
     pattern: /JSON\.parse\s*\(\s*JSON\.stringify\s*\(/g,
     description: 'JSON.parse(JSON.stringify(...))',
     suggestion: 'structuredClone() — built-in, no import needed',
+    replacesHelper: true,
   },
   // Inline error message extraction (excludes null/undefined/false fallbacks — those have different semantics)
   {
     pattern: /instanceof Error\s*\?\s*\w+\.message\s*:\s*(?!\s*null\b|\s*undefined\b|\s*false\b)./g,
     description: 'e instanceof Error ? e.message : fallback',
     suggestion: 'getErrorMessage(e, fallback?) from @sim/utils/errors',
+    replacesHelper: true,
   },
   // Inline sleep
   {
     pattern: /new Promise\s*[(<]\s*(?:resolve|\(resolve\))\s*=>\s*setTimeout\s*\(\s*resolve/g,
     description: 'new Promise(resolve => setTimeout(resolve, ms))',
     suggestion: 'sleep(ms) from @sim/utils/helpers',
+    replacesHelper: true,
   },
   {
     pattern:
@@ -104,6 +112,7 @@ const BANNED_PATTERNS: Array<{
     description: 'e instanceof Error ? e : new Error(String(e))',
     suggestion: 'toError(e) from @sim/utils/errors',
     prefilter: /new\s+Error\(\s*String\(/,
+    replacesHelper: true,
   },
   {
     pattern:
@@ -111,6 +120,7 @@ const BANNED_PATTERNS: Array<{
     description: "typeof v === 'object' && v !== null && !Array.isArray(v)",
     suggestion: 'isRecordLike(v) from @sim/utils/object',
     prefilter: /!Array\.isArray\(/,
+    replacesHelper: true,
   },
   {
     pattern:
@@ -118,6 +128,7 @@ const BANNED_PATTERNS: Array<{
     description: 'Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))',
     suggestion: 'filterUndefined(obj) from @sim/utils/object',
     prefilter: FROM_ENTRIES,
+    replacesHelper: true,
   },
   {
     pattern:
@@ -125,6 +136,7 @@ const BANNED_PATTERNS: Array<{
     description: 'Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))',
     suggestion: 'omit(obj, [key]) from @sim/utils/object',
     prefilter: FROM_ENTRIES,
+    replacesHelper: true,
   },
   {
     pattern: new RegExp(
@@ -134,6 +146,7 @@ const BANNED_PATTERNS: Array<{
     description: 's.length > n ? s.slice(0, n) + suffix : s',
     prefilter: TRUNCATE_PREFILTER,
     suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
+    replacesHelper: true,
   },
   {
     pattern: new RegExp(
@@ -143,11 +156,13 @@ const BANNED_PATTERNS: Array<{
     description: 's.length <= n ? s : s.slice(0, n) + suffix',
     prefilter: TRUNCATE_PREFILTER,
     suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
+    replacesHelper: true,
   },
   {
     pattern: /\/\[\.\*\+\?\^\$\{\}\(\)\|\[\\\]\\\\\]\/g/g,
     description: 'hand-rolled regex-metacharacter escape',
     suggestion: 'escapeRegExp(value) from @sim/utils/string',
+    replacesHelper: true,
   },
   // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
   {
@@ -288,7 +303,7 @@ async function main() {
 
   for (const file of allFiles) {
     const rel = path.relative(ROOT, file)
-    if (rel.startsWith(UTILS_SOURCE) || ALLOWLISTED_FILES.has(rel)) continue
+    const helperSource = rel.startsWith(UTILS_SOURCE) || ALLOWLISTED_FILES.has(rel)
 
     const content = await readFile(file, 'utf8')
     const matches: Array<{
@@ -298,7 +313,8 @@ async function main() {
     }> = []
 
     const prefilterHits = new Map<RegExp, boolean>()
-    for (const { pattern, description, suggestion, prefilter } of BANNED_PATTERNS) {
+    for (const { pattern, description, suggestion, prefilter, replacesHelper } of BANNED_PATTERNS) {
+      if (helperSource && replacesHelper) continue
       if (prefilter) {
         let hit = prefilterHits.get(prefilter)
         if (hit === undefined) {
