@@ -22,10 +22,12 @@ import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import {
@@ -38,7 +40,11 @@ import {
   renameProject,
 } from '@/lib/projects/application'
 import { archiveProjectInTransaction } from '@/lib/projects/lifecycle'
-import { createProjectForWorkspace, transferWorkspaceProjects } from '@/lib/projects/membership'
+import {
+  createProjectForWorkspace,
+  lockWorkspaceProject,
+  transferWorkspaceProjects,
+} from '@/lib/projects/membership'
 import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
@@ -47,6 +53,11 @@ import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceCreationPolicy } from '@/lib/workspaces/policy'
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
 import { unlinkForkEdge } from '@/ee/workspace-forking/lib/lineage/unlink'
+
+beforeEach(() => {
+  vi.stubEnv('PROJECT_WRITES_ENABLED', 'true')
+  vi.stubEnv('PROJECT_API_ENABLED', 'true')
+})
 
 const users: string[] = []
 const organizations: string[] = []
@@ -182,6 +193,292 @@ afterAll(async () => {
 })
 
 describe('Project foundation at the database and application boundary', () => {
+  check(
+    'disabled rollout preserves legacy creation and fork/disconnect without Project rows',
+    async () => {
+      vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
+      vi.stubEnv('PROJECT_API_ENABLED', 'false')
+      const f = await fixture(false, 1)
+      const source = await db.transaction((tx) =>
+        createWorkspaceInTransaction(tx, {
+          userId: f.ownerId,
+          name: 'Legacy source',
+          organizationId: null,
+          observedOrganizationId: null,
+          governingPermissionGroupOrganizationId: null,
+          workspaceMode: 'personal',
+          billedAccountUserId: f.ownerId,
+          skipDefaultWorkflow: true,
+        })
+      )
+      environments.push(source.id)
+      expect(
+        await db.select().from(projectWorkspace).where(eq(projectWorkspace.workspaceId, source.id))
+      ).toEqual([])
+      const parent = await getWorkspaceWithOwner(source.id)
+      if (!parent) throw new Error('Missing source fixture')
+      const fork = await createFork({
+        source: parent,
+        policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+        userId: f.ownerId,
+        name: 'Legacy child',
+      })
+      environments.push(fork.workspace.id)
+      expect(
+        await db
+          .select()
+          .from(projectWorkspace)
+          .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+      ).toEqual([])
+      await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
+      const [child] = await db.select().from(workspace).where(eq(workspace.id, fork.workspace.id))
+      expect(child.forkedFromWorkspaceId).toBeNull()
+      expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(1)
+    }
+  )
+
+  check(
+    'Project operations remain unavailable until API activation with no partial creation',
+    async () => {
+      const f = await fixture(false, 1)
+      vi.stubEnv('PROJECT_API_ENABLED', 'false')
+      for (const writes of ['false', 'true']) {
+        vi.stubEnv('PROJECT_WRITES_ENABLED', writes)
+        const input = { projectId: f.projectId }
+        const calls = [
+          () =>
+            createProject.execute({
+              principal: f.owner,
+              input: {
+                organizationId: null,
+                name: 'Blocked',
+                initialEnvironment: { name: 'Production' },
+              },
+              request,
+            }),
+          () => getProject.execute({ principal: f.owner, input, request }),
+          () =>
+            getWorkspaceProject.execute({
+              principal: f.owner,
+              input: { workspaceId: f.ids[0] },
+              request,
+            }),
+          () => listProjects.execute({ principal: f.owner, input: { limit: 10 }, request }),
+          () =>
+            renameProject.execute({
+              principal: f.owner,
+              input: { ...input, name: 'Blocked' },
+              request,
+            }),
+          () => archiveProject.execute({ principal: f.owner, input, request }),
+          () => getProjectIssueAccess.execute({ principal: f.owner, input, request }),
+        ]
+        for (const call of calls) await expect(call()).rejects.toMatchObject({ statusCode: 503 })
+        expect(
+          await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))
+        ).toHaveLength(1)
+        const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
+        expect(record.name).toBe('Environment 0 - Project')
+        expect(record.archivedAt).toBeNull()
+      }
+    }
+  )
+
+  check(
+    'disabling activation preserves assigned fork membership and lifecycle protections',
+    async () => {
+      const f = await fixture(false, 1)
+      vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
+      vi.stubEnv('PROJECT_API_ENABLED', 'false')
+      const parent = await getWorkspaceWithOwner(f.ids[0])
+      if (!parent) throw new Error('Missing source fixture')
+      const fork = await createFork({
+        source: parent,
+        policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+        userId: f.ownerId,
+        name: 'Assigned child',
+      })
+      environments.push(fork.workspace.id)
+      const [membership] = await db
+        .select()
+        .from(projectWorkspace)
+        .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+      expect(membership.projectId).toBe(f.projectId)
+      await unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: fork.workspace.id })
+      const [detached] = await db
+        .select()
+        .from(projectWorkspace)
+        .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+      expect(detached.projectId).not.toBe(f.projectId)
+      await expect(
+        archiveWorkspace(fork.workspace.id, { requestId: 'disabled-project-rollout' })
+      ).rejects.toMatchObject({ code: 'conflict' })
+    }
+  )
+
+  check('writer activation assigns new workspaces while Project APIs remain disabled', async () => {
+    vi.stubEnv('PROJECT_API_ENABLED', 'false')
+    const f = await fixture(false, 1)
+    const created = await db.transaction((tx) =>
+      createWorkspaceInTransaction(tx, {
+        userId: f.ownerId,
+        name: 'Writer activation',
+        organizationId: null,
+        observedOrganizationId: null,
+        governingPermissionGroupOrganizationId: null,
+        workspaceMode: 'personal',
+        billedAccountUserId: f.ownerId,
+        skipDefaultWorkflow: true,
+      })
+    )
+    environments.push(created.id)
+    expect(
+      await db.select().from(projectWorkspace).where(eq(projectWorkspace.workspaceId, created.id))
+    ).toHaveLength(1)
+    vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
+    vi.stubEnv('PROJECT_API_ENABLED', 'true')
+    await expect(
+      createProject.execute({
+        principal: f.owner,
+        input: { organizationId: null, name: 'Invalid', initialEnvironment: { name: 'First' } },
+        request,
+      })
+    ).rejects.toThrow('PROJECT_API_ENABLED requires PROJECT_WRITES_ENABLED')
+    expect(await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))).toHaveLength(
+      2
+    )
+  })
+
+  check('legacy fork and disconnect refuse a partially assigned subtree', async () => {
+    const f = await fixture(false, 3)
+    await db
+      .delete(projectWorkspace)
+      .where(inArray(projectWorkspace.workspaceId, f.ids.slice(0, 2)))
+    vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
+    vi.stubEnv('PROJECT_API_ENABLED', 'false')
+    const parent = await getWorkspaceWithOwner(f.ids[1])
+    if (!parent) throw new Error('Missing source fixture')
+    await expect(
+      createFork({
+        source: parent,
+        policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+        userId: f.ownerId,
+        name: 'Invalid child',
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    await expect(
+      unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: f.ids[1] })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    const [child] = await db.select().from(workspace).where(eq(workspace.id, f.ids[1]))
+    expect(child.forkedFromWorkspaceId).toBe(f.ids[0])
+    expect(await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))).toHaveLength(
+      3
+    )
+  })
+
+  check(
+    'legacy membership decisions exclude backfill until the writing transaction commits',
+    async () => {
+      const f = await fixture(false, 1)
+      await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
+      await db.delete(project).where(eq(project.id, f.projectId))
+      const read = createDeferred<void>()
+      const release = createDeferred<void>()
+      const writer = db.transaction(async (tx) => {
+        expect(await lockWorkspaceProject(tx, f.ids[0])).toBeNull()
+        read.resolve()
+        await release.promise
+        await tx
+          .update(workspace)
+          .set({ name: 'Concurrent legacy edit' })
+          .where(eq(workspace.id, f.ids[0]))
+      })
+      try {
+        await Promise.race([read.promise, writer])
+        await expect(
+          db.transaction(async (tx) => {
+            await tx.execute(
+              sql`LOCK TABLE workspace, project, project_workspace IN SHARE ROW EXCLUSIVE MODE NOWAIT`
+            )
+          })
+        ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '55P03')
+      } finally {
+        release.resolve()
+        await writer
+      }
+      await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`LOCK TABLE workspace, project, project_workspace IN SHARE ROW EXCLUSIVE MODE NOWAIT`
+        )
+        await createProjectForWorkspace(tx, {
+          workspaceId: f.ids[0],
+          name: 'Concurrent legacy edit',
+          organizationId: null,
+          ownerId: f.ownerId,
+        })
+      })
+      expect(
+        await db.select().from(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
+      ).toHaveLength(1)
+    }
+  )
+
+  check('a fork waiting for backfill inherits membership committed before it resumes', async () => {
+    const f = await fixture(false, 1)
+    await db.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
+    await db.delete(project).where(eq(project.id, f.projectId))
+    const parent = await getWorkspaceWithOwner(f.ids[0])
+    if (!parent) throw new Error('Missing source fixture')
+    const policy = await getWorkspaceCreationPolicy({ userId: f.ownerId })
+    const locked = createDeferred<void>()
+    const release = createDeferred<void>()
+    const backfill = db.transaction(async (tx) => {
+      await tx.execute(
+        sql`LOCK TABLE workspace, project, project_workspace IN SHARE ROW EXCLUSIVE MODE NOWAIT`
+      )
+      locked.resolve()
+      await release.promise
+      return createProjectForWorkspace(tx, {
+        workspaceId: f.ids[0],
+        name: 'Backfilled source',
+        organizationId: null,
+        ownerId: f.ownerId,
+      })
+    })
+    await Promise.race([locked.promise, backfill])
+    const fork = createFork({
+      source: parent,
+      policy,
+      userId: f.ownerId,
+      name: 'Concurrent child',
+    }).then((result) => {
+      environments.push(result.workspace.id)
+      return result
+    })
+    let blocked = false
+    try {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const rows = await db.execute<{ waiting: boolean }>(sql`SELECT EXISTS (
+          SELECT 1 FROM pg_locks WHERE relation = 'workspace'::regclass AND mode = 'RowExclusiveLock' AND NOT granted
+        ) AS waiting`)
+        if (rows[0]?.waiting) {
+          blocked = true
+          break
+        }
+        await sleep(20)
+      }
+    } finally {
+      release.resolve()
+    }
+    const [projectId, result] = await Promise.all([backfill, fork])
+    expect(blocked).toBe(true)
+    const [membership] = await db
+      .select()
+      .from(projectWorkspace)
+      .where(eq(projectWorkspace.workspaceId, result.workspace.id))
+    expect(membership.projectId).toBe(projectId)
+  })
+
   check(
     'Project creation commits its named first environment and starter workflow in the requested scope',
     async () => {

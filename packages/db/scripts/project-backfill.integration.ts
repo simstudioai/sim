@@ -344,6 +344,22 @@ describe('Project backfill CLI', () => {
         const dry = await run(['dry-run'], planPath)
         expect(dry.code, dry.stdout + dry.stderr).toBe(0)
         const plan = JSON.parse(await readFile(planPath, 'utf8')) as ProjectBackfillReport
+        for (const missing of [
+          '--project-writers-enabled',
+          '--release-revision',
+          '--writers-drained',
+        ]) {
+          const args = ['apply', '--from-file', planPath, '--database-id', plan.databaseId]
+          if (missing !== '--writers-drained') args.push('--writers-drained')
+          if (missing !== '--project-writers-enabled') args.push('--project-writers-enabled')
+          if (missing !== '--release-revision')
+            args.push('--release-revision', 'integration-compatible-release')
+          const refused = await run(args)
+          expect(refused.code).toBe(1)
+          expect(refused.stdout + refused.stderr).toContain('Apply requires')
+          expect(await sql`SELECT * FROM project`).toHaveLength(0)
+        }
+
         expect(
           (
             await run([
@@ -351,6 +367,9 @@ describe('Project backfill CLI', () => {
               '--from-file',
               planPath,
               '--writers-drained',
+              '--project-writers-enabled',
+              '--release-revision',
+              'integration-compatible-release',
               '--database-id',
               'wrong',
             ])
@@ -364,11 +383,20 @@ describe('Project backfill CLI', () => {
               '--from-file',
               planPath,
               '--writers-drained',
+              '--project-writers-enabled',
+              '--release-revision',
+              'integration-compatible-release',
               '--database-id',
               plan.databaseId,
             ])
           ).code
         ).toBe(0)
+        const applied = JSON.parse(await readFile(reportPath, 'utf8'))
+        expect(applied.operatorAssertions).toEqual({
+          oldWritersDrained: true,
+          projectWritersEnabled: true,
+          releaseRevision: 'integration-compatible-release',
+        })
         expect((await run(['verify'])).code).toBe(0)
         const report = JSON.parse(await readFile(reportPath, 'utf8')) as ProjectBackfillReport
         expect(report.ready).toBe(true)
@@ -380,6 +408,9 @@ describe('Project backfill CLI', () => {
                 '--from-file',
                 planPath,
                 '--writers-drained',
+                '--project-writers-enabled',
+                '--release-revision',
+                'integration-compatible-release',
                 '--database-id',
                 plan.databaseId,
               ],

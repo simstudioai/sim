@@ -8,6 +8,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizeProject, requireProjectPrincipal } from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
 import { archiveProjectInTransaction, finishProjectArchive } from '@/lib/projects/lifecycle'
+import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 
 interface ProjectInput {
   projectId: string
@@ -31,6 +32,7 @@ export const getProject: OperationUseCase<
   operation: projectOperations.get,
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.get)
+    requireProjectApiEnabled()
     return db.transaction(async (tx) => ({
       project: presentProject(await authorizeProject(tx, principal, projectOperations.get, input)),
     }))
@@ -46,6 +48,7 @@ export const getProjectIssueAccess: OperationUseCase<
   operation: projectOperations.issues,
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.issues)
+    requireProjectApiEnabled()
     return db.transaction(async (tx) => {
       const context = await authorizeProject(tx, principal, projectOperations.issues, input)
       return { projectId: context.record.id }
@@ -61,6 +64,7 @@ export const listProjects: OperationUseCase<
   operation: projectOperations.list,
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.list)
+    requireProjectApiEnabled()
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
       throw new OrchestrationError('validation', 'Limit must be between 1 and 100')
     return db.transaction(async (tx) => {
@@ -108,6 +112,7 @@ export const renameProject: OperationUseCase<
   operation: projectOperations.rename,
   async execute({ principal, input, request }) {
     requireProjectPrincipal(principal, projectOperations.rename)
+    requireProjectApiEnabled()
     const name = input.name.trim()
     if (!name || name.length > 100)
       throw new OrchestrationError('validation', 'Project name must contain 1–100 characters')
@@ -149,6 +154,7 @@ export const archiveProject: OperationUseCase<
   operation: projectOperations.archive,
   async execute({ principal, input, request }) {
     requireProjectPrincipal(principal, projectOperations.archive)
+    requireProjectApiEnabled()
     const result = await db.transaction(async (tx) => {
       const context = await authorizeProject(tx, principal, projectOperations.archive, input)
       const effects = await archiveProjectInTransaction(tx, context.record.id)
@@ -184,6 +190,7 @@ export const getWorkspaceProject: OperationUseCase<
   operation: projectOperations.get,
   async execute({ principal, input }) {
     requireProjectPrincipal(principal, projectOperations.get)
+    requireProjectApiEnabled()
     return db.transaction(async (tx) => {
       const [membership] = await tx
         .select({ projectId: projectWorkspace.projectId })

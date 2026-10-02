@@ -314,9 +314,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       updatedAt: now,
     })
 
-    await tx
-      .insert(projectWorkspace)
-      .values({ projectId: parentProject.id, workspaceId: childWorkspaceId })
+    if (parentProject)
+      await tx
+        .insert(projectWorkspace)
+        .values({ projectId: parentProject.id, workspaceId: childWorkspaceId })
 
     const sourcePermissions = await tx
       .select({ userId: permissions.userId, permissionType: permissions.permissionType })

@@ -5,6 +5,18 @@ import { and, asc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
+/** Prevents backfill from assigning membership between an absence read and the ensuing write. */
+export async function lockProjectBackfillWrites(tx: DbTransaction): Promise<void> {
+  await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
+  try {
+    await tx.execute(sql`LOCK TABLE workspace IN ROW EXCLUSIVE MODE`)
+  } catch (error) {
+    if (getPostgresErrorCode(error) === '55P03')
+      throw new OrchestrationError('conflict', 'Project backfill is running; retry the operation')
+    throw error
+  }
+}
+
 /** Canonical Project mutex; membership and lifecycle writers hold it until commit. */
 export async function lockProject(tx: DbTransaction, projectId: string): Promise<void> {
   await tx.execute(sql`SELECT set_config('lock_timeout', '5000ms', true)`)
@@ -49,6 +61,7 @@ export async function createProjectForWorkspace(
 
 /** Returns null only for a legacy workspace awaiting the operator-run backfill. */
 export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: string) {
+  await lockProjectBackfillWrites(tx)
   const [membership] = await tx
     .select()
     .from(projectWorkspace)
@@ -70,13 +83,28 @@ export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: strin
 
 export async function requireForkProject(tx: DbTransaction, parentWorkspaceId: string) {
   const parent = await lockWorkspaceProject(tx, parentWorkspaceId)
-  if (!parent)
-    throw new OrchestrationError(
-      'conflict',
-      'This workspace needs the Project backfill before it can be forked'
-    )
+  if (!parent) {
+    await requireUnassignedForkSubtree(tx, parentWorkspaceId)
+    return null
+  }
   if (parent.archivedAt) throw new OrchestrationError('conflict', 'Cannot fork an archived Project')
   return parent
+}
+
+/** Legacy fallback must not hide partially assigned descendants. Caller holds the lineage lock. */
+async function requireUnassignedForkSubtree(tx: DbTransaction, workspaceId: string): Promise<void> {
+  const rows = await tx.execute<{ id: string }>(sql`
+    WITH RECURSIVE descendants AS (
+      SELECT id FROM workspace WHERE id = ${workspaceId}
+      UNION
+      SELECT w.id FROM workspace w JOIN descendants d ON w.forked_from_workspace_id = d.id
+    ) SELECT d.id FROM descendants d JOIN project_workspace pw ON pw.workspace_id = d.id LIMIT 1
+  `)
+  if (rows.length)
+    throw new OrchestrationError(
+      'conflict',
+      'Fork descendants need Project membership reconciliation'
+    )
 }
 
 /** Individual removal cannot leave an active Project without an active environment. */
@@ -112,7 +140,10 @@ export async function splitForkProject(
   workspaceId: string
 ): Promise<string | null> {
   const owner = await lockWorkspaceProject(tx, workspaceId)
-  if (!owner) return null
+  if (!owner) {
+    await requireUnassignedForkSubtree(tx, workspaceId)
+    return null
+  }
   if (owner.archivedAt)
     throw new OrchestrationError('conflict', 'Cannot disconnect an archived Project')
   const rows = await tx.execute<{
@@ -187,6 +218,7 @@ export async function transferWorkspaceProjects(
   ownerId?: string
 ): Promise<void> {
   if (!workspaceIds.length) return
+  await lockProjectBackfillWrites(tx)
   const owners = await tx
     .selectDistinct({ id: projectWorkspace.projectId })
     .from(projectWorkspace)

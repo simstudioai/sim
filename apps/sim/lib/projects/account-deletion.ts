@@ -2,7 +2,7 @@ import { permissions, project, projectWorkspace, workspace } from '@sim/db/schem
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
-import { lockProject } from '@/lib/projects/membership'
+import { lockProject, lockProjectBackfillWrites } from '@/lib/projects/membership'
 
 /** Account teardown may erase a wholly private Project, but never strand a surviving one. */
 export async function prepareProjectsForAccountDeletion(
@@ -10,6 +10,7 @@ export async function prepareProjectsForAccountDeletion(
   userId: string,
   doomedWorkspaceIds: string[]
 ): Promise<void> {
+  await lockProjectBackfillWrites(tx)
   const records = await tx
     .select({ id: project.id })
     .from(project)

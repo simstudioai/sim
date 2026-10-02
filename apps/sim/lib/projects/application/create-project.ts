@@ -8,6 +8,7 @@ import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { requireProjectPrincipal } from '@/lib/projects/application/authorization'
 import { projectOperations } from '@/lib/projects/application/operations'
 import { type CreateProjectInput, createProjectInputSchema } from '@/lib/projects/create-input'
+import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import {
   createWorkspaceWithProjectInTransaction,
   emitWorkspaceCreatedPlatformEvent,
@@ -31,6 +32,7 @@ export const createProject: OperationUseCase<
   operation: projectOperations.create,
   async execute({ principal, input, request }) {
     requireProjectPrincipal(principal, projectOperations.create)
+    requireProjectApiEnabled()
     const parsed = createProjectInputSchema.safeParse(input)
     if (!parsed.success)
       throw new OrchestrationError(

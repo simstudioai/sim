@@ -22,7 +22,12 @@ Commands:
 
 Required environment: PROJECT_BACKFILL_DATABASE_URL (direct primary connection).
 Reports: PROJECT_BACKFILL_REPORT_PATH (required except identity).
-Apply requires --writers-drained and --database-id FINGERPRINT.
+Apply requires --writers-drained --project-writers-enabled --release-revision REVISION
+and --database-id FINGERPRINT. These are operator assertions, not fleet verification.
+Deploy first with PROJECT_WRITES_ENABLED=false and PROJECT_API_ENABLED=false.
+Drain old code, enable Project writers on every compatible instance, then backfill.
+Keep the Project API off until verification and later contract enforcement.
+Once Project data exists, never roll back to code that predates Project support.
 Options: --from-file PATH, --seconds 600 (1–3600), --max-family-size 1000 (1–10000).
 Run with compatible writers deployed. Pause lineage/ownership writes during apply.
 Short NOWAIT table locks exclude concurrent changes during each family transaction.
@@ -38,6 +43,8 @@ async function main() {
       help: { type: 'boolean' },
       'from-file': { type: 'string' },
       'writers-drained': { type: 'boolean' },
+      'project-writers-enabled': { type: 'boolean' },
+      'release-revision': { type: 'string' },
       'database-id': { type: 'string' },
       seconds: { type: 'string', default: '600' },
       'max-family-size': { type: 'string', default: '1000' },
@@ -78,13 +85,34 @@ async function main() {
     throw new Error('Invalid command')
   const reportPath = process.env.PROJECT_BACKFILL_REPORT_PATH
   if (!reportPath) throw new Error('Set PROJECT_BACKFILL_REPORT_PATH explicitly')
+  const releaseRevision = values['release-revision']?.trim() ?? ''
   if (
     mode === 'apply' &&
-    (!values['writers-drained'] || values['database-id'] !== databaseId || !values['from-file'])
+    (!values['writers-drained'] ||
+      !values['project-writers-enabled'] ||
+      !releaseRevision ||
+      values['database-id'] !== databaseId ||
+      !values['from-file'])
   )
-    throw new Error('Apply requires --writers-drained, matching --database-id, and --from-file')
-  if (mode !== 'apply' && (values['writers-drained'] || values['from-file']))
+    throw new Error(
+      'Apply requires --writers-drained, --project-writers-enabled, --release-revision, matching --database-id, and --from-file'
+    )
+  if (
+    mode !== 'apply' &&
+    (values['writers-drained'] ||
+      values['project-writers-enabled'] ||
+      values['release-revision'] ||
+      values['from-file'])
+  )
     throw new Error('Apply-only options used with read-only mode')
+  const operatorAssertions =
+    mode === 'apply'
+      ? {
+          oldWritersDrained: true,
+          projectWritersEnabled: true,
+          releaseRevision,
+        }
+      : undefined
   const inputPath = values['from-file']
   if (inputPath && resolve(inputPath) === resolve(reportPath))
     throw new Error('Keep the dry-run plan and apply report in separate files')
@@ -118,7 +146,14 @@ async function main() {
     const partialPath = `${reportPath}.${process.pid}.partial`
     await writeFile(
       partialPath,
-      JSON.stringify({ databaseId, mode, completed: false, ready: false, stopped: 'Starting' }),
+      JSON.stringify({
+        databaseId,
+        mode,
+        operatorAssertions,
+        completed: false,
+        ready: false,
+        stopped: 'Starting',
+      }),
       { mode: 0o600 }
     )
     await rename(partialPath, reportPath)
@@ -130,7 +165,9 @@ async function main() {
       maxFamilySize: Number(values['max-family-size']),
       shouldStop: () => interrupted,
       onProgress: async (progress) => {
-        await writeFile(partialPath, JSON.stringify(progress, null, 2), { mode: 0o600 })
+        await writeFile(partialPath, JSON.stringify({ ...progress, operatorAssertions }, null, 2), {
+          mode: 0o600,
+        })
         await rename(partialPath, reportPath)
         logger.info('Project backfill progress', {
           mode,

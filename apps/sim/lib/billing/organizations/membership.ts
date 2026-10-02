@@ -61,7 +61,7 @@ import {
   revokePersonalApiKeysTx,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
-import { tryLockProject } from '@/lib/projects/membership'
+import { lockProjectBackfillWrites, tryLockProject } from '@/lib/projects/membership'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -543,7 +543,7 @@ async function reassignOwnedOrganizationResourcesTx({
   organizationId,
   workspaceIds,
 }: {
-  tx: DbOrTx
+  tx: DbTransaction
   userId: string
   organizationId: string
   workspaceIds: string[]
@@ -557,6 +557,7 @@ async function reassignOwnedOrganizationResourcesTx({
   const ownerId = ownerMembership?.userId
   if (!ownerId || ownerId === userId) return 0
 
+  await lockProjectBackfillWrites(tx)
   const ownedProjects = await tx
     .select({ id: project.id })
     .from(project)
