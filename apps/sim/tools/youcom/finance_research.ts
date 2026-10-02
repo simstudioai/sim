@@ -1,12 +1,14 @@
-import { toRecordOrNull } from '@sim/utils/object'
+import { toArray, toRecordOrNull } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
 import type {
   YouComFinanceResearchParams,
   YouComFinanceResearchResponse,
 } from '@/tools/youcom/types'
 import {
+  FINANCE_RESEARCH_EFFORTS,
   mapResearchSources,
   RESEARCH_SOURCES_OUTPUT,
+  RESEARCH_WARNINGS_OUTPUT,
   YOUCOM_API_BASE_URL,
   youComApiKeyParam,
   youComHeaders,
@@ -48,7 +50,9 @@ export const youComFinanceResearchTool: ToolConfig<
     headers: youComHeaders,
     body: (params) => {
       const body: Record<string, unknown> = { input: params.input }
-      if (params.researchEffort) body.research_effort = params.researchEffort
+      if (params.researchEffort && FINANCE_RESEARCH_EFFORTS.has(params.researchEffort)) {
+        body.research_effort = params.researchEffort
+      }
       return body
     },
   },
@@ -63,6 +67,7 @@ export const youComFinanceResearchTool: ToolConfig<
         content: String(output.content ?? ''),
         contentType: String(output.content_type ?? 'text'),
         sources: mapResearchSources(output.sources),
+        warnings: toArray(data.warnings).map(String),
       },
     }
   },
@@ -74,5 +79,6 @@ export const youComFinanceResearchTool: ToolConfig<
     },
     contentType: { type: 'string', description: 'Format of content (text)' },
     sources: RESEARCH_SOURCES_OUTPUT,
+    warnings: RESEARCH_WARNINGS_OUTPUT,
   },
 }

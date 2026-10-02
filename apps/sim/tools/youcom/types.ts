@@ -181,6 +181,7 @@ export interface YouComFinanceResearchResponse extends ToolResponse {
     content: string
     contentType: string
     sources: YouComResearchSource[]
+    warnings: string[]
   }
 }
 

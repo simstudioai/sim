@@ -102,12 +102,6 @@ const ANSWER_LANGUAGE_OPTIONS = [
   { label: 'Vietnamese', id: 'VI' },
 ]
 
-const ANSWER_LANGUAGE_IDS = new Set(
-  ANSWER_LANGUAGE_OPTIONS.map((option) => option.id).filter((id) => id !== '')
-)
-
-const FINANCE_RESEARCH_EFFORTS = new Set(['deep', 'exhaustive'])
-
 const SEARCH_ONLY_LANGUAGES = [
   { label: 'Chinese (Simplified)', id: 'ZH-HANS' },
   { label: 'Chinese (Traditional)', id: 'ZH-HANT' },
@@ -510,25 +504,10 @@ export const YouComBlock: BlockConfig = {
         const maxAge = toOptionalNumber(params.maxAge)
         if (maxAge !== undefined) result.maxAge = maxAge
 
-        // Operations share field ids, so a value set under one operation can carry over to
-        // another. Drop values the active endpoint rejects so it falls back to its default.
-        if (
-          params.operation === ANSWER &&
-          params.language &&
-          !ANSWER_LANGUAGE_IDS.has(params.language)
-        ) {
-          result.language = undefined
-        }
-        const isFinanceEffort = FINANCE_RESEARCH_EFFORTS.has(params.researchEffort)
-        if (params.operation === FINANCE_RESEARCH && params.researchEffort && !isFinanceEffort) {
-          result.researchEffort = undefined
-        }
-        const effort = 'researchEffort' in result ? result.researchEffort : params.researchEffort
-        const isSyncResearch =
-          params.operation === FINANCE_RESEARCH ||
-          (params.operation === RESEARCH && params.background !== true && effort !== 'frontier')
-        if (isSyncResearch && effort === 'exhaustive')
+        // Keyed on effort, not operation: Agent tool rows store the operation outside these params
+        if (params.researchEffort === 'exhaustive' && params.background !== true) {
           result.timeout = EXHAUSTIVE_REQUEST_TIMEOUT_MS
+        }
         return result
       },
     },

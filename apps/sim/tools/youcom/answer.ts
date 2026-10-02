@@ -3,6 +3,7 @@ import { toArray, toRecordOrNull } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
 import type { YouComAnswerParams, YouComAnswerResponse } from '@/tools/youcom/types'
 import {
+  ANSWER_LANGUAGES,
   buildDomainFilters,
   YOUCOM_API_BASE_URL,
   youComApiKeyParam,
@@ -84,7 +85,7 @@ export const youComAnswerTool: ToolConfig<YouComAnswerParams, YouComAnswerRespon
       }
       if (params.freshness) body.freshness = params.freshness.trim()
       if (params.country) body.country = params.country
-      if (params.language) body.language = params.language
+      if (params.language && ANSWER_LANGUAGES.has(params.language)) body.language = params.language
       if (params.safesearch) body.safesearch = params.safesearch
       return body
     },

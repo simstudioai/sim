@@ -6,6 +6,62 @@ import type { YouComDomainFilterParams, YouComResearchSource } from '@/tools/you
 export const YOUCOM_INDEX_BASE_URL = 'https://ydc-index.io/v1'
 export const YOUCOM_API_BASE_URL = 'https://api.you.com/v1'
 
+/**
+ * Languages the Answer endpoint accepts. Search also accepts ZH-HANS, ZH-HANT, JA, PT-BR, and
+ * PT-PT; Answer rejects those, so a value carried over from Search is dropped instead of sent.
+ */
+export const ANSWER_LANGUAGES: ReadonlySet<string> = new Set([
+  'AR',
+  'EU',
+  'BN',
+  'BG',
+  'CA',
+  'HR',
+  'CS',
+  'DA',
+  'NL',
+  'EN',
+  'EN-GB',
+  'ET',
+  'FI',
+  'FR',
+  'GL',
+  'DE',
+  'EL',
+  'GU',
+  'HE',
+  'HI',
+  'HU',
+  'IS',
+  'IT',
+  'KN',
+  'KO',
+  'LV',
+  'LT',
+  'MS',
+  'ML',
+  'MR',
+  'NB',
+  'PL',
+  'PA',
+  'RO',
+  'RU',
+  'SR',
+  'SK',
+  'SL',
+  'ES',
+  'SV',
+  'TA',
+  'TE',
+  'TH',
+  'TR',
+  'UK',
+  'VI',
+])
+
+/** Effort levels the Finance Research endpoint accepts; others fall back to its `deep` default. */
+export const FINANCE_RESEARCH_EFFORTS: ReadonlySet<string> = new Set(['deep', 'exhaustive'])
+
 export const youComApiKeyParam = {
   type: 'string',
   required: true,
@@ -40,13 +96,17 @@ export function parseList(value: unknown): string[] | undefined {
 
 /**
  * Builds the `include_domains` / `exclude_domains` / `boost_domains` slice. You.com rejects
- * `include_domains` combined with either of the others with a 422, which is surfaced as-is.
+ * `include_domains` combined with either of the others with a bare "invalid request parameter(s)"
+ * 422, so the combination is rejected here with an actionable message instead.
  */
 export function buildDomainFilters(params: YouComDomainFilterParams): Record<string, string[]> {
   const filters: Record<string, string[]> = {}
   const include = parseList(params.includeDomains)
   const exclude = parseList(params.excludeDomains)
   const boost = parseList(params.boostDomains)
+  if (include && (exclude || boost)) {
+    throw new Error('Include domains cannot be combined with exclude or boost domains')
+  }
   if (include) filters.include_domains = include
   if (exclude) filters.exclude_domains = exclude
   if (boost) filters.boost_domains = boost
