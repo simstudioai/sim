@@ -55,7 +55,6 @@ import { createFork } from '@/ee/workspace-forking/lib/create-fork'
 import { unlinkForkEdge } from '@/ee/workspace-forking/lib/lineage/unlink'
 
 beforeEach(() => {
-  vi.stubEnv('PROJECT_WRITES_ENABLED', 'true')
   vi.stubEnv('PROJECT_API_ENABLED', 'true')
 })
 
@@ -194,9 +193,8 @@ afterAll(async () => {
 
 describe('Project foundation at the database and application boundary', () => {
   check(
-    'disabled rollout preserves legacy creation and fork/disconnect without Project rows',
+    'workspace creation and fork/disconnect assign Projects while APIs remain disabled',
     async () => {
-      vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
       vi.stubEnv('PROJECT_API_ENABLED', 'false')
       const f = await fixture(false, 1)
       const source = await db.transaction((tx) =>
@@ -214,7 +212,7 @@ describe('Project foundation at the database and application boundary', () => {
       environments.push(source.id)
       expect(
         await db.select().from(projectWorkspace).where(eq(projectWorkspace.workspaceId, source.id))
-      ).toEqual([])
+      ).toHaveLength(1)
       const parent = await getWorkspaceWithOwner(source.id)
       if (!parent) throw new Error('Missing source fixture')
       const fork = await createFork({
@@ -229,11 +227,11 @@ describe('Project foundation at the database and application boundary', () => {
           .select()
           .from(projectWorkspace)
           .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
-      ).toEqual([])
+      ).toHaveLength(1)
       await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
       const [child] = await db.select().from(workspace).where(eq(workspace.id, fork.workspace.id))
       expect(child.forkedFromWorkspaceId).toBeNull()
-      expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(1)
+      expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(3)
     }
   )
 
@@ -242,45 +240,42 @@ describe('Project foundation at the database and application boundary', () => {
     async () => {
       const f = await fixture(false, 1)
       vi.stubEnv('PROJECT_API_ENABLED', 'false')
-      for (const writes of ['false', 'true']) {
-        vi.stubEnv('PROJECT_WRITES_ENABLED', writes)
-        const input = { projectId: f.projectId }
-        const calls = [
-          () =>
-            createProject.execute({
-              principal: f.owner,
-              input: {
-                organizationId: null,
-                name: 'Blocked',
-                initialEnvironment: { name: 'Production' },
-              },
-              request,
-            }),
-          () => getProject.execute({ principal: f.owner, input, request }),
-          () =>
-            getWorkspaceProject.execute({
-              principal: f.owner,
-              input: { workspaceId: f.ids[0] },
-              request,
-            }),
-          () => listProjects.execute({ principal: f.owner, input: { limit: 10 }, request }),
-          () =>
-            renameProject.execute({
-              principal: f.owner,
-              input: { ...input, name: 'Blocked' },
-              request,
-            }),
-          () => archiveProject.execute({ principal: f.owner, input, request }),
-          () => getProjectIssueAccess.execute({ principal: f.owner, input, request }),
-        ]
-        for (const call of calls) await expect(call()).rejects.toMatchObject({ statusCode: 503 })
-        expect(
-          await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))
-        ).toHaveLength(1)
-        const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
-        expect(record.name).toBe('Environment 0 - Project')
-        expect(record.archivedAt).toBeNull()
-      }
+      const input = { projectId: f.projectId }
+      const calls = [
+        () =>
+          createProject.execute({
+            principal: f.owner,
+            input: {
+              organizationId: null,
+              name: 'Blocked',
+              initialEnvironment: { name: 'Production' },
+            },
+            request,
+          }),
+        () => getProject.execute({ principal: f.owner, input, request }),
+        () =>
+          getWorkspaceProject.execute({
+            principal: f.owner,
+            input: { workspaceId: f.ids[0] },
+            request,
+          }),
+        () => listProjects.execute({ principal: f.owner, input: { limit: 10 }, request }),
+        () =>
+          renameProject.execute({
+            principal: f.owner,
+            input: { ...input, name: 'Blocked' },
+            request,
+          }),
+        () => archiveProject.execute({ principal: f.owner, input, request }),
+        () => getProjectIssueAccess.execute({ principal: f.owner, input, request }),
+      ]
+      for (const call of calls) await expect(call()).rejects.toMatchObject({ statusCode: 503 })
+      expect(
+        await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))
+      ).toHaveLength(1)
+      const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
+      expect(record.name).toBe('Environment 0 - Project')
+      expect(record.archivedAt).toBeNull()
     }
   )
 
@@ -288,7 +283,6 @@ describe('Project foundation at the database and application boundary', () => {
     'disabling activation preserves assigned fork membership and lifecycle protections',
     async () => {
       const f = await fixture(false, 1)
-      vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
       vi.stubEnv('PROJECT_API_ENABLED', 'false')
       const parent = await getWorkspaceWithOwner(f.ids[0])
       if (!parent) throw new Error('Missing source fixture')
@@ -316,7 +310,7 @@ describe('Project foundation at the database and application boundary', () => {
     }
   )
 
-  check('writer activation assigns new workspaces while Project APIs remain disabled', async () => {
+  check('new workspaces receive Projects while Project APIs remain disabled', async () => {
     vi.stubEnv('PROJECT_API_ENABLED', 'false')
     const f = await fixture(false, 1)
     const created = await db.transaction((tx) =>
@@ -335,18 +329,6 @@ describe('Project foundation at the database and application boundary', () => {
     expect(
       await db.select().from(projectWorkspace).where(eq(projectWorkspace.workspaceId, created.id))
     ).toHaveLength(1)
-    vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
-    vi.stubEnv('PROJECT_API_ENABLED', 'true')
-    await expect(
-      createProject.execute({
-        principal: f.owner,
-        input: { organizationId: null, name: 'Invalid', initialEnvironment: { name: 'First' } },
-        request,
-      })
-    ).rejects.toThrow('PROJECT_API_ENABLED requires PROJECT_WRITES_ENABLED')
-    expect(await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))).toHaveLength(
-      2
-    )
   })
 
   check('legacy fork and disconnect refuse a partially assigned subtree', async () => {
@@ -354,7 +336,6 @@ describe('Project foundation at the database and application boundary', () => {
     await db
       .delete(projectWorkspace)
       .where(inArray(projectWorkspace.workspaceId, f.ids.slice(0, 2)))
-    vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
     vi.stubEnv('PROJECT_API_ENABLED', 'false')
     const parent = await getWorkspaceWithOwner(f.ids[1])
     if (!parent) throw new Error('Missing source fixture')
@@ -395,20 +376,23 @@ describe('Project foundation at the database and application boundary', () => {
       })
       try {
         await Promise.race([read.promise, writer])
-        await expect(
-          db.transaction(async (tx) => {
-            await tx.execute(
-              sql`LOCK TABLE workspace, project, project_workspace IN SHARE ROW EXCLUSIVE MODE NOWAIT`
-            )
-          })
-        ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '55P03')
+        await db.transaction(async (tx) => {
+          const [lock] = await tx.execute<{ acquired: boolean }>(sql`
+            SELECT pg_try_advisory_xact_lock(hashtextextended(${`project-backfill:${f.ids[0]}`}, 0)) AS acquired
+          `)
+          expect(lock.acquired).toBe(false)
+          const [unrelated] = await tx.execute<{ acquired: boolean }>(sql`
+            SELECT pg_try_advisory_xact_lock(hashtextextended('project-backfill:unrelated', 0)) AS acquired
+          `)
+          expect(unrelated.acquired).toBe(true)
+        })
       } finally {
         release.resolve()
         await writer
       }
       await db.transaction(async (tx) => {
         await tx.execute(
-          sql`LOCK TABLE workspace, project, project_workspace IN SHARE ROW EXCLUSIVE MODE NOWAIT`
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`project-backfill:${f.ids[0]}`}, 0))`
         )
         await createProjectForWorkspace(tx, {
           workspaceId: f.ids[0],
@@ -434,7 +418,7 @@ describe('Project foundation at the database and application boundary', () => {
     const release = createDeferred<void>()
     const backfill = db.transaction(async (tx) => {
       await tx.execute(
-        sql`LOCK TABLE workspace, project, project_workspace IN SHARE ROW EXCLUSIVE MODE NOWAIT`
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`project-backfill:${f.ids[0]}`}, 0))`
       )
       locked.resolve()
       await release.promise
@@ -459,7 +443,7 @@ describe('Project foundation at the database and application boundary', () => {
     try {
       for (let attempt = 0; attempt < 100; attempt++) {
         const rows = await db.execute<{ waiting: boolean }>(sql`SELECT EXISTS (
-          SELECT 1 FROM pg_locks WHERE relation = 'workspace'::regclass AND mode = 'RowExclusiveLock' AND NOT granted
+          SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND mode = 'ShareLock' AND NOT granted
         ) AS waiting`)
         if (rows[0]?.waiting) {
           blocked = true

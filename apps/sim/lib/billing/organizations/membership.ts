@@ -557,7 +557,7 @@ async function reassignOwnedOrganizationResourcesTx({
   const ownerId = ownerMembership?.userId
   if (!ownerId || ownerId === userId) return 0
 
-  await lockProjectBackfillWrites(tx)
+  await lockProjectBackfillWrites(tx, workspaceIds)
   const ownedProjects = await tx
     .select({ id: project.id })
     .from(project)

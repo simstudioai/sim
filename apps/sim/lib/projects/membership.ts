@@ -5,11 +5,21 @@ import { and, asc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
-/** Prevents backfill from assigning membership between an absence read and the ensuing write. */
-export async function lockProjectBackfillWrites(tx: DbTransaction): Promise<void> {
+/** Shared per-environment gate keeps membership absence reads stable during SQL backfill. */
+export async function lockProjectBackfillWrites(
+  tx: DbTransaction,
+  workspaceIds: string[]
+): Promise<void> {
+  if (!workspaceIds.length) return
   await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
   try {
-    await tx.execute(sql`LOCK TABLE workspace IN ROW EXCLUSIVE MODE`)
+    await tx.execute(sql`
+      SELECT pg_advisory_xact_lock_shared(hashtextextended('project-backfill:' || id, 0))
+      FROM (SELECT DISTINCT unnest(ARRAY[${sql.join(
+        workspaceIds.map((id) => sql`${id}`),
+        sql`, `
+      )}]::text[]) AS id ORDER BY id) ids
+    `)
   } catch (error) {
     if (getPostgresErrorCode(error) === '55P03')
       throw new OrchestrationError('conflict', 'Project backfill is running; retry the operation')
@@ -59,9 +69,9 @@ export async function createProjectForWorkspace(
   return id
 }
 
-/** Returns null only for a legacy workspace awaiting the operator-run backfill. */
+/** Returns null only for a legacy workspace awaiting the SQL backfill. */
 export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: string) {
-  await lockProjectBackfillWrites(tx)
+  await lockProjectBackfillWrites(tx, [workspaceId])
   const [membership] = await tx
     .select()
     .from(projectWorkspace)
@@ -218,7 +228,7 @@ export async function transferWorkspaceProjects(
   ownerId?: string
 ): Promise<void> {
   if (!workspaceIds.length) return
-  await lockProjectBackfillWrites(tx)
+  await lockProjectBackfillWrites(tx, workspaceIds)
   const owners = await tx
     .selectDistinct({ id: projectWorkspace.projectId })
     .from(projectWorkspace)
