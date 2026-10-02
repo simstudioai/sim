@@ -39,9 +39,23 @@ interface LinkupFetchImage {
 export interface LinkupFetchParams {
   url: string
   apiKey: string
-  renderJs?: boolean
+  renderJs?: boolean | string
+  includeRawHtml?: boolean | string
+  extractImages?: boolean | string
+}
+
+export type LinkupFetchRequestBody = {
+  url: string
+  renderJs: boolean
   includeRawHtml?: boolean
   extractImages?: boolean
+}
+
+export interface LinkupFetchApiResponse {
+  markdown?: string
+  rawHtml?: string
+  images?: LinkupFetchImage[]
+  favicon?: string
 }
 
 export interface LinkupFetchToolResponse extends ToolResponse {

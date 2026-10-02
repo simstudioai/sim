@@ -1,4 +1,10 @@
-import type { LinkupFetchParams, LinkupFetchToolResponse } from '@/tools/linkup/types'
+import type {
+  LinkupFetchApiResponse,
+  LinkupFetchParams,
+  LinkupFetchRequestBody,
+  LinkupFetchToolResponse,
+} from '@/tools/linkup/types'
+import { isEnabled } from '@/tools/linkup/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const fetchTool: ToolConfig<LinkupFetchParams, LinkupFetchToolResponse> = {
@@ -51,7 +57,7 @@ export const fetchTool: ToolConfig<LinkupFetchParams, LinkupFetchToolResponse> =
         // Linkup pricing (https://docs.linkup.so/pages/documentation/platform/pricing):
         //   Standard:            $0.001/call
         //   Standard + renderJs: $0.005/call
-        const renderJs = params.renderJs === true
+        const renderJs = isEnabled(params.renderJs)
         const cost = renderJs ? 0.005 : 0.001
         return { cost, metadata: { renderJs } }
       },
@@ -70,20 +76,24 @@ export const fetchTool: ToolConfig<LinkupFetchParams, LinkupFetchToolResponse> =
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
-        url: params.url?.trim(),
+      const body: LinkupFetchRequestBody = {
+        url: params.url?.trim() ?? '',
+        renderJs: isEnabled(params.renderJs),
       }
 
-      if (params.renderJs !== undefined) body.renderJs = params.renderJs
-      if (params.includeRawHtml !== undefined) body.includeRawHtml = params.includeRawHtml
-      if (params.extractImages !== undefined) body.extractImages = params.extractImages
+      if (params.includeRawHtml !== undefined) {
+        body.includeRawHtml = isEnabled(params.includeRawHtml)
+      }
+      if (params.extractImages !== undefined) {
+        body.extractImages = isEnabled(params.extractImages)
+      }
 
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: LinkupFetchApiResponse = await response.json()
 
     return {
       success: true,
@@ -104,7 +114,7 @@ export const fetchTool: ToolConfig<LinkupFetchParams, LinkupFetchToolResponse> =
     rawHtml: {
       type: 'string',
       description: 'The raw HTML of the webpage, when includeRawHtml is enabled',
-      optional: true,
+      nullable: true,
     },
     images: {
       type: 'array',
@@ -120,7 +130,7 @@ export const fetchTool: ToolConfig<LinkupFetchParams, LinkupFetchToolResponse> =
     favicon: {
       type: 'string',
       description: 'The URL of the website favicon',
-      optional: true,
+      nullable: true,
     },
   },
 }
