@@ -1,0 +1,154 @@
+#!/usr/bin/env bun
+/**
+ * Runs knip once for the whole dead-code audit: zero tolerance for unreachable files and
+ * dependency drift, and a shrink-only ratchet for unused exports.
+ *
+ * `knip.jsonc` scopes plain `knip` (`check:dead-code`) to files, dependencies, unlisted, and
+ * unresolved, because thousands of pre-existing unused exports would otherwise drown the report.
+ * That left exports unguarded: an agent could export a helper nothing imports, or keep a dead
+ * export alive after deleting its last caller, and nothing objected. This script adds knip's
+ * `exports`, `types`, and `duplicates` issues on top of the same pass:
+ *
+ * - `files`, `dependencies`, `unlisted`, `unresolved` must be empty (what `check:dead-code` gates).
+ * - Each unused export is normalized to a sorted `path#symbol` entry and compared with
+ *   `scripts/check-unused-exports.baseline.json`. A new entry fails; so does a baseline entry that
+ *   no longer occurs, so the baseline only shrinks. Regenerate with `--update`.
+ *
+ * Public package surface is not baselined: knip treats every workspace's `exports`/`main`/`bin`
+ * targets as entry files and, with `includeEntryExports: false` (set explicitly in knip.jsonc),
+ * never reports their exports. Exports used only by tests count as used because knip's Vitest
+ * plugin makes test files entries.
+ *
+ * Knip takes ~13 s, so `run-audits.ts` runs this script and skips `check:dead-code`, which stays
+ * available as the human-readable report.
+ *
+ * Run: `bun run check:unused-exports`
+ */
+import { readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+import { localBin } from './local-bin'
+
+const ROOT = path.resolve(import.meta.dir, '..')
+const BASELINE = path.join(ROOT, 'scripts/check-unused-exports.baseline.json')
+
+/** Issue types gated at zero, matching the `include` list in knip.jsonc. */
+const STRICT_TYPES = ['files', 'dependencies', 'devDependencies', 'unlisted', 'unresolved'] as const
+/** Issue types ratcheted against the baseline. */
+const RATCHET_TYPES = ['exports', 'types', 'duplicates'] as const
+
+type RatchetType = (typeof RATCHET_TYPES)[number]
+
+interface KnipSymbol {
+  name: string
+  line?: number
+}
+
+type KnipIssue = { file: string } & Record<string, unknown>
+
+const HOW_TO_FIX: Record<RatchetType, string> = {
+  exports:
+    'Delete the export if nothing uses it, or drop the `export` keyword if it is only used in its own file.',
+  types:
+    'Delete the type if nothing uses it, or drop the `export` keyword if it is only used in its own file.',
+  duplicates: 'The same value is exported under two names; keep one and update importers.',
+}
+
+function runKnip(): KnipIssue[] {
+  const result = Bun.spawnSync(
+    [
+      localBin('knip'),
+      '--include',
+      [...STRICT_TYPES, ...RATCHET_TYPES].join(','),
+      '--reporter',
+      'json',
+      '--no-config-hints',
+    ],
+    { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
+  )
+  const stdout = result.stdout.toString()
+  // knip exits 1 whenever it reports an issue; only a missing JSON body is a crash.
+  if (!stdout.trimStart().startsWith('{')) {
+    console.error(`knip failed (exit ${result.exitCode}):\n${result.stderr.toString()}${stdout}`)
+    process.exit(1)
+  }
+  return (JSON.parse(stdout) as { issues: KnipIssue[] }).issues
+}
+
+const issues = runKnip()
+const strict: string[] = []
+const kindByEntry = new Map<string, RatchetType>()
+const lineByEntry = new Map<string, number>()
+
+for (const issue of issues) {
+  for (const type of STRICT_TYPES) {
+    for (const item of (issue[type] as KnipSymbol[] | undefined) ?? []) {
+      strict.push(type === 'files' ? `files: ${issue.file}` : `${type}: ${issue.file} ${item.name}`)
+    }
+  }
+  for (const type of RATCHET_TYPES) {
+    const items = (issue[type] as Array<KnipSymbol | KnipSymbol[]> | undefined) ?? []
+    for (const item of items) {
+      const symbols = Array.isArray(item) ? item : [item]
+      const name = symbols
+        .map((symbol) => symbol.name)
+        .sort()
+        .join('=')
+      const entry = `${issue.file}#${name}`
+      kindByEntry.set(entry, type)
+      if (symbols[0]?.line) lineByEntry.set(entry, symbols[0].line)
+    }
+  }
+}
+
+if (strict.length) {
+  console.error(`✗ knip found ${strict.length} unreachable file(s) or dependency issue(s):`)
+  for (const line of strict.sort()) console.error(`  ${line}`)
+  console.error(
+    '\nDelete unreachable files, declare or remove dependencies, and fix unresolved imports. ' +
+      'If knip cannot see a real entry point, add it to knip.jsonc with a comment saying why. ' +
+      'Details: bun run check:dead-code'
+  )
+}
+
+const current = [...kindByEntry.keys()].sort()
+
+if (process.argv.includes('--update')) {
+  writeFileSync(BASELINE, `${JSON.stringify(current, null, 2)}\n`)
+  console.log(`Wrote ${current.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
+  process.exit(strict.length ? 1 : 0)
+}
+
+const baseline = new Set<string>(JSON.parse(readFileSync(BASELINE, 'utf8')))
+const added = current.filter((entry) => !baseline.has(entry))
+const currentSet = new Set(current)
+const stale = [...baseline].filter((entry) => !currentSet.has(entry))
+
+if (added.length) {
+  const kinds = new Set<RatchetType>()
+  console.error(`\n✗ ${added.length} new unused export(s):`)
+  for (const entry of added) {
+    const kind = kindByEntry.get(entry) as RatchetType
+    kinds.add(kind)
+    const [file, symbol] = entry.split('#')
+    const line = lineByEntry.get(entry)
+    console.error(`  ${kind}: ${file}${line ? `:${line}` : ''} ${symbol}`)
+  }
+  for (const kind of kinds) console.error(`  ${kind}: ${HOW_TO_FIX[kind]}`)
+  console.error(
+    '  If it is deliberate public API of a package, expose it through that package.json `exports` ' +
+      'map (or add an `ignore` rule in knip.jsonc with a comment saying why). Never add it to the baseline.'
+  )
+}
+
+if (stale.length) {
+  console.error(
+    `\n✗ ${stale.length} baseline entr${stale.length === 1 ? 'y is' : 'ies are'} no longer unused ` +
+      '— shrink the baseline: bun run scripts/check-unused-exports.ts --update'
+  )
+  for (const entry of stale.slice(0, 20)) console.error(`  ${entry}`)
+  if (stale.length > 20) console.error(`  … and ${stale.length - 20} more`)
+}
+
+if (strict.length || added.length || stale.length) process.exit(1)
+
+console.log(`✓ dead code: no unreachable files; ${current.length} baselined unused exports`)

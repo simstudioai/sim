@@ -1,8 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  // Gate reachability and dependency ownership. Export/type pruning needs review
-  // of public package contracts and test-only consumers, not a blanket threshold.
+  // Plain `knip` (check:dead-code) gates reachability and dependency ownership.
+  // Unused exports, types, and duplicates are ratcheted by check:unused-exports,
+  // which reuses this config in the same knip pass.
   "include": ["files", "dependencies", "unlisted", "unresolved"],
+  // Package `exports`/`main`/`bin` targets are entries; their exports are public
+  // contracts (ts-sdk, emcn, cli, …), so knip must never report them as unused.
+  "includeEntryExports": false,
   "workspaces": {
     ".": {
       "entry": ["scripts/**/*.{ts,tsx}", "vitest.shared.ts"],
