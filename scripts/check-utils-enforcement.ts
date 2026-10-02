@@ -1,14 +1,17 @@
 #!/usr/bin/env bun
 /**
- * Enforces use of shared @sim/utils helpers over inline implementations.
+ * Bans inline idioms that a shared helper or a written rule already replaces.
+ *
+ * Most patterns point at an `@sim/utils` helper (CLAUDE.md "Common utilities"). A few encode
+ * render-path rules from `.claude/rules/sim-react-performance.md` and `sim-styling.md` that no
+ * linter covers: ES2023 array methods that Safari 15 lacks (banned everywhere, since whether a
+ * module reaches the browser is not visible from its path and a copy-then-sort costs the same), `useRef(new X())` allocating on
+ * every render, and `h-N w-N` where `size-N` is the convention.
  *
  * Biome's noRestrictedImports covers the import-based bans it lists — today `nanoid` and
  * `uuid`. It does NOT cover named crypto imports; `import { randomBytes } from 'node:crypto'`
  * passes both gates, and deliberately so, since server code building cipher IVs and tokens
  * wants node's crypto rather than the cross-context wrapper in `@sim/utils/random`.
- *
- * This script catches what static import analysis misses — global property access, inline
- * idioms, and reimplemented helpers that should live in @sim/utils.
  *
  * Patterns are matched against the whole file, not line by line: every idiom banned here is a
  * multi-token expression that the formatter wraps at 100 columns, and a line-scoped scan sees
@@ -23,34 +26,38 @@ const SCAN_DIRS = [path.join(ROOT, 'apps'), path.join(ROOT, 'packages')]
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage', 'bundles'])
 
-/** Files that implement the utilities themselves — allowed to use the underlying primitives. */
+/** `@sim/utils` implements the helpers, so it may use the primitives they replace. */
+const UTILS_SOURCE = 'packages/utils/src/'
+
+/** Other files allowed to use the underlying primitives. */
 const ALLOWLISTED_FILES = new Set([
-  'packages/utils/src/errors.ts',
-  'packages/utils/src/helpers.ts',
-  'packages/utils/src/random.ts',
-  'packages/utils/src/id.ts',
-  'packages/utils/src/object.ts',
-  'packages/utils/src/retry.ts',
-  'packages/utils/src/errors.test.ts',
-  'packages/utils/src/helpers.test.ts',
-  'packages/utils/src/random.test.ts',
-  'packages/utils/src/id.test.ts',
-  'packages/utils/src/object.test.ts',
-  'packages/utils/src/retry.test.ts',
   // Published standalone CLIs: `@sim/utils` is private, so they carry local
   // copies rather than a dependency that only resolves inside the monorepo.
   'packages/cli/src/index.ts',
   'packages/ts-sdk/src/index.ts',
   // CJS bundle — cannot use ES module imports
   'apps/sim/lib/execution/isolated-vm-worker.cjs',
+  // Emits the sandbox-side event filter as plain JS source, which cannot import @sim/utils
+  'apps/sim/executor/handlers/pi/cloud/event-filter-source.ts',
   // Uses crypto.getRandomValues() directly (not crypto.randomUUID) — TSDoc comment triggers false positive
   'packages/testing/src/factories/id.ts',
 ])
+
+/** `s.slice(0, n)` plus a suffix, by `+` or in a template literal; `\1` is `s` and `\2` is `n`. */
+const TRUNCATED = String.raw`(?:\`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^\`$]*\`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))`
+/** Literal gate for both truncate patterns, whose backreferences are slow over every file. */
+const TRUNCATE_PREFILTER = /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/
+
+/** Literal gate shared by the `filterUndefined` and `omit` patterns. */
+const FROM_ENTRIES = /Object\.fromEntries\(/
 
 const BANNED_PATTERNS: Array<{
   pattern: RegExp
   description: string
   suggestion: string
+  /** Restricts the pattern to matching files; unrestricted patterns apply everywhere. */
+  /** Cheap literal test that skips the pattern on files that cannot match; memoized per file. */
+  prefilter?: RegExp
 }> = [
   // Randomness / ID generation — global property access that import bans miss
   {
@@ -85,6 +92,77 @@ const BANNED_PATTERNS: Array<{
     pattern: /new Promise\s*[(<]\s*(?:resolve|\(resolve\))\s*=>\s*setTimeout\s*\(\s*resolve/g,
     description: 'new Promise(resolve => setTimeout(resolve, ms))',
     suggestion: 'sleep(ms) from @sim/utils/helpers',
+  },
+  {
+    pattern:
+      /\b([\w.]+)\s+instanceof\s+Error\s*\?\s*\1\s*:\s*new\s+Error\(\s*String\(\s*\1\s*\)\s*\)/g,
+    description: 'e instanceof Error ? e : new Error(String(e))',
+    suggestion: 'toError(e) from @sim/utils/errors',
+    prefilter: /new\s+Error\(\s*String\(/,
+  },
+  {
+    pattern:
+      /typeof\s+([\w.]+)\s*===\s*'object'\s*&&\s*\1\s*!==\s*null\s*&&\s*!Array\.isArray\(\s*\1\s*\)/g,
+    description: "typeof v === 'object' && v !== null && !Array.isArray(v)",
+    suggestion: 'isRecordLike(v) from @sim/utils/object',
+    prefilter: /!Array\.isArray\(/,
+  },
+  {
+    pattern:
+      /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*\w*\s*,\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==\s*undefined\s*\)\s*,?\s*\)/g,
+    description: 'Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))',
+    suggestion: 'filterUndefined(obj) from @sim/utils/object',
+    prefilter: FROM_ENTRIES,
+  },
+  {
+    pattern:
+      /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==\s*[\w.'"]+\s*\)\s*,?\s*\)/g,
+    description: 'Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))',
+    suggestion: 'omit(obj, [key]) from @sim/utils/object',
+    prefilter: FROM_ENTRIES,
+  },
+  {
+    pattern: new RegExp(
+      String.raw`\b([\w.]+)\.length\s*>\s*([\w.]+)\s*\?\s*${TRUNCATED}\s*:\s*\1\b(?!\.)`,
+      'g'
+    ),
+    description: 's.length > n ? s.slice(0, n) + suffix : s',
+    prefilter: TRUNCATE_PREFILTER,
+    suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
+  },
+  {
+    pattern: new RegExp(
+      String.raw`\b([\w.]+)\.length\s*<=\s*([\w.]+)\s*\?\s*\1\s*:\s*${TRUNCATED}`,
+      'g'
+    ),
+    description: 's.length <= n ? s : s.slice(0, n) + suffix',
+    prefilter: TRUNCATE_PREFILTER,
+    suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
+  },
+  {
+    pattern: /\/\[\.\*\+\?\^\$\{\}\(\)\|\[\\\]\\\\\]\/g/g,
+    description: 'hand-rolled regex-metacharacter escape',
+    suggestion: 'escapeRegExp(value) from @sim/utils/string',
+  },
+  // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
+  {
+    pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(|\.with\(\s*-?\d+\s*,/g,
+    description:
+      'ES2023 array method (throws on Safari/iOS 15 wherever the module reaches the browser)',
+    suggestion: 'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice()',
+  },
+  {
+    pattern: /\buseRef(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*new\s+[A-Z]\w*/g,
+    description: 'useRef(new X()) allocates a throwaway X on every render',
+    suggestion: 'useRef<X | null>(null), then `ref.current ??= new X()` before first use',
+    prefilter: /useRef/,
+  },
+  {
+    pattern:
+      /(?:^|[ \t'"`])((?:[\w-]+:)*)(?:h-(\[[^\]\s]+\]|[\d.]+|px|full|auto|fit|min|max)\s+\1w-\2|w-(\[[^\]\s]+\]|[\d.]+|px|full|auto|fit|min|max)\s+\1h-\3)(?=[\s'"`]|$)/gm,
+    prefilter: /[hw]-\S+\s+(?:[\w-]+:)*[hw]-/,
+    description: 'h-N w-N with equal N',
+    suggestion: 'size-N (Tailwind) — e.g. `size-4`, `size-full`',
   },
 ]
 
@@ -139,15 +217,28 @@ function lineAt(lineStarts: number[], offset: number): number {
   return low + 1
 }
 
+/** The line before ends mid-expression: an open bracket, a comma, or a binary/arrow operator. */
+const ENDS_OPEN = /(?:[([,=?:+]|=>|&&|\|\||\?\?)$/
+/** The line starts mid-expression: a member access, a closing bracket, or a ternary/logical operator. */
+const STARTS_CONTINUED = /^(?:[.?:)\]]|&&|\|\|)/
+
 /**
  * True if a `// utils-lint-allow: <reason>` annotation sits just above `line` (1-based).
  *
  * The reason must be non-empty: an annotation that does not say why is the thing this
- * check exists to prevent. Scans up to three comment lines above, so the annotation can
- * carry context lines with it.
+ * check exists to prevent. A match the formatter wrapped onto a continuation line is first
+ * walked up to its statement's first line (the repo omits semicolons, so continuation is
+ * read from the bracket or operator at the seam), then up to three comment lines above
+ * that are scanned, so the annotation can carry context lines with it.
  */
 function hasAllow(lines: string[], line: number): boolean {
-  for (let i = line - 2; i >= 0 && i >= line - 5; i--) {
+  let start = line - 1
+  while (start > 0) {
+    const previous = lines[start - 1].trim()
+    if (!ENDS_OPEN.test(previous) && !STARTS_CONTINUED.test(lines[start].trim())) break
+    start--
+  }
+  for (let i = start - 1; i >= 0 && i >= start - 4; i--) {
     const text = lines[i]?.trim() ?? ''
     if (text.includes(ALLOW)) {
       return text.slice(text.indexOf(ALLOW) + ALLOW.length).trim().length > 0
@@ -167,7 +258,7 @@ async function main() {
 
   for (const file of allFiles) {
     const rel = path.relative(ROOT, file)
-    if (ALLOWLISTED_FILES.has(rel)) continue
+    if (rel.startsWith(UTILS_SOURCE) || ALLOWLISTED_FILES.has(rel)) continue
 
     const content = await readFile(file, 'utf8')
     const matches: Array<{
@@ -176,7 +267,16 @@ async function main() {
       suggestion: string
     }> = []
 
-    for (const { pattern, description, suggestion } of BANNED_PATTERNS) {
+    const prefilterHits = new Map<RegExp, boolean>()
+    for (const { pattern, description, suggestion, prefilter } of BANNED_PATTERNS) {
+      if (prefilter) {
+        let hit = prefilterHits.get(prefilter)
+        if (hit === undefined) {
+          hit = prefilter.test(content)
+          prefilterHits.set(prefilter, hit)
+        }
+        if (!hit) continue
+      }
       pattern.lastIndex = 0
       for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
         matches.push({ index: match.index, description, suggestion })

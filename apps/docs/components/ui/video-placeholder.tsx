@@ -113,7 +113,7 @@ export function VideoPlaceholder({
               pendingSeek.current = null
             }
           }}
-          className='h-full w-full border-0'
+          className='size-full border-0'
         >
           <track
             kind='captions'

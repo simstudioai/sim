@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
+
+const logger = createLogger('DocsLlmsManifest')
 
 export const revalidate = false
 
@@ -70,7 +73,7 @@ See: https://llmstxt.org for specification`
       },
     })
   } catch (error) {
-    console.error('Error generating LLM manifest:', error)
+    logger.error('Error generating LLM manifest:', error)
     return new Response('Error generating documentation manifest', { status: 500 })
   }
 }

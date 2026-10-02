@@ -41,7 +41,7 @@ afterEach(() => {
 
 describe('claimPermissionResponse', () => {
   it('allows one response per request id across effect recreation', () => {
-    const handledRequestIds = { current: new Set<string>() }
+    const handledRequestIds = new Set<string>()
 
     expect(claimPermissionResponse(handledRequestIds, 'request-1')).toBe(true)
     expect(claimPermissionResponse(handledRequestIds, 'request-1')).toBe(false)
@@ -63,7 +63,7 @@ describe('browser permission prompt', () => {
   }
 
   it('blocks replaced and unmounted requests once without overriding an explicit answer', () => {
-    const handledRequestIds = { current: new Set<string>() }
+    const handledRequestIds = new Set<string>()
     const responses = vi.fn()
     const onDecision = (
       requestId: string,

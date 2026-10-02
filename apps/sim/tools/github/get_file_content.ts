@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import type { FileContentResponse, GetFileContentParams } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
@@ -105,10 +106,11 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
       }
     }
 
-    const contentPreview =
-      decodedContent.length > 500
-        ? `${decodedContent.substring(0, 500)}...\n\n[Content truncated. Full content available in metadata]`
-        : decodedContent
+    const contentPreview = truncate(
+      decodedContent,
+      500,
+      '...\n\n[Content truncated. Full content available in metadata]'
+    )
 
     const content = `File: ${data.name}
 Path: ${data.path}

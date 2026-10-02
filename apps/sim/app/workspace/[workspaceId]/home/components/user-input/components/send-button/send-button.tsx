@@ -24,7 +24,7 @@ export const SendButton = React.memo(function SendButton({
         title='Stop generation'
         aria-label='Stop generation'
       >
-        <StopFilled className='block h-[14px] w-[14px] fill-white dark:fill-black' />
+        <StopFilled className='block size-[14px] fill-white dark:fill-black' />
       </ComposerActionButton>
     )
   }
@@ -35,7 +35,7 @@ export const SendButton = React.memo(function SendButton({
       disabled={!canSubmit}
       active={canSubmit}
     >
-      <ArrowUp className='block h-[16px] w-[16px] text-white dark:text-black' />
+      <ArrowUp className='block size-[16px] text-white dark:text-black' />
     </ComposerActionButton>
   )
 })

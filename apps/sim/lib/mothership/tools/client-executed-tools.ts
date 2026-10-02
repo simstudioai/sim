@@ -14,6 +14,22 @@ export function isWorkflowToolName(name: string): boolean {
 }
 
 /**
+ * Client-executed calls only the desktop app can run: local file access, the agent browser, and
+ * the terminal. A web tab watching the same chat must leave them to the desktop app.
+ */
+export function isDesktopExecutedToolCall(
+  name: string,
+  args: Record<string, unknown> | undefined
+): boolean {
+  return (
+    isNativeFileTool(name) ||
+    isUserLocalVfsToolCall(name, args) ||
+    isCurrentBrowserToolName(name) ||
+    isTerminalToolName(name)
+  )
+}
+
+/**
  * Tool calls the browser starts from the call frame's own arguments: workflow
  * runs, local file access, browser actions, and terminal commands. The stream
  * must deliver those arguments exactly as the model sent them.
@@ -22,11 +38,5 @@ export function isClientExecutedToolCall(
   name: string,
   args: Record<string, unknown> | undefined
 ): boolean {
-  return (
-    isWorkflowToolName(name) ||
-    isNativeFileTool(name) ||
-    isUserLocalVfsToolCall(name, args) ||
-    isCurrentBrowserToolName(name) ||
-    isTerminalToolName(name)
-  )
+  return isWorkflowToolName(name) || isDesktopExecutedToolCall(name, args)
 }

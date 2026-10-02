@@ -1094,7 +1094,7 @@ export function Chat() {
                     onClick={handleStopStreaming}
                     size='sm'
                   >
-                    <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
+                    <Square className='size-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </ComposerActionButton>
                 ) : (
                   <ComposerActionButton

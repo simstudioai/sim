@@ -80,64 +80,71 @@ const ids = (documents: { id: string }[]) =>
 for (const test of config.queries) {
   await check(test.name, async () => {
     const provider = await client()
-    const input = {
-      query: test.query,
-      native: { provider: 'hubspot' as const, query: test.query, kind: test.kind },
-      filters: test.filters,
-      scopes: [],
-      limit: 25,
-    }
-    const result = await searchHubSpotMcp(provider, input)
-    assert(
-      !result.partial && !result.nextCursor && !result.hasMore,
-      'Fixture must fit one complete page'
-    )
-    assert.deepEqual(
-      ids(result.documents),
-      [...test.expectedIds].sort(),
-      'Exact CRM record identity differs'
-    )
-    for (const document of result.documents) {
-      assert(document.url && document.content, 'Result must include source evidence')
-      if (test.filters?.startDate)
-        assert(
-          Date.parse(document.modifiedAt!) >= Date.parse(test.filters.startDate),
-          'Record precedes lower bound'
-        )
-      if (test.filters?.endDate)
-        assert(
-          Date.parse(document.modifiedAt!) < Date.parse(test.filters.endDate),
-          'Record exceeds exclusive upper bound'
-        )
-    }
-    if (test.filters?.sortBy) {
-      const dates = result.documents.map((document) => Date.parse(document.modifiedAt!))
-      assert(dates.every(Number.isFinite), 'Sorted records must include valid modification dates')
-      assert.deepEqual(
-        dates,
-        [...dates].sort((a, b) => (test.filters?.sortBy === 'oldest' ? a - b : b - a))
+    try {
+      const input = {
+        query: test.query,
+        native: { provider: 'hubspot' as const, query: test.query, kind: test.kind },
+        filters: test.filters,
+        scopes: [],
+        limit: 25,
+      }
+      const result = await searchHubSpotMcp(provider, input)
+      assert(
+        !result.partial && !result.nextCursor && !result.hasMore,
+        'Fixture must fit one complete page'
       )
-    }
-    if (result.documents.length) {
-      const read = await readHubSpotMcp(provider, result.documents[0].id)
-      assert.equal(read.id, result.documents[0].id)
-      assert.equal(new URL(read.url).pathname, new URL(result.documents[0].url).pathname)
-      assert(read.content.includes('hs_object_id:'), 'Read must include returned record properties')
-    }
-    if (result.documents.length > 1) {
-      const first = await searchHubSpotMcp(provider, { ...input, limit: 1 })
-      assert(first.nextCursor, 'First page must advertise continuation')
-      const second = await searchHubSpotMcp(provider, {
-        ...input,
-        limit: 1,
-        native: { ...input.native, cursor: first.nextCursor },
-      })
       assert.deepEqual(
-        ids([...first.documents, ...second.documents]),
-        ids(result.documents.slice(0, 2))
+        ids(result.documents),
+        [...test.expectedIds].sort(),
+        'Exact CRM record identity differs'
       )
-      if (result.documents.length === 2)
-        assert.equal(second.nextCursor, undefined, 'Final page must terminate')
+      for (const document of result.documents) {
+        assert(document.url && document.content, 'Result must include source evidence')
+        if (test.filters?.startDate)
+          assert(
+            Date.parse(document.modifiedAt!) >= Date.parse(test.filters.startDate),
+            'Record precedes lower bound'
+          )
+        if (test.filters?.endDate)
+          assert(
+            Date.parse(document.modifiedAt!) < Date.parse(test.filters.endDate),
+            'Record exceeds exclusive upper bound'
+          )
+      }
+      if (test.filters?.sortBy) {
+        const dates = result.documents.map((document) => Date.parse(document.modifiedAt!))
+        assert(dates.every(Number.isFinite), 'Sorted records must include valid modification dates')
+        assert.deepEqual(
+          dates,
+          [...dates].sort((a, b) => (test.filters?.sortBy === 'oldest' ? a - b : b - a))
+        )
+      }
+      if (result.documents.length) {
+        const read = await readHubSpotMcp(provider, result.documents[0].id)
+        assert.equal(read.id, result.documents[0].id)
+        assert.equal(new URL(read.url).pathname, new URL(result.documents[0].url).pathname)
+        assert(
+          read.content.includes('hs_object_id:'),
+          'Read must include returned record properties'
+        )
+      }
+      if (result.documents.length > 1) {
+        const first = await searchHubSpotMcp(provider, { ...input, limit: 1 })
+        assert(first.nextCursor, 'First page must advertise continuation')
+        const second = await searchHubSpotMcp(provider, {
+          ...input,
+          limit: 1,
+          native: { ...input.native, cursor: first.nextCursor },
+        })
+        assert.deepEqual(
+          ids([...first.documents, ...second.documents]),
+          ids(result.documents.slice(0, 2))
+        )
+        if (result.documents.length === 2)
+          assert.equal(second.nextCursor, undefined, 'Final page must terminate')
+      }
+    } finally {
+      await provider.close()
     }
   })
 }

@@ -76,7 +76,7 @@ If a payload schema is unknown, validation must explicitly recommend:
 ### Trigger Files
 - [ ] Exactly one primary trigger has `includeDropdown: true`
 - [ ] All secondary triggers do NOT have `includeDropdown`
-- [ ] All triggers use `buildTriggerSubBlocks` helper (not hand-rolled subBlocks)
+- [ ] Webhook triggers use `buildTriggerSubBlocks` (directly or through a service wrapper) unless they deliberately keep a custom layout, as `triggers/airtable/webhook.ts` does; polling triggers (`polling: true`) declare subBlocks manually
 - [ ] Every trigger's `id` matches the convention `{service}_{event_name}`
 - [ ] Every trigger's `provider` matches the service name used in the handler registry
 - [ ] `index.ts` barrel exports all triggers
@@ -104,7 +104,7 @@ If a payload schema is unknown, validation must explicitly recommend:
 - [ ] Signature is computed over raw body (not parsed JSON)
 
 ### Event Matching
-- [ ] `matchEvent` returns `boolean` (not `NextResponse` or other values)
+- [ ] `matchEvent` returns `true` to run, or `false` / a `NextResponse` to skip with a custom body
 - [ ] Challenge/verification events are excluded from matching (e.g., `endpoint.url_validation`)
 - [ ] When `triggerId` is a generic webhook ID, all events pass through
 - [ ] When `triggerId` is specific, only matching events pass
@@ -190,7 +190,6 @@ Group findings by severity:
 - Wrong HMAC algorithm or header name
 - `formatInput` keys don't match trigger `outputs`
 - Missing `verifyAuth` when the service sends signed webhooks
-- `matchEvent` returns non-boolean values
 - Provider-specific logic leaking into shared orchestration files
 - Trigger IDs mismatch between trigger files, registry, and block
 - `createSubscription` calling wrong API endpoint

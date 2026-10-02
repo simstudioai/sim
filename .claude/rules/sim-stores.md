@@ -14,7 +14,7 @@ Stores live in `stores/`. Complex stores split into `store.ts` + `types.ts`.
 ```typescript
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { FeatureState } from '@/stores/feature/types'
+import type { FeatureState } from '@/stores/<feature>/types'
 
 const initialState = { items: [] as Item[], activeId: null as string | null }
 

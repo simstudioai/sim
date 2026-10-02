@@ -44,10 +44,9 @@ vi.mock('@/lib/sim-search/live/policy-store', () => ({
   livePolicyFor: vi.fn(() => defaultLiveSearchPolicy()),
 }))
 vi.mock('@/lib/sim-search/live/managed-mcp', () => ({
-  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall }),
+  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall, close: async () => {} }),
 }))
 vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
-  createCodaMcpClient: vi.fn(),
   searchCodaMcp: vi.fn(),
   readCodaMcp: vi.fn(),
 }))

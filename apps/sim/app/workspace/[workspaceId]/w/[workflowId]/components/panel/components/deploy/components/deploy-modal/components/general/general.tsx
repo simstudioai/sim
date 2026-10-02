@@ -195,13 +195,13 @@ export function GeneralDeploy({
             <Skeleton className='h-[16px] w-[90px]' />
           </div>
           <div className='h-[260px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
-            <Skeleton className='h-full w-full rounded-none' />
+            <Skeleton className='size-full rounded-none' />
           </div>
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[60px]' />
           <div className='h-[120px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
-            <Skeleton className='h-full w-full rounded-none' />
+            <Skeleton className='size-full rounded-none' />
           </div>
         </div>
       </div>
@@ -244,7 +244,7 @@ export function GeneralDeploy({
           >
             {workflowToShow ? (
               <>
-                <div className='h-full w-full cursor-default [&_*]:cursor-default!'>
+                <div className='size-full cursor-default [&_*]:cursor-default!'>
                   <PreviewWorkflow
                     workflowState={workflowToShow}
                     height='100%'

@@ -294,6 +294,51 @@ function auditFile(file: string, source: string): Violation[] {
   return violations
 }
 
+/** The local name `persist` is imported under from `zustand/middleware`, including an alias. */
+const PERSIST_IMPORT =
+  /import\s*\{[^}]*\bpersist\b(?:\s+as\s+(\w+))?[^}]*\}\s*from\s*'zustand\/middleware'/
+
+/**
+ * `.claude/rules/sim-stores.md`: every `persist` names its durable fields in `partialize`.
+ * Without one, zustand writes the whole state — transient flags, drag state, `_hasHydrated` —
+ * to storage and rehydrates it on the next load.
+ */
+function auditPersist(file: string, source: string): Violation[] {
+  const persistImport = PERSIST_IMPORT.exec(source)
+  if (!persistImport) return []
+  const local = persistImport[1] ?? 'persist'
+  /** A call of the imported middleware; `.persist(` (an instance method) is excluded. */
+  const persistCall = new RegExp(`(?<![.\\w$])${local}\\s*(?:<[^()]*?>)?\\s*\\(`, 'g')
+  const violations: Violation[] = []
+  for (let match = persistCall.exec(source); match; match = persistCall.exec(source)) {
+    if (hasSafeAnnotation(source, match.index)) continue
+    const openParenIndex = match.index + match[0].length - 1
+    const closeParenIndex = findMatchingParen(source, openParenIndex)
+    if (closeParenIndex === -1) continue
+    const call = source.slice(openParenIndex + 1, closeParenIndex)
+    const hasPartialize = /\bpartialize\b/.test(call)
+    /** `(s) => s`, `(s) => ({ ...s })`, or a block body returning either: the whole state persists. */
+    const spreadsState =
+      /\bpartialize\s*:\s*\(?\s*(\w+)[^)]*\)?\s*=>\s*(?:\1\b(?!\s*[.[])|\(\s*\{\s*\.\.\.\1\b|\{[^}]*\breturn\s+(?:\1\b(?!\s*[.[])|\{\s*\.\.\.\1\b))/.test(
+        call
+      )
+    if (hasPartialize && !spreadsState) continue
+    violations.push({
+      file,
+      line: lineNumberAt(source, match.index),
+      description: spreadsState
+        ? 'persist partialize spreads the whole state; return an explicit whitelist of durable fields'
+        : `persist has no partialize; add \`partialize: (state) => ({ <durable fields> })\` (sim-stores.md). If the options object is hoisted into a variable that has one, mark the call // ${SAFE_ANNOTATION} <where>`,
+      snippet: oneLineSnippet(
+        source,
+        match.index,
+        Math.min(closeParenIndex + 1, match.index + 180)
+      ),
+    })
+  }
+  return violations
+}
+
 function returnsPrimitiveDerivedValue(selector: string): boolean {
   return (
     /\bObject\.(?:keys|values|entries)\s*\([^)]*\)\s*\.\s*(?:length|some|every)\b/.test(selector) ||
@@ -351,16 +396,17 @@ async function main() {
     const source = await readFile(file, 'utf8')
     const relativeFile = path.relative(ROOT, file)
     violations.push(...auditFile(relativeFile, source))
+    violations.push(...auditPersist(relativeFile, source))
   }
 
   if (violations.length === 0) {
-    console.log('✅ Zustand v5 selector audit OK')
+    console.log('✅ Zustand store audit OK (selectors, persist partialize)')
     return
   }
 
-  console.error('❌ Zustand v5 selector hazards found:')
+  console.error('❌ Zustand store hazards found:')
   console.error(
-    `Add useShallow/useStoreWithEqualityFn, split into primitive selectors, or document intentional exceptions with // ${SAFE_ANNOTATION} <reason>.`
+    `Fix each as described, or document an intentional exception with // ${SAFE_ANNOTATION} <reason>.`
   )
   for (const violation of violations) {
     console.error(

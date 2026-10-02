@@ -100,7 +100,8 @@
         "noControlCharactersInRegex": "off",
         "noThenProperty": "off",
         "noAssignInExpressions": "off",
-        "noDocumentCookie": "off"
+        "noDocumentCookie": "off",
+        "noConsole": { "level": "error", "fix": "none" }
       },
       "correctness": {
         "useExhaustiveDependencies": "off",
@@ -155,6 +156,24 @@
       "includes": ["apps/sim/app/_styles/tailwind.css"],
       "linter": { "enabled": false },
       "formatter": { "enabled": false }
+    },
+    {
+      "includes": [
+        "**/scripts/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.integration.ts",
+        "**/*.spec.ts",
+        "apps/desktop/e2e/**",
+        "apps/sim/vitest.setup.ts",
+        "packages/cli/**",
+        "packages/sim-cli/**",
+        "packages/sim-setup/**",
+        "packages/db/script-migrations/**",
+        "packages/logger/src/**",
+        "packages/ts-sdk/examples/**"
+      ],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     }
   ],
   "javascript": {
