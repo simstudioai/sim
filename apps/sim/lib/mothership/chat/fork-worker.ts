@@ -1,35 +1,69 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ForkChatRequest, ForkChatResponse } from '@/lib/mothership/generated/protocol'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
-/** A lost copy acknowledgement retries the same destination and immutable request. */
+/** Above the worker's 30 s fork budget, so a slow copy finishes instead of racing its own retry. */
+const ATTEMPT_TIMEOUT_MS = 45_000
+
+/** Gateway failures: the request may never have reached a worker, so one more attempt is safe. */
+const RETRYABLE_STATUSES = new Set([502, 503, 504])
+
+/** The worker's typed refusals, each one the caller can act on. */
+function workerRefusal(status: number): Error {
+  if (status === 404) return new OrchestrationError('not_found', 'Chat not found')
+  if (status === 409)
+    return new OrchestrationError(
+      'conflict',
+      'The selected response has not finished. Retry the fork once it completes.'
+    )
+  if (status === 413)
+    return new OrchestrationError(
+      'payload_too_large',
+      'This conversation is too long to fork. Fork from an earlier message.'
+    )
+  return new Error('The conversation could not be copied. Retry the fork.')
+}
+
+type Attempt = { kind: 'receipt'; body: unknown } | { kind: 'status'; status: number }
+
+/**
+ * A lost copy acknowledgement retries the same destination and immutable request; the
+ * worker answers a repeat with the first attempt's receipt. Only a failed connection or a
+ * gateway status is retried: a timed-out attempt may still be copying.
+ */
 export async function copyWorkerConversation(request: ForkChatRequest): Promise<void> {
   const baseURL = await getMothershipBaseURL({ userId: request.userId })
   const body = JSON.stringify(request)
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; ; attempt++) {
+    const canRetry = attempt === 0
+    let outcome: Attempt
     try {
       const response = await fetchGo(`${baseURL}/api/chats/fork`, {
         method: 'POST',
         headers: mothershipRequestHeaders(),
         body,
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
         spanName: 'sim → worker /api/chats/fork',
         operation: 'fork_chat',
       })
-      if (!response.ok) {
-        if (response.status >= 500 && attempt === 0) {
-          await response.body?.cancel()
-          continue
-        }
-        throw new Error('The conversation could not be copied. Retry the fork.')
+      if (response.ok) outcome = { kind: 'receipt', body: await response.json() }
+      else {
+        await response.body?.cancel()
+        outcome = { kind: 'status', status: response.status }
       }
-      const receipt = ForkChatResponse.parse(await response.json())
-      if (receipt.chatId !== request.newChatId)
-        throw new Error('The fork returned a different chat')
-      return
     } catch (error) {
-      if (attempt === 1) throw error
+      // fetch reports a refused or dropped connection, including mid-body, as a TypeError.
+      if (canRetry && error instanceof TypeError) continue
+      throw error
     }
+    if (outcome.kind === 'status') {
+      if (canRetry && RETRYABLE_STATUSES.has(outcome.status)) continue
+      throw workerRefusal(outcome.status)
+    }
+    const receipt = ForkChatResponse.parse(outcome.body)
+    if (receipt.chatId !== request.newChatId) throw new Error('The fork returned a different chat')
+    return
   }
 }

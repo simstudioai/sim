@@ -8,6 +8,7 @@ import {
 } from '@sim/testing/mocks/mothership-go-fetch.mock'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, expect, it, vi } from 'vitest'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { copyWorkerConversation } from '@/lib/mothership/chat/fork-worker'
 import type { ForkChatRequest } from '@/lib/mothership/generated/protocol'
 
@@ -58,6 +59,37 @@ it.each(['missing-receipt', 'wrong-chat', 'unavailable'])(
       )
     })
     await expect(copyWorkerConversation(request)).rejects.toThrow()
-    expect(fetchWorker).toHaveBeenCalledTimes(2)
+    // Only the unreachable worker may never have seen the request; an answer is final.
+    expect(fetchWorker).toHaveBeenCalledTimes(failure === 'unavailable' ? 2 : 1)
   }
 )
+
+it.each([
+  [404, 'not_found'],
+  [409, 'conflict'],
+  [413, 'payload_too_large'],
+] as const)('classifies a worker %i refusal as %s without retrying it', async (status, code) => {
+  fetchWorker.mockResolvedValue(Response.json({ error: 'refused' }, { status }))
+  const failure = await copyWorkerConversation(request).catch((error: unknown) => error)
+  expect(asOrchestrationError(failure)?.code).toBe(code)
+  expect(fetchWorker).toHaveBeenCalledTimes(1)
+})
+
+it.each([500, 400])('does not repeat a fork the worker failed with %i', async (status) => {
+  fetchWorker.mockResolvedValue(new Response('', { status }))
+  const failure = await copyWorkerConversation(request).catch((error: unknown) => error)
+  expect(asOrchestrationError(failure)).toBeNull()
+  expect(fetchWorker).toHaveBeenCalledTimes(1)
+})
+
+it.each([502, 504])('retries a %i gateway failure once', async (status) => {
+  fetchWorker.mockResolvedValueOnce(new Response('', { status }))
+  await copyWorkerConversation(request)
+  expect(fetchWorker).toHaveBeenCalledTimes(2)
+})
+
+it('does not start a second copy while a timed-out one may still be running', async () => {
+  fetchWorker.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
+  await expect(copyWorkerConversation(request)).rejects.toThrow()
+  expect(fetchWorker).toHaveBeenCalledTimes(1)
+})
