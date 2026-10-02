@@ -853,9 +853,11 @@ export const v2ReadFileTextQuerySchema = z
     offset: z.coerce
       .number()
       .int()
-      .min(1, 'offset starts at line 1')
+      .min(0, 'offset cannot be negative')
       .optional()
-      .describe('First line to return, 1-based. Absent starts at the first line.'),
+      .describe(
+        'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.'
+      ),
     limit: z.coerce
       .number()
       .int()

@@ -209,7 +209,7 @@ describe('content-aware files read augmentation', () => {
     for (const flags of [
       { render: true, limit: '2' } as const,
       { pages: '1', offset: '1' },
-      { offset: '0' },
+      { offset: '-1' },
       { offset: true } as const,
       { limit: true } as const,
       { 'max-bytes': true } as const,
