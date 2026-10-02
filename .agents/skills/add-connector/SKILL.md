@@ -541,7 +541,7 @@ If `ExternalDocument.sourceUrl` is set, the sync engine stores it on the documen
 
 If `listDocuments` can ever return **less than the full source set** on a non-incremental sync — a `maxItems`/`maxDocuments`-style cap, or a transient per-item error that drops a still-existing document from the listing — it MUST set `syncContext.listingCapped = true` when that happens.
 
-The engine reconciles deletions only when the listing is marked safe (`checkpoint.unsafe` in `lib/knowledge/connectors/listing-checkpoint.ts`): `syncContext.listingCapped`, `ExternalDocumentList.reconciliationSafe: false` (required for offset/unstable pagination), or a non-null `listingFailures` marks it unsafe. Anything absent from a safe listing is tombstoned on that sync and hard-deleted when the next sync still does not see it — so a truncated listing without this flag eventually removes every real document beyond the cap.
+The engine reconciles deletions only when the listing is marked safe (`checkpoint.unsafe` in `lib/knowledge/connectors/listing-checkpoint.ts`): `syncContext.listingCapped`, `syncContext.listingTruncated`, `syncContext.reconciliationUnsafe`, `ExternalDocumentList.reconciliationSafe: false` (required for offset/unstable pagination), or a non-null `listingFailures` marks it unsafe. Anything absent from a safe listing is tombstoned on that sync and hard-deleted when the next sync still does not see it — so a truncated listing without this flag eventually removes every real document beyond the cap.
 
 ```typescript
 if (hitLimit && syncContext) {

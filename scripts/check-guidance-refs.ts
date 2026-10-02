@@ -20,7 +20,7 @@
  * Run: `bun run check:guidance-refs`
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { parseRule } from './sync-skills'
 
@@ -124,6 +124,26 @@ function resolvesFrom(base: string, ref: string): boolean {
   return SOURCE_EXTENSIONS.some((ext) => existsSync(path.join(base, `${ref}${ext}`)))
 }
 
+const MODULE_CANDIDATES = [
+  '',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.mjs',
+  '.json',
+  '/index.ts',
+  '/index.tsx',
+  '/index.js',
+]
+
+/** An import specifier resolves only to a module file, never to a bare directory. */
+function moduleResolves(base: string, ref: string): boolean {
+  return MODULE_CANDIDATES.some((suffix) => {
+    const candidate = path.join(base, `${ref}${suffix}`)
+    return existsSync(candidate) && statSync(candidate).isFile()
+  })
+}
+
 const PATH_PREFIXES = ['apps/', 'packages/', 'scripts/', '.claude/', '.agents/', '.github/']
 
 /**
@@ -151,16 +171,12 @@ function importResolves(spec: string, packages: Map<string, WorkspacePackage>): 
   const clean = spec.replace(/\/$/, '')
   if (clean === '@' || clean === '@sim') return true
   if (clean.startsWith('@/')) {
-    const rel = clean.slice(2)
-    return (
-      resolvesFrom(APP_ROOT, rel) ||
-      ['/index.ts', '/index.tsx'].some((index) => existsSync(path.join(APP_ROOT, `${rel}${index}`)))
-    )
+    return moduleResolves(APP_ROOT, clean.slice(2))
   }
   const [scope, name, ...rest] = clean.split('/')
   const pkg = packages.get(`${scope}/${name}`)
   if (!pkg) return false
-  if (!pkg.exports) return rest.length === 0 || resolvesFrom(pkg.dir, rest.join('/'))
+  if (!pkg.exports) return rest.length === 0 || moduleResolves(pkg.dir, rest.join('/'))
   const subpath = rest.length === 0 ? '.' : `./${rest.join('/')}`
   return Object.entries(pkg.exports).some(([key, value]) => {
     const [head, tail] = key.split('*')
@@ -169,7 +185,7 @@ function importResolves(spec: string, packages: Map<string, WorkspacePackage>): 
     // A wildcard export only proves the pattern; the file it maps to must also exist.
     const target = exportTarget(value)
     const matched = subpath.slice(head.length, subpath.length - tail.length)
-    return target !== null && resolvesFrom(pkg.dir, target.replace('*', matched))
+    return target !== null && moduleResolves(pkg.dir, target.replace('*', matched))
   })
 }
 
