@@ -19,6 +19,8 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { parse } from '@babel/parser'
+import { getErrorMessage } from '@sim/utils/errors'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
@@ -51,11 +53,18 @@ const TRUNCATE_PREFILTER = /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/
 /** Literal gate shared by the `filterUndefined` and `omit` patterns. */
 const FROM_ENTRIES = /Object\.fromEntries\(/
 
+/** Shared by the toSorted/toReversed/toSpliced pattern and the AST-based `.with` check. */
+const ES2023_ARRAY_METHOD = {
+  description:
+    'ES2023 array method (throws on Safari/iOS 15 wherever the module reaches the browser)',
+  suggestion:
+    'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice(), or [...arr] then next[i] = value',
+}
+
 const BANNED_PATTERNS: Array<{
   pattern: RegExp
   description: string
   suggestion: string
-  /** Restricts the pattern to matching files; unrestricted patterns apply everywhere. */
   /** Cheap literal test that skips the pattern on files that cannot match; memoized per file. */
   prefilter?: RegExp
 }> = [
@@ -146,13 +155,8 @@ const BANNED_PATTERNS: Array<{
   },
   // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
   {
-    /** `.with(i, value)`; a function second argument is OpenTelemetry's `context.with(ctx, fn)`. */
-    pattern:
-      /\.(?:toSorted|toReversed|toSpliced)\s*\(|\.with\(\s*[^,()]+,(?!\s*(?:async\s*)?(?:\([^)]*\)\s*=>|\w+\s*=>|function\b))/g,
-    description:
-      'ES2023 array method (throws on Safari/iOS 15 wherever the module reaches the browser)',
-    suggestion:
-      'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice(), or [...arr] then next[i] = value',
+    pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(/g,
+    ...ES2023_ARRAY_METHOD,
   },
   {
     pattern: /\buseRef(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*new\s+[A-Z]\w*/g,
@@ -168,6 +172,75 @@ const BANNED_PATTERNS: Array<{
     suggestion: 'size-N (Tailwind) — e.g. `size-4`, `size-full`',
   },
 ]
+
+/** Cheap gate: only files that contain a `.with(` call are parsed. */
+const WITH_CALL = /\.with\s*\(/
+
+/** OpenTelemetry's `context.with(ctx, fn)` shares the shape; its receivers are named for the context API. */
+const OTEL_CONTEXT_RECEIVER = /context/i
+
+/** A Babel AST node, read structurally rather than through `@babel/types`. */
+interface SyntaxNode extends Record<string, unknown> {
+  type: string
+  start: number
+}
+
+function isSyntaxNode(value: unknown): value is SyntaxNode {
+  return (
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
+  )
+}
+
+function walkNodes(node: SyntaxNode, visit: (node: SyntaxNode) => void): void {
+  visit(node)
+  for (const value of Object.values(node)) {
+    if (isSyntaxNode(value)) walkNodes(value, visit)
+    else if (Array.isArray(value))
+      for (const item of value) if (isSyntaxNode(item)) walkNodes(item, visit)
+  }
+}
+
+/** The name a member call is made on: `arr` in `arr.with(…)`, `items` in `this.items.with(…)`. */
+function receiverName(receiver: unknown): string | undefined {
+  if (!isSyntaxNode(receiver)) return undefined
+  if (receiver.type === 'Identifier' && typeof receiver.name === 'string') return receiver.name
+  const isMember =
+    receiver.type === 'MemberExpression' || receiver.type === 'OptionalMemberExpression'
+  if (!isMember || receiver.computed === true || !isSyntaxNode(receiver.property)) return undefined
+  return typeof receiver.property.name === 'string' ? receiver.property.name : undefined
+}
+
+/**
+ * Offsets of every `Array.prototype.with(index, value)` call: a two-argument `.with` on any
+ * receiver except an OpenTelemetry context object. Drizzle's one-argument `.with(cte)` and
+ * `index().with({ … })` never match.
+ */
+function findArrayWithCalls(file: string, content: string): number[] {
+  let program: unknown
+  try {
+    program = parse(content, {
+      sourceType: 'module',
+      plugins: ['typescript', ...(/\.[jt]sx$/.test(file) ? (['jsx'] as const) : [])],
+      errorRecovery: true,
+    }).program
+  } catch (error) {
+    throw new Error(`Cannot parse ${file} to check its .with calls: ${getErrorMessage(error)}`)
+  }
+  if (!isSyntaxNode(program)) return []
+
+  const offsets: number[] = []
+  walkNodes(program, (node) => {
+    if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return
+    if (!Array.isArray(node.arguments) || node.arguments.length !== 2) return
+    const callee = node.callee
+    if (!isSyntaxNode(callee) || callee.computed === true || !isSyntaxNode(callee.property)) return
+    if (callee.type !== 'MemberExpression' && callee.type !== 'OptionalMemberExpression') return
+    if (callee.property.name !== 'with') return
+    if (OTEL_CONTEXT_RECEIVER.test(receiverName(callee.object) ?? '')) return
+    offsets.push(callee.property.start)
+  })
+  return offsets
+}
 
 async function walk(dir: string, results: string[] = []): Promise<string[]> {
   let entries
@@ -283,6 +356,11 @@ async function main() {
       pattern.lastIndex = 0
       for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
         matches.push({ index: match.index, description, suggestion })
+      }
+    }
+    if (WITH_CALL.test(content)) {
+      for (const index of findArrayWithCalls(rel, content)) {
+        matches.push({ index, ...ES2023_ARRAY_METHOD })
       }
     }
     if (matches.length === 0) continue
