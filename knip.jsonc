@@ -4,8 +4,10 @@
   // Unused exports, types, and duplicates are ratcheted by check:unused-exports,
   // which reuses this config in the same knip pass.
   "include": ["files", "dependencies", "unlisted", "unresolved"],
-  // Package `exports`/`main`/`bin` targets are entries; their exports are public
-  // contracts (ts-sdk, emcn, cli, …), so knip must never report them as unused.
+  // knip's default, stated so it is a decision: no entry file's exports are reported.
+  // That keeps package `exports`/`main`/`bin` contracts (ts-sdk, emcn, cli, …) and framework
+  // entries (Next routes, Trigger tasks) public, and also exempts the other configured entries
+  // (scripts, `*.integration.ts`, `background/**`, desktop and SDK examples).
   "includeEntryExports": false,
   "workspaces": {
     ".": {

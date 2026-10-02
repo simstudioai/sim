@@ -68,7 +68,15 @@ function collect(): Baseline {
   const ruleToMetric = new Map<string, Metric>(
     Object.entries(METRICS).map(([metric, rule]) => [rule, metric as Metric])
   )
-  for (const line of result.stdout.toString().split('\n')) {
+  const lines = result.stdout.toString().split('\n')
+  // A file Biome cannot parse yields an undercount, so a parse error fails the audit outright.
+  const unparsable = lines.filter((line) => line.startsWith('::error title=parse,'))
+  if (unparsable.length) {
+    console.error(`✗ Biome could not parse ${unparsable.length} location(s); fix the syntax first:`)
+    for (const line of unparsable) console.error(`  ${line.replace(/^::error title=parse,/, '')}`)
+    process.exit(1)
+  }
+  for (const line of lines) {
     const match = /^::\w+ title=([^,]+),file=([^,]+),/.exec(line)
     const metric = match && ruleToMetric.get(match[1])
     if (!match || !metric) continue
@@ -131,7 +139,17 @@ function shrunkTo(after: Counts, before: Counts): Counts {
   )
 }
 
+const suppressed = suppressions()
+if (suppressed.length) {
+  console.error(
+    `✗ ${suppressed.length} biome-ignore comment(s) hide an \`any\` or \`!\` from this check:`
+  )
+  for (const line of suppressed) console.error(`  ${line}`)
+  console.error('  Delete the suppression and fix the type instead.\n')
+}
+
 if (process.argv.includes('--update')) {
+  if (suppressed.length) process.exit(1)
   const next: Baseline = {
     explicitAny: sorted(shrunkTo(current.explicitAny, baseline.explicitAny ?? {})),
     nonNullAssertion: sorted(shrunkTo(current.nonNullAssertion, baseline.nonNullAssertion ?? {})),
@@ -161,15 +179,6 @@ let regressed = 0
 let stale = 0
 /** A vanished baselined file next to a new file with no more hits: likely a rename. */
 const renames = new Set<string>()
-
-const suppressed = suppressions()
-if (suppressed.length) {
-  console.error(
-    `✗ ${suppressed.length} biome-ignore comment(s) hide an \`any\` or \`!\` from this check:`
-  )
-  for (const line of suppressed) console.error(`  ${line}`)
-  console.error('  Delete the suppression and fix the type instead.\n')
-}
 
 for (const metric of Object.keys(METRICS) as Metric[]) {
   const before = baseline[metric] ?? {}
