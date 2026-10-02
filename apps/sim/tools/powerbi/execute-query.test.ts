@@ -2,6 +2,9 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it } from 'vitest'
 import { powerbiExecuteQueryTool } from '@/tools/powerbi/execute-query'
 
+const { transformResponse } = powerbiExecuteQueryTool
+if (!transformResponse) throw new Error('powerbi_execute_query has no transformResponse')
+
 const params = {
   accessToken: 'provider-token',
   groupId: 'workspace-id',
@@ -32,7 +35,7 @@ describe('Power BI DAX result handling', () => {
       ],
     })
 
-    const result = await powerbiExecuteQueryTool.transformResponse!(response, params)
+    const result = await transformResponse(response, params)
 
     expect(result).toMatchObject({
       success: false,
@@ -52,7 +55,7 @@ describe('Power BI DAX result handling', () => {
   })
 
   it('preserves provider column names, blank values and falsy values in complete results', async () => {
-    const result = await powerbiExecuteQueryTool.transformResponse!(
+    const result = await transformResponse(
       jsonResponse({
         results: [
           {
@@ -79,7 +82,7 @@ describe('Power BI DAX result handling', () => {
   })
 
   it('does not fabricate a query error message when Microsoft supplies only a code', async () => {
-    const result = await powerbiExecuteQueryTool.transformResponse!(
+    const result = await transformResponse(
       jsonResponse({ error: { code: 'DatasetExecuteQueriesError' } }),
       params
     )
@@ -98,7 +101,7 @@ describe('Power BI DAX result handling', () => {
   })
 
   it.each(['omitted', 'empty'])('accepts one result table with %s rows', async (kind) => {
-    const result = await powerbiExecuteQueryTool.transformResponse!(
+    const result = await transformResponse(
       jsonResponse({ results: [{ tables: [kind === 'empty' ? { rows: [] } : {}] }] }),
       params
     )
@@ -117,7 +120,7 @@ describe('Power BI DAX result handling', () => {
             { code: 'AnalysisServicesErrorCode', detail: { type: 1, value: '3238920194' } },
             { code: 'DetailsMessage', detail: { type: 1, value: 'The DAX query is invalid.' } },
           ]
-    const result = await powerbiExecuteQueryTool.transformResponse!(
+    const result = await transformResponse(
       jsonResponse({
         error: {
           code: 'DatasetExecuteQueriesError',
@@ -174,9 +177,7 @@ describe('Power BI DAX result handling', () => {
           : undefined
       )
 
-      await expect(powerbiExecuteQueryTool.transformResponse!(response, params)).rejects.toThrow(
-        /maximum size.*20971520/
-      )
+      await expect(transformResponse(response, params)).rejects.toThrow(/maximum size.*20971520/)
       expect(canceled).toBe(true)
     }
   )
@@ -191,7 +192,7 @@ describe('Power BI DAX result handling', () => {
         },
       })
     )
-    const transformed = powerbiExecuteQueryTool.transformResponse!(response, params, {
+    const transformed = transformResponse(response, params, {
       signal: abort.signal,
     })
     abort.abort(new Error('Execution canceled'))

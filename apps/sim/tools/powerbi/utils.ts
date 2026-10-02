@@ -10,7 +10,7 @@ import type {
 } from '@/tools/powerbi/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
-export const MAX_POWERBI_RESPONSE_BYTES = 20 * 1024 * 1024
+const MAX_POWERBI_RESPONSE_BYTES = 20 * 1024 * 1024
 
 export const POWERBI_ACCESS_TOKEN_PARAM = {
   type: 'string',
