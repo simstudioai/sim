@@ -1,14 +1,16 @@
 #!/usr/bin/env bun
 /**
- * Enforces use of shared @sim/utils helpers over inline implementations.
+ * Bans inline idioms that a shared helper or a written rule already replaces.
+ *
+ * Most patterns point at an `@sim/utils` helper (CLAUDE.md "Common utilities"). A few encode
+ * render-path rules from `.claude/rules/sim-react-performance.md` and `sim-styling.md` that no
+ * linter covers: ES2023 array methods that Safari 15 lacks, `useRef(new X())` allocating on
+ * every render, and `h-N w-N` where `size-N` is the convention.
  *
  * Biome's noRestrictedImports covers the import-based bans it lists — today `nanoid` and
  * `uuid`. It does NOT cover named crypto imports; `import { randomBytes } from 'node:crypto'`
  * passes both gates, and deliberately so, since server code building cipher IVs and tokens
  * wants node's crypto rather than the cross-context wrapper in `@sim/utils/random`.
- *
- * This script catches what static import analysis misses — global property access, inline
- * idioms, and reimplemented helpers that should live in @sim/utils.
  *
  * Patterns are matched against the whole file, not line by line: every idiom banned here is a
  * multi-token expression that the formatter wraps at 100 columns, and a line-scoped scan sees
@@ -31,26 +33,49 @@ const ALLOWLISTED_FILES = new Set([
   'packages/utils/src/id.ts',
   'packages/utils/src/object.ts',
   'packages/utils/src/retry.ts',
+  'packages/utils/src/string.ts',
   'packages/utils/src/errors.test.ts',
   'packages/utils/src/helpers.test.ts',
   'packages/utils/src/random.test.ts',
   'packages/utils/src/id.test.ts',
   'packages/utils/src/object.test.ts',
   'packages/utils/src/retry.test.ts',
+  'packages/utils/src/string.test.ts',
   // Published standalone CLIs: `@sim/utils` is private, so they carry local
   // copies rather than a dependency that only resolves inside the monorepo.
   'packages/cli/src/index.ts',
   'packages/ts-sdk/src/index.ts',
   // CJS bundle — cannot use ES module imports
   'apps/sim/lib/execution/isolated-vm-worker.cjs',
+  // Emits the sandbox-side event filter as plain JS source, which cannot import @sim/utils
+  'apps/sim/executor/handlers/pi/cloud/event-filter-source.ts',
   // Uses crypto.getRandomValues() directly (not crypto.randomUUID) — TSDoc comment triggers false positive
   'packages/testing/src/factories/id.ts',
 ])
+
+/** Leading `'use client'` directive, after any comment header. */
+const USE_CLIENT_PROLOGUE = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*['"]use client['"]/
+
+/**
+ * Files that ship to the browser: client directories plus any `'use client'` module. Server-only
+ * code (route handlers, tests) may use Node 20+ runtime methods freely.
+ */
+function isClientRenderPath(rel: string, content: string): boolean {
+  if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(rel) || /\/app\/api\//.test(rel)) return false
+  return (
+    /^apps\/sim\/(app|components|hooks|stores)\//.test(rel) ||
+    /^apps\/docs\/(app|components)\//.test(rel) ||
+    /^packages\/(emcn|workflow-renderer)\/src\//.test(rel) ||
+    USE_CLIENT_PROLOGUE.test(content)
+  )
+}
 
 const BANNED_PATTERNS: Array<{
   pattern: RegExp
   description: string
   suggestion: string
+  /** Restricts the pattern to matching files; unrestricted patterns apply everywhere. */
+  appliesTo?: (rel: string, content: string) => boolean
 }> = [
   // Randomness / ID generation — global property access that import bans miss
   {
@@ -85,6 +110,65 @@ const BANNED_PATTERNS: Array<{
     pattern: /new Promise\s*[(<]\s*(?:resolve|\(resolve\))\s*=>\s*setTimeout\s*\(\s*resolve/g,
     description: 'new Promise(resolve => setTimeout(resolve, ms))',
     suggestion: 'sleep(ms) from @sim/utils/helpers',
+  },
+  {
+    pattern:
+      /\b([\w.]+)\s+instanceof\s+Error\s*\?\s*\1\s*:\s*new\s+Error\(\s*String\(\s*\1\s*\)\s*\)/g,
+    description: 'e instanceof Error ? e : new Error(String(e))',
+    suggestion: 'toError(e) from @sim/utils/errors',
+  },
+  {
+    pattern:
+      /typeof\s+([\w.]+)\s*===\s*'object'\s*&&\s*\1\s*!==\s*null\s*&&\s*!Array\.isArray\(\s*\1\s*\)/g,
+    description: "typeof v === 'object' && v !== null && !Array.isArray(v)",
+    suggestion: 'isRecordLike(v) from @sim/utils/object',
+  },
+  {
+    pattern:
+      /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*\w*\s*,\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==?\s*undefined\s*\)\s*,?\s*\)/g,
+    description: 'Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))',
+    suggestion: 'filterUndefined(obj) from @sim/utils/object',
+  },
+  {
+    pattern:
+      /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==\s*[\w.'"]+\s*\)\s*,?\s*\)/g,
+    description: 'Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))',
+    suggestion: 'omit(obj, [key]) from @sim/utils/object',
+  },
+  {
+    pattern:
+      /\b([\w.]+)\.length\s*>\s*([\w.]+)\s*\?\s*(?:`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^`$]*`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))\s*:\s*\1\b(?!\.)/g,
+    description: 's.length > n ? s.slice(0, n) + suffix : s',
+    suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
+  },
+  {
+    pattern:
+      /\b([\w.]+)\.length\s*<=\s*([\w.]+)\s*\?\s*\1\s*:\s*(?:`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^`$]*`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))/g,
+    description: 's.length <= n ? s : s.slice(0, n) + suffix',
+    suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
+  },
+  {
+    pattern: /\/\[\.\*\+\?\^\$\{\}\(\)\|\[\\\]\\\\\]\/g/g,
+    description: 'hand-rolled regex-metacharacter escape',
+    suggestion: 'escapeRegExp(value) from @sim/utils/string',
+  },
+  // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
+  {
+    pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(|\.with\(\s*-?\d+\s*,/g,
+    description: 'ES2023 array method in browser code (throws on Safari/iOS 15)',
+    suggestion: 'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice()',
+    appliesTo: isClientRenderPath,
+  },
+  {
+    pattern: /\buseRef(?:<[^>]*>)?\(\s*new\s+[A-Z]\w*/g,
+    description: 'useRef(new X()) allocates a throwaway X on every render',
+    suggestion: 'useRef<X | null>(null), then `ref.current ??= new X()` before first use',
+  },
+  {
+    pattern:
+      /(?<=[\s'"`]|^)((?:[\w-]+:)*)(?:h-(\[[^\]\s]+\]|[\d.]+|px|full|screen|auto|fit|min|max)\s+\1w-\2|w-(\[[^\]\s]+\]|[\d.]+|px|full|screen|auto|fit|min|max)\s+\1h-\3)(?=[\s'"`]|$)/gm,
+    description: 'h-N w-N with equal N',
+    suggestion: 'size-N (Tailwind) — e.g. `size-4`, `size-full`',
   },
 ]
 
@@ -176,7 +260,8 @@ async function main() {
       suggestion: string
     }> = []
 
-    for (const { pattern, description, suggestion } of BANNED_PATTERNS) {
+    for (const { pattern, description, suggestion, appliesTo } of BANNED_PATTERNS) {
+      if (appliesTo && !appliesTo(rel, content)) continue
       pattern.lastIndex = 0
       for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
         matches.push({ index: match.index, description, suggestion })
