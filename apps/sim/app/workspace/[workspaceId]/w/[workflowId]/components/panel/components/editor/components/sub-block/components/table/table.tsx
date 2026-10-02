@@ -55,8 +55,8 @@ interface TableCellProps {
   blockId: string
   inputController: ReturnType<typeof useSubBlockInput>
   updateCellValue: (rowIndex: number, column: string, newValue: string) => void
-  inputRefs: React.MutableRefObject<Map<string, HTMLInputElement>>
-  overlayRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+  inputRefs: Map<string, HTMLInputElement>
+  overlayRefs: Map<string, HTMLDivElement>
   accessiblePrefixes: ReturnType<typeof useAccessibleReferencePrefixes>
   workspaceId: string
   subBlockId: string
@@ -108,7 +108,7 @@ function TableCell({
     (newValue) => updateCellValue(rowIndex, column, newValue)
   )
   const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
-    const overlay = overlayRefs.current.get(cellKey)
+    const overlay = overlayRefs.get(cellKey)
     if (overlay) {
       overlay.scrollLeft = e.currentTarget.scrollLeft
     }
@@ -138,7 +138,7 @@ function TableCell({
       return
     }
     const nextCellKey = `${rowIndex + 1}-${column}`
-    const nextInput = inputRefs.current.get(nextCellKey)
+    const nextInput = inputRefs.get(nextCellKey)
     // `isConnected` guards against a stale ref: position-keyed entries can
     // outlive a deleted row, and focusing a detached node would steal focus
     // from the current cell. A real next row's input is always connected.
@@ -151,8 +151,8 @@ function TableCell({
 
   const syncScrollAfterUpdate = () => {
     requestAnimationFrame(() => {
-      const input = inputRefs.current.get(cellKey)
-      const overlay = overlayRefs.current.get(cellKey)
+      const input = inputRefs.get(cellKey)
+      const overlay = overlayRefs.get(cellKey)
       if (input && overlay) {
         overlay.scrollLeft = input.scrollLeft
       }
@@ -187,8 +187,8 @@ function TableCell({
       <div className='relative w-full'>
         <input
           ref={(el) => {
-            if (el) inputRefs.current.set(cellKey, el)
-            else inputRefs.current.delete(cellKey)
+            if (el) inputRefs.set(cellKey, el)
+            else inputRefs.delete(cellKey)
           }}
           type='text'
           value={displayValue}
@@ -212,8 +212,8 @@ function TableCell({
         />
         <div
           ref={(el) => {
-            if (el) overlayRefs.current.set(cellKey, el)
-            else overlayRefs.current.delete(cellKey)
+            if (el) overlayRefs.set(cellKey, el)
+            else overlayRefs.delete(cellKey)
           }}
           data-overlay={cellKey}
           className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
@@ -239,7 +239,7 @@ function TableCell({
             onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
             inputRef={
               {
-                current: inputRefs.current.get(cellKey) || null,
+                current: inputRefs.get(cellKey) || null,
               } as React.RefObject<HTMLInputElement>
             }
           />
@@ -255,7 +255,7 @@ function TableCell({
             onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
             inputRef={
               {
-                current: inputRefs.current.get(cellKey) || null,
+                current: inputRefs.get(cellKey) || null,
               } as React.RefObject<HTMLInputElement>
             }
           />
@@ -297,8 +297,10 @@ export function Table({
   const value = isPreview ? previewValue : storeValue
 
   // Create refs for input and overlay elements
-  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
-  const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const inputElementsRef = useRef<Map<string, HTMLInputElement> | null>(null)
+  const inputRefs = (inputElementsRef.current ??= new Map())
+  const overlayElementsRef = useRef<Map<string, HTMLDivElement> | null>(null)
+  const overlayRefs = (overlayElementsRef.current ??= new Map())
 
   // Memoized template for empty cells for current columns
   const emptyCellsTemplate = useMemo(

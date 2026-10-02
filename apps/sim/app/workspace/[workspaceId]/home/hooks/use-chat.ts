@@ -721,8 +721,8 @@ export function useChat(
   const clearQueueDispatchState = useCallback(() => {
     queueDispatchEpochRef.current++
     queueDispatchActionsRef.current = []
-    queuedMessageDispatchIdsRef.current.clear()
-    userRemovedDuringDispatchRef.current.clear()
+    queuedMessageDispatchIds.clear()
+    userRemovedDuringDispatch.clear()
     queueDispatchTaskRef.current = null
     setDispatchingHeadId(null)
   }, [])
@@ -868,11 +868,13 @@ export function useChat(
   )
   const editingQueuedId = useMothershipQueueStore((state) => state.editing[chatKey] ?? null)
   const [dispatchingHeadId, setDispatchingHeadId] = useState<string | null>(null)
-  const queuedMessageDispatchIdsRef = useRef<Set<string>>(new Set())
+  const queuedMessageDispatchIdsRef = useRef<Set<string> | null>(null)
+  const queuedMessageDispatchIds = (queuedMessageDispatchIdsRef.current ??= new Set())
   // Ids the user explicitly removed while a dispatch was in flight — used to
   // suppress the dispatch's failure-restore path, which would otherwise undo
   // the user's removal silently.
-  const userRemovedDuringDispatchRef = useRef<Set<string>>(new Set())
+  const userRemovedDuringDispatchRef = useRef<Set<string> | null>(null)
+  const userRemovedDuringDispatch = (userRemovedDuringDispatchRef.current ??= new Set())
   const queueDispatchActionsRef = useRef<QueueDispatchAction[]>([])
   const queueDispatchTaskRef = useRef<Promise<void> | null>(null)
   const queueDispatchEpochRef = useRef(0)
@@ -921,7 +923,9 @@ export function useChat(
   const reconnectExhaustedRecheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
-  const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
+  const detachedChatResolutionControllersRef = useRef<Set<AbortController> | null>(null)
+  const detachedChatResolutionControllers = (detachedChatResolutionControllersRef.current ??=
+    new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const tableViewContextsRef = useRef({
@@ -974,9 +978,13 @@ export function useChat(
   const resourceActivityTrackerRef = useRef<ResourceActivityTracker | null>(null)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
-  const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
-  const handledClientLocalFilesystemToolIdsRef = useRef<Set<string>>(new Set())
-  const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
+  const handledClientWorkflowToolIdsRef = useRef<Set<string> | null>(null)
+  const handledClientWorkflowToolIds = (handledClientWorkflowToolIdsRef.current ??= new Set())
+  const handledClientLocalFilesystemToolIdsRef = useRef<Set<string> | null>(null)
+  const handledClientLocalFilesystemToolIds = (handledClientLocalFilesystemToolIdsRef.current ??=
+    new Set())
+  const recoveringClientWorkflowToolIdsRef = useRef<Set<string> | null>(null)
+  const recoveringClientWorkflowToolIds = (recoveringClientWorkflowToolIdsRef.current ??= new Set())
   const isHomePage = pathname.endsWith('/home')
 
   const setTransportIdle = useCallback(() => {
@@ -1532,13 +1540,13 @@ export function useChat(
       if (!isWorkflowToolName(toolName)) {
         return
       }
-      if (handledClientWorkflowToolIdsRef.current.has(toolCallId)) {
+      if (handledClientWorkflowToolIds.has(toolCallId)) {
         return
       }
-      if (recoveringClientWorkflowToolIdsRef.current.has(toolCallId)) {
+      if (recoveringClientWorkflowToolIds.has(toolCallId)) {
         return
       }
-      handledClientWorkflowToolIdsRef.current.add(toolCallId)
+      handledClientWorkflowToolIds.add(toolCallId)
 
       ensureWorkflowToolResource(toolArgs)
       executeRunToolOnClient(toolCallId, toolName, toolArgs)
@@ -1554,10 +1562,10 @@ export function useChat(
       ) {
         return
       }
-      if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
+      if (handledClientLocalFilesystemToolIds.has(toolCallId)) {
         return
       }
-      handledClientLocalFilesystemToolIdsRef.current.add(toolCallId)
+      handledClientLocalFilesystemToolIds.add(toolCallId)
       const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
@@ -1677,12 +1685,12 @@ export function useChat(
           if (!toolCall || !isWorkflowToolName(toolCall.name)) continue
           if (toolCall.status !== 'executing') continue
           if (
-            handledClientWorkflowToolIdsRef.current.has(toolCall.id) ||
-            recoveringClientWorkflowToolIdsRef.current.has(toolCall.id)
+            handledClientWorkflowToolIds.has(toolCall.id) ||
+            recoveringClientWorkflowToolIds.has(toolCall.id)
           ) {
             continue
           }
-          recoveringClientWorkflowToolIdsRef.current.add(toolCall.id)
+          recoveringClientWorkflowToolIds.add(toolCall.id)
           pending.push(toolCall)
         }
       }
@@ -1695,15 +1703,15 @@ export function useChat(
           if (targetWorkflowId) {
             const rebound = await bindRunToolToExecution(toolCall.id, targetWorkflowId)
             if (rebound) {
-              handledClientWorkflowToolIdsRef.current.add(toolCall.id)
+              handledClientWorkflowToolIds.add(toolCall.id)
               continue
             }
           }
 
-          recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
+          recoveringClientWorkflowToolIds.delete(toolCall.id)
           startClientWorkflowTool(toolCall.id, toolCall.name, toolArgs)
         } finally {
-          recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
+          recoveringClientWorkflowToolIds.delete(toolCall.id)
         }
       }
     },
@@ -1736,7 +1744,7 @@ export function useChat(
           // background so its native resources are re-keyed onto the server
           // chat even though this reader is intentionally being cancelled.
           const detachedResolutionController = new AbortController()
-          detachedChatResolutionControllersRef.current.add(detachedResolutionController)
+          detachedChatResolutionControllers.add(detachedResolutionController)
           void (async () => {
             const resolution = await waitForDetachedChatResolution(
               () =>
@@ -1781,7 +1789,7 @@ export function useChat(
               })
             })
             .finally(() => {
-              detachedChatResolutionControllersRef.current.delete(detachedResolutionController)
+              detachedChatResolutionControllers.delete(detachedResolutionController)
             })
         }
         // Detach the current UI from the old stream without cancelling it on the server.
@@ -4591,17 +4599,17 @@ export function useChat(
         queuedSendHandoff?: QueuedSendHandoffSeed
       }
     ) => {
-      if (queuedMessageDispatchIdsRef.current.has(msg.id)) {
+      if (queuedMessageDispatchIds.has(msg.id)) {
         return
       }
-      queuedMessageDispatchIdsRef.current.add(msg.id)
+      queuedMessageDispatchIds.add(msg.id)
 
       const dispatchChatKey = chatKeyRef.current
       const queueAtStart =
         useMothershipQueueStore.getState().queues[dispatchChatKey] ?? EMPTY_MESSAGE_QUEUE
       let originalIndex = queueAtStart.findIndex((queued) => queued.id === msg.id)
       if (originalIndex === -1) {
-        queuedMessageDispatchIdsRef.current.delete(msg.id)
+        queuedMessageDispatchIds.delete(msg.id)
         return
       }
 
@@ -4645,7 +4653,7 @@ export function useChat(
         }
         // If the user explicitly removed this message during dispatch, honor
         // that and don't re-insert on failure.
-        if (userRemovedDuringDispatchRef.current.delete(msg.id)) {
+        if (userRemovedDuringDispatch.delete(msg.id)) {
           clearQueuedSendHandoffState(msg.id)
           return
         }
@@ -4724,8 +4732,8 @@ export function useChat(
         restoreQueuedMessage(activeQueuedSendHandoff)
       } finally {
         setDispatchingHeadId((current) => (current === msg.id ? null : current))
-        queuedMessageDispatchIdsRef.current.delete(msg.id)
-        userRemovedDuringDispatchRef.current.delete(msg.id)
+        queuedMessageDispatchIds.delete(msg.id)
+        userRemovedDuringDispatch.delete(msg.id)
       }
     },
     [startSendMessage, handOffWithdrawnSend]
@@ -4781,8 +4789,8 @@ export function useChat(
   const removeFromQueue = useCallback((id: string) => {
     // If the message is mid-dispatch, mark it so the dispatch's failure-restore
     // path won't silently undo the user's removal.
-    if (queuedMessageDispatchIdsRef.current.has(id)) {
-      userRemovedDuringDispatchRef.current.add(id)
+    if (queuedMessageDispatchIds.has(id)) {
+      userRemovedDuringDispatch.add(id)
     }
     clearQueuedSendHandoffState(id)
     clearQueuedSendHandoffClaim(id)
@@ -4796,7 +4804,7 @@ export function useChat(
       const queue = queueState.queues[chatKey]
       const msg = id === undefined ? queue?.[0] : queue?.find((queued) => queued.id === id)
       if (!msg || queueState.editing[chatKey] === msg.id) return
-      if (queuedMessageDispatchIdsRef.current.has(msg.id)) return
+      if (queuedMessageDispatchIds.has(msg.id)) return
       const admissionPending = hasPendingChatAdmission()
 
       // Explicit queue sends should supersede any older auto-drain work scheduled by finalize().
@@ -4861,7 +4869,7 @@ export function useChat(
   const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
     // Reject edits on a message already mid-dispatch; the slot is about to be
     // dropped. UI also disables this via `dispatchingHeadId`.
-    if (queuedMessageDispatchIdsRef.current.has(id)) return undefined
+    if (queuedMessageDispatchIds.has(id)) return undefined
     const activeChatKey = chatKeyRef.current
     const queue = useMothershipQueueStore.getState().queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE
     const msg = queue.find((m) => m.id === id)
@@ -4890,7 +4898,7 @@ export function useChat(
     )
     if (chatHistory.activeStreamId) acceptedMessageIds.add(chatHistory.activeStreamId)
     for (const queued of messageQueue) {
-      if (queuedMessageDispatchIdsRef.current.has(queued.id)) continue
+      if (queuedMessageDispatchIds.has(queued.id)) continue
       const requestId = queued.queuedSendHandoff?.userMessageId ?? queued.resumeUserMessageId
       if (!requestId || !acceptedMessageIds.has(requestId)) continue
       clearQueuedSendHandoffState(queued.id)
@@ -4931,10 +4939,10 @@ export function useChat(
       cancelActiveStreamReader()
       abortControllerRef.current?.abort('unmount:client_cleanup')
       abortControllerRef.current = null
-      for (const controller of detachedChatResolutionControllersRef.current) {
+      for (const controller of detachedChatResolutionControllers) {
         controller.abort('unmount:detached_chat_resolution')
       }
-      detachedChatResolutionControllersRef.current.clear()
+      detachedChatResolutionControllers.clear()
       clearActiveTurn()
       sendingRef.current = false
       // Release the editing slot — the composer it binds to is unmounting.

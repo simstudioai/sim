@@ -554,15 +554,14 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }
 
   useEffect(() => {
-    const processed = processedRemovalIds
     if (removals.length === 0) {
-      processed.clear()
+      processedRemovalIds.clear()
       return
     }
     const ids: string[] = []
     for (const removal of removals) {
-      if (processed.has(removal.id)) continue
-      processed.add(removal.id)
+      if (processedRemovalIds.has(removal.id)) continue
+      processedRemovalIds.add(removal.id)
       ids.push(removal.id)
       removal.callback()
     }

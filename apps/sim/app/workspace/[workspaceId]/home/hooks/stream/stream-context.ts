@@ -182,10 +182,11 @@ export interface StreamLoopDeps {
   previewSessionsRef: MutableRefObject<Record<string, FilePreviewSession>>
   latestPreviewTargetToolCallIdRef: MutableRefObject<string | null>
   activePreviewSessionIdRef: MutableRefObject<string | null>
-  completedPreviewResourceHandoffRef: MutableRefObject<
-    Map<string, { sessionId: string; suppressActivation: boolean }>
-  >
-  previewActivationOwnerRef: MutableRefObject<Map<string, string | null>>
+  completedPreviewResourceHandoffRef: MutableRefObject<Map<
+    string,
+    { sessionId: string; suppressActivation: boolean }
+  > | null>
+  previewActivationOwnerRef: MutableRefObject<Map<string, string | null> | null>
 }
 
 export interface StreamLoopOps {

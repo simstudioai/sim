@@ -646,9 +646,11 @@ const WorkflowContent = React.memo(
     const connectionCancelledRef = useRef(false)
 
     /** Stores start positions for multi-node drag undo/redo recording. */
-    const multiNodeDragStartRef = useRef<Map<string, { x: number; y: number; parentId?: string }>>(
-      new Map()
-    )
+    const multiNodeDragStartRef = useRef<Map<
+      string,
+      { x: number; y: number; parentId?: string }
+    > | null>(null)
+    const multiNodeDragStart = (multiNodeDragStartRef.current ??= new Map())
 
     /** Re-applies diff markers when blocks change after socket rehydration. */
     const blocksRef = useRef(blocks)
@@ -2496,13 +2498,14 @@ const WorkflowContent = React.memo(
 
     /** Tracks blocks to pan to after diff updates. */
     const pendingZoomBlockIdsRef = useRef<Set<string> | null>(null)
-    const seenDiffBlocksRef = useRef<Set<string>>(new Set())
+    const seenDiffBlocksRef = useRef<Set<string> | null>(null)
+    const seenDiffBlocks = (seenDiffBlocksRef.current ??= new Set())
 
     /** Queues newly changed blocks for viewport panning. */
     useEffect(() => {
       if (!isDiffReady || !diffAnalysis) {
         pendingZoomBlockIdsRef.current = null
-        seenDiffBlocksRef.current.clear()
+        seenDiffBlocks.clear()
         return
       }
 
@@ -2510,10 +2513,10 @@ const WorkflowContent = React.memo(
       const allBlocks = [...(diffAnalysis.new_blocks || []), ...(diffAnalysis.edited_blocks || [])]
 
       for (const id of allBlocks) {
-        if (!seenDiffBlocksRef.current.has(id)) {
+        if (!seenDiffBlocks.has(id)) {
           newBlocks.add(id)
         }
-        seenDiffBlocksRef.current.add(id)
+        seenDiffBlocks.add(id)
       }
 
       if (newBlocks.size > 0) {
@@ -2786,14 +2789,15 @@ const WorkflowContent = React.memo(
       workflows,
     ])
 
-    const blockConfigCache = useRef<Map<string, any>>(new Map())
+    const blockConfigCacheRef = useRef<Map<string, any> | null>(null)
+    const blockConfigCache = (blockConfigCacheRef.current ??= new Map())
     const getBlockConfig = useCallback((type: string) => {
-      const cached = blockConfigCache.current.get(type)
+      const cached = blockConfigCache.get(type)
       if (cached) return cached
       // Don't cache a miss: custom (deploy-as-block) blocks resolve only once the
       // client overlay hydrates, so an early miss must re-resolve on a later render.
       const config = getBlock(type)
-      if (config) blockConfigCache.current.set(type, config)
+      if (config) blockConfigCache.set(type, config)
       return config
     }, [])
 
@@ -2801,7 +2805,7 @@ const WorkflowContent = React.memo(
     // CustomBlocksLoader) changes, so renames/icon edits refresh existing nodes.
     const { data: customBlocksData } = useCustomBlocks(workspaceId)
     useEffect(() => {
-      for (const cb of customBlocksData ?? []) blockConfigCache.current.delete(cb.type)
+      for (const cb of customBlocksData ?? []) blockConfigCache.delete(cb.type)
     }, [customBlocksData])
 
     const prevBlocksHashRef = useRef<string>('')
@@ -3285,8 +3289,7 @@ const WorkflowContent = React.memo(
         // Handle position changes (e.g., from keyboard arrow key movement)
         // Update container dimensions when child nodes are moved and persist to backend
         // Only persist if not in a drag operation (drag-end is handled by onNodeDragStop)
-        const isInDragOperation =
-          getDragStartPosition() !== null || multiNodeDragStartRef.current.size > 0
+        const isInDragOperation = getDragStartPosition() !== null || multiNodeDragStart.size > 0
         const keyboardPositionUpdates: Array<{ id: string; position: { x: number; y: number } }> =
           []
         for (const change of workflowChanges) {
@@ -3804,19 +3807,19 @@ const WorkflowContent = React.memo(
         // appear in the selected set yet.
         const allNodes = getNodes()
         const selectedNodes = allNodes.filter((n) => n.selected)
-        multiNodeDragStartRef.current.clear()
+        multiNodeDragStart.clear()
         selectedNodes.forEach((n) => {
           const block = blocks[n.id]
           if (block) {
-            multiNodeDragStartRef.current.set(n.id, {
+            multiNodeDragStart.set(n.id, {
               x: n.position.x,
               y: n.position.y,
               parentId: block.data?.parentId,
             })
           }
         })
-        if (!multiNodeDragStartRef.current.has(node.id)) {
-          multiNodeDragStartRef.current.set(node.id, {
+        if (!multiNodeDragStart.has(node.id)) {
+          multiNodeDragStart.set(node.id, {
             x: node.position.x,
             y: node.position.y,
             parentId: currentParentId ?? undefined,
@@ -3859,7 +3862,7 @@ const WorkflowContent = React.memo(
         if (selectedNodes.length > 1) {
           const positionUpdates = computeClampedPositionUpdates(selectedNodes, blocks, allNodes)
           collaborativeBatchUpdatePositions(positionUpdates, {
-            previousPositions: multiNodeDragStartRef.current,
+            previousPositions: multiNodeDragStart,
           })
 
           // Only reparent when an actual drag changed the target container.
@@ -3876,7 +3879,7 @@ const WorkflowContent = React.memo(
 
           setDragStartPosition(null)
           setPotentialParentId(null)
-          multiNodeDragStartRef.current.clear()
+          multiNodeDragStart.clear()
           return
         }
 
@@ -4092,11 +4095,11 @@ const WorkflowContent = React.memo(
         })
 
         // Capture positions for undo/redo before applying display changes
-        multiNodeDragStartRef.current.clear()
+        multiNodeDragStart.clear()
         effectiveNodes.forEach((n) => {
           const blk = blocks[n.id]
           if (blk) {
-            multiNodeDragStartRef.current.set(n.id, {
+            multiNodeDragStart.set(n.id, {
               x: n.position.x,
               y: n.position.y,
               parentId: blk.data?.parentId,
@@ -4236,14 +4239,14 @@ const WorkflowContent = React.memo(
         const allNodes = getNodes()
         const positionUpdates = computeClampedPositionUpdates(nodes, blocks, allNodes)
         collaborativeBatchUpdatePositions(positionUpdates, {
-          previousPositions: multiNodeDragStartRef.current,
+          previousPositions: multiNodeDragStart,
         })
 
         executeBatchParentUpdate(nodes, potentialParentId, 'Batch moved selection to new parent')
 
         setDragStartPosition(null)
         setPotentialParentId(null)
-        multiNodeDragStartRef.current.clear()
+        multiNodeDragStart.clear()
       },
       [
         blocks,

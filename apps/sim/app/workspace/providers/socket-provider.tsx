@@ -211,8 +211,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     operationFailed?: (data: OperationFailedBroadcast) => void
   }>({})
 
-  const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
-  const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
+  const positionUpdateTimeoutsRef = useRef<Map<string, number> | null>(null)
+  const positionUpdateTimeouts = (positionUpdateTimeoutsRef.current ??= new Map())
+  const pendingPositionUpdatesRef = useRef<Map<string, any> | null>(null)
+  const pendingPositionUpdates = (pendingPositionUpdatesRef.current ??= new Map())
 
   /**
    * Presence is high-frequency (cursor frames many times per second) so it lives
@@ -268,11 +270,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       useOperationQueueStore.getState().cancelOperationsForWorkflow(workflowId)
     }
 
-    positionUpdateTimeouts.current.forEach((timeoutId) => {
+    positionUpdateTimeouts.forEach((timeoutId) => {
       clearTimeout(timeoutId)
     })
-    positionUpdateTimeouts.current.clear()
-    pendingPositionUpdates.current.clear()
+    positionUpdateTimeouts.clear()
+    pendingPositionUpdates.clear()
   }, [])
 
   const clearJoinedWorkflowState = useCallback(
@@ -932,11 +934,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     return () => {
       clearJoinRetryTimeout()
       clearAuthRetryTimeout()
-      positionUpdateTimeouts.current.forEach((timeoutId) => {
+      positionUpdateTimeouts.forEach((timeoutId) => {
         clearTimeout(timeoutId)
       })
-      positionUpdateTimeouts.current.clear()
-      pendingPositionUpdates.current.clear()
+      positionUpdateTimeouts.clear()
+      pendingPositionUpdates.clear()
 
       // Close socket on unmount
       if (socketRef.current) {
@@ -1066,16 +1068,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             timestamp: Date.now(),
             operationId,
           })
-          pendingPositionUpdates.current.delete(blockId)
-          const timeoutId = positionUpdateTimeouts.current.get(blockId)
+          pendingPositionUpdates.delete(blockId)
+          const timeoutId = positionUpdateTimeouts.get(blockId)
           if (timeoutId) {
             clearTimeout(timeoutId)
-            positionUpdateTimeouts.current.delete(blockId)
+            positionUpdateTimeouts.delete(blockId)
           }
           return true
         }
 
-        pendingPositionUpdates.current.set(blockId, {
+        pendingPositionUpdates.set(blockId, {
           workflowId,
           operation,
           target,
@@ -1084,17 +1086,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           operationId,
         })
 
-        if (!positionUpdateTimeouts.current.has(blockId)) {
+        if (!positionUpdateTimeouts.has(blockId)) {
           const timeoutId = window.setTimeout(() => {
-            const latestUpdate = pendingPositionUpdates.current.get(blockId)
+            const latestUpdate = pendingPositionUpdates.get(blockId)
             if (latestUpdate) {
               socket.emit('workflow-operation', latestUpdate)
-              pendingPositionUpdates.current.delete(blockId)
+              pendingPositionUpdates.delete(blockId)
             }
-            positionUpdateTimeouts.current.delete(blockId)
+            positionUpdateTimeouts.delete(blockId)
           }, 33)
 
-          positionUpdateTimeouts.current.set(blockId, timeoutId)
+          positionUpdateTimeouts.set(blockId, timeoutId)
         }
         return true
       }

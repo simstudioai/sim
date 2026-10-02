@@ -224,7 +224,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
 
   const completedPreviewHandoff =
     resource.type === 'file'
-      ? completedPreviewResourceHandoffRef.current.get(resource.id)
+      ? completedPreviewResourceHandoffRef.current?.get(resource.id)
       : undefined
   const matchingPreviewSessions =
     resource.type === 'file'
@@ -249,8 +249,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     (!latestActivePreviewForResource ||
       latestActivePreviewForResource.id === completedPreviewHandoff.sessionId)
   if (completedPreviewHandoff && !isCompletedPreviewHandoffCurrent) {
-    completedPreviewResourceHandoffRef.current.delete(resource.id)
-    previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
+    completedPreviewResourceHandoffRef.current?.delete(resource.id)
+    previewActivationOwnerRef.current?.delete(completedPreviewHandoff.sessionId)
   }
   const shouldSuppressFileResourceActivation =
     (isCompletedPreviewHandoffCurrent && completedPreviewHandoff?.suppressActivation === true) ||
@@ -284,8 +284,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     )
   }
   if (completedPreviewHandoff && isCompletedPreviewHandoffCurrent) {
-    completedPreviewResourceHandoffRef.current.delete(resource.id)
-    previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
+    completedPreviewResourceHandoffRef.current?.delete(resource.id)
+    previewActivationOwnerRef.current?.delete(completedPreviewHandoff.sessionId)
   }
   if (pinnedViewId) {
     // Carry the newest pin on an existing tab so a remount adopts it. Not gated
