@@ -6,6 +6,7 @@ import {
   buildDomainFilters,
   optionalNumber,
   parseList,
+  toCode,
   YOUCOM_INDEX_BASE_URL,
   youComApiKeyParam,
   youComHeaders,
@@ -130,8 +131,10 @@ export const youComSearchTool: ToolConfig<YouComSearchParams, YouComSearchRespon
       const offset = optionalNumber(params.offset)
       if (offset !== undefined) body.offset = offset
       if (params.freshness) body.freshness = params.freshness.trim()
-      if (params.country) body.country = params.country
-      if (params.language) body.language = params.language
+      const country = toCode(params.country)
+      if (country) body.country = country
+      const language = toCode(params.language)
+      if (language) body.language = language
       if (params.safesearch) body.safesearch = params.safesearch
       if (params.knowledge) body.knowledge = params.knowledge
       const crawlTimeout = optionalNumber(params.crawlTimeout)

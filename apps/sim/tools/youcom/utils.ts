@@ -83,6 +83,12 @@ export function optionalNumber(value: unknown): number | undefined {
   return Number.isFinite(number) ? number : undefined
 }
 
+/** Normalizes a country or language code to You.com's uppercase enum form (`de` → `DE`). */
+export function toCode(value: string | undefined): string | undefined {
+  const code = value?.trim().toUpperCase()
+  return code || undefined
+}
+
 /**
  * Accepts a list from an upstream block (an array) or the UI (a comma- or
  * newline-separated string) and returns trimmed, non-empty entries.

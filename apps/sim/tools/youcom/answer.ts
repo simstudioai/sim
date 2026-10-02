@@ -5,6 +5,7 @@ import type { YouComAnswerParams, YouComAnswerResponse } from '@/tools/youcom/ty
 import {
   ANSWER_LANGUAGES,
   buildDomainFilters,
+  toCode,
   YOUCOM_API_BASE_URL,
   youComApiKeyParam,
   youComHeaders,
@@ -84,8 +85,10 @@ export const youComAnswerTool: ToolConfig<YouComAnswerParams, YouComAnswerRespon
         ...buildDomainFilters(params),
       }
       if (params.freshness) body.freshness = params.freshness.trim()
-      if (params.country) body.country = params.country
-      if (params.language && ANSWER_LANGUAGES.has(params.language)) body.language = params.language
+      const country = toCode(params.country)
+      if (country) body.country = country
+      const language = toCode(params.language)
+      if (language && ANSWER_LANGUAGES.has(language)) body.language = language
       if (params.safesearch) body.safesearch = params.safesearch
       return body
     },

@@ -10,6 +10,7 @@ import {
   RESEARCH_CONTENT_TYPE_OUTPUT,
   RESEARCH_SOURCES_OUTPUT,
   RESEARCH_WARNINGS_OUTPUT,
+  toCode,
   YOUCOM_API_BASE_URL,
   youComApiKeyParam,
   youComHeaders,
@@ -103,7 +104,8 @@ export const youComResearchTool: ToolConfig<YouComResearchParams, YouComResearch
 
       const sourceControl: Record<string, unknown> = buildDomainFilters(params)
       if (params.freshness) sourceControl.freshness = params.freshness.trim()
-      if (params.country) sourceControl.country = params.country
+      const country = toCode(params.country)
+      if (country) sourceControl.country = country
       if (Object.keys(sourceControl).length > 0) body.source_control = sourceControl
 
       return body
