@@ -16,14 +16,10 @@ class MockResumeAdmissionError extends Error {
   }
 }
 
-function isMockRecord(value: unknown): value is Record<string, unknown> {
-  return isRecordLike(value)
-}
-
 function isPausedOutputForContext(output: unknown, contextId: string): boolean {
-  if (!isMockRecord(output)) return false
+  if (!isRecordLike(output)) return false
   const metadata = output._pauseMetadata
-  return isMockRecord(metadata) && metadata.contextId === contextId
+  return isRecordLike(metadata) && metadata.contextId === contextId
 }
 
 interface MockAggregationState {
@@ -124,7 +120,7 @@ export const humanInTheLoopManagerMockFns = {
       mergedOutput: Record<string, unknown>
     ): void => {
       for (const scope of Object.values(state.loopExecutions ?? {})) {
-        if (!isMockRecord(scope) || !isMockRecord(scope.currentIterationOutputs)) continue
+        if (!isRecordLike(scope) || !isRecordLike(scope.currentIterationOutputs)) continue
         const outputs = scope.currentIterationOutputs
         const pausedEntry =
           outputs[stateBlockKey] !== undefined
@@ -144,7 +140,7 @@ export const humanInTheLoopManagerMockFns = {
       }
 
       for (const scope of Object.values(state.parallelExecutions ?? {})) {
-        if (!isMockRecord(scope) || !isMockRecord(scope.branchOutputs)) continue
+        if (!isRecordLike(scope) || !isRecordLike(scope.branchOutputs)) continue
         const branches = scope.branchOutputs
         for (const [branchIndex, branchOutputs] of Object.entries(branches)) {
           if (!Array.isArray(branchOutputs)) continue

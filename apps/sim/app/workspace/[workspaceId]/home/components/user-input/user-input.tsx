@@ -324,7 +324,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }
 
   const {
-    audioLevelsRef,
+    audioLevels,
     isListening,
     isSupported: isSttSupported,
     toggleListening,
@@ -641,7 +641,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         voiceControl={
           isSttSupported && (
             <MicButton
-              audioLevelsRef={audioLevelsRef}
+              audioLevels={audioLevels}
               isListening={isListening}
               onToggle={toggleListening}
             />
