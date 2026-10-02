@@ -14176,6 +14176,97 @@
                   "type": "string",
                   "maxLength": 1024,
                   "description": "Display name of the workflow or workspace."
+                },
+                "comparison": {
+                  "description": "Last successfully synced source deployment compared with the source deployment pinned by this preview. Absent for archive actions.",
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "available",
+                          "description": "Both exact source snapshots are available."
+                        },
+                        "base": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "Exact source deployment snapshot identifier."
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 2147483647,
+                              "description": "Saved version number in the source workflow."
+                            }
+                          },
+                          "required": ["id", "version"],
+                          "additionalProperties": false,
+                          "description": "Source deployment last successfully synced to this destination."
+                        },
+                        "target": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "Exact source deployment snapshot identifier."
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 2147483647,
+                              "description": "Saved version number in the source workflow."
+                            }
+                          },
+                          "required": ["id", "version"],
+                          "additionalProperties": false,
+                          "description": "Pinned source deployment that this sync would copy."
+                        }
+                      },
+                      "required": ["status", "base", "target"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "unavailable",
+                          "description": "The source baseline cannot be compared."
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": ["new_workflow", "no_baseline", "missing_baseline"],
+                          "description": "New destination workflow, no recorded successful sync, or deleted baseline snapshot."
+                        },
+                        "target": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "Exact source deployment snapshot identifier."
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 2147483647,
+                              "description": "Saved version number in the source workflow."
+                            }
+                          },
+                          "required": ["id", "version"],
+                          "additionalProperties": false,
+                          "description": "Pinned source deployment that this sync would copy."
+                        }
+                      },
+                      "required": ["status", "reason", "target"],
+                      "additionalProperties": false
+                    }
+                  ]
                 }
               },
               "required": ["action", "name"],

@@ -261,10 +261,19 @@ async function performStableFullDeploy(params: {
 
   const prepared = await prepareWorkflowSnapshotDeployment({ ...params, workflowState })
   if (!prepared.success) return prepared
-  const outboxEventId = prepared.outboxEventId
+  return finishPreparedWorkflowDeployment(prepared, params.requestId)
+}
 
-  const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
-  const deploymentStatus = await getWorkflowDeploymentStatus(params.params.workflowId)
+/** Processes the exact admitted deployment without reading a newer editor draft. */
+export async function finishPreparedWorkflowDeployment(
+  prepared: { operation: WorkflowDeploymentOperation; outboxEventId?: string },
+  requestId: string
+): Promise<PerformFullDeployResult> {
+  const processResult = await processStableDeploymentPreparationNow(
+    prepared.outboxEventId,
+    requestId
+  )
+  const deploymentStatus = await getWorkflowDeploymentStatus(prepared.operation.workflowId)
   const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, deploymentStatus)
   if (inlineFailure) return inlineFailure
   const result = buildStableDeploymentResult(deploymentStatus, processResult)

@@ -36,6 +36,7 @@ export interface ReadWorkflowVersionInput {
   workflowId: string
   assertedWorkspaceId?: string
   version: number | 'active'
+  expectedDeploymentVersionId?: string
   /** Stored snapshots remain pinned; comparison previews apply the current runtime migrations. */
   representation?: 'stored' | 'comparison'
   /**
@@ -52,7 +53,11 @@ export const readWorkflowVersion = defineAuthorizedWorkflowUseCase({
   resolveContext: resolvePrincipalWorkflowContext<ReadWorkflowVersionInput>,
   async execute({ principal, input, context }) {
     const version = await getWorkflowDeploymentVersion(context.workflowId, input.version)
-    if (!version?.state) {
+    if (
+      !version?.state ||
+      (input.expectedDeploymentVersionId !== undefined &&
+        version.id !== input.expectedDeploymentVersionId)
+    ) {
       throw new OrchestrationError('not_found', 'Deployment version not found')
     }
     if (!isWorkflowState(version.state)) {

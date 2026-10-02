@@ -4,6 +4,7 @@ import {
   workspaceForkingMappingStoreMock,
   workspaceForkingMappingStoreMockFns,
 } from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
+import { workspaceForkingRevisionMock } from '@sim/testing/mocks/workspace-forking-revision.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -15,9 +16,7 @@ vi.mock('@/lib/selectors/application/get-selector-option', () => ({
 vi.mock('@/lib/workflows/references/custom-block-reconfigs', () => ({
   collectForkCustomBlockReconfigs: vi.fn(async () => []),
 }))
-vi.mock('@/ee/workspace-forking/application/revision', () => ({
-  loadForkPreviewRevision: vi.fn(async () => ({ fingerprint: 'reviewed' })),
-}))
+vi.mock('@/ee/workspace-forking/application/revision', () => workspaceForkingRevisionMock)
 vi.mock('@/ee/workspace-forking/application/validate-bindings', () => ({
   validateForkWorkflowBindings: vi.fn(),
 }))
@@ -189,7 +188,9 @@ function prepare(state: WorkflowState, options: { copied?: boolean; create?: boo
   vi.mocked(loadSourceDeployedStates).mockResolvedValue({
     deployedWorkflows: [],
     sourceStates: new Map([['workflow', state]]),
-    sourceVersionIds: new Map(),
+    sourceVersionIds: new Map([
+      ['workflow', { id: 'source-version-1', version: 1, digest: 'fixture' }],
+    ]),
   })
   return plan
 }
