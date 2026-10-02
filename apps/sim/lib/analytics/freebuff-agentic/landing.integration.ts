@@ -11,8 +11,13 @@ import {
 } from '@/lib/analytics/freebuff-agentic/token'
 import { env } from '@/lib/core/config/env'
 import { closeRedisConnection } from '@/lib/core/config/redis'
+import {
+  bindAccountAttribution,
+  bindApprovedCliAttribution,
+} from '@/lib/users/application/attribution'
 import { POST } from '@/app/api/attribution/freebuff/handoff/route'
 import { GET } from '@/app/api/attribution/freebuff/route'
+import { POST as approveCli } from '@/app/api/cli/auth/approve/route'
 
 vi.mock('@/lib/auth', () => authMock)
 beforeAll(() => {
@@ -24,6 +29,115 @@ afterAll(async () => {
 
 /** Real Redis and encrypted cookie boundary; OAuth providers are outside this fixture. */
 describe('agentic landing and device handoff', () => {
+  it('retains a failed browser capture for its original account only', async () => {
+    const userId = generateId()
+    const otherId = generateId()
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: userId },
+      session: { id: generateId() },
+    })
+    const failed = await GET(
+      new NextRequest('http://localhost:3000/api/attribution/freebuff?bfcid=fixture-retry-token', {
+        headers: { 'x-forwarded-for': '127.0.0.8' },
+      }),
+      {}
+    )
+    expect(failed.status).toBe(503)
+    const cookie = (failed.headers.get('set-cookie') ?? '').split(';')[0]
+    const sealed = decodeURIComponent(cookie.slice(FREEBUFF_AGENTIC_COOKIE.length + 1))
+    expect((await readFreebuffAttribution(sealed))?.boundUserId).toBe(userId)
+    try {
+      await db.insert(user).values(
+        [userId, otherId].map((id) => ({
+          id,
+          name: 'Retry fixture',
+          email: `${id}@example.test`,
+          emailVerified: true,
+          createdAt: new Date(0),
+          updatedAt: new Date(),
+        }))
+      )
+      await bindAccountAttribution.execute({
+        principal: { kind: 'session', userId: otherId, sessionId: generateId() },
+        input: { sealed },
+      })
+      expect(
+        await db.select().from(freebuffAttribution).where(eq(freebuffAttribution.userId, otherId))
+      ).toHaveLength(0)
+      const retried = await GET(
+        new NextRequest('http://localhost:3000/api/attribution/freebuff', {
+          headers: { cookie, 'x-forwarded-for': '127.0.0.8' },
+        }),
+        {}
+      )
+      expect(retried.status).toBe(303)
+      expect(retried.headers.get('set-cookie')).toContain('Max-Age=0')
+      expect(
+        await db.select().from(freebuffAttribution).where(eq(freebuffAttribution.userId, userId))
+      ).toHaveLength(1)
+    } finally {
+      for (const id of [userId, otherId]) {
+        await db.delete(outboxEvent).where(sql`${outboxEvent.id} like ${`freebuff:expire:${id}:%`}`)
+        await db.delete(user).where(eq(user.id, id))
+      }
+    }
+  })
+
+  it('reserves a failed CLI approval claim for the same account until persistence succeeds', async () => {
+    const requestId = sha256Base64Url(generateId())
+    const challenge = sha256Base64Url(generateId())
+    const userId = generateId()
+    const otherId = generateId()
+    const registration = await POST(
+      new NextRequest('http://localhost:3000/api/attribution/freebuff/handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-forwarded-for': '127.0.0.9' },
+        body: JSON.stringify({
+          request: requestId,
+          challenge,
+          conversionToken: 'fixture-approval-retry',
+        }),
+      }),
+      {}
+    )
+    expect(registration.status).toBe(204)
+    const approve = (id: string) =>
+      bindApprovedCliAttribution.execute({
+        principal: { kind: 'session', userId: id, sessionId: generateId() },
+        input: { requestId, challenge },
+      })
+    await expect(approve(userId)).rejects.toThrow()
+    try {
+      await db.insert(user).values(
+        [userId, otherId].map((id) => ({
+          id,
+          name: 'Claim fixture',
+          email: `${id}@example.test`,
+          emailVerified: true,
+          createdAt: new Date(0),
+          updatedAt: new Date(),
+        }))
+      )
+      await approve(otherId)
+      expect(
+        await db.select().from(freebuffAttribution).where(eq(freebuffAttribution.userId, otherId))
+      ).toHaveLength(0)
+      await approve(userId)
+      await approve(otherId)
+      expect(
+        await db.select().from(freebuffAttribution).where(eq(freebuffAttribution.userId, otherId))
+      ).toHaveLength(0)
+      expect(
+        await db.select().from(freebuffAttribution).where(eq(freebuffAttribution.userId, userId))
+      ).toHaveLength(1)
+    } finally {
+      for (const id of [userId, otherId]) {
+        await db.delete(outboxEvent).where(sql`${outboxEvent.id} like ${`freebuff:expire:${id}:%`}`)
+        await db.delete(user).where(eq(user.id, id))
+      }
+    }
+  })
+
   it('consumes the browser cookie after binding an authenticated account', async () => {
     const userId = generateId()
     await db.insert(user).values({
@@ -116,6 +230,15 @@ describe('agentic landing and device handoff', () => {
       {}
     )
     expect(registration.status).toBe(204)
+    authMockFns.mockGetSession.mockRejectedValueOnce(new Error('Fixture session outage'))
+    const failed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/attribution/freebuff?request=${request}&challenge=${challenge}&pairing=ABCD-EFGH`,
+        { headers: { 'x-forwarded-for': '127.0.0.2' } }
+      ),
+      {}
+    )
+    expect(failed.status).toBe(503)
     const response = await GET(
       new NextRequest(
         `http://localhost:3000/api/attribution/freebuff?request=${request}&challenge=${challenge}&pairing=ABCD-EFGH`,
@@ -129,9 +252,44 @@ describe('agentic landing and device handoff', () => {
     expect(location.pathname).toBe('/cli/auth')
     expect(location.searchParams.get('request')).toBe(request)
     expect(location.href).not.toContain(token)
-    const cookie = response.headers.get('set-cookie') ?? ''
-    const sealed = cookie.split(';')[0].slice(FREEBUFF_AGENTIC_COOKIE.length + 1)
-    expect((await readFreebuffAttribution(decodeURIComponent(sealed)))?.token).toBe(token)
+    expect(response.headers.get('set-cookie')).toBeNull()
+    const userId = generateId()
+    await db.insert(user).values({
+      id: userId,
+      name: 'CLI fixture',
+      email: `${userId}@example.test`,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: userId },
+      session: { id: generateId() },
+    })
+    try {
+      const approved = await approveCli(
+        new NextRequest('http://localhost:3000/api/cli/auth/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request, challenge, scope: 'platform' }),
+        }),
+        {}
+      )
+      expect(approved.status, await approved.clone().text()).toBe(200)
+      const [association] = await db
+        .select()
+        .from(freebuffAttribution)
+        .where(eq(freebuffAttribution.userId, userId))
+      expect((await readFreebuffAttribution(association.encryptedToken))?.token).toBe(token)
+    } finally {
+      await db
+        .delete(outboxEvent)
+        .where(
+          sql`${outboxEvent.id} = ${`freebuff:account_created:${userId}`} or ${outboxEvent.id} like ${`freebuff:expire:${userId}:%`}`
+        )
+      await db.delete(user).where(eq(user.id, userId))
+      authMockFns.mockGetSession.mockResolvedValue(null)
+    }
     const replay = await GET(
       new NextRequest(locationHeader.replace('/cli/auth', '/api/attribution/freebuff'), {
         headers: { 'x-forwarded-for': '127.0.0.5' },

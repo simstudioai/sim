@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { freebuffAttribution, outboxEvent, user } from '@sim/db/schema'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,6 +60,22 @@ async function seedUse() {
 }
 
 describe('agentic attribution across committed outcomes', () => {
+  it('does not resurrect signup attribution from an older rejected capture', async () => {
+    const older = await sealFreebuffAttribution('fixture-older')
+    await sleep(2)
+    await db.update(user).set({ createdAt: new Date() }).where(eq(user.id, userId))
+    await sleep(2)
+    const newer = await sealFreebuffAttribution('fixture-newer')
+    await bindFreebuffAttribution(userId, newer)
+    await bindFreebuffAttribution(userId, older)
+    const [association] = await db
+      .select()
+      .from(freebuffAttribution)
+      .where(eq(freebuffAttribution.userId, userId))
+    expect(association.encryptedToken).toBe(newer)
+    expect(await db.select().from(outboxEvent).where(eq(outboxEvent.id, ids[0]))).toHaveLength(0)
+  })
+
   it('rejects tampered and expired capture without exposing the bearer token', async () => {
     const sealed = await sealFreebuffAttribution(token)
     expect(sealed).not.toContain(token)

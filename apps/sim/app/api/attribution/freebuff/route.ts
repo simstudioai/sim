@@ -4,7 +4,7 @@ import {
   FREEBUFF_AGENTIC_COOKIE,
   FREEBUFF_ATTRIBUTION_TTL_SECONDS,
   readFreebuffAttribution,
-  readFreebuffHandoff,
+  scopeFreebuffAttribution,
   sealFreebuffAttribution,
 } from '@/lib/analytics/freebuff-agentic'
 import {
@@ -23,8 +23,9 @@ const logger = createLogger('FreebuffLanding')
 /** Capture before rendering any page or loading analytics; the redirect URL never carries bfcid. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const destination = new URL('/signup', getBaseUrl())
-  let sealed: string | undefined
+  let sealed = request.cookies.get(FREEBUFF_AGENTIC_COOKIE)?.value
   let clearCookie = false
+  let captureFailed = false
   const limited = await enforceIpRateLimit('freebuff-landing', request)
   if (limited) {
     limited.headers.set('Cache-Control', 'no-store')
@@ -35,6 +36,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   if (parsed.success) {
     const query: FreebuffLandingQuery = parsed.data.query
     try {
+      const session = await getSession()
       if (query.request && query.challenge && query.pairing) {
         destination.pathname = '/cli/auth'
         destination.search = new URLSearchParams({
@@ -44,14 +46,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           scope: 'platform',
           ...(query.workspace ? { workspace: query.workspace } : {}),
         }).toString()
-        sealed = await readFreebuffHandoff(query.request, query.challenge)
       } else if (query.bfcid) {
         sealed = await sealFreebuffAttribution(query.bfcid)
       }
-      if (await readFreebuffAttribution(sealed)) {
-        const session = await getSession()
+      const captured = await readFreebuffAttribution(sealed)
+      if (captured) {
         if (session?.user.id && sealed) {
-          if (!('impersonatedBy' in session.session && session.session.impersonatedBy)) {
+          if (
+            !('impersonatedBy' in session.session && session.session.impersonatedBy) &&
+            (!captured.boundUserId || captured.boundUserId === session.user.id)
+          ) {
+            sealed = await scopeFreebuffAttribution(sealed, session.user.id)
             await bindAccountAttribution.execute({
               principal: {
                 kind: 'session',
@@ -69,10 +74,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     } catch {
       logger.warn('Attribution capture unavailable')
-      sealed = undefined
+      captureFailed = true
     }
   }
-  const response = NextResponse.redirect(destination, 303)
+  const response = captureFailed
+    ? NextResponse.json(
+        { error: 'Attribution capture unavailable; retry this request' },
+        { status: 503, headers: { 'Retry-After': '5' } }
+      )
+    : NextResponse.redirect(destination, 303)
   response.headers.set('Cache-Control', 'no-store')
   response.headers.set('Referrer-Policy', 'no-referrer')
   if (sealed || clearCookie)

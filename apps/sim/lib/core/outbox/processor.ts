@@ -3,7 +3,10 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { adminInvitationOperationOutboxHandlers } from '@/lib/admin/invitation-operation'
 import { adminMemberOperationOutboxHandlers } from '@/lib/admin/member-operation'
-import { freebuffAgenticOutboxHandlers } from '@/lib/analytics/freebuff-agentic'
+import {
+  freebuffAgenticOutboxHandlers,
+  recoverFreebuffAttribution,
+} from '@/lib/analytics/freebuff-agentic'
 import { enterpriseOwnerClaimOutboxHandlers } from '@/lib/billing/enterprise-owner-claim'
 import { enterpriseIssuanceOutboxHandlers } from '@/lib/billing/enterprise-provisioning'
 import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
@@ -72,6 +75,13 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
   })
 
   let recoveredDocuments = 0
+  try {
+    if (Date.now() - startedAt < OUTBOX_PROCESSOR_RECOVERY_CUTOFF_MS) {
+      await recoverFreebuffAttribution()
+    }
+  } catch {
+    logger.warn('Freebuff attribution recovery deferred')
+  }
   try {
     if (Date.now() - startedAt < OUTBOX_PROCESSOR_RECOVERY_CUTOFF_MS) {
       recoveredDocuments = await recoverKnowledgeDocumentProcessing()

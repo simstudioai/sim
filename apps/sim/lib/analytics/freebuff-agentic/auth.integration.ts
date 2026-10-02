@@ -64,6 +64,7 @@ describe('agentic attribution through authentication', () => {
       occurredAt: account.createdAt.toISOString(),
     })
 
+    await db.update(user).set({ role: 'admin' }).where(eq(user.id, account.id))
     await sleep(2)
     const returningToken = await sealFreebuffAttribution('fixture-returning-token')
     const signin = await auth.handler(
@@ -81,7 +82,6 @@ describe('agentic attribution through authentication', () => {
     const [original] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, event.id))
     expect(original.payload).toEqual(event.payload)
 
-    await db.update(user).set({ role: 'admin' }).where(eq(user.id, account.id))
     const sessionCookie = signin.headers
       .getSetCookie()
       .filter((cookie) => !cookie.startsWith(`${FREEBUFF_AGENTIC_COOKIE}=`))

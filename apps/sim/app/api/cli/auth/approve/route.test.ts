@@ -44,7 +44,7 @@ const CHALLENGE = createHash('sha256').update('b'.repeat(43)).digest('base64url'
 
 describe('POST /api/cli/auth/approve', () => {
   beforeEach(() => {
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mockEnforceUserRateLimit.mockResolvedValue(null)
     mockCreateApproval.mockResolvedValue(undefined)
     mockGetPermissions.mockResolvedValue('admin')

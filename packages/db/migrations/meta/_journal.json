@@ -2752,6 +2752,13 @@
       "when": 1790909756046,
       "tag": "0393_curved_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 394,
+      "version": "7",
+      "when": 1790925416917,
+      "tag": "0394_lowly_kabuki",
+      "breakpoints": true
     }
   ]
 }

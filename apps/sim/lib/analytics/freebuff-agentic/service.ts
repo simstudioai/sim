@@ -13,8 +13,9 @@ export async function bindFreebuffAttribution(
 ): Promise<void> {
   const captured = await readFreebuffAttribution(encryptedToken)
   if (!captured || !encryptedToken) return
+  if (captured.boundUserId && captured.boundUserId !== userId) return
   await db.transaction(async (tx) => {
-    await tx
+    const [bound] = await tx
       .insert(freebuffAttribution)
       .values({
         userId,
@@ -31,6 +32,8 @@ export async function bindFreebuffAttribution(
         },
         setWhere: lte(freebuffAttribution.capturedAt, new Date(captured.capturedAt)),
       })
+      .returning({ userId: freebuffAttribution.userId })
+    if (!bound) return
     const [account] = await tx
       .select({ createdAt: user.createdAt })
       .from(user)

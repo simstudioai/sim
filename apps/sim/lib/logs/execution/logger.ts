@@ -1332,7 +1332,20 @@ export class ExecutionLogger {
       )
 
       if (log.status === 'completed' && log.deploymentVersionId && actorUserId && log.endedAt) {
-        await enqueueFreebuffUse(tx, actorUserId, executionId, log.endedAt)
+        const occurredAt = log.endedAt
+        try {
+          await tx.transaction((attributionTx) =>
+            enqueueFreebuffUse(attributionTx, actorUserId, executionId, occurredAt)
+          )
+        } catch {
+          await tx
+            .update(workflowExecutionLogs)
+            .set({
+              executionData: sql`${workflowExecutionLogs.executionData} || ${JSON.stringify({ freebuffAttributionPending: actorUserId })}::jsonb`,
+            })
+            .where(eq(workflowExecutionLogs.id, log.id))
+          execLog.warn('Freebuff attribution deferred for recovery')
+        }
       }
 
       return { updatedLog: log, completionPersisted: true }

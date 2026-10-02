@@ -8,6 +8,7 @@ import { enforceUserRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
+import { bindApprovedCliAttribution } from '@/lib/users/application/attribution'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CliAuthApproveAPI')
@@ -131,6 +132,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   }
 
+  if (!('impersonatedBy' in session.session && session.session.impersonatedBy)) {
+    await bindApprovedCliAttribution.execute({
+      principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+      input: { requestId, challenge },
+    })
+  }
   await createApproval(session.user.id, requestId, challenge, {
     scope,
     workspaceId,

@@ -4,9 +4,11 @@
  */
 import { db } from '@sim/db'
 import {
+  outboxEvent,
   usageLog,
   user,
   workflow,
+  workflowDeploymentVersion,
   workflowExecutionLogs,
   workflowExecutionSnapshots,
   workspace,
@@ -15,6 +17,11 @@ import { createDeferred } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import {
+  bindFreebuffAttribution,
+  recoverFreebuffAttribution,
+  sealFreebuffAttribution,
+} from '@/lib/analytics/freebuff-agentic'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { buildCostLedger } from '@/lib/logs/cost-ledger'
@@ -49,11 +56,12 @@ const workflowState: WorkflowState = {
   parallels: {},
 }
 
-async function startExecution(executionId: string) {
+async function startExecution(executionId: string, deploymentVersionId?: string) {
   await executionLogger.startWorkflowExecution({
     workflowId: ids.workflow,
     workspaceId: ids.workspace,
     executionId,
+    deploymentVersionId,
     trigger: { type: 'api', source: 'api', timestamp: new Date().toISOString() },
     environment: {
       variables: {},
@@ -127,6 +135,69 @@ async function isLedgerLockAwaited(executionId: string) {
 }
 
 describe('completeWorkflowExecution', () => {
+  it('preserves billed completion during attribution failure and recovers its event once', async () => {
+    const executionId = generateId()
+    const eventId = `freebuff:tool_used:${executionId}`
+    const versionId = generateId()
+    await db
+      .insert(workflowDeploymentVersion)
+      .values({ id: versionId, workflowId: ids.workflow, version: 1, state: workflowState })
+    await bindFreebuffAttribution(
+      ids.owner,
+      await sealFreebuffAttribution('fixture-recovery-token')
+    )
+    await startExecution(executionId, versionId)
+    const billingAttribution = await resolveBillingAttribution({
+      actorUserId: ids.owner,
+      workspaceId: ids.workspace,
+    })
+    const endedAt = new Date().toISOString()
+    /** The generated fixture ID targets only this event in the disposable database. */
+    await db.execute(
+      sql.raw(
+        `ALTER TABLE outbox_event ADD CONSTRAINT freebuff_fixture_failure CHECK (id <> '${eventId}')`
+      )
+    )
+    try {
+      await executionLogger.completeWorkflowExecution({
+        executionId,
+        endedAt,
+        totalDurationMs: 5,
+        costSummary: calculateCostSummary([], { baseExecutionCharge: EXECUTION_FEE }),
+        finalOutput: {},
+        traceSpans: [],
+        status: 'completed',
+        actorUserId: ids.owner,
+        billingAttribution,
+      })
+      expect((await logRow(executionId))?.status).toBe('completed')
+      expect((await buildCostLedger(executionId))?.total).toBeCloseTo(EXECUTION_FEE, 8)
+      await expect(recoverFreebuffAttribution()).rejects.toThrow()
+      const [pending] = await db
+        .select({ data: workflowExecutionLogs.executionData })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, executionId))
+      expect(pending.data).toMatchObject({ freebuffAttributionPending: ids.owner })
+    } finally {
+      await db.execute(
+        sql`ALTER TABLE outbox_event DROP CONSTRAINT IF EXISTS freebuff_fixture_failure`
+      )
+    }
+    try {
+      expect(await recoverFreebuffAttribution()).toBe(1)
+      expect(await recoverFreebuffAttribution()).toBe(0)
+      const events = await db.select().from(outboxEvent).where(eq(outboxEvent.id, eventId))
+      expect(events).toHaveLength(1)
+      expect(events[0].payload).toMatchObject({ eventType: 'tool_used', occurredAt: endedAt })
+    } finally {
+      await db
+        .delete(outboxEvent)
+        .where(
+          sql`${outboxEvent.id} = ${eventId} or ${outboxEvent.id} like ${`freebuff:expire:${ids.owner}:%`}`
+        )
+    }
+  })
+
   it('writes the cost ledger before the run reads finished', async () => {
     const billingAttribution = await resolveBillingAttribution({
       actorUserId: ids.owner,

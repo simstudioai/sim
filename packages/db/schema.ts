@@ -577,6 +577,10 @@ export const workflowExecutionLogs = pgTable(
   },
   (table) => ({
     workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
+    freebuffRecoveryIdx: index('workflow_execution_logs_freebuff_recovery_idx')
+      .on(table.createdAt, table.id)
+      .where(sql`${table.executionData} ? 'freebuffAttributionPending'`)
+      .concurrently(),
     stateSnapshotIdIdx: index('workflow_execution_logs_state_snapshot_id_idx').on(
       table.stateSnapshotId
     ),
