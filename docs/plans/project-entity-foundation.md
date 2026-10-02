@@ -310,3 +310,9 @@ bun --no-env-file packages/db/scripts/backfill-projects.ts apply \
 Validation artifacts come from `PROJECT_FOUNDATION_REPORT_PATH` (or `apps/sim/test-results/project-foundation.json`) and the integration runner’s JSON report. CI already uploads `apps/sim/test-results/*.json`. The former mock-count workspace lifecycle tests were replaced by real database checks of concurrent removal and retry repair. The dedicated backfill suite executes the exact additive migration in a disposable database before exercising backfill. External webhook/socket/MCP cleanup retains existing best-effort post-commit behavior; durable archive state commits atomically.
 
 The operator-run CLI procedure, self-hosted commands, SQLSTATE handling, lock behavior, report interpretation and repair procedure are documented in [the Project backfill runbook](./project-backfill-runbook.md).
+
+### Follow-up: Project-scoped files
+
+Project names provide the identifying label; this foundation intentionally omits a separate description field. Shared purpose, goals, and operating guidance belong in Project-owned files, with a designated brief identified by a stable document ID.
+
+Extend file ownership to Projects in a separate PR, likely with nullable `projectId` on the existing files table and constraints for valid scope combinations. Include authorization, version history/collaboration, storage lifecycle, and Mothership tools/VFS support. Keep environment files restricted to their environments; publishing them to a Project must explicitly account for broader readership. Project-scoped files and brief consumption are not implemented in this foundation.
