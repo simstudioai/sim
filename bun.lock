@@ -89,6 +89,7 @@
       "dependencies": {
         "@sim/db": "workspace:*",
         "@sim/emcn": "workspace:*",
+        "@sim/logger": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-renderer": "workspace:*",
         "@xyflow/react": "12.11.3",
