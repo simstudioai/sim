@@ -13,6 +13,7 @@ vi.unmock('@/blocks/registry')
 vi.mock('@/blocks/registry-maps', async () => {
   const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
   return partialBlockRegistry(
+    await import('@/blocks/blocks/function'),
     await import('@/blocks/blocks/knowledge'),
     await import('@/blocks/blocks/agent'),
     await import('@/blocks/blocks/start_trigger')
@@ -28,6 +29,7 @@ import {
   persistImportedWorkflow,
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
+import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 
 apiClientRequestMockFns.mockRequestJson.mockResolvedValue({})
 
@@ -66,6 +68,33 @@ function createLegacyState() {
 }
 
 describe('workflow import/export parsing', () => {
+  it('preserves cleared text through export and import while repairing legacy non-string values', () => {
+    const state = createLegacyState()
+    const exported = sanitizeForExport({
+      ...state,
+      blocks: {
+        ...state.blocks,
+        function: {
+          ...state.blocks['start-1'],
+          id: 'function',
+          type: 'function',
+          subBlocks: {
+            code: { id: 'code', type: 'code', value: '' },
+            language: { id: 'language', type: 'dropdown', value: null },
+          },
+        },
+      },
+    })
+    exported.state.blocks['start-1'].subBlocks.inputFormat.value = ''
+
+    const result = parseWorkflowJson(JSON.stringify(exported), false)
+
+    expect(result.errors).toEqual([])
+    expect(result.data?.blocks.function.subBlocks.code.value).toBe('')
+    expect(result.data?.blocks.function.subBlocks.language.value).toBeNull()
+    expect(result.data?.blocks['start-1'].subBlocks.inputFormat.value).toBeNull()
+  })
+
   it('parses workflow exports wrapped in an API data envelope', () => {
     const content = JSON.stringify({
       data: {
