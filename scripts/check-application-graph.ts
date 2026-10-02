@@ -108,7 +108,7 @@ const ROUTE_WRAPPER_FORBIDDEN_PREFIXES: Record<string, string> = {
     'the permission-group resolver — the wrapper only opens the memo scope; the resolver ' +
     'belongs to the gate call sites, and it is what dragged billing in',
   'lib/auth': 'the auth graph — the wrapper wraps handlers that authenticate, it does not',
-  'lib/copilot/': 'the copilot graph',
+  'lib/mothership/': 'the Mothership (Chat agent) graph',
   'lib/knowledge/': 'the knowledge-base graph',
 }
 
