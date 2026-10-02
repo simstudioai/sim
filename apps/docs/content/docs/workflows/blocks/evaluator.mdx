@@ -30,7 +30,9 @@ The content to score. Usually an earlier output like `<agent.content>`. Structur
 
 ### Model
 
-The model that does the scoring, defaulting to `claude-sonnet-5-5`. Stronger reasoning models give more consistent scores. Type or pick any supported model. **Temperature** and a **System Prompt** are available under advanced, and on hosted Sim the API key is supplied for you.
+The model that does the scoring, defaulting to `claude-sonnet-5-5`. Stronger reasoning models give more consistent scores. Type or pick any supported model. On hosted Sim the API key is supplied for you.
+
+Temperature and the system prompt aren't configurable. Scoring always runs at temperature 0.1, and the system prompt is generated from your metrics. To steer how the model scores, put the guidance in the metric descriptions or in the content.
 
 ### Fallback models
 
