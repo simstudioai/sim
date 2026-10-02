@@ -30,6 +30,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
+import { getErrorMessage } from '@sim/utils/errors'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const ALLOW = 'comment-hygiene-allow:'
@@ -163,8 +164,8 @@ export function findViolations(file: string, source: string): Violation[] {
         plugins: ['typescript', ...(jsx ? (['jsx'] as const) : []), 'decorators'],
         errorRecovery: true,
       }).comments ?? []
-  } catch {
-    return []
+  } catch (error) {
+    throw new Error(`Cannot parse ${file} to check its comments: ${getErrorMessage(error)}`)
   }
 
   const lines = source.split('\n')
@@ -215,6 +216,8 @@ function sourceFiles(): string[] {
   return execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.mts', '*.cts', '*.mjs', '*.cjs'], {
     cwd: ROOT,
     encoding: 'utf8',
+    // The listing is already ~1 MB, the default execFileSync ceiling.
+    maxBuffer: 64 * 1024 * 1024,
   })
     .split('\n')
     .filter((file) => file && !EXCLUDED.some((pattern) => pattern.test(file)))

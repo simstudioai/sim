@@ -6120,7 +6120,7 @@ multiPathPresets.set('horizontalscroll', (w, h, adjustments) => {
   p1.push(arc.svg)
   cx = arc.x
   cy = arc.y
-  // arcTo from (w, ch2) with stAng=0 swAng=90° ends at (x4, 0); then lnTo (x4, ch2)
+  // The arc ends at (x4, ch): center (x4, ch2), swept 90° from stAng=0. lnTo back up to (x4, ch2).
   p1.push(`L${x4},${ch2}`)
   // arcTo wR=ch4 hR=ch4 stAng=0 swAng=cd2(180°)
   arc = ooArcTo(x4, ch2, ch4, ch4, 0, 180)
