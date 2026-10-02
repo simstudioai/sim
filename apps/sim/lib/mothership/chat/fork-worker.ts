@@ -1,3 +1,4 @@
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ForkChatRequest, ForkChatResponse } from '@/lib/mothership/generated/protocol'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
@@ -30,8 +31,8 @@ type Attempt = { kind: 'receipt'; body: unknown } | { kind: 'status'; status: nu
 
 /**
  * A lost copy acknowledgement retries the same destination and immutable request; the
- * worker answers a repeat with the first attempt's receipt. Only a failed connection or a
- * gateway status is retried: a timed-out attempt may still be copying.
+ * worker answers a repeat with the first attempt's receipt. Only a refused, reset or dropped
+ * socket or a gateway status is retried: a timed-out attempt may still be copying.
  */
 export async function copyWorkerConversation(request: ForkChatRequest): Promise<void> {
   const baseURL = await getMothershipBaseURL({ userId: request.userId })
@@ -55,8 +56,7 @@ export async function copyWorkerConversation(request: ForkChatRequest): Promise<
         await response.body?.cancel().catch(() => undefined)
       }
     } catch (error) {
-      // fetch reports a refused or dropped connection, including mid-body, as a TypeError.
-      if (canRetry && error instanceof TypeError) continue
+      if (canRetry && isRetryableNetworkError(error)) continue
       throw error
     }
     if (outcome.kind === 'status') {

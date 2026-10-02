@@ -28,6 +28,11 @@ const request: ForkChatRequest = {
 
 type Answer = () => Promise<Response>
 
+/** What undici throws for a refused or reset socket: a TypeError with the syscall code on `cause`. */
+function socketFailure(code: string): TypeError {
+  return new TypeError('fetch failed', { cause: Object.assign(new Error(code), { code }) })
+}
+
 /** A fake worker: it records every fork request it receives and answers from a script. */
 let received: unknown[] = []
 let script: Answer[] = []
@@ -62,7 +67,7 @@ it.each(['lost-response', 'temporary-error'])(
     answer(
       failure === 'lost-response'
         ? async () => {
-            throw new TypeError('Connection ended')
+            throw socketFailure('ECONNRESET')
           }
         : status(503)
     )
@@ -75,7 +80,7 @@ it.each(['missing-receipt', 'wrong-chat', 'unavailable'])(
   'refuses an unconfirmed copy: %s',
   async (failure) => {
     const reply: Answer = async () => {
-      if (failure === 'unavailable') throw new TypeError('Worker unavailable')
+      if (failure === 'unavailable') throw socketFailure('ECONNREFUSED')
       return Response.json(
         failure === 'wrong-chat' ? { chatId: generateId(), sourceThroughSeq: 7 } : { ok: true }
       )
@@ -127,6 +132,14 @@ it.each([502, 504])('retries a %i gateway failure once', async (code) => {
 it('does not start a second copy while a timed-out one may still be running', async () => {
   answer(async () => {
     throw new DOMException('The operation timed out.', 'TimeoutError')
+  }, receipt)
+  await expect(copyWorkerConversation(request)).rejects.toThrow()
+  expect(received).toHaveLength(1)
+})
+
+it('does not repeat a fork after a TypeError that is not a socket failure', async () => {
+  answer(async () => {
+    throw new TypeError('Body is unusable: Body has already been read')
   }, receipt)
   await expect(copyWorkerConversation(request)).rejects.toThrow()
   expect(received).toHaveLength(1)
