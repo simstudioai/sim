@@ -4,8 +4,11 @@ import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/regis
 import { BLOG_SECTION, buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { ContentPostPage } from '@/app/(landing)/components'
 
-/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
-export const dynamicParams = true
+/**
+ * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
+ * `loading.tsx` with a 200 status first.
+ */
+export const dynamicParams = false
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
