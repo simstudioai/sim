@@ -20,7 +20,7 @@ No advertiser API key is used by the agentic endpoint. Existing display signup r
 - Attribution is scoped to the human actor, not every member of their workspace. Latest captured attribution wins; replaying an older cookie cannot replace it.
 - The outbox stores encrypted token snapshots with original event IDs and timestamps. One request is sent per lease, with at most three attempts. Network, 429, and 5xx failures retry; other HTTP failures are terminal. Delivery status and HTTP status remain available in the outbox payload. No raw response or token is logged.
 - The association expires 30 days after capture; Freebuff enforces its authoritative 30-day window after Accept. Expiry cleanup removes the stored association. Terminal deliveries erase the encrypted token from their outbox payload.
-- Attribution failures never prevent authentication or a workflow completion. Such failures emit a token-free warning and must be reconciled during rollout.
+- Authentication attribution failures emit a token-free warning without blocking sign-in. Workflow completion and its attribution event commit atomically: an enqueue failure rolls back the completion transaction instead of silently losing the event.
 
 ## Verification
 

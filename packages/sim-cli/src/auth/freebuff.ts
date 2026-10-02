@@ -1,4 +1,5 @@
 import type { AuthRequest } from '#sim-cli/auth/device-flow'
+import { buildUrl } from '#sim-cli/http/client'
 import { writeStderr } from '#sim-cli/output/io'
 
 /** Proposed partner carrier; activate in sponsored procedures only after Freebuff review. */
@@ -20,7 +21,7 @@ export async function prepareFreebuffHandoff(
     return approvalUrl
   }
   try {
-    const response = await fetch(new URL('/api/attribution/freebuff/handoff', origin), {
+    const response = await fetch(buildUrl(endpoint, '/api/attribution/freebuff/handoff'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -33,8 +34,8 @@ export async function prepareFreebuffHandoff(
     })
     await response.body?.cancel()
     if (response.status !== 204) throw new Error('Attribution unavailable')
-    const browserUrl = new URL(approvalUrl)
-    browserUrl.pathname = '/api/attribution/freebuff'
+    const browserUrl = new URL(buildUrl(endpoint, '/api/attribution/freebuff'))
+    browserUrl.search = new URL(approvalUrl).search
     return browserUrl.toString()
   } catch {
     writeStderr('Sponsored attribution unavailable; continuing ordinary sign-in.\n')

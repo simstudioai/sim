@@ -21,5 +21,5 @@ export async function readFreebuffHandoff(
   requestId: string,
   challenge: string
 ): Promise<string | undefined> {
-  return (await getRedisClient()?.get(key(requestId, challenge))) ?? undefined
+  return (await getRedisClient()?.getdel(key(requestId, challenge))) ?? undefined
 }

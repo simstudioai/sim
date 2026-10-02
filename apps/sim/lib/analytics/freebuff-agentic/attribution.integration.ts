@@ -52,7 +52,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 async function seedUse() {
-  await bindFreebuffAttribution(userId, await sealFreebuffAttribution(token), new Date())
+  const sealed = await sealFreebuffAttribution(token)
+  await db.update(user).set({ createdAt: new Date() }).where(eq(user.id, userId))
+  await bindFreebuffAttribution(userId, sealed)
   await db.transaction((tx) => enqueueFreebuffUse(tx, userId, executionId, new Date()))
 }
 
@@ -71,7 +73,8 @@ describe('agentic attribution across committed outcomes', () => {
   it('retains signup identity on repeated login and rolls back uncommitted use', async () => {
     const sealed = await sealFreebuffAttribution(token)
     const createdAt = new Date()
-    await bindFreebuffAttribution(userId, sealed, createdAt)
+    await db.update(user).set({ createdAt }).where(eq(user.id, userId))
+    await bindFreebuffAttribution(userId, sealed)
     await bindFreebuffAttribution(userId, sealed)
     const [association] = await db
       .select()

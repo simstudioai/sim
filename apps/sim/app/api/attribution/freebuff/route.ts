@@ -24,28 +24,34 @@ const logger = createLogger('FreebuffLanding')
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const destination = new URL('/signup', getBaseUrl())
   let sealed: string | undefined
+  let clearCookie = false
   const limited = await enforceIpRateLimit('freebuff-landing', request)
-  if (!limited) {
-    const parsed = await parseRequest(freebuffLandingContract, request, {})
-    if (parsed.success) {
-      const query: FreebuffLandingQuery = parsed.data.query
-      try {
-        if (query.request && query.challenge && query.pairing) {
-          destination.pathname = '/cli/auth'
-          destination.search = new URLSearchParams({
-            request: query.request,
-            challenge: query.challenge,
-            pairing: query.pairing,
-            scope: 'platform',
-            ...(query.workspace ? { workspace: query.workspace } : {}),
-          }).toString()
-          sealed = await readFreebuffHandoff(query.request, query.challenge)
-        } else if (query.bfcid) {
-          sealed = await sealFreebuffAttribution(query.bfcid)
-        }
-        if (await readFreebuffAttribution(sealed)) {
-          const session = await getSession()
-          if (session?.user.id && sealed)
+  if (limited) {
+    limited.headers.set('Cache-Control', 'no-store')
+    limited.headers.set('Referrer-Policy', 'no-referrer')
+    return limited
+  }
+  const parsed = await parseRequest(freebuffLandingContract, request, {})
+  if (parsed.success) {
+    const query: FreebuffLandingQuery = parsed.data.query
+    try {
+      if (query.request && query.challenge && query.pairing) {
+        destination.pathname = '/cli/auth'
+        destination.search = new URLSearchParams({
+          request: query.request,
+          challenge: query.challenge,
+          pairing: query.pairing,
+          scope: 'platform',
+          ...(query.workspace ? { workspace: query.workspace } : {}),
+        }).toString()
+        sealed = await readFreebuffHandoff(query.request, query.challenge)
+      } else if (query.bfcid) {
+        sealed = await sealFreebuffAttribution(query.bfcid)
+      }
+      if (await readFreebuffAttribution(sealed)) {
+        const session = await getSession()
+        if (session?.user.id && sealed) {
+          if (!('impersonatedBy' in session.session && session.session.impersonatedBy)) {
             await bindAccountAttribution.execute({
               principal: {
                 kind: 'session',
@@ -54,25 +60,28 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               },
               input: { sealed },
             })
-        } else {
+          }
           sealed = undefined
+          clearCookie = true
         }
-      } catch {
-        logger.warn('Attribution capture unavailable')
+      } else {
         sealed = undefined
       }
+    } catch {
+      logger.warn('Attribution capture unavailable')
+      sealed = undefined
     }
   }
   const response = NextResponse.redirect(destination, 303)
   response.headers.set('Cache-Control', 'no-store')
   response.headers.set('Referrer-Policy', 'no-referrer')
-  if (sealed)
-    response.cookies.set(FREEBUFF_AGENTIC_COOKIE, sealed, {
+  if (sealed || clearCookie)
+    response.cookies.set(FREEBUFF_AGENTIC_COOKIE, sealed ?? '', {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
       path: '/',
-      maxAge: FREEBUFF_ATTRIBUTION_TTL_SECONDS,
+      maxAge: clearCookie ? 0 : FREEBUFF_ATTRIBUTION_TTL_SECONDS,
     })
   return response
 })

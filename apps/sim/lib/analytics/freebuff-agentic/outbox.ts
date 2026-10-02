@@ -48,7 +48,7 @@ export const freebuffAgenticOutboxHandlers: OutboxHandlerRegistry = {
           eventId: payload.eventId,
           occurredAt: payload.occurredAt,
         }),
-        redirect: 'error',
+        redirect: 'manual',
         signal: AbortSignal.any([context.signal, AbortSignal.timeout(10_000)]),
       })
     } catch {

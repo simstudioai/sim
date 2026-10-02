@@ -318,16 +318,6 @@ export const auth = betterAuth({
             userId: user.id,
           })
 
-          try {
-            await bindFreebuffAttribution(
-              user.id,
-              context?.getCookie(FREEBUFF_AGENTIC_COOKIE) ?? undefined,
-              user.createdAt
-            )
-          } catch {
-            logger.warn('Freebuff attribution could not be persisted')
-          }
-
           /**
            * Only the marketing-consent-gated Freebuff tag writes the `bfcid`
            * cookie, and `FreebuffClickIdGuard` deletes it once marketing consent
@@ -693,6 +683,11 @@ export const auth = betterAuth({
       create: {
         before: prepareSessionForCreation,
         after: async (session, context) => {
+          if (
+            context?.path?.startsWith('/admin/') ||
+            ('impersonatedBy' in session && session.impersonatedBy)
+          )
+            return
           const attribution = context?.getCookie(FREEBUFF_AGENTIC_COOKIE)
           if (!attribution) return
           try {

@@ -9,8 +9,7 @@ type AttributionDatabase = Pick<typeof db, 'insert' | 'select'>
 /** Binds attribution only to the authenticated human supplied by the auth lifecycle. */
 export async function bindFreebuffAttribution(
   userId: string,
-  encryptedToken: string | undefined,
-  newAccountAt?: Date
+  encryptedToken: string | undefined
 ): Promise<void> {
   const captured = await readFreebuffAttribution(encryptedToken)
   if (!captured || !encryptedToken) return
@@ -37,7 +36,7 @@ export async function bindFreebuffAttribution(
       .from(user)
       .where(eq(user.id, userId))
       .limit(1)
-    const accountCreatedAt = newAccountAt ?? account?.createdAt
+    const accountCreatedAt = account?.createdAt
     await tx
       .insert(outboxEvent)
       .values({

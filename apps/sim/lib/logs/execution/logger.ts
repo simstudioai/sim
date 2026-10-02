@@ -1332,14 +1332,7 @@ export class ExecutionLogger {
       )
 
       if (log.status === 'completed' && log.deploymentVersionId && actorUserId && log.endedAt) {
-        const occurredAt = log.endedAt
-        try {
-          await tx.transaction(async (attributionTx) => {
-            await enqueueFreebuffUse(attributionTx, actorUserId, executionId, occurredAt)
-          })
-        } catch {
-          execLog.warn('Freebuff use attribution could not be persisted')
-        }
+        await enqueueFreebuffUse(tx, actorUserId, executionId, log.endedAt)
       }
 
       return { updatedLog: log, completionPersisted: true }
