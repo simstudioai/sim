@@ -61,6 +61,17 @@ beforeEach(() => {
   )
 })
 
+it.each(['EHOSTUNREACH', 'ENETUNREACH'])(
+  'retries a fork the worker never received (%s)',
+  async (code) => {
+    answer(async () => {
+      throw socketFailure(code)
+    })
+    await copyWorkerConversation(request)
+    expect(received).toEqual([request, request])
+  }
+)
+
 it.each(['lost-response', 'temporary-error'])(
   'retries the same immutable fork after %s',
   async (failure) => {
