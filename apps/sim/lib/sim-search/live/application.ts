@@ -364,6 +364,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       (!input.query.trim() &&
         !hasDateBounds(input.filters) &&
         !queries?.some((query) => query.query || query.browse)) ||
+      (!queries && input.filters?.source === 'lucid' && !input.query.trim()) ||
       input.query.length > 2000 ||
       !Number.isInteger(input.topK) ||
       input.topK < 1 ||

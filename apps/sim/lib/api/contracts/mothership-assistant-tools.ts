@@ -136,7 +136,7 @@ export const nativeSearchQueriesSchema = z
       else if (
         hasSearchKinds(query.provider) &&
         earlier.some(
-          (previous) => !(previous.browse && query.browse) && (!previous.kind || !query.kind)
+          (previous) => !previous.browse && !query.browse && (!previous.kind || !query.kind)
         )
       )
         addIssue(

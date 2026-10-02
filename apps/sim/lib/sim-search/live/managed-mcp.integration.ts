@@ -113,6 +113,7 @@ const providerServer = createServer(async (request, response) => {
             'lucid_get_document_metadata',
             'lucid_list_folder_contents',
             'notion-get-tool-access',
+            'notion-search',
             'notion-list-private-pages',
             'notion-list-shared-pages',
             'notion-fetch',
@@ -125,6 +126,7 @@ const providerServer = createServer(async (request, response) => {
                 query: { type: 'string' },
                 cursor: { type: 'string' },
                 limit: { type: 'number' },
+                sort: { type: 'string' },
                 product: { type: 'array', items: { type: 'string' } },
                 last_modified_after: { type: 'string' },
               },
@@ -147,11 +149,12 @@ const providerServer = createServer(async (request, response) => {
         if (params.name === 'notion-get-tool-access')
           return payload({
             current_tool_access: {
+              search: { status: 'available' },
               list_private_pages: { status: 'available' },
               list_shared_pages: { status: 'available' },
             },
           })
-        if (params.name.startsWith('notion-list-'))
+        if (params.name === 'notion-search' || params.name.startsWith('notion-list-'))
           return payload({
             results: [
               {
@@ -590,6 +593,89 @@ describe('managed Search operation sessions', () => {
     ).toHaveLength(1)
     expect(openTransports.size).toBe(0)
   })
+  it.each([
+    { startDate: '2026-09-01T00:00:00Z' },
+    { sortBy: 'newest' },
+    { sortBy: 'oldest' },
+  ] as const)(
+    'rejects plain empty Lucid searches with %j before opening the provider',
+    async (filters) => {
+      const actor = actors[0]
+      const before = events.length
+      await expect(
+        searchLiveKnowledge.execute({
+          principal: createSessionPrincipal({ userId: actor.userId, sessionId: generateId() }),
+          input: {
+            organizationId: actor.organizationId,
+            query: '',
+            topK: 10,
+            filters: { source: 'lucid', ...filters },
+          },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(events.length).toBe(before)
+    }
+  )
+  it('combines Lucid folder browsing and typed title search while preserving each query outcome', async () => {
+    const actor = actors[0]
+    const found = await searchLiveKnowledge.execute({
+      principal: createSessionPrincipal({ userId: actor.userId, sessionId: generateId() }),
+      input: {
+        organizationId: actor.organizationId,
+        query: '',
+        topK: 10,
+        filters: { source: 'lucid' },
+        nativeQueries: [
+          { provider: 'lucid', query: '', browse: 'folder', accountId: actor.credentialId },
+          {
+            provider: 'lucid',
+            query: 'topology',
+            kind: 'lucidchart',
+            accountId: actor.credentialId,
+          },
+        ],
+      },
+    })
+    expect(found.results).toHaveLength(1)
+    expect(found.live?.accounts).toEqual([
+      expect.objectContaining({
+        queryIndex: 0,
+        folders: [{ id: '42', name: 'Architecture' }],
+        nextCursor: expect.any(String),
+      }),
+      expect.objectContaining({ queryIndex: 1, status: 'ok' }),
+    ])
+    expect(openTransports.size).toBe(0)
+  })
+  it.each(['newest', 'oldest'] as const)(
+    'continues a plain Notion topical search sorted %s',
+    async (sortBy) => {
+      const actor = actors[3]
+      const principal = createSessionPrincipal({ userId: actor.userId, sessionId: generateId() })
+      const input = {
+        organizationId: actor.organizationId,
+        query: 'topology',
+        topK: 10,
+        filters: { source: 'notion' as const, sortBy },
+      }
+      const first = await searchLiveKnowledge.execute({ principal, input })
+      expect(first.results, JSON.stringify(first.live)).toHaveLength(1)
+      const cursor = first.live?.accounts[0].nextCursor
+      expect(cursor).toBeTruthy()
+      const next = await searchLiveKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          nativeQueries: [
+            { provider: 'notion', query: input.query, accountId: actor.credentialId, cursor },
+          ],
+        },
+      })
+      expect(next.results, JSON.stringify(next.live)).toHaveLength(1)
+      expect(next.results[0].documentId).not.toBe(first.results[0].documentId)
+      expect(openTransports.size).toBe(0)
+    }
+  )
   it('binds Notion continuation to its sidebar mode and preserves independent page reads', async () => {
     const actor = actors[3]
     const browse = (mode: 'private' | 'shared', cursor?: string) =>
