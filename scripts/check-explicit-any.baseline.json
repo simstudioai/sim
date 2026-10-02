@@ -1102,7 +1102,12 @@
     "packages/ts-sdk/src/index.ts": 21,
     "packages/workflow-persistence/src/subblocks.ts": 1,
     "packages/workflow-persistence/src/subflow-helpers.ts": 1,
-    "packages/workflow-types/src/workflow.ts": 5
+    "packages/workflow-types/src/workflow.ts": 5,
+    "scripts/check-fork-dependent-coverage.ts": 2,
+    "scripts/check-import-specifiers.ts": 1,
+    "scripts/create-single-release.ts": 2,
+    "scripts/generate-docs.ts": 43,
+    "scripts/generate-v2-cli-api.ts": 3
   },
   "nonNullAssertion": {
     "apps/desktop/e2e/password-autofill.spec.ts": 11,
@@ -1960,6 +1965,9 @@
     "packages/sim-setup/src/lifecycle.test.ts": 3,
     "packages/ts-sdk/examples/basic-usage.ts": 4,
     "packages/workflow-renderer/src/workflow-block/workflow-block-view.tsx": 12,
-    "packages/workflow-types/src/workflow.ts": 1
+    "packages/workflow-types/src/workflow.ts": 1,
+    "scripts/create-single-release.ts": 1,
+    "scripts/generate-docs.ts": 2,
+    "scripts/probes/mothership-request-admission.ts": 2
   }
 }

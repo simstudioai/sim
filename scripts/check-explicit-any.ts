@@ -53,6 +53,7 @@ function collect(): Baseline {
       '--max-diagnostics=none',
       'apps',
       'packages',
+      'scripts',
     ],
     { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
   )
