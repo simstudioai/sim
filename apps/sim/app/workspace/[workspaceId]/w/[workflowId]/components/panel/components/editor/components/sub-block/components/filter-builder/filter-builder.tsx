@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Button } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { AddRowButton } from '@sim/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
@@ -83,16 +82,7 @@ export function FilterBuilder({
 
   if (rules.length === 0) {
     if (isReadOnly) return null
-    return (
-      <Button
-        variant='ghost'
-        onClick={addRule}
-        className='h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
-      >
-        <Plus className='size-[14px]' />
-        Add filter condition
-      </Button>
-    )
+    return <AddRowButton onClick={addRule}>Add filter condition</AddRowButton>
   }
 
   return (

@@ -1,3 +1,4 @@
+export { AddRowButton, type AddRowButtonProps } from './add-row-button/add-row-button'
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
 export { Badge, type BadgeProps, badgeVariants } from './badge/badge'
 export { Banner } from './banner/banner'
