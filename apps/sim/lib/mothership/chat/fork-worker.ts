@@ -5,7 +5,10 @@ import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
-/** Above the worker's 30 s fork budget, so a slow copy finishes instead of racing its own retry. */
+/**
+ * How long one attempt waits for the copy. The worker rolls a copy back once its caller's
+ * connection closes, so an attempt that times out leaves no conversation behind.
+ */
 const ATTEMPT_TIMEOUT_MS = 45_000
 
 /** Gateway failures: the request may never have reached a worker, so one more attempt is safe. */
