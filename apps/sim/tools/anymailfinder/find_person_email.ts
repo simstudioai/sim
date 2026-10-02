@@ -101,7 +101,8 @@ export const findPersonEmailTool: ToolConfig<
         person_full_name: data.person_full_name ?? null,
         person_company_name: data.person_company_name ?? null,
         person_job_title: data.person_job_title ?? null,
-        credits_charged: data.credits_charged ?? 0,
+        // Passed through as-is: hosting.getCost refuses to bill a response without it.
+        credits_charged: data.credits_charged,
       },
     }
   },

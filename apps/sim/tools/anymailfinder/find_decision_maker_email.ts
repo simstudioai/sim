@@ -101,7 +101,8 @@ export const findDecisionMakerEmailTool: ToolConfig<
         person_linkedin_url: data.person_linkedin_url ?? null,
         mx_domain: data.mx_domain ?? null,
         mx_host: data.mx_host ?? null,
-        credits_charged: data.credits_charged ?? 0,
+        // Passed through as-is: hosting.getCost refuses to bill a response without it.
+        credits_charged: data.credits_charged,
       },
     }
   },

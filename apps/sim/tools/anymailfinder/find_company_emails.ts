@@ -87,7 +87,8 @@ export const findCompanyEmailsTool: ToolConfig<
         email_status: data.email_status ?? 'not_found',
         mx_domain: data.mx_domain ?? null,
         mx_host: data.mx_host ?? null,
-        credits_charged: data.credits_charged ?? 0,
+        // Passed through as-is: hosting.getCost refuses to bill a response without it.
+        credits_charged: data.credits_charged,
       },
     }
   },

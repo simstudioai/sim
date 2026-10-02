@@ -193,7 +193,32 @@ export const AnymailFinderBlock: BlockConfig = {
         }
       },
       params: (params) => {
-        const { operation: _operation, ...rest } = params
+        const { operation, ...rest } = params
+
+        // Only the selected operation's fields are forwarded. Several operations map
+        // different subBlocks onto the same tool param (company_name, domain), so a
+        // value left in another operation's field must not leak into this lookup.
+        const fieldsByOperation: Record<string, string[]> = {
+          anymailfinder_find_person_email: [
+            'fpe_full_name',
+            'fpe_domain',
+            'fpe_company_name',
+            'fpe_linkedin_url',
+          ],
+          anymailfinder_find_decision_maker_email: [
+            'fdm_domain',
+            'fdm_company_name',
+            'decision_maker_category',
+          ],
+          anymailfinder_find_company_emails: ['fce_domain', 'fce_company_name', 'email_type'],
+          anymailfinder_verify_email: ['ve_email'],
+          anymailfinder_get_account: [],
+        }
+        const allowed = new Set([
+          ...(fieldsByOperation[operation as string] ??
+            fieldsByOperation.anymailfinder_find_person_email),
+          'apiKey',
+        ])
 
         // Map unique subBlock IDs back to tool param names
         const idToParam: Record<string, string> = {
@@ -210,6 +235,7 @@ export const AnymailFinderBlock: BlockConfig = {
 
         const result: Record<string, unknown> = {}
         for (const [key, value] of Object.entries(rest)) {
+          if (!allowed.has(key)) continue
           if (value === undefined || value === null || value === '') continue
           const mappedKey = idToParam[key] ?? key
           if (mappedKey === 'decision_maker_category') {
