@@ -6023,6 +6023,16 @@ import {
   xWriteTool,
 } from '@/tools/x'
 import {
+  youComAnswerTool,
+  youComFinanceResearchTool,
+  youComGetAccountBalanceTool,
+  youComGetContentsTool,
+  youComGetResearchTaskTool,
+  youComResearchTool,
+  youComSearchImagesTool,
+  youComSearchTool,
+} from '@/tools/youcom'
+import {
   youtubeChannelInfoTool,
   youtubeChannelPlaylistsTool,
   youtubeChannelVideosTool,
@@ -7737,6 +7747,14 @@ export const tools: Record<string, ExecutableToolConfig> = {
   typeform_create_form: typeformCreateFormTool,
   typeform_update_form: typeformUpdateFormTool,
   typeform_delete_form: typeformDeleteFormTool,
+  youcom_answer: youComAnswerTool,
+  youcom_finance_research: youComFinanceResearchTool,
+  youcom_get_account_balance: youComGetAccountBalanceTool,
+  youcom_get_contents: youComGetContentsTool,
+  youcom_get_research_task: youComGetResearchTaskTool,
+  youcom_research: youComResearchTool,
+  youcom_search: youComSearchTool,
+  youcom_search_images: youComSearchImagesTool,
   youtube_channel_info: youtubeChannelInfoTool,
   youtube_channel_playlists: youtubeChannelPlaylistsTool,
   youtube_channel_videos: youtubeChannelVideosTool,

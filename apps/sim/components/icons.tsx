@@ -10095,3 +10095,32 @@ export function PlanetScaleIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function YouComIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const gradientId = `youcom_gradient_${id}`
+
+  return (
+    <svg {...props} viewBox='0 0 28 29' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M16.109 1.47C14.762 0.768 13.157 0.768 11.81 1.47L2.504 6.321C0.965 7.123 0 8.715 0 10.452V19.354C0 21.09 0.965 22.683 2.504 23.485L11.81 28.336C12.228 28.553 12.67 28.704 13.122 28.786V22.441C13.122 18.741 10.122 15.741 6.421 15.741H3.35V14.065H6.421C10.122 14.065 13.122 11.066 13.122 7.365V4.294H14.797V7.365C14.797 11.066 17.797 14.065 21.497 14.065H27.919V10.452C27.919 8.715 26.954 7.123 25.415 6.321L16.109 1.47ZM27.919 15.741H21.497C17.797 15.741 14.797 18.741 14.797 22.441V28.786C15.249 28.704 15.691 28.553 16.109 28.336L25.415 23.485C26.954 22.683 27.919 21.09 27.919 19.354V15.741Z'
+        fill={`url(#${gradientId})`}
+      />
+      <defs>
+        <linearGradient
+          id={gradientId}
+          x1='27.919'
+          y1='0.944'
+          x2='0.076'
+          y2='28.862'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0.15' stopColor='#A0A4EE' />
+          <stop offset='0.8' stopColor='#596CED' />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
