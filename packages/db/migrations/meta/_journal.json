@@ -2752,6 +2752,13 @@
       "when": 1790912634834,
       "tag": "0393_project_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 394,
+      "version": "7",
+      "when": 1790973974548,
+      "tag": "0394_project_membership_enforcement",
+      "breakpoints": true
     }
   ]
 }

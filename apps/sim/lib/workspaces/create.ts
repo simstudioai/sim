@@ -6,7 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbTransaction } from '@/lib/db/types'
 import { createProjectForWorkspace } from '@/lib/projects/membership'
-import { getProjectRollout, requireProjectApiEnabled } from '@/lib/projects/rollout.server'
+import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -94,7 +94,6 @@ async function createWorkspaceRecordsInTransaction(
   tx: DbTransaction,
   {
     projectName,
-    assignProject,
     userId,
     observedOrganizationId,
     name,
@@ -103,8 +102,8 @@ async function createWorkspaceRecordsInTransaction(
     workspaceMode,
     billedAccountUserId,
     governingPermissionGroupOrganizationId,
-  }: TransactionalCreateWorkspaceParams & { projectName?: string; assignProject: boolean }
-): Promise<{ projectId: string | null; workspace: CreatedWorkspace }> {
+  }: TransactionalCreateWorkspaceParams & { projectName?: string }
+): Promise<{ projectId: string; workspace: CreatedWorkspace }> {
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
@@ -133,15 +132,13 @@ async function createWorkspaceRecordsInTransaction(
     updatedAt: now,
   })
 
-  const projectId = assignProject
-    ? await createProjectForWorkspace(tx, {
-        projectName,
-        workspaceId,
-        name,
-        organizationId: organizationId ?? null,
-        ownerId: userId,
-      })
-    : null
+  const projectId = await createProjectForWorkspace(tx, {
+    projectName,
+    workspaceId,
+    name,
+    organizationId: organizationId ?? null,
+    ownerId: userId,
+  })
 
   const permissionRows = [
     {
@@ -213,9 +210,7 @@ export async function createWorkspaceWithProjectInTransaction(
   params: TransactionalCreateWorkspaceParams & { projectName?: string }
 ): Promise<{ projectId: string; workspace: CreatedWorkspace }> {
   requireProjectApiEnabled()
-  const created = await createWorkspaceRecordsInTransaction(tx, { ...params, assignProject: true })
-  if (!created.projectId) throw new Error('Project creation did not assign a Project')
-  return { ...created, projectId: created.projectId }
+  return createWorkspaceRecordsInTransaction(tx, params)
 }
 
 /** Preserves the workspace-only result for existing creation callers. */
@@ -223,12 +218,7 @@ export async function createWorkspaceInTransaction(
   tx: DbTransaction,
   params: TransactionalCreateWorkspaceParams
 ): Promise<CreatedWorkspace> {
-  return (
-    await createWorkspaceRecordsInTransaction(tx, {
-      ...params,
-      assignProject: getProjectRollout().writesEnabled,
-    })
-  ).workspace
+  return (await createWorkspaceRecordsInTransaction(tx, params)).workspace
 }
 
 /** Creates a workspace through the canonical lock-and-insert transaction. */

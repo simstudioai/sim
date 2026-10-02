@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { db } from '@sim/db'
 import {
@@ -18,6 +18,7 @@ import {
   workspaceForkPromoteRun,
   workspaceForkResourceMap,
 } from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -27,6 +28,7 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
@@ -194,7 +196,79 @@ afterAll(async () => {
 
 describe('Project foundation at the database and application boundary', () => {
   check(
-    'disabled rollout preserves legacy creation and fork/disconnect without Project rows',
+    'application creation, disconnect, organization deletion and archive commit with SQL enforcement',
+    async () => {
+      const client = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
+      try {
+        await client.unsafe(
+          await readFile(
+            new URL(
+              '../../../../../packages/db/migrations/0394_project_membership_enforcement.sql',
+              import.meta.url
+            ),
+            'utf8'
+          )
+        )
+        const f = await fixture(true, 1)
+        const organizationId = f.organizationId
+        if (!organizationId) throw new Error('Missing organization fixture')
+        const created = await createProject.execute({
+          principal: f.owner,
+          input: {
+            organizationId: f.organizationId,
+            name: 'Enforced',
+            initialEnvironment: { name: 'Production' },
+          },
+          request,
+        })
+        environments.push(created.initialEnvironment.id)
+        const source = await getWorkspaceWithOwner(created.initialEnvironment.id)
+        if (!source) throw new Error('Missing source environment')
+        const fork = await createFork({
+          source,
+          policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+          userId: f.ownerId,
+          name: 'Staging',
+        })
+        environments.push(fork.workspace.id)
+        await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
+        const [detached] = await db
+          .select()
+          .from(projectWorkspace)
+          .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+        expect(detached.projectId).not.toBe(created.project.id)
+        await db.transaction(async (tx) => {
+          await detachOrganizationWorkspacesTx(tx, organizationId)
+          await tx.delete(organization).where(eq(organization.id, organizationId))
+        })
+        await archiveProject.execute({
+          principal: f.owner,
+          input: { projectId: created.project.id },
+          request,
+        })
+        const [archived] = await db.select().from(project).where(eq(project.id, created.project.id))
+        expect(archived.organizationId).toBeNull()
+        expect(archived.archivedAt).not.toBeNull()
+        expect(
+          await db
+            .select()
+            .from(workflow)
+            .where(and(eq(workflow.workspaceId, source.id), sql`${workflow.archivedAt} IS NULL`))
+        ).toHaveLength(0)
+      } finally {
+        await client.unsafe('ROLLBACK')
+        for (const table of ['project', 'project_workspace', 'workspace', 'workflow']) {
+          await client.unsafe(
+            `DROP TRIGGER IF EXISTS project_contract_lock ON ${table}; DROP TRIGGER IF EXISTS project_contract_check ON ${table}`
+          )
+        }
+        await client.end()
+      }
+    }
+  )
+
+  check(
+    'workspace creation and fork/disconnect assign Projects even with the retired writer flag off',
     async () => {
       vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
       vi.stubEnv('PROJECT_API_ENABLED', 'false')
@@ -214,7 +288,7 @@ describe('Project foundation at the database and application boundary', () => {
       environments.push(source.id)
       expect(
         await db.select().from(projectWorkspace).where(eq(projectWorkspace.workspaceId, source.id))
-      ).toEqual([])
+      ).toHaveLength(1)
       const parent = await getWorkspaceWithOwner(source.id)
       if (!parent) throw new Error('Missing source fixture')
       const fork = await createFork({
@@ -229,11 +303,11 @@ describe('Project foundation at the database and application boundary', () => {
           .select()
           .from(projectWorkspace)
           .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
-      ).toEqual([])
+      ).toHaveLength(1)
       await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
       const [child] = await db.select().from(workspace).where(eq(workspace.id, fork.workspace.id))
       expect(child.forkedFromWorkspaceId).toBeNull()
-      expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(1)
+      expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(3)
     }
   )
 
@@ -316,7 +390,7 @@ describe('Project foundation at the database and application boundary', () => {
     }
   )
 
-  check('writer activation assigns new workspaces while Project APIs remain disabled', async () => {
+  check('new workspaces receive Projects while Project APIs remain disabled', async () => {
     vi.stubEnv('PROJECT_API_ENABLED', 'false')
     const f = await fixture(false, 1)
     const created = await db.transaction((tx) =>
@@ -335,18 +409,6 @@ describe('Project foundation at the database and application boundary', () => {
     expect(
       await db.select().from(projectWorkspace).where(eq(projectWorkspace.workspaceId, created.id))
     ).toHaveLength(1)
-    vi.stubEnv('PROJECT_WRITES_ENABLED', 'false')
-    vi.stubEnv('PROJECT_API_ENABLED', 'true')
-    await expect(
-      createProject.execute({
-        principal: f.owner,
-        input: { organizationId: null, name: 'Invalid', initialEnvironment: { name: 'First' } },
-        request,
-      })
-    ).rejects.toThrow('PROJECT_API_ENABLED requires PROJECT_WRITES_ENABLED')
-    expect(await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))).toHaveLength(
-      2
-    )
   })
 
   check('legacy fork and disconnect refuse a partially assigned subtree', async () => {

@@ -116,6 +116,9 @@ jobs:
   # in place before the new app version deploys (replaces the removed ECS
   # migration sidecar)
   migrate:
+    permissions:
+      contents: read
+      id-token: write
     name: Migrate DB
     needs: [test-build]
     # Explicit need results instead of the implicit success(): a skipped job
@@ -134,6 +137,9 @@ jobs:
 
   # Same ordering for dev (schema push before the dev image lands in ECR)
   migrate-dev:
+    permissions:
+      contents: read
+      id-token: write
     name: Migrate Dev DB
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     uses: ./.github/workflows/migrations.yml

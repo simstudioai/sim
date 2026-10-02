@@ -2,7 +2,7 @@
 
 A Project groups environments. An environment is an existing `workspace` record; there is no separate environment table. Every newly created Project starts with an environment.
 
-Project APIs return HTTP 503 until the deployment enables `PROJECT_API_ENABLED`. Automatic assignment on legacy workspace creation requires `PROJECT_WRITES_ENABLED`; both server controls default off. The API requires writers to be enabled. Existing assigned Projects always retain their lifecycle protections, including fork inheritance and disconnect behavior, even if activation is disabled.
+Project APIs return HTTP 503 until the deployment enables `PROJECT_API_ENABLED`. Workspace creation always assigns a Project atomically. The API control defaults off and does not disable assignment. Existing assigned Projects always retain their lifecycle protections, including fork inheritance and disconnect behavior, even if activation is disabled.
 
 ## Choose the creation flow
 

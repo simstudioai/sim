@@ -2089,7 +2089,7 @@ export const project = pgTable(
   })
 )
 
-// contract-pending(after project writers are fully deployed and backfill validates): enforce exactly-one membership and active Project environment minimums at commit.
+/** Deferred membership and lifecycle triggers are installed by 0394 after the Project backfill. */
 export const projectWorkspace = pgTable(
   'project_workspace',
   {
