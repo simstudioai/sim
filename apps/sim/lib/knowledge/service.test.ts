@@ -293,18 +293,16 @@ describe('knowledge base counts with live source permissions', () => {
         id: 'kb-1',
         workspaceId: 'ws-1',
         chunkingConfig: {},
-        docCount: 2,
-        tokenCount: 10,
         createdAt: new Date('2026-01-01'),
       },
     ])
+    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 2, tokenCount: 10 }])
     const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { countsFor: access })
     expect(result.data[0]).toMatchObject({ docCount: 2, tokenCount: 10 })
     expect(getForConnectors).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalledWith({
       connectorId: schemaMock.knowledgeConnector.id,
     })
-    expect(dbChainMockFns.groupBy).toHaveBeenCalledOnce()
   })
 
   it('does not retain stale totals when a live source no longer authorizes its documents', async () => {

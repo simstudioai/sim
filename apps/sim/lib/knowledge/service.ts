@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { filterUndefined } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
@@ -52,6 +53,7 @@ import type {
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
+const KNOWLEDGE_BASE_COUNT_BATCH_SIZE = 100
 
 /**
  * Every caller-fixable knowledge-base failure is an {@link OrchestrationError},
@@ -188,8 +190,8 @@ async function readKnowledgeBaseRows(
 }
 
 /**
- * {@link readKnowledgeBaseRows} plus the live totals of the documents `access` admits. Only the
- * surfaces that display totals pay for the document join, and they always count as a reader.
+ * Pages bases before counting the documents `access` admits. Explicit document base IDs keep
+ * the count selective instead of scanning a shared ACL token across tenants before the join.
  */
 async function readCountedKnowledgeBaseRows(
   where: SQL | undefined,
@@ -200,31 +202,21 @@ async function readCountedKnowledgeBaseRows(
   Array<ActiveKnowledgeBaseReference & Pick<KnowledgeBaseWithCounts, 'docCount' | 'tokenCount'>>
 > {
   const scope = 'get' in access ? await access.get() : access
-  const query = db
-    .select({
-      ...ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      docCount: count(document.knowledgeBaseId),
-    })
-    .from(knowledgeBase)
-    .leftJoin(
-      document,
-      and(
-        eq(document.knowledgeBaseId, knowledgeBase.id),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        knowledgeAccessCondition(scope)
-      )
+  const rows = await readKnowledgeBaseRows(where, orderBy, limit)
+  const counts = new Map<string, { docCount: number; tokenCount: number }>()
+  for (const batch of chunkArray(rows, KNOWLEDGE_BASE_COUNT_BATCH_SIZE)) {
+    const totals = await countDocumentsByKnowledgeBase(
+      inArray(
+        document.knowledgeBaseId,
+        batch.map((kb) => kb.id)
+      ),
+      knowledgeAccessCondition(scope)
     )
-    .where(where)
-    .groupBy(knowledgeBase.id)
-    .orderBy(...orderBy)
-
-  const rows = limit === undefined ? await query : await query.limit(limit)
+    for (const total of totals) counts.set(total.knowledgeBaseId, total)
+  }
 
   /**
-   * The join above already counted everything the reader's stored ACL admits. Only a
+   * The counts above already include everything the reader's stored ACL admits. Only a
    * provider can add documents a live source (GitHub, Confluence) authorizes beyond that,
    * and that supplement is resolved once for the whole list: an unpaged list is bounded by
    * its own filter, a page by its row IDs, so a workspace with tens of thousands of bases
@@ -243,9 +235,9 @@ async function readCountedKnowledgeBaseRows(
         )
       : undefined
   return rows.map((kb) => ({
-    ...toActiveKnowledgeBaseReference(kb),
-    docCount: Number(kb.docCount) + (liveCounts?.get(kb.id)?.docCount ?? 0),
-    tokenCount: kb.tokenCount + (liveCounts?.get(kb.id)?.tokenCount ?? 0),
+    ...kb,
+    docCount: (counts.get(kb.id)?.docCount ?? 0) + (liveCounts?.get(kb.id)?.docCount ?? 0),
+    tokenCount: (counts.get(kb.id)?.tokenCount ?? 0) + (liveCounts?.get(kb.id)?.tokenCount ?? 0),
   }))
 }
 
