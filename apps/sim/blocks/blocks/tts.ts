@@ -28,7 +28,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   },
 
   subBlocks: [
-    // Provider selection
     {
       id: 'provider',
       title: 'Provider',
@@ -46,7 +45,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: true,
     },
 
-    // Text input (common to all providers)
     {
       id: 'text',
       title: 'Text',
@@ -55,7 +53,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: true,
     },
 
-    // OpenAI Model Selection
     {
       id: 'model',
       title: 'Model',
@@ -71,7 +68,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // OpenAI Voice Selection
     {
       id: 'voice',
       title: 'Voice',
@@ -94,7 +90,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // OpenAI Response Format
     {
       id: 'responseFormat',
       title: 'Audio Format',
@@ -112,7 +107,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // OpenAI Speed
     {
       id: 'speed',
       title: 'Speed',
@@ -126,7 +120,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Deepgram Voice Selection
     {
       id: 'voice',
       title: 'Voice',
@@ -151,7 +144,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: true,
     },
 
-    // Deepgram Encoding
     {
       id: 'encoding',
       title: 'Audio Format',
@@ -169,7 +161,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Deepgram Sample Rate (only for linear16 format)
     {
       id: 'sampleRate',
       title: 'Sample Rate',
@@ -190,7 +181,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // ElevenLabs Voice ID
     {
       id: 'voiceId',
       title: 'Voice ID',
@@ -201,7 +191,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: true,
     },
 
-    // ElevenLabs Model Selection
     {
       id: 'modelId',
       title: 'Model',
@@ -220,7 +209,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // ElevenLabs Stability
     {
       id: 'stability',
       title: 'Stability',
@@ -234,7 +222,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // ElevenLabs Similarity Boost
     {
       id: 'similarityBoost',
       title: 'Similarity Boost',
@@ -248,7 +235,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // ElevenLabs Style
     {
       id: 'style',
       title: 'Style',
@@ -262,7 +248,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Cartesia Model Selection
     {
       id: 'modelId',
       title: 'Model',
@@ -280,7 +265,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Cartesia Voice
     {
       id: 'voice',
       title: 'Voice ID',
@@ -291,7 +275,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: true,
     },
 
-    // Cartesia Speed
     {
       id: 'speed',
       title: 'Speed',
@@ -305,7 +288,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Google Voice ID
     {
       id: 'voiceId',
       title: 'Voice ID',
@@ -316,7 +298,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Google Language Code
     {
       id: 'languageCode',
       title: 'Language Code',
@@ -328,7 +309,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: true,
     },
 
-    // Google Speaking Rate
     {
       id: 'speakingRate',
       title: 'Speaking Rate',
@@ -342,7 +322,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Google Pitch
     {
       id: 'pitch',
       title: 'Pitch',
@@ -356,7 +335,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Azure Voice ID
     {
       id: 'voiceId',
       title: 'Voice ID',
@@ -367,7 +345,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Azure Region
     {
       id: 'region',
       title: 'Region',
@@ -378,7 +355,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Azure Output Format
     {
       id: 'outputFormat',
       title: 'Output Format',
@@ -394,7 +370,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // Azure Style
     {
       id: 'style',
       title: 'Speaking Style',
@@ -405,7 +380,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // PlayHT User ID
     {
       id: 'userId',
       title: 'User ID',
@@ -417,7 +391,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: true,
     },
 
-    // PlayHT Voice
     {
       id: 'voice',
       title: 'Voice',
@@ -428,7 +401,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // PlayHT Quality
     {
       id: 'quality',
       title: 'Quality',
@@ -444,7 +416,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // PlayHT Speed
     {
       id: 'speed',
       title: 'Speed',
@@ -458,7 +429,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
-    // API Key (common to all providers)
     {
       id: 'apiKey',
       title: 'API Key',
@@ -481,7 +451,6 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
     ],
     config: {
       tool: (params) => {
-        // Select tool based on provider
         switch (params.provider) {
           case 'openai':
             return 'tts_openai'

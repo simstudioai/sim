@@ -138,7 +138,7 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
       required: true,
     },
 
-    // === Create Booking fields ===
+    // Create Booking fields
     {
       id: 'eventTypeSelector',
       title: 'Event Type',
@@ -291,7 +291,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       mode: 'advanced',
     },
 
-    // === Get/Cancel/Reschedule/Confirm/Decline Booking fields ===
+    // Get/Cancel/Reschedule/Confirm/Decline Booking fields
     {
       id: 'bookingUid',
       title: 'Booking UID',
@@ -336,7 +336,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       mode: 'advanced',
     },
 
-    // === List Bookings filters ===
+    // List Bookings filters
     {
       id: 'bookingStatus',
       title: 'Status',
@@ -352,7 +352,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       condition: { field: 'operation', value: 'calcom_list_bookings' },
     },
 
-    // === Event Type fields ===
+    // Event Type fields
     {
       id: 'eventTypeParamSelector',
       title: 'Event Type',
@@ -516,7 +516,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       mode: 'advanced',
     },
 
-    // === Schedule fields ===
+    // Schedule fields
     {
       id: 'scheduleSelector',
       title: 'Schedule',
@@ -639,7 +639,7 @@ Return ONLY valid JSON - no explanations.`,
       },
     },
 
-    // === Slots fields ===
+    // Slots fields
     {
       id: 'eventTypeSlug',
       title: 'Event Type Slug',
@@ -665,7 +665,7 @@ Return ONLY valid JSON - no explanations.`,
       mode: 'advanced',
     },
 
-    // === List Event Types sorting ===
+    // List Event Types sorting
     {
       id: 'sortCreatedAt',
       title: 'Sort by Created',

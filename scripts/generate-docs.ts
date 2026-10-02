@@ -4868,9 +4868,7 @@ function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
   }
 }
 
-// ============================================================================
 // Trigger Documentation Generation
-// ============================================================================
 
 /**
  * Format a trigger provider name for display, falling back to Title Case.

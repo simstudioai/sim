@@ -741,7 +741,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       mode: 'advanced',
       required: false,
     },
-    // Canvas specific fields
     {
       id: 'title',
       title: 'Canvas Title',
@@ -764,7 +763,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       required: true,
     },
-    // Message Reader specific fields
     {
       id: 'limit',
       title: 'Message Limit',
@@ -775,7 +773,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
         value: 'read',
       },
     },
-    // List Channels specific fields
     {
       id: 'includePrivate',
       title: 'Include Private Channels',
@@ -801,7 +798,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       mode: 'advanced',
     },
-    // List Members specific fields
     {
       id: 'memberLimit',
       title: 'Member Limit',
@@ -812,7 +808,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
         value: 'list_members',
       },
     },
-    // List Users specific fields
     {
       id: 'includeDeleted',
       title: 'Include Deactivated Users',
@@ -837,7 +832,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
         value: 'list_users',
       },
     },
-    // Pagination cursor (shared across list_channels, list_members, list_users)
     {
       id: 'paginationCursor',
       title: 'Pagination Cursor',
@@ -849,7 +843,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       mode: 'advanced',
     },
-    // Get User specific fields
     {
       id: 'userId',
       title: 'User',
@@ -880,7 +873,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       required: true,
     },
-    // Get Message specific fields
     {
       id: 'getMessageTimestamp',
       title: 'Message Timestamp',
@@ -906,7 +898,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Get Thread specific fields
     {
       id: 'getThreadTimestamp',
       title: 'Thread Timestamp',
@@ -948,7 +939,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'get_thread',
       },
     },
-    // Set Assistant Status specific fields
     {
       id: 'status',
       title: 'Status Text',
@@ -971,7 +961,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: false,
     },
-    // Set Assistant Title specific fields
     {
       id: 'assistantTitle',
       title: 'Thread Title',
@@ -983,7 +972,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Set Suggested Prompts specific fields
     {
       id: 'suggestedPrompts',
       title: 'Suggested Prompts',
@@ -1021,7 +1009,6 @@ Return ONLY the JSON array - no explanations, no quotes around the array, no ext
       mode: 'advanced',
       required: false,
     },
-    // Get Channel History / Get Thread Replies shared pagination fields
     {
       id: 'historyOldest',
       title: 'Oldest Timestamp',
@@ -1120,7 +1107,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Download File specific fields
     {
       id: 'fileId',
       title: 'File ID',
@@ -1143,7 +1129,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'download',
       },
     },
-    // Update Message specific fields
     {
       id: 'updateTimestamp',
       title: 'Message Timestamp',
@@ -1171,7 +1156,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         and: { field: 'messageFormat', value: 'blocks', not: true },
       },
     },
-    // Delete Message specific fields
     {
       id: 'deleteTimestamp',
       title: 'Message Timestamp',
@@ -1183,7 +1167,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Add Reaction specific fields
     {
       id: 'reactionTimestamp',
       title: 'Message Timestamp',
@@ -1206,7 +1189,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Get Channel Info specific fields
     {
       id: 'includeNumMembers',
       title: 'Include Member Count',
@@ -1221,7 +1203,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'get_channel_info',
       },
     },
-    // Get User Presence specific fields
     {
       id: 'presenceUserId',
       title: 'User',
@@ -1252,7 +1233,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Edit Canvas specific fields
     {
       id: 'editCanvasId',
       title: 'Canvas ID',
@@ -1326,7 +1306,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Create Channel Canvas specific fields
     {
       id: 'channelCanvasTitle',
       title: 'Canvas Title',
@@ -1347,7 +1326,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'create_channel_canvas',
       },
     },
-    // Get Canvas specific fields
     {
       id: 'getCanvasId',
       title: 'Canvas ID',
@@ -1359,7 +1337,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // List Canvases specific fields
     {
       id: 'canvasListCount',
       title: 'Canvas Limit',
@@ -1426,7 +1403,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Lookup Canvas Sections specific fields
     {
       id: 'lookupCanvasId',
       title: 'Canvas ID',
@@ -1450,7 +1426,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Delete Canvas specific fields
     {
       id: 'deleteCanvasId',
       title: 'Canvas ID',
@@ -1462,7 +1437,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Create Conversation specific fields
     {
       id: 'conversationName',
       title: 'Channel Name',
@@ -1499,7 +1473,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Invite to Conversation specific fields
     {
       id: 'inviteUsers',
       title: 'User IDs',
@@ -1526,7 +1499,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Open View / Push View specific fields
     {
       id: 'viewTriggerId',
       title: 'Trigger ID',
@@ -1549,7 +1521,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Update View specific fields
     {
       id: 'viewId',
       title: 'View ID',
@@ -1570,7 +1541,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'update_view',
       },
     },
-    // Update View / Publish View hash field
     {
       id: 'viewHash',
       title: 'View Hash',
@@ -1582,7 +1552,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Publish View specific fields
     {
       id: 'publishUserId',
       title: 'User',
@@ -1613,7 +1582,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // View payload (shared across all view operations)
     {
       id: 'viewPayload',
       title: 'View Payload',
@@ -1678,7 +1646,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
         placeholder: 'Describe the view/modal you want to create...',
       },
     },
-    // Schedule Message specific fields
     {
       id: 'scheduleAt',
       title: 'Send At',
@@ -1704,7 +1671,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
         generationType: 'timestamp',
       },
     },
-    // List Scheduled Messages specific fields
     {
       id: 'scheduledLimit',
       title: 'Message Limit',
@@ -1729,7 +1695,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       mode: 'advanced',
       required: false,
     },
-    // Delete Scheduled Message specific fields
     {
       id: 'scheduledMessageId',
       title: 'Scheduled Message ID',
@@ -1741,7 +1706,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       },
       required: true,
     },
-    // Rename Conversation specific fields
     {
       id: 'renameChannelName',
       title: 'New Channel Name',
@@ -1753,7 +1717,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       },
       required: true,
     },
-    // Set Conversation Topic specific fields
     {
       id: 'conversationTopic',
       title: 'Topic',
@@ -1765,7 +1728,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       },
       required: true,
     },
-    // Set Conversation Purpose specific fields
     {
       id: 'conversationPurpose',
       title: 'Purpose',
@@ -2021,9 +1983,8 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           baseParams.channel = effectiveChannel
         }
 
-        // Handle authentication based on method. Custom Bot resolves to a token
-        // server-side: v2 selects a reusable bot credential; v1 pastes a raw
-        // token (kept for back-compat).
+        // Custom Bot resolves to a token server-side: v2 selects a reusable bot
+        // credential; v1 pastes a raw token (kept for back-compat).
         if (authMethod === 'bot_token') {
           if (botCredential) {
             baseParams.credential = botCredential
@@ -2031,7 +1992,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             baseParams.accessToken = botToken
           }
         } else {
-          // Default to OAuth
           baseParams.credential = oauthCredential
         }
 
@@ -2416,7 +2376,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     oldest: { type: 'string', description: 'Oldest timestamp' },
     fileId: { type: 'string', description: 'File ID to download' },
     fileName: { type: 'string', description: 'File name override for download (canonical param)' },
-    // Update/Delete/React operation inputs
     updateTimestamp: { type: 'string', description: 'Message timestamp for update' },
     updateText: { type: 'string', description: 'New text for update' },
     deleteTimestamp: { type: 'string', description: 'Message timestamp for delete' },
@@ -2426,47 +2385,35 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     name: { type: 'string', description: 'Emoji name' },
     threadTs: { type: 'string', description: 'Thread timestamp' },
     thread_ts: { type: 'string', description: 'Thread timestamp for reply' },
-    // List Channels inputs
     includePrivate: { type: 'string', description: 'Include private channels (true/false)' },
     channelLimit: { type: 'string', description: 'Conversations to request per Slack page' },
-    // List Members inputs
     memberLimit: { type: 'string', description: 'Maximum number of members to return' },
-    // List Users inputs
     includeDeleted: { type: 'string', description: 'Include deactivated users (true/false)' },
     userLimit: { type: 'string', description: 'Maximum number of users to return' },
-    // Shared pagination input
     paginationCursor: {
       type: 'string',
       description: 'Pagination cursor (nextCursor) for list_channels/list_members/list_users',
     },
-    // Ephemeral message inputs
     ephemeralUser: { type: 'string', description: 'User ID who will see the ephemeral message' },
     blocks: { type: 'json', description: 'Block Kit layout blocks as a JSON array' },
-    // Get User inputs
     userId: { type: 'string', description: 'User ID to look up' },
-    // Get Message inputs
     getMessageTimestamp: { type: 'string', description: 'Message timestamp to retrieve' },
-    // Get Thread inputs
     getThreadTimestamp: { type: 'string', description: 'Thread timestamp to retrieve' },
     threadLimit: {
       type: 'string',
       description: 'Maximum number of messages to return from thread',
     },
-    // Set Assistant Status inputs
     status: { type: 'string', description: 'Status text to display (empty clears the status)' },
     loadingMessages: {
       type: 'json',
       description: 'Optional array of phrases to animate as a loading indicator (max 10)',
     },
-    // Set Assistant Title inputs
     assistantTitle: { type: 'string', description: 'Title to display for the assistant thread' },
-    // Set Suggested Prompts inputs
     suggestedPrompts: {
       type: 'json',
       description: 'Array of { title, message } prompt objects (max 4)',
     },
     promptsTitle: { type: 'string', description: 'Optional heading for the prompt list' },
-    // Get Channel History / Get Thread Replies inputs
     historyOldest: {
       type: 'string',
       description: 'Only include messages after this Unix timestamp',
@@ -2482,20 +2429,15 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       type: 'string',
       description: 'Include messages matching oldest/latest (true/false)',
     },
-    // Get Channel Info inputs
     includeNumMembers: { type: 'string', description: 'Include member count (true/false)' },
-    // Get User Presence inputs
     presenceUserId: { type: 'string', description: 'User ID to check presence for' },
-    // Edit Canvas inputs
     editCanvasId: { type: 'string', description: 'Canvas ID to edit' },
     canvasOperation: { type: 'string', description: 'Canvas edit operation' },
     canvasContent: { type: 'string', description: 'Markdown content for canvas edit' },
     sectionId: { type: 'string', description: 'Canvas section ID to target' },
     canvasTitle: { type: 'string', description: 'New canvas title for rename' },
-    // Create Channel Canvas inputs
     channelCanvasTitle: { type: 'string', description: 'Title for channel canvas' },
     channelCanvasContent: { type: 'string', description: 'Content for channel canvas' },
-    // Canvas management inputs
     getCanvasId: { type: 'string', description: 'Canvas ID to retrieve' },
     canvasListCount: { type: 'string', description: 'Maximum number of canvases to return' },
     canvasListPage: { type: 'string', description: 'Canvas list page number' },
@@ -2512,14 +2454,11 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     lookupCanvasId: { type: 'string', description: 'Canvas ID to search for sections' },
     sectionCriteria: { type: 'json', description: 'Canvas section lookup criteria' },
     deleteCanvasId: { type: 'string', description: 'Canvas ID to delete' },
-    // Create Conversation inputs
     conversationName: { type: 'string', description: 'Name for the new channel' },
     isPrivate: { type: 'string', description: 'Create as private channel (true/false)' },
     teamId: { type: 'string', description: 'Encoded team ID for org tokens' },
-    // Invite to Conversation inputs
     inviteUsers: { type: 'string', description: 'Comma-separated user IDs to invite' },
     inviteForce: { type: 'string', description: 'Skip invalid users (true/false)' },
-    // View operation inputs
     viewTriggerId: { type: 'string', description: 'Trigger ID from interaction payload' },
     viewInteractivityPointer: {
       type: 'string',
@@ -2536,31 +2475,24 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'User ID to publish Home tab view to',
     },
     viewPayload: { type: 'json', description: 'View payload object with type, title, and blocks' },
-    // Schedule Message inputs
     scheduleAt: {
       type: 'string',
       description: 'Unix timestamp (seconds) for when the scheduled message should post',
     },
-    // List Scheduled Messages inputs
     scheduledLimit: {
       type: 'string',
       description: 'Maximum number of scheduled messages to return',
     },
     scheduledCursor: { type: 'string', description: 'Pagination cursor for scheduled messages' },
-    // Delete Scheduled Message inputs
     scheduledMessageId: { type: 'string', description: 'Scheduled message ID to delete' },
-    // Rename Conversation inputs
     renameChannelName: { type: 'string', description: 'New name for the channel' },
-    // Set Conversation Topic inputs
     conversationTopic: { type: 'string', description: 'New channel topic (max 250 characters)' },
-    // Set Conversation Purpose inputs
     conversationPurpose: {
       type: 'string',
       description: 'New channel purpose/description (max 250 characters)',
     },
   },
   outputs: {
-    // slack_message outputs (send operation)
     message: {
       type: 'json',
       description:
@@ -2575,13 +2507,11 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     },
     files: { type: 'file[]', description: 'Files attached to the message' },
 
-    // slack_ephemeral_message outputs (ephemeral operation)
     messageTs: {
       type: 'string',
       description: 'Timestamp of the ephemeral message (cannot be used to update or delete)',
     },
 
-    // slack_canvas outputs
     canvas_id: { type: 'string', description: 'Canvas identifier for created canvases' },
     title: { type: 'string', description: 'Canvas title' },
     canvas: {
@@ -2613,14 +2543,12 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'Agent session status recorded by Slack',
     },
 
-    // slack_message_reader outputs (read operation)
     messages: {
       type: 'json',
       description:
         'Array of message objects with comprehensive properties: text, user, timestamp, reactions, threads, files, attachments, blocks, stars, pins, and edit history',
     },
 
-    // slack_get_thread outputs (get_thread operation)
     parentMessage: {
       type: 'json',
       description: 'The thread parent message with all properties',
@@ -2639,7 +2567,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
         'Whether more thread messages or provider pages remain beyond the fetched window',
     },
 
-    // slack_get_channel_history / slack_get_thread_replies pagination outputs
     pages: {
       type: 'number',
       description: 'Number of provider pages fetched during a paginated read',
@@ -2649,13 +2576,11 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'Thread timestamp an assistant status/title/prompts op was set on',
     },
 
-    // slack_get_permalink outputs (get_permalink operation)
     permalink: {
       type: 'string',
       description: 'Permalink URL to the message',
     },
 
-    // slack_list_channels outputs (list_channels operation)
     channels: {
       type: 'json',
       description:
@@ -2670,47 +2595,40 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'Cursor for the next page (null when there are no more pages)',
     },
 
-    // slack_list_members outputs (list_members operation)
     members: {
       type: 'json',
       description: 'Array of user IDs who are members of the channel',
     },
 
-    // slack_list_users outputs (list_users operation)
     users: {
       type: 'json',
       description:
         'Array of user objects with properties: id, name, real_name, display_name, is_bot, is_admin, deleted, timezone, avatar, status_text, status_emoji',
     },
 
-    // slack_get_user outputs (get_user operation)
     user: {
       type: 'json',
       description:
         'Detailed user object with properties: id, name, real_name, display_name, first_name, last_name, title, is_bot, is_admin, deleted, timezone, avatars, status',
     },
 
-    // slack_download outputs
     file: {
       type: 'file',
       description: 'Downloaded file stored in execution files',
     },
 
-    // slack_update_message outputs (update operation)
     content: { type: 'string', description: 'Success message for update operation' },
     metadata: {
       type: 'json',
       description: 'Updated message metadata (legacy, use message object instead)',
     },
 
-    // slack_get_channel_info outputs (get_channel_info operation)
     channelInfo: {
       type: 'json',
       description:
         'Detailed channel object with properties: id, name, is_private, is_archived, is_member, num_members, topic, purpose, created, creator',
     },
 
-    // slack_get_user_presence outputs (get_user_presence operation)
     presence: {
       type: 'string',
       description: 'User presence status: "active" or "away"',
@@ -2740,21 +2658,18 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
         'Unix timestamp of last detected activity (only available when checking own presence)',
     },
 
-    // View operation outputs (open_view, update_view, push_view, publish_view)
     view: {
       type: 'json',
       description:
         'View object with properties: id, team_id, type, title, submit, close, blocks, private_metadata, callback_id, external_id, state, hash, clear_on_close, notify_on_close, root_view_id, previous_view_id, app_id, bot_id',
     },
 
-    // slack_invite_to_conversation outputs (invite_to_conversation operation)
     errors: {
       type: 'json',
       description:
         'Array of per-user error objects when force is true and some invitations failed (user, ok, error)',
     },
 
-    // slack_schedule_message outputs (schedule_message operation)
     scheduledMessageId: {
       type: 'string',
       description: 'Identifier of the scheduled message (used to delete it before it posts)',
@@ -2764,14 +2679,12 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'Unix timestamp when a scheduled message will post',
     },
 
-    // slack_list_scheduled_messages outputs (list_scheduled_messages operation)
     scheduledMessages: {
       type: 'json',
       description:
         'Array of pending scheduled message objects with properties: id, channel_id, post_at, date_created, text',
     },
 
-    // slack_set_conversation_purpose outputs (set_conversation_purpose operation)
     purpose: {
       type: 'string',
       description: 'The purpose/description that was set on the channel',
