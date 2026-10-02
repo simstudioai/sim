@@ -26,6 +26,7 @@ import {
   type SubBlockTransform,
 } from '@/lib/workflows/references/remap-references'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import { lockActiveWorkspace } from '@/lib/workspaces/active-workspace'
 import {
   deriveForkBlockId,
   type ForkBlockIdResolver,
@@ -502,6 +503,7 @@ export async function copyWorkflowStateIntoTarget(
     requestId = 'unknown',
   } = params
 
+  await lockActiveWorkspace(tx, targetWorkspaceId)
   const targetFolderId = sourceMeta.folderId ? (folderIdMap.get(sourceMeta.folderId) ?? null) : null
 
   const varIdMapping = new Map<string, string>()

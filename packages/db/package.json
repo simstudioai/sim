@@ -28,6 +28,10 @@
     "./sso-primary-provider": {
       "types": "./sso-primary-provider.ts",
       "default": "./sso-primary-provider.ts"
+    },
+    "./project-backfill": {
+      "types": "./project-backfill.ts",
+      "default": "./project-backfill.ts"
     }
   },
   "scripts": {

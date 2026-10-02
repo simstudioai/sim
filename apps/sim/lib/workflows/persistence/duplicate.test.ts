@@ -51,6 +51,9 @@ function insertedValuesFor(table: unknown): unknown[] {
 describe('duplicateWorkflow ordering', () => {
   beforeEach(() => {
     resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      { archivedAt: null, forkSyncNewWorkflowsExcluded: false },
+    ])
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('new-workflow-id'),

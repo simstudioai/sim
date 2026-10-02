@@ -228,6 +228,7 @@ describe('workspace payer-change transaction lock ordering', () => {
     const tx = {
       execute: async () => [],
       select,
+      selectDistinct: select,
       insert: () => ({
         values: () => ({
           onConflictDoUpdate: async () => undefined,

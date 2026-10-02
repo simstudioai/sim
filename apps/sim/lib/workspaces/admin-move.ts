@@ -41,6 +41,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { PENDING_INVITATION_UNIQUE_INDEX, sendInvitationEmail } from '@/lib/invitations/send'
+import { transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { deleteCustomBlock } from '@/lib/workflows/custom-blocks/operations'
 import {
@@ -1355,6 +1356,8 @@ export async function moveWorkspaceToOrganization(params: {
               sourceOrganizationId,
             })
           : { detachedPermissionGroupIds: [] }
+
+        await transferWorkspaceProjects(tx, [params.workspaceId], params.destinationOrganizationId)
 
         await changeWorkspaceStoragePayerInTx(tx, {
           workspaceId: params.workspaceId,

@@ -5,6 +5,7 @@ import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/erro
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbTransaction } from '@/lib/db/types'
+import { createProjectForWorkspace } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -127,6 +128,13 @@ export async function createWorkspaceInTransaction(
     allowPersonalApiKeys: true,
     createdAt: now,
     updatedAt: now,
+  })
+
+  await createProjectForWorkspace(tx, {
+    workspaceId,
+    name,
+    organizationId: organizationId ?? null,
+    ownerId: userId,
   })
 
   const permissionRows = [

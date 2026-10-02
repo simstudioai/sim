@@ -8,6 +8,8 @@ import {
   knowledgeBase,
   outboxEvent,
   permissions,
+  project,
+  projectWorkspace,
   user,
   userTableDefinitions,
   workflow,
@@ -25,6 +27,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
+import { createProjectForWorkspace } from '@/lib/projects/membership'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
@@ -137,6 +140,14 @@ describe('authorized fork and sync against PostgreSQL', () => {
       billedAccountUserId: userId,
       allowPersonalApiKeys: true,
     })
+    await db.transaction((tx) =>
+      createProjectForWorkspace(tx, {
+        workspaceId: sourceWorkspaceId,
+        name: 'Fork source fixture',
+        ownerId: userId,
+        organizationId: null,
+      })
+    )
     await db.insert(permissions).values({
       id: generateId(),
       userId,
@@ -169,6 +180,19 @@ describe('authorized fork and sync against PostgreSQL', () => {
     })
   })
   afterAll(async () => {
+    const owned = await db
+      .select({ id: project.id })
+      .from(project)
+      .where(eq(project.ownerId, userId))
+    if (owned.length) {
+      await db.delete(projectWorkspace).where(
+        inArray(
+          projectWorkspace.projectId,
+          owned.map((row) => row.id)
+        )
+      )
+      await db.delete(project).where(eq(project.ownerId, userId))
+    }
     for (const id of createdWorkspaceIds) await db.delete(workspace).where(eq(workspace.id, id))
     await db.delete(workspace).where(eq(workspace.id, sourceWorkspaceId))
     await db.delete(user).where(eq(user.id, userId))

@@ -2058,6 +2058,55 @@ export const workspace = pgTable(
   })
 )
 
+/** Stable owner of environments and project-wide resources, independent of fork lineage. */
+export const project = pgTable(
+  'project',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'restrict',
+    }),
+    /** Lifecycle owner for personal and organization Projects; never an implicit access grant. */
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    nameLength: check(
+      'project_name_length',
+      sql`char_length(btrim(${table.name})) BETWEEN 1 AND 100`
+    ),
+    organizationIdx: index('project_organization_archive_id_idx').on(
+      table.organizationId,
+      table.archivedAt,
+      table.id
+    ),
+    ownerIdx: index('project_owner_archive_id_idx').on(table.ownerId, table.archivedAt, table.id),
+  })
+)
+
+// contract-pending(after project writers are fully deployed and backfill validates): enforce exactly-one membership and active Project environment minimums at commit.
+export const projectWorkspace = pgTable(
+  'project_workspace',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'restrict' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.projectId, table.workspaceId] }),
+    workspaceUnique: uniqueIndex('project_workspace_workspace_id_unique').on(table.workspaceId),
+  })
+)
+
 export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_type', [
   'workflow',
   'oauth_credential',

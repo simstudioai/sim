@@ -218,6 +218,8 @@ export const AuditAction = {
   WORKFLOW_EXPORTED: 'workflow.exported',
 
   WORKSPACE_CREATED: 'workspace.created',
+  PROJECT_UPDATED: 'project.updated',
+  PROJECT_ARCHIVED: 'project.archived',
   WORKSPACE_UPDATED: 'workspace.updated',
   WORKSPACE_DELETED: 'workspace.deleted',
   WORKSPACE_DUPLICATED: 'workspace.duplicated',
@@ -287,6 +289,7 @@ export const AuditResourceType = {
   USER: 'user',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',
+  PROJECT: 'project',
   WORKSPACE: 'workspace',
 } as const
 

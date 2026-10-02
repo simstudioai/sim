@@ -3,6 +3,7 @@ import {
   apiKey,
   chat,
   folder as folderTable,
+  projectWorkspace,
   webhook,
   workflow,
   workflowDeploymentVersion,
@@ -16,6 +17,7 @@ import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
 import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
@@ -106,87 +108,14 @@ export async function archiveWorkflow(
     .from(workflowMcpTool)
     .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
-  await db.transaction(async (tx) => {
-    await supersedeInFlightDeploymentOperations(tx, workflowId)
-    await releaseWebhookPathClaims(tx, workflowId)
+  await db.transaction((tx) => archiveWorkflowInTransaction(tx, workflowId, now))
 
-    await tx
-      .update(workflowSchedule)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        status: 'disabled',
-        nextRunAt: null,
-        lastQueuedAt: null,
-      })
-      .where(and(eq(workflowSchedule.workflowId, workflowId), isNull(workflowSchedule.archivedAt)))
-
-    await tx
-      .update(webhook)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        isActive: false,
-      })
-      .where(and(eq(webhook.workflowId, workflowId), isNull(webhook.archivedAt)))
-
-    await tx
-      .update(chat)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        isActive: false,
-      })
-      .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
-
-    await tx
-      .update(workflowMcpTool)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-      })
-      .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
-
-    await tx
-      .update(workflowDeploymentVersion)
-      .set({
-        isActive: false,
-      })
-      .where(eq(workflowDeploymentVersion.workflowId, workflowId))
-
-    await tx
-      .update(workflow)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        isDeployed: false,
-        isPublicApi: false,
-      })
-      .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
-  })
-
-  try {
-    PlatformEvents.workflowDeleted({
-      workflowId,
-      workspaceId: existingWorkflow.workspaceId || undefined,
-    })
-  } catch {}
-
-  if (options.notifySocket !== false) {
-    await notifyWorkflowArchived(workflowId, options.requestId)
-  }
-
-  await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
-
-  if (existingWorkflow.workspaceId && mcpPubSub && affectedWorkflowMcpServers.length > 0) {
-    const uniqueServerIds = [...new Set(affectedWorkflowMcpServers.map((row) => row.serverId))]
-    for (const serverId of uniqueServerIds) {
-      mcpPubSub.publishWorkflowToolsChanged({
-        serverId,
-        workspaceId: existingWorkflow.workspaceId,
-      })
-    }
-  }
+  await finishWorkflowArchive(
+    workflowId,
+    existingWorkflow.workspaceId,
+    affectedWorkflowMcpServers.map((row) => row.serverId),
+    options
+  )
 
   return {
     archived: true,
@@ -368,12 +297,131 @@ export async function disableUserResources(userId: string): Promise<void> {
     .from(workspace)
     .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
-  await Promise.all([
-    ...ownedWorkspaces.map((w) => archiveWorkspace(w.id, { requestId })),
-    db.delete(apiKey).where(eq(apiKey.userId, userId)),
-  ])
+  const { archiveProjectInTransaction, finishProjectArchive } = await import(
+    '@/lib/projects/lifecycle'
+  )
+  const { lockWorkspaceProject } = await import('@/lib/projects/membership')
+  const owned = new Set(ownedWorkspaces.map((row) => row.id))
+  const processed = new Set<string>()
+  for (const row of ownedWorkspaces) {
+    if (processed.has(row.id)) continue
+    const archived = await db.transaction(async (tx) => {
+      const record = await lockWorkspaceProject(tx, row.id)
+      if (!record) return null
+      const active = await tx
+        .select({ id: workspace.id })
+        .from(projectWorkspace)
+        .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
+        .where(and(eq(projectWorkspace.projectId, record.id), isNull(workspace.archivedAt)))
+      if (!active.every((entry) => owned.has(entry.id))) return null
+      return archiveProjectInTransaction(tx, record.id)
+    })
+    if (archived) {
+      for (const entry of archived.environments) processed.add(entry.id)
+      await finishProjectArchive(archived, requestId)
+    } else {
+      await archiveWorkspace(row.id, { requestId })
+      processed.add(row.id)
+    }
+  }
+  await db.delete(apiKey).where(eq(apiKey.userId, userId))
 
   logger.info(
     `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys`
   )
+}
+
+/** Durable archive state shared by single-workflow and compound Project archival. */
+export async function archiveWorkflowInTransaction(
+  tx: DbTransaction,
+  workflowId: string,
+  now: Date
+): Promise<void> {
+  await supersedeInFlightDeploymentOperations(tx, workflowId)
+  await releaseWebhookPathClaims(tx, workflowId)
+
+  await tx
+    .update(workflowSchedule)
+    .set({
+      archivedAt: now,
+      updatedAt: now,
+      status: 'disabled',
+      nextRunAt: null,
+      lastQueuedAt: null,
+    })
+    .where(and(eq(workflowSchedule.workflowId, workflowId), isNull(workflowSchedule.archivedAt)))
+
+  await tx
+    .update(webhook)
+    .set({
+      archivedAt: now,
+      updatedAt: now,
+      isActive: false,
+    })
+    .where(and(eq(webhook.workflowId, workflowId), isNull(webhook.archivedAt)))
+
+  await tx
+    .update(chat)
+    .set({
+      archivedAt: now,
+      updatedAt: now,
+      isActive: false,
+    })
+    .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+
+  await tx
+    .update(workflowMcpTool)
+    .set({
+      archivedAt: now,
+      updatedAt: now,
+    })
+    .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
+
+  await tx
+    .update(workflowDeploymentVersion)
+    .set({
+      isActive: false,
+    })
+    .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+
+  await tx
+    .update(workflow)
+    .set({
+      archivedAt: now,
+      updatedAt: now,
+      isDeployed: false,
+      isPublicApi: false,
+    })
+    .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
+}
+
+/** Best-effort external notifications run only after durable archive state commits. */
+export async function finishWorkflowArchive(
+  workflowId: string,
+  workspaceId: string | null,
+  serverIds: string[],
+  options: ArchiveWorkflowOptions
+): Promise<void> {
+  try {
+    PlatformEvents.workflowDeleted({
+      workflowId,
+      workspaceId: workspaceId || undefined,
+    })
+  } catch {}
+
+  if (options.notifySocket !== false) {
+    await notifyWorkflowArchived(workflowId, options.requestId)
+  }
+
+  await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
+
+  if (workspaceId && mcpPubSub && serverIds.length > 0) {
+    const uniqueServerIds = [...new Set(serverIds)]
+    for (const serverId of uniqueServerIds) {
+      mcpPubSub.publishWorkflowToolsChanged({
+        serverId,
+        workspaceId: workspaceId,
+      })
+    }
+  }
 }

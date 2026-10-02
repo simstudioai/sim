@@ -2589,6 +2589,7 @@ export type CreatePermissionGroupBody = {
     hideSandboxesTab?: boolean
     disableOAuthAppAccess?: boolean
     disableKnowledgeBaseExport?: boolean
+    deniedPartialAccessProjectIssues?: Array<string>
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -2642,6 +2643,7 @@ type CreatePermissionGroupResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -6127,6 +6129,7 @@ type GetPermissionGroupResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -7274,6 +7277,7 @@ type GetWorkspacePermissionConfigResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
   } | null
   entitled: boolean
   organizationId: string | null
@@ -8951,6 +8955,7 @@ type ListPermissionGroupsResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -10049,6 +10054,7 @@ type PreviewOrganizationAccessRequestResponseRef0 = {
       | 'hideSandboxesTab'
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
+      | 'deniedPartialAccessProjectIssues'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -10205,6 +10211,7 @@ type PreviewOrganizationAccessRequestResponseRef1 = {
       | 'hideSandboxesTab'
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
+      | 'deniedPartialAccessProjectIssues'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -13195,6 +13202,7 @@ export type UpdatePermissionGroupBody = {
     hideSandboxesTab?: boolean
     disableOAuthAppAccess?: boolean
     disableKnowledgeBaseExport?: boolean
+    deniedPartialAccessProjectIssues?: Array<string>
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -13248,6 +13256,7 @@ type UpdatePermissionGroupResponseRef0 = {
     hideSandboxesTab: boolean
     disableOAuthAppAccess: boolean
     disableKnowledgeBaseExport: boolean
+    deniedPartialAccessProjectIssues: Array<string>
   }
   isDefault: boolean
   membershipMode: string

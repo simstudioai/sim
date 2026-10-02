@@ -1,6 +1,7 @@
 import { type workflow, workspace } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import { lockActiveWorkspace } from '@/lib/workspaces/active-workspace'
 
 interface NewWorkflowRowInput {
   id: string
@@ -40,6 +41,7 @@ export async function readForkSyncNewWorkflowsExcluded(
  * `copyWorkflowStateIntoTarget` instead.
  */
 export async function buildNewWorkflowRow(executor: DbOrTx, input: NewWorkflowRowInput) {
+  const workspace = await lockActiveWorkspace(executor, input.workspaceId)
   const now = input.now ?? new Date()
   return {
     id: input.id,
@@ -55,6 +57,6 @@ export async function buildNewWorkflowRow(executor: DbOrTx, input: NewWorkflowRo
     isDeployed: false,
     runCount: 0,
     variables: input.variables ?? {},
-    forkSyncExcluded: await readForkSyncNewWorkflowsExcluded(executor, input.workspaceId),
+    forkSyncExcluded: workspace.forkSyncNewWorkflowsExcluded,
   } satisfies typeof workflow.$inferInsert
 }
