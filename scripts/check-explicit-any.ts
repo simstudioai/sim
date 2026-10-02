@@ -79,7 +79,8 @@ function collect(): Baseline {
 
 /** `biome-ignore` comments for either rule, which would hide a hit from Biome's count. */
 function suppressions(): string[] {
-  const pattern = `biome-ignore(-all|-start)?[[:space:]]+(${Object.values(METRICS).join('|')})`
+  // Anchored to a comment opener so the phrase inside a string literal (a test fixture) is not a hit.
+  const pattern = `^[[:space:]]*(//|/\\*|\\{/\\*)[[:space:]]*biome-ignore(-all|-start)?[[:space:]]+(${Object.values(METRICS).join('|')})`
   const result = Bun.spawnSync(
     ['git', 'grep', '-nE', '--untracked', pattern, '--', 'apps', 'packages', 'scripts'],
     { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
