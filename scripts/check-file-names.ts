@@ -151,7 +151,15 @@ function check(file: string): Violation[] {
 
   const parent = segments[segments.length - 2]
   const [stem, ...suffixes] = name.split('.')
-  for (const suffix of ROLE_FOLDERS[parent] ?? []) {
+  const roleSuffixes = ROLE_FOLDERS[parent] ?? []
+  if (roleSuffixes.some((suffix) => stem === suffix.slice(1))) {
+    violations.push({
+      rule: 'redundant-suffix',
+      file,
+      expected: `<what-it-does>.${suffixes.join('.')}`,
+    })
+  }
+  for (const suffix of roleSuffixes) {
     if (stem.endsWith(suffix) && stem.length > suffix.length) {
       const expected = [stem.slice(0, -suffix.length), ...suffixes].join('.')
       violations.push({ rule: 'redundant-suffix', file, expected })
@@ -187,21 +195,34 @@ const violations = sourceFiles().flatMap(check)
 const byKey = new Map(violations.map((violation) => [key(violation), violation]))
 const current = [...byKey.keys()].sort()
 
-const baseline = new Set<string>(
-  existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : current
-)
+/**
+ * The committed baseline. A missing file fails closed: restore it from git. `--update --init`
+ * is the only way to create one, and it accepts every current violation.
+ */
+function readBaseline(current: string[]): string[] {
+  if (existsSync(BASELINE)) return JSON.parse(readFileSync(BASELINE, 'utf8'))
+  if (process.argv.includes('--update') && process.argv.includes('--init')) return current
+  console.error(
+    `✗ ${path.relative(ROOT, BASELINE)} is missing. Restore it from git; ` +
+      'create a new one only with --update --init.'
+  )
+  process.exit(1)
+}
+
+const baseline = new Set<string>(readBaseline(current))
 const added = current.filter((entry) => !baseline.has(entry))
 
 if (process.argv.includes('--update')) {
-  // Shrink-only: drop fixed entries, never admit a new one.
+  // Shrink-only: drop fixed entries, never admit a new one, and write nothing if refusing.
   const kept = current.filter((entry) => baseline.has(entry))
-  writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
-  console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
   for (const entry of added) {
     const violation = byKey.get(entry) as Violation
     console.error(`✗ not baselined — rename: ${violation.file} → ${violation.expected}`)
   }
-  process.exit(added.length ? 1 : 0)
+  if (added.length) process.exit(1)
+  writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
+  console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
+  process.exit(0)
 }
 
 const currentSet = new Set(current)

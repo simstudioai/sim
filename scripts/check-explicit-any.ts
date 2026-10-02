@@ -87,9 +87,21 @@ function total(counts: Counts): number {
 }
 
 const current = collect()
-const baseline: Baseline = existsSync(BASELINE)
-  ? (JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline)
-  : current
+/**
+ * The committed baseline. A missing file fails closed: restore it from git. `--update --init`
+ * is the only way to create one, and it accepts every current hit.
+ */
+function readBaseline(): Baseline {
+  if (existsSync(BASELINE)) return JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline
+  if (process.argv.includes('--update') && process.argv.includes('--init')) return current
+  console.error(
+    `✗ ${path.relative(ROOT, BASELINE)} is missing. Restore it from git; ` +
+      'create a new one only with --update --init.'
+  )
+  process.exit(1)
+}
+
+const baseline = readBaseline()
 
 /** Per-file counts clamped to the baseline, so an update can only lower them. */
 function shrunkTo(after: Counts, before: Counts): Counts {
@@ -105,11 +117,6 @@ if (process.argv.includes('--update')) {
     explicitAny: sorted(shrunkTo(current.explicitAny, baseline.explicitAny ?? {})),
     nonNullAssertion: sorted(shrunkTo(current.nonNullAssertion, baseline.nonNullAssertion ?? {})),
   }
-  writeFileSync(BASELINE, `${JSON.stringify(next, null, 2)}\n`)
-  console.log(
-    `Wrote ${path.relative(ROOT, BASELINE)}: ${total(next.explicitAny)} explicit any, ` +
-      `${total(next.nonNullAssertion)} non-null assertions`
-  )
   const raised = (Object.keys(METRICS) as Metric[]).flatMap((metric) =>
     Object.entries(current[metric])
       .filter(([file, count]) => count > (baseline[metric]?.[file] ?? 0))
@@ -121,8 +128,14 @@ if (process.argv.includes('--update')) {
   if (raised.length) {
     console.error(`✗ refused to raise the baseline for ${raised.length} file(s); fix them instead:`)
     console.error(raised.sort().join('\n'))
+    process.exit(1)
   }
-  process.exit(raised.length ? 1 : 0)
+  writeFileSync(BASELINE, `${JSON.stringify(next, null, 2)}\n`)
+  console.log(
+    `Wrote ${path.relative(ROOT, BASELINE)}: ${total(next.explicitAny)} explicit any, ` +
+      `${total(next.nonNullAssertion)} non-null assertions`
+  )
+  process.exit(0)
 }
 
 let regressed = 0

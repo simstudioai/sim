@@ -112,21 +112,34 @@ if (strict.length) {
 
 const current = [...kindByEntry.keys()].sort()
 
-const baseline = new Set<string>(
-  existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : current
-)
+/**
+ * The committed baseline. A missing file fails closed: restore it from git. `--update --init`
+ * is the only way to create one, and it accepts every current violation.
+ */
+function readBaseline(current: string[]): string[] {
+  if (existsSync(BASELINE)) return JSON.parse(readFileSync(BASELINE, 'utf8'))
+  if (process.argv.includes('--update') && process.argv.includes('--init')) return current
+  console.error(
+    `✗ ${path.relative(ROOT, BASELINE)} is missing. Restore it from git; ` +
+      'create a new one only with --update --init.'
+  )
+  process.exit(1)
+}
+
+const baseline = new Set<string>(readBaseline(current))
 const added = current.filter((entry) => !baseline.has(entry))
 
 if (process.argv.includes('--update')) {
-  // Shrink-only: drop fixed entries, never admit a new one.
+  // Shrink-only: drop fixed entries, never admit a new one, and write nothing if refusing.
   const kept = current.filter((entry) => baseline.has(entry))
-  writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
-  console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
   if (added.length) {
     console.error(`✗ refused to baseline ${added.length} new unused export(s); fix them instead:`)
     for (const entry of added) console.error(`  ${entry}`)
+    process.exit(1)
   }
-  process.exit(strict.length || added.length ? 1 : 0)
+  writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
+  console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
+  process.exit(strict.length ? 1 : 0)
 }
 
 const currentSet = new Set(current)
