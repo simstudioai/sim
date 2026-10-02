@@ -4,9 +4,14 @@
  *
  * Most patterns point at an `@sim/utils` helper (CLAUDE.md "Common utilities"). A few encode
  * render-path rules from `.claude/rules/sim-react-performance.md` and `sim-styling.md` that no
- * linter covers: ES2023 array methods that Safari 15 lacks (banned everywhere, since whether a
- * module reaches the browser is not visible from its path and a copy-then-sort costs the same), `useRef(new X())` allocating on
- * every render, and `h-N w-N` where `size-N` is the convention.
+ * linter covers: `useRef(new X())` allocating on every render, and `h-N w-N` where `size-N` is the
+ * convention.
+ *
+ * ES2023 array methods (`toSorted`, `with`, …) throw on Safari/iOS 15, and SWC does not polyfill
+ * them. Every tsconfig keeps `lib` at or below ES2022 so `tsc` rejects them at each call site,
+ * telling `Array.prototype.with` apart from OpenTelemetry's `context.with` by type; this script
+ * fails if a tsconfig raises `lib` past that, which is how they shipped once (#5340). The three
+ * names nothing else uses are also matched in source, since tsc accepts them on an `any` receiver.
  *
  * Biome's noRestrictedImports covers the import-based bans it lists — today `nanoid` and
  * `uuid`. It does NOT cover named crypto imports; `import { randomBytes } from 'node:crypto'`
@@ -17,6 +22,7 @@
  * multi-token expression that the formatter wraps at 100 columns, and a line-scoped scan sees
  * none of the wrapped forms. Deliberate exceptions carry `// utils-lint-allow: <reason>`.
  */
+import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -55,7 +61,6 @@ const BANNED_PATTERNS: Array<{
   pattern: RegExp
   description: string
   suggestion: string
-  /** Restricts the pattern to matching files; unrestricted patterns apply everywhere. */
   /** Cheap literal test that skips the pattern on files that cannot match; memoized per file. */
   prefilter?: RegExp
 }> = [
@@ -146,9 +151,9 @@ const BANNED_PATTERNS: Array<{
   },
   // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
   {
-    pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(|\.with\(\s*-?\d+\s*,/g,
-    description:
-      'ES2023 array method (throws on Safari/iOS 15 wherever the module reaches the browser)',
+    // tsc rejects these under the ES2022 lib, except on an `any` receiver (`JSON.parse(s).toSorted()`).
+    pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(/g,
+    description: 'ES2023 array method (throws on Safari/iOS 15; SWC does not polyfill it)',
     suggestion: 'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice()',
   },
   {
@@ -248,6 +253,31 @@ function hasAllow(lines: string[], line: number): boolean {
   return false
 }
 
+/** A `lib` entry at ES2023 or later, including its sub-libs (`ES2023.Array`) and `ESNext`. */
+const LIB_PAST_ES2022 = /^es(?:20(?:2[3-9]|[3-9]\d)|next)\b/i
+
+/** Tracked tsconfigs whose `lib` admits the ES2023 runtime methods `tsc` would otherwise reject. */
+function es2023LibViolations(): Violation[] {
+  const listed = Bun.spawnSync(['git', 'ls-files', '*tsconfig*.json'], { cwd: ROOT })
+  const violations: Violation[] = []
+  for (const file of listed.stdout.toString().split('\n').filter(Boolean)) {
+    const content = readFileSync(path.join(ROOT, file), 'utf8')
+    const lib = /"lib"\s*:\s*\[([^\]]*)\]/.exec(content)
+    const entries = lib?.[1]?.match(/"[^"]*"/g) ?? []
+    if (!entries.some((entry) => LIB_PAST_ES2022.test(entry.slice(1, -1)))) continue
+    const line = content.slice(0, lib?.index).split('\n').length
+    violations.push({
+      file,
+      line,
+      description:
+        '"lib" past ES2022 lets ES2023 array methods (toSorted, with, …) type-check; they throw on Safari/iOS 15 and SWC does not polyfill them',
+      suggestion: '"lib" at ES2022, and a copy in code: [...arr].sort(), [...arr].reverse()',
+      snippet: (content.split('\n')[line - 1] ?? '').trim(),
+    })
+  }
+  return violations
+}
+
 async function main() {
   const allFiles: string[] = []
   for (const dir of SCAN_DIRS) {
@@ -298,6 +328,8 @@ async function main() {
       })
     }
   }
+
+  violations.push(...es2023LibViolations())
 
   if (violations.length === 0) {
     console.log('✓ No banned patterns found.')
