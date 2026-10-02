@@ -415,10 +415,14 @@ describe('retiring dormant Search embeddings', () => {
     await sql`CREATE TRIGGER bound_document_update AFTER UPDATE ON document
       REFERENCING NEW TABLE AS changed_rows FOR EACH STATEMENT EXECUTE FUNCTION bound_document_update()`
     /**
-     * On a table this small the planner may answer any page with a sequential scan, which reads
-     * every row whatever the window; production pages use the primary key, so the test does too.
+     * On a table this small the planner may answer any page with a sequential or bitmap scan, which
+     * reads every remaining row whatever the window, and which one it picks depends on whether
+     * autovacuum has analyzed the fresh rows. Production pages walk the primary key, so the test
+     * analyzes the table and pins that plan.
      */
+    await sql`ANALYZE document`
     await sql`SET enable_seqscan = off`
+    await sql`SET enable_bitmapscan = off`
     /** Document rows read by any scan, counted across committed and rolled-back pages alike. */
     async function documentReads() {
       await sql`SELECT pg_stat_force_next_flush()`
@@ -446,6 +450,7 @@ describe('retiring dormant Search embeddings', () => {
       ).toBe(0)
     } finally {
       await sql`RESET enable_seqscan`
+      await sql`RESET enable_bitmapscan`
       await sql`DROP TRIGGER IF EXISTS bound_document_update ON document`
       await sql`DROP FUNCTION bound_document_update()`
     }
