@@ -8,9 +8,9 @@
  * convention.
  *
  * ES2023 array methods (`toSorted`, `with`, …) throw on Safari/iOS 15, and SWC does not polyfill
- * them. Every tsconfig keeps `lib` at ES2022 so `tsc` rejects them at each call site, telling
- * `Array.prototype.with` apart from OpenTelemetry's `context.with` by type; this script fails
- * if a tsconfig raises `lib` past that, which is how they shipped once (#5340).
+ * them. Every tsconfig keeps `lib` at or below ES2022 so `tsc` rejects them at each call site,
+ * telling `Array.prototype.with` apart from OpenTelemetry's `context.with` by type; this script
+ * fails if a tsconfig raises `lib` past that, which is how they shipped once (#5340).
  *
  * Biome's noRestrictedImports covers the import-based bans it lists — today `nanoid` and
  * `uuid`. It does NOT cover named crypto imports; `import { randomBytes } from 'node:crypto'`
