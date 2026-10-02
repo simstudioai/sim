@@ -294,6 +294,49 @@ function auditFile(file: string, source: string): Violation[] {
   return violations
 }
 
+/** A `persist(` middleware call; `.persist(` (an instance method) is excluded. */
+const PERSIST_CALL_PATTERN = /(?<![.\w$])persist\s*(?:<[^()]*?>)?\s*\(/g
+
+/**
+ * `.claude/rules/sim-stores.md`: every `persist` names its durable fields in `partialize`.
+ * Without one, zustand writes the whole state — transient flags, drag state, `_hasHydrated` —
+ * to storage and rehydrates it on the next load.
+ */
+function auditPersist(file: string, source: string): Violation[] {
+  if (!/import\s*\{[^}]*\bpersist\b[^}]*\}\s*from\s*'zustand\/middleware'/.test(source)) return []
+  const violations: Violation[] = []
+  PERSIST_CALL_PATTERN.lastIndex = 0
+  for (
+    let match = PERSIST_CALL_PATTERN.exec(source);
+    match;
+    match = PERSIST_CALL_PATTERN.exec(source)
+  ) {
+    if (hasSafeAnnotation(source, match.index)) continue
+    const openParenIndex = match.index + match[0].length - 1
+    const closeParenIndex = findMatchingParen(source, openParenIndex)
+    if (closeParenIndex === -1) continue
+    const call = source.slice(openParenIndex + 1, closeParenIndex)
+    const hasPartialize = /\bpartialize\b/.test(call)
+    const spreadsState = /\bpartialize\s*:\s*\(?\s*(\w+)[^)]*\)?\s*=>\s*\(\s*\{\s*\.\.\.\1\b/.test(
+      call
+    )
+    if (hasPartialize && !spreadsState) continue
+    violations.push({
+      file,
+      line: lineNumberAt(source, match.index),
+      description: spreadsState
+        ? 'persist partialize spreads the whole state; return an explicit whitelist of durable fields'
+        : 'persist has no partialize; add `partialize: (state) => ({ <durable fields> })` (sim-stores.md)',
+      snippet: oneLineSnippet(
+        source,
+        match.index,
+        Math.min(closeParenIndex + 1, match.index + 180)
+      ),
+    })
+  }
+  return violations
+}
+
 function returnsPrimitiveDerivedValue(selector: string): boolean {
   return (
     /\bObject\.(?:keys|values|entries)\s*\([^)]*\)\s*\.\s*(?:length|some|every)\b/.test(selector) ||
@@ -351,16 +394,17 @@ async function main() {
     const source = await readFile(file, 'utf8')
     const relativeFile = path.relative(ROOT, file)
     violations.push(...auditFile(relativeFile, source))
+    violations.push(...auditPersist(relativeFile, source))
   }
 
   if (violations.length === 0) {
-    console.log('✅ Zustand v5 selector audit OK')
+    console.log('✅ Zustand store audit OK (selectors, persist partialize)')
     return
   }
 
-  console.error('❌ Zustand v5 selector hazards found:')
+  console.error('❌ Zustand store hazards found:')
   console.error(
-    `Add useShallow/useStoreWithEqualityFn, split into primitive selectors, or document intentional exceptions with // ${SAFE_ANNOTATION} <reason>.`
+    `Fix each as described, or document an intentional exception with // ${SAFE_ANNOTATION} <reason>.`
   )
   for (const violation of violations) {
     console.error(
