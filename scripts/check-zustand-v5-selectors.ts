@@ -294,8 +294,9 @@ function auditFile(file: string, source: string): Violation[] {
   return violations
 }
 
-/** A `persist(` middleware call; `.persist(` (an instance method) is excluded. */
-const PERSIST_CALL_PATTERN = /(?<![.\w$])persist\s*(?:<[^()]*?>)?\s*\(/g
+/** The local name `persist` is imported under from `zustand/middleware`, including an alias. */
+const PERSIST_IMPORT =
+  /import\s*\{[^}]*\bpersist\b(?:\s+as\s+(\w+))?[^}]*\}\s*from\s*'zustand\/middleware'/
 
 /**
  * `.claude/rules/sim-stores.md`: every `persist` names its durable fields in `partialize`.
@@ -303,14 +304,13 @@ const PERSIST_CALL_PATTERN = /(?<![.\w$])persist\s*(?:<[^()]*?>)?\s*\(/g
  * to storage and rehydrates it on the next load.
  */
 function auditPersist(file: string, source: string): Violation[] {
-  if (!/import\s*\{[^}]*\bpersist\b[^}]*\}\s*from\s*'zustand\/middleware'/.test(source)) return []
+  const persistImport = PERSIST_IMPORT.exec(source)
+  if (!persistImport) return []
+  const local = persistImport[1] ?? 'persist'
+  /** A call of the imported middleware; `.persist(` (an instance method) is excluded. */
+  const persistCall = new RegExp(`(?<![.\\w$])${local}\\s*(?:<[^()]*?>)?\\s*\\(`, 'g')
   const violations: Violation[] = []
-  PERSIST_CALL_PATTERN.lastIndex = 0
-  for (
-    let match = PERSIST_CALL_PATTERN.exec(source);
-    match;
-    match = PERSIST_CALL_PATTERN.exec(source)
-  ) {
+  for (let match = persistCall.exec(source); match; match = persistCall.exec(source)) {
     if (hasSafeAnnotation(source, match.index)) continue
     const openParenIndex = match.index + match[0].length - 1
     const closeParenIndex = findMatchingParen(source, openParenIndex)

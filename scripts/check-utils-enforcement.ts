@@ -109,7 +109,7 @@ const BANNED_PATTERNS: Array<{
   },
   {
     pattern:
-      /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*\w*\s*,\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==?\s*undefined\s*\)\s*,?\s*\)/g,
+      /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*\w*\s*,\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==\s*undefined\s*\)\s*,?\s*\)/g,
     description: 'Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))',
     suggestion: 'filterUndefined(obj) from @sim/utils/object',
     prefilter: FROM_ENTRIES,
