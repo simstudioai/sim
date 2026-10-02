@@ -6,6 +6,7 @@ import {
   knowledgeConnector,
   mcpServers,
   permissions,
+  project,
   resourcePolicy,
   user,
   workspace,
@@ -97,6 +98,7 @@ describe('Search source identity and concurrent creation', () => {
     await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await deleteWorkspaceFixture(db, eq(workspace.id, other.workspaceId))
     for (const id of [ids.aliceId, ids.bobId, other.aliceId, other.bobId]) {
+      await db.delete(project).where(eq(project.ownerId, id))
       await db.delete(user).where(eq(user.id, id))
     }
   })
