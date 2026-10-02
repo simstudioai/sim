@@ -205,6 +205,23 @@ describe('content-aware files read augmentation', () => {
     }
   )
 
+  it('forwards --offset 0 to the text API instead of refusing it', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      ...file,
+      name: 'notes.txt',
+      type: 'text/plain',
+    })
+    mocks.request.mockResolvedValue(textResponse('notes.txt'))
+    const result = await runEngine('files read', ['uploads/notes.txt'], runtime, {
+      offset: '0',
+      limit: '2',
+    })
+    expect(result.exitCode).toBe(0)
+    expect(mocks.request).toHaveBeenCalledWith(`/api/v2/files/${fileId}/text`, {
+      query: { workspaceId, offset: '0', limit: '2' },
+    })
+  })
+
   it('rejects incompatible flags and invalid byte/line bounds before lookup', async () => {
     for (const flags of [
       { render: true, limit: '2' } as const,
