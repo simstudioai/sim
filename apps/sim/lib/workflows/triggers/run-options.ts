@@ -301,7 +301,7 @@ export function resolveTriggerRunOptions(
     return []
   }
 
-  // Single overall default (no edges => one best); ties broken by trigger priority.
+  // Single overall default; ties broken by trigger priority.
   const defaultBlockId = selectBestTrigger(candidates)[0]?.blockId
 
   return candidates.map((candidate) =>
