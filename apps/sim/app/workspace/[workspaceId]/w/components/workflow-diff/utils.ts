@@ -375,7 +375,6 @@ export function listBlockChanges(
     target: Pick<WorkflowState, 'loops' | 'parallels'>
   }
 ): BlockChangeEntry[] {
-  const blocks = { ...baseBlocks, ...targetBlocks }
   const modified = new Map<string, BlockChangeEntry>()
   for (const block of summary.modifiedBlocks) {
     modified.set(block.id, {
@@ -395,8 +394,8 @@ export function listBlockChanges(
     if (!entry) {
       entry = {
         id,
-        type: blocks[id]?.type ?? 'unknown',
-        name: blockName(blocks, id),
+        type: targetBlocks[id]?.type ?? 'unknown',
+        name: blockName(targetBlocks, id),
         status: 'modified',
         changes: [],
         children: [],
@@ -414,8 +413,8 @@ export function listBlockChanges(
     if (before === after) continue
     const entry = ensureModified(id)
     entry.moved = {
-      ...(after ? { into: blockName(blocks, after) } : {}),
-      ...(before ? { outOf: blockName(blocks, before) } : {}),
+      ...(after ? { into: blockName(targetBlocks, after) } : {}),
+      ...(before ? { outOf: blockName(baseBlocks, before) } : {}),
     }
   }
 
@@ -430,13 +429,13 @@ export function listBlockChanges(
         .map((change) => ({ ...change, scope: 'container' as const })),
     ]
     if (container.nodesAdded.length || container.nodesRemoved.length) {
-      const row = (id: string): MembershipRow => ({
-        name: blockName(blocks, id),
+      const row = (id: string, side: Record<string, BlockState>): MembershipRow => ({
+        name: blockName(side, id),
         moved: Boolean(baseBlocks[id] && targetBlocks[id]),
       })
       entry.membership = {
-        added: container.nodesAdded.map(row),
-        removed: container.nodesRemoved.map(row),
+        added: container.nodesAdded.map((id) => row(id, targetBlocks)),
+        removed: container.nodesRemoved.map((id) => row(id, baseBlocks)),
       }
     }
   }
@@ -486,7 +485,7 @@ export function listBlockChanges(
       if (isContainerType(entry.type)) {
         const survivors = (children.get(entry.id) ?? []).filter((id) => !sameStatus.has(id))
         if (survivors.length) {
-          const rows = survivors.map((id) => ({ name: blockName(blocks, id), moved: true }))
+          const rows = survivors.map((id) => ({ name: blockName(side, id), moved: true }))
           entry.membership = {
             added: status === 'added' ? rows : [],
             removed: status === 'removed' ? rows : [],

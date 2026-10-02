@@ -1,8 +1,12 @@
 /**
  * @vitest-environment node
  */
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WorkflowDiffSummary } from '@/lib/workflows/comparison'
+import { generateWorkflowDiffSummary, type WorkflowDiffSummary } from '@/lib/workflows/comparison'
 import {
   classifyChange,
   listBlockChanges,
@@ -238,6 +242,61 @@ describe('listOneSidedFields', () => {
 })
 
 describe('listBlockChanges', () => {
+  it("uses each version's names for moved members and added or removed containers", () => {
+    const baseBlocks = {
+      source: block('source', { type: 'loop', name: 'Original source' }),
+      destination: block('destination', { type: 'parallel', name: 'Original destination' }),
+      mover: block('mover', { name: 'Original member', data: { parentId: 'source' } }),
+      removedWrapper: block('removedWrapper', { type: 'loop', name: 'Removed wrapper' }),
+      survivor: block('survivor', {
+        name: 'Original survivor',
+        data: { parentId: 'removedWrapper' },
+      }),
+    }
+    const targetBlocks = {
+      source: block('source', { type: 'loop', name: 'Renamed source' }),
+      destination: block('destination', { type: 'parallel', name: 'Renamed destination' }),
+      mover: block('mover', { name: 'Renamed member', data: { parentId: 'destination' } }),
+      addedWrapper: block('addedWrapper', { type: 'parallel', name: 'Added wrapper' }),
+      survivor: block('survivor', { name: 'Renamed survivor', data: { parentId: 'addedWrapper' } }),
+    }
+    const base: WorkflowState = {
+      blocks: baseBlocks,
+      edges: [],
+      loops: generateLoopBlocks(baseBlocks),
+      parallels: generateParallelBlocks(baseBlocks),
+    }
+    const target: WorkflowState = {
+      blocks: targetBlocks,
+      edges: [],
+      loops: generateLoopBlocks(targetBlocks),
+      parallels: generateParallelBlocks(targetBlocks),
+    }
+    const entries = listBlockChanges(
+      generateWorkflowDiffSummary(target, base),
+      baseBlocks,
+      targetBlocks,
+      { base, target }
+    )
+    const byId = new Map(entries.map((entry) => [entry.id, entry]))
+    expect(byId.get('mover')?.moved).toEqual({
+      outOf: 'Original source',
+      into: 'Renamed destination',
+    })
+    expect(byId.get('source')?.membership?.removed).toEqual([
+      { name: 'Original member', moved: true },
+    ])
+    expect(byId.get('destination')?.membership?.added).toEqual([
+      { name: 'Renamed member', moved: true },
+    ])
+    expect(byId.get('removedWrapper')?.membership?.removed).toEqual([
+      { name: 'Original survivor', moved: true },
+    ])
+    expect(byId.get('addedWrapper')?.membership?.added).toEqual([
+      { name: 'Renamed survivor', moved: true },
+    ])
+  })
+
   it('orders modified, added, removed and nests children under an added or removed container', () => {
     const baseBlocks = {
       keep: block('keep', { subBlocks: { code: { id: 'code', type: 'code', value: 'a' } } }),
