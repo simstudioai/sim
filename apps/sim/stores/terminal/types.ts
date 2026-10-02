@@ -1,12 +1,4 @@
 /**
- * Display mode type for terminal output.
- *
- * @remarks
- * Currently unused but kept for future customization of terminal rendering.
- */
-// export type DisplayMode = 'raw' | 'prettier'
-
-/**
  * Terminal state persisted across workspace sessions.
  */
 export interface TerminalState {
