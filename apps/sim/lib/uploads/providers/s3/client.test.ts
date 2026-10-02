@@ -7,7 +7,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockSend,
-  mockS3Client,
   mockS3ClientConstructor,
   mockPutObjectCommand,
   mockGetObjectCommand,

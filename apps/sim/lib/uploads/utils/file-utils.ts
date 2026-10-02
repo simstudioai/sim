@@ -10,14 +10,6 @@ import {
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
-interface FileAttachment {
-  id: string
-  key: string
-  filename: string
-  media_type: string
-  size: number
-}
-
 export interface MessageContent {
   type: 'text' | 'image' | 'document' | 'audio' | 'video'
   text?: string
