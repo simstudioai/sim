@@ -36,7 +36,10 @@ interface Finding {
   ref: string
 }
 
-/** Every tracked or untracked-but-not-ignored file, relative to the repo root. */
+/**
+ * Every tracked or untracked-but-not-ignored file on disk, relative to the repo root. A file
+ * deleted from the working tree but still in the index is dropped.
+ */
 function repoFiles(): string[] {
   return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
     cwd: ROOT,
@@ -44,7 +47,7 @@ function repoFiles(): string[] {
     maxBuffer: 1 << 28,
   })
     .split('\n')
-    .filter(Boolean)
+    .filter((rel) => rel && existsSync(path.join(ROOT, rel)))
 }
 
 /** Every guidance document, deduplicated through symlinks (`AGENTS.md` -> `CLAUDE.md`). */
@@ -67,7 +70,8 @@ function guidanceFiles(files: string[]): string[] {
 
 interface WorkspacePackage {
   dir: string
-  exports: string[]
+  /** The `exports` map, or null when the package declares none. */
+  exports: Record<string, unknown> | null
 }
 
 interface Workspaces {
@@ -105,9 +109,7 @@ function readWorkspaces(files: string[]): Workspaces {
     for (const name of names) workspaces.scripts.add(name)
     if (dir && typeof manifest.name === 'string') {
       const exports =
-        manifest.exports && typeof manifest.exports === 'object'
-          ? Object.keys(manifest.exports)
-          : []
+        manifest.exports && typeof manifest.exports === 'object' ? manifest.exports : null
       workspaces.packages.set(manifest.name, { dir: path.join(ROOT, dir), exports })
     }
   }
@@ -158,15 +160,28 @@ function importResolves(spec: string, packages: Map<string, WorkspacePackage>): 
   const [scope, name, ...rest] = clean.split('/')
   const pkg = packages.get(`${scope}/${name}`)
   if (!pkg) return false
-  if (rest.length === 0) return true
-  const subpath = `./${rest.join('/')}`
-  if (pkg.exports.length === 0) return resolvesFrom(pkg.dir, rest.join('/'))
-  return pkg.exports.some((key) => {
-    if (key === subpath) return true
-    if (!key.includes('*')) return false
+  if (!pkg.exports) return rest.length === 0 || resolvesFrom(pkg.dir, rest.join('/'))
+  const subpath = rest.length === 0 ? '.' : `./${rest.join('/')}`
+  return Object.entries(pkg.exports).some(([key, value]) => {
     const [head, tail] = key.split('*')
-    return subpath.startsWith(head) && subpath.endsWith(tail)
+    if (tail === undefined) return key === subpath
+    if (!subpath.startsWith(head) || !subpath.endsWith(tail)) return false
+    // A wildcard export only proves the pattern; the file it maps to must also exist.
+    const target = exportTarget(value)
+    const matched = subpath.slice(head.length, subpath.length - tail.length)
+    return target !== null && resolvesFrom(pkg.dir, target.replace('*', matched))
   })
+}
+
+/** The first file path an export condition map points at. */
+function exportTarget(value: unknown): string | null {
+  if (typeof value === 'string') return value
+  if (!value || typeof value !== 'object') return null
+  for (const nested of Object.values(value)) {
+    const target = exportTarget(nested)
+    if (target) return target
+  }
+  return null
 }
 
 function skillExists(name: string): boolean {

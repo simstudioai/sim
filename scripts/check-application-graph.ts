@@ -284,13 +284,19 @@ export function findViolations({ root, forbidden }: GuardedRoot): GraphViolation
 }
 
 /**
- * Whether any path under `apps/sim` starts with `prefix`. A prefix that matches nothing guards
- * nothing: the tree was renamed, and the audit would keep passing over it.
+ * Whether `prefix` names a directory or an importable module under `apps/sim`. A prefix that
+ * matches nothing guards nothing: the tree was renamed, and the audit would keep passing over it.
+ * A test file left behind does not count, because no runtime import resolves to it.
  */
 function prefixMatchesAnything(prefix: string): boolean {
   if (prefix.endsWith('/')) return existsSync(resolve(APP_ROOT, prefix))
   const dir = resolve(APP_ROOT, dirname(prefix))
-  return existsSync(dir) && readdirSync(dir).some((entry) => entry.startsWith(basename(prefix)))
+  if (!existsSync(dir)) return false
+  return readdirSync(dir, { withFileTypes: true }).some(
+    (entry) =>
+      entry.name.startsWith(basename(prefix)) &&
+      (entry.isDirectory() || /(?<!\.test)\.tsx?$/.test(entry.name))
+  )
 }
 
 function main(): void {
