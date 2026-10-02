@@ -203,7 +203,7 @@ async function readCountedKnowledgeBaseRows(
   /**
    * A lateral aggregate, so each base is counted through its own `knowledge_base_id` index and
    * never through a bitmap of every tenant's documents sharing the `ws` token. An aggregate always
-   * yields one row, so an empty base stays at zero, and the limit stops counting past the page.
+   * yields one row, so an empty base stays at zero.
    */
   const totals = db
     .select({

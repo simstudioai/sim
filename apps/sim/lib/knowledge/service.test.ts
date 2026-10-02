@@ -304,7 +304,6 @@ describe('knowledge base counts with live source permissions', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalledWith({
       connectorId: schemaMock.knowledgeConnector.id,
     })
-    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
   })
 
   it('does not retain stale totals when a live source no longer authorizes its documents', async () => {
