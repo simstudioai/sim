@@ -18,7 +18,7 @@ vi.mock('@/executor/utils/credential-token', () => ({
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 
 const { mockGetCredentialActorContext } = credentialsAccessMockFns
-const { mockGetServiceAccountToken, mockRefreshTokenIfNeeded } = authOAuthUtilsMockFns
+const { mockGetServiceAccountToken } = authOAuthUtilsMockFns
 
 function actorContext(workspaceId: string) {
   return {

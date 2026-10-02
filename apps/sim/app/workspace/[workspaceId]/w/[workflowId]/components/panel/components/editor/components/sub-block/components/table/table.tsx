@@ -161,7 +161,6 @@ function TableCell({
 
   const baseTagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
     cellKey,
-    cellValue,
     (newValue) => updateCellValue(rowIndex, column, newValue)
   )
   const tagSelectHandler = (tag: string) => {
@@ -171,7 +170,6 @@ function TableCell({
 
   const baseEnvVarSelectHandler = inputController.fieldHelpers.createEnvVarSelectHandler(
     cellKey,
-    cellValue,
     (newValue) => updateCellValue(rowIndex, column, newValue)
   )
   const envVarSelectHandler = (envVar: string) => {

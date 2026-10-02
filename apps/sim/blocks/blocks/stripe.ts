@@ -1,7 +1,6 @@
 import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { StripeResponse } from '@/tools/stripe/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -10,7 +9,7 @@ import { getTrigger } from '@/triggers'
  */
 const CAPTURE_AMOUNT_FIELD = ['amount_to_capture', 'amount'] as const
 
-export const StripeBlock: BlockConfig<StripeResponse> = {
+export const StripeBlock: BlockConfig = {
   type: 'stripe',
   name: 'Stripe',
   description: 'Process payments and manage Stripe data',

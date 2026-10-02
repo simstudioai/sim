@@ -38,7 +38,6 @@ import { FileParserError } from '@/lib/file-parsers/errors'
 
 const {
   mockVerifyFileAccess,
-  mockVerifyWorkspaceFileAccess,
   mockPdfParseBuffer,
   mockCreateReadStream,
   mockFsAccess,
@@ -56,7 +55,6 @@ const {
   const actualPath = require('path') as typeof import('path')
   return {
     mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
-    mockVerifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
     mockPdfParseBuffer: vi.fn().mockResolvedValue({
       content: 'parsed PDF content',
       metadata: { pageCount: 1 },

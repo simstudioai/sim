@@ -2,7 +2,6 @@ import { SpotifyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { ToolResponse } from '@/tools/types'
 
 /**
  * Canonical basic/advanced pair for the playlist cover art, shared by the card
@@ -18,7 +17,7 @@ const COVER_IMAGE_FIELD = ['coverImageFile', 'coverImageRef'] as const
  */
 const PLAYBACK_TARGET_FIELD = ['context_uri', 'playUris'] as const
 
-export const SpotifyBlock: BlockConfig<ToolResponse> = {
+export const SpotifyBlock: BlockConfig = {
   type: 'spotify',
   name: 'Spotify',
   description: 'Search music, manage playlists, control playback, and access your library',

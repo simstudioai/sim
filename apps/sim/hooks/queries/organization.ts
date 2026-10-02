@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   queryOptions,
@@ -45,7 +44,6 @@ import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-const logger = createLogger('OrganizationQueries')
 const invitationListsKey = ['invitations', 'list'] as const
 
 export const ORGANIZATION_ROSTER_STALE_TIME = 30 * 1000

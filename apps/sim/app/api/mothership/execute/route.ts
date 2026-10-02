@@ -158,12 +158,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       chatId,
       messageId: providedMessageId,
       requestId: providedRequestId,
-      fileAttachments,
       contexts,
       mcpTools,
       workflowId,
       executionId,
-      userMetadata,
       secretScope,
       mountedSecrets,
     } = validation.data.body

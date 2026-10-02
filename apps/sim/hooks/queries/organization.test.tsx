@@ -39,8 +39,7 @@ import {
 } from '@/hooks/queries/organization'
 import { shouldRetryOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 
-const { getFullOrganization: mockGetFullOrganization, setActive: mockSetActiveOrganization } =
-  authClientMockFns.mockClient.organization
+const { getFullOrganization: mockGetFullOrganization } = authClientMockFns.mockClient.organization
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 

@@ -20,7 +20,6 @@ const logger = createLogger('ConnectionBlocks')
 
 interface ConnectionBlocksProps {
   connections: ConnectedBlock[]
-  currentBlockId: string
 }
 
 interface FieldTreeNodesProps {
@@ -160,7 +159,7 @@ function ConnectionItem({
 /**
  * Connection blocks component that displays incoming connections with their schemas
  */
-export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBlocksProps) {
+export function ConnectionBlocks({ connections }: ConnectionBlocksProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(() => new Set())
   const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(() => new Set())
   const scrollContainerRef = useRef<HTMLDivElement>(null)

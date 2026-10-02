@@ -28,7 +28,6 @@ export const readWorkspaceContext = defineAuthorizedChatUseCase({
   }),
   async resolveContext({
     principal,
-    input,
   }: {
     principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
     input: { workspaceId: string }

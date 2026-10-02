@@ -597,10 +597,10 @@ export class DAGExecutor {
       const isRegularBlock = this.workflow.blocks.some((b) => b.id === startBlockId)
 
       if (isRegularBlock) {
-        this.initializeStarterBlock(context, state, startBlockId)
+        this.initializeStarterBlock(state, startBlockId)
       }
     } else {
-      this.initializeStarterBlock(context, state, triggerBlockId)
+      this.initializeStarterBlock(state, triggerBlockId)
     }
 
     return { context, state }
@@ -640,11 +640,7 @@ export class DAGExecutor {
     return parentMap
   }
 
-  private initializeStarterBlock(
-    context: ExecutionContext,
-    state: ExecutionState,
-    triggerBlockId?: string
-  ): void {
+  private initializeStarterBlock(state: ExecutionState, triggerBlockId?: string): void {
     let startResolution: ReturnType<typeof resolveExecutorStartBlock> | null = null
 
     if (triggerBlockId) {

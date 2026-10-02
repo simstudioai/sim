@@ -432,8 +432,7 @@ const WorkflowContent = React.memo(
       }))
     )
 
-    const { handleRunFromBlock, handleRunUntilBlock, handleRunWorkflow, handleCancelExecution } =
-      useWorkflowExecution()
+    const { handleRunFromBlock, handleRunUntilBlock } = useWorkflowExecution()
 
     const snapToGridSize = useSnapToGridSize()
     const snapToGrid = snapToGridSize > 0

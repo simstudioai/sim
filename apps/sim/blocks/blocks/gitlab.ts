@@ -1,7 +1,6 @@
 import { GitLabIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { GitLabResponse } from '@/tools/gitlab/types'
 import {
   coerceGitLabAccessLevel,
   GITLAB_ACCESS_LEVEL_OPTIONS,
@@ -130,7 +129,7 @@ function parseTriState(raw: unknown): boolean | undefined {
   return undefined
 }
 
-export const GitLabBlock: BlockConfig<GitLabResponse> = {
+export const GitLabBlock: BlockConfig = {
   type: 'gitlab',
   name: 'GitLab',
   description: 'Interact with GitLab projects, issues, merge requests, and pipelines',

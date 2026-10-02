@@ -1,9 +1,8 @@
 import { ElasticsearchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ElasticsearchResponse } from '@/tools/elasticsearch/types'
 
-export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
+export const ElasticsearchBlock: BlockConfig = {
   type: 'elasticsearch',
   name: 'Elasticsearch',
   description: 'Search, index, and manage data in Elasticsearch',

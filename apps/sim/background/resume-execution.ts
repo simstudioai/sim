@@ -269,7 +269,7 @@ function throwIfResumeAttemptTimedOut(
     return
   }
 
-  throw new ExecutionTimeoutError(getTimeoutErrorMessage(null, timeoutController.timeoutMs))
+  throw new ExecutionTimeoutError(getTimeoutErrorMessage(timeoutController.timeoutMs))
 }
 
 type CellWriters = {

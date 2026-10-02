@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { act, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   apiClientRequestMock,
@@ -9,7 +9,6 @@ import {
 import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { dehydrate, hydrate, QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -79,26 +78,18 @@ const discovery = {
 describe('workspace access hydration', () => {
   let server: QueryClient
   let client: QueryClient
-  let root: Root | undefined
-  let container: HTMLDivElement
 
   beforeEach(() => {
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace' })
     mocks.policy.mockResolvedValue(policy)
     mocks.discovery.mockResolvedValue(discovery)
     mockRequestJson.mockImplementation(() => new Promise(() => {}))
     server = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    container = document.createElement('div')
-    document.body.appendChild(container)
   })
   afterEach(() => {
-    if (root) act(() => root?.unmount())
-    root = undefined
     server.clear()
     client.clear()
-    container.remove()
   })
   async function prefetch() {
     await prefetchWorkspaceAccess(server, 'workspace', principal)
@@ -112,10 +103,6 @@ describe('workspace access hydration', () => {
         </PermissionAccessBoundary>
       </QueryClientProvider>
     )
-  }
-  function render() {
-    root = createRoot(container)
-    act(() => root?.render(tree()))
   }
   function restrict() {
     mocks.policy.mockResolvedValue({ ...policy, config: { ...policy.config, hideCopilot: true } })

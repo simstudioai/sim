@@ -99,11 +99,6 @@ const driveTrigger = trigger([
   { id: 'manualFolderId', mode: 'trigger-advanced', canonicalParamId: 'folderId', required: false },
 ])
 
-const tableTrigger = trigger([
-  { id: 'tableSelector', mode: 'trigger', canonicalParamId: 'tableId', required: true },
-  { id: 'manualTableId', mode: 'trigger-advanced', canonicalParamId: 'tableId', required: true },
-])
-
 const slackTrigger = trigger([
   { id: 'eventType', mode: 'trigger', required: true },
   {

@@ -7,7 +7,7 @@ import {
   workflowAuthzMockFns,
 } from '@sim/testing'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
@@ -88,7 +88,6 @@ import {
 
 const mockRecordAudit = auditMockFns.mockRecordAudit
 
-const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 const mockLoadWorkflowDeploymentSnapshot =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentSnapshot
 const mockSaveWorkflowToNormalizedTables =

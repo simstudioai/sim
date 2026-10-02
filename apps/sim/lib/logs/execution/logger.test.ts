@@ -22,7 +22,6 @@ import {
   billingUsageMonitorMock,
   billingUsageMonitorMockFns,
 } from '@sim/testing/mocks/billing-usage-monitor.mock'
-import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { isPlainRecord } from '@sim/utils/object'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -83,8 +82,6 @@ billingSubscriptionMockFns.mockGetHighestPrioritySubscription.mockImplementation
 )
 
 afterAll(resetDbChainMock)
-
-const mockLogger = getMockLogger('ExecutionLogger')
 
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
@@ -925,11 +922,6 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(recorded.recordedIncrement).toBe(0)
     expect(recordUsage).not.toHaveBeenCalled()
   })
-
-  const unbilledErrorCalls = () =>
-    mockLogger.error.mock.calls.filter((call) =>
-      String(call[0]).includes('Failed to record execution usage to usage_log ledger')
-    )
 
   test('retry with everything already billed records nothing (idempotent)', async () => {
     await run(

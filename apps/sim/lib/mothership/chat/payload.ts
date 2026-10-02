@@ -311,12 +311,7 @@ async function buildIntegrationToolSchemasUncached({
 /**
  * Build the request payload for the copilot backend.
  */
-export async function buildCopilotRequestPayload(
-  params: BuildPayloadParams,
-  options: {
-    selectedModel: string
-  }
-): Promise<ChatRequest> {
+export async function buildCopilotRequestPayload(params: BuildPayloadParams): Promise<ChatRequest> {
   const { message, workflowId, userId, userMessageId, mode, contexts, fileAttachments, chatId } =
     params
   const effectiveMode = mode === 'agent' ? 'build' : mode

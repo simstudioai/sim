@@ -1,9 +1,8 @@
 import { KetchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { KetchResponse } from '@/tools/ketch/types'
 
-export const KetchBlock: BlockConfig<KetchResponse> = {
+export const KetchBlock: BlockConfig = {
   type: 'ketch',
   name: 'Ketch',
   description: 'Manage privacy consent, subscriptions, and data subject rights',

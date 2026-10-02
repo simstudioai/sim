@@ -1470,7 +1470,6 @@ function buildBarChartOption(
 }
 
 function buildLineChartOption(
-  chartTypeNode: SafeXmlNode,
   chartNode: SafeXmlNode,
   seriesArr: SeriesData[],
   ctx: RenderContext,
@@ -2166,7 +2165,7 @@ function buildStockChartOption(
             seriesArr[2].values[i] ?? 0,
           ]),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          renderItem: (params: any, api: any) => {
+          renderItem: (_params: any, api: any) => {
             const xValue = api.value(0)
             const high = api.value(1)
             const low = api.value(2)
@@ -2460,24 +2459,6 @@ function parseChartStyleId(chartXml: SafeXmlNode): number | undefined {
     if (v !== undefined) return v
   }
   return undefined
-}
-
-function clamp01(v: number): number {
-  if (v < 0) return 0
-  if (v > 1) return 1
-  return v
-}
-
-function tintHex(hex: string, amount: number): string {
-  const normalized = hex.startsWith('#') ? hex.slice(1) : hex
-  if (normalized.length !== 6) return hex.startsWith('#') ? hex : `#${hex}`
-  const r = Number.parseInt(normalized.slice(0, 2), 16)
-  const g = Number.parseInt(normalized.slice(2, 4), 16)
-  const b = Number.parseInt(normalized.slice(4, 6), 16)
-  if ([r, g, b].some((n) => Number.isNaN(n))) return hex.startsWith('#') ? hex : `#${hex}`
-  const a = clamp01(amount)
-  const mix = (c: number) => Math.round(c + (255 - c) * a)
-  return `#${[mix(r), mix(g), mix(b)].map((n) => n.toString(16).padStart(2, '0')).join('')}`
 }
 
 /**
@@ -2811,30 +2792,6 @@ function extractChartDefaultFontSize(chartSpaceNode: SafeXmlNode): number | unde
   return undefined
 }
 
-/**
- * Estimate legend width as a percentage of chart width based on legend text length and font size.
- * Used to reserve grid space when legend is at right or left (non-overlay).
- */
-function estimateLegendWidthPct(
-  legendInfo: LegendInfo | undefined,
-  legendNames: string[],
-  baseFontSize: number
-): string {
-  if (!legendInfo || legendInfo.overlay) return '2%'
-  const opt = legendInfo.option as Record<string, unknown> | undefined
-  if (!opt) return '2%'
-  const isRight = opt.right !== undefined && opt.top !== undefined && opt.bottom === undefined
-  const isLeft = opt.left !== undefined && opt.top !== undefined && opt.bottom === undefined
-  if (!isRight && !isLeft) return '2%'
-  // Estimate based on longest label + icon + padding
-  const maxLen = Math.max(1, ...legendNames.map((n) => n.length))
-  // Approximate: each char ≈ 0.6 * fontSize, plus icon (≈ fontSize) and padding (≈ fontSize)
-  const estimatedPx = maxLen * baseFontSize * 0.6 + baseFontSize * 3
-  // Convert to percentage of typical chart width (assume ~600px as base)
-  const pct = Math.min(40, Math.max(15, Math.round((estimatedPx / 600) * 100)))
-  return `${pct}%`
-}
-
 function createLegendIcon(
   icon: string | undefined,
   color: string,
@@ -3041,11 +2998,11 @@ function buildOptionForChartType(
       return buildBarChartOption(chartTypeNode, chartNode, seriesArr, ctx)
     case 'lineChart':
     case 'line3DChart':
-      return buildLineChartOption(chartTypeNode, chartNode, seriesArr, ctx, false)
+      return buildLineChartOption(chartNode, seriesArr, ctx, false)
     case 'areaChart':
     case 'area3DChart':
     case 'surface3DChart':
-      return buildLineChartOption(chartTypeNode, chartNode, seriesArr, ctx, true)
+      return buildLineChartOption(chartNode, seriesArr, ctx, true)
     case 'pieChart':
     case 'pie3DChart':
       return buildPieChartOption(chartTypeNode, chartNode, seriesArr, false, ctx)

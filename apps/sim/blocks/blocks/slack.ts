@@ -18,7 +18,6 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { SlackResponse } from '@/tools/slack/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -51,8 +50,6 @@ const SLACK_V2_CUSTOM_BOT_OPERATIONS = [
   ...SLACK_V2_LIST_OPERATIONS,
 ] as const
 
-const SLACK_V2_SESSION_OPERATIONS = ['set_agent_session_status', 'rename_agent_session'] as const
-
 const CHANNEL_FIELD = ['channel', 'manualChannel'] as const
 
 /**
@@ -72,7 +69,7 @@ const MESSAGE_BODY_FIELD = ['text', 'blocks'] as const
  */
 const SLACK_TRIGGER_CHANNEL_FIELD = ['channelFilter', 'manualChannelFilter'] as const
 
-export const SlackBlock: BlockConfig<SlackResponse> = {
+export const SlackBlock: BlockConfig = {
   type: 'slack',
   name: 'Slack',
   description:
@@ -1963,7 +1960,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           renameChannelName,
           conversationTopic,
           conversationPurpose,
-          ...rest
         } = params
 
         const isDM = destinationType === 'dm'
@@ -3501,7 +3497,7 @@ const {
  * Slack actions and triggers with reusable credentials. App-scoped operations use
  * custom bots with the required scopes.
  */
-export const SlackV2Block: BlockConfig<SlackResponse> = {
+export const SlackV2Block: BlockConfig = {
   ...SlackBlock,
   type: 'slack_v2',
   description: 'Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions',

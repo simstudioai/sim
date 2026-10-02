@@ -148,26 +148,23 @@ export const organizationSearchChat: OperationUseCase<
     try {
       controller.signal.throwIfAborted()
       running = true
-      const payload = await buildCopilotRequestPayload(
-        {
-          message: query,
-          userMessageId: messageId,
+      const payload = await buildCopilotRequestPayload({
+        message: query,
+        userMessageId: messageId,
+        userId,
+        organizationId,
+        chatId,
+        mode: 'assistant',
+        model: '',
+        assistantSearch: filters,
+        workspaceContext: await loadCopilotSearchIntegrations({
           userId,
           organizationId,
           chatId,
-          mode: 'assistant',
-          model: '',
-          assistantSearch: filters,
-          workspaceContext: await loadCopilotSearchIntegrations({
-            userId,
-            organizationId,
-            chatId,
-            messageId,
-            signal: controller.signal,
-          }),
-        },
-        { selectedModel: '' }
-      )
+          messageId,
+          signal: controller.signal,
+        }),
+      })
       const result = await runHeadlessCopilotLifecycle(payload, {
         userId,
         organizationId,

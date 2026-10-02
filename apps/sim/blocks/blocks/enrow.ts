@@ -1,8 +1,7 @@
 import { EnrowIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { EnrowResponse } from '@/tools/enrow/types'
 
-export const EnrowBlock: BlockConfig<EnrowResponse> = {
+export const EnrowBlock: BlockConfig = {
   type: 'enrow',
   name: 'Enrow',
   description: 'Find and verify B2B emails with triple-verified accuracy',

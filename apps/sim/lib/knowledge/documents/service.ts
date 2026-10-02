@@ -1616,7 +1616,7 @@ export async function processDocumentAsync(
     fileSize: number
     mimeType: string
   },
-  processingOptions: ProcessingOptions = {},
+  _processingOptions: ProcessingOptions = {},
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
   indexingPassId?: string,
   attemptContext?: DocumentProcessingAttemptContext
@@ -2592,7 +2592,7 @@ export async function createDocumentRecords(
       tx,
       trackedBindings
     )
-    for (const [documentIndex, docData] of resolvedDocuments.entries()) {
+    for (const docData of resolvedDocuments) {
       const currentSize = getServerKnownDocumentSize(
         docData.fileUrl,
         docData.fileSize,

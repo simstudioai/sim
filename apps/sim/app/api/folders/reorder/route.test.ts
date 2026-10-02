@@ -4,18 +4,6 @@
 import { authMockFns, createMockRequest, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  },
-}))
-
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)

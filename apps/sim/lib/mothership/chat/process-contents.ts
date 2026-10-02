@@ -976,7 +976,7 @@ async function resolveTableResource(
         input: { tableId, workspaceId, viewId: selectedViewId },
       })
     : undefined
-  const { table } = await readTableUseCase.execute({
+  await readTableUseCase.execute({
     principal,
     input: { tableId, workspaceId },
   })

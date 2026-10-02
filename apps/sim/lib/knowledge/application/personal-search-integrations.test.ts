@@ -80,12 +80,6 @@ const mockGetConnectorAccessAvailability =
 
 const principal = createSessionPrincipal({ userId: 'person', sessionId: 'session' })
 const input = { organizationId: 'org' }
-const target = {
-  type: 'link',
-  provider: 'google-email',
-  connectorType: 'gmail',
-  connectorId: 'source',
-} as const
 const source = {
   connectorType: 'gmail',
   connectorId: 'source',

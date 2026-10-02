@@ -116,7 +116,7 @@ async function resolveTriggerExecution(params: {
     )
   }
   const merged = mergeSubblockStateWithValues(state.blocks)
-  const options = resolveTriggerRunOptions(merged, state.edges)
+  const options = resolveTriggerRunOptions(merged)
   if (options.length === 0) {
     throw new OrchestrationError(
       'validation',

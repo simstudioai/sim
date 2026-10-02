@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { JiraResponse } from '@/tools/jira/types'
 import { getTrigger } from '@/triggers'
 
 /** Canonical `issueKey` pair: issue picker (basic) and raw issue key (advanced). */
@@ -13,7 +12,7 @@ const PROJECT_FIELD = ['projectId', 'manualProjectId'] as const
 /** Canonical `files` pair: upload (basic) and file reference (advanced). */
 const ATTACHMENT_FIELD = ['attachmentFiles', 'files'] as const
 
-export const JiraBlock: BlockConfig<JiraResponse> = {
+export const JiraBlock: BlockConfig = {
   type: 'jira',
   name: 'Jira',
   description: 'Interact with Jira',
@@ -963,7 +962,7 @@ Return ONLY the comment text - no explanations.`,
         }
       },
       params: (params) => {
-        const { oauthCredential, projectId, issueKey, ...rest } = params
+        const { oauthCredential, projectId, issueKey } = params
 
         // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
         const effectiveProjectId = projectId ? String(projectId).trim() : ''

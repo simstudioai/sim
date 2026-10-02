@@ -265,8 +265,7 @@ describe('handleUnifiedChatPost', () => {
         expect(response.status).toBe(enabled ? 200 : 400)
         if (enabled)
           expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-            expect.objectContaining({ mode: 'plan' }),
-            expect.anything()
+            expect.objectContaining({ mode: 'plan' })
           )
         else expect(buildCopilotRequestPayload).not.toHaveBeenCalled()
       } finally {
@@ -385,8 +384,7 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({ organizationId: 'org-1', mode: 'agent' })
     )
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: 'org-1', mode: 'agent' }),
-      expect.anything()
+      expect.objectContaining({ organizationId: 'org-1', mode: 'agent' })
     )
     expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
@@ -439,8 +437,7 @@ describe('handleUnifiedChatPost', () => {
       organizationId: 'org-1',
     })
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: 'org-1', mode: 'assistant', contexts: [] }),
-      expect.anything()
+      expect.objectContaining({ organizationId: 'org-1', mode: 'assistant', contexts: [] })
     )
     expect(createSSEStream).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -502,8 +499,7 @@ describe('handleUnifiedChatPost', () => {
               source: { type: 'base64', media_type: 'image/png', data: 'aW1hZ2U=' },
             },
           ],
-        }),
-        expect.anything()
+        })
       )
       expect(admitTurn).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -717,8 +713,7 @@ describe('handleUnifiedChatPost', () => {
             },
           ],
         }),
-      }),
-      expect.anything()
+      })
     )
     expect(createSSEStream).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -765,7 +760,7 @@ describe('handleUnifiedChatPost', () => {
   it.each([
     ['agent', 'assistant'],
     ['assistant', 'agent'],
-  ] as const)('keeps the same chat when switching from %s to %s', async (previousMode, mode) => {
+  ] as const)('keeps the same chat when switching from %s to %s', async (_previousMode, mode) => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
     getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     listPersonal.mockResolvedValue({ credentials: [{ id: 'mine', providerId: 'google-drive' }] })
@@ -840,8 +835,7 @@ describe('handleUnifiedChatPost', () => {
         expect.objectContaining({
           effort: expected,
           modelSelection: { model: 'gpt-6-astra', fastMode: false },
-        }),
-        expect.anything()
+        })
       )
     }
   )
@@ -871,8 +865,7 @@ describe('handleUnifiedChatPost', () => {
         userId: 'user-1',
         workflowId: 'wf-1',
         workspaceId: 'ws-1',
-      }),
-      { selectedModel: 'claude-opus-4-8' }
+      })
     )
     const workflowParams = buildCopilotRequestPayload.mock.calls[0]![0] as Record<string, unknown>
     expect(workflowParams).not.toHaveProperty('workspaceContext')
@@ -941,8 +934,7 @@ describe('handleUnifiedChatPost', () => {
         modelSelection: { model: 'gpt-6-astra', fastMode: true },
         userId: 'user-1',
         workspaceId: 'ws-1',
-      }),
-      { selectedModel: '' }
+      })
     )
     const workspaceParams = buildCopilotRequestPayload.mock.calls[0]![0] as Record<string, unknown>
     expect(workspaceParams.workspaceContext).toBeUndefined()
@@ -1021,8 +1013,7 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({
         terminalCapable: true,
         terminals,
-      }),
-      { selectedModel: '' }
+      })
     )
   })
 
@@ -1264,8 +1255,7 @@ describe('handleUnifiedChatPost', () => {
 
     expect(response.status).toBe(200)
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] }),
-      { selectedModel: '' }
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] })
     )
     // The tools ride the tool array every turn, so re-expanding the listing for
     // an inherited server would only duplicate what the model already sees.
@@ -1298,8 +1288,7 @@ describe('handleUnifiedChatPost', () => {
 
     expect(response.status).toBe(200)
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ mcpServerIds: ['mcp-server-1', 'mcp-server-2'] }),
-      { selectedModel: '' }
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1', 'mcp-server-2'] })
     )
   })
 

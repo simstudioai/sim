@@ -3,12 +3,11 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { WordPressResponse } from '@/tools/wordpress/types'
 
 /** The media file to upload, whichever mode the user is in. */
 const MEDIA_FILE_FIELD = ['fileUpload', 'file'] as const
 
-export const WordPressBlock: BlockConfig<WordPressResponse> = {
+export const WordPressBlock: BlockConfig = {
   type: 'wordpress',
   name: 'WordPress',
   description: 'Manage WordPress content',

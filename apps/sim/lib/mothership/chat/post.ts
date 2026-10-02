@@ -450,7 +450,6 @@ type UnifiedChatBranch =
         assistantImages?: AssistantImageContent[]
         userPermission?: string
         userTimezone?: string
-        userMetadata?: { name?: string; email?: string; timezone?: string }
         assistantSearchLevel?: AssistantSearchLevel
         assistantFast?: boolean
         assistantSearch?: WorkspaceSearchFilters
@@ -756,16 +755,13 @@ async function resolveBranch(params: {
       titleModel: DEFAULT_MODEL,
       notifyChatStatus: true,
       buildPayload: async (payloadParams) =>
-        buildCopilotRequestPayload(
-          {
-            ...payloadParams,
-            principal,
-            organizationId,
-            mode,
-            model: '',
-          },
-          { selectedModel: '' }
-        ),
+        buildCopilotRequestPayload({
+          ...payloadParams,
+          principal,
+          organizationId,
+          mode,
+          model: '',
+        }),
       buildExecutionContext: async ({ userId, chatId, userTimezone, messageId }) =>
         buildInitialExecutionContext({
           userId,
@@ -807,41 +803,38 @@ async function resolveBranch(params: {
       titleProvider: provider,
       notifyChatStatus: false,
       buildPayload: async (payloadParams) =>
-        buildCopilotRequestPayload(
-          {
-            message: payloadParams.message,
-            workflowId: payloadParams.workflowId,
-            workflowName: payloadParams.workflowName,
-            workspaceId: payloadParams.workspaceId,
-            userId: payloadParams.userId,
-            principal,
-            userMessageId: payloadParams.userMessageId,
-            mode: payloadParams.mode ?? 'agent',
-            model: selectedModel,
-            provider: payloadParams.provider,
-            contexts: payloadParams.contexts,
-            assistantSearch: payloadParams.assistantSearch,
-            assistantFast: payloadParams.assistantFast,
-            assistantSearchLevel: payloadParams.assistantSearchLevel,
-            mcpServerIds: payloadParams.mcpServerIds,
-            fileAttachments: payloadParams.fileAttachments,
-            commands: payloadParams.commands,
-            chatId: payloadParams.chatId,
-            prefetch: payloadParams.prefetch,
-            implicitFeedback: payloadParams.implicitFeedback,
-            userPermission: payloadParams.userPermission,
-            userTimezone: payloadParams.userTimezone,
-            effort: payloadParams.effort,
-            modelSelection: payloadParams.modelSelection,
-            desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
-            desktopLocalFiles: payloadParams.desktopLocalFiles,
-            browser: payloadParams.browser,
-            terminalCapable: payloadParams.terminalCapable,
-            terminals: payloadParams.terminals,
-            browserSessions: payloadParams.browserSessions,
-          },
-          { selectedModel }
-        ),
+        buildCopilotRequestPayload({
+          message: payloadParams.message,
+          workflowId: payloadParams.workflowId,
+          workflowName: payloadParams.workflowName,
+          workspaceId: payloadParams.workspaceId,
+          userId: payloadParams.userId,
+          principal,
+          userMessageId: payloadParams.userMessageId,
+          mode: payloadParams.mode ?? 'agent',
+          model: selectedModel,
+          provider: payloadParams.provider,
+          contexts: payloadParams.contexts,
+          assistantSearch: payloadParams.assistantSearch,
+          assistantFast: payloadParams.assistantFast,
+          assistantSearchLevel: payloadParams.assistantSearchLevel,
+          mcpServerIds: payloadParams.mcpServerIds,
+          fileAttachments: payloadParams.fileAttachments,
+          commands: payloadParams.commands,
+          chatId: payloadParams.chatId,
+          prefetch: payloadParams.prefetch,
+          implicitFeedback: payloadParams.implicitFeedback,
+          userPermission: payloadParams.userPermission,
+          userTimezone: payloadParams.userTimezone,
+          effort: payloadParams.effort,
+          modelSelection: payloadParams.modelSelection,
+          desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+          desktopLocalFiles: payloadParams.desktopLocalFiles,
+          browser: payloadParams.browser,
+          terminalCapable: payloadParams.terminalCapable,
+          terminals: payloadParams.terminals,
+          browserSessions: payloadParams.browserSessions,
+        }),
       buildExecutionContext: async ({ userId, chatId, userTimezone, messageId }) =>
         buildInitialExecutionContext({
           userId,
@@ -878,36 +871,33 @@ async function resolveBranch(params: {
     titleModel: DEFAULT_MODEL,
     notifyChatStatus: true,
     buildPayload: async (payloadParams) =>
-      buildCopilotRequestPayload(
-        {
-          message: payloadParams.message,
-          workspaceId: requestedWorkspaceId,
-          userId: payloadParams.userId,
-          principal,
-          userMessageId: payloadParams.userMessageId,
-          mode: mode ?? 'agent',
-          model: '',
-          contexts: payloadParams.contexts,
-          workspaceContext: payloadParams.workspaceContext,
-          assistantSearch: payloadParams.assistantSearch,
-          assistantFast: payloadParams.assistantFast,
-          assistantSearchLevel: payloadParams.assistantSearchLevel,
-          mcpServerIds: payloadParams.mcpServerIds,
-          fileAttachments: payloadParams.fileAttachments,
-          chatId: payloadParams.chatId,
-          userPermission: payloadParams.userPermission,
-          userTimezone: payloadParams.userTimezone,
-          effort: payloadParams.effort,
-          modelSelection: payloadParams.modelSelection,
-          desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
-          desktopLocalFiles: payloadParams.desktopLocalFiles,
-          browser: payloadParams.browser,
-          terminalCapable: payloadParams.terminalCapable,
-          terminals: payloadParams.terminals,
-          browserSessions: payloadParams.browserSessions,
-        },
-        { selectedModel: '' }
-      ),
+      buildCopilotRequestPayload({
+        message: payloadParams.message,
+        workspaceId: requestedWorkspaceId,
+        userId: payloadParams.userId,
+        principal,
+        userMessageId: payloadParams.userMessageId,
+        mode: mode ?? 'agent',
+        model: '',
+        contexts: payloadParams.contexts,
+        workspaceContext: payloadParams.workspaceContext,
+        assistantSearch: payloadParams.assistantSearch,
+        assistantFast: payloadParams.assistantFast,
+        assistantSearchLevel: payloadParams.assistantSearchLevel,
+        mcpServerIds: payloadParams.mcpServerIds,
+        fileAttachments: payloadParams.fileAttachments,
+        chatId: payloadParams.chatId,
+        userPermission: payloadParams.userPermission,
+        userTimezone: payloadParams.userTimezone,
+        effort: payloadParams.effort,
+        modelSelection: payloadParams.modelSelection,
+        desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+        desktopLocalFiles: payloadParams.desktopLocalFiles,
+        browser: payloadParams.browser,
+        terminalCapable: payloadParams.terminalCapable,
+        terminals: payloadParams.terminals,
+        browserSessions: payloadParams.browserSessions,
+      }),
     buildExecutionContext: async ({ userId, chatId, userTimezone, messageId }) =>
       buildInitialExecutionContext({
         userId,
@@ -990,7 +980,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       return createUnauthorizedResponse()
     }
     const authenticatedUserId = session.user.id
-    const authenticatedUserName = session.user.name
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
@@ -1015,11 +1004,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       )
     }
 
-    const userMetadata = {
-      ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
-      ...(authenticatedUserEmail ? { email: authenticatedUserEmail } : {}),
-      ...(body.userTimezone ? { timezone: body.userTimezone } : {}),
-    }
     const normalizedContexts =
       body.mode === 'assistant' ? [] : (normalizeContexts(body.contexts) ?? [])
     userMessageId = body.userMessageId || generateId()

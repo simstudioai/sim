@@ -14,11 +14,6 @@ export interface ApiSuccessResponse {
   [key: string]: any
 }
 
-interface ApiErrorResponse {
-  error: string
-  message?: string
-}
-
 export interface FileResponse {
   buffer: Buffer
   contentType: string

@@ -1738,7 +1738,7 @@ function requireSnapshotForElementAction(): void {
   )
 }
 
-function pageTargetForElement(contents: WebContents, elementId: number): PageExecutionTarget {
+function pageTargetForElement(elementId: number): PageExecutionTarget {
   requireSnapshotForElementAction()
   const target = driverScopeState().snapshotTargets.get(elementId)
   if (!target || ('isDestroyed' in target && target.isDestroyed())) {
@@ -2351,7 +2351,7 @@ async function captureSnapshot(
   if (tab.view.webContents !== contents) {
     throw new ToolError('The active tab changed before the snapshot started. Try again.')
   }
-  if (elementId !== undefined && pageTargetForElement(contents, elementId) !== contents) {
+  if (elementId !== undefined && pageTargetForElement(elementId) !== contents) {
     throw new ToolError(
       'Scoped snapshots require a top-page element. Omit elementId to capture framed content.'
     )
@@ -2745,7 +2745,7 @@ async function executeToolInner(
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const paths = uploadPaths(params)
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       assertCurrentExecution()
       const frame = 'getURL' in target ? target.mainFrame : target
       const expression = `(${String(resolveFileInputTarget)})(${elementId})`
@@ -2816,8 +2816,7 @@ async function executeToolInner(
       }
       const waitedTab = session.requireAutomationTab()
       const contents = waitedTab.view.webContents
-      const elementTarget =
-        elementId === undefined ? undefined : pageTargetForElement(contents, elementId)
+      const elementTarget = elementId === undefined ? undefined : pageTargetForElement(elementId)
       if (elementTarget && elementTarget !== contents) {
         throw new ToolError(
           'Element-state waits are limited to the top page. Use a text or URL condition for framed content.'
@@ -2946,7 +2945,7 @@ async function executeToolInner(
       const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       if (elementId === undefined) return await readWholePageText(contents, executionDeadline)
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       return unwrapPageResult(
         await execInPage(target, readPageText, [elementId], false, executionDeadline)
       )
@@ -2961,7 +2960,7 @@ async function executeToolInner(
       const elementId = num(params, 'elementId')
       let elementClip: Record<string, unknown> | undefined
       if (elementId !== undefined) {
-        const target = pageTargetForElement(contents, elementId)
+        const target = pageTargetForElement(elementId)
         if (target !== contents) {
           throw new ToolError(
             'Element screenshots are limited to the top page. Use browser_screenshot without elementId for framed content.'
@@ -3119,7 +3118,7 @@ async function executeToolInner(
       const contents = clickedTab.view.webContents
       const elementId = requireNum(params, 'elementId')
       const click = pointerClick(params)
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       let trusted = false
       let activation = 'synthetic-pointer'
@@ -3596,7 +3595,7 @@ async function executeToolInner(
       let stoppedIndex = 0
       let dispatchStarted = false
       const readField = async (field: FormField) => {
-        const target = pageTargetForElement(contents, field.elementId)
+        const target = pageTargetForElement(field.elementId)
         if (target !== contents)
           throw new ToolError(
             'Form batches require top-page fields; use individual tools for framed fields.'
@@ -3757,7 +3756,7 @@ async function executeToolInner(
       if (typeof text !== 'string') throw new ToolError('Missing required parameter "text"')
       const submit = params.submit === true
       const contents = session.requireAutomationTab().view.webContents
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
 
       // Native path: focus + select current content, then insert through the
@@ -4307,9 +4306,7 @@ async function executeToolInner(
       const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       const target =
-        elementId !== undefined
-          ? pageTargetForElement(contents, elementId)
-          : focusedPageTarget(contents)
+        elementId !== undefined ? pageTargetForElement(elementId) : focusedPageTarget(contents)
       const targetFrame = frameExecutionTarget(target, contents)
       assertCurrentExecution()
       if (elementId !== undefined) assertElementActionCurrent(contents, elementId, target)
@@ -4355,7 +4352,7 @@ async function executeToolInner(
       const selection = values === undefined ? requireStr(params, 'value') : (values as string[])
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       assertCurrentExecution()
       assertElementActionCurrent(contents, elementId, target)
@@ -4434,8 +4431,7 @@ async function executeToolInner(
         throw new ToolError('Missing required boolean parameter "checked"')
       }
       const checked = params.checked
-      const contents = session.requireAutomationTab().view.webContents
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const before = toRecord(
         unwrapPageResult(
           await execInPage(target, readCheckableElementState, [elementId], false, executionDeadline)
@@ -4562,7 +4558,7 @@ async function executeToolInner(
         )
       }
       const elementId = requireNum(params, 'elementId')
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       let beforePage = await pageActionState(target, true, elementId)
       let beforeElement = await activeElementState(target)
@@ -4939,7 +4935,7 @@ async function executeToolInner(
       ): Promise<{ x: number; y: number; element?: string }> => {
         const elementId = num(params, `${which}ElementId`)
         if (elementId !== undefined) {
-          const target = pageTargetForElement(contents, elementId)
+          const target = pageTargetForElement(elementId)
           if (frameExecutionTarget(target, contents)) {
             throw new ToolError(
               `Dragging elements inside embedded frames is not supported. Use ${which}X/${which}Y viewport coordinates instead.`

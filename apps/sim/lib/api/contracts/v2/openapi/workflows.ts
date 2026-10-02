@@ -140,9 +140,6 @@ const WORKFLOW_VERSION_EXAMPLE = {
 const WORKFLOW_DEPLOYMENT_VS_CHAT =
   '`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.'
 
-const CHAT_VS_WORKFLOW_DEPLOYMENT =
-  '`/workflows/{workflowId}/deployment` controls API execution; this singleton path controls hosted chat. `PUT` creates or replaces it without a chat-id path.'
-
 const CHAT_DEPLOYMENT_EXAMPLE = {
   id: 'chat_01J8ZK3QW4M6X2R9T7B5C0V2',
   workflowId: WORKFLOW_ID,

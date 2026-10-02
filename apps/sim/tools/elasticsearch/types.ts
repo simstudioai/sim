@@ -80,27 +80,7 @@ export interface ElasticsearchGetIndexParams extends ElasticsearchBaseParams {
   index: string
 }
 
-interface ElasticsearchIndexExistsParams extends ElasticsearchBaseParams {
-  index: string
-}
-
-interface ElasticsearchRefreshIndexParams extends ElasticsearchBaseParams {
-  index: string
-}
-
-interface ElasticsearchIndexStatsParams extends ElasticsearchBaseParams {
-  index: string
-}
-
 // Mapping Operations
-interface ElasticsearchPutMappingParams extends ElasticsearchBaseParams {
-  index: string
-  mappings: string // JSON string
-}
-
-interface ElasticsearchGetMappingParams extends ElasticsearchBaseParams {
-  index: string
-}
 
 // Cluster Operations
 export interface ElasticsearchClusterHealthParams extends ElasticsearchBaseParams {

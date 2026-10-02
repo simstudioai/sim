@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -14,7 +13,7 @@ import { getTrigger } from '@/triggers'
 const TEAM_FIELD = ['teamId', 'manualTeamId'] as const
 const PROJECT_FIELD = ['projectId', 'manualProjectId'] as const
 
-export const LinearBlock: BlockConfig<LinearResponse> = {
+export const LinearBlock: BlockConfig = {
   type: 'linear',
   name: 'Linear (Legacy)',
   description: 'Interact with Linear issues, projects, and more',
@@ -2752,7 +2751,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
  * Uses automatic webhook registration via the Linear GraphQL API.
  * Inherits all tool operations from the legacy block.
  */
-export const LinearV2Block: BlockConfig<LinearResponse> = {
+export const LinearV2Block: BlockConfig = {
   ...LinearBlock,
   sunset: undefined,
   type: 'linear_v2',

@@ -13,11 +13,10 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
-import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
-const mockWorkflowCreated = getMockPlatformEvent('workflowCreated')
 
 vi.mock('@sim/audit', () => auditMock)
 

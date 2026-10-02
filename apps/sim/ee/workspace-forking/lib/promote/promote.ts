@@ -869,7 +869,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
           edge,
           sourceWorkspaceId,
           targetWorkspaceId,
-          direction,
           userId,
           now,
           selection: copySelection,

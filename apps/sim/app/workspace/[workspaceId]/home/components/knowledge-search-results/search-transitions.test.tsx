@@ -173,23 +173,6 @@ async function render({
   })
 }
 
-async function click(label: string) {
-  await act(async () => {
-    const trigger = container.querySelector<HTMLButtonElement>(
-      'button[aria-label^="Filter by source:"]'
-    )!
-    trigger.focus()
-    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-    await vi.advanceTimersByTimeAsync(1)
-    const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-      (element) => element.textContent === label
-    )
-    if (!item) throw new Error(`Missing source filter: ${label}`)
-    item.click()
-    await vi.advanceTimersByTimeAsync(1)
-  })
-}
-
 async function complete(
   index: number,
   { title = 'Release plan', partial = false, empty = false, count = 1 } = {}

@@ -105,15 +105,11 @@ describe('retrieval leg budgets', () => {
 })
 
 describe('many-base tag and keyword legs rank globally', () => {
-  const knowledgeBaseIds = ['kb-1', 'kb-2', 'kb-3', 'kb-4', 'kb-5']
   const queryVector = {
     vector: '[1,0]',
     dimensions: 1536 as const,
     model: 'text-embedding-3-small',
   }
-  const tags: StructuredFilter[] = [
-    { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'release' },
-  ]
   const reader: UserAccessScope = {
     kind: 'user',
     userId: 'reader',

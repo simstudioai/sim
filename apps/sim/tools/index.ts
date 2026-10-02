@@ -883,7 +883,6 @@ async function processHostedKeyCost(
   tool: ToolDefinition,
   params: Record<string, unknown>,
   response: Record<string, unknown>,
-  executionContext: ExecutionContext | undefined,
   requestId: string
 ): Promise<HostedKeyCostResult> {
   if (!tool.hosting?.pricing) {
@@ -1000,7 +999,6 @@ async function applyHostedKeyCostToResult(
       tool,
       params,
       finalResult.output,
-      executionContext,
       requestId
     ))
   } catch (error) {

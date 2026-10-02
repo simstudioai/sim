@@ -356,7 +356,7 @@ async function finalizeExecutionOutcome(params: {
       await loggingSession.safeCompleteWithError({
         endedAt,
         totalDurationMs: totalDuration || 0,
-        error: { message: getTimeoutErrorMessage(null) },
+        error: { message: getTimeoutErrorMessage() },
         traceSpans: traceSpans || [],
         executionState: result.executionState,
       })

@@ -1,6 +1,5 @@
 import { LeadMagicIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { LeadMagicResponse } from '@/tools/leadmagic/types'
 
 /*
  * Mutually exclusive company identifiers, and the two email kinds a reverse
@@ -11,7 +10,7 @@ const FIND_EMAIL_COMPANY_FIELD = ['fe_domain', 'fe_company_name'] as const
 const ROLE_COMPANY_FIELD = ['rf_company_domain', 'rf_company_name'] as const
 const COMPANY_SEARCH_FIELD = ['cs_company_domain', 'cs_profile_url', 'cs_company_name'] as const
 
-export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
+export const LeadMagicBlock: BlockConfig = {
   type: 'leadmagic',
   name: 'LeadMagic',
   description: 'Find and enrich B2B contacts, emails, mobile numbers, and company data',

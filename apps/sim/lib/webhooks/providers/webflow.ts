@@ -22,16 +22,14 @@ const logger = createLogger('WebhookProvider:Webflow')
 export const webflowHandler: WebhookProviderHandler = {
   async createSubscription({
     webhook: webhookRecord,
-    workflow,
     userId,
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
       const config = getProviderConfig(webhookRecord)
-      const { siteId, triggerId, collectionId, formName, credentialId } = config as {
+      const { siteId, triggerId, formName, credentialId } = config as {
         siteId?: string
         triggerId?: string
-        collectionId?: string
         formName?: string
         credentialId?: string
       }
@@ -142,7 +140,6 @@ export const webflowHandler: WebhookProviderHandler = {
 
   async deleteSubscription({
     webhook: webhookRecord,
-    workflow,
     requestId,
     strict,
   }: DeleteSubscriptionContext): Promise<void> {

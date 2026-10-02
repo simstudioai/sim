@@ -7,10 +7,7 @@ import {
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
 import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
-import {
-  uploadsExecutionMock,
-  uploadsExecutionMockFns,
-} from '@sim/testing/mocks/uploads-execution.mock'
+import { uploadsExecutionMock } from '@sim/testing/mocks/uploads-execution.mock'
 import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,8 +41,6 @@ const { mockInterruptibleSleep } = utilsHelpersMockFns
 const { mockUploadCopilotFile } = uploadsCopilotMockFns
 
 executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(9000)
-
-const { mockUploadExecutionFile } = uploadsExecutionMockFns
 
 const falInput = {
   provider: 'falai' as const,

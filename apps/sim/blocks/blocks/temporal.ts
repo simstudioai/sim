@@ -1,7 +1,6 @@
 import { TemporalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { TemporalResponse } from '@/tools/temporal/types'
 
 /** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
 function toFiniteNumber(value: unknown): number | undefined {
@@ -63,7 +62,7 @@ Examples:
 
 Return ONLY valid JSON - no explanations, no extra text.`
 
-export const TemporalBlock: BlockConfig<TemporalResponse> = {
+export const TemporalBlock: BlockConfig = {
   type: 'temporal',
   name: 'Temporal',
   description: 'Start, signal, query, and manage Temporal workflow executions',

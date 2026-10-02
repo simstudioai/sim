@@ -290,7 +290,7 @@ function clientCancelledResponse(): NextResponse {
 
 function executionTimedOutResponse(timeoutMs?: number): NextResponse {
   return NextResponse.json(
-    { success: false, error: getTimeoutErrorMessage(null, timeoutMs) },
+    { success: false, error: getTimeoutErrorMessage(timeoutMs) },
     { status: 408 }
   )
 }
@@ -1498,7 +1498,7 @@ async function handleExecutePost(
         }
 
         if (result.status === 'cancelled' && didExecutionTimeOut() && timeoutController.timeoutMs) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           reqLogger.info('Non-SSE execution timed out', {
             timeoutMs: timeoutController.timeoutMs,
           })
@@ -1600,7 +1600,7 @@ async function handleExecutePost(
       } catch (error: unknown) {
         const executionTimedOut = didExecutionTimeOut(error)
         const errorMessage = executionTimedOut
-          ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+          ? getTimeoutErrorMessage(timeoutController.timeoutMs)
           : getErrorMessage(error, 'Unknown error')
 
         if (requestAbort.isRequestAborted() && !executionTimedOut) {
@@ -2296,7 +2296,7 @@ async function handleExecutePost(
 
           if (result.status === 'cancelled') {
             if (didExecutionTimeOut() && timeoutController.timeoutMs) {
-              const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+              const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
               reqLogger.info('Workflow execution timed out', {
                 timeoutMs: timeoutController.timeoutMs,
               })
@@ -2417,7 +2417,7 @@ async function handleExecutePost(
           await awaitBoundCopilotPostExecution()
           const isTimeout = didExecutionTimeOut(error)
           const errorMessage = isTimeout
-            ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+            ? getTimeoutErrorMessage(timeoutController.timeoutMs)
             : getErrorMessage(error, 'Unknown error')
 
           reqLogger.error(

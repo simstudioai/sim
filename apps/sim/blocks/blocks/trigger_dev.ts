@@ -1,7 +1,6 @@
 import { TriggerDevIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { TriggerDevResponse } from '@/tools/trigger_dev/types'
 
 const TASK_IDENTIFIER_OPERATIONS = ['trigger_dev_trigger_task', 'trigger_dev_batch_trigger_task']
 const RUN_ID_OPERATIONS = [
@@ -72,7 +71,7 @@ const CURSOR_PAGE_OPERATIONS = [
 const PAGE_BEFORE_OPERATIONS = ['trigger_dev_list_runs', 'trigger_dev_list_waitpoint_tokens']
 const NUMBERED_PAGE_OPERATIONS = ['trigger_dev_list_schedules', 'trigger_dev_list_queues']
 
-export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
+export const TriggerDevBlock: BlockConfig = {
   type: 'trigger_dev',
   name: 'Trigger.dev',
   description: 'Trigger tasks and manage runs and schedules',

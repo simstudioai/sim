@@ -52,8 +52,6 @@ const TYPE_OPTIONS: ComboboxOption[] = [
 /**
  * UI constants for consistent styling and sizing
  */
-const BADGE_HEIGHT = 20
-const BADGE_TEXT_SIZE = 13
 const ICON_SIZE = 13
 const HEADER_ICON_SIZE = 16
 const LINE_HEIGHT = 21

@@ -225,7 +225,6 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
       edge,
       sourceWorkspaceId: 'src-ws',
       targetWorkspaceId: 'target-ws',
-      direction: 'pull',
       userId: 'user-1',
       now: new Date(),
       selection: {

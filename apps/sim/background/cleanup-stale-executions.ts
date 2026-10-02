@@ -45,7 +45,7 @@ const logger = createLogger('CleanupStaleExecutions')
 const STALE_THRESHOLD_MS = getExecutionReservationTtlMs()
 const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
 const GENERIC_STALE_PROCESSING_ERROR = `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`
-const EXECUTION_DEADLINE_ERROR = getTimeoutErrorMessage(undefined)
+const EXECUTION_DEADLINE_ERROR = getTimeoutErrorMessage()
 /**
  * Table jobs run as detached workers with progress heartbeats, independently of workflow timeout
  * policy. Preserve their historical 90-minute task window plus five-minute cleanup grace.

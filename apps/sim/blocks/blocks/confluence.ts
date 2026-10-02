@@ -4,7 +4,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { ConfluenceResponse } from '@/tools/confluence/types'
 import { getTrigger } from '@/triggers'
 
 /** Canonical basic/advanced pair for the page target, shared by both versions. */
@@ -22,7 +21,7 @@ const SPACE_KEY_FIELD = ['spaceKeySelector', 'manualSpaceKey'] as const
 /** Canonical upload/reference pair for an attachment's file. V2 only. */
 const ATTACHMENT_FILE_FIELD = ['attachmentFileUpload', 'attachmentFileReference'] as const
 
-export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
+export const ConfluenceBlock: BlockConfig = {
   type: 'confluence',
   name: 'Confluence (Legacy)',
   description: 'Interact with Confluence',
@@ -426,7 +425,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   },
 }
 
-export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
+export const ConfluenceV2Block: BlockConfig = {
   ...ConfluenceBlock,
   sunset: undefined,
   type: 'confluence_v2',

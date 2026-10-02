@@ -102,7 +102,6 @@ export const attioHandler: WebhookProviderHandler = {
 
   async createSubscription({
     webhook: webhookRecord,
-    workflow,
     userId,
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
@@ -234,7 +233,6 @@ export const attioHandler: WebhookProviderHandler = {
 
   async deleteSubscription({
     webhook: webhookRecord,
-    workflow,
     requestId,
     strict,
   }: DeleteSubscriptionContext): Promise<void> {

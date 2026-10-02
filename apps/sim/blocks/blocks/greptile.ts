@@ -2,12 +2,11 @@ import { ClipboardList } from '@sim/emcn/icons'
 import { GreptileIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { GreptileResponse } from '@/tools/greptile/types'
 
 /** Shared by the two repository operations, which both take a branch. */
 const ON_BRANCH = { text: 'on branch', field: 'branch' } as const
 
-export const GreptileBlock: BlockConfig<GreptileResponse> = {
+export const GreptileBlock: BlockConfig = {
   type: 'greptile',
   name: 'Greptile',
   description: 'AI-powered codebase search and Q&A',

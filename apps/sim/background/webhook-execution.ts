@@ -238,7 +238,7 @@ async function processTriggerFileOutputs(
           normalizeWebhookAttachments(value),
           context
         )
-      } catch (error) {
+      } catch {
         processed[key] = []
       }
     } else if (outputDef?.type === 'file' && value) {
@@ -735,7 +735,7 @@ async function handleExecutionResult(
     ctx.timeoutController.isTimedOut() &&
     ctx.timeoutController.timeoutMs
   ) {
-    const timeoutErrorMessage = getTimeoutErrorMessage(null, ctx.timeoutController.timeoutMs)
+    const timeoutErrorMessage = getTimeoutErrorMessage(ctx.timeoutController.timeoutMs)
     logger.info(`[${ctx.requestId}] Webhook execution timed out`, {
       timeoutMs: ctx.timeoutController.timeoutMs,
     })

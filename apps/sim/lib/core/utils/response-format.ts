@@ -109,7 +109,7 @@ export function parseOutputContentSafely(output: any): any {
   if (typeof output.content === 'string') {
     try {
       return JSON.parse(output.content)
-    } catch (e) {
+    } catch {
       // Fallback to original structure if parsing fails
       return output
     }

@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
-import type { SQL } from 'drizzle-orm'
 import type postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEnterpriseSearchMigrationFixture } from '@/lib/knowledge/__integration__/migration-fixture'
@@ -23,9 +22,7 @@ const { mergeMirroredAcls, hideUnlistedDocuments } = await import(
   '@/lib/knowledge/connectors/mirrored-acls'
 )
 const { PgDialect } = await import('drizzle-orm/pg-core')
-const { knowledgeAccessCondition, knowledgeMetadataCandidateAccessCondition } = await import(
-  '@/lib/knowledge/access/predicate'
-)
+const { knowledgeAccessCondition } = await import('@/lib/knowledge/access/predicate')
 const { confluencePageAcl } = await import('@/lib/knowledge/access/confluence-permissions')
 
 /** Every table and index belongs to an isolated disposable schema. */
@@ -105,20 +102,6 @@ describe('knowledge ACLs in PostgreSQL', () => {
     const rows = await connection.unsafe(
       `SELECT document.id FROM document ${join ? 'JOIN embedding ON embedding.document_id = document.id' : ''}
        WHERE ${query.sql} AND document.id = $${values.length + 1}`,
-      [...values, documentId]
-    )
-    return rows.length > 0
-  }
-
-  /** Runs any predicate over one document, so two shapes can be compared row by row. */
-  async function admits(condition: SQL, documentId: string): Promise<boolean> {
-    const query = new PgDialect().sqlToQuery(condition)
-    const values = query.params.map((value: unknown) => {
-      if (typeof value === 'string' || typeof value === 'number') return value
-      throw new Error('The access predicate must bind scalar strings and numbers')
-    })
-    const rows = await connection.unsafe(
-      `SELECT document.id FROM document WHERE ${query.sql} AND document.id = $${values.length + 1}`,
       [...values, documentId]
     )
     return rows.length > 0

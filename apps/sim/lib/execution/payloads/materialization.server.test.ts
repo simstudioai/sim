@@ -134,7 +134,6 @@ describe('readUserFileContent', () => {
       'reader',
       undefined,
       'knowledge-base',
-      false,
       {
         knowledgeAccess: expect.objectContaining({
           get: expect.any(Function),
@@ -408,7 +407,6 @@ describe('readUserFileContent', () => {
         'reader',
         undefined,
         'workspace',
-        false,
         { knowledgeAccess: undefined }
       )
     }

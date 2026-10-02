@@ -169,13 +169,9 @@ export function useChatResourcePanel(
   const {
     activeResourceParam,
     activeResourceParamRef,
-    activeResourceState,
-    setActiveResourceUrl,
     isResourceCollapsed,
     setResourceCollapsed,
-    skipResourceTransition,
     setSkipResourceTransition,
-    resourceActivityIds,
     setResourceActivityIds,
     isResourceCollapsedRef,
     resourceCollapseOwnedByUserRef,

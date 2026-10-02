@@ -1,11 +1,10 @@
 import { TTSIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
-import type { TtsBlockResponse } from '@/tools/tts/types'
 
 /** Voice picker id, which differs by provider — first available wins. */
 const VOICE_FIELD = ['voice', 'voiceId'] as const
 
-export const TtsBlock: BlockConfig<TtsBlockResponse> = {
+export const TtsBlock: BlockConfig = {
   type: 'tts',
   name: 'Text-to-Speech',
   description: 'Convert text to speech using AI voices',
