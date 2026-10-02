@@ -77,11 +77,6 @@ interface MongoDBBaseResponse extends ToolResponse {
   error?: string
 }
 
-interface MongoDBQueryResponse extends MongoDBBaseResponse {}
-interface MongoDBInsertResponse extends MongoDBBaseResponse {}
-interface MongoDBUpdateResponse extends MongoDBBaseResponse {}
-interface MongoDBDeleteResponse extends MongoDBBaseResponse {}
-interface MongoDBExecuteResponse extends MongoDBBaseResponse {}
 export interface MongoDBResponse extends MongoDBBaseResponse {}
 
 export interface MongoDBIntrospectResponse extends ToolResponse {

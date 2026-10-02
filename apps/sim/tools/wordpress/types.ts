@@ -121,12 +121,6 @@ export interface WordPressListPostsResponse extends ToolResponse {
   }
 }
 
-interface WordPressSearchPostsParams extends WordPressBaseParams {
-  query: string
-  perPage?: number
-  page?: number
-}
-
 interface WordPressSearchPostsResponse extends ToolResponse {
   output: {
     posts: WordPressPost[]
@@ -340,10 +334,6 @@ export interface WordPressCreateCommentResponse extends ToolResponse {
   output: {
     comment: WordPressComment
   }
-}
-
-interface WordPressGetCommentParams extends WordPressBaseParams {
-  commentId: number
 }
 
 interface WordPressGetCommentResponse extends ToolResponse {

@@ -736,16 +736,6 @@ export interface StreamingExecution {
   onFullContent?: (content: string) => void | Promise<void>
 }
 
-interface BlockExecutor {
-  canExecute(block: SerializedBlock): boolean
-
-  execute(
-    block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
-  ): Promise<BlockOutput>
-}
-
 /**
  * Per-invocation identity for one run of one block.
  *
@@ -802,37 +792,4 @@ export interface BlockHandler {
     inputs: Record<string, any>,
     nodeMetadata: BlockNodeMetadata
   ) => Promise<BlockOutput | StreamingExecution>
-}
-
-interface Tool<P = any, O = Record<string, any>> {
-  id: string
-  name: string
-  description: string
-  version: string
-
-  params: {
-    [key: string]: {
-      type: string
-      required?: boolean
-      description?: string
-      default?: any
-    }
-  }
-
-  request?: {
-    url?: string | ((params: P) => string)
-    method?: string
-    headers?: (params: P) => Record<string, string>
-    body?: (params: P) => Record<string, any>
-  }
-
-  transformResponse?: (response: any) => Promise<{
-    success: boolean
-    output: O
-    error?: string
-  }>
-}
-
-interface ToolRegistry {
-  [key: string]: Tool
 }

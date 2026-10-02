@@ -719,7 +719,3 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     available: string[] // List of trigger IDs this block supports
   }
 }
-
-interface OutputConfig {
-  type: BlockOutput
-}

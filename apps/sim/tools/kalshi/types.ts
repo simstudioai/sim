@@ -250,18 +250,6 @@ export interface KalshiPagingInfo {
   cursor?: string | null
 }
 
-interface KalshiResponse<T> {
-  success: boolean
-  output: T & {
-    paging?: KalshiPagingInfo
-    metadata: {
-      operation: string
-      [key: string]: any
-    }
-    success: boolean
-  }
-}
-
 export interface KalshiMarket {
   ticker: string
   event_ticker: string
@@ -301,13 +289,6 @@ export interface KalshiEvent {
   markets?: KalshiMarket[]
   strike_date?: string
   status?: string
-}
-
-interface KalshiBalance {
-  /** In cents */
-  balance: number
-  /** In cents */
-  portfolio_value: number
 }
 
 export interface KalshiPosition {

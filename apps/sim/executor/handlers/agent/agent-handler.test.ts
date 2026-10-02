@@ -295,7 +295,7 @@ describe('AgentBlockHandler', () => {
         writable: true,
         configurable: true,
       })
-    } catch (e) {}
+    } catch {}
   })
 
   afterAll(() => {

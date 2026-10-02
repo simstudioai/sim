@@ -7,19 +7,6 @@ import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read
 const logger = createLogger('CopilotFilePreview')
 const MAX_PREVIEW_SOURCE_BYTES = 5 * 1024 * 1024
 
-type FilePreviewEdit = {
-  strategy?: string
-  search?: string
-  replaceAll?: boolean
-  mode?: string
-  occurrence?: number
-  before_anchor?: string
-  after_anchor?: string
-  anchor?: string
-  start_anchor?: string
-  end_anchor?: string
-}
-
 interface BuildFilePreviewTextOptions {
   operation: 'create' | 'append' | 'update' | 'patch'
   streamedContent: string

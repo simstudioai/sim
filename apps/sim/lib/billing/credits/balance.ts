@@ -87,11 +87,6 @@ export async function addCredits(
   }
 }
 
-interface DeductResult {
-  creditsUsed: number
-  overflow: number
-}
-
 async function atomicDeductUserCredits(userId: string, cost: number): Promise<number> {
   const costDecimal = toDecimal(cost)
   const costStr = toFixedString(costDecimal)

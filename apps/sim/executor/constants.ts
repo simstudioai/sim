@@ -287,12 +287,6 @@ export function buildResumeUiUrl(
 
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
 
-interface ConditionConfig {
-  id: string
-  label?: string
-  condition: string
-}
-
 export function isTriggerBlockType(blockType: string | undefined): boolean {
   return blockType !== undefined && (TRIGGER_BLOCK_TYPES as readonly string[]).includes(blockType)
 }

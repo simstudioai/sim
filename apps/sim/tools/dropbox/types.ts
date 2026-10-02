@@ -202,10 +202,6 @@ export interface DropboxSearchResponse extends ToolResponse {
   }
 }
 
-interface DropboxGetTemporaryLinkParams extends DropboxBaseParams {
-  path: string
-}
-
 interface DropboxGetTemporaryLinkResponse extends ToolResponse {
   output: {
     metadata?: DropboxFileMetadata

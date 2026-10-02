@@ -27,7 +27,7 @@ export async function sendDiscordMessage(
       label: 'Discord message response',
       signal,
     })
-  } catch (error) {
+  } catch {
     signal?.throwIfAborted()
     data = null
   }

@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-
-const logger = createLogger('FoldersStore')
 
 interface FolderState {
   expandedFolders: Set<string>

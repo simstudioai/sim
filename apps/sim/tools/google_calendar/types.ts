@@ -208,13 +208,6 @@ interface ListMetadata {
   timeZone: string
 }
 
-interface GoogleCalendarToolResponse extends ToolResponse {
-  output: {
-    content: string
-    metadata: EventMetadata | ListMetadata
-  }
-}
-
 export interface GoogleCalendarCreateResponse extends ToolResponse {
   output: {
     content: string
@@ -261,43 +254,6 @@ export interface GoogleCalendarRespondResponse extends ToolResponse {
   output: {
     content: string
     metadata: EventMetadata
-  }
-}
-
-interface GoogleCalendarEvent {
-  id: string
-  status: string
-  htmlLink: string
-  created: string
-  updated: string
-  summary: string
-  description?: string
-  location?: string
-  start: {
-    dateTime?: string
-    date?: string
-    timeZone?: string
-  }
-  end: {
-    dateTime?: string
-    date?: string
-    timeZone?: string
-  }
-  attendees?: CalendarAttendee[]
-  creator?: {
-    email: string
-    displayName?: string
-  }
-  organizer?: {
-    email: string
-    displayName?: string
-  }
-  reminders?: {
-    useDefault: boolean
-    overrides?: Array<{
-      method: string
-      minutes: number
-    }>
   }
 }
 

@@ -46,17 +46,6 @@ interface CopilotBlockState {
 }
 
 /**
- * Edge state for copilot (only semantic connection data)
- */
-interface CopilotEdge {
-  id: string
-  source: string
-  target: string
-  sourceHandle?: string
-  targetHandle?: string
-}
-
-/**
  * Export workflow state (includes positions but removes secrets)
  */
 export interface ExportWorkflowState {

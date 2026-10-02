@@ -31,12 +31,6 @@ export class FileAccessDeniedError extends Error {
   }
 }
 
-interface AuthorizationResult {
-  granted: boolean
-  reason: string
-  workspaceId?: string
-}
-
 type WorkspacePermission = 'read' | 'write' | 'admin'
 
 /**

@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { isUnsettledToolState } from '@/lib/mothership/chat/persisted-message'
 import {
@@ -39,8 +38,6 @@ import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-
-const logger = createLogger('StreamHelpers')
 
 export const FILE_SUBAGENT_ID = 'file'
 

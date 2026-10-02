@@ -392,7 +392,7 @@ export function trackPlatformEvent(
     })
     span.setStatus({ code: SpanStatusCode.OK })
     span.end()
-  } catch (error) {
+  } catch {
     // Silently fail
   }
 }

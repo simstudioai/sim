@@ -257,7 +257,7 @@ async function isDriveFileUnchanged(
       return { unchanged: false, currentModifiedTime }
     }
     return { unchanged: currentModifiedTime === lastModifiedTime, currentModifiedTime }
-  } catch (error) {
+  } catch {
     logger.warn(`[${requestId}] Drive modifiedTime check failed, proceeding with Sheets API`)
     return { unchanged: false }
   }

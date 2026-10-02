@@ -238,7 +238,7 @@ async function processTriggerFileOutputs(
           normalizeWebhookAttachments(value),
           context
         )
-      } catch (error) {
+      } catch {
         processed[key] = []
       }
     } else if (outputDef?.type === 'file' && value) {
