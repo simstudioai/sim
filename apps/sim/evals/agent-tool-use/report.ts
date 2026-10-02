@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { AgentToolUseResult, LiveScenarioSummary } from './types'
+import type { AgentToolUseResult, LiveScenarioSummary } from '@/evals/agent-tool-use/types'
 
 /** Machine-readable summary of one eval run. */
 export interface AgentToolUseEvalReport {

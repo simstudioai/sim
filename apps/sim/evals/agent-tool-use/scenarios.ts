@@ -1,4 +1,4 @@
-import type { AgentToolUseScenario, EvalToolDefinition } from './types'
+import type { AgentToolUseScenario, EvalToolDefinition } from '@/evals/agent-tool-use/types'
 
 const searchDocs: EvalToolDefinition = {
   name: 'search_docs',

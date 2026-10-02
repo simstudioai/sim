@@ -1,5 +1,5 @@
+import { createOpenAICompatLiveCompletion } from '@/evals/agent-tool-use/live'
 import type { OpenAICompatCreateCompletion } from '@/providers/openai-compat/streaming-tool-loop'
-import { createOpenAICompatLiveCompletion } from './live'
 
 /**
  * Provider registry for the model-comparison live suite.

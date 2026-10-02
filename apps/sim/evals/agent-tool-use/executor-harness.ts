@@ -4,16 +4,20 @@ import {
 } from '@sim/testing/factories/serialized-block.factory'
 import { providersMockFns } from '@sim/testing/mocks/providers.mock'
 import { vi } from 'vitest'
-import { DAGExecutor } from '@/executor/execution/executor'
-import { memoryService } from '@/executor/handlers/agent/memory'
-import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { type EvalRunMode, type ScoredToolCall, scoreExpectations } from './harness'
+import {
+  type EvalRunMode,
+  type ScoredToolCall,
+  scoreExpectations,
+} from '@/evals/agent-tool-use/harness'
 import type {
   AgentToolUseExpectations,
   AgentToolUseResult,
   EvalCategory,
   EvalToolInvocation,
-} from './types'
+} from '@/evals/agent-tool-use/types'
+import { DAGExecutor } from '@/executor/execution/executor'
+import { memoryService } from '@/executor/handlers/agent/memory'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 /**
  * Executor-level harness.

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { collectStream } from '@sim/testing/helpers/async'
 import { providersMock } from '@sim/testing/mocks/providers.mock'
@@ -6,16 +7,7 @@ import { toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { isRecordLike } from '@sim/utils/object'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import {
-  createOpenAICompatStreamingToolLoopStream,
-  type OpenAICompatCreateCompletion,
-} from '@/providers/openai-compat/streaming-tool-loop'
-import type { AgentStreamEvent } from '@/providers/stream-events'
-import type { StreamingToolLoopComplete } from '@/providers/streaming-tool-loop-shared'
-import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
-import type { ProviderToolConfig, TimeSegment } from '@/providers/types'
-import type { ToolResponse } from '@/tools/types'
-import { type JudgeRubric, judgeAnswer } from './judge'
+import { type JudgeRubric, judgeAnswer } from '@/evals/agent-tool-use/judge'
 import type {
   AgentToolUseExpectations,
   AgentToolUseResult,
@@ -25,7 +17,16 @@ import type {
   EvalToolInvocation,
   ScriptedModelTurn,
   ScriptedToolCall,
-} from './types'
+} from '@/evals/agent-tool-use/types'
+import {
+  createOpenAICompatStreamingToolLoopStream,
+  type OpenAICompatCreateCompletion,
+} from '@/providers/openai-compat/streaming-tool-loop'
+import type { AgentStreamEvent } from '@/providers/stream-events'
+import type { StreamingToolLoopComplete } from '@/providers/streaming-tool-loop-shared'
+import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
+import type { ProviderToolConfig, TimeSegment } from '@/providers/types'
+import type { ToolResponse } from '@/tools/types'
 
 /**
  * Runs one scenario through the real OpenAI-compatible streaming tool loop and
@@ -128,16 +129,75 @@ function turnToChunks(turn: ScriptedModelTurn): ChatCompletionChunk[] {
   return chunks
 }
 
+/** A distinctive value from a call's stubbed result, to find it in tool feedback. */
+function expectedResultMarker(call: ScriptedToolCall): string | undefined {
+  if (call.result && !call.result.success) return call.result.error
+  const output = call.result?.output
+  if (!output) return undefined
+  for (const value of Object.values(output)) {
+    if (typeof value === 'string') return value
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+    if (value && typeof value === 'object') return JSON.stringify(value)
+  }
+  return undefined
+}
+
+function toolMessageContents(messages: unknown): string[] {
+  if (!Array.isArray(messages)) return []
+  return messages
+    .filter(
+      (message): message is Record<string, unknown> =>
+        isRecordLike(message) && message.role === 'tool'
+    )
+    .map((message) =>
+      typeof message.content === 'string' ? message.content : JSON.stringify(message.content ?? '')
+    )
+}
+
+/**
+ * The scripted model must read the tool feedback the loop forwarded, or the
+ * retrieval/planning/recovery cases could pass even if the loop dropped it.
+ * Throws (failing the scenario) when a prior turn's results are missing.
+ */
+function assertToolFeedbackForwarded(
+  scenario: AgentToolUseScenario,
+  currentTurnIndex: number,
+  messages: unknown
+): void {
+  if (currentTurnIndex === 0) return
+  const previous = scenario.script[currentTurnIndex - 1]
+  if (!previous || previous.kind !== 'tools') return
+
+  const contents = toolMessageContents(messages)
+  if (contents.length < previous.calls.length) {
+    throw new Error(
+      `Scenario "${scenario.id}" did not receive tool feedback for turn ${currentTurnIndex}`
+    )
+  }
+
+  const joined = contents.join('\n')
+  for (const call of previous.calls) {
+    const marker = expectedResultMarker(call)
+    if (marker !== undefined && !joined.includes(marker)) {
+      throw new Error(
+        `Scenario "${scenario.id}" did not forward the ${call.name} result for turn ${currentTurnIndex}`
+      )
+    }
+  }
+}
+
 function createScriptedCompletion(scenario: AgentToolUseScenario): OpenAICompatCreateCompletion {
   let turnIndex = 0
-  return async () => {
-    const turn = scenario.script[turnIndex]
+  return async (params) => {
+    const currentTurnIndex = turnIndex
     turnIndex += 1
+    const turn = scenario.script[currentTurnIndex]
     if (!turn) {
       throw new Error(
         `Scenario "${scenario.id}" requested model turn ${turnIndex} but only ${scenario.script.length} are scripted`
       )
     }
+    assertToolFeedbackForwarded(scenario, currentTurnIndex, params.messages)
     return (async function* () {
       for (const next of turnToChunks(turn)) yield next
     })()
@@ -155,6 +215,29 @@ function toProviderTools(tools: EvalToolDefinition[]): ProviderToolConfig[] {
       required: tool.parameters?.required ?? [],
     },
   }))
+}
+
+/** Every call the script emits that the loop is expected to execute. */
+function expectedExecutableCalls(
+  scenario: AgentToolUseScenario
+): Array<{ name: string; args: Record<string, unknown> }> {
+  const expected: Array<{ name: string; args: Record<string, unknown> }> = []
+  for (const turn of scenario.script) {
+    if (turn.kind !== 'tools') continue
+    for (const call of turn.calls) {
+      if (call.argumentsJson === undefined) {
+        expected.push({ name: call.name, args: call.args ?? {} })
+        continue
+      }
+      try {
+        const parsed = JSON.parse(call.argumentsJson)
+        if (isRecordLike(parsed)) expected.push({ name: call.name, args: parsed })
+      } catch {
+        // Malformed arguments are never executed.
+      }
+    }
+  }
+  return expected
 }
 
 /** True when the loop will execute the call, so its result must be queued. */
@@ -417,6 +500,29 @@ export async function runScenario(
       checks.push({ name: 'judge', passed: false, detail: `judge failed: ${String(error)}` })
     }
   }
+
+  if (invocations.length > 0) {
+    const expectedCalls = expectedExecutableCalls(scenario)
+    const mismatched = invocations.filter(
+      (invocation) =>
+        !expectedCalls.some(
+          (expectedCall) =>
+            expectedCall.name === invocation.name &&
+            isDeepStrictEqual(expectedCall.args, invocation.arguments)
+        )
+    )
+    checks.push({
+      name: 'tool-arguments',
+      passed: mismatched.length === 0,
+      detail:
+        mismatched.length === 0
+          ? `all ${invocations.length} tool calls matched their scripted arguments`
+          : `unexpected arguments: ${mismatched
+              .map((entry) => `${entry.name}(${JSON.stringify(entry.arguments)})`)
+              .join(', ')}`,
+    })
+  }
+
   const successful = toolCalls.filter((call) => call.success).length
 
   return {
