@@ -47,8 +47,11 @@ const MAX_TEMPLATES_SHOWN = 12
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
 
-/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
-export const dynamicParams = true
+/**
+ * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
+ * `loading.tsx` with a 200 status first.
+ */
+export const dynamicParams = false
 
 /**
  * Returns up to `limit` related integration slugs from the same category, so
