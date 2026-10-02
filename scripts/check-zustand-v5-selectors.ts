@@ -346,6 +346,13 @@ function isIdentifierNamed(node: unknown, name: string): boolean {
 function isWholeBinding(node: unknown, name: string): boolean {
   if (isIdentifierNamed(node, name)) return true
   const unwrapped = unwrapExpression(node)
+  // `state || {}`, `state ?? {}`, and `cond ? state : {}` can each return the whole state.
+  if (isSyntaxNode(unwrapped) && unwrapped.type === 'LogicalExpression') {
+    return isWholeBinding(unwrapped.left, name) || isWholeBinding(unwrapped.right, name)
+  }
+  if (isSyntaxNode(unwrapped) && unwrapped.type === 'ConditionalExpression') {
+    return isWholeBinding(unwrapped.consequent, name) || isWholeBinding(unwrapped.alternate, name)
+  }
   if (!isSyntaxNode(unwrapped) || unwrapped.type !== 'ObjectExpression') return false
   const properties = Array.isArray(unwrapped.properties) ? unwrapped.properties : []
   return properties.some(
