@@ -10,7 +10,8 @@
  * ES2023 array methods (`toSorted`, `with`, …) throw on Safari/iOS 15, and SWC does not polyfill
  * them. Every tsconfig keeps `lib` at or below ES2022 so `tsc` rejects them at each call site,
  * telling `Array.prototype.with` apart from OpenTelemetry's `context.with` by type; this script
- * fails if a tsconfig raises `lib` past that, which is how they shipped once (#5340).
+ * fails if a tsconfig raises `lib` past that, which is how they shipped once (#5340). The three
+ * names nothing else uses are also matched in source, since tsc accepts them on an `any` receiver.
  *
  * Biome's noRestrictedImports covers the import-based bans it lists — today `nanoid` and
  * `uuid`. It does NOT cover named crypto imports; `import { randomBytes } from 'node:crypto'`
@@ -149,6 +150,12 @@ const BANNED_PATTERNS: Array<{
     suggestion: 'escapeRegExp(value) from @sim/utils/string',
   },
   // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
+  {
+    // tsc rejects these under the ES2022 lib, except on an `any` receiver (`JSON.parse(s).toSorted()`).
+    pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(/g,
+    description: 'ES2023 array method (throws on Safari/iOS 15; SWC does not polyfill it)',
+    suggestion: 'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice()',
+  },
   {
     pattern: /\buseRef(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*new\s+[A-Z]\w*/g,
     description: 'useRef(new X()) allocates a throwaway X on every render',
