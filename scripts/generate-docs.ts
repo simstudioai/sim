@@ -3150,9 +3150,14 @@ function parseConstFieldContent(
 /**
  * Extract outputs from a tool content block by trying:
  * 1. Const reference (e.g., `outputs: GIT_REF_OUTPUT_PROPERTIES,`)
- * 2. Inline object (e.g., `outputs: { id: { type: 'string', ... } }`)
+ * 2. Inline object (e.g., `outputs: { id: { type: 'string', ... } }`), with `...sharedConst`
+ *    spreads inlined by `expandSpreads` when the caller can resolve them
  */
-function extractOutputsFromToolContent(content: string, toolPrefix: string): Record<string, any> {
+function extractOutputsFromToolContent(
+  content: string,
+  toolPrefix: string,
+  expandSpreads: (body: string) => string = (body) => body
+): Record<string, any> {
   const constMatch = content.match(/(?<![a-zA-Z_])outputs\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|\}|$)/)
   if (constMatch) {
     const resolved = resolveConstReference(constMatch[1], toolPrefix)
@@ -3168,7 +3173,7 @@ function extractOutputsFromToolContent(content: string, toolPrefix: string): Rec
       const closePos = findMatchingClose(content, openBracePos)
       if (closePos !== -1) {
         const outputsContent = content.substring(openBracePos + 1, closePos - 1).trim()
-        return parseToolOutputsField(outputsContent, toolPrefix)
+        return parseToolOutputsField(expandSpreads(outputsContent), toolPrefix)
       }
     }
   }
@@ -3516,7 +3521,9 @@ export function extractToolInfo(
 
     const toolPrefix = getToolPrefixFromName(toolName)
 
-    let outputs = extractOutputsFromToolContent(toolContent, toolPrefix)
+    const expandOutputSpreads = (body: string) =>
+      expandSpreadConsts(body, fileContent, toolFilePath, rootDir)
+    let outputs = extractOutputsFromToolContent(toolContent, toolPrefix, expandOutputSpreads)
 
     // If no outputs found, check for spread inheritance (e.g., "...extendParserTool")
     // toolContent may be narrowed past the spread line, so reconstruct the full block
@@ -3550,7 +3557,11 @@ export function extractToolInfo(
           const endIdx = findMatchingClose(fileContent, baseStart)
           if (endIdx !== -1) {
             const baseToolContent = fileContent.substring(baseStart, endIdx)
-            outputs = extractOutputsFromToolContent(baseToolContent, toolPrefix)
+            outputs = extractOutputsFromToolContent(
+              baseToolContent,
+              toolPrefix,
+              expandOutputSpreads
+            )
           }
         }
       }

@@ -178,6 +178,13 @@ Run multi-step web research on a question and get a thorough, cited answer, or s
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `content` | json | Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied |
+| `contentType` | string | Format of content: text \(Markdown\) or object \(structured output\) |
+| `sources` | array | Web sources used to generate the answer |
+|   ↳ `url` | string | URL of the source webpage |
+|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
+| `warnings` | array | Warnings raised during research, such as source access issues or partial results |
 | `taskId` | string | Background task ID to pass to Get Research Task \(background only\) |
 | `status` | string | Background task status: queued, running, completed, failed, or cancelled \(background only\) |
 | `streamUrl` | string | URL path of the task progress event stream \(background only\) |
@@ -212,6 +219,13 @@ Get the status of a background research task and, once completed, its cited answ
 |   ↳ `outputSchema` | json | Structured output schema submitted |
 |   ↳ `sourceControl` | json | Source control configuration submitted |
 |   ↳ `type` | string | Task type \(research\) |
+| `content` | json | Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied |
+| `contentType` | string | Format of content: text \(Markdown\) or object \(structured output\) |
+| `sources` | array | Web sources used to generate the answer |
+|   ↳ `url` | string | URL of the source webpage |
+|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
+| `warnings` | array | Warnings raised during research, such as source access issues or partial results |
 
 ### You.com Finance Research
 
@@ -231,6 +245,11 @@ Research a financial question across earnings reports, SEC filings, analyst cove
 | --------- | ---- | ----------- |
 | `content` | string | Markdown answer with numbered inline citations referencing sources |
 | `contentType` | string | Format of content \(text\) |
+| `sources` | array | Web sources used to generate the answer |
+|   ↳ `url` | string | URL of the source webpage |
+|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
+| `warnings` | array | Warnings raised during research, such as source access issues or partial results |
 
 ### You.com Search Images
 
