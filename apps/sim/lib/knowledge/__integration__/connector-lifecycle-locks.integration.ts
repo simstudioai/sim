@@ -9,6 +9,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -97,7 +98,7 @@ describe('source lifecycle KB guards', () => {
   })
   afterEach(async () => {
     vi.restoreAllMocks()
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   })

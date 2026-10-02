@@ -13,6 +13,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createMockRequest } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -125,7 +126,7 @@ describe('directory failure visibility in PostgreSQL', () => {
       .where(eq(knowledgeExternalGroup.workspaceId, ids.workspaceId))
   })
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(user).where(eq(user.id, ids.aliceId))
     await db.delete(user).where(eq(user.id, ids.bobId))
     await db.$client.end()

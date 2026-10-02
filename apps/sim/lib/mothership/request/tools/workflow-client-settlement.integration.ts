@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * A browser claims a Chat workflow tool, the execute route runs it, and the browser may never
  * report back (tab closed, network lost, beacon dropped). Runs against real PostgreSQL and Redis:
@@ -87,7 +88,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Workflow settlement fixture',
       ownerId: userId,
@@ -130,7 +131,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
         .delete(workflowExecutionSnapshots)
         .where(inArray(workflowExecutionSnapshots.id, snapshotIds))
     await db.delete(workflow).where(eq(workflow.id, workflowId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

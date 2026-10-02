@@ -11,6 +11,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -106,7 +107,8 @@ describe('organization personal tokens', () => {
       { id: generateId(), organizationId: ids.org, userId: ids.owner, role: 'member' },
       { id: generateId(), organizationId: ids.org, userId: ids.other, role: 'admin' },
     ])
-    await db.insert(workspace).values(
+    await insertWorkspaceFixture(
+      db,
       [ids.first, ids.second, ids.foreign].map((id) => ({
         id,
         name: 'Token fixture workspace',
@@ -187,7 +189,7 @@ describe('organization personal tokens', () => {
     await db
       .delete(credentialGroup)
       .where(inArray(credentialGroup.id, [ids.group, ids.legacyGroup]))
-    await db.delete(workspace).where(inArray(workspace.id, [ids.first, ids.second, ids.foreign]))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, [ids.first, ids.second, ids.foreign]))
     await db.delete(organization).where(inArray(organization.id, [ids.org, ids.foreignOrg]))
     await db.delete(user).where(inArray(user.id, [ids.owner, ids.other]))
   })
@@ -287,7 +289,7 @@ describe('organization personal tokens', () => {
         expect.objectContaining({ id: ids.token, workspaceId: null, organizationId: ids.org }),
       ])
     }
-    await db.delete(workspace).where(eq(workspace.id, ids.first))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.first))
     await expect(resolve()).resolves.toMatchObject({ accessToken: tokenSecret })
   })
 

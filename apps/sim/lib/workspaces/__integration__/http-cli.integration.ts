@@ -14,6 +14,7 @@ import {
   workspace,
   workspaceOperationReceipt,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -111,7 +112,7 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'HTTP fixture',
       ownerId: userId,
@@ -125,7 +126,7 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
       entityId: workspaceId,
       permissionType: 'admin',
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: foreignWorkspaceId,
       name: 'Inaccessible log fixture',
       ownerId: userId,
@@ -237,9 +238,9 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
         server.close((error) => (error ? reject(error) : resolveClose()))
         server.closeAllConnections()
       })
-    for (const id of childWorkspaceIds) await db.delete(workspace).where(eq(workspace.id, id))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
-    await db.delete(workspace).where(eq(workspace.id, foreignWorkspaceId))
+    for (const id of childWorkspaceIds) await deleteWorkspaceFixture(db, eq(workspace.id, id))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, foreignWorkspaceId))
     await db
       .delete(workflowExecutionSnapshots)
       .where(eq(workflowExecutionSnapshots.id, logSnapshotId))

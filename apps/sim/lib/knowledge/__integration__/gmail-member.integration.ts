@@ -18,6 +18,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -307,7 +308,7 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       }
     } finally {
       storageKeys.clear()
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
   })

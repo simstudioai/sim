@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { permissions, user, workflow, workflowDeploymentVersion, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -81,7 +82,7 @@ beforeAll(async () => {
       updatedAt: now,
     }))
   )
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Version read fixture',
     ownerId,
@@ -111,7 +112,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(inArray(user.id, [ownerId, outsiderId]))
   await db.$client.end()
 })

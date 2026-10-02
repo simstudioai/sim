@@ -13,9 +13,9 @@ import {
   organization,
   permissions,
   user,
-  workspace,
 } from '@sim/db/schema'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 
@@ -79,7 +79,7 @@ export async function seedKnowledgeAclFixture(
     name: 'ACL integration organization',
     slug: ids.organizationId,
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     organizationId: ids.organizationId,
     name: 'ACL integration fixture',

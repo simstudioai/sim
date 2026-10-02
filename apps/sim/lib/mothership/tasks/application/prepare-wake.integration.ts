@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * How sim answers the worker's retry of a task wake, against real PostgreSQL and Redis: the
  * wake route, the chat stream lock, and the run records are production code. Only `after` is
@@ -67,7 +68,7 @@ describe.runIf(Boolean(redisUrl))('task wake retries', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Task wake fixture',
       ownerId: userId,
@@ -88,7 +89,7 @@ describe.runIf(Boolean(redisUrl))('task wake retries', () => {
       await db.delete(copilotChats).where(inArray(copilotChats.id, chatIds))
     }
     await db.delete(permissions).where(eq(permissions.userId, userId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

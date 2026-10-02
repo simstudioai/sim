@@ -29,7 +29,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import postgres from 'postgres'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import {
@@ -59,6 +59,14 @@ import { unlinkForkEdge } from '@/ee/workspace-forking/lib/lineage/unlink'
 beforeEach(() => {
   vi.stubEnv('PROJECT_WRITES_ENABLED', 'true')
   vi.stubEnv('PROJECT_API_ENABLED', 'true')
+})
+
+let restoreEnforcement = false
+beforeAll(async () => {
+  const rows = await db.execute(
+    sql`SELECT 1 FROM pg_trigger WHERE tgname = 'project_contract_check' AND tgrelid = 'public.workspace'::regclass`
+  )
+  restoreEnforcement = rows.length > 0
 })
 
 const users: string[] = []
@@ -192,6 +200,22 @@ afterAll(async () => {
   if (organizations.length)
     await db.delete(organization).where(inArray(organization.id, organizations))
   if (users.length) await db.delete(user).where(inArray(user.id, users))
+  if (restoreEnforcement) {
+    const client = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
+    try {
+      await client.unsafe(
+        await readFile(
+          new URL(
+            '../../../../../packages/db/migrations/0394_project_membership_enforcement.sql',
+            import.meta.url
+          ),
+          'utf8'
+        )
+      )
+    } finally {
+      await client.end()
+    }
+  }
 })
 
 describe('Project foundation at the database and application boundary', () => {

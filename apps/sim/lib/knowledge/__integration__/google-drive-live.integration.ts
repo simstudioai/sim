@@ -22,6 +22,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -251,7 +252,7 @@ describe.skipIf(!keyPath || !folderId || !ownerEmail)(
               }
             })
           }
-          await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+          await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
           await db.delete(user).where(eq(user.id, ids.aliceId))
           await db.delete(user).where(eq(user.id, ids.bobId))
         }

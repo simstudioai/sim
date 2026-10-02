@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * How often reconnecting to an orphaned Chat run re-POSTs it to the worker, against real
  * Redis and PostgreSQL. The production reconnect route, stream recovery, chat lifecycle
@@ -297,7 +298,7 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Recovery storm fixture',
       ownerId: userId,
@@ -323,7 +324,7 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
       await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
     }
     await db.delete(permissions).where(eq(permissions.userId, userId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await closeRedisConnection()
   })
