@@ -469,7 +469,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   readFileText: {
     command: 'files read',
-    describe: 'Read a file’s text content',
+    describe: 'Read a file’s text content as JSON or YAML',
+    document: true,
   },
   // Publishing a workflow for an outside agent to call, and withdrawing it.
   createWorkflowMcpServer: {
@@ -714,7 +715,15 @@ export const CLI_CONTRACT: CliContract = {
     variants: [moveResource('knowledge mv', 'knowledge base')],
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
-  createWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  createWorkflow: {
+    flags: {
+      folderPath: {
+        ...FOLDER_PATH_FLAG,
+        describe:
+          'Existing folder path (leading / optional); create it first with sim workflows mkdir <path>',
+      },
+    },
+  },
   updateWorkflow: {
     variants: [moveResource('workflows mv', 'workflow')],
     flags: { folderPath: FOLDER_PATH_FLAG },
@@ -1413,7 +1422,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   readFileVersionText: {
     command: 'files versions read',
-    describe: 'Read the text content of one version of a file',
+    describe: 'Read the text content of one version of a file as JSON or YAML',
+    document: true,
   },
   /** No confirm: a revert writes the old content as a new version, so what it replaces stays revertible. */
   revertFileVersion: {

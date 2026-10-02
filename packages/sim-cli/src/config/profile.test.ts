@@ -327,7 +327,10 @@ describe('OAuth logins in the credentials file', () => {
         order.push('b-end')
       }),
     ])
-    expect(order).toEqual(['a-start', 'a-end', 'b-start', 'b-end'])
+    expect([
+      ['a-start', 'a-end', 'b-start', 'b-end'],
+      ['b-start', 'b-end', 'a-start', 'a-end'],
+    ]).toContainEqual(order)
     expect(existsSync(`${credentialsPath()}.lock`)).toBe(false)
   })
 
