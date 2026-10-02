@@ -1093,6 +1093,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     WEALTHBOX_CLIENT_ID: { input: 'text' },
     WEALTHBOX_CLIENT_SECRET: { input: 'secret' },
   },
+  figma: {
+    FIGMA_CLIENT_ID: { input: 'text' },
+    FIGMA_CLIENT_SECRET: { input: 'secret' },
+  },
   webflow: {
     WEBFLOW_CLIENT_ID: { input: 'text' },
     WEBFLOW_CLIENT_SECRET: { input: 'secret' },

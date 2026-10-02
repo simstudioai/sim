@@ -511,11 +511,11 @@ interface IconRef {
  *
  * The pipeline writes some pages twice per run — the block pass writes the base
  * page, then the trigger pass reads it back and appends/merges the Triggers
- * section — so check mode keeps an in-memory overlay of everything "written"
- * this run (`emittedByPath`), readers consult the overlay before disk
- * (`readGeneratedFile`), and staleness is judged once at the end against each
- * artifact's FINAL content. Comparing at emit time would flag the intermediate
- * block-pass content of every trigger-owning page as a false positive.
+ * section — so both modes keep an in-memory overlay of generated MDX
+ * (`emittedByPath`), readers consult the overlay before disk
+ * (`readGeneratedFile`), and pages are compared once against their FINAL content.
+ * This avoids rewriting unchanged legacy formatting during an intermediate pass.
+ * Check mode also records non-MDX artifacts instead of writing them.
  *
  * Known limitation: `updateMetaJson` derives the sidebar from the mdx files on
  * disk, so in check mode a brand-new block's missing page is reported directly
@@ -537,11 +537,26 @@ const wouldDeletePaths: string[] = []
 
 /** Writes a generated artifact, or in check mode records its final content for the end-of-run comparison. */
 function emitGeneratedFile(filePath: string, content: string): void {
-  if (CHECK_ONLY) {
+  if (CHECK_ONLY || filePath.endsWith('.mdx')) {
     emittedByPath.set(filePath, content)
     return
   }
   fs.writeFileSync(filePath, content)
+}
+
+function normalizeGeneratedContent(filePath: string, content: string): string {
+  if (!filePath.endsWith('.mdx')) return content
+  return content.replace(/^<BlockInfoCard[\t ]+$/gm, '<BlockInfoCard').replace(/\n*$/, '\n')
+}
+
+function flushGeneratedMdx(): void {
+  if (CHECK_ONLY) return
+  for (const [filePath, content] of emittedByPath) {
+    const normalized = normalizeGeneratedContent(filePath, content)
+    const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null
+    if (existing !== null && normalizeGeneratedContent(filePath, existing) === normalized) continue
+    fs.writeFileSync(filePath, normalized)
+  }
 }
 
 /** Reads a generated artifact as the pipeline would see it mid-run: overlay first in check mode, then disk. */
@@ -556,7 +571,12 @@ function collectStaleEmissions(): string[] {
   const stale: string[] = []
   for (const [filePath, content] of emittedByPath) {
     const committed = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null
-    if (committed !== content) stale.push(path.relative(rootDir, filePath))
+    if (
+      committed === null ||
+      normalizeGeneratedContent(filePath, committed) !==
+        normalizeGeneratedContent(filePath, content)
+    )
+      stale.push(path.relative(rootDir, filePath))
   }
   return stale
 }
@@ -4518,7 +4538,7 @@ description: ${description}
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
 />
@@ -5390,6 +5410,7 @@ async function generateAllBlockDocs() {
 
     // Merge trigger sections into the per-service pages (and write trigger-only pages)
     await generateAllTriggerDocs()
+    flushGeneratedMdx()
 
     // Write the integrations meta after both passes so trigger-only pages are included
     updateMetaJson()

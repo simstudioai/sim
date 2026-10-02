@@ -12,6 +12,13 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  'current_user:read': 'View your Figma identity',
+  'file_metadata:read': 'View Figma file metadata',
+  'file_content:read': 'Read Figma documents, nodes, and image exports',
+  'file_comments:read': 'Read Figma file comments',
+  'file_comments:write': 'Create and delete your Figma comments',
+  'file_versions:read': 'Read Figma version history',
+  'library_content:read': 'Read published Figma components and styles',
   'users.profile:write': 'Update Slack user profiles',
   'users.profile:read': 'View Slack user profiles',
   'channels:join': 'Join public Slack channels',

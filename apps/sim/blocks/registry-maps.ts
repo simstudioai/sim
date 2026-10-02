@@ -83,6 +83,7 @@ import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock, ExaBlockMeta } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendBlockMeta, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock, FathomBlockMeta } from '@/blocks/blocks/fathom'
+import { FigmaBlock, FigmaBlockMeta } from '@/blocks/blocks/figma'
 import { FileBlock, FileV2Block, FileV3Block, FileV4Block, FileV5Block } from '@/blocks/blocks/file'
 import { FindymailBlock, FindymailBlockMeta } from '@/blocks/blocks/findymail'
 import { FirecrawlBlock, FirecrawlBlockMeta } from '@/blocks/blocks/firecrawl'
@@ -473,6 +474,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   extend: ExtendBlock,
   extend_v2: ExtendV2Block,
   fathom: FathomBlock,
+  figma: FigmaBlock,
   file: FileBlock,
   file_v2: FileV2Block,
   file_v3: FileV3Block,
@@ -832,6 +834,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   exa: ExaBlockMeta,
   extend: ExtendBlockMeta,
   fathom: FathomBlockMeta,
+  figma: FigmaBlockMeta,
   findymail: FindymailBlockMeta,
   firecrawl: FirecrawlBlockMeta,
   fireflies: FirefliesBlockMeta,

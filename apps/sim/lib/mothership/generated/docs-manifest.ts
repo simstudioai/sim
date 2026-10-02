@@ -147,6 +147,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/exa.mdx',
   'integrations/extend.mdx',
   'integrations/fathom.mdx',
+  'integrations/figma.mdx',
   'integrations/file.mdx',
   'integrations/findymail.mdx',
   'integrations/firecrawl.mdx',

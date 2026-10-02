@@ -20,6 +20,7 @@ import {
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
+  FigmaIcon,
   GithubIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -1103,6 +1104,29 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'wealthbox',
   },
+  figma: {
+    name: 'Figma',
+    icon: FigmaIcon,
+    services: {
+      figma: {
+        name: 'Figma',
+        description: 'Read Figma designs, export assets, and manage file feedback.',
+        providerId: 'figma',
+        icon: FigmaIcon,
+        baseProviderIcon: FigmaIcon,
+        scopes: [
+          'current_user:read',
+          'file_metadata:read',
+          'file_content:read',
+          'file_comments:read',
+          'file_comments:write',
+          'file_versions:read',
+          'library_content:read',
+        ],
+      },
+    },
+    defaultService: 'figma',
+  },
   webflow: {
     name: 'Webflow',
     icon: WebflowIcon,
@@ -1548,6 +1572,8 @@ interface ProviderAuthConfig {
   useBasicAuth: boolean
   additionalHeaders?: Record<string, string>
   supportsRefreshTokenRotation?: boolean
+  /** Figma's dedicated refresh endpoint accepts only refresh_token. */
+  omitRefreshGrantType?: boolean
   /**
    * If true, the refresh token is sent in the Authorization header as Bearer token
    * instead of in the request body. Used by Cal.com.
@@ -1889,6 +1915,21 @@ function getProviderAuthConfig(
         supportsRefreshTokenRotation: true,
       }
     }
+    case 'figma': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'figma',
+        'FIGMA_CLIENT_ID',
+        'FIGMA_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://api.figma.com/v1/oauth/refresh',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        omitRefreshGrantType: true,
+        supportsRefreshTokenRotation: false,
+      }
+    }
     case 'webflow': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'webflow',
@@ -2153,7 +2194,7 @@ function buildAuthRequest(
   }
 
   const bodyParams: Record<string, string> = {
-    grant_type: 'refresh_token',
+    ...(config.omitRefreshGrantType ? {} : { grant_type: 'refresh_token' }),
   }
 
   // Handle refresh token placement
