@@ -410,7 +410,9 @@ function findPartialize(options: SyntaxNode): SyntaxNode | null {
     const keyName = isSyntaxNode(key) ? (key.type === 'Identifier' ? key.name : key.value) : null
     if (keyName !== 'partialize') continue
     if (property.type === 'ObjectMethod') return property
-    return isSyntaxNode(property.value) ? property.value : null
+    // A cast such as `((s) => s) as Partialize<S>` still hands zustand the inner function.
+    const value = unwrapExpression(property.value)
+    return isSyntaxNode(value) ? value : null
   }
   return null
 }

@@ -176,9 +176,6 @@ const BANNED_PATTERNS: Array<{
 /** Cheap gate: only files that contain a `.with(` call are parsed. */
 const WITH_CALL = /\.with\s*\(/
 
-/** OpenTelemetry's `context.with(ctx, fn)` shares the shape; its receivers are named for the context API. */
-const OTEL_CONTEXT_RECEIVER = /context/i
-
 /** A Babel AST node, read structurally rather than through `@babel/types`. */
 interface SyntaxNode extends Record<string, unknown> {
   type: string
@@ -200,19 +197,58 @@ function walkNodes(node: SyntaxNode, visit: (node: SyntaxNode) => void): void {
   }
 }
 
-/** The name a member call is made on: `arr` in `arr.with(…)`, `items` in `this.items.with(…)`. */
-function receiverName(receiver: unknown): string | undefined {
-  if (!isSyntaxNode(receiver)) return undefined
-  if (receiver.type === 'Identifier' && typeof receiver.name === 'string') return receiver.name
-  const isMember =
-    receiver.type === 'MemberExpression' || receiver.type === 'OptionalMemberExpression'
-  if (!isMember || receiver.computed === true || !isSyntaxNode(receiver.property)) return undefined
-  return typeof receiver.property.name === 'string' ? receiver.property.name : undefined
+/**
+ * Local names bound to OpenTelemetry's context API, whose `context.with(ctx, fn)` shares the
+ * array method's shape: `context` (or an alias) imported from `@opentelemetry/api`, and any
+ * namespace import of it (whose `.context` member is the same object).
+ */
+function otelContextBindings(program: SyntaxNode): {
+  contexts: Set<string>
+  namespaces: Set<string>
+} {
+  const contexts = new Set<string>()
+  const namespaces = new Set<string>()
+  const body = Array.isArray(program.body) ? program.body : []
+  for (const statement of body) {
+    if (!isSyntaxNode(statement) || statement.type !== 'ImportDeclaration') continue
+    if (!isSyntaxNode(statement.source) || statement.source.value !== '@opentelemetry/api') continue
+    for (const specifier of Array.isArray(statement.specifiers) ? statement.specifiers : []) {
+      if (!isSyntaxNode(specifier) || !isSyntaxNode(specifier.local)) continue
+      const local = specifier.local.name
+      if (typeof local !== 'string') continue
+      if (specifier.type === 'ImportNamespaceSpecifier') namespaces.add(local)
+      else if (
+        specifier.type === 'ImportSpecifier' &&
+        isSyntaxNode(specifier.imported) &&
+        specifier.imported.name === 'context'
+      )
+        contexts.add(local)
+    }
+  }
+  return { contexts, namespaces }
+}
+
+/** Whether `receiver` is OpenTelemetry's context object: `context`, an alias, or `api.context`. */
+function isOtelContext(
+  receiver: unknown,
+  bindings: { contexts: Set<string>; namespaces: Set<string> }
+): boolean {
+  if (!isSyntaxNode(receiver)) return false
+  if (receiver.type === 'Identifier') return bindings.contexts.has(String(receiver.name))
+  return (
+    receiver.type === 'MemberExpression' &&
+    receiver.computed !== true &&
+    isSyntaxNode(receiver.object) &&
+    receiver.object.type === 'Identifier' &&
+    bindings.namespaces.has(String(receiver.object.name)) &&
+    isSyntaxNode(receiver.property) &&
+    receiver.property.name === 'context'
+  )
 }
 
 /**
  * Offsets of every `Array.prototype.with(index, value)` call: a two-argument `.with` on any
- * receiver except an OpenTelemetry context object. Drizzle's one-argument `.with(cte)` and
+ * receiver except OpenTelemetry's context API (resolved through its `@opentelemetry/api` import). Drizzle's one-argument `.with(cte)` and
  * `index().with({ … })` never match.
  */
 function findArrayWithCalls(file: string, content: string): number[] {
@@ -228,6 +264,7 @@ function findArrayWithCalls(file: string, content: string): number[] {
   }
   if (!isSyntaxNode(program)) return []
 
+  const bindings = otelContextBindings(program)
   const offsets: number[] = []
   walkNodes(program, (node) => {
     if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return
@@ -236,7 +273,7 @@ function findArrayWithCalls(file: string, content: string): number[] {
     if (!isSyntaxNode(callee) || callee.computed === true || !isSyntaxNode(callee.property)) return
     if (callee.type !== 'MemberExpression' && callee.type !== 'OptionalMemberExpression') return
     if (callee.property.name !== 'with') return
-    if (OTEL_CONTEXT_RECEIVER.test(receiverName(callee.object) ?? '')) return
+    if (isOtelContext(callee.object, bindings)) return
     offsets.push(callee.property.start)
   })
   return offsets
