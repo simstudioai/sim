@@ -270,6 +270,8 @@ Every Project retains a required `ownerId`, including organization Projects. `or
 
 The schema contains `project` (`id`, `name`, required `ownerId`, nullable `organizationId`, `archivedAt`, `createdAt`, `updatedAt`) and `project_workspace` (`projectId`, unique `workspaceId`, `createdAt`). There is no stored fork depth, position, or Project billing state.
 
+For request/response examples and the distinction between explicit Project creation and existing workspace creation, see the [Project creation guide](../../apps/sim/lib/projects/README.md).
+
 Implemented session routes:
 
 - `POST /api/projects`: creates a named Project and its named first environment atomically, including admin permissions and a starter workflow. Requires explicit `organizationId` (or `null` for personal scope), `name`, and `initialEnvironment.name`; returns both IDs and names with HTTP 201. Uses existing workspace creation eligibility, billing and permission-group rules.
