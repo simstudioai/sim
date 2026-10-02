@@ -36,7 +36,7 @@ contracts, and demonstrated regressions.
 | `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`), optionally Redis (`TEST_REDIS_URL`) | `vitest run --mode integration` | `PostgreSQL integration` job, by glob |
 | `*.live.test.ts` | provider APIs, hosted sandboxes, local runtimes, or sibling checkouts | `vitest run --mode live <file>` (apps/sim) | never |
 | `apps/desktop/e2e/*.spec.ts` | the packaged Electron app | Playwright | desktop E2E workflow |
-| `apps/sim/scripts/test-*-e2e.ts` | a running app over HTTP | `bun scripts/test-<suite>-e2e.ts` from apps/sim (`bun run test:scim:e2e` for SCIM) | End-to-end over real HTTP job |
+| `apps/sim/scripts/test-*-e2e.ts` | a running app over HTTP | its `package.json` script when one exists (`bun run test:scim:e2e`; `test:workflow-version-compare:e2e` adds `--no-env-file`), else `bun scripts/test-<suite>-e2e.ts` from apps/sim | End-to-end over real HTTP job |
 
 - A unit test lives next to its source: `feature.ts` → `feature.test.ts`. No network, no database,
   no real timers.

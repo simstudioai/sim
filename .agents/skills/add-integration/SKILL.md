@@ -497,7 +497,7 @@ Use the basic/advanced mode pattern:
 },
 ```
 
-**Critical:** `canonicalParamId` must NOT match any subblock `id`.
+**Critical:** `canonicalParamId` must NOT match the `id` of a subblock outside its canonical group.
 
 #### 2. Normalize File Input in Block Config
 

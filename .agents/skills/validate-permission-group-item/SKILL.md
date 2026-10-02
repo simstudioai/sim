@@ -124,7 +124,7 @@ check:capability-subject — <N> v1 files, <M> capability subjects resolved thro
 | Audit | What it catches |
 |---|---|
 | `check:permission-group-enforcement` | Every operation declares a capability and every capability is enforced. All-or-nothing — no migration mode exits 0 with work outstanding, so do not go looking for a `pending enforcement:` list |
-| `check:application-graph` | The funnel roots (`lib/core/application/index.ts`, `capabilities.ts`, `capability-assertions.ts`, `config-scope.server.ts`) and `with-route-handler.ts` reach no heavy module tree at *runtime* (`import type` is erased and allowed). A gate that imports a resolver into a guarded root is a finding even if the gate is correct; a broken edge shows up only as unrelated tests failing on partial mocks |
+| `check:application-graph` | The funnel roots (`lib/core/application/index.ts`, `capabilities.ts`, `capability-assertions.ts`, `config-scope.server.ts`) and `with-route-handler.ts` reach no heavy module tree at *runtime* (`import type` is erased and allowed). A gate that imports a resolver into a guarded root is a finding even if the gate is correct; such an edge can also make unrelated tests fail on partial mocks |
 | `check:capability-subject` | Every v1 capability sink takes its subject from `capabilityGovernedUserId`, no v1 file outside the middleware imports the permission-group modules, and at least one governed sink was found at all |
 
 Two ways the enforcement audit passes without proving what you want:

@@ -49,7 +49,7 @@ Use a precise WebFetch prompt: *"Extract for {model_id}: exact model id string, 
 |---|---|---|
 | `temperature` | All providers (passed through if set) | Safe but inert on always-reasoning models that reject it |
 | `toolUsageControl` | All providers (provider-level default) | Override per model only when that model differs |
-| `forcedToolUse` | Defaults to `toolUsageControl` | Set only when the model cannot force tools |
+| `forcedToolUse` | `anthropic/core.ts` (anthropic, azure-anthropic, kie); defaults to `toolUsageControl` | Ignored by every other provider; set `false` only on a model behind that core that cannot force tools |
 | `promptCaching` | Caller-placed cache breakpoints | Set only where the vendor charges for opt-in caching (absent for OpenAI/Gemini implicit caching) |
 | `reasoningEffort` | `openai/core.ts`, `azure-openai`, `xai`, `deepseek`, `groq`, `zai`, `kimi`, `cerebras`, `meta`, `litellm` (each `index.ts`) | Not read by anthropic/gemini (they use `thinking`) or by mistral, openrouter, fireworks, vertex — re-grep before assuming |
 | `verbosity` | `openai/core.ts`, `azure-openai/index.ts` only | Dead elsewhere |

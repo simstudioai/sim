@@ -515,7 +515,7 @@ mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
 
 ## External API Calls — Use `fetchWithRetry`
 
-All external API calls must use `fetchWithRetry` from `@/lib/knowledge/documents/secure-fetch.server` (SSRF-guarded) instead of raw `fetch()`; use `secureFetchWithRetry` for user-controlled hosts. This provides exponential backoff with retries on 429/502/503/504 errors. It returns a standard `Response` — all `.ok`, `.json()`, `.text()` checks work unchanged.
+All external API calls must use `fetchWithRetry` from `@/lib/knowledge/documents/secure-fetch.server` instead of raw `fetch()`. It does not validate the host (on a direct outbound route it calls plain `fetch`), so use `secureFetchWithRetry` for user-controlled hosts. This provides exponential backoff with retries on 429/502/503/504 errors. It returns a standard `Response` — all `.ok`, `.json()`, `.text()` checks work unchanged.
 
 For `validateConfig` (user-facing, called on save), pass `VALIDATE_RETRY_OPTIONS` to cap wait time at ~7s. Background operations (`listDocuments`, `getDocument`) use the built-in defaults (5 retries within a 150s budget).
 
@@ -605,7 +605,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
 - **OAuth + contentDeferred**: `apps/sim/connectors/google-drive/google-drive.ts` — file download with metadata-based hash, `orderBy` for deterministic pagination
 - **OAuth + contentDeferred (blocks API)**: `apps/sim/connectors/notion/notion.ts` — complex block content extraction deferred to `getDocument`
 - **OAuth + contentDeferred (git)**: `apps/sim/connectors/github/github.ts` — blob SHA hash, tree listing
-- **OAuth + inline content**: `apps/sim/connectors/slack/slack.ts` — list API returns message content inline; `contentHash` hashes that content
+- **OAuth + inline content**: `apps/sim/connectors/airtable/airtable.ts` — list API returns record fields inline; `listDocuments` and `getDocument` share `recordToDocument`, which hashes that content
 - **OAuth + contentDeferred + config fields**: `apps/sim/connectors/confluence/confluence.ts` — multiple config field types, `mapTags`, label fetching
 - **API key**: `apps/sim/connectors/fireflies/fireflies.ts` — GraphQL API with Bearer token auth
 

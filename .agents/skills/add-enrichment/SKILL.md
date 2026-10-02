@@ -16,7 +16,7 @@ Because enrichments run on Sim's hosted keys by default, **every provider tool y
 |------|------|-------|
 | 1 | Pick the data-source tool(s) for each output | `tools/{service}/` + `tools/registry.ts` |
 | 2 | **Verify each tool has `hosting`; if not, run `/add-hosted-key`** | `tools/{service}/{action}.ts` |
-| 3 | Write the enrichment definition | `enrichments/{name}/{name}.ts` + `index.ts` |
+| 3 | Write the enrichment definition | `enrichments/{id}/{id}.ts` + `index.ts` |
 | 4 | Register it | `enrichments/registry.ts` |
 | 5 | Verify | tsc / biome / manual run |
 
@@ -60,7 +60,7 @@ Why it matters: the cascade runner only bills (and only reads `output.cost.total
 
 ## Step 3: Write the enrichment definition
 
-Create `apps/sim/enrichments/{name}/{name}.ts` and a barrel `index.ts`. Mirror the entries registered in `enrichments/registry.ts`.
+Create `apps/sim/enrichments/{id}/{id}.ts` and a barrel `index.ts`. Mirror the entries registered in `enrichments/registry.ts`.
 
 ```typescript
 import { SomeIcon } from '@sim/emcn/icons'
@@ -104,7 +104,7 @@ export const myEnrichment: EnrichmentConfig = {
 ```
 
 ```typescript
-// apps/sim/enrichments/{name}/index.ts
+// apps/sim/enrichments/{id}/index.ts
 export { myEnrichment } from './my-enrichment'
 ```
 

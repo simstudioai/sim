@@ -132,7 +132,7 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 | `column-types/types.ts` `TYPE_SPECIFIC_COLUMN_KEYS` | it is never stripped on conversion, and poisons the target type |
 | `lib/api/contracts/tables.ts` — the schema slot in all three column schemas, plus `refineColumnOptions` | zod strips it at the boundary; silently never saved |
 | `columns/service.ts` `addTableColumn` param type | callers cannot pass it |
-| A metadata-only update in `lib/table/columns/service.ts` (`updateColumnCurrency` is the model) + a branch in `updateColumn` in `lib/table/orchestration/columns.ts` | changing it on an existing column is a silent 200 no-op |
+| A metadata-only update in `lib/table/columns/service.ts` (`updateColumnCurrency` is the model) + a branch in `performUpdateTableColumn` in `lib/table/orchestration/columns.ts` | changing it on an existing column is a silent 200 no-op |
 | `column-config-sidebar.tsx` | no UI to set it |
 | `table-grid.tsx` delete-column undo + `use-table-undo.ts` restore | undo silently resets it to the default |
 

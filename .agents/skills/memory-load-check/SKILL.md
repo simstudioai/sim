@@ -74,7 +74,7 @@ For those, require all three:
 
 Skip the pattern when the source already bounds the payload:
 - pure API/structured-data connectors (Jira, Linear, Sentry, Slack, Zendesk, Gmail, ...) — paginated JSON/text; apply normal pagination + concurrency bounds instead of a per-file byte cap
-- native-document connectors capped by the platform (Evernote ~25 MB/note, ...) — a 100 MB cap can never fire there
+- native-document connectors whose platform caps each document — a 100 MB cap can never fire there
 
 Some connectors also budget the response body (google-docs `MAX_DOCS_RESPONSE_BYTES`, google-sheets `MAX_CONTENT_BYTES`, a remaining-bytes budget in notion); Confluence attachments use the full file pattern. Follow the connector's existing approach rather than adding a cap to every `response.json()`.
 

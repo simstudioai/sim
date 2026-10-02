@@ -60,7 +60,7 @@ Allowlist when the safe posture is "only what the admin named" and the member se
 
 The second argument is the field's `feature` (`PlatformFeatureMeta`); `PLATFORM_FEATURES` spreads it and appends `configKey`, so those four values are what the editor renders. `PLATFORM_FEATURES` is *derived* from the registry in `features.ts`, so a boolean key cannot reach the config without reaching the editor.
 
-- **Declaration order is the wire order** of `PermissionGroupConfig`, both zod schemas, and every config JSON crossing the API. No test catches a reorder (schemas and defaults all derive from the registry), and `ee/access-control/components/group-detail.tsx` dirty-checks by comparing stringified configs, so a moved key makes every open editor read as unsaved. Extend the tail; do not tidy the middle.
+- **Declaration order is the wire order** of `PermissionGroupConfig`, both zod schemas, and every config JSON crossing the API, since all of them derive from the registry. Extend the tail; do not tidy the middle.
 - **The default must be the permissive value.** Every stored `permission_group.config` row predates your key; `parsePermissionGroupConfig` fills the gap from the default and the update route merges a partial write over the stored config, so a restrictive default silently applies a new restriction to every existing group in every enterprise org. The builders hardcode `false` / `null` / `[]`, so a new key must be *phrased* so the permissive value is falsy: a `requireWidgetApproval` whose safe default is `true` must be inverted before it can use `booleanRestriction`.
 - **The checkbox is inverted.** `group-detail.tsx` renders `checked={!editingConfig[feature.configKey]}` — ticked means *allowed*, so an `allowX` name renders backwards.
 - **The hint must describe access withheld, never a surface hidden.** A `'capability'` key refuses at the API; "Hide the Tables module from the sidebar" tells an admin they are tidying a nav bar while they revoke a module. The same string is read again by `getActivePermissionGroupRestrictions` in `features.ts` as the prose for an *active* restriction — reaching users through the Copilot workspace VFS and the enterprise platform context — where "hide" is simply false. Write "Revoke the Tables module. Members cannot read or write any table." `PlatformFeatureMeta.hint` carries the rule in its TSDoc.
@@ -213,7 +213,7 @@ cd apps/sim && bun run type-check
 bun run --cwd apps/sim test lib/permission-groups
 ```
 
-Also `bun run check:api-validation:strict` if you touched a contract or the group routes. `bun run check:audits` runs every one of these (including the `:strict` variant); it derives its list from the `check:*` scripts in `package.json`, so a new audit is opted *out* deliberately rather than opted in.
+Also `bun run check:api-validation:strict` if you touched a contract or the group routes. `bun run check:audits` runs every `check:*` command here (including the `:strict` variant) but not type-check or the tests; it derives its list from the `check:*` scripts in `package.json`, so a new audit is opted *out* deliberately rather than opted in.
 
 Read the success lines, not the exit codes — compare the counts against the previous run and check they grew by exactly what you added: an operation-declared capability adds one operation and one capability; a raw-route or parameterized capability adds one capability and no operation; an executor-gated or UI-only item adds neither:
 

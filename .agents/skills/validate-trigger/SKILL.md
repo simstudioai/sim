@@ -76,7 +76,7 @@ If a payload schema is unknown, validation must explicitly recommend:
 ### Trigger Files
 - [ ] Exactly one primary trigger has `includeDropdown: true`
 - [ ] All secondary triggers do NOT have `includeDropdown`
-- [ ] Webhook triggers use `buildTriggerSubBlocks`; polling triggers (`polling: true`) declare subBlocks manually
+- [ ] Webhook triggers use `buildTriggerSubBlocks` (directly or through a service wrapper) unless they deliberately keep a custom layout, as `triggers/airtable/webhook.ts` does; polling triggers (`polling: true`) declare subBlocks manually
 - [ ] Every trigger's `id` matches the convention `{service}_{event_name}`
 - [ ] Every trigger's `provider` matches the service name used in the handler registry
 - [ ] `index.ts` barrel exports all triggers

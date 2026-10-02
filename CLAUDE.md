@@ -145,6 +145,7 @@ bun run type-check      # every workspace
 bun run check:audits    # every check:* audit plus the generated-artifact checks
 bun run test            # script tests, then every workspace's Vitest suite
 bun run docs-manifest:check
+git fetch origin staging  # the block-registry check diffs against it
 bun run apps/sim/scripts/check-block-registry.ts origin/staging
 ```
 
