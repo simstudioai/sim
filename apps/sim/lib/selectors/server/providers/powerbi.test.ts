@@ -136,7 +136,8 @@ describe('Power BI selector provider boundary', () => {
         manualWorkspaceId: 'stale-manual-workspace',
         [field]: workspace,
       }
-      const picker = PowerBIBlock.subBlocks.find((subBlock) => subBlock.id === 'datasetSelector')!
+      const picker = PowerBIBlock.subBlocks.find((subBlock) => subBlock.id === 'datasetSelector')
+      if (!picker) throw new Error('Power BI block has no datasetSelector')
       const context = buildSelectorContextFromValues({
         selectorKey: 'powerbi.datasets',
         contextConfigs: getSelectorContextSubBlocks(PowerBIBlock.subBlocks, values),

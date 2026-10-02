@@ -31,7 +31,7 @@ export type PowerBIFixtureScenario =
   | 'missing-identity'
   | 'missing-query'
 
-export interface PowerBIFixtureRequest {
+interface PowerBIFixtureRequest {
   method: string
   path: string
   body: unknown

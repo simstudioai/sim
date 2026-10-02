@@ -1,6 +1,6 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
-export interface PowerBIAuthParams {
+interface PowerBIAuthParams {
   accessToken: string
 }
 
@@ -27,7 +27,7 @@ export interface PowerBIExecuteQueryParams extends PowerBIDatasetParams {
   includeNulls?: boolean
 }
 
-export type PowerBINotifyOption = 'NoNotification' | 'MailOnFailure' | 'MailOnCompletion'
+type PowerBINotifyOption = 'NoNotification' | 'MailOnFailure' | 'MailOnCompletion'
 
 export interface PowerBIRefreshDatasetParams extends PowerBIDatasetParams {
   notifyOption?: PowerBINotifyOption
@@ -71,7 +71,7 @@ export interface PowerBIDataset {
   webUrl: string | null
 }
 
-export interface PowerBIRefreshAttempt {
+interface PowerBIRefreshAttempt {
   attemptId: number | null
   type: string | null
   startTime: string | null
@@ -96,7 +96,7 @@ export interface PowerBIQueryError {
   details: unknown | null
 }
 
-export interface PowerBIInformationProtectionLabel {
+interface PowerBIInformationProtectionLabel {
   id: string | null
   name: string | null
 }
@@ -206,21 +206,6 @@ export const POWERBI_DATASET_OUTPUT_PROPERTIES = {
   webUrl: { ...nullableString, description: 'Semantic model URL in Power BI, when available' },
 } satisfies Record<string, OutputProperty>
 
-export const POWERBI_REFRESH_ATTEMPT_OUTPUT_PROPERTIES = {
-  attemptId: {
-    type: 'number',
-    nullable: true,
-    description: 'Refresh attempt index',
-  },
-  type: { ...nullableString, description: 'Provider refresh attempt type' },
-  startTime: { ...nullableString, description: 'Attempt start timestamp' },
-  endTime: { ...nullableString, description: 'Attempt end timestamp, when available' },
-  serviceExceptionJson: {
-    ...nullableString,
-    description: 'Serialized provider failure details, when available',
-  },
-} satisfies Record<string, OutputProperty>
-
 export const POWERBI_REFRESH_OUTPUT_PROPERTIES = {
   requestId: { ...nullableString, description: 'Provider refresh request ID' },
   refreshType: { ...nullableString, description: 'Provider refresh trigger type' },
@@ -237,7 +222,23 @@ export const POWERBI_REFRESH_OUTPUT_PROPERTIES = {
   refreshAttempts: {
     type: 'array',
     description: 'Refresh attempts supplied by the provider',
-    items: { type: 'object', properties: POWERBI_REFRESH_ATTEMPT_OUTPUT_PROPERTIES },
+    items: {
+      type: 'object',
+      properties: {
+        attemptId: {
+          type: 'number',
+          nullable: true,
+          description: 'Refresh attempt index',
+        },
+        type: { ...nullableString, description: 'Provider refresh attempt type' },
+        startTime: { ...nullableString, description: 'Attempt start timestamp' },
+        endTime: { ...nullableString, description: 'Attempt end timestamp, when available' },
+        serviceExceptionJson: {
+          ...nullableString,
+          description: 'Serialized provider failure details, when available',
+        },
+      },
+    },
   },
 } satisfies Record<string, OutputProperty>
 
