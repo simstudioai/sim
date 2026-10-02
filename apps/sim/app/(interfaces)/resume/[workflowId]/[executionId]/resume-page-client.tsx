@@ -345,11 +345,12 @@ export default function ResumeExecutionPage({
   const handleFormFieldChange = useCallback(
     (fieldName: string, newValue: string) => {
       if (!selectedContextId) return
-      setFormValues((prev) => {
-        const updated = { ...prev, [fieldName]: newValue }
-        formValuesByContextRef.current[selectedContextId] = updated
-        return updated
-      })
+      const updated = {
+        ...formValuesByContextRef.current[selectedContextId],
+        [fieldName]: newValue,
+      }
+      formValuesByContextRef.current[selectedContextId] = updated
+      setFormValues(updated)
       setFormErrors((prev) => {
         if (!prev[fieldName]) return prev
         const { [fieldName]: _, ...rest } = prev
