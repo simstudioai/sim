@@ -1,14 +1,12 @@
 # Sim Development Guidelines
 
-You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
-
 This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.claude/rules/*.md` (indexed in `apps/sim/AGENTS.md`): Claude loads each one by path, and any other agent reads the file a section points to before editing in that area. Skills live in `.agents/skills/`.
 
 ## Global Standards
 
 - **Package manager**: `bun` and `bunx`, never `npm` and `npx`.
 - **Logging**: `createLogger` from `@sim/logger`; `logger.info` / `logger.warn` / `logger.error`, never `console.log`. Inside `withRouteHandler` the logger already carries the request ID — no manual `withMetadata({ requestId })`.
-- **Comments**: TSDoc for documentation. An inline `//` only for a terse, non-obvious why, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, …). No `====` separators.
+- **Comments**: name things so the code explains itself. TSDoc documents exported APIs and non-obvious modules. An inline `//` is only for a terse, non-obvious *why*, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, `utils-lint-allow`, …). A comment never narrates what the next line does, restates a name or type, or records change history ("moved from X", "previously", "now uses Y") — history belongs in the commit message. No `====` separators. The `/you-might-not-need-a-comment` skill applies this to a diff.
 - **ID generation**: `generateId()` (UUID v4, the default) or `generateShortId(size?)` (URL-safe, 21 chars by default) from `@sim/utils/id` — never `crypto.randomUUID()`, `nanoid`, or `uuid`. Both use `crypto.getRandomValues()`, so they also work in non-secure (HTTP) browsers.
 - **Common utilities**: use the shared helpers from `@sim/utils` instead of inline implementations (`check:utils` bans most of the inline forms below):
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
@@ -24,8 +22,7 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
   - `compareStrings(left, right)` from `@sim/utils/string` — code-unit ordering for hashes, fingerprints, and cross-process comparisons; never `localeCompare` there
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — never reimplement exponential backoff inline
 - **Deployment flags in the browser**: client code inside a workspace, organization, or standalone settings surface reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never `isHosted`/`isBillingEnabled`/... from `env-flags`. Those constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit, so a recovered tab would render Sim Cloud as self-hosted; the reader is seeded from the server-resolved workspace host context, organization layout, or standalone settings layout instead. Server code keeps reading `env-flags`.
-- **Type-checking**: `bun run type-check` (per workspace) or `bunx turbo run type-check` (all). Never remove the `@typescript/native` alias from the root `devDependencies`. Nothing imports it; it exists so a bare `tsc` resolves to the native TypeScript 7 compiler. `apps/sim` needs `@typescript/typescript6`, whose `@typescript/old` dependency (an alias of `typescript@6`) ships its own `tsc` bin, and bin winners are picked by lexical sort, so without the alias `tsc` silently becomes the ~10x slower JavaScript compiler. `bun run check:native-typecheck` enforces this, and also fails when a newly added dependency that sorts ahead of `@typescript/native` ships a `tsc` bin ([microsoft/typescript-go#4567](https://github.com/microsoft/typescript-go/issues/4567)).
-- **Checks**: `bun run lint` autofixes formatting; `bun run check:audits` runs every `check:*` audit CI enforces.
+- **Type-checking**: `bun run type-check` at the root checks every workspace (`bun run type-check` inside a workspace checks just that one). Never remove the `@typescript/native` alias from the root `devDependencies`: nothing imports it, but without it a bare `tsc` resolves to the ~10x slower TypeScript 6 compiler. `bun run check:native-typecheck` enforces this; its header explains the bin-resolution trap.
 
 ## Architecture
 
@@ -137,3 +134,38 @@ Remaining block/tool/trigger rules: `.claude/rules/sim-integrations.md`. Canvas 
 Table column types are registry entries in `apps/sim/lib/table/column-types/` — one file per type owning its label, icon, storage cast, coercion, validation, conversion compatibility, formatting, and editor. `Record<ColumnType, …>` on `registry.ts` and `registry.server.ts` is a compile-time completeness gate: adding a type to the union errors until both entries exist.
 
 Never add a `case 'sometype':` outside `column-types/` — a missing arm fails silently (a wrong `jsonbCast` breaks every filter on the column). If a consumer needs per-type knowledge, add a registry field. Use `/add-column-type` for the full procedure.
+
+## How your work is checked
+
+Before declaring a change done, run the local gate from the repo root; CI runs the same commands and fails on any of them:
+
+```bash
+bun run lint            # biome format + lint, autofixes (CI runs lint:check)
+bun run type-check      # every workspace
+bun run check:audits    # every check:* audit plus the generated-artifact checks
+bun run test            # script tests, then every workspace's Vitest suite
+```
+
+A diff that touches `packages/db/migrations/**` also runs `bun run check:migrations origin/staging` (it needs a base ref, so it is not in `check:audits`). When an audit fails, its output and its script's header say what the rule protects; fix the code, never the check. Ratchet baselines (`scripts/*.baseline.json`) only shrink: regenerate one with the script's `--update`/`--write` flag after removing violations, never to admit new ones.
+
+| Written rule | Enforced by |
+| --- | --- |
+| Formatting, lint, no `nanoid`/`uuid` imports | `bun run lint` (biome) |
+| `@sim/utils` over inline idioms (`Math.random`, `crypto.randomUUID`, `JSON` clone, `instanceof Error` message, `setTimeout` sleep) | `check:utils` |
+| `apps → packages` only; realtime import bans | `check:boundaries`, `check:realtime-prune` |
+| Route contracts, no `zod` in routes or clients, `requestJson`, boundary annotations | `check:api-validation:strict`, `check:api-contract-routes`, `check:route-verbs` |
+| Application authorization funnel stays light; principal and capability policy | `check:application-graph`, `check:principal-kind-parity`, `check:capability-subject`, `check:actorless-executor-operations`, `check:permission-group-enforcement` |
+| `'use client'` server boundary | `check:client-boundary` |
+| React Query keys, `staleTime`, `signal` | `check:react-query` |
+| Zustand v5 selector stability | `check:zustand-v5` |
+| Tool registry out of client and prefetch graphs | `check:tool-registry-boundary` |
+| Outbound HTTP through the egress guard; tool request boundary | `check:egress-boundary`, `check:tool-request-boundary` |
+| Imports resolve under Turbopack; no `@/triggers` → `@/blocks` cycle | `check:import-specifiers`, `check:trigger-block-cycle` |
+| Canvas sentences, BYOK wiring, fork-dependent subblocks, reachable tool params | `check:canvas-sentences`, `check:byok-providers`, `check:fork-dependent-coverage`, `check:tool-param-reachability` |
+| Central mocks, colocated tests, script tests collected | `check:test-patterns`, `check:script-tests` |
+| Zero-downtime migrations | `check:migrations <base>` |
+| Unused files, exports, dependencies | `check:dead-code` (knip) |
+| Skills and rules projections in sync; guidance references resolve | `check:skills`, `check:guidance-refs` |
+| Generated artifacts fresh (tool metadata, docs, catalog, CLI/MCP/OpenAPI surfaces) | the `*:check` entries in `check:audits` |
+
+Rules not in this table (logging, comments, naming, imports, styling, state ownership, caching) are enforced by review only; follow them as written.

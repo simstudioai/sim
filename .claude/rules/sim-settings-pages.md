@@ -113,17 +113,9 @@ Adding a new settings page:
 
 ## Text-scale tokens (no literal pixel sizes)
 
-Settings pages never use a literal `text-[Npx]` class — always the named Tailwind
-scale token from the `@theme` block in `apps/sim/app/_styles/globals.css` (`text-micro`
-10px, `text-xs` 11px, `text-caption` 12px, `text-small` 13px, `text-sm` 14px
-[Tailwind default, unmodified], `text-base` 15px, `text-md` 16px, `text-lg` 18px
-[Tailwind default]). A literal size is either a straight rename to the equivalent
-token (if the pixel value matches one exactly) or a sign the page never migrated —
-grep `text-\[1[0-8]px\]` under `apps/sim/app/workspace/*/settings/**` and
-`apps/sim/ee/**` to find stragglers.
-
-Watch `text-xs`: it is 11px here, so a "caption" written as `text-xs` is a pixel
-short. See `sim-styling.md` for the full scale.
+Settings pages never use a literal `text-[Npx]` class — always a named token from
+the scale in `sim-styling.md` ("Text Scale"). Find stragglers with
+`rg 'text-\[1[0-8]px\]' apps/sim/app/workspace apps/sim/ee`.
 
 The two-line list row (title over a muted subtitle — a name + email, a tool name
 + description, a server name + status) is **not something you build**: it is
@@ -402,4 +394,4 @@ A settings page is design-system-clean when:
 - [ ] Decorative trailing content is in `badge`, not `trailing`.
 - [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/error use `SettingsEmptyState`.
 - [ ] Delete is a plain `id:'delete'` header action behind a `ChipConfirmModal`; `destructive` is reserved for bulk actions.
-- [ ] `tsc`, `biome`, and the page's tests pass.
+- [ ] The local gate in the root `CLAUDE.md` ("How your work is checked") passes.

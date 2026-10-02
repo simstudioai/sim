@@ -140,7 +140,6 @@ const handler = useCallback(() => {
 // ✓ Good — omit from deps, mutate is stable
 const handler = useCallback(() => {
   createEntity.mutate(data)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [data])
 ```
 

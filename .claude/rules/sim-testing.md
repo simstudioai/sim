@@ -9,10 +9,9 @@ paths:
 
 # Testing
 
-Before writing or changing any test, run the `test-audit` skill's authoring gate. The short
-version: never write unit tests after the code; prefer E2E tests at the real boundary and end
-them with a verifiable artifact; if you must test in isolation, write the failure modes down
-first. A test that cannot name the bug it catches does not get written.
+The testing principles are in the root `CLAUDE.md` → Testing. Before writing or changing any test,
+run the `test-audit` skill's authoring gate: a test that cannot name the bug it catches does not
+get written.
 
 ## Layers
 
@@ -27,9 +26,7 @@ What already catches bugs, in the order to reach for it:
 
 A unit test is justified only for a failure the layers above cannot see: security boundaries,
 billing math, executor semantics, parsers and algorithms with edge cases, cross-process wire
-contracts, and demonstrated regressions. Never restate declarations (block/tool/provider config,
-registries, constants, schemas accepting valid input), assert that mocks were called, check
-rendered text or class names, or test mocks and factories themselves.
+contracts, and demonstrated regressions.
 
 ## Naming
 

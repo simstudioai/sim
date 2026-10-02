@@ -14,16 +14,7 @@ URL query state is managed with [`nuqs`](https://nuqs.dev). The `NuqsAdapter` is
 
 ## Decision framework — where does this state live?
 
-Pick exactly one home for each piece of state:
-
-- **React Query** → server/remote data. Unchanged; see `.claude/rules/sim-queries.md`.
-- **URL params (nuqs)** → client view-state worth putting in a link: active tab/panel, selected entity id, filters, search query, pagination, view mode (list/grid), an open "view" drawer/modal that represents a destination.
-- **Zustand** → cross-component client state that must NOT be in the URL: high-frequency, large, ephemeral, or socket-synced (canvas pan/zoom, cursor, drag state, resize widths, unsaved buffers, live collaborative selection).
-- **`useState`** → purely local, single-component UI.
-
-Put state in the URL **only** when it is *all* of: shareable, deep-linkable, bookmarkable, survives reload + back/forward — **and** is discrete, low-frequency, and small. If it fails any of those, it does not go in the URL.
-
-### When to use what (decision table)
+Pick exactly one home for each piece of state (table below). Put state in the URL **only** when it is *all* of: shareable, deep-linkable, bookmarkable, survives reload + back/forward — **and** is discrete, low-frequency, and small. If it fails any of those, it does not go in the URL.
 
 | Home | Trigger | Example |
 | --- | --- | --- |
