@@ -10,7 +10,14 @@ export async function prepareProjectsForAccountDeletion(
   userId: string,
   doomedWorkspaceIds: string[]
 ): Promise<void> {
-  await lockProjectBackfillWrites(tx)
+  const ownedEnvironments = await tx
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.ownerId, userId))
+  await lockProjectBackfillWrites(tx, [
+    ...doomedWorkspaceIds,
+    ...ownedEnvironments.map((row) => row.id),
+  ])
   const records = await tx
     .select({ id: project.id })
     .from(project)

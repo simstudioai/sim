@@ -9,7 +9,7 @@ Project APIs return HTTP 503 until the deployment enables `PROJECT_API_ENABLED`.
 | Caller | Flow | Result |
 | --- | --- | --- |
 | New Project onboarding | `POST /api/projects` | Creates a Project and its first environment together, with independently supplied names. |
-| Existing workspace creation UI or caller | `POST /api/workspaces` | Creates a workspace and, when Project writers are enabled, automatically creates its Project, preserving the existing workspace response. |
+| Existing workspace creation UI or caller | `POST /api/workspaces` | Creates a workspace and automatically creates its Project, preserving the existing workspace response. |
 | Create another environment by forking | Existing workspace fork operation | Inherits the source workspace's Project; unassigned legacy families remain unassigned until backfilled. |
 
 Both POST endpoints are internal, session-authenticated APIs. `POST /api/projects` is not a public `/api/v2` endpoint and does not accept API-key principals. This foundation does not remove or deprecate existing workspace creation endpoints.
@@ -69,7 +69,7 @@ Existing callers can continue to use `createWorkspaceContract` and `POST /api/wo
 
 `skipDefaultWorkflow` remains optional and defaults to `false`. The route uses the session's active organization and existing workspace creation policy to resolve ownership and billing. It does not take the explicit Project scope or independent Project name used by `POST /api/projects`.
 
-When Project writers are enabled, the workspace and its Project are created atomically. The generated Project name is `Support workspace - Project`; long names are bounded to 100 characters while retaining the suffix. The response remains `{ "workspace": ... }` with HTTP 200, without a new Project response wrapper. Call `GET /api/projects/by-workspace/[workspaceId]` when an existing workspace caller needs its authorized Project details.
+The workspace and its Project are created atomically. The generated Project name is `Support workspace - Project`; long names are bounded to 100 characters while retaining the suffix. The response remains `{ "workspace": ... }` with HTTP 200, without a new Project response wrapper. Call `GET /api/projects/by-workspace/[workspaceId]` when an existing workspace caller needs its authorized Project details.
 
 ## Server implementation
 
