@@ -2,38 +2,27 @@
 /**
  * Fails when agent guidance names something that does not exist.
  *
- * Agents follow `CLAUDE.md`, every `AGENTS.md`, `.claude/rules/*.md`, and the skills under
- * `.agents/skills/` literally. A rule that points at a moved file, a renamed `check:*` script, a
- * deleted skill, or an import path that no longer resolves sends the agent searching for it, or
- * worse, recreating it. Code moves weekly and nothing else ties the prose to the tree, so this
- * audit resolves every concrete reference the guidance makes:
+ * Agents follow `CLAUDE.md`, every `AGENTS.md`, `.claude/rules/*.md`, and `.agents/skills/`
+ * literally, so a dead reference sends them searching for, or recreating, something that moved.
+ * Checked:
  *
- * - `path`: a backticked or linked repo path (`apps/sim/lib/...`, `.claude/rules/x.md`,
- *   `scripts/x.ts`). Resolved against the repo root, the document's directory, and `apps/sim`
- *   (rules usually name app paths without the prefix). A path whose first segment exists in none
- *   of those is not treated as a path, so MIME types and prose like `basic/advanced` pass.
- * - `script`: `bun run <name>`, `turbo run <name>`, or a bare `check:<x>` / `<x>:check` that is
- *   not a script in any workspace `package.json`; `bun run --cwd <dir> <name>` must be a script in
- *   `<dir>/package.json`.
- * - `skill`: `/name` on a line that talks about skills, or `` `name` skill ``, with no
- *   `.agents/skills/<name>/SKILL.md`.
- * - `import`: an `@/…` or `@sim/…` specifier (in a code span, or a fenced `import`/`from` line)
- *   that does not resolve to a file, directory, or package export.
- * - a rule's frontmatter `paths:` glob that matches no file, which silently stops the rule from
- *   loading for the code it was written for.
+ * - `path`: a backticked or linked repo path, resolved against the repo root, the document's
+ *   directory, and `apps/sim`. A token whose first segment exists in none of those is prose.
+ * - `script`: `bun run <name>`, `turbo run <name>`, or a bare `check:<x>` / `<x>:check` that no
+ *   workspace `package.json` declares; `bun run --cwd <dir> <name>` must be in `<dir>`.
+ * - `skill`: `/name` on a line about skills, or `` `name` skill ``, with no `SKILL.md`.
+ * - `import`: an `@/…` or `@sim/…` specifier that resolves to no file or package export.
+ * - a rule's frontmatter `paths:` glob that matches no file, so the rule never loads.
  *
- * Placeholders are skipped rather than allow-listed: anything containing `<…>`, `{…}`, `*`, or
- * an ellipsis is a pattern, not a reference. A reference in `~/…`, a URL, or another repo is out
- * of scope.
- *
- * Fix a finding by pointing the sentence at the current path or name, or delete the sentence when
- * the thing is gone. There is no baseline: guidance is small enough to keep at zero.
+ * Anything containing `<…>`, `{…}`, `*`, or an ellipsis is a placeholder and skipped. There is
+ * no baseline: fix the reference or delete the sentence.
  *
  * Run: `bun run check:guidance-refs`
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
+import { parseRule } from './sync-skills'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const APP_ROOT = path.join(ROOT, 'apps/sim')
@@ -47,62 +36,33 @@ interface Finding {
   ref: string
 }
 
+/** Every tracked or untracked-but-not-ignored file, relative to the repo root. */
+function repoFiles(): string[] {
+  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    maxBuffer: 1 << 28,
+  })
+    .split('\n')
+    .filter(Boolean)
+}
+
 /** Every guidance document, deduplicated through symlinks (`AGENTS.md` -> `CLAUDE.md`). */
-function guidanceFiles(): string[] {
+function guidanceFiles(files: string[]): string[] {
   const found = new Map<string, string>()
-  const add = (file: string) => {
-    const real = realpathSync(file)
-    if (!found.has(real)) found.set(real, path.relative(ROOT, file))
-  }
-  const tracked = execFileSync(
-    'git',
-    ['ls-files', '--cached', '--others', '--exclude-standard', '*AGENTS.md', '*CLAUDE.md'],
-    { cwd: ROOT, encoding: 'utf8' }
-  )
-  for (const rel of tracked.split('\n')) {
+  for (const rel of files) {
+    const isGuidance =
+      ['AGENTS.md', 'CLAUDE.md'].includes(path.basename(rel)) ||
+      /^\.claude\/rules\/[^/]+\.md$/.test(rel) ||
+      /^\.agents\/skills\/.+\.md$/.test(rel)
     // `.claude/skills` and `.cursor` are generated projections of `.agents/skills`.
-    if (!rel || rel.startsWith('.claude/skills/') || rel.startsWith('.cursor/')) continue
+    if (!isGuidance || rel.startsWith('.claude/skills/') || rel.startsWith('.cursor/')) continue
     const full = path.join(ROOT, rel)
-    if (existsSync(full)) add(full)
+    if (!existsSync(full)) continue
+    const real = realpathSync(full)
+    if (!found.has(real)) found.set(real, rel)
   }
-  for (const entry of readdirSync(path.join(ROOT, '.claude/rules'))) {
-    if (entry.endsWith('.md')) add(path.join(ROOT, '.claude/rules', entry))
-  }
-  const walkSkills = (dir: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) walkSkills(full)
-      else if (entry.name.endsWith('.md')) add(full)
-    }
-  }
-  walkSkills(SKILLS_DIR)
   return [...found.values()].sort()
-}
-
-interface ScriptNames {
-  /** Every script declared by the root or any workspace. */
-  all: Set<string>
-  /** Scripts per workspace directory (`''` is the root), for `bun run --cwd <dir>`. */
-  byDir: Map<string, Set<string>>
-}
-
-/** Script names declared by the root and every workspace `package.json`. */
-function scriptNames(): ScriptNames {
-  const all = new Set<string>()
-  const byDir = new Map<string, Set<string>>()
-  const dirs = ['']
-  for (const group of ['apps', 'packages']) {
-    for (const entry of readdirSync(path.join(ROOT, group))) {
-      if (existsSync(path.join(ROOT, group, entry, 'package.json'))) dirs.push(`${group}/${entry}`)
-    }
-  }
-  for (const dir of dirs) {
-    const manifest = path.join(ROOT, dir, 'package.json')
-    const names = new Set(Object.keys(JSON.parse(readFileSync(manifest, 'utf8')).scripts ?? {}))
-    byDir.set(dir, names)
-    for (const name of names) all.add(name)
-  }
-  return { all, byDir }
 }
 
 interface WorkspacePackage {
@@ -110,19 +70,48 @@ interface WorkspacePackage {
   exports: string[]
 }
 
-/** `@sim/*` packages by name, with their export subpaths. */
-function workspacePackages(): Map<string, WorkspacePackage> {
-  const packages = new Map<string, WorkspacePackage>()
-  for (const entry of readdirSync(path.join(ROOT, 'packages'))) {
-    const manifestPath = path.join(ROOT, 'packages', entry, 'package.json')
+interface Workspaces {
+  /** Every script declared by the root or any workspace. */
+  scripts: Set<string>
+  /** Scripts per workspace directory (`''` is the root), for `bun run --cwd <dir>`. */
+  scriptsByDir: Map<string, Set<string>>
+  /** Workspace packages by name, with their export subpaths. */
+  packages: Map<string, WorkspacePackage>
+}
+
+/** Reads the root and every workspace `package.json` (from the root `workspaces` globs) once. */
+function readWorkspaces(files: string[]): Workspaces {
+  const root = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
+  const patterns: string[] = Array.isArray(root.workspaces)
+    ? root.workspaces
+    : (root.workspaces?.packages ?? [])
+  const globs = patterns.map((pattern) => new Bun.Glob(`${pattern}/package.json`))
+  const dirs = [
+    '',
+    ...files.filter((rel) => globs.some((glob) => glob.match(rel))).map(path.dirname),
+  ]
+
+  const workspaces: Workspaces = {
+    scripts: new Set(),
+    scriptsByDir: new Map(),
+    packages: new Map(),
+  }
+  for (const dir of dirs) {
+    const manifestPath = path.join(ROOT, dir, 'package.json')
     if (!existsSync(manifestPath)) continue
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    if (typeof manifest.name !== 'string') continue
-    const exports =
-      manifest.exports && typeof manifest.exports === 'object' ? Object.keys(manifest.exports) : []
-    packages.set(manifest.name, { dir: path.join(ROOT, 'packages', entry), exports })
+    const names = new Set(Object.keys(manifest.scripts ?? {}))
+    workspaces.scriptsByDir.set(dir, names)
+    for (const name of names) workspaces.scripts.add(name)
+    if (dir && typeof manifest.name === 'string') {
+      const exports =
+        manifest.exports && typeof manifest.exports === 'object'
+          ? Object.keys(manifest.exports)
+          : []
+      workspaces.packages.set(manifest.name, { dir: path.join(ROOT, dir), exports })
+    }
   }
-  return packages
+  return workspaces
 }
 
 function isPlaceholder(ref: string): boolean {
@@ -145,14 +134,15 @@ function pathResolves(ref: string, docDir: string): boolean {
     .replace(/:\d+(-\d+)?$/, '')
     .replace(/\/$/, '')
   if (!clean) return true
-  const bases = [ROOT, docDir, APP_ROOT]
   if (PATH_PREFIXES.some((prefix) => clean.startsWith(prefix))) {
     return resolvesFrom(ROOT, clean)
   }
-  const first = clean.replace(/^\.\//, '').split('/')[0]
+  const bases = [ROOT, docDir, APP_ROOT]
+  const rel = clean.replace(/^\.\//, '')
+  const first = rel.split('/')[0]
   const anchored = bases.filter((base) => existsSync(path.join(base, first)))
   if (anchored.length === 0) return true
-  return anchored.some((base) => resolvesFrom(base, clean.replace(/^\.\//, '')))
+  return anchored.some((base) => resolvesFrom(base, rel))
 }
 
 function importResolves(spec: string, packages: Map<string, WorkspacePackage>): boolean {
@@ -196,33 +186,6 @@ const CHECK_TOKEN = /^(check:[\w:-]+|[\w-]+:check)$/
 const PATH_TOKEN = /^\.{0,2}\/?[\w@.()[\]-]+(?:\/[\w@.()[\]-]*)+$/
 const BARE_DOC = /^[\w.-]+\.md$/
 
-/**
- * The `paths:` globs in a rule's frontmatter. A glob that matches nothing silently stops the rule
- * from loading for the files it was written for.
- */
-function frontmatterPaths(lines: string[]): Array<{ line: number; glob: string }> {
-  if (lines[0] !== '---') return []
-  const globs: Array<{ line: number; glob: string }> = []
-  let inPaths = false
-  for (let index = 1; index < lines.length && lines[index] !== '---'; index++) {
-    const text = lines[index]
-    if (/^paths:\s*$/.test(text)) {
-      inPaths = true
-      continue
-    }
-    const item = text.match(/^\s+-\s+["']?([^"']+)["']?\s*$/)
-    if (inPaths && item) globs.push({ line: index + 1, glob: item[1] })
-    else if (!/^\s/.test(text)) inPaths = false
-  }
-  return globs
-}
-
-function globMatchesAnything(pattern: string): boolean {
-  const glob = new Bun.Glob(pattern)
-  for (const _ of glob.scanSync({ cwd: ROOT, onlyFiles: true })) return true
-  return false
-}
-
 /** Drops sentence punctuation and an unbalanced closing paren from a path found in running text. */
 function trimProse(ref: string): string {
   let trimmed = ref.replace(/[.,:;]+$/, '')
@@ -233,11 +196,7 @@ function trimProse(ref: string): string {
 }
 
 /** Extracts every unresolved reference from one document. */
-function auditDocument(
-  relFile: string,
-  scripts: ScriptNames,
-  packages: Map<string, WorkspacePackage>
-): Finding[] {
+function auditDocument(relFile: string, workspaces: Workspaces, files: string[]): Finding[] {
   const findings: Finding[] = []
   const file = path.join(ROOT, relFile)
   const docDir = path.dirname(file)
@@ -251,30 +210,36 @@ function auditDocument(
 
   const checkScript = (line: number, raw: string, cwd?: string) => {
     const name = raw.replace(/[.,;:)]+$/, '')
-    if (isPlaceholder(name) || name.includes('/') || name.endsWith('.ts')) return
-    if (name.startsWith('-')) return
+    if (isPlaceholder(name) || name.includes('/') || name.endsWith('.ts') || name.startsWith('-')) {
+      return
+    }
     if (cwd !== undefined) {
       if (isPlaceholder(cwd)) return
-      const declared = scripts.byDir.get(cwd.replace(/^\.\//, '').replace(/\/$/, ''))
+      const declared = workspaces.scriptsByDir.get(cwd.replace(/^\.\//, '').replace(/\/$/, ''))
       if (!declared?.has(name)) report(line, 'script', `${name} (in ${cwd})`)
       return
     }
-    if (!scripts.all.has(name)) report(line, 'script', name)
+    if (!workspaces.scripts.has(name)) report(line, 'script', name)
   }
 
   const checkPath = (line: number, raw: string) => {
     if (isPlaceholder(raw) || /^[a-z]+:\/\//i.test(raw) || raw.startsWith('~')) return
     if (raw.startsWith('@/') || raw.startsWith('@sim/')) {
-      if (!importResolves(raw, packages)) report(line, 'import', raw)
+      if (!importResolves(raw, workspaces.packages)) report(line, 'import', raw)
       return
     }
     if (raw.startsWith('/')) return
     if (!pathResolves(raw, docDir)) report(line, 'path', raw)
   }
 
-  const lines = readFileSync(file, 'utf8').split('\n')
-  for (const { line, glob } of frontmatterPaths(lines)) {
-    if (!globMatchesAnything(glob)) report(line, 'path', glob)
+  const raw = readFileSync(file, 'utf8')
+  const lines = raw.split('\n')
+  if (relFile.startsWith('.claude/rules/')) {
+    for (const glob of parseRule(path.basename(relFile, '.md'), raw).paths) {
+      const matcher = new Bun.Glob(glob)
+      if (files.some((rel) => matcher.match(rel))) continue
+      report(lines.findIndex((text) => text.includes(glob)) + 1, 'path', glob)
+    }
   }
 
   let inFence = false
@@ -301,22 +266,20 @@ function auditDocument(
         continue
       }
       for (const imported of span.matchAll(IMPORT_SPEC)) checkPath(line, imported[2])
-      if (span.startsWith('@/') || span.startsWith('@sim/')) {
-        checkPath(line, span.split(/\s/)[0])
-        continue
-      }
       const token = span.split(/\s/)[0]
-      if (span === token && PATH_TOKEN.test(token)) checkPath(line, token)
-      else if (span === token && BARE_DOC.test(token) && !isPlaceholder(token)) {
+      // An import specifier is checked even when prose follows it in the span.
+      if (span !== token && !/^@(?:sim)?\//.test(token)) continue
+      if (PATH_TOKEN.test(token)) checkPath(line, token)
+      else if (BARE_DOC.test(token) && !isPlaceholder(token)) {
         const bases = [docDir, ROOT, path.join(ROOT, '.claude/rules')]
         if (!bases.some((base) => existsSync(path.join(base, token)))) report(line, 'path', token)
       }
     }
     for (const match of text.matchAll(MD_LINK)) {
       const target = match[1]
-      if (/^(https?:|mailto:|#)/.test(target)) continue
-      const resolved = target.startsWith('/') ? target.slice(1) : target
-      if (!pathResolves(resolved, docDir)) report(line, 'path', target)
+      if (/^(mailto:|#)/.test(target)) continue
+      // A leading `/` in a link is the repo root.
+      checkPath(line, target.replace(/^\//, ''))
     }
 
     const outsideSpans = text.replace(/`[^`\n]*`/g, (span) =>
@@ -335,10 +298,10 @@ function auditDocument(
 }
 
 if (import.meta.main) {
-  const files = guidanceFiles()
-  const scripts = scriptNames()
-  const packages = workspacePackages()
-  const findings = files.flatMap((file) => auditDocument(file, scripts, packages))
+  const files = repoFiles()
+  const docs = guidanceFiles(files)
+  const workspaces = readWorkspaces(files)
+  const findings = docs.flatMap((doc) => auditDocument(doc, workspaces, files))
 
   if (findings.length > 0) {
     const fixes: Record<Finding['kind'], string> = {
@@ -360,5 +323,5 @@ if (import.meta.main) {
     process.exit(1)
   }
 
-  console.log(`Guidance references resolve: ${files.length} documents checked.`)
+  console.log(`Guidance references resolve: ${docs.length} documents checked.`)
 }

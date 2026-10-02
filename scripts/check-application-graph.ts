@@ -68,8 +68,8 @@
  *    path and one on a once-a-month webhook read identically, which is why the
  *    deferred check stops at the edge's own target rather than walking past it.
  */
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { basename, dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -283,7 +283,28 @@ export function findViolations({ root, forbidden }: GuardedRoot): GraphViolation
   return violations
 }
 
+/**
+ * Whether any path under `apps/sim` starts with `prefix`. A prefix that matches nothing guards
+ * nothing: the tree was renamed, and the audit would keep passing over it.
+ */
+function prefixMatchesAnything(prefix: string): boolean {
+  if (prefix.endsWith('/')) return existsSync(resolve(APP_ROOT, prefix))
+  const dir = resolve(APP_ROOT, dirname(prefix))
+  return existsSync(dir) && readdirSync(dir).some((entry) => entry.startsWith(basename(prefix)))
+}
+
 function main(): void {
+  const prefixes = new Set(GUARDED_ROOTS.flatMap((guarded) => Object.keys(guarded.forbidden)))
+  const dead = [...prefixes].filter((prefix) => !prefixMatchesAnything(prefix))
+  if (dead.length > 0) {
+    console.error(
+      `Application-graph audit forbids prefixes that match nothing under apps/sim: ${dead.join(', ')}\n` +
+        'The tree was renamed or removed. Point the key at its current path rather than leaving a\n' +
+        'guard that can never fire.\n'
+    )
+    process.exit(1)
+  }
+
   const violations: GraphViolation[] = []
   for (const guarded of GUARDED_ROOTS) {
     if (!existsSync(resolve(APP_ROOT, guarded.root))) {
@@ -310,10 +331,9 @@ function main(): void {
     process.exit(1)
   }
 
-  const trees = new Set(GUARDED_ROOTS.flatMap((guarded) => Object.keys(guarded.forbidden)))
   console.log(
     `✅ Application graph clean: ${GUARDED_ROOTS.length} roots reach none of ` +
-      `${trees.size} forbidden module trees`
+      `${prefixes.size} forbidden module trees`
   )
 }
 
