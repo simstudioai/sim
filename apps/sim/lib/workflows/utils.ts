@@ -459,24 +459,6 @@ export async function setWorkflowVariables(workflowId: string, variables: Record
 
 // ── Folder CRUD ──
 
-export async function verifyFolderWorkspace(
-  folderId: string,
-  workspaceId: string
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: folderTable.id })
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.id, folderId),
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, 'workflow')
-      )
-    )
-    .limit(1)
-  return Boolean(row)
-}
-
 export async function listFolders(workspaceId: string) {
   return db
     .select({

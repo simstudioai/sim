@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import {
   Button,
   Chip,
@@ -24,7 +25,6 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'

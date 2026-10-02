@@ -2,9 +2,9 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { validateMondayNumericId } from '@/lib/core/security/input-validation'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { getOAuthToken } from '@/lib/oauth/credential-service'
 import {
-  getCredentialOwner,
+  getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
@@ -22,7 +22,7 @@ const logger = createLogger('WebhookProvider:Monday')
 
 /**
  * Resolves an OAuth access token from the webhook's credential configuration.
- * Follows the Airtable pattern: credentialId → getCredentialOwner → refreshAccessTokenIfNeeded.
+ * Follows the Airtable pattern: credentialId → getCredentialAccessToken.
  */
 async function resolveAccessToken(
   config: Record<string, unknown>,
@@ -32,15 +32,8 @@ async function resolveAccessToken(
   const credentialId = config.credentialId as string | undefined
 
   if (credentialId) {
-    const credentialOwner = await getCredentialOwner(credentialId, requestId)
-    if (credentialOwner) {
-      const token = await refreshAccessTokenIfNeeded(
-        credentialOwner.accountId,
-        credentialOwner.userId,
-        requestId
-      )
-      if (token) return token
-    }
+    const token = await getCredentialAccessToken(credentialId, requestId)
+    if (token) return token
   }
 
   const fallbackToken = await getOAuthToken(userId, 'monday')
@@ -193,14 +186,7 @@ export const mondayHandler: WebhookProviderHandler = {
     try {
       const credentialId = config.credentialId as string | undefined
       if (credentialId) {
-        const credentialOwner = await getCredentialOwner(credentialId, ctx.requestId)
-        if (credentialOwner) {
-          accessToken = await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            ctx.requestId
-          )
-        }
+        accessToken = await getCredentialAccessToken(credentialId, ctx.requestId)
       }
     } catch (error) {
       logger.warn(

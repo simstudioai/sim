@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { EnvCapabilityConfigurationError } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
@@ -7,7 +8,6 @@ import {
 import { escapeRegExp } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'

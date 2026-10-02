@@ -1,16 +1,16 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
 } from '@/lib/oauth/credential-service'
 import {
-  getCredentialOwner,
+  getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
@@ -61,9 +61,9 @@ async function fetchAndProcessAirtablePayloads(
   const consolidatedChangesMap = new Map<string, AirtableChange>()
   // Capture raw payloads from Airtable for exposure to workflows
   const allPayloads = []
-  const localProviderConfig = {
-    ...((webhookData.providerConfig as Record<string, unknown>) || {}),
-  } as Record<string, unknown>
+  const localProviderConfig: Record<string, unknown> = {
+    ...toRecord(webhookData.providerConfig),
+  }
 
   try {
     const baseId = localProviderConfig.baseId
@@ -445,8 +445,7 @@ export const airtableHandler: WebhookProviderHandler = {
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
-      const { path, providerConfig } = webhookRecord as Record<string, unknown>
-      const config = (providerConfig as Record<string, unknown>) || {}
+      const config = getProviderConfig(webhookRecord)
       const { baseId, tableId, includeCellValuesInFieldIds, credentialId } = config as {
         baseId?: string
         tableId?: string
@@ -473,17 +472,8 @@ export const airtableHandler: WebhookProviderHandler = {
         throw new Error(tableIdValidation.error)
       }
 
-      const credentialOwner = credentialId
-        ? await getCredentialOwner(credentialId, requestId)
-        : null
       const accessToken = credentialId
-        ? credentialOwner
-          ? await refreshAccessTokenIfNeeded(
-              credentialOwner.accountId,
-              credentialOwner.userId,
-              requestId
-            )
-          : null
+        ? await getCredentialAccessToken(credentialId, requestId)
         : await getOAuthToken(userId, 'airtable')
       if (!accessToken) {
         logger.warn(
@@ -494,7 +484,7 @@ export const airtableHandler: WebhookProviderHandler = {
         )
       }
 
-      const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+      const notificationUrl = getNotificationUrl(webhookRecord)
 
       const airtableApiUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
 
@@ -608,14 +598,7 @@ export const airtableHandler: WebhookProviderHandler = {
         return
       }
 
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      const accessToken = credentialOwner
-        ? await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            requestId
-          )
-        : null
+      const accessToken = await getCredentialAccessToken(credentialId, requestId)
       if (!accessToken) {
         const message = `[${requestId}] Could not retrieve Airtable access token. Cannot delete webhook in Airtable.`
         logger.warn(message, { webhookId: webhookRecord.id })

@@ -145,7 +145,6 @@ import {
   enqueueKnowledgeStorageCleanup,
   getKnowledgeBaseStorageKey,
   isKnowledgeBaseOwnedStorageKey,
-  type KnowledgeStorageCleanupDocument,
 } from '@/lib/knowledge/documents/storage-cleanup'
 import { claimKnowledgeUploadForAttachment } from '@/lib/knowledge/documents/storage-upload'
 import {
@@ -4065,14 +4064,6 @@ export async function updateDocument(
     boolean3: doc.boolean3,
     deletedAt: doc.deletedAt,
   }
-}
-
-/** Persists standalone cleanup intents; document mutations supply their own transaction. */
-export async function deleteDocumentStorageFiles(
-  documentsToDelete: readonly KnowledgeStorageCleanupDocument[],
-  requestId: string
-): Promise<void> {
-  await enqueueKnowledgeStorageCleanup(db, documentsToDelete, requestId)
 }
 
 async function excludeConnectorDocuments(

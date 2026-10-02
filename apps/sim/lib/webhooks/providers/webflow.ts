@@ -1,8 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
-import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { getOAuthToken } from '@/lib/oauth/credential-service'
+import {
+  getCredentialAccessToken,
+  getNotificationUrl,
+  getProviderConfig,
+} from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
   EventFilterContext,
@@ -23,8 +27,7 @@ export const webflowHandler: WebhookProviderHandler = {
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
-      const { path, providerConfig } = webhookRecord as Record<string, unknown>
-      const config = (providerConfig as Record<string, unknown>) || {}
+      const config = getProviderConfig(webhookRecord)
       const { siteId, triggerId, collectionId, formName, credentialId } = config as {
         siteId?: string
         triggerId?: string
@@ -52,17 +55,8 @@ export const webflowHandler: WebhookProviderHandler = {
         throw new Error('Trigger type is required to create Webflow webhook')
       }
 
-      const credentialOwner = credentialId
-        ? await getCredentialOwner(credentialId, requestId)
-        : null
       const accessToken = credentialId
-        ? credentialOwner
-          ? await refreshAccessTokenIfNeeded(
-              credentialOwner.accountId,
-              credentialOwner.userId,
-              requestId
-            )
-          : null
+        ? await getCredentialAccessToken(credentialId, requestId)
         : await getOAuthToken(userId, 'webflow')
       if (!accessToken) {
         logger.warn(
@@ -73,7 +67,7 @@ export const webflowHandler: WebhookProviderHandler = {
         )
       }
 
-      const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+      const notificationUrl = getNotificationUrl(webhookRecord)
 
       const triggerTypeMap: Record<string, string> = {
         webflow_collection_item_created: 'collection_item_created',
@@ -202,14 +196,7 @@ export const webflowHandler: WebhookProviderHandler = {
         return
       }
 
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      const accessToken = credentialOwner
-        ? await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            requestId
-          )
-        : null
+      const accessToken = await getCredentialAccessToken(credentialId, requestId)
       if (!accessToken) {
         const message = `[${requestId}] Could not retrieve Webflow access token. Cannot delete webhook.`
         logger.warn(message, { webhookId: webhookRecord.id })
@@ -247,7 +234,7 @@ export const webflowHandler: WebhookProviderHandler = {
 
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const triggerId = providerConfig.triggerId as string | undefined
     if (triggerId === 'webflow_form_submission') {
       return {

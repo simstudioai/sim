@@ -66,8 +66,6 @@ export const permissionsMockFns = {
   mockGetWorkspacePermissionsForViewer: vi.fn(),
   mockHasWorkspaceAdminAccess: vi.fn(),
   mockIsOrganizationAdminOrOwner: vi.fn(),
-  mockIsOrganizationMember: vi.fn(),
-  mockGetManageableWorkspaces: vi.fn(),
 }
 
 /**
@@ -96,6 +94,4 @@ export const permissionsMock = {
   getWorkspacePermissionsForViewer: permissionsMockFns.mockGetWorkspacePermissionsForViewer,
   hasWorkspaceAdminAccess: permissionsMockFns.mockHasWorkspaceAdminAccess,
   isOrganizationAdminOrOwner: permissionsMockFns.mockIsOrganizationAdminOrOwner,
-  isOrganizationMember: permissionsMockFns.mockIsOrganizationMember,
-  getManageableWorkspaces: permissionsMockFns.mockGetManageableWorkspaces,
 }

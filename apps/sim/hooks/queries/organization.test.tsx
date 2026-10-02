@@ -35,16 +35,12 @@ import {
   organizationKeys,
   useOrganization,
   useOrganizationBilling,
-  useOrganizationList,
   useOrganizationRoster,
 } from '@/hooks/queries/organization'
 import { shouldRetryOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 
-const {
-  getFullOrganization: mockGetFullOrganization,
-  list: mockListOrganizations,
-  setActive: mockSetActiveOrganization,
-} = authClientMockFns.mockClient.organization
+const { getFullOrganization: mockGetFullOrganization, setActive: mockSetActiveOrganization } =
+  authClientMockFns.mockClient.organization
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
@@ -101,11 +97,6 @@ function OrganizationProbe({ organizationId }: { organizationId: string }) {
   )
 }
 
-function MembershipProbe() {
-  const query = useOrganizationList()
-  return <div>{query.error?.message ?? query.data?.map(({ name }) => name).join(', ')}</div>
-}
-
 function renderOrganization(organizationId: string) {
   act(() => {
     root.render(
@@ -156,23 +147,6 @@ describe('organization identity transitions', () => {
       'Access revoked'
     )
     expect(container.textContent).not.toContain('Manage organization')
-  })
-
-  it('surfaces membership-list errors for retry instead of returning an empty list', async () => {
-    mockListOrganizations.mockResolvedValue({
-      data: null,
-      error: { message: 'Membership service unavailable' },
-    })
-    await act(async () =>
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <MembershipProbe />
-        </QueryClientProvider>
-      )
-    )
-    await flushQueries()
-    expect(container.textContent).toBe('Membership service unavailable')
-    expect(queryClient.getQueryState(organizationKeys.lists())?.status).toBe('error')
   })
 
   it('clears organization detail, roster, billing, and actions while the next org loads', async () => {

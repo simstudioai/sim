@@ -1,10 +1,14 @@
-import integrationsJson from '@sim/deployment-config/integrations.json'
-import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
-import { afterAll, describe, expect, it } from 'vitest'
 import {
   OAUTH_CLIENT_CAPABILITIES,
   resolveOAuthClientCapabilityId,
-} from '@/lib/core/config/env-capabilities'
+} from '@sim/deployment-config/env-capabilities'
+import integrationsJson from '@sim/deployment-config/integrations.json'
+import {
+  CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS,
+  SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID,
+} from '@sim/deployment-config/service-account-metadata'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   getIntegrationTypesForOAuthServiceId,
   type IntegrationAvailability,
@@ -17,10 +21,6 @@ import {
   isIntegrationDeploymentAvailable,
   isIntegrationDeploymentAvailableForVisibility,
 } from '@/lib/integrations/availability.server'
-import {
-  CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS,
-  SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID,
-} from '@/lib/integrations/service-account-metadata'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 

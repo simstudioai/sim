@@ -524,24 +524,6 @@ export function isAbortError(error: unknown): boolean {
   )
 }
 
-/**
- * Heuristic: whether `error` is a transient network/connection failure that's
- * worth retrying (vs. a deterministic 4xx/auth/validation error). Sniffs the
- * message because browsers and servers report these without standardized codes.
- */
-export function isNetworkError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  const message = error.message.toLowerCase()
-  return (
-    message.includes('network') ||
-    message.includes('fetch') ||
-    message.includes('connection') ||
-    message.includes('timeout') ||
-    message.includes('timed out') ||
-    message.includes('econnreset')
-  )
-}
-
 const MIME_TO_EXTENSION: Record<string, string> = {
   // Images
   'image/jpeg': 'jpg',

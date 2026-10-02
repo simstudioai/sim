@@ -20,13 +20,13 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { generateLoopBlocks } from '@sim/workflow-persistence/subflow-helpers'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import type {
   BlockState as AppBlockState,
   WorkflowState as AppWorkflowState,
 } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
 
 /**
  * Type helper for converting test workflow state to app workflow state.

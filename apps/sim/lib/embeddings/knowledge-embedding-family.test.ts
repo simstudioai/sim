@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest'
 import {
   inspectCapability,
   KNOWLEDGE_EMBEDDINGS_CAPABILITY,
   knowledgeEmbeddingFamily,
-} from '@/lib/core/config/env-capabilities'
+} from '@sim/deployment-config/env-capabilities'
+import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_EMBEDDING_MODEL,
   getEmbeddingModelInfo,

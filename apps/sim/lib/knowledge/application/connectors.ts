@@ -10,6 +10,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -105,7 +106,6 @@ import type {
   KnowledgeOperationSource,
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
-import { escapeLikePattern } from '@/lib/knowledge/tags/utils'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
 import { ServiceAccountTokenError } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'

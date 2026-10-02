@@ -54,7 +54,6 @@ export class MockKnowledgeBaseNotFoundError extends Error {
  */
 export const knowledgeServiceMockFns = {
   mockGetWorkspaceKnowledgeBases: vi.fn(),
-  mockFindActiveKnowledgeBasesByExactName: vi.fn(),
   mockCreateKnowledgeBase: vi.fn(),
   mockCreateAuthorizedKnowledgeBase: vi.fn(),
   mockUpdateKnowledgeBase: vi.fn(),
@@ -81,8 +80,6 @@ export const knowledgeServiceMock = {
   KnowledgeBaseFolderError: MockKnowledgeBaseFolderError,
   KnowledgeBaseNotFoundError: MockKnowledgeBaseNotFoundError,
   getWorkspaceKnowledgeBases: knowledgeServiceMockFns.mockGetWorkspaceKnowledgeBases,
-  findActiveKnowledgeBasesByExactName:
-    knowledgeServiceMockFns.mockFindActiveKnowledgeBasesByExactName,
   createKnowledgeBase: knowledgeServiceMockFns.mockCreateKnowledgeBase,
   createAuthorizedKnowledgeBase: knowledgeServiceMockFns.mockCreateAuthorizedKnowledgeBase,
   updateKnowledgeBase: knowledgeServiceMockFns.mockUpdateKnowledgeBase,

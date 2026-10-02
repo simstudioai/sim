@@ -39,7 +39,6 @@ const ALLOWLISTED_FILES = new Set([
   'packages/utils/src/retry.test.ts',
   // Published standalone CLIs: `@sim/utils` is private, so they carry local
   // copies rather than a dependency that only resolves inside the monorepo.
-  'packages/sim-cli/src/helpers.ts',
   'packages/cli/src/index.ts',
   'packages/ts-sdk/src/index.ts',
   // CJS bundle — cannot use ES module imports

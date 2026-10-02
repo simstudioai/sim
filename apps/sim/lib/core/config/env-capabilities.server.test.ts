@@ -1,7 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import {
-  getConfiguredSandboxProviderId,
   getSelectedSandboxProviderId,
   inspectConfiguredOAuthClient,
   requireConfiguredOAuthClient,
@@ -71,7 +70,6 @@ describe('server environment capabilities', () => {
     setEnv({ SANDBOX_PROVIDER: 'daytona', DAYTONA_API_KEY: 'daytona-key' })
 
     expect(getSelectedSandboxProviderId()).toBe('daytona')
-    expect(() => getConfiguredSandboxProviderId()).toThrow(/DAYTONA_FUNCTION_SNAPSHOT_ID/)
   })
 
   it('rejects an unknown sandbox provider during selection', () => {

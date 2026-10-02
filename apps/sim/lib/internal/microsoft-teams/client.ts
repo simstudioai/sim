@@ -8,12 +8,8 @@ const MICROSOFT_GRAPH_RESPONSE_MAX_BYTES = 2 * 1024 * 1024
 
 export type MicrosoftTeamsGraphObject = Record<string, unknown>
 
-function asObject(value: unknown): MicrosoftTeamsGraphObject {
-  return toRecord(value)
-}
-
 function errorMessage(data: MicrosoftTeamsGraphObject, fallback: string): string {
-  const error = asObject(data.error)
+  const error = toRecord(data.error)
   return typeof error.message === 'string' && error.message ? error.message : fallback
 }
 
@@ -44,7 +40,7 @@ export class MicrosoftTeamsClient {
 
     let data: MicrosoftTeamsGraphObject
     try {
-      data = text ? asObject(JSON.parse(text)) : {}
+      data = text ? toRecord(JSON.parse(text)) : {}
     } catch (error) {
       if (!response.ok) throw new MicrosoftTeamsOperationError(fallbackError, response.status)
       throw new Error(getErrorMessage(error, 'Microsoft Graph returned invalid JSON'))

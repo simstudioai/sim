@@ -39,7 +39,6 @@ import {
   type OrganizationBillingApiResponse,
 } from '@/lib/api/contracts/subscription'
 import { client } from '@/lib/auth/auth-client'
-import { isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'
@@ -50,11 +49,8 @@ const logger = createLogger('OrganizationQueries')
 const invitationListsKey = ['invitations', 'list'] as const
 
 export const ORGANIZATION_ROSTER_STALE_TIME = 30 * 1000
-export const ORGANIZATION_LIST_STALE_TIME = 30 * 1000
 export const ORGANIZATION_DETAIL_STALE_TIME = 30 * 1000
-export const ORGANIZATION_SUBSCRIPTION_STALE_TIME = 30 * 1000
 export const ORGANIZATION_BILLING_STALE_TIME = 30 * 1000
-export const ORGANIZATION_MEMBERS_STALE_TIME = 30 * 1000
 export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
 /**
  * Zero: removal impact is a consent disclosure, so every dialog open must
@@ -77,22 +73,6 @@ function readNumber(value: unknown): number | undefined {
 export { organizationKeys }
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
-
-/** Better Auth owns the authenticated membership-list endpoint. */
-export function useOrganizationList() {
-  return useQuery({
-    queryKey: organizationKeys.lists(),
-    queryFn: async ({ signal }) => {
-      const response = await client.organization.list({ fetchOptions: { signal } })
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to load organizations')
-      }
-      return response.data ?? []
-    },
-    enabled: isOrganizationsEnabled,
-    staleTime: ORGANIZATION_LIST_STALE_TIME,
-  })
-}
 
 async function fetchOrganizationRoster(
   orgId: string,

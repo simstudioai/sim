@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { type Command, CommanderError } from 'commander'
 import { ProfileConfigError } from './config/index'
 import {
@@ -193,10 +194,7 @@ function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
     }
     return error.exitCode
   }
-  ctx.stderr.diagnostic(
-    // utils-lint-allow: this published standalone CLI cannot import the private @sim/utils package.
-    `Error: ${sanitize(error instanceof Error ? error.message : String(error))}`
-  )
+  ctx.stderr.diagnostic(`Error: ${sanitize(getErrorMessage(error))}`)
   return 1
 }
 

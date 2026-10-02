@@ -16,14 +16,3 @@ export function parseExecutionDeadlineHeader(headers: Headers): number | undefin
   const deadline = Number(rawDeadline)
   return Number.isSafeInteger(deadline) && deadline > 0 ? deadline : undefined
 }
-
-/** Returns the remaining trusted workflow budget carried by an internal request. */
-export function parseRemainingExecutionDeadlineMs(
-  headers: Headers,
-  now: number = Date.now()
-): number | undefined {
-  const deadline = parseExecutionDeadlineHeader(headers)
-  if (deadline === undefined) return undefined
-
-  return Math.max(1, deadline - now)
-}

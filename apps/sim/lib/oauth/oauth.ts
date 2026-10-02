@@ -1,3 +1,8 @@
+import {
+  type OAuthClientCapabilityField,
+  type OAuthClientCapabilityId,
+  requireOAuthClientCapability,
+} from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
@@ -69,11 +74,6 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
-import {
-  type OAuthClientCapabilityField,
-  type OAuthClientCapabilityId,
-  requireOAuthClientCapability,
-} from '@/lib/core/config/env-capabilities'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import {

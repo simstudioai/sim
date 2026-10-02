@@ -34,6 +34,16 @@ import {
   OPERATION_SUBBLOCK_ID,
 } from '@/lib/permission-groups/operation-access'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
+import {
+  buildCanonicalIndex,
+  type CanonicalIndex,
+  type CanonicalModeOverrides,
+  isCanonicalPair,
+  reindexToolCanonicalModes,
+  resolveCanonicalMode,
+  resolveDependencyValue,
+  scopeCanonicalModesForTool,
+} from '@/lib/workflows/subblocks/visibility'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import {
   buildAgentToolUsageControlCanonicalKey,
@@ -90,8 +100,8 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { supportsForcedToolUse } from '@/providers/models'
-import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
+import { supportsForcedToolUse, supportsToolUsageControl } from '@/providers/models'
+import { getProviderFromModel } from '@/providers/utils'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -104,16 +114,6 @@ import {
   isUserFacingToolParam,
   type SubBlocksForToolInput,
 } from '@/tools/params'
-import {
-  buildCanonicalIndex,
-  type CanonicalIndex,
-  type CanonicalModeOverrides,
-  isCanonicalPair,
-  reindexToolCanonicalModes,
-  resolveCanonicalMode,
-  resolveDependencyValue,
-  scopeCanonicalModesForTool,
-} from '@/tools/params-resolver'
 
 const logger = createLogger('ToolInput')
 

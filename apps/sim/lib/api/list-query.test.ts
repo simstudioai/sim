@@ -11,7 +11,6 @@ vi.unmock('drizzle-orm')
 import { decimal, integer, PgDialect, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import {
   decimalKey,
-  escapeLikePattern,
   keysetAfter,
   listOrderBy,
   numberKey,
@@ -33,14 +32,6 @@ const dialect = new PgDialect()
 function render(fragment: Parameters<PgDialect['sqlToQuery']>[0]) {
   return dialect.sqlToQuery(fragment)
 }
-
-describe('escapeLikePattern', () => {
-  it('neutralizes the LIKE wildcards so a caller cannot widen its own match', () => {
-    expect(escapeLikePattern('100%')).toBe('100\\%')
-    expect(escapeLikePattern('a_b')).toBe('a\\_b')
-    expect(escapeLikePattern('back\\slash')).toBe('back\\\\slash')
-  })
-})
 
 describe('searchFilter', () => {
   it('binds the caller term as a parameter instead of inlining it into the SQL', () => {

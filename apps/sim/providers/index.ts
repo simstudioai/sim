@@ -35,7 +35,7 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
-import { isEvaluationModel, isKnownModelId } from '@/providers/models'
+import { isEvaluationModel, isKnownModelId, supportsTemperature } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
   type ProviderRuntimeContext,
@@ -54,7 +54,6 @@ import {
   sumToolCosts,
   supportsPromptCaching,
   supportsReasoningEffort,
-  supportsTemperature,
   supportsThinking,
   supportsVerbosity,
 } from '@/providers/utils'

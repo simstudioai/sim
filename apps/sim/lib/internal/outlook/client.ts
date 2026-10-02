@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -11,19 +12,13 @@ const MICROSOFT_GRAPH_RESPONSE_MAX_BYTES = 10 * 1024 * 1024
 
 export type OutlookJsonObject = Record<string, unknown>
 
-export function asObject(value: unknown): OutlookJsonObject {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as OutlookJsonObject)
-    : {}
-}
-
 function parseJson(text: string): OutlookJsonObject {
   if (!text) return {}
-  return asObject(JSON.parse(text))
+  return toRecord(JSON.parse(text))
 }
 
 function graphErrorMessage(data: OutlookJsonObject, fallback: string): string {
-  const error = asObject(data.error)
+  const error = toRecord(data.error)
   return typeof error.message === 'string' && error.message ? error.message : fallback
 }
 

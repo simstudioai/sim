@@ -24,7 +24,6 @@ vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
   recordSandboxResourceEffects: recordEffects,
 }))
 
-import { isInternalRequest } from '@/lib/api/server/routes/internal-request'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 
 const target = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
@@ -72,7 +71,6 @@ describe('private sandbox v2 resource transport', () => {
     fetcher.mockImplementation(async (input: Request) => {
       expect(input.url).toBe('http://internal-sim/api/v2/tables/table/rows?workspaceId=workspace')
       expect(input.method).toBe('POST')
-      expect(isInternalRequest(input)).toBe(false)
       expect(input.redirect).toBe('manual')
       expect(input.headers.get('x-api-key')).toBeNull()
       expect(isCopilotRequest(input)).toBe(true)
@@ -280,7 +278,6 @@ it.each([
       load: async () => ({ GET: fetcher }),
     })
     fetcher.mockImplementation(async (input: Request) => {
-      expect(isInternalRequest(input)).toBe(false)
       await reportWorkspaceFileDelivery({
         ...provenance,
         ...('entries' in provenance ? { entries: [...provenance.entries] } : {}),

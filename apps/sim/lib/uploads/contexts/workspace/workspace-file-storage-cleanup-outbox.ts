@@ -2,6 +2,7 @@ import type { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
 import {
   enqueueOutboxEvents,
   MAX_BULK_ENQUEUE_EVENTS,
@@ -20,7 +21,7 @@ interface WorkspaceFileStorageCleanupPayload {
 }
 
 function parsePayload(payload: unknown): WorkspaceFileStorageCleanupPayload {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (!isRecordLike(payload)) {
     throw new Error('Workspace file storage cleanup outbox payload must be an object')
   }
   const key = (payload as Record<string, unknown>).key
