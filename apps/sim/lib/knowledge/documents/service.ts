@@ -71,6 +71,7 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
   knowledgeAccessCondition,
   knowledgeMetadataCandidateAccessCondition,
@@ -662,15 +663,25 @@ const KNOWLEDGE_DOCUMENT_TAG_FIELDS = new Set<KnowledgeDocumentMetadataField>([
   'boolean3',
 ])
 
+function reportUnrecordedFileSources(
+  provenances: ReadonlyMap<string, WorkspaceFileSecretProvenance>,
+  workspaceId: string
+): void {
+  let recordCount = 0
+  for (const provenance of provenances.values()) {
+    if (provenance.status === 'unrecorded') recordCount += 1
+  }
+  if (recordCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({ surface: 'workspace-file', workspaceId, recordCount })
+  }
+}
+
 function durableSecretProvenanceFromWorkspaceFile(
   provenance: WorkspaceFileSecretProvenance,
   binding: FileMetadataRecord
 ): DurableSecretProvenance {
-  /**
-   * `unrecorded` is a more specific `unknown`, and this boundary has not opted into the workspace
-   * file surface's policy, so it keeps refusing exactly as it did.
-   */
-  if (provenance.status !== 'exact') return { status: 'unknown' }
+  if (provenance.status === 'unknown') return provenance
+  if (provenance.status === 'unrecorded') return EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
   return {
     status: 'exact',
     entries: provenance.entries.map((entry) => ({
@@ -2584,6 +2595,7 @@ export async function createDocumentRecords(
       tx,
       trackedBindings
     )
+    reportUnrecordedFileSources(boundFileProvenanceById, admission.workspaceId)
     for (const [documentIndex, docData] of resolvedDocuments.entries()) {
       const currentSize = getServerKnownDocumentSize(
         docData.fileUrl,
@@ -3275,6 +3287,7 @@ export async function createSingleDocument(
       tx,
       provenanceBinding ? [provenanceBinding] : []
     )
+    reportUnrecordedFileSources(boundFileProvenanceById, admission.workspaceId)
     const currentSize = getServerKnownDocumentSize(
       resolvedDocumentData.fileUrl,
       resolvedDocumentData.fileSize,

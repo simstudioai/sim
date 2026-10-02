@@ -430,24 +430,63 @@ describe('organization-owned upload mounts', () => {
     expect(mocks.list).not.toHaveBeenCalled()
     expect(registry.isComplete()).toBe(true)
   })
-  it('rejects unknown provenance without certifying derived scratch', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
-    registry.markIncomplete('mounted-file-provenance-unavailable')
-    await expect(
-      resolveInputFiles(
+  it.each(['missing', 'absence', 'matching-secret'] as const)(
+    'accepts intentionally uploaded bytes with $0 source provenance without activating them',
+    async (source) => {
+      const parent = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+      if (source === 'absence') parent.markIncomplete('source-provenance-incomplete')
+      if (source === 'matching-secret') {
+        mocks.decrypt.mockResolvedValue({ decrypted: 'public input' })
+        await parent.importProvenance(
+          {
+            version: 1,
+            complete: true,
+            scope: { userId: 'reader' },
+            entries: [{ name: 'TOKEN', encryptedValue: 'encrypted:public input' }],
+          },
+          { trusted: true }
+        )
+      }
+      const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+      const result = await resolveInputFiles(
         {
           ...context,
           workspaceId: undefined,
           organizationId: 'org',
-          resolvedSecretTraceRegistry: registry,
+          ...(source === 'missing' ? {} : { resolvedSecretTraceRegistry: parent }),
         },
-        [{ path: 'uploads/upload' }],
+        [{ path: 'uploads/upload', sandboxPath: '/tmp/input.txt' }],
         [],
         [],
         registry
       )
-    ).rejects.toThrow('provenance')
-    expect(registry.isComplete()).toBe(false)
+      expect(result).toEqual([
+        {
+          path: '/tmp/input.txt',
+          content: Buffer.from('public input').toString('base64'),
+          encoding: 'base64',
+        },
+      ])
+      expect(registry.exportCheckpointProvenance()).toMatchObject({ complete: true, entries: [] })
+    }
+  )
+  it('does not repair an existing protection fault when an intentional upload is mounted', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+    registry.markIncomplete('entry-decrypt-failed')
+    const result = await resolveInputFiles(
+      {
+        ...context,
+        workspaceId: undefined,
+        organizationId: 'org',
+        resolvedSecretTraceRegistry: registry,
+      },
+      [{ path: 'uploads/upload' }],
+      [],
+      [],
+      registry
+    )
+    expect(result).toHaveLength(1)
+    expect(registry.isPermanentlyIncomplete()).toBe(true)
   })
   it('requires a target for workspace files and never treats missing upload authority as a workspace fallback', async () => {
     const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })

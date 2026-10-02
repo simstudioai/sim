@@ -124,9 +124,7 @@ describe('add workspace files to knowledge base application command', () => {
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
     })
-    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue(
-      { status: 'exact', entries: [] }
-    )
+    workspaceFileSecretProvenanceMockFns.mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
     workspaceFileManagerMockFns.mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
       buffer: Buffer.alloc(100),
       contentType: 'application/pdf',
@@ -188,7 +186,7 @@ describe('add workspace files to knowledge base application command', () => {
       workspaceFileManagerMockFns.mockResolveWorkspaceFileReference.mock.invocationCallOrder[0]
     )
     expect(
-      workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance.mock
+      workspaceFileSecretProvenanceMockFns.mockIsOpaqueWorkspaceFileEgressSafe.mock
         .invocationCallOrder[0]
     ).toBeLessThan(
       billingAttributionMockFns.mockResolveBillingAttribution.mock.invocationCallOrder[0]
@@ -228,7 +226,7 @@ describe('add workspace files to knowledge base application command', () => {
 
     expect(result).toMatchObject({ added: [], failed: ['workspace-2-file'] })
     expect(
-      workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance
+      workspaceFileSecretProvenanceMockFns.mockIsOpaqueWorkspaceFileEgressSafe
     ).not.toHaveBeenCalled()
     expect(workspaceFileManagerMockFns.mockFetchServableWorkspaceFileBuffer).not.toHaveBeenCalled()
     expect(billingAttributionMockFns.mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
@@ -274,17 +272,17 @@ describe('add workspace files to knowledge base application command', () => {
       contentType: 'application/pdf',
       contributingFiles: [contributor],
     })
-    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance
-      .mockResolvedValueOnce({ status: 'exact', entries: [] })
-      .mockResolvedValueOnce({ status: 'exact', entries: [] })
-      .mockResolvedValueOnce({ status: 'unknown' })
+    workspaceFileSecretProvenanceMockFns.mockIsOpaqueWorkspaceFileEgressSafe
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
     const result = await addWorkspaceFilesToKnowledgeBase.execute({
       principal: delegatedPrincipal,
       input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
     })
     expect(result).toMatchObject({ added: [], failed: ['file-1'] })
     expect(
-      workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance
+      workspaceFileSecretProvenanceMockFns.mockIsOpaqueWorkspaceFileEgressSafe
     ).toHaveBeenLastCalledWith('workspace-1', contributor)
     expect(mocks.upload).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()

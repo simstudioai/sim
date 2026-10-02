@@ -5,7 +5,6 @@ import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attributi
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { PROVENANCE_MAX_ENTRIES } from '@/lib/execution/provenance-limits'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -36,7 +35,7 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
-  getBoundWorkspaceFileSecretProvenance,
+  isOpaqueWorkspaceFileEgressSafe,
   type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
@@ -127,14 +126,7 @@ async function assertImportProvenance(
   workspaceId: string,
   identity: WorkspaceFileSecretProvenanceIdentity
 ): Promise<void> {
-  const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, identity)
-  if (provenance.status !== 'exact' || provenance.entries.length > 0) {
-    reportDurableSecretProvenanceRefusal({
-      surface: 'knowledge',
-      cause: 'knowledge-workspace-file-source-unavailable',
-      workspaceId,
-      resourceId: identity.fileId,
-    })
+  if (!(await isOpaqueWorkspaceFileEgressSafe(workspaceId, identity))) {
     throw new OrchestrationError(
       'validation',
       'Workspace file secret provenance prevents knowledge ingestion'

@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process'
+import { createReadStream } from 'node:fs'
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { Readable } from 'node:stream'
 import { promisify } from 'node:util'
 import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
@@ -61,6 +63,7 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
 import * as inProcessTransport from '@/lib/api/server/routes/in-process-transport'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
   RESOLVED_SECRET_NAMES_FIELD,
@@ -75,6 +78,7 @@ import {
 import type { SandboxHandle } from '@/lib/execution/remote-sandbox/types'
 import { executeFunctionRequest } from '@/lib/function-execution/execute-request'
 import { readCliInputFile } from '@/lib/mothership/agent-cli/run-cli'
+import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
@@ -88,6 +92,7 @@ import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-se
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { reportTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import type { CodeExecutionInput } from '@/tools/function/types'
@@ -353,6 +358,170 @@ async function sandboxApi(path: string, handler: () => Promise<Response>, method
   })
 }
 
+describe('generated workbench file provenance', () => {
+  const identity = () => ({ providerId: 'e2b' as const, sandboxId: machine.sandboxId })
+  const observer = () =>
+    createWorkbenchFileProvenance({
+      ...scope,
+      sessionKey: chatSandboxSessionKey(chatId),
+    })
+  const consume = async (stream: ReadableStream<Uint8Array>) =>
+    Buffer.from(await new Response(stream).arrayBuffer())
+
+  it.each(['receipt.json', 'screenshot.png'])(
+    'admits fresh %s bytes from a clean workbench',
+    async (path) => {
+      const bytes = path.endsWith('.json')
+        ? Buffer.from('{"done":true}')
+        : Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+      const result = await run(
+        `printf '%s' '${bytes.toString('base64')}' | base64 --decode > ${path}`
+      )
+      expect(result.raw.success).toBe(true)
+      expect(result.projected.safe).toBe(true)
+      const file = observer()
+      const stream = Readable.toWeb(
+        createReadStream(workerPath(`/home/user/${path}`))
+      ) as ReadableStream<Uint8Array>
+      expect(await consume(file.observeUpload(identity(), stream))).toEqual(bytes)
+      expect(file.uploadProvenance()).toEqual({ status: 'exact', entries: [] })
+    }
+  )
+
+  it.each(['unrecorded', 'unregistered'] as const)(
+    'allows %s downloaded bytes without losing earlier named secret protection',
+    async (classification) => {
+      await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
+      const file = observer()
+      const stream = new Blob(['ordinary user input']).stream()
+      if (classification === 'unrecorded') file.trackDownload(stream, { status: 'unrecorded' })
+      await machine.writeFile(
+        '/home/user/input.txt',
+        await consume(file.observeDownload(identity(), stream))
+      )
+      const result = await run('cat input.txt saved.txt')
+      expect(result.projected.safe).toBe(true)
+      expect(result.projected.result).toMatchObject({
+        success: true,
+        output: { stdout: 'ordinary user input{{TOKEN}}' },
+      })
+    }
+  )
+
+  it('keeps an expected but missing download classification unavailable', async () => {
+    const file = observer()
+    const stream = new Blob(['ordinary bytes']).stream()
+    file.trackDownload(stream, undefined)
+    await consume(file.observeDownload(identity(), stream))
+    expect(await readSessionSecretProvenance(chatSandboxSessionKey(chatId), identity())).toEqual({
+      status: 'unknown',
+    })
+  })
+
+  it('does not clear an earlier protection fault when unrecorded bytes arrive', async () => {
+    await recordSessionFileInput(chatSandboxSessionKey(chatId), identity(), false)
+    const file = observer()
+    await consume(file.observeDownload(identity(), new Blob(['ordinary bytes']).stream()))
+    expect(await readSessionSecretProvenance(chatSandboxSessionKey(chatId), identity())).toEqual({
+      status: 'unknown',
+    })
+  })
+
+  it.each(['same', 'foreign', 'anonymous'] as const)(
+    'carries %s-scope machine secrets into new file redaction',
+    async (source) => {
+      await recordSessionFileInput(chatSandboxSessionKey(chatId), identity(), {
+        status: 'exact',
+        entries: [
+          {
+            name: 'TOKEN',
+            encryptedValue: catalog[0].encryptedValue,
+            ...(source === 'anonymous'
+              ? {}
+              : {
+                  sourceUserId: source === 'same' ? scope.userId : 'another-user',
+                  sourceWorkspaceId: scope.workspaceId,
+                }),
+          },
+        ],
+      })
+      const file = observer()
+      await consume(file.observeUpload(identity(), new Blob([canary]).stream()))
+      const provenance = file.uploadProvenance()
+      expect(provenance.status).toBe('exact')
+      if (provenance.status !== 'exact') throw new Error('Expected verified provenance')
+      const registry = new ResolvedSecretTraceRegistry([], scope)
+      expect(await importDurableSecretProvenance(registry, provenance)).toBe(true)
+      expect(projectResolvedSecretModelContent(canary, registry)).toMatchObject({
+        safe: true,
+        value: source === 'same' ? '{{TOKEN}}' : '[REDACTED_SECRET]',
+      })
+    }
+  )
+
+  it('never treats failed history decryption as an empty protected-secret set', async () => {
+    await recordSessionFileInput(chatSandboxSessionKey(chatId), identity(), {
+      status: 'exact',
+      entries: [{ encryptedValue: 'invalid-ciphertext', sourceUserId: scope.userId }],
+    })
+    const file = observer()
+    await consume(file.observeUpload(identity(), new Blob(['ordinary file']).stream()))
+    expect(file.uploadProvenance()).toEqual({ status: 'unknown' })
+  })
+
+  it('applies the shared short-value exemption to generated opaque bytes and CLI input', async () => {
+    const short = '1234567'
+    const encryptedValue = (await encryptSecret(short)).encrypted
+    await recordSessionFileInput(chatSandboxSessionKey(chatId), identity(), {
+      status: 'exact',
+      entries: [
+        {
+          name: 'SHORT_TOKEN',
+          encryptedValue,
+          sourceUserId: scope.userId,
+          sourceWorkspaceId: scope.workspaceId,
+        },
+      ],
+    })
+    const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+    await machine.writeFile('/home/user/image.png', bytes)
+    expect(await readCliInputFile(chatSandboxSessionKey(chatId), 'image.png')).toEqual(bytes)
+    const file = observer()
+    await consume(file.observeUpload(identity(), new Blob([bytes]).stream()))
+    expect(file.uploadProvenance()).toEqual({ status: 'exact', entries: [] })
+  })
+
+  it('includes secrets admitted while upload bytes are still streaming', async () => {
+    const began = createDeferred<void>()
+    const finish = createDeferred<void>()
+    const file = observer()
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(Buffer.from(canary))
+        began.resolve()
+        await finish.promise
+        controller.close()
+      },
+    })
+    const consumed = consume(file.observeUpload(identity(), stream))
+    await began.promise
+    await recordSessionFileInput(chatSandboxSessionKey(chatId), identity(), {
+      status: 'exact',
+      entries: [
+        {
+          name: 'TOKEN',
+          encryptedValue: catalog[0].encryptedValue,
+          sourceUserId: scope.userId,
+          sourceWorkspaceId: scope.workspaceId,
+        },
+      ],
+    })
+    finish.resolve()
+    await consumed
+    expect(file.uploadProvenance()).toMatchObject({ status: 'exact', entries: [{ name: 'TOKEN' }] })
+  })
+})
+
 describe('sandbox API provenance admission', () => {
   it('keeps ordinary API mutations usable for later code output and generated CLI input', async () => {
     const response = await sandboxApi(
@@ -424,6 +593,21 @@ describe('sandbox API provenance admission', () => {
       })
     }
   )
+
+  it('accepts explicitly unrecorded file delivery and retains earlier secret history', async () => {
+    await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
+    const response = await sandboxApi('/api/v2/files/fixture/download', async () => {
+      await reportWorkspaceFileDelivery({ status: 'unrecorded' })
+      return new Response('ordinary user input')
+    })
+    await machine.writeFile('/home/user/input.txt', await response.text())
+    const result = await run('cat input.txt saved.txt')
+    expect(result.projected.safe).toBe(true)
+    expect(result.projected.result).toMatchObject({
+      success: true,
+      output: { stdout: 'ordinary user input{{TOKEN}}' },
+    })
+  })
 
   it('preserves mutation completion and withholds its body when provenance storage fails', async () => {
     const mutationPath = join(root, 'mutation.json')

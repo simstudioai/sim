@@ -1,16 +1,19 @@
 import { createHash } from 'node:crypto'
-import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
+import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
 import Redis from 'ioredis'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { initializeSessionFileProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-/** The same assertions can exercise the actual Lua against an explicitly supplied disposable socket. */
-const redis = process.env.MSHIP_TEST_REDIS_SOCKET
-  ? new Redis({
-      path: process.env.MSHIP_TEST_REDIS_SOCKET,
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
+
+const redisUrl = readTestRedisUrl()
+const redis = redisUrl
+  ? new Redis(redisUrl, {
       lazyConnect: true,
       retryStrategy: () => null,
       maxRetriesPerRequest: 1,
@@ -18,19 +21,8 @@ const redis = process.env.MSHIP_TEST_REDIS_SOCKET
     })
   : undefined
 redis?.on('error', () => {})
-const recorded = new Map<string, string>()
-const memory = {
-  eval: vi.fn(
-    async (_script: string, _count: number, key: string, value: string, unknown: string) => {
-      const previous = recorded.get(key)
-      recorded.set(key, previous && previous !== value ? unknown : value)
-      return 1
-    }
-  ),
-  get: vi.fn(async (key: string) => recorded.get(key) ?? null),
-}
-let storage: typeof memory | Redis | null = redis ?? memory
-redisConfigMockFns.mockGetRedisClient.mockImplementation(() => storage)
+const receiptPrefixes = new Set<string>()
+const historyKeys = new Set<string>()
 let scope = { workspaceId: 'workspace', userId: 'reader', sessionKey: 'chat' }
 const machine = { providerId: 'e2b', sandboxId: 'physical-machine' } as const
 const bytes = new Uint8Array([255, 254, 0, 1, 90, 13, 10])
@@ -56,16 +48,61 @@ async function download(provenance: WorkspaceFileSecretProvenance = secret) {
   expect(await consume(invocation.observeDownload(machine, stream))).toEqual(bytes)
 }
 
+function receiptPrefix(currentScope: {
+  workspaceId: string
+  organizationId?: string
+  userId: string
+  sessionKey: string
+}) {
+  const namespace = createHash('sha256')
+    .update(
+      JSON.stringify([
+        currentScope.organizationId
+          ? { organizationId: currentScope.organizationId }
+          : currentScope.workspaceId,
+        currentScope.userId,
+        currentScope.sessionKey,
+        machine.providerId,
+        machine.sandboxId,
+      ])
+    )
+    .digest('hex')
+  const prefix = `mothership:file-source:${currentScope.organizationId ? 'v2' : 'v1'}:${namespace}`
+  receiptPrefixes.add(prefix)
+  return prefix
+}
+
+beforeAll(async () => {
+  await redis?.connect()
+})
 beforeEach(() => {
-  recorded.clear()
-  storage = redis ?? memory
+  redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis ?? null)
   scope = { ...scope, sessionKey: `chat-${generateShortId(16)}` }
+  receiptPrefix(scope)
+  historyKeys.add(
+    `mothership:workbench-provenance:v2:${createHash('sha256')
+      .update(JSON.stringify([scope.sessionKey, machine.providerId, machine.sandboxId]))
+      .digest('hex')}`
+  )
 })
 afterAll(async () => {
-  await redis?.quit()
+  if (!redis) return
+  try {
+    for (const prefix of receiptPrefixes) {
+      let cursor = '0'
+      do {
+        const [next, keys] = await redis.scan(cursor, 'MATCH', `${prefix}:*`, 'COUNT', 100)
+        cursor = next
+        if (keys.length > 0) await redis.del(...keys)
+      } while (cursor !== '0')
+    }
+    if (historyKeys.size > 0) await redis.del(...historyKeys)
+  } finally {
+    await redis.quit()
+  }
 })
 
-describe('trusted workbench byte receipts', () => {
+describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', () => {
   it.each(['complete', 'pending sibling', 'unknown'] as const)(
     'persists settled stdout evidence from a %s registry',
     async (state) => {
@@ -146,9 +183,10 @@ describe('trusted workbench byte receipts', () => {
   })
 
   it.each(['workspaceId', 'userId', 'sessionKey', 'sandboxId', 'providerId'] as const)(
-    'isolates evidence by %s',
+    'isolates receipts by %s when machine history is unavailable',
     async (field) => {
       await download()
+      await redis!.del(...historyKeys)
       const next = createWorkbenchFileProvenance({
         ...scope,
         ...(['workspaceId', 'userId', 'sessionKey'].includes(field) ? { [field]: 'other' } : {}),
@@ -164,6 +202,34 @@ describe('trusted workbench byte receipts', () => {
         )
       )
       expect(next.uploadProvenance()).toEqual({ status: 'unknown' })
+    }
+  )
+
+  it.each([
+    ['unrecorded then empty', { status: 'unrecorded' }, safe, safe],
+    ['empty then unrecorded', safe, { status: 'unrecorded' }, safe],
+    ['unrecorded then known', { status: 'unrecorded' }, secret, secret],
+    ['known then unrecorded', secret, { status: 'unrecorded' }, secret],
+    [
+      'unrecorded then unknown',
+      { status: 'unrecorded' },
+      { status: 'unknown' },
+      { status: 'unknown' },
+    ],
+    [
+      'unknown then unrecorded',
+      { status: 'unknown' },
+      { status: 'unrecorded' },
+      { status: 'unknown' },
+    ],
+  ] as const)(
+    'preserves recorded evidence for identical bytes: %s',
+    async (_label, first, second, expected) => {
+      await download(first)
+      await download(second)
+      const next = createWorkbenchFileProvenance(scope)
+      expect(await consume(next.observeUpload(machine, body()))).toEqual(bytes)
+      expect(next.uploadProvenance()).toEqual(expected)
     }
   )
 
@@ -218,52 +284,51 @@ describe('trusted workbench byte receipts', () => {
     expect(() => invocation.uploadProvenance()).toThrow('stopped')
   })
 
-  it('missing, malformed and unavailable storage never certifies bytes safe', async () => {
+  it('missing history and present invalid receipts never certify bytes safe', async () => {
     const next = createWorkbenchFileProvenance(scope)
     await consume(next.observeUpload(machine, body()))
     expect(next.uploadProvenance()).toEqual({ status: 'unknown' })
-    const namespace = createHash('sha256')
-      .update(
-        JSON.stringify([
-          scope.workspaceId,
-          scope.userId,
-          scope.sessionKey,
-          machine.providerId,
-          machine.sandboxId,
-        ])
-      )
-      .digest('hex')
+    await initializeSessionFileProvenance(scope.sessionKey, machine)
     const digest = createHash('sha256').update(bytes).digest('hex')
-    const key = `mothership:file-source:v1:${namespace}:${digest}`
-    if (redis) await redis.set(key, 'broken JSON', 'EX', 60)
-    else recorded.set(key, 'broken JSON')
-    const broken = createWorkbenchFileProvenance(scope)
-    await consume(broken.observeUpload(machine, body()))
-    expect(broken.uploadProvenance()).toEqual({ status: 'unknown' })
-    storage = null
+    const key = `${receiptPrefix(scope)}:${digest}`
+    for (const value of [
+      'broken JSON',
+      JSON.stringify({
+        version: 1,
+        workspaceId: scope.workspaceId,
+        provenance: { status: 'unknown' },
+      }),
+    ]) {
+      await redis!.set(key, value, 'EX', 60)
+      const broken = createWorkbenchFileProvenance(scope)
+      await consume(broken.observeUpload(machine, body()))
+      expect(broken.uploadProvenance()).toEqual({ status: 'unknown' })
+    }
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
     const unavailable = createWorkbenchFileProvenance(scope)
     await expect(consume(unavailable.observeUpload(machine, body()))).rejects.toThrow(
       'storage is unavailable'
     )
     expect(() => unavailable.uploadProvenance()).toThrow('has not finished')
   })
-})
 
-it('shares an org chat receipt across explicit targets but never across orgs or chats', async () => {
-  const orgScope = { ...scope, organizationId: 'org', workspaceId: 'a' }
-  const first = createWorkbenchFileProvenance(orgScope)
-  const stream = body()
-  first.trackDownload(stream, safe)
-  await consume(first.observeDownload(machine, stream))
-  const second = createWorkbenchFileProvenance({ ...orgScope, workspaceId: 'b' })
-  await consume(second.observeUpload(machine, body()))
-  expect(second.uploadProvenance()).toEqual(safe)
-  for (const other of [
-    { ...orgScope, organizationId: 'other' },
-    { ...orgScope, sessionKey: 'other' },
-  ]) {
-    const outsider = createWorkbenchFileProvenance(other)
-    await consume(outsider.observeUpload(machine, body()))
-    expect(outsider.uploadProvenance()).toEqual({ status: 'unknown' })
-  }
+  it('shares an org chat receipt across explicit targets but never across orgs or chats', async () => {
+    const orgScope = { ...scope, organizationId: 'org', workspaceId: 'a' }
+    receiptPrefix(orgScope)
+    const first = createWorkbenchFileProvenance(orgScope)
+    const stream = body()
+    first.trackDownload(stream, safe)
+    await consume(first.observeDownload(machine, stream))
+    const second = createWorkbenchFileProvenance({ ...orgScope, workspaceId: 'b' })
+    await consume(second.observeUpload(machine, body()))
+    expect(second.uploadProvenance()).toEqual(safe)
+    for (const other of [
+      { ...orgScope, organizationId: 'other' },
+      { ...orgScope, sessionKey: 'other' },
+    ]) {
+      const outsider = createWorkbenchFileProvenance(other)
+      await consume(outsider.observeUpload(machine, body()))
+      expect(outsider.uploadProvenance()).toEqual({ status: 'unknown' })
+    }
+  })
 })

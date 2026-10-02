@@ -5,7 +5,6 @@ import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   durableSecretProvenanceFromEnvelope,
-  importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
@@ -54,10 +53,7 @@ import {
   parseChatUploadReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import {
-  createWorkspaceFileSecretProvenanceFromRegistry,
-  importWorkspaceFileSnapshotProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { importWorkspaceFileSnapshotProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -275,23 +271,6 @@ export async function resolveInputFiles(
       byteCount += file.buffer.length
       if (byteCount > MAX_INLINE_MOUNT_TOTAL_BYTES)
         throw new Error('Chat attachment mounts exceed the buffered mount limit')
-      if (!resolvedSecretTraceRegistry) throw new Error('Chat attachment provenance is unavailable')
-      const classification = await createWorkspaceFileSecretProvenanceFromRegistry(
-        context.resolvedSecretTraceRegistry,
-        { text: file.buffer.toString('utf8'), base64: file.buffer.toString('base64') },
-        { userId: context.userId, ...(workspaceId ? { workspaceId } : {}) }
-      )
-      if (!classification.safe || classification.provenance.status === 'unknown')
-        throw new Error('Chat attachment provenance is unavailable')
-      if (classification.provenance.status === 'exact') {
-        if (
-          !(await importDurableSecretProvenance(
-            resolvedSecretTraceRegistry,
-            classification.provenance
-          ))
-        )
-          throw new Error('Chat attachment provenance could not be imported')
-      } else resolvedSecretTraceRegistry.markIncomplete('mounted-file-provenance-unavailable')
       attachments.push({
         path:
           refField(fileRef, 'sandboxPath') ??

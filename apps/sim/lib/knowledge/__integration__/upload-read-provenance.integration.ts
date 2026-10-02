@@ -10,6 +10,7 @@ import {
   organization,
   user,
   workspace,
+  workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -32,9 +33,15 @@ import {
   trackChatUpload,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
+  filterModelSafeWorkspaceFileAttachments,
   getBoundWorkspaceFileSecretProvenance,
+  getBoundWorkspaceFileSecretProvenanceByMetadata,
   importWorkspaceFileSecretProvenanceForModelView,
+  importWorkspaceFileSecretProvenanceForRuntime,
+  isModelSafeWorkspaceFileKey,
+  isOpaqueWorkspaceFileEgressSafe,
   replaceWorkspaceFileSecretProvenanceInTx,
+  snapshotWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
@@ -72,7 +79,7 @@ async function seedUpload(provenance?: WorkspaceFileSecretProvenance) {
     key,
     name,
     'text/plain',
-    CONTENT.length
+    Buffer.byteLength(CONTENT)
   )
   const [file] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.key, key))
   if (provenance) {
@@ -128,10 +135,16 @@ afterAll(async () => {
 })
 
 describe('chat upload reads racing with save_upload', () => {
-  it.each(['legacy', 'exact'] as const)(
+  it.each(['legacy', 'exact', 'unrecorded'] as const)(
     'keeps a %s authorized upload read valid across promotion',
     async (kind) => {
-      const ids = await seedUpload(kind === 'exact' ? { status: 'exact', entries: [] } : undefined)
+      const ids = await seedUpload(
+        kind === 'legacy'
+          ? undefined
+          : kind === 'exact'
+            ? { status: 'exact', entries: [] }
+            : { status: 'unrecorded' }
+      )
       const read = await readUpload(ids)
       expect(read?.value.content).toBe(CONTENT)
       expect(read?.file).toBeDefined()
@@ -216,4 +229,61 @@ describe('chat upload reads racing with save_upload', () => {
       ).toBe(false)
     }
   )
+})
+
+describe('recorded file absence policy', () => {
+  it('keeps valid unrecorded bytes usable across runtime, opaque and attachment boundaries', async () => {
+    const ids = await seedUpload({ status: 'unrecorded' })
+    const read = await readUpload(ids)
+    expect(
+      await importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: ids.workspaceId,
+        identity: read.file,
+      })
+    ).toBe(true)
+    expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, read.file)).toBe(true)
+    expect(await isModelSafeWorkspaceFileKey(ids.file.key, { workspaceId: ids.workspaceId })).toBe(
+      true
+    )
+    const attachment = { id: ids.file.id, key: ids.file.key }
+    expect(
+      await filterModelSafeWorkspaceFileAttachments([attachment], { workspaceId: ids.workspaceId })
+    ).toEqual([attachment])
+    expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, read.file)).toEqual({
+      status: 'unrecorded',
+    })
+  })
+
+  it('does not discard recorded entries from an inconsistent unrecorded sidecar', async () => {
+    const ids = await seedUpload({ status: 'unrecorded' })
+    await db
+      .update(workspaceFileSecretProvenance)
+      .set({
+        entries: [
+          { name: 'TOKEN', encryptedValue: 'fixture-ciphertext', sourceUserId: ids.aliceId },
+        ],
+      })
+      .where(eq(workspaceFileSecretProvenance.fileId, ids.file.id))
+    const read = await readUpload(ids)
+    expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, read.file)).toEqual({
+      status: 'unknown',
+    })
+    const batch = await getBoundWorkspaceFileSecretProvenanceByMetadata(db, [
+      { ...ids.file, secretProvenanceVersion: 1 },
+    ])
+    expect(batch.get(ids.file.id)).toEqual({ status: 'unknown' })
+    expect(
+      await db.transaction((tx) =>
+        snapshotWorkspaceFileSecretProvenanceInTx(tx, ids.file.id, ids.file.contentUpdatedAt, 1)
+      )
+    ).toEqual({ status: 'unknown', entries: [] })
+    expect(await isModelSafeWorkspaceFileKey(ids.file.key, { workspaceId: ids.workspaceId })).toBe(
+      false
+    )
+    expect(
+      await filterModelSafeWorkspaceFileAttachments([{ id: ids.file.id, key: ids.file.key }], {
+        workspaceId: ids.workspaceId,
+      })
+    ).toEqual([])
+  })
 })
