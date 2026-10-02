@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { JudgeCriterion, JudgeRubric } from '@/evals/agent-tool-use/types'
 import type { OpenAICompatCreateCompletion } from '@/providers/openai-compat/streaming-tool-loop'
@@ -24,11 +25,56 @@ export interface JudgeInput {
   evidence?: string
 }
 
-export interface JudgeVerdict {
+/** Parser/schema revision, bumped when the response contract changes. */
+export const JUDGE_PARSER_VERSION = '1'
+
+/**
+ * Who judged and how. Two scores are only comparable when this matches; a delta
+ * across differing identity is not evidence of improvement.
+ */
+export interface JudgeIdentity {
+  model: string
+  rubricDigest: string
+  parserVersion: string
+  temperature?: number
+}
+
+export interface JudgeScore {
   scores: Record<string, number>
   rationale: string
   weightedScore: number
   passed: boolean
+}
+
+export interface JudgeVerdict extends JudgeScore {
+  identity: JudgeIdentity
+}
+
+/** Stable digest of the rubric's grading contract, independent of key order. */
+export function rubricDigest(rubric: JudgeRubric): string {
+  const canonical = JSON.stringify(
+    rubric.criteria.map((criterion) => ({
+      id: criterion.id,
+      description: criterion.description,
+      weight: criterion.weight ?? 1,
+    }))
+  )
+  return `sha256:${createHash('sha256').update(canonical).digest('hex').slice(0, 16)}`
+}
+
+/** Whether two verdicts may be compared, and which identity fields differ. */
+export function compareJudgeIdentities(
+  baseline: JudgeIdentity,
+  candidate: JudgeIdentity
+): { comparable: boolean; differingFields: string[] } {
+  const fields: Array<keyof JudgeIdentity> = [
+    'model',
+    'rubricDigest',
+    'parserVersion',
+    'temperature',
+  ]
+  const differingFields = fields.filter((field) => baseline[field] !== candidate[field])
+  return { comparable: differingFields.length === 0, differingFields }
 }
 
 const JUDGE_SYSTEM_PROMPT =
@@ -86,7 +132,7 @@ function clampScore(value: unknown): number | undefined {
 }
 
 /** Parses and validates a judge response against the rubric. */
-export function parseJudgeVerdict(raw: string, rubric: JudgeRubric): JudgeVerdict {
+export function parseJudgeVerdict(raw: string, rubric: JudgeRubric): JudgeScore {
   const parsed = JSON.parse(extractJsonObject(raw)) as {
     scores?: Record<string, unknown>
     rationale?: unknown
@@ -129,5 +175,14 @@ export async function judgeAnswer(input: JudgeInput): Promise<JudgeVerdict> {
       { role: 'user', content: buildJudgePrompt(input) },
     ],
   })
-  return parseJudgeVerdict(await collectContent(iterable), input.rubric)
+  const score = parseJudgeVerdict(await collectContent(iterable), input.rubric)
+  return {
+    ...score,
+    identity: {
+      model: input.model,
+      rubricDigest: rubricDigest(input.rubric),
+      parserVersion: JUDGE_PARSER_VERSION,
+      ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+    },
+  }
 }

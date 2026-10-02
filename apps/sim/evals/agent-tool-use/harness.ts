@@ -494,7 +494,7 @@ export async function runScenario(
       checks.push({
         name: 'judge',
         passed: verdict.passed,
-        detail: `weighted ${verdict.weightedScore.toFixed(2)}; ${verdict.rationale}`,
+        detail: `weighted ${verdict.weightedScore.toFixed(2)} [judge ${verdict.identity.model} ${verdict.identity.rubricDigest}]; ${verdict.rationale}`,
       })
     } catch (error) {
       checks.push({ name: 'judge', passed: false, detail: `judge failed: ${String(error)}` })
