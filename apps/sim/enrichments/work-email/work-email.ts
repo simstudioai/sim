@@ -7,7 +7,8 @@ import type { EnrichmentConfig } from '@/enrichments/types'
 /**
  * Work Email enrichment. Finds a person's work email from a full name plus any
  * available identifiers (company domain, LinkedIn URL) via a provider waterfall:
- * deterministic finders first (Hunter, Findymail by name then by LinkedIn), then
+ * deterministic finders first (Hunter, Findymail by name then by LinkedIn, Anymail Finder by
+ * name or LinkedIn), then
  * enrichment/reveal providers (Prospeo, Wiza), then People Data Labs as a broad
  * record-match fallback, then Datagma, LeadMagic, Dropcontact, and Enrow
  * as additional finders. Each provider opportunistically uses whatever
@@ -69,6 +70,30 @@ export const workEmailEnrichment: EnrichmentConfig = {
       mapOutput: (output) => {
         const contact = output.contact as Record<string, unknown> | null
         const email = str(contact?.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'anymailfinder',
+      label: 'Anymail Finder',
+      toolId: 'anymailfinder_find_person_email',
+      buildParams: (inputs) => {
+        // One route takes name + domain, a LinkedIn URL alone, or all three; the
+        // URL refines the match when both are present.
+        const fullName = str(inputs.fullName)
+        const domain = normalizeDomain(inputs.companyDomain)
+        const linkedin = str(inputs.linkedinUrl)
+        if (!linkedin && !(fullName && domain)) return null
+        return filterUndefined({
+          full_name: fullName || undefined,
+          domain: domain || undefined,
+          linkedin_url: linkedin || undefined,
+        })
+      },
+      mapOutput: (output) => {
+        // `valid_email` is set only for a verified address; a risky guess lands in
+        // `email` alone, is not charged, and must not fill the cell.
+        const email = str(output.valid_email)
         return email ? { email } : null
       },
     }),

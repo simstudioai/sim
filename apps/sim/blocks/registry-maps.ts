@@ -9,6 +9,7 @@ import { AirtableBlock, AirtableBlockMeta } from '@/blocks/blocks/airtable'
 import { AirweaveBlock, AirweaveBlockMeta } from '@/blocks/blocks/airweave'
 import { AlgoliaBlock, AlgoliaBlockMeta } from '@/blocks/blocks/algolia'
 import { AmplitudeBlock, AmplitudeBlockMeta } from '@/blocks/blocks/amplitude'
+import { AnymailFinderBlock, AnymailFinderBlockMeta } from '@/blocks/blocks/anymailfinder'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ApifyBlock, ApifyBlockMeta } from '@/blocks/blocks/apify'
@@ -396,6 +397,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   airweave: AirweaveBlock,
   algolia: AlgoliaBlock,
   amplitude: AmplitudeBlock,
+  anymailfinder: AnymailFinderBlock,
   api: ApiBlock,
   api_trigger: ApiTriggerBlock,
   apify: ApifyBlock,
@@ -769,6 +771,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   airweave: AirweaveBlockMeta,
   algolia: AlgoliaBlockMeta,
   amplitude: AmplitudeBlockMeta,
+  anymailfinder: AnymailFinderBlockMeta,
   apify: ApifyBlockMeta,
   appconfig: AppConfigBlockMeta,
   apollo: ApolloBlockMeta,

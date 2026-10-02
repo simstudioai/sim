@@ -2882,6 +2882,19 @@ export function ElevenLabsIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function AnymailFinderIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='-1 -1 40 40' fill='none'>
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M0.914602 12.1473C0.914602 12.1473 13.8811 21.2685 19.0491 22.5118C16.5611 25.4521 9.66107 31.2255 9.75306 31.167C17.1059 26.8151 32.5413 13.7506 32.5413 13.7506C33.02 13.4454 33.5147 13.6719 33.6455 14.2523L37.3308 30.6191C37.4615 31.1995 37.0496 31.7654 36.4095 31.8833L6.78525 37.3397C6.1457 37.4575 5.47651 36.8836 5.29052 36.0576L0.0463848 12.7683C-0.13958 11.9425 0.250498 11.6686 0.914602 12.1473ZM2.52542 9.77466C2.52542 9.77466 19.3996 -0.381419 21.4381 0.011091C23.428 0.394256 31.1593 11.1758 31.5264 11.689L31.5399 11.7079C31.8475 12.0512 31.6451 12.3014 31.0874 12.2682L2.42364 10.571C1.86514 10.5381 1.91192 10.1802 2.52542 9.77466Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function FindymailIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const gradient0 = `findymail_paint0_${id}`

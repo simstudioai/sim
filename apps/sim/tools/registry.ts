@@ -215,6 +215,13 @@ import {
   amplitudeUserSearchTool,
 } from '@/tools/amplitude'
 import {
+  anymailfinderFindCompanyEmailsTool,
+  anymailfinderFindDecisionMakerEmailTool,
+  anymailfinderFindPersonEmailTool,
+  anymailfinderGetAccountTool,
+  anymailfinderVerifyEmailTool,
+} from '@/tools/anymailfinder'
+import {
   apifyGetDatasetItemsTool,
   apifyGetRunTool,
   apifyRunActorAsyncTool,
@@ -6247,6 +6254,11 @@ export const tools: Record<string, ExecutableToolConfig> = {
   amplitude_get_revenue: amplitudeGetRevenueTool,
   amplitude_funnels: amplitudeFunnelsTool,
   amplitude_retention: amplitudeRetentionTool,
+  anymailfinder_find_company_emails: anymailfinderFindCompanyEmailsTool,
+  anymailfinder_find_decision_maker_email: anymailfinderFindDecisionMakerEmailTool,
+  anymailfinder_find_person_email: anymailfinderFindPersonEmailTool,
+  anymailfinder_get_account: anymailfinderGetAccountTool,
+  anymailfinder_verify_email: anymailfinderVerifyEmailTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_search: arxivSearchTool,

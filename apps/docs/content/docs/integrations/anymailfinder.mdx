@@ -1,0 +1,157 @@
+---
+title: Anymail Finder
+description: Find and verify B2B work emails, paying only for verified results
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="anymailfinder"
+  color="#0E2240"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Anymail Finder](https://anymailfinder.com/) is a B2B email finder and verifier. Every address it returns from a find was verified in real time before the response, catch-all domains included, and a find is charged only when it returns a verified email.
+
+With the Anymail Finder block, you can:
+
+- **Find a person's work email**: from their full name and company domain or name, or from their LinkedIn profile URL alone.
+- **Find a decision maker**: name a company and a department (CEO, finance, HR, sales and so on) and get one person back with their title, LinkedIn URL and verified email, when you do not know who to look for.
+- **List emails at a company**: up to 20 verified addresses at a company, generic mailboxes and named employees, filtered by type.
+- **Verify addresses you already have**: a live check that returns valid, invalid or risky, including on catch-all domains.
+- **Check your balance**: read the remaining credits on the account.
+
+To connect, create an API key under Settings, API in your Anymail Finder account and paste it into the block, or add it as a workspace BYOK key. Finds cost 1 credit on a verified hit (2 for a decision maker), verifications 0.2 credits each; misses and repeats of the same search within 30 days are free, and every response states the exact charge in `credits_charged`.
+
+In Sim, the Anymail Finder block lets your agents fill in missing emails on prospect tables, find the right contact at a target account, clean a list before an outbound send, and enrich CRM records with addresses that have already been verified.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Anymail Finder to find verified work emails from a name and company or a LinkedIn URL, find the decision maker in a department at a company, list verified emails at a company, verify addresses you already have, and check your credit balance. A find is charged only when it returns a verified email.
+
+
+
+## Actions
+
+### Anymail Finder Find Person Email
+
+Find a person's verified work email from their name and company domain or name, or from their LinkedIn URL alone. Charges 1 credit only when a verified email is found.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `full_name` | string | No | Person's full name \(e.g., 'Satya Nadella'\). Required together with domain or company_name unless linkedin_url is given |
+| `domain` | string | No | Company domain \(e.g., microsoft.com\). Preferred over company_name |
+| `company_name` | string | No | Company name \(e.g., Microsoft\). Used only when domain is not provided |
+| `linkedin_url` | string | No | Person's LinkedIn profile URL. Can be sent on its own, or together with the name to refine the match |
+| `apiKey` | string | Yes | Anymail Finder API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | Email address found, including risky ones that could not be verified |
+| `valid_email` | string | The email address only when email_status is valid; the one to send to |
+| `email_status` | string | valid, risky, not_found or blacklisted |
+| `mx_domain` | string | Mail provider of the domain \(e.g., google.com, outlook.com\) |
+| `mx_host` | string | Primary MX hostname of the domain |
+| `person_full_name` | string | Matched full name |
+| `person_company_name` | string | Company name, when a LinkedIn profile was involved |
+| `person_job_title` | string | Job title, when a LinkedIn profile was involved |
+| `credits_charged` | number | Credits charged for this call \(1 on a verified hit, 0 otherwise\) |
+
+### Anymail Finder Find Decision Maker Email
+
+Find the name, job title and verified email of a decision maker in a given department at a company, when you do not know who to look for. Charges 2 credits only when a verified email is found.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | No | Company domain \(e.g., microsoft.com\). Preferred over company_name |
+| `company_name` | string | No | Company name \(e.g., Microsoft\). Used only when domain is not provided |
+| `decision_maker_category` | array | Yes | One to five departments, tried in order until a verified email is found: ceo, engineering, finance, hr, it, logistics, marketing, operations, buyer, sales \(plus any custom categories on the account\) |
+| `apiKey` | string | Yes | Anymail Finder API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | Email address found |
+| `valid_email` | string | The email address only when email_status is valid; the one to send to |
+| `email_status` | string | valid, not_found or blacklisted |
+| `decision_maker_category` | string | The requested category the person was found in |
+| `person_full_name` | string | Full name |
+| `person_first_name` | string | First name |
+| `person_last_name` | string | Last name |
+| `person_job_title` | string | Job title |
+| `person_linkedin_url` | string | LinkedIn profile URL |
+| `mx_domain` | string | Mail provider of the domain \(e.g., google.com, outlook.com\) |
+| `mx_host` | string | Primary MX hostname of the domain |
+| `credits_charged` | number | Credits charged for this call \(2 on a verified hit, 0 otherwise\) |
+
+### Anymail Finder Find Company Emails
+
+List up to 20 verified email addresses at a company, generic ones like contact@ and individual employees. Charges 1 credit for the whole list, only when at least one address is found.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | No | Company domain \(e.g., microsoft.com\). Preferred over company_name |
+| `company_name` | string | No | Company name \(e.g., Microsoft\). Used only when domain is not provided |
+| `email_type` | string | No | 'any' \(default\) returns both kinds, 'generic' only role addresses like info@ or sales@, 'personal' only individual employees' work addresses |
+| `apiKey` | string | Yes | Anymail Finder API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `emails` | array | Email addresses found at the company \(up to 20\) |
+| `valid_emails` | array | The verified subset of emails; the ones to send to |
+| `email_status` | string | valid, risky, not_found or blacklisted |
+| `mx_domain` | string | Mail provider of the domain \(e.g., google.com, outlook.com\) |
+| `mx_host` | string | Primary MX hostname of the domain |
+| `credits_charged` | number | Credits charged for this call \(1 when verified addresses were found, 0 otherwise\) |
+
+### Anymail Finder Verify Email
+
+Check whether an email address exists and can receive mail, including on catch-all domains. Charges 0.2 credits per check whatever the outcome; repeats within 30 days are free.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Email address to verify \(e.g., john@example.com\) |
+| `apiKey` | string | Yes | Anymail Finder API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email_status` | string | valid \(deliverable\), invalid \(does not exist or does not accept mail\) or risky \(could not be determined\) |
+| `mx_domain` | string | Mail provider of the domain \(e.g., google.com, outlook.com\) |
+| `mx_host` | string | Primary MX hostname of the domain |
+| `credits_charged` | number | Credits charged for this call \(0.2, or 0 on a 30-day repeat\) |
+
+### Anymail Finder Get Account
+
+Retrieve the remaining credit balance of the authenticated account. Free.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Anymail Finder API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits_left` | number | Remaining credits on the account |
+| `account_email` | string | Login email of the account owner |
+
+

@@ -32,6 +32,7 @@ export const byokProviderIdSchema = z.enum([
   'hunter',
   'peopledatalabs',
   'findymail',
+  'anymailfinder',
   'prospeo',
   'wiza',
   'zerobounce',
