@@ -191,6 +191,14 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       successfulToolCalls: 1,
       erroredToolCalls: 0,
     },
+    judge: {
+      criteria: [
+        { id: 'grounding', description: 'the rate limit it states matches the retrieved snippet' },
+        { id: 'completeness', description: 'answers the user request' },
+      ],
+      minScore: 0.7,
+    },
+    liveExpect: { finalContent: undefined },
   },
   {
     id: 'select-correct-tool',
@@ -219,6 +227,14 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       finalContent: '17°C',
       maxIterations: 3,
     },
+    judge: {
+      criteria: [
+        { id: 'grounding', description: 'the conditions it states match the weather tool result' },
+        { id: 'completeness', description: 'answers the user request' },
+      ],
+      minScore: 0.7,
+    },
+    liveExpect: { finalContent: undefined },
   },
   {
     id: 'multi-step-planning',
@@ -257,6 +273,14 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       maxIterations: 4,
       successfulToolCalls: 2,
     },
+    judge: {
+      criteria: [
+        { id: 'grounding', description: "summarizes the file's actual contents" },
+        { id: 'completeness', description: 'answers the user request' },
+      ],
+      minScore: 0.7,
+    },
+    liveExpect: { finalContent: undefined },
   },
   {
     id: 'uses-retrieved-value',
@@ -332,8 +356,19 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       maxIterations: 3,
       successfulToolCalls: 2,
     },
+    judge: {
+      criteria: [
+        { id: 'completeness', description: 'reports both the weather and the news' },
+        { id: 'grounding', description: 'the values it states match the tool results' },
+      ],
+      minScore: 0.7,
+    },
     /** The two tools are independent; a real model may emit them in either order. */
-    liveExpect: { toolCallSequence: undefined, requiredTools: ['get_weather', 'get_news'] },
+    liveExpect: {
+      toolCallSequence: undefined,
+      requiredTools: ['get_weather', 'get_news'],
+      finalContent: undefined,
+    },
   },
   {
     id: 'recovers-from-tool-error',
@@ -373,8 +408,22 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       successfulToolCalls: 1,
       erroredToolCalls: 1,
     },
+    judge: {
+      criteria: [
+        { id: 'grounding', description: 'states the exchange rate returned by the tool' },
+        {
+          id: 'recovery',
+          description: 'makes clear the first attempt failed and the retry succeeded',
+        },
+      ],
+      minScore: 0.7,
+    },
     /** A live model decides its own retry count; only the grounded answer is asserted. */
-    liveExpect: { toolCallSequence: undefined, requiredTools: ['flaky_api'] },
+    liveExpect: {
+      toolCallSequence: undefined,
+      requiredTools: ['flaky_api'],
+      finalContent: undefined,
+    },
   },
   {
     id: 'recovers-from-unknown-tool',
@@ -621,7 +670,14 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       finalContent: /Europe\/Berlin/,
       maxIterations: 3,
     },
+    judge: {
+      criteria: [
+        { id: 'grounding', description: 'states the timezone returned by the settings tool' },
+        { id: 'completeness', description: 'answers the user request' },
+      ],
+      minScore: 0.7,
+    },
     /** Over-calling the profile tool is inefficiency, not wrong-tool selection. */
-    liveExpect: { forbiddenTools: undefined },
+    liveExpect: { forbiddenTools: undefined, finalContent: undefined },
   },
 ]
