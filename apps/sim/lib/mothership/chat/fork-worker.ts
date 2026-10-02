@@ -11,9 +11,9 @@ const logger = createLogger('ForkWorker')
 
 /**
  * How long one attempt waits for the copy. The worker refuses a cut above 50,000 events
- * with 413, and measured locally it copies 15,000 events in about 2 s and 50,000 in about
- * 9 s; production databases are slower by an estimated factor of up to eight, which puts
- * the ceiling near 70 s. 120 s leaves headroom above that, and the load balancers on both
+ * with 413, and measured locally it copies 15,000 events in 1.5–2 s and 50,000 in 5–9 s;
+ * production databases are slower by an estimated factor of up to eight, which puts the
+ * ceiling at 40–70 s. 120 s leaves headroom above that, and the load balancers on both
  * sides keep idle connections far longer. A legitimate fork therefore finishes inside one
  * attempt, and one that does not is abandoned: the worker rolls a copy back once its
  * caller's connection closes, so a timed-out attempt is never retried and never published.
