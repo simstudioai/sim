@@ -37,7 +37,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'attio-service-account': ['attio'],
   'box-service-account': ['box'],
   'calcom-service-account': ['cal-com'],
-  'claude-platform-service-account': [],
+  'claude-platform-service-account': ['claude-managed-agents'],
   'clickup-service-account': ['clickup'],
   'coda-service-account': ['coda'],
   'github-app-installation': ['github'],
