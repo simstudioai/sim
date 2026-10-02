@@ -2008,6 +2008,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'deliveredAt',
     'lastError',
   ],
+  freebuffAttribution: ['userId', 'encryptedToken', 'capturedAt', 'expiresAt'],
 } as const
 
 /** Every `pgEnum` export mapped to its values. */

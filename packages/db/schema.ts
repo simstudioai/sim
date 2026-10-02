@@ -7939,3 +7939,13 @@ export const copilotServiceUsage = pgTable(
     index('copilot_service_usage_pending_idx').on(t.nextAttemptAt).where(sql`delivered_at IS NULL`),
   ]
 )
+
+/** Encrypted advertiser attribution, separate from user profile and analytics payloads. */
+export const freebuffAttribution = pgTable('freebuff_attribution', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  encryptedToken: text('encrypted_token').notNull(),
+  capturedAt: timestamp('captured_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})

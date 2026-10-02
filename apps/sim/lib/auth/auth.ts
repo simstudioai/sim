@@ -37,6 +37,7 @@ import {
 } from '@/components/emails'
 import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
+import { bindFreebuffAttribution, FREEBUFF_AGENTIC_COOKIE } from '@/lib/analytics/freebuff-agentic'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
@@ -316,6 +317,16 @@ export const auth = betterAuth({
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
           })
+
+          try {
+            await bindFreebuffAttribution(
+              user.id,
+              context?.getCookie(FREEBUFF_AGENTIC_COOKIE) ?? undefined,
+              user.createdAt
+            )
+          } catch {
+            logger.warn('Freebuff attribution could not be persisted')
+          }
 
           /**
            * Only the marketing-consent-gated Freebuff tag writes the `bfcid`
@@ -681,6 +692,22 @@ export const auth = betterAuth({
     session: {
       create: {
         before: prepareSessionForCreation,
+        after: async (session, context) => {
+          const attribution = context?.getCookie(FREEBUFF_AGENTIC_COOKIE)
+          if (!attribution) return
+          try {
+            await bindFreebuffAttribution(session.userId, attribution)
+            context?.setCookie(FREEBUFF_AGENTIC_COOKIE, '', {
+              path: '/',
+              secure: true,
+              httpOnly: true,
+              sameSite: 'lax',
+              maxAge: 0,
+            })
+          } catch {
+            logger.warn('Freebuff login attribution could not be persisted')
+          }
+        },
       },
       update: {
         /**

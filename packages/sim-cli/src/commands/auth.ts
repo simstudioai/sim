@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline/promises'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { Command, Option } from 'commander'
+import { prepareFreebuffHandoff } from '#sim-cli/auth/freebuff'
 import { printLine } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { buildApprovalUrl, createAuthRequest, pollForKey } from '../auth/device-flow'
@@ -617,7 +618,11 @@ async function loginWithHandoff(
   expected: LoginProfileSnapshot
 ): Promise<void> {
   const auth = createAuthRequest()
-  const url = buildApprovalUrl(profile.endpoint, auth, profile.workspaceId ?? undefined)
+  const url = await prepareFreebuffHandoff(
+    profile.endpoint,
+    auth,
+    buildApprovalUrl(profile.endpoint, auth, profile.workspaceId ?? undefined)
+  )
 
   printLine(
     `Signing in to ${styles().bold(profile.endpoint)} as profile ${styles().bold(safeOneLine(profile.name))}`

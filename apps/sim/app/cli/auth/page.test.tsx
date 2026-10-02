@@ -15,7 +15,7 @@ const CHALLENGE = 'c'.repeat(43)
 const PAIRING = 'ABCD-2345'
 
 const EXPECTED_CALLBACK = encodeURIComponent(
-  `/cli/auth?request=${REQUEST}&challenge=${CHALLENGE}&pairing=${PAIRING}`
+  `/cli/auth?request=${REQUEST}&challenge=${CHALLENGE}&pairing=${PAIRING}&scope=platform&workspace=workspace-fixture`
 )
 
 function pageProps() {
@@ -24,6 +24,8 @@ function pageProps() {
       request: REQUEST,
       challenge: CHALLENGE,
       pairing: PAIRING,
+      scope: 'platform',
+      workspace: 'workspace-fixture',
     }),
   }
 }
@@ -37,7 +39,7 @@ describe('CliAuthPage signed-out bounce', () => {
     envFlagsMock.isRegistrationDisabled = false
   })
 
-  it('sends a signed-out visitor to signup, carrying the handoff as callbackUrl', async () => {
+  it('preserves the requested key scope and workspace through signup', async () => {
     await expect(CliAuthPage(pageProps())).rejects.toThrow(
       `NEXT_REDIRECT:/signup?callbackUrl=${EXPECTED_CALLBACK}`
     )

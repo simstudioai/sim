@@ -2745,6 +2745,13 @@
       "when": 1790723607543,
       "tag": "0392_dashboard",
       "breakpoints": true
+    },
+    {
+      "idx": 393,
+      "version": "7",
+      "when": 1790909756046,
+      "tag": "0393_curved_shotgun",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,7 @@ import {
 } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { enqueueFreebuffUse } from '@/lib/analytics/freebuff-agentic'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import {
   type BillingAttributionSnapshot,
@@ -1329,6 +1330,17 @@ export class ExecutionLogger {
         },
         completedExecutionLargeValueKeys
       )
+
+      if (log.status === 'completed' && log.deploymentVersionId && actorUserId && log.endedAt) {
+        const occurredAt = log.endedAt
+        try {
+          await tx.transaction(async (attributionTx) => {
+            await enqueueFreebuffUse(attributionTx, actorUserId, executionId, occurredAt)
+          })
+        } catch {
+          execLog.warn('Freebuff use attribution could not be persisted')
+        }
+      }
 
       return { updatedLog: log, completionPersisted: true }
     })

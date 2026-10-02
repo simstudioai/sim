@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { adminInvitationOperationOutboxHandlers } from '@/lib/admin/invitation-operation'
 import { adminMemberOperationOutboxHandlers } from '@/lib/admin/member-operation'
+import { freebuffAgenticOutboxHandlers } from '@/lib/analytics/freebuff-agentic'
 import { enterpriseOwnerClaimOutboxHandlers } from '@/lib/billing/enterprise-owner-claim'
 import { enterpriseIssuanceOutboxHandlers } from '@/lib/billing/enterprise-provisioning'
 import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
@@ -34,6 +35,7 @@ const logger = createLogger('OutboxProcessor')
 
 const handlers = {
   ...slackSearchOutboxHandlers,
+  ...freebuffAgenticOutboxHandlers,
   ...adminInvitationOperationOutboxHandlers,
   ...adminMemberOperationOutboxHandlers,
   ...billingOutboxHandlers,

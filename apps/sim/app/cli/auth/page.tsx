@@ -18,6 +18,10 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic'
 
+interface CliAuthPageProps {
+  searchParams: Promise<SearchParams>
+}
+
 /**
  * Browser half of the CLI key handoff.
  *
@@ -37,11 +41,7 @@ export const dynamic = 'force-dynamic'
  * account, so the pairing visitor is necessarily an existing user and signup is
  * guaranteed to be the wrong hop. Go straight to login there.
  */
-export default async function CliAuthPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>
-}) {
+export default async function CliAuthPage({ searchParams }: CliAuthPageProps) {
   const [session, params] = await Promise.all([
     getSession(),
     cliAuthSearchParamsCache.parse(searchParams),
@@ -54,6 +54,10 @@ export default async function CliAuthPage({
       request: resolution.request.request,
       challenge: resolution.request.challenge,
       pairing: resolution.request.pairing,
+      scope: resolution.request.scope,
+      ...(resolution.request.suggestedWorkspaceId
+        ? { workspace: resolution.request.suggestedWorkspaceId }
+        : {}),
     })
     redirect(
       buildAuthCrossLink(isRegistrationDisabled ? '/login' : '/signup', {

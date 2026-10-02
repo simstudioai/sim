@@ -30,6 +30,11 @@ function defineUserAccountOperation<const Id extends string>(
  * Destructive account and grant-management operations still require a session.
  */
 export const userAccountOperations = {
+  // permission-group-exempt: attribution belongs to the signed-in account and grants no workspace access
+  bindAttribution: defineUserAccountOperation({
+    id: 'users.account.attribution.bind',
+    capability: 'none',
+  }),
   // permission-group-exempt: reading your own profile is not a workspace act, so no group key names it
   readProfile: defineUserAccountOperation(
     { id: 'users.account.profile.read', capability: 'none' },
