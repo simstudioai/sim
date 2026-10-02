@@ -120,8 +120,12 @@ function isPlaceholder(ref: string): boolean {
   return /[<>{}*$]|\.\.\.|…|\bfoo\b|\bxxx?\b/i.test(ref)
 }
 
+/** A file or directory inside the repo; a path escaping the root never resolves. */
 function resolvesFrom(base: string, ref: string): boolean {
-  return SOURCE_EXTENSIONS.some((ext) => existsSync(path.join(base, `${ref}${ext}`)))
+  return SOURCE_EXTENSIONS.some((ext) => {
+    const candidate = path.resolve(base, `${ref}${ext}`)
+    return !path.relative(ROOT, candidate).startsWith('..') && existsSync(candidate)
+  })
 }
 
 const MODULE_CANDIDATES = [
@@ -285,7 +289,7 @@ function auditDocument(relFile: string, workspaces: Workspaces, files: string[])
     for (const match of text.matchAll(REPO_PATH)) checkPath(line, trimProse(match[1]))
     if (inFence) {
       // Example code: only imports are concrete enough to check.
-      if (/\b(?:from|import|mock|vi\.mock|doMock)\b/.test(text)) {
+      if (/\b(?:from|import|require|mock|vi\.mock|doMock)\b/.test(text)) {
         for (const match of text.matchAll(IMPORT_SPEC)) checkPath(line, match[2])
       }
       return
