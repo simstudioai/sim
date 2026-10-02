@@ -136,8 +136,18 @@ describe('formatDiffSummaryForDescriptionAsync shared formatting', () => {
           type: 'agent',
           name: 'My Agent',
           changes: [
-            { field: 'systemPrompt', oldValue: 'You are helpful', newValue: 'You are an expert' },
-            { field: 'model', oldValue: 'gpt-4o', newValue: 'claude-sonnet-4-5' },
+            {
+              scope: 'subblock' as const,
+              field: 'systemPrompt',
+              oldValue: 'You are helpful',
+              newValue: 'You are an expert',
+            },
+            {
+              scope: 'subblock' as const,
+              field: 'model',
+              oldValue: 'gpt-4o',
+              newValue: 'claude-sonnet-4-5',
+            },
           ],
         },
       ],
@@ -165,13 +175,19 @@ describe('formatDiffSummaryForDescriptionAsync shared formatting', () => {
           type: 'agent',
           name: 'Agent',
           changes: [
-            { field: 'systemPrompt', oldValue: 'old', newValue: 'new' },
+            { scope: 'subblock' as const, field: 'systemPrompt', oldValue: 'old', newValue: 'new' },
             {
+              scope: 'subblock' as const,
               field: 'systemPrompt.properties',
               oldValue: { some: 'meta' },
               newValue: { some: 'other' },
             },
-            { field: 'model.properties', oldValue: {}, newValue: { x: 1 } },
+            {
+              scope: 'subblock' as const,
+              field: 'model.properties',
+              oldValue: {},
+              newValue: { x: 1 },
+            },
           ],
         },
       ],
@@ -187,6 +203,7 @@ describe('formatDiffSummaryForDescriptionAsync shared formatting', () => {
     mockGetBlock.mockReturnValue({ subBlocks: [] })
 
     const changes = Array.from({ length: 8 }, (_, i) => ({
+      scope: 'subblock' as const,
       field: `field${i}`,
       oldValue: `old${i}`,
       newValue: `new${i}`,
@@ -211,10 +228,12 @@ describe('formatDiffSummaryForDescriptionAsync shared formatting', () => {
         added: 2,
         removed: 1,
         addedDetails: [
-          { sourceName: 'My Agent', targetName: 'Slack' },
-          { sourceName: 'Router', targetName: 'Gmail' },
+          { source: 'my-agent', target: 'slack', sourceName: 'My Agent', targetName: 'Slack' },
+          { source: 'router', target: 'gmail', sourceName: 'Router', targetName: 'Gmail' },
         ],
-        removedDetails: [{ sourceName: 'Function', targetName: 'Webhook' }],
+        removedDetails: [
+          { source: 'function', target: 'webhook', sourceName: 'Function', targetName: 'Webhook' },
+        ],
       },
     })
 
@@ -231,11 +250,11 @@ describe('formatDiffSummaryForDescriptionAsync shared formatting', () => {
         added: 5,
         removed: 0,
         addedDetails: [
-          { sourceName: 'A', targetName: 'B' },
-          { sourceName: 'C', targetName: 'D' },
-          { sourceName: 'E', targetName: 'F' },
-          { sourceName: 'G', targetName: 'H' },
-          { sourceName: 'I', targetName: 'J' },
+          { source: 'a', target: 'b', sourceName: 'A', targetName: 'B' },
+          { source: 'c', target: 'd', sourceName: 'C', targetName: 'D' },
+          { source: 'e', target: 'f', sourceName: 'E', targetName: 'F' },
+          { source: 'g', target: 'h', sourceName: 'G', targetName: 'H' },
+          { source: 'i', target: 'j', sourceName: 'I', targetName: 'J' },
         ],
         removedDetails: [],
       },
@@ -273,6 +292,7 @@ describe('formatDiffSummaryForDescriptionAsync', () => {
           name: 'Calendly',
           changes: [
             {
+              scope: 'subblock' as const,
               field: 'operation',
               oldValue: 'calendly_get_current_user',
               newValue: 'calendly_list_event_types',

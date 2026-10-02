@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import {
+  formatValueForDisplay,
   resolveFieldLabel,
   resolveValueForDisplay,
 } from '@/lib/workflows/comparison/resolve-values'
@@ -60,6 +61,12 @@ export async function formatDiffSummaryForDescriptionAsync(
     const changesToProcess = meaningfulChanges.slice(0, MAX_CHANGES_PER_BLOCK)
     const resolvedChanges = await Promise.all(
       changesToProcess.map(async (change) => {
+        if (change.scope === 'block')
+          return {
+            field: resolveFieldLabel(block.type, change.field, change.scope),
+            oldLabel: formatValueForDisplay(change.oldValue),
+            newLabel: formatValueForDisplay(change.newValue),
+          }
         const context = {
           blockType: block.type,
           subBlockId: change.field,
@@ -74,7 +81,7 @@ export async function formatDiffSummaryForDescriptionAsync(
         ])
 
         return {
-          field: resolveFieldLabel(block.type, change.field),
+          field: resolveFieldLabel(block.type, change.field, change.scope),
           oldLabel: oldResolved.displayLabel,
           newLabel: newResolved.displayLabel,
         }

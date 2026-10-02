@@ -359,19 +359,29 @@ export function resolveFilterFieldLabel(
   }
 }
 
+/** Evaluates local option definitions against the block values supplied by the caller. */
+export function resolveSubBlockOptions(
+  subBlock: SubBlockConfig,
+  values: Record<string, unknown> = {}
+) {
+  return typeof subBlock.options === 'function'
+    ? subBlock.options({ values })
+    : (subBlock.options ?? [])
+}
+
 /**
  * Resolves a static dropdown/combobox value to its option label.
  * Returns null if not a dropdown/combobox or no matching option is found.
  */
 export function resolveDropdownLabel(
   subBlock: SubBlockConfig | undefined,
-  rawValue: unknown
+  rawValue: unknown,
+  values: Record<string, unknown> = {}
 ): string | null {
   if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
   if (!rawValue) return null
 
-  const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
-  if (!options) return null
+  const options = resolveSubBlockOptions(subBlock, values)
 
   const labelFor = (id: string): string | null => {
     const option = options.find((opt) => (typeof opt === 'string' ? opt === id : opt.id === id))

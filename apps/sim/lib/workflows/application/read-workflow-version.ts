@@ -4,6 +4,7 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
+import { materializeWorkflowComparisonState } from '@/lib/workflows/persistence/comparison-state'
 import { getWorkflowDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -35,6 +36,8 @@ export interface ReadWorkflowVersionInput {
   workflowId: string
   assertedWorkspaceId?: string
   version: number | 'active'
+  /** Stored snapshots remain pinned; comparison previews apply the current runtime migrations. */
+  representation?: 'stored' | 'comparison'
   /**
    * Serves the pinned graph with credential values intact. Reserved for first-party session
    * surfaces that render the version inside its own workspace UI, which already serve the same
@@ -52,10 +55,13 @@ export const readWorkflowVersion = defineAuthorizedWorkflowUseCase({
     if (!version?.state) {
       throw new OrchestrationError('not_found', 'Deployment version not found')
     }
-    const state = version.state
-    if (!isWorkflowState(state)) {
+    if (!isWorkflowState(version.state)) {
       throw new Error('Deployment version contains invalid workflow state')
     }
+    const state =
+      input.representation === 'comparison'
+        ? await materializeWorkflowComparisonState(context.workflowId, version, context.workspaceId)
+        : version.state
     const presentedState = input.includeCredentialValues ? state : sanitizeVersionState(state)
     logger.info('Read workflow version', {
       workspaceId: context.workspaceId,

@@ -52,6 +52,10 @@ import {
 } from '@/lib/api/contracts/v2/shared'
 import { v2OperationReportSchema } from '@/lib/api/contracts/v2/workspace-operations'
 import {
+  compareWorkflowVersionsDataSchema,
+  compareWorkflowVersionsQuerySchema,
+} from '@/lib/api/contracts/workflow-comparison'
+import {
   portableResourceKindSchema,
   referenceOccurrenceSchema,
   workflowReferenceManifestSchema,
@@ -3788,4 +3792,12 @@ export const v2MoveWorkflowsContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2MoveWorkflowsDataSchema),
   },
+})
+
+export const v2CompareWorkflowVersionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[workflowId]/versions/compare',
+  params: v2WorkflowIdParamsSchema,
+  query: compareWorkflowVersionsQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(compareWorkflowVersionsDataSchema) },
 })
