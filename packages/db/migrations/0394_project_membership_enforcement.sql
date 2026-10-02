@@ -142,8 +142,15 @@ BEGIN
       IF TG_OP <> 'INSERT' THEN previous_id := OLD.workspace_id; END IF;
       IF TG_OP <> 'DELETE' THEN next_id := NEW.workspace_id; END IF;
     END IF;
-    SELECT array_agg(project_id) INTO owners FROM project_workspace WHERE workspace_id IN (previous_id, next_id);
+    SELECT array_agg(project_id ORDER BY workspace_id) INTO owners FROM project_workspace WHERE workspace_id IN (previous_id, next_id);
     PERFORM project_contract_lock_projects(owners);
+    IF owners IS DISTINCT FROM (
+      SELECT array_agg(project_id ORDER BY workspace_id) FROM project_workspace
+      WHERE workspace_id IN (previous_id, next_id)
+    ) THEN
+      RAISE EXCEPTION 'Environment changed Projects while acquiring its lifecycle lock; retry the transaction'
+        USING ERRCODE = '40001';
+    END IF;
   END IF;
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;

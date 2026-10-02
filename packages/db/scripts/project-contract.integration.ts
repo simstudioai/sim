@@ -8,6 +8,7 @@ import { backfillProjects } from '@sim/db/project-backfill'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getPostgresErrorCode } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
@@ -217,6 +218,52 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         sql`UPDATE workspace SET archived_at = NULL WHERE id = 'root'`
       ).rejects.toSatisfy(constraintFailure)
       expect(await sql`SELECT 1 FROM workspace WHERE archived_at IS NULL`).toHaveLength(0)
+    })
+  })
+
+  it('retries a workflow write when its environment moves Projects while the writer waits', async () => {
+    await database(async (sql) => {
+      await seed(sql)
+      await enforce(sql)
+      const moved = createDeferred<void>()
+      const release = createDeferred<void>()
+      const transfer = sql.begin(async (tx) => {
+        await tx`INSERT INTO project (id, name, owner_id) VALUES ('destination', 'Destination', 'owner')`
+        await tx`UPDATE workspace SET forked_from_workspace_id = NULL WHERE id = 'child'`
+        await tx`UPDATE project_workspace SET project_id = 'destination' WHERE workspace_id = 'child'`
+        moved.resolve()
+        await release.promise
+      })
+      await moved.promise
+      const writer = sql
+        .begin(async (tx) => {
+          await tx`SET LOCAL application_name = 'project_contract_stale_writer'`
+          await tx`INSERT INTO workflow VALUES ('racing', 'child', NULL)`
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+      try {
+        let waiting = false
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const rows =
+            await sql`SELECT 1 FROM pg_stat_activity WHERE application_name = 'project_contract_stale_writer' AND wait_event_type = 'Lock'`
+          if (rows.length) {
+            waiting = true
+            break
+          }
+          await sleep(10)
+        }
+        expect(waiting).toBe(true)
+      } finally {
+        release.resolve()
+      }
+      await transfer
+      expect(getPostgresErrorCode(await writer)).toBe('40001')
+      expect(await sql`SELECT 1 FROM workflow WHERE id = 'racing'`).toHaveLength(0)
+      await sql`INSERT INTO workflow VALUES ('retried', 'child', NULL)`
+      expect(await sql`SELECT 1 FROM workflow WHERE id = 'retried'`).toHaveLength(1)
     })
   })
 
