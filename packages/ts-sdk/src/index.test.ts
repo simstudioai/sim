@@ -245,4 +245,19 @@ describe('client identity', () => {
     )
     expect(headers['X-API-Key']).toBe('test-api-key')
   })
+
+  it('sends requests to the canonical www host when no baseUrl is given', async () => {
+    const client = new SimStudioClient({ apiKey: 'test-api-key' })
+    vi.mocked(mockFetch).mockClear()
+    vi.mocked(mockFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: { isDeployed: true } }),
+    } as any)
+
+    await client.getWorkflowStatus('workflow-id')
+
+    expect(String(vi.mocked(mockFetch).mock.calls[0][0])).toMatch(/^https:\/\/www\.sim\.ai\//)
+  })
 })
