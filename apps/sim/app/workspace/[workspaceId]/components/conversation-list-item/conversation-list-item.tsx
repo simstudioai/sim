@@ -27,10 +27,11 @@ export function ConversationListItem({
       {showStatusDot && (
         <span
           aria-hidden='true'
-          className={cn('size-[6px] shrink-0 rounded-full', statusIndicatorClassName)}
-          style={{
-            backgroundColor: isActive ? '#EAB308' : 'var(--brand-accent)',
-          }}
+          className={cn(
+            'size-[6px] shrink-0 rounded-full',
+            isActive ? 'bg-[var(--chat-status-active)]' : 'bg-[var(--brand-accent)]',
+            statusIndicatorClassName
+          )}
         />
       )}
       {actions && <div className='ml-auto flex shrink-0 items-center'>{actions}</div>}

@@ -614,7 +614,7 @@ export class PptxViewer extends EventTarget {
     Object.assign(wrapper.style, {
       width: `${displayWidth}px`,
       height: `${displayHeight}px`,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      boxShadow: 'var(--shadow-presentation-slide)',
       overflow: 'hidden',
       position: 'relative',
       background: 'var(--white)',
@@ -866,7 +866,7 @@ export class PptxViewer extends EventTarget {
       margin: '0 auto',
       overflow: 'hidden',
       position: 'relative',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      boxShadow: 'var(--shadow-presentation-slide)',
     })
 
     try {
