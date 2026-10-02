@@ -34,6 +34,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 const RESOURCE = 'https://mcp.lucid.app/mcp/readonly'
 const DOCUMENT = '00000000-0000-4000-8000-000000000001'
+const SECOND_DOCUMENT = '00000000-0000-4000-8000-000000000002'
 const TITLE = 'Synthetic topology'
 const editUrl = `https://lucid.app/lucidchart/${DOCUMENT}/edit`
 const actors = [0, 1].map(() => ({
@@ -116,14 +117,21 @@ const providerServer = createServer(async (request, response) => {
       protocol.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
         events.push({ method: params.name, actor, at: performance.now() })
         await onTool?.(params.name, params.arguments ?? {})
+        const documentId =
+          params.arguments?.query === 'second topology' ||
+          params.arguments?.document_id === SECOND_DOCUMENT
+            ? SECOND_DOCUMENT
+            : DOCUMENT
+        const documentTitle = documentId === SECOND_DOCUMENT ? 'Second topology' : TITLE
+        const documentUrl = `https://lucid.app/lucidchart/${documentId}/edit`
         if (params.name === 'search')
-          return payload({ results: [{ id: DOCUMENT, title: TITLE, url: editUrl }] })
+          return payload({ results: [{ id: documentId, title: documentTitle, url: documentUrl }] })
         if (params.name === 'lucid_get_document_metadata')
           return payload({
-            documentId: DOCUMENT,
-            title: TITLE,
+            documentId,
+            title: documentTitle,
             product: 'lucidchart',
-            viewUrl: editUrl,
+            viewUrl: documentUrl,
             version: 7,
             pageCount: 1,
             lastModified: '2026-09-01T12:00:00Z',
@@ -357,6 +365,58 @@ describe('managed Search operation sessions', () => {
       expect(initializations).toBe(2)
     } finally {
       setupDelay = 0
+    }
+  })
+  it('multiplexes native queries on one connection without mixing their results', async () => {
+    const actor = actors[0]
+    const bothEntered = createDeferred<void>()
+    const entered: string[] = []
+    const finished: string[] = []
+    const offset = events.length
+    let timer: ReturnType<typeof setTimeout> | undefined
+    onTool = async (name, args) => {
+      if (name !== 'search') return
+      const query = String(args.query)
+      entered.push(query)
+      if (entered.length === 1) timer = setTimeout(() => bothEntered.resolve(), 2_000)
+      if (entered.length === 2) bothEntered.resolve()
+      await bothEntered.promise
+      expect(entered).toHaveLength(2)
+      if (query === 'topology') await sleep(25)
+      finished.push(query)
+    }
+    try {
+      const found = await searchLiveKnowledge.execute({
+        principal: createSessionPrincipal({ userId: actor.userId, sessionId: generateId() }),
+        input: {
+          organizationId: actor.organizationId,
+          query: 'topology',
+          topK: 10,
+          filters: { source: 'lucid' },
+          nativeQueries: [
+            { provider: 'lucid', query: 'topology', kind: 'lucidchart' },
+            { provider: 'lucid', query: 'second topology', kind: 'lucidchart' },
+          ],
+        },
+      })
+      expect(finished).toEqual(['second topology', 'topology'])
+      expect(found.results.map((result) => result.documentName).sort()).toEqual([
+        'Second topology',
+        TITLE,
+      ])
+      expect(found.retrieval.status).toBe('complete')
+      expect(
+        found.live?.accounts.map(({ queryIndex, status }) => ({ queryIndex, status }))
+      ).toEqual([
+        { queryIndex: 0, status: 'ok' },
+        { queryIndex: 1, status: 'ok' },
+      ])
+      expect(events.slice(offset).filter((event) => event.method === 'initialize')).toHaveLength(1)
+      expect(openTransports.size).toBe(0)
+    } finally {
+      clearTimeout(timer)
+      bothEntered.resolve()
+      onTool = undefined
     }
   })
   it('isolates simultaneous users and rejects another organization’s signed document reference', async () => {
