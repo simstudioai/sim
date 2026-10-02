@@ -1,20 +1,22 @@
 #!/usr/bin/env bun
 /**
- * Enforces the file-naming conventions in `CLAUDE.md` ("files kebab-case") and
- * `.claude/rules/sim-architecture.md`, so an agent can predict a module's path from its role and
- * never has to guess between `workflowList.ts`, `workflow_list.ts`, and `workflow-list.ts`.
+ * Enforces the file-naming conventions in `CLAUDE.md` "Naming" ("files kebab-case"), so an agent
+ * can predict a module's path from its role and never has to guess between `workflowList.ts`,
+ * `workflow_list.ts`, and `workflow-list.ts`.
  *
- * Rules, over every JS/TS source file under `apps/` and `packages/` (tracked or untracked, never
- * gitignored, so a file is checked before it is staged):
+ * Rules, over every JS/TS source file under `apps/`, `packages/`, root `scripts/`, and
+ * `vitest.shared.ts` (tracked or untracked, never gitignored, so a file is checked before it is
+ * staged). Dot-prefixed folders and files (`.well-known`, `.eslintrc.cjs`) are exempt: their names
+ * are mandated by the tool that reads them.
  *
  * - `kebab-case`: every path segment below the workspace root is kebab-case. Dotted suffixes
  *   (`.test.ts`, `.server.ts`, `.d.ts`, `.config.ts`) are kebab segments too. Allowed exceptions,
  *   each forced by something outside our control:
  *     - Next.js routing segments: `[param]`, `[...slug]`, `[[...slug]]`, `(group)`, `@slot`,
- *       `_private` folders, and metadata route folders named after their URL (`robots.txt`).
+ *       interception routes (`(.)x`, `(..)x`, `(..)(..)x`, `(...)x`), `_private` folders, and
+ *       metadata route folders named after their URL (`robots.txt`).
  *     - Vitest/fixture folders wrapped in double underscores (`__integration__`, `__fixtures__`).
- *     - `.well-known`, and the SCIM v2 resource folders (`Users`, `Groups`, …) whose casing is
- *       fixed by RFC 7644.
+ *     - The SCIM v2 resource folders (`Users`, `Groups`, …) whose casing is fixed by RFC 7644.
  *     - Integration folders (`apps/sim/{tools,triggers}/**`, `apps/sim/blocks/blocks/*`) may be
  *       snake_case: a tool file and its service folder are named after the snake_case tool or
  *       block id (`tools/google_sheets/append_row.ts`), and that id is the integration's identity.
@@ -45,6 +47,7 @@ const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const KEBAB_OR_SNAKE = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/
 const NEXT_DYNAMIC = /^\[{1,2}(?:\.\.\.)?[A-Za-z][A-Za-z0-9]*\]{1,2}$/
 const NEXT_GROUP = /^\([a-z0-9]+(?:-[a-z0-9]+)*\)$/
+const NEXT_INTERCEPT = /^(?:\(\.{1,3}\)|(?:\(\.\.\))+)[a-z0-9]+(?:-[a-z0-9]+)*$/
 const NEXT_SLOT = /^@[a-z0-9]+(?:-[a-z0-9]+)*$/
 const NEXT_PRIVATE = /^_[a-z0-9]+(?:-[a-z0-9]+)*$/
 const DUNDER = /^__[a-z0-9]+(?:-[a-z0-9]+)*__$/
@@ -81,10 +84,24 @@ interface Violation {
 function sourceFiles(): string[] {
   const output = execFileSync(
     'git',
-    ['ls-files', '--cached', '--others', '--exclude-standard', '-z', 'apps', 'packages'],
+    [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '-z',
+      'apps',
+      'packages',
+      'scripts',
+      'vitest.shared.ts',
+    ],
     { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
   )
-  return [...new Set(output.split('\0'))].filter((file) => SOURCE_FILE.test(file)).sort()
+  // existsSync drops the old path of an unstaged `mv`, which `--cached` still lists.
+  return [...new Set(output.split('\0'))]
+    .filter((file) => SOURCE_FILE.test(file) && !path.basename(file).startsWith('.'))
+    .filter((file) => existsSync(path.join(ROOT, file)))
+    .sort()
 }
 
 function toKebab(name: string): string {
@@ -101,10 +118,11 @@ function isAllowedFolder(segment: string, file: string, inIntegration: boolean):
   if (
     NEXT_DYNAMIC.test(segment) ||
     NEXT_GROUP.test(segment) ||
+    NEXT_INTERCEPT.test(segment) ||
     NEXT_SLOT.test(segment) ||
     NEXT_PRIVATE.test(segment) ||
     DUNDER.test(segment) ||
-    segment === '.well-known'
+    segment.startsWith('.')
   ) {
     return true
   }
@@ -132,7 +150,8 @@ function check(file: string): Violation[] {
   const violations: Violation[] = []
   const segments = file.split('/')
   const name = segments[segments.length - 1]
-  const folders = segments.slice(2, -1)
+  // Root `scripts/` belongs to the root workspace; apps/<name>/ and packages/<name>/ are roots.
+  const folders = segments.slice(segments[0] === 'scripts' ? 1 : 2, -1)
   const inIntegration = INTEGRATION_PREFIXES.some((prefix) => file.startsWith(prefix))
 
   if (!SCRIPT_MIGRATION.test(file)) {
@@ -184,7 +203,8 @@ const HOW_TO_FIX: Record<Rule, string> = {
   'redundant-suffix':
     'The utils/ or helpers/ folder already names the role; drop the suffix from the file name.',
   stutter:
-    'The parent folder already names the domain; drop the repeated prefix (lib/logs/log-views.ts → lib/logs/views.ts). If the short name collides, pick a more specific one.',
+    'The parent folder already names the domain; drop the repeated prefix (lib/logs/log-views.ts → lib/logs/views.ts). If the short name collides, pick a more specific one. ' +
+    'Existing `handlers/<x>/<x>-handler.ts` files are baselined debt, not a convention to copy.',
 }
 
 function key(violation: Violation): string {
@@ -239,7 +259,8 @@ if (added.length || stale.length) {
   if (added.length) {
     console.error(
       `\n${added.length} new file-name violation(s). Rename the file and update its importers; ` +
-        'never add a new file to the baseline.'
+        'never add a new file to the baseline. A name mandated by an outside tool goes in the ' +
+        'allowlist at the top of scripts/check-file-names.ts with a comment saying why.'
     )
   }
   if (stale.length) {
@@ -248,6 +269,15 @@ if (added.length || stale.length) {
       `\n${stale.length} baseline entr${stale.length === 1 ? 'y is' : 'ies are'} fixed — shrink the ` +
         'baseline: bun run scripts/check-file-names.ts --update'
     )
+  }
+  for (const entry of added) {
+    const old = stale.find((s) => s.split('\t')[0] === entry.split('\t')[0])
+    if (old) {
+      console.error(
+        `\nLooks like a rename: ${old.split('\t')[1]} → ${entry.split('\t')[1]}. Move its baseline ` +
+          `entry to the new path in ${path.relative(ROOT, BASELINE)} (debt carries over; it may not grow).`
+      )
+    }
   }
   process.exit(1)
 }

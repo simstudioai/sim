@@ -6,12 +6,14 @@
  * `suspicious/noExplicitAny` and `style/noNonNullAssertion` are off repo-wide because thousands of
  * existing hits predate the rule. With the rules off nothing stops a new one, and an agent copying
  * a nearby `as any` has no signal it is wrong. This check runs exactly those two Biome rules (the
- * same parser, ignore list, and `any` forms Biome knows: `: any`, `as any`, `<any>`, `any[]`) and
- * compares per-file counts with `scripts/check-explicit-any.baseline.json`.
+ * same parser and `any` forms Biome knows: `: any`, `as any`, `<any>`, `any[]`) and compares
+ * per-file counts with `scripts/check-explicit-any.baseline.json`. It uses Biome's file list, so it
+ * inherits every ignore in `biome.json`.
  *
  * - A file whose count rises, or a file that gains its first hit, fails.
  * - A file whose count drops fails until the baseline is rewritten, so the baseline only shrinks
  *   and a fix cannot be silently spent on a new `any` elsewhere in the same file.
+ * - A `biome-ignore` comment for either rule fails outright: it would hide a hit from the count.
  *
  * Regenerate after removing hits: `bun run scripts/check-explicit-any.ts --update`.
  *
@@ -73,6 +75,21 @@ function collect(): Baseline {
     counts[metric][match[2]] = (counts[metric][match[2]] ?? 0) + 1
   }
   return counts
+}
+
+/** `biome-ignore` comments for either rule, which would hide a hit from Biome's count. */
+function suppressions(): string[] {
+  const pattern = `biome-ignore(-all|-start)?[[:space:]]+(${Object.values(METRICS).join('|')})`
+  const result = Bun.spawnSync(
+    ['git', 'grep', '-nE', '--untracked', pattern, '--', 'apps', 'packages', 'scripts'],
+    { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
+  )
+  // git grep exits 1 when nothing matches.
+  if (result.exitCode > 1) {
+    console.error(`git grep failed:\n${result.stderr.toString()}`)
+    process.exit(1)
+  }
+  return result.stdout.toString().split('\n').filter(Boolean)
 }
 
 function sorted(counts: Counts): Counts {
@@ -141,6 +158,17 @@ if (process.argv.includes('--update')) {
 
 let regressed = 0
 let stale = 0
+/** A vanished baselined file next to a new file with no more hits: likely a rename. */
+const renames = new Set<string>()
+
+const suppressed = suppressions()
+if (suppressed.length) {
+  console.error(
+    `✗ ${suppressed.length} biome-ignore comment(s) hide an \`any\` or \`!\` from this check:`
+  )
+  for (const line of suppressed) console.error(`  ${line}`)
+  console.error('  Delete the suppression and fix the type instead.\n')
+}
 
 for (const metric of Object.keys(METRICS) as Metric[]) {
   const before = baseline[metric] ?? {}
@@ -153,6 +181,13 @@ for (const metric of Object.keys(METRICS) as Metric[]) {
   const shrunk = Object.entries(before)
     .filter(([file, count]) => (after[file] ?? 0) < count)
     .map(([file, count]) => `  ${file}: ${after[file] ?? 0} (baseline ${count})`)
+  for (const [oldFile, oldCount] of Object.entries(before)) {
+    if (oldFile in after) continue
+    const renamed = Object.entries(after).find(
+      ([file, count]) => !(file in before) && count <= oldCount
+    )
+    if (renamed) renames.add(`${oldFile} → ${renamed[0]}`)
+  }
   if (regressions.length) {
     console.error(`✗ ${metric}: ${regressions.length} file(s) gained ${METRICS[metric]} hits`)
     console.error(regressions.sort().join('\n'))
@@ -169,7 +204,7 @@ for (const metric of Object.keys(METRICS) as Metric[]) {
   stale += shrunk.length
 }
 
-if (regressed || stale) {
+if (regressed || stale || suppressed.length) {
   if (stale) {
     console.error(
       '\nCounts dropped — shrink the baseline so they cannot creep back: ' +
@@ -177,6 +212,12 @@ if (regressed || stale) {
     )
   }
   if (regressed) console.error('\nNever raise the baseline to make a new `any` or `!` pass.')
+  for (const rename of renames) {
+    console.error(
+      `\nLooks like a rename: ${rename}. Move its baseline entries to the new path in ` +
+        `${path.relative(ROOT, BASELINE)} (debt carries over; it may not grow).`
+    )
+  }
   process.exit(1)
 }
 
