@@ -27,7 +27,7 @@ export async function createManagedSearchMcpClient(
   provider: ManagedSearchMcpProvider,
   signal: AbortSignal,
   searches = 1
-): Promise<ManagedSearchMcpClient> {
+): Promise<ManagedSearchMcpClient & { close(): Promise<void> }> {
   signal.throwIfAborted()
   const label = MANAGED_MCP_CONNECTORS[provider].name
   const initial = await loadOwnManagedMcpRuntime(owner, userId, credentialId, provider)
@@ -43,13 +43,18 @@ export async function createManagedSearchMcpClient(
     return current
   }
   const loadProvider = async () => createManagedMcpAuthProvider(await loadCurrent())
-  const tools = await mcpService.discoverManagedMcpTools(
+  const session = await mcpService.openManagedMcpSession(
     initial.mcpServerId,
     initial.scope,
     { credentialId, loadProvider },
-    signal,
-    { requireComplete: true }
+    signal
   )
+  const tools = await session
+    .listTools(signal, { requireComplete: true })
+    .catch(async (error: unknown) => {
+      await session.disconnect()
+      throw error
+    })
   const allowed: readonly string[] = MANAGED_SEARCH_MCP_READ_TOOLS[provider]
   const byName = new Map(
     tools.filter((tool) => allowed.includes(tool.name)).map((tool) => [tool.name, tool])
@@ -57,6 +62,7 @@ export async function createManagedSearchMcpClient(
   const budget = 12 * Math.min(4, Math.max(1, searches))
   let requests = 0
   return {
+    close: () => session.disconnect(),
     hasTool: (name) => byName.has(name),
     hasArgument(name, path) {
       let schema: Record<string, unknown> = toRecord(byName.get(name)?.inputSchema)
@@ -88,15 +94,10 @@ export async function createManagedSearchMcpClient(
           `${label} rejected these search arguments. Its current tool schema is incompatible with this query.`
         )
       await loadCurrent()
-      const result = await mcpService.executeManagedMcpTool({
-        connectionId: credentialId,
-        serverId: initial.mcpServerId,
-        scope: initial.scope,
-        toolCall: { name, arguments: args },
-        loadAuthProvider: loadProvider,
-        signal,
-        timeoutMs: 10_000,
-      })
+      const result = await session.callTool(
+        { name, arguments: args },
+        { signal, timeoutMs: 10_000 }
+      )
       await loadCurrent()
       return managedMcpPayload(result, label)
     },

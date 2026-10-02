@@ -64,7 +64,7 @@ export const LIVE_SEARCH_PROVIDERS = {
     transport: 'managed_mcp',
     guide: {
       syntax:
-        'Nonempty document-title keywords, at most 400 characters. Results are relevance-ranked, not guaranteed literal title matches. The provider returns at most 200 relevance-ranked candidates; Sim verifies metadata for at most 10. Search has no continuation.',
+        'Nonempty document-title keywords, at most 400 characters. Results are relevance-ranked, not guaranteed literal title matches. The provider returns at most 200 relevance-ranked candidates; Sim verifies metadata for at most 10. Search has no continuation and cannot enumerate the account. For a browse-all request without a title or topic, ask for one instead of guessing keywords.',
       scope:
         'kind lucidchart or lucidspark selects a product; omit to search both. To search shape text within a known document, set project to its UUID or Lucid URL and use one literal substring of at most 200 characters. Dates use modification time; sorting and end dates apply only to retrieved candidates, not the entire account.',
       example: 'deployment architecture',
@@ -264,7 +264,7 @@ export const LIVE_SEARCH_PROVIDERS = {
     transport: 'managed_mcp',
     guide: {
       syntax:
-        'Natural-language or plain keyword content search through Notion MCP. Search terms are required even with dates or sorting. Availability depends on the connected account and plan; results are restricted to Notion pages, excluding connected apps.',
+        'Natural-language or plain keyword content search through Notion MCP. Search terms are required even with dates or sorting; this search cannot enumerate the account. For a browse-all request without a title or topic, ask for one instead of guessing keywords. Availability depends on the connected account and plan; results are restricted to Notion pages, excluding connected apps.',
       scope:
         'project optionally takes a known Notion page URL when the advertised tool supports page scoping. Dates use explicit last-edited timestamps; results without those timestamps cannot satisfy date filters. Read a result for page content.',
       example: 'deployment rollback checklist',

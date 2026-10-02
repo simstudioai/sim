@@ -607,12 +607,13 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           results: [],
         }
       }
+      let session: LiveAccountSession | undefined
       try {
         signal.throwIfAborted()
         const resolved = await measureSearchStage('live.resolve', () =>
           resolveListedLiveAccount(input, userId, account)
         )
-        const session = await measureSearchStage('live.session', () =>
+        session = await measureSearchStage('live.session', () =>
           openLiveAccountSession({
             owner: input,
             userId,
@@ -623,9 +624,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             searches: natives.length,
           })
         )
+        const currentSession = session
         return await Promise.all(
           natives.map((target) =>
-            searchQuery(account, resolved, session, target.native, statusFor(target)).catch(
+            searchQuery(account, resolved, currentSession, target.native, statusFor(target)).catch(
               (error) => failed(error, target)
             )
           )
@@ -634,6 +636,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         return natives.map((target) => failed(error, target))
       } finally {
         settled.abort()
+        await session?.close()
       }
     }
     let searched: SearchedQuery[]
@@ -760,8 +763,9 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       : AbortSignal.timeout(15_000)
     const pool = createPinnedConnectionPool()
     let document: NativeDocument
+    let session: LiveAccountSession | undefined
     try {
-      const session = await openLiveAccountSession({
+      session = await openLiveAccountSession({
         owner: input,
         userId,
         resolved,
@@ -774,7 +778,10 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
           'not_found',
           'Document is outside your organization’s search scope'
         )
-      document = await measureSearchStage('live.read', () => session.read(reference, input.filters))
+      const currentSession = session
+      document = await measureSearchStage('live.read', () =>
+        currentSession.read(reference, input.filters)
+      )
       /** Readers degrade section failures to warnings, so the signal decides cancellation. */
       signal.throwIfAborted()
       const current = await session.verifyCurrent(document)
@@ -786,7 +793,11 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
           'Document is outside your organization’s search scope'
         )
     } finally {
-      pool.destroy()
+      try {
+        await session?.close()
+      } finally {
+        pool.destroy()
+      }
     }
     if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
