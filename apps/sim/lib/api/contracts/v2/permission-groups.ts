@@ -55,6 +55,10 @@ export const v2PermissionGroupSchema = z
       .describe(
         'An empty inherit group governs everyone in its workspaces; an empty explicit group governs nobody.'
       ),
+    projectIds: z
+      .array(z.string())
+      .default([])
+      .describe('Projects whose current and future environments are governed.'),
     workspaceIds: z
       .array(z.string())
       .describe('Workspaces governed by a non-default group. Empty for the default group.'),
@@ -120,10 +124,14 @@ export const v2CreatePermissionGroupBodySchema = createPermissionGroupBodySchema
       .optional(),
   })
   .strict()
-  .refine((body) => body.isDefault === true || Boolean(body.workspaceIds?.length), {
-    path: ['workspaceIds'],
-    message: 'Select at least one workspace when the group targets specific workspaces',
-  })
+  .refine(
+    (body) =>
+      body.isDefault === true || Boolean(body.workspaceIds?.length || body.projectIds?.length),
+    {
+      path: ['workspaceIds'],
+      message: 'Select at least one workspace when the group targets specific workspaces',
+    }
+  )
 export type V2CreatePermissionGroupBody = z.input<typeof v2CreatePermissionGroupBodySchema>
 export const v2UpdatePermissionGroupBodySchema = updatePermissionGroupBodySchema
   .safeExtend({

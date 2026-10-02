@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { CodeIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -47,10 +46,10 @@ import {
   useSandboxes,
   useUpdateSandbox,
 } from '@/hooks/queries/sandboxes'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 export function Sandboxes() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [selectedId, setSelectedId] = useQueryState(sandboxIdParam.key, {

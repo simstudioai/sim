@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Plus, Wrench } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -21,10 +20,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 export function CustomTools() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('custom-tools', workspacePermissions)
 

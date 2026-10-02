@@ -2,12 +2,12 @@ import { db } from '@sim/db'
 import {
   permissionGroup,
   permissionGroupMember,
-  permissionGroupWorkspace,
+  permissionGroupWorkspaceScope,
   user,
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 
@@ -30,6 +30,21 @@ export interface ScopeConflict {
   conflictingGroupName: string
 }
 
+/** Match live environments or the same durable project rule, including an empty project. */
+function overlappingScope(workspaceIds: string[], projectIds: string[]) {
+  return or(
+    workspaceIds.length
+      ? inArray(permissionGroupWorkspaceScope.workspaceId, workspaceIds)
+      : sql`false`,
+    projectIds.length
+      ? sql`${permissionGroup.projectIds} ?| ARRAY[${sql.join(
+          projectIds.map((id) => sql`${id}`),
+          sql`, `
+        )}]::text[]`
+      : sql`false`
+  )
+}
+
 /**
  * Which of `candidateUserIds` would be governed by two groups on the same
  * workspace: each is already an explicit member of another non-default group
@@ -42,12 +57,14 @@ export async function findScopeConflicts(
     organizationId: string
     excludeGroupId: string
     workspaceIds: string[]
+    projectIds?: string[]
     candidateUserIds: string[]
   },
   executor: DbOrTx = db
 ): Promise<ScopeConflict[]> {
-  const { organizationId, excludeGroupId, workspaceIds, candidateUserIds } = params
-  if (candidateUserIds.length === 0 || workspaceIds.length === 0) return []
+  const { organizationId, excludeGroupId, workspaceIds, projectIds = [], candidateUserIds } = params
+  if (candidateUserIds.length === 0 || (workspaceIds.length === 0 && projectIds.length === 0))
+    return []
 
   const rows = await executor
     .select({
@@ -59,9 +76,9 @@ export async function findScopeConflicts(
     })
     .from(permissionGroupMember)
     .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-    .innerJoin(
-      permissionGroupWorkspace,
-      eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id)
+    .leftJoin(
+      permissionGroupWorkspaceScope,
+      eq(permissionGroupWorkspaceScope.permissionGroupId, permissionGroup.id)
     )
     .leftJoin(user, eq(permissionGroupMember.userId, user.id))
     .where(
@@ -70,7 +87,7 @@ export async function findScopeConflicts(
         inArray(permissionGroupMember.userId, candidateUserIds),
         ne(permissionGroupMember.permissionGroupId, excludeGroupId),
         eq(permissionGroup.isDefault, false),
-        inArray(permissionGroupWorkspace.workspaceId, workspaceIds)
+        overlappingScope(workspaceIds, projectIds)
       )
     )
 
@@ -105,31 +122,36 @@ export interface AllMembersConflict {
  * nobody rather than everyone, so it cannot collide.
  */
 export async function findAllMembersWorkspaceConflict(
-  params: { organizationId: string; excludeGroupId: string; workspaceIds: string[] },
+  params: {
+    organizationId: string
+    excludeGroupId: string
+    workspaceIds: string[]
+    projectIds?: string[]
+  },
   executor: DbOrTx = db
 ): Promise<AllMembersConflict | null> {
-  const { organizationId, excludeGroupId, workspaceIds } = params
-  if (workspaceIds.length === 0) return null
+  const { organizationId, excludeGroupId, workspaceIds, projectIds = [] } = params
+  if (workspaceIds.length === 0 && projectIds.length === 0) return null
 
   const [row] = await executor
     .select({
       conflictingGroupId: permissionGroup.id,
       conflictingGroupName: permissionGroup.name,
-      workspaceName: workspace.name,
+      workspaceName: sql<string>`coalesce(${workspace.name}, 'project environments')`,
     })
     .from(permissionGroup)
-    .innerJoin(
-      permissionGroupWorkspace,
-      eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id)
+    .leftJoin(
+      permissionGroupWorkspaceScope,
+      eq(permissionGroupWorkspaceScope.permissionGroupId, permissionGroup.id)
     )
-    .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
+    .leftJoin(workspace, eq(permissionGroupWorkspaceScope.workspaceId, workspace.id))
     .where(
       and(
         eq(permissionGroup.organizationId, organizationId),
         eq(permissionGroup.isDefault, false),
         eq(permissionGroup.membershipMode, 'inherit'),
         ne(permissionGroup.id, excludeGroupId),
-        inArray(permissionGroupWorkspace.workspaceId, workspaceIds),
+        overlappingScope(workspaceIds, projectIds),
         sql`not exists (
           select 1 from ${permissionGroupMember}
           where ${permissionGroupMember.permissionGroupId} = ${permissionGroup.id}
@@ -170,6 +192,7 @@ interface LockedGroup {
   isDefault: boolean
   membershipMode: string
   workspaceIds: string[]
+  projectIds: string[]
 }
 
 async function loadLockedGroup(
@@ -182,6 +205,7 @@ async function loadLockedGroup(
       id: permissionGroup.id,
       isDefault: permissionGroup.isDefault,
       membershipMode: permissionGroup.membershipMode,
+      projectIds: permissionGroup.projectIds,
     })
     .from(permissionGroup)
     .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.organizationId, organizationId)))
@@ -189,9 +213,9 @@ async function loadLockedGroup(
   if (!group) throw new PermissionGroupNotFoundError()
 
   const workspaces = await tx
-    .select({ workspaceId: permissionGroupWorkspace.workspaceId })
-    .from(permissionGroupWorkspace)
-    .where(eq(permissionGroupWorkspace.permissionGroupId, groupId))
+    .select({ workspaceId: permissionGroupWorkspaceScope.workspaceId })
+    .from(permissionGroupWorkspaceScope)
+    .where(eq(permissionGroupWorkspaceScope.permissionGroupId, groupId))
 
   return { ...group, workspaceIds: workspaces.map((row) => row.workspaceId) }
 }
@@ -231,6 +255,7 @@ export async function addPermissionGroupMemberTx(
       organizationId: params.organizationId,
       excludeGroupId: params.groupId,
       workspaceIds: group.workspaceIds,
+      projectIds: group.projectIds,
       candidateUserIds: [params.userId],
     },
     tx
@@ -289,6 +314,7 @@ export async function removePermissionGroupMemberTx(
           organizationId: params.organizationId,
           excludeGroupId: params.groupId,
           workspaceIds: group.workspaceIds,
+          projectIds: group.projectIds,
         },
         tx
       )

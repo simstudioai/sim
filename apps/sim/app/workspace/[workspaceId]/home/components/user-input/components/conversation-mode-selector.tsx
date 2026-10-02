@@ -7,6 +7,8 @@ import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-
 
 interface ConversationModeSelectorProps {
   value: ChatRequestMode
+  lookupSelected?: boolean
+  onSearch?: () => void
   searchEnabled?: boolean
   onChange?: (mode: ChatRequestMode) => void
 }
@@ -15,15 +17,28 @@ interface ConversationModeSelectorProps {
 export function ConversationModeSelector({
   value,
   searchEnabled = false,
+  lookupSelected = false,
+  onSearch,
   onChange,
 }: ConversationModeSelectorProps) {
   const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [open, setOpen] = useState(false)
-  const options = [
-    ...(searchEnabled ? [{ value: 'assistant', label: 'Search' }] : []),
-    { value: 'agent', label: 'Build' },
-    ...(planEnabled ? [{ value: 'plan', label: 'Plan' }] : []),
-  ]
+  const options = onSearch
+    ? [
+        { value: 'agent', label: 'Build' },
+        ...(planEnabled ? [{ value: 'plan', label: 'Plan' }] : []),
+        ...(searchEnabled
+          ? [
+              { value: 'assistant', label: 'Ask' },
+              { value: 'search', label: 'Search' },
+            ]
+          : []),
+      ]
+    : [
+        ...(searchEnabled ? [{ value: 'assistant', label: 'Search' }] : []),
+        { value: 'agent', label: 'Build' },
+        ...(planEnabled ? [{ value: 'plan', label: 'Plan' }] : []),
+      ]
   if (options.length < 2) return null
   return (
     <Tooltip.Root>
@@ -34,14 +49,18 @@ export function ConversationModeSelector({
             shape='round'
             aria-label='Conversation mode'
             options={options}
-            value={value}
+            value={lookupSelected ? 'search' : value}
             disabled={!onChange}
             align='start'
             matchTriggerWidth={false}
             showSelectedCheck={false}
             onOpenChange={setOpen}
             onChange={(mode) => {
-              if (mode === value) return
+              if (mode === 'search' && searchEnabled && onSearch) {
+                onSearch()
+                return
+              }
+              if (mode === value && !lookupSelected) return
               if (
                 mode === 'agent' ||
                 (mode === 'assistant' && searchEnabled) ||

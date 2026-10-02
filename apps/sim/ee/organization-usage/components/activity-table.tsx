@@ -23,7 +23,7 @@ interface ActivityTableProps {
 }
 
 const DIMENSION_LABELS: Record<ActivityDimension, string> = {
-  workspace: 'Workspace',
+  workspace: 'Environment',
   workflow: 'Workflow',
   member: 'Member',
   trigger: 'Trigger',

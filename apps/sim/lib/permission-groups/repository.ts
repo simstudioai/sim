@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupWorkspace, workspace } from '@sim/db/schema'
+import { permissionGroup, permissionGroupWorkspaceScope, workspace } from '@sim/db/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -26,6 +26,7 @@ export async function loadGroupInOrganization(
       createdAt: permissionGroup.createdAt,
       updatedAt: permissionGroup.updatedAt,
       isDefault: permissionGroup.isDefault,
+      projectIds: permissionGroup.projectIds,
       membershipMode: permissionGroup.membershipMode,
     })
     .from(permissionGroup)
@@ -42,9 +43,9 @@ export async function getGroupWorkspaces(
 ): Promise<WorkspaceRef[]> {
   return executor
     .select({ id: workspace.id, name: workspace.name })
-    .from(permissionGroupWorkspace)
-    .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
-    .where(eq(permissionGroupWorkspace.permissionGroupId, groupId))
+    .from(permissionGroupWorkspaceScope)
+    .innerJoin(workspace, eq(permissionGroupWorkspaceScope.workspaceId, workspace.id))
+    .where(eq(permissionGroupWorkspaceScope.permissionGroupId, groupId))
     .orderBy(asc(workspace.name))
 }
 
@@ -57,13 +58,13 @@ export async function getWorkspacesForGroups(
 
   const rows = await db
     .select({
-      groupId: permissionGroupWorkspace.permissionGroupId,
+      groupId: permissionGroupWorkspaceScope.permissionGroupId,
       id: workspace.id,
       name: workspace.name,
     })
-    .from(permissionGroupWorkspace)
-    .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
-    .where(inArray(permissionGroupWorkspace.permissionGroupId, groupIds))
+    .from(permissionGroupWorkspaceScope)
+    .innerJoin(workspace, eq(permissionGroupWorkspaceScope.workspaceId, workspace.id))
+    .where(inArray(permissionGroupWorkspaceScope.permissionGroupId, groupIds))
     .orderBy(asc(workspace.name))
 
   for (const row of rows) {

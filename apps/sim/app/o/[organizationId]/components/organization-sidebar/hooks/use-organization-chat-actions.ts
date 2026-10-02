@@ -99,7 +99,7 @@ export function useOrganizationChatActions({
     deleteChat(chatToDelete.id, {
       onSuccess: () => {
         setChatToDelete(null)
-        if (window.location.pathname === chatToDelete.href) {
+        if (window.location.pathname === chatToDelete.href.split('?')[0]) {
           router.push(organizationRoutes(organizationId).home)
         }
       },

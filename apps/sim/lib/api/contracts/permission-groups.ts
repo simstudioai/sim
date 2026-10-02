@@ -52,6 +52,7 @@ export const permissionGroupSchema = z.object({
   creatorEmail: z.string().nullable(),
   memberCount: z.number(),
   isDefault: z.boolean(),
+  projectIds: z.array(z.string()).default([]),
   /**
    * Workspaces this group targets. Empty for the default group (which governs
    * every workspace) and for a non-default group scoped to nothing.
@@ -70,6 +71,7 @@ export const permissionGroupWriteSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   isDefault: z.boolean(),
+  projectIds: z.array(z.string()).default([]),
   /** Ids of targeted workspaces (empty for the default group). */
   workspaceIds: z.array(z.string()),
 })
@@ -130,10 +132,13 @@ const workspaceIdsSchema = z.array(z.string().min(1)).max(MAX_PERMISSION_GROUP_W
  * creation requires at least one workspace up front.
  */
 function refineWorkspaceScope(
-  body: { workspaceIds?: string[]; isDefault?: boolean },
+  body: { workspaceIds?: string[]; projectIds?: string[]; isDefault?: boolean },
   ctx: z.RefinementCtx
 ) {
-  if (body.isDefault === true && body.workspaceIds && body.workspaceIds.length > 0) {
+  if (
+    body.isDefault === true &&
+    ((body.workspaceIds?.length ?? 0) > 0 || (body.projectIds?.length ?? 0) > 0)
+  ) {
     ctx.addIssue({
       code: 'custom',
       path: ['workspaceIds'],
@@ -163,6 +168,9 @@ export const createPermissionGroupBodySchema = z
       .describe(
         'Whether the group is the organization default. Only one group can be the default.'
       ),
+    projectIds: workspaceIdsSchema
+      .optional()
+      .describe('Projects whose current and future environments are included.'),
     workspaceIds: workspaceIdsSchema
       .optional()
       .describe(
@@ -197,6 +205,9 @@ export const updatePermissionGroupBodySchema = z
       .describe(
         'Whether the group is the organization default. Only one group can be the default.'
       ),
+    projectIds: workspaceIdsSchema
+      .optional()
+      .describe('Projects whose current and future environments are included.'),
     workspaceIds: workspaceIdsSchema
       .optional()
       .describe(

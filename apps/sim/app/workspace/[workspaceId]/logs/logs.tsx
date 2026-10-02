@@ -28,7 +28,6 @@ import { Download, Workflow } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import type {
   WorkflowLogDetail,
@@ -68,6 +67,11 @@ import {
   Resource,
   type ResourceTableHandle,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  ResourceListHeader,
+  useResourceListOpen,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import {
   SnapshotBoundary,
   SnapshotModalFallback,
@@ -242,8 +246,8 @@ function activeRunRefetchInterval(query: { state: { data?: WorkflowLogDetail } }
  * @returns The logs page view with table and sidebar details
  */
 export default function Logs() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const openResource = useResourceListOpen()
+  const workspaceId = useResourceWorkspaceId()
 
   const {
     timeRange,
@@ -470,6 +474,17 @@ export default function Logs() {
    */
   const handleLogClick = useCallback(
     (rowId: string) => {
+      const log = logsRef.current.find((entry) => entry.id === rowId)
+      if (openResource && log) {
+        openResource({
+          type: 'log',
+          id: log.id,
+          title: log.workflow?.name ?? 'Run',
+          executionId: log.executionId ?? undefined,
+          workspaceId,
+        })
+        return
+      }
       const opens = !(selectedLogIdRef.current === rowId && isSidebarOpenRef.current)
       dispatch({ type: 'TOGGLE_LOG', logId: rowId })
       if (opens) {
@@ -479,7 +494,7 @@ export default function Logs() {
         writeExecutionId(null)
       }
     },
-    [writeExecutionId]
+    [writeExecutionId, openResource, workspaceId]
   )
 
   const handleNavigateNext = useCallback(() => {
@@ -1191,7 +1206,7 @@ export default function Logs() {
   return (
     <>
       <Resource>
-        <Resource.Header icon={Library} title='Logs' actions={headerActions} />
+        <ResourceListHeader icon={Library} title='Logs' actions={headerActions} />
         <Resource.Options
           search={searchConfig}
           sort={sortConfig}
@@ -1284,8 +1299,7 @@ interface LogsFilterPanelProps {
 }
 
 function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useResourceWorkspaceId()
 
   const {
     level,

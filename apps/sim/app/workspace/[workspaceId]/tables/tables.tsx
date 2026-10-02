@@ -6,7 +6,6 @@ import { Avatar, ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@si
 import { Columns3, FolderPlus, Pencil, Rows3, Table as TableIcon, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
@@ -67,6 +66,11 @@ import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  ResourceListHeader,
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -148,9 +152,8 @@ export function Tables() {
 }
 
 function TablesContent() {
-  const params = useParams()
-  const router = useRouter()
-  const workspaceId = params.workspaceId as string
+  const router = useResourceRouter()
+  const workspaceId = useResourceWorkspaceId()
 
   const { config: permissionConfig } = usePermissionConfig()
   useEffect(() => {
@@ -1351,7 +1354,7 @@ function TablesContent() {
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
-        <Resource.Header
+        <ResourceListHeader
           icon={FOLDERED_RESOURCE_HEADERS.table.rootIcon}
           title={ROOT_LABEL}
           breadcrumbs={breadcrumbs}

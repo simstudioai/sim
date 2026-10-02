@@ -3,10 +3,8 @@ import { mcpServers, member, organization } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { resolveCredentialGroupWorkspaceContext } from '@/lib/credential-groups/application/context'
-import {
-  organizationAccountAccessPolicyCodec,
-  organizationAccountPolicyAllowsWorkspace,
-} from '@/lib/credential-groups/application/workspace-access-policy'
+import { requireOrganizationAccountRuntimePolicy } from '@/lib/credential-groups/application/resolve-organization-access-policy'
+import { organizationAccountPolicyAllowsWorkspace } from '@/lib/credential-groups/application/workspace-access-policy'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
@@ -14,7 +12,6 @@ import {
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
-import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 /**
  * permission-group-exempt: Workspace readers can see sharing status and provider labels; credential use is authorized separately.
@@ -68,11 +65,10 @@ export const getWorkspaceOrganizationAccounts = defineAuthorizedWorkspaceUseCase
       organizationId,
     })
     if (!group || group.status !== 'active') return result
-    const policy = await requireResourcePolicy({
+    const policy = await requireOrganizationAccountRuntimePolicy({
       organizationId,
       resourceType: 'credential_group',
       resourceId: group.credentialGroupId,
-      codec: organizationAccountAccessPolicyCodec,
     })
     result.allowed = organizationAccountPolicyAllowsWorkspace(policy.document, context.workspaceId)
     if (!result.allowed) return result

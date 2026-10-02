@@ -16,6 +16,7 @@ interface PipelineEdgeProps {
   direction: 'forward' | 'backward'
   /** Read aloud in place of the picture. */
   label: string
+  animated: boolean
 }
 
 /**
@@ -23,7 +24,7 @@ interface PipelineEdgeProps {
  * arrowhead as a marker, so the head always sits on the line's receiving end, and the canvas's
  * execution pulse travelling along it in the direction changes flow.
  */
-export function PipelineEdge({ direction, label }: PipelineEdgeProps) {
+export function PipelineEdge({ direction, label, animated }: PipelineEdgeProps) {
   const prefersReducedMotion = usePrefersReducedMotion()
   const id = useId().replaceAll(':', '')
   const markerId = `pipeline-edge-head-${id}`
@@ -72,13 +73,13 @@ export function PipelineEdge({ direction, label }: PipelineEdgeProps) {
         strokeLinecap='round'
         markerEnd={`url(#${markerId})`}
       />
-      {prefersReducedMotion ? null : (
+      {animated && !prefersReducedMotion ? (
         <ExecutionPulse
           path={path}
           glowId={`pipeline-edge-glow-${id}`}
           glowBounds={{ x: -40, y: -40, width: EDGE_WIDTH + 80, height: EDGE_HEIGHT + 80 }}
         />
-      )}
+      ) : null}
     </svg>
   )
 }

@@ -1,6 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
+import type { ForkMappingScope } from '@/lib/api/contracts/workspace-fork'
 import {
+  type CreateForkSecretMappingBody,
+  createForkSecretMappingContract,
   type ForkWorkspaceBody,
   forkWorkspaceContract,
   getForkDiffContract,
@@ -21,6 +24,8 @@ import {
 import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work'
 import { deploymentKeys } from '@/hooks/queries/deployments'
+import { environmentKeys } from '@/hooks/queries/environment'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { projectKeys } from '@/hooks/queries/utils/project-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
@@ -34,8 +39,19 @@ export const forkKeys = {
   lineages: () => [...forkKeys.all, 'lineage'] as const,
   lineage: (workspaceId?: string) => [...forkKeys.lineages(), workspaceId ?? ''] as const,
   mappings: () => [...forkKeys.all, 'mapping'] as const,
-  mapping: (workspaceId?: string, otherWorkspaceId?: string, direction?: ForkDirection) =>
-    [...forkKeys.mappings(), workspaceId ?? '', otherWorkspaceId ?? '', direction ?? ''] as const,
+  mapping: (
+    workspaceId?: string,
+    otherWorkspaceId?: string,
+    direction?: ForkDirection,
+    scope: ForkMappingScope = 'sync'
+  ) =>
+    [
+      ...forkKeys.mappings(),
+      workspaceId ?? '',
+      otherWorkspaceId ?? '',
+      direction ?? '',
+      scope,
+    ] as const,
   diffs: () => [...forkKeys.all, 'diff'] as const,
   diff: (workspaceId?: string, otherWorkspaceId?: string, direction?: ForkDirection) =>
     [...forkKeys.diffs(), workspaceId ?? '', otherWorkspaceId ?? '', direction ?? ''] as const,
@@ -109,14 +125,19 @@ export function useForkMapping(args: {
   workspaceId?: string
   otherWorkspaceId?: string
   direction: ForkDirection
+  scope?: ForkMappingScope
   enabled?: boolean
 }) {
   return useQuery({
-    queryKey: forkKeys.mapping(args.workspaceId, args.otherWorkspaceId, args.direction),
+    queryKey: forkKeys.mapping(args.workspaceId, args.otherWorkspaceId, args.direction, args.scope),
     queryFn: ({ signal }) =>
       requestJson(getForkMappingContract, {
         params: { id: args.workspaceId as string },
-        query: { otherWorkspaceId: args.otherWorkspaceId as string, direction: args.direction },
+        query: {
+          otherWorkspaceId: args.otherWorkspaceId as string,
+          direction: args.direction,
+          scope: args.scope,
+        },
         signal,
       }),
     enabled: Boolean(args.workspaceId && args.otherWorkspaceId) && (args.enabled ?? true),
@@ -253,6 +274,30 @@ export function useUpdateForkExcludedWorkflows() {
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: forkKeys.resources(vars.workspaceId) })
       return invalidateWorkflowLists(queryClient, vars.workspaceId)
+    },
+  })
+}
+
+/** Creates the secret and mapping together, then refreshes both environments' views. */
+export function useCreateForkSecretMapping() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (variables: { workspaceId: string; body: CreateForkSecretMappingBody }) =>
+      requestJson(createForkSecretMappingContract, {
+        params: { id: variables.workspaceId },
+        body: variables.body,
+      }),
+    onSettled: async (_data, _error, variables) => {
+      const targetId =
+        variables.body.direction === 'push'
+          ? variables.body.otherWorkspaceId
+          : variables.workspaceId
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: forkKeys.mappings() }),
+        queryClient.invalidateQueries({ queryKey: forkKeys.diffs() }),
+        queryClient.invalidateQueries({ queryKey: environmentKeys.workspace(targetId) }),
+        queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() }),
+      ])
     },
   })
 }

@@ -2,7 +2,6 @@ export { EnvironmentsTab } from '@/app/o/[organizationId]/p/components/environme
 export { LineageStrip } from '@/app/o/[organizationId]/p/components/environments/lineage-strip'
 export {
   EnvironmentTable,
-  MappingGrid,
   SkeletonRows,
   StatusBadge,
   WorkflowGrid,

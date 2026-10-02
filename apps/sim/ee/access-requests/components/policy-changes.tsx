@@ -117,7 +117,7 @@ export function PolicyChanges({ changes, impact, target, targetLabel }: PolicyCh
           <ExpandableContent id={detailsId}>
             <div className='flex flex-col gap-4 pt-4'>
               {impact.workspaceNames.length > 0 && (
-                <ChipModalField type='custom' title='Workspaces' flush>
+                <ChipModalField type='custom' title='Environments' flush>
                   <p className='break-words text-[var(--text-body)] text-sm'>
                     {impact.workspaceNames.join(', ')}
                     {impact.truncated ? ' and more' : ''}

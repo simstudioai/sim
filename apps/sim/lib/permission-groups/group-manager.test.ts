@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember, project, projectWorkspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
 import {
@@ -151,5 +151,32 @@ describe('permission group mutation consistency', () => {
     })
     expect(mocks.group).toHaveBeenCalledWith('other-group', 'org-1', db)
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+})
+
+describe('project scopes', () => {
+  it('rejects a project not owned by the organization before persisting access', async () => {
+    queueTableRows(project, [])
+    await expect(
+      createPermissionGroupRecord('org-1', 'admin-1', {
+        name: 'Project group',
+        projectIds: ['foreign-project'],
+      })
+    ).rejects.toThrow('Every selected project must be active and belong to this organization')
+  })
+
+  it('checks current inherited environments for overlapping groups and persists the project rule', async () => {
+    queueTableRows(project, [{ id: 'project-1' }])
+    queueTableRows(projectWorkspace, [{ id: 'prod' }, { id: 'staging' }])
+    const result = await createPermissionGroupRecord('org-1', 'admin-1', {
+      name: 'Project group',
+      projectIds: ['project-1'],
+    })
+    expect(result.projectIds).toEqual(['project-1'])
+    expect(result.workspaceIds).toEqual(['prod', 'staging'])
+    expect(mocks.allConflict).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceIds: ['prod', 'staging'] }),
+      expect.anything()
+    )
   })
 })

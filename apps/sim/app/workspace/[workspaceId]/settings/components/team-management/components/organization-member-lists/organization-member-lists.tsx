@@ -18,6 +18,7 @@ import type {
   RosterPendingInvitation,
   RosterWorkspaceAccess,
 } from '@/lib/api/contracts/organization'
+import { projectEnvironmentLabel } from '@/lib/projects/environment-label'
 import type { Member } from '@/lib/workspaces/organization'
 import {
   ManageCreditsModal,
@@ -41,6 +42,7 @@ import {
   useUpdateInvitation,
   useUpdateOrganizationMemberRole,
 } from '@/hooks/queries/organization'
+import { useOrganizationProjectsQuery } from '@/hooks/queries/projects'
 
 const logger = createLogger('OrganizationMemberLists')
 
@@ -99,6 +101,7 @@ export function OrganizationMemberLists({
   onRemoveMember,
   onTransferOwnership,
 }: OrganizationMemberListsProps) {
+  const projects = useOrganizationProjectsQuery(organizationId, canManage)
   const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
 
   const updateMemberRole = useUpdateOrganizationMemberRole()
@@ -465,10 +468,10 @@ export function OrganizationMemberLists({
         return (
           <MemberSection
             key={`workspace-${workspace.id}`}
-            label={`${workspace.name} (${totalCount})`}
+            label={`${projectEnvironmentLabel(projects.data, workspace.id, workspace.name)} (${totalCount})`}
             isEmpty={visibleMembers.length + visibleInvites.length === 0}
             emptyText={
-              isActiveSearch ? `No members matching “${query}”` : 'No members in this workspace'
+              isActiveSearch ? `No members matching “${query}”` : 'No members in this environment'
             }
           >
             {visibleMembers.map(({ member, access }) =>

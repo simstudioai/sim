@@ -3,14 +3,13 @@ import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/
 import { eq, inArray } from 'drizzle-orm'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import { resourceScopeFromOwner, sameResourceScope } from '@/lib/core/resource-scope'
+import { requireOrganizationAccountRuntimePolicy } from '@/lib/credential-groups/application/resolve-organization-access-policy'
 import {
   type OrganizationAccountAccessPolicy,
-  organizationAccountAccessPolicyCodec,
   organizationAccountPolicyAllowsWorkspace,
 } from '@/lib/credential-groups/application/workspace-access-policy'
 import { organizationOAuthCredentialType } from '@/lib/credential-groups/credential-types'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
-import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 /** Applies organization grants after the calling application operation authorizes workspace access. */
 export async function filterWorkspaceAccountCredentials<
@@ -65,11 +64,10 @@ export async function filterWorkspaceAccountCredentials<
       policies.has(binding.groupId)
     )
       continue
-    const policy = await requireResourcePolicy({
+    const policy = await requireOrganizationAccountRuntimePolicy({
       organizationId: binding.organizationId,
       resourceType: 'credential_group',
       resourceId: binding.groupId,
-      codec: organizationAccountAccessPolicyCodec,
     })
     policies.set(binding.groupId, policy.document)
   }

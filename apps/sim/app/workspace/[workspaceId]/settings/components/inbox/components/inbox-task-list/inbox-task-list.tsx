@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn'
 import { ArrowRight, Paperclip } from '@sim/emcn/icons'
 import { formatRelativeTime } from '@sim/utils/formatting'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
   type InboxStatusFilter,
@@ -16,6 +16,7 @@ import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settin
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -40,9 +41,8 @@ const STATUS_BADGES: Record<
 }
 
 export function InboxTaskList() {
-  const params = useParams()
   const router = useRouter()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
 
   const [{ status: statusFilter, search: searchTerm }, setInboxFilters] = useQueryStates(
     inboxTaskParsers,

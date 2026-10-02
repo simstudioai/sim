@@ -14,7 +14,11 @@
  * validator from one module are unaffected.
  */
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
+import {
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspaceScope,
+} from '@sim/db/schema'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { isOrganizationGovernanceActive } from '@/lib/billing/core/subscription'
 import {
@@ -176,10 +180,10 @@ export async function resolveWorkspaceGroup(
     })
     .from(permissionGroup)
     .innerJoin(
-      permissionGroupWorkspace,
+      permissionGroupWorkspaceScope,
       and(
-        eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id),
-        eq(permissionGroupWorkspace.workspaceId, workspaceId)
+        eq(permissionGroupWorkspaceScope.permissionGroupId, permissionGroup.id),
+        eq(permissionGroupWorkspaceScope.workspaceId, workspaceId)
       )
     )
     .where(

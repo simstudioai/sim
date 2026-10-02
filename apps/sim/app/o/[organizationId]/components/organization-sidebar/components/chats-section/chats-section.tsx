@@ -144,7 +144,7 @@ export function ChatsSection({
                   <CollapsedChatFlyoutItem
                     key={chat.id}
                     chat={chat}
-                    isCurrentRoute={pathname === chat.href}
+                    isCurrentRoute={pathname === chat.href.split('?')[0]}
                     isMenuOpen={menuOpenChatId === chat.id}
                     isEditing={rename.editingId === chat.id}
                     editValue={rename.value}
@@ -187,7 +187,7 @@ export function ChatsSection({
                       key={chat.id}
                       chat={chat}
                       leading={leadingFor?.(chat)}
-                      isCurrentRoute={pathname === chat.href}
+                      isCurrentRoute={pathname === chat.href.split('?')[0]}
                       isMenuOpen={menuOpenChatId === chat.id}
                       onContextMenu={actions.onContextMenu}
                       onMorePointerDown={actions.onMorePointerDown}

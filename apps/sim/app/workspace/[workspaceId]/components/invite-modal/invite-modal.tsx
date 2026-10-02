@@ -1,9 +1,7 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
-  ChipDropdown,
-  type ChipDropdownOption,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -22,7 +20,6 @@ import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
-import { useAdminWorkspaces } from '@/hooks/queries/workspace'
 
 const logger = createLogger('InviteModal')
 
@@ -42,7 +39,7 @@ type Membership = (typeof MEMBERSHIP_OPTIONS)[number]['value']
 
 const MEMBERSHIP_HINTS: Partial<Record<Membership, string>> = {
   external:
-    'Access to the selected workspaces only — no seat. Only available for people already on a paid Sim plan.',
+    'Access to this environment only — no seat. Only available for people already on a paid Sim plan.',
 }
 
 const EMPTY_WORKSPACE_IDS: string[] = []
@@ -85,10 +82,8 @@ interface InviteModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /**
-   * Workspace the invite starts from. Pre-selected on open, and the only
-   * option outside an organization — personal workspaces are invited to one at
-   * a time. Omit when inviting from organization settings, where no single
-   * workspace is in context.
+   * The environment receiving access. Omit for organization membership invitations,
+   * which grant no explicit environment access.
    */
   workspaceId?: string
   workspaceName?: string
@@ -103,9 +98,8 @@ interface InviteModalProps {
 }
 
 /**
- * The single invite surface: pick people, pick the workspaces to give them,
- * pick what they become in the organization. Every entry point renders this,
- * so an invite means the same thing wherever it is sent from.
+ * Invites people to the current environment, or to organization membership only.
+ * Environment access is explicit and never expands to future environments.
  */
 export function InviteModal({
   open,
@@ -118,9 +112,7 @@ export function InviteModal({
   isOrganizationAdmin,
 }: InviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
-  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>(
-    workspaceId ? [workspaceId] : EMPTY_WORKSPACE_IDS
-  )
+  const selectedWorkspaceIds = workspaceId ? [workspaceId] : EMPTY_WORKSPACE_IDS
   const [access, setAccess] = useState<PermissionType>('write')
   const [membership, setMembership] = useState<Membership>('member')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -135,7 +127,6 @@ export function InviteModal({
     setWasOpen(open)
     if (open) {
       setEmails([])
-      setSelectedWorkspaceIds(workspaceId ? [workspaceId] : EMPTY_WORKSPACE_IDS)
       setAccess('write')
       setMembership('member')
       setErrorMessage(null)
@@ -149,25 +140,6 @@ export function InviteModal({
 
   const sendInvitations = useSendWorkspaceInvitations()
   const isSubmitting = sendInvitations.isPending
-
-  /**
-   * Only organization invites offer a choice of workspaces: a personal
-   * workspace has no siblings an invite can span.
-   */
-  const { data: adminWorkspaces } = useAdminWorkspaces(
-    session?.user?.id,
-    organizationId ?? undefined,
-    { enabled: open && isOrganizationInvite && !organizationOnly }
-  )
-
-  const workspaceOptions = useMemo<ChipDropdownOption[]>(() => {
-    if (!isOrganizationInvite) {
-      return workspaceId ? [{ value: workspaceId, label: workspaceName ?? 'This workspace' }] : []
-    }
-    return (adminWorkspaces ?? [])
-      .filter((workspace) => workspace.canInvite || workspace.id === workspaceId)
-      .map((workspace) => ({ value: workspace.id, label: workspace.name }))
-  }, [isOrganizationInvite, adminWorkspaces, workspaceId, workspaceName])
 
   /**
    * Seat data is organization-admin-only, and the prop can lag the route, so
@@ -295,7 +267,7 @@ export function InviteModal({
     <ChipModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle={`Invite teammates to ${organizationOnly ? 'organization' : workspaceName || 'workspace'}`}
+      srTitle={`Invite teammates to ${organizationOnly ? 'organization' : workspaceName || 'environment'}`}
     >
       <ChipModalHeader onClose={() => onOpenChange(false)}>Invite teammates</ChipModalHeader>
       <ChipModalBody>
@@ -315,23 +287,12 @@ export function InviteModal({
         />
         {!organizationOnly && (
           <>
-            <ChipModalField type='custom' title='Workspaces'>
-              <ChipDropdown
-                multiple
-                value={selectedWorkspaceIds}
-                onChange={setSelectedWorkspaceIds}
-                options={workspaceOptions}
-                allLabel='Select workspaces'
-                showAllOption={false}
-                searchable={isOrganizationInvite}
-                searchPlaceholder='Search workspaces...'
-                fullWidth
-                disabled={isSubmitting || !canInvite || workspaceOptions.length <= 1}
-              />
+            <ChipModalField type='custom' title='Environment'>
+              <p className='text-small'>{workspaceName || 'Current environment'}</p>
             </ChipModalField>
             <ChipModalField
               type='dropdown'
-              title='Workspace access'
+              title='Environment access'
               options={ACCESS_OPTIONS}
               value={access}
               placeholder='Select access'

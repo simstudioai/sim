@@ -2724,6 +2724,20 @@
       "when": 1790806625981,
       "tag": "0389_add_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1790891188794,
+      "tag": "0390_dashboard",
+      "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1790898326411,
+      "tag": "0391_project_access_scopes",
+      "breakpoints": true
     }
   ]
 }

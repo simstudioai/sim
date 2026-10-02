@@ -17,6 +17,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  pgView,
   primaryKey,
   text,
   timestamp,
@@ -1646,7 +1647,15 @@ export interface RetentionOverride {
  * selects which workspaces it applies to. `retentionOverrides` lets individual
  * workspaces override the org retention hours (enterprise only).
  */
+export interface ProjectRetentionOverride extends Omit<RetentionOverride, 'workspaceId'> {
+  projectId: string
+  piiStages?: NonNullable<PiiRedactionRule['stages']>
+}
+
 export interface DataRetentionSettings {
+  /** Applied to current and future project environments, below explicit environment overrides. */
+  projectOverrides?: ProjectRetentionOverride[]
+
   logRetentionHours?: number | null
   softDeleteRetentionHours?: number | null
   taskCleanupHours?: number | null
@@ -5986,6 +5995,8 @@ export const permissionGroup = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     isDefault: boolean('is_default').notNull().default(false),
+    /** Projects whose current and future environments this group governs. */
+    projectIds: jsonb('project_ids').$type<string[]>().notNull().default([]),
     /**
      * How an empty non-default group behaves.
      *
@@ -6041,6 +6052,28 @@ export const permissionGroupWorkspace = pgTable(
     ),
   })
 )
+
+/** Read projection of explicit environments and live project membership. */
+export const permissionGroupWorkspaceScope = pgView('permission_group_workspace_scope', {
+  id: text('id').notNull(),
+  permissionGroupId: text('permission_group_id').notNull(),
+  workspaceId: text('workspace_id').notNull(),
+  organizationId: text('organization_id').notNull(),
+  createdAt: timestamp('created_at').notNull(),
+}).as(sql`
+  SELECT g.id, g.permission_group_id, g.workspace_id, g.organization_id, g.created_at
+  FROM permission_group_workspace g
+  UNION ALL
+  SELECT pg.id || ':' || w.id, pg.id, w.id, pg.organization_id, pg.created_at
+  FROM permission_group pg
+  JOIN project p ON pg.project_ids ? p.id AND p.organization_id = pg.organization_id AND p.archived_at IS NULL
+  JOIN project_workspace pw ON pw.project_id = p.id
+  JOIN workspace w ON w.id = pw.workspace_id AND w.organization_id = pg.organization_id AND w.archived_at IS NULL
+  WHERE pg.is_default = false AND NOT EXISTS (
+    SELECT 1 FROM permission_group_workspace direct
+    WHERE direct.permission_group_id = pg.id AND direct.workspace_id = w.id
+  )
+`)
 
 /**
  * Explicit members of a `permission_group`. Membership narrows a non-default
@@ -7976,4 +8009,23 @@ export const copilotServiceUsage = pgTable(
   (t) => [
     index('copilot_service_usage_pending_idx').on(t.nextAttemptAt).where(sql`delivered_at IS NULL`),
   ]
+)
+
+export const dashboard = pgTable(
+  'dashboard',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    revision: integer('revision').notNull().default(1),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceUnique: uniqueIndex('dashboard_workspace_id_unique').on(table.workspaceId),
+  })
 )

@@ -18,7 +18,6 @@ import {
 } from '@sim/emcn'
 import { Check, Clipboard, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useAddInboxSender,
@@ -29,6 +28,7 @@ import {
   useUpdateInboxSecretPolicy,
 } from '@/hooks/queries/inbox'
 import { useRawMountableSecretOptions } from '@/hooks/queries/secret-mount-options'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 const SECRET_SCOPE_OPTIONS = [
   { value: 'all', label: 'All secrets' },
@@ -38,8 +38,7 @@ const SECRET_SCOPE_OPTIONS = [
 const DROPDOWN_TRIGGER_CLASS = 'w-[240px] shrink-0'
 
 export function InboxSettingsTab() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
 
   const { data: config } = useInboxConfig(workspaceId)
   const { data: sendersData, isLoading: sendersLoading } = useInboxSenders(workspaceId)

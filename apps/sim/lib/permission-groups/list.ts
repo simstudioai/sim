@@ -53,6 +53,7 @@ export async function listPermissionGroupRecords(
       createdAt: permissionGroup.createdAt,
       updatedAt: permissionGroup.updatedAt,
       isDefault: permissionGroup.isDefault,
+      projectIds: permissionGroup.projectIds,
       membershipMode: permissionGroup.membershipMode,
       creatorName: user.name,
       creatorEmail: user.email,

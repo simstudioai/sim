@@ -44,6 +44,7 @@ import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import type { ResourcePanelNavigation } from '@/app/workspace/[workspaceId]/home/components/resource-panel-navigation'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -214,6 +215,7 @@ function useResourceNameLookup(
 }
 
 interface ResourceTabsProps {
+  navigation?: ResourcePanelNavigation
   organizationId?: string
   allowBuildControls?: boolean
   workspaceId?: string
@@ -239,6 +241,7 @@ interface ResourceTabsProps {
  * component the browser and terminal panels nested inside this one use.
  */
 export function ResourceTabs({
+  navigation,
   organizationId,
   allowBuildControls = !organizationId,
   workspaceId,
@@ -603,37 +606,71 @@ export function ResourceTabs({
     <>
       {confirmationDialog}
       <TabStrip
-        tabs={tabs}
-        onSelect={handleSelect}
-        onClose={handleClose}
-        onReorder={handleReorder}
+        tabs={
+          navigation
+            ? [
+                ...tabs.filter(
+                  (tab) =>
+                    !resources.some(
+                      (resource) =>
+                        resource.type === 'dashboard' &&
+                        getChatResourceSelectionId(resource) === tab.id
+                    )
+                ),
+                ...navigation.tabs,
+              ]
+            : tabs
+        }
+        onSelect={(id, source, event) =>
+          navigation?.tabs.some((tab) => tab.id === id)
+            ? navigation.onSelect(id)
+            : handleSelect(id, source, event)
+        }
+        onClose={(id) =>
+          navigation?.tabs.some((tab) => tab.id === id)
+            ? navigation.onClose(id)
+            : void handleClose(id)
+        }
+        onReorder={(id, index) => {
+          const visible = navigation
+            ? resources.filter((resource) => resource.type !== 'dashboard')
+            : resources
+          const target = visible[Math.min(index, visible.length - 1)]
+          if (target) handleReorder(id, resources.indexOf(target))
+        }}
         onTabDragStart={handleTabDragStart}
         variant='floating'
         className={RESOURCE_HEADER_CLASSES.stripGeometry}
-        newTabControl={
-          // Offered before the chat exists too: a resource opened while composing
-          // the first prompt is context for that prompt, and gating on a chat id
-          // meant the panel could be opened but not filled.
-          allowBuildControls && (workspaceId || organizationId) ? (
-            <div className={cn(resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}>
-              <AddResourceDropdown
-                workspaceId={workspaceId}
-                organizationId={organizationId}
-                onAdd={handleAdd}
-                excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
-                onRequestOpen={onRequestAddResourceOpen}
-                onClose={onAddResourceClose}
-              />
-            </div>
-          ) : undefined
-        }
+        {...(navigation
+          ? { onNew: navigation.onNew, newTabLabel: 'New tab' }
+          : {
+              newTabControl:
+                // Offered before the chat exists too: a resource opened while composing
+                // the first prompt is context for that prompt, and gating on a chat id
+                // meant the panel could be opened but not filled.
+                !navigation && allowBuildControls && (workspaceId || organizationId) ? (
+                  <div
+                    className={cn(resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}
+                  >
+                    <AddResourceDropdown
+                      workspaceId={workspaceId}
+                      organizationId={organizationId}
+                      onAdd={handleAdd}
+                      excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+                      onRequestOpen={onRequestAddResourceOpen}
+                      onClose={onAddResourceClose}
+                    />
+                  </div>
+                ) : undefined,
+            })}
         // A bare fragment is always truthy, so the empty case has to be `null` or
         // the strip renders an empty trailing cluster.
         endActions={
-          actions || previewToggle ? (
+          actions || previewToggle || navigation?.control ? (
             <>
               {actions}
               {previewToggle}
+              {navigation?.control}
             </>
           ) : null
         }

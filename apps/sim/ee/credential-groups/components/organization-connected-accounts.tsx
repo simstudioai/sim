@@ -47,8 +47,8 @@ export function OrganizationConnectedAccounts({
     return (
       <div className='flex flex-col gap-4'>
         <p className='text-[var(--text-muted)] text-small'>
-          Set up one shared account pool for your organization. Workspaces have no access until you
-          allow them.
+          Set up one shared account pool for your organization. Projects and environments have no
+          access until you allow them.
         </p>
         <div>
           <Chip

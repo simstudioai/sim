@@ -652,3 +652,20 @@ export const resourceOwnerSchema = z
     path: ['workspaceId'],
   })
 export type ResourceOwnerInput = z.input<typeof resourceOwnerSchema>
+
+/** Project defaults apply live as environments are added; explicit environment rules take precedence. */
+export const projectRetentionOverrideSchema = retentionOverrideSchema
+  .omit({ workspaceId: true })
+  .extend({
+    projectId: nonEmptyIdSchema,
+    piiStages: piiStagesSchema.optional(),
+  })
+export const projectRetentionOverridesSchema = z
+  .array(projectRetentionOverrideSchema)
+  .max(1000)
+  .refine(
+    (overrides) =>
+      new Set(overrides.map((override) => override.projectId)).size === overrides.length,
+    'Each project may have at most one retention override.'
+  )
+export type ProjectRetentionOverride = z.output<typeof projectRetentionOverrideSchema>

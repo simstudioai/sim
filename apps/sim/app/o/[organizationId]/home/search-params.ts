@@ -12,6 +12,7 @@ export const SEARCH_LEVEL_VALUES = [
 ] as const satisfies readonly SearchLevel[]
 
 export const organizationHomeParsers = {
+  mode: parseAsStringLiteral(['agent', 'plan', 'assistant', 'search'] as const),
   ...organizationSearchParsers,
   ...searchFilterParsers,
   searchLevel: parseAsStringLiteral(SEARCH_LEVEL_VALUES),

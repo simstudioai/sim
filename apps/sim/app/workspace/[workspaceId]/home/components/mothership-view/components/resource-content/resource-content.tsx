@@ -23,6 +23,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { DashboardResource } from '@/components/dashboards/dashboard-resource'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { useSession } from '@/lib/auth/auth-client'
@@ -38,6 +39,7 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -297,6 +299,8 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'dashboard':
+      return <DashboardResource key={resource.id} workspaceId={workspaceId} />
     case 'file':
       return (
         <EmbeddedFile
@@ -375,6 +379,7 @@ export const ResourceContent = memo(function ResourceContent({
 })
 
 interface ResourceActionsProps {
+  allowWorkspaceNavigation?: boolean
   workspaceId: string
   resource: MothershipResource
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
@@ -384,10 +389,17 @@ export function ResourceActions({
   workspaceId,
   resource,
   downloadSourceRef,
+  allowWorkspaceNavigation = true,
 }: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
-      return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
+      return (
+        <EmbeddedWorkflowActions
+          workspaceId={workspaceId}
+          workflowId={resource.id}
+          allowWorkspaceNavigation={allowWorkspaceNavigation}
+        />
+      )
     case 'file':
       return (
         <EmbeddedFileActions
@@ -395,15 +407,24 @@ export function ResourceActions({
           fileId={resource.id}
           filePath={resource.path}
           downloadSourceRef={downloadSourceRef}
+          allowWorkspaceNavigation={allowWorkspaceNavigation}
         />
       )
     case 'knowledgebase':
+      if (!allowWorkspaceNavigation) return null
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
     case 'table':
-      return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
+      return (
+        <EmbeddedTableActions
+          workspaceId={workspaceId}
+          tableId={resource.id}
+          allowWorkspaceNavigation={allowWorkspaceNavigation}
+        />
+      )
     case 'log':
+      if (!allowWorkspaceNavigation) return null
       return (
         <EmbeddedLogActions
           workspaceId={workspaceId}
@@ -422,11 +443,16 @@ export function ResourceActions({
 }
 
 interface EmbeddedWorkflowActionsProps {
+  allowWorkspaceNavigation?: boolean
   workspaceId: string
   workflowId: string
 }
 
-export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+export function EmbeddedWorkflowActions({
+  workspaceId,
+  workflowId,
+  allowWorkspaceNavigation = true,
+}: EmbeddedWorkflowActionsProps) {
   const openInternalLink = useOpenInternalLink()
   const { navigateToSettings } = useSettingsNavigation()
   const { data: session } = useSession()
@@ -485,16 +511,22 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
 
   return (
     <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <TabStripAction variant='subtle' onClick={handleOpenWorkflow} aria-label='Open workflow'>
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </TabStripAction>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open workflow</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      {allowWorkspaceNavigation && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <TabStripAction
+              variant='subtle'
+              onClick={handleOpenWorkflow}
+              aria-label='Open workflow'
+            >
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </TabStripAction>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open workflow</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <TabStripAction
@@ -554,11 +586,16 @@ export function EmbeddedKnowledgeBaseActions({
 const tableLogger = createLogger('EmbeddedTableActions')
 
 interface EmbeddedTableActionsProps {
+  allowWorkspaceNavigation?: boolean
   workspaceId: string
   tableId: string
 }
 
-function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProps) {
+function EmbeddedTableActions({
+  workspaceId,
+  tableId,
+  allowWorkspaceNavigation = true,
+}: EmbeddedTableActionsProps) {
   const router = useRouter()
 
   const handleOpenTable = () => {
@@ -575,16 +612,18 @@ function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProp
 
   return (
     <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <TabStripAction variant='subtle' onClick={handleOpenTable} aria-label='Open table'>
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </TabStripAction>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open table</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      {allowWorkspaceNavigation && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <TabStripAction variant='subtle' onClick={handleOpenTable} aria-label='Open table'>
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </TabStripAction>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open table</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <TabStripAction
@@ -606,6 +645,7 @@ function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProp
 const fileLogger = createLogger('EmbeddedFileActions')
 
 interface EmbeddedFileActionsProps {
+  allowWorkspaceNavigation?: boolean
   workspaceId: string
   fileId: string
   filePath?: string
@@ -617,6 +657,7 @@ function EmbeddedFileActions({
   fileId,
   filePath,
   downloadSourceRef,
+  allowWorkspaceNavigation = true,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
   const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
@@ -647,7 +688,7 @@ function EmbeddedFileActions({
 
   return (
     <>
-      {file && !isUpload && (
+      {allowWorkspaceNavigation && file && !isUpload && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <TabStripAction variant='subtle' onClick={handleOpenInFiles} aria-label='Open in files'>
@@ -704,7 +745,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
  */
 function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   const queryClient = useQueryClient()
-  const openInternalLink = useOpenInternalLink()
+  const { addResource } = useMothershipResources()
   const { data: canonical, isPending: isCanonicalPending } = useQuery({
     queryKey: workflowKeys.state(workflowId),
     queryFn: ({ signal }) => fetchWorkflowEnvelope(workflowId, signal),
@@ -733,9 +774,16 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
         <p className='text-[var(--text-primary)]'>{canonical.name}</p>
         <Button
           variant='secondary'
-          onClick={() => openInternalLink(`/workspace/${canonical.workspaceId}/w/${workflowId}`)}
+          onClick={() =>
+            addResource({
+              type: 'workflow',
+              id: workflowId,
+              title: canonical.name,
+              workspaceId: canonical.workspaceId ?? undefined,
+            })
+          }
         >
-          Open in its workspace
+          Open workflow
         </Button>
       </div>
     )
@@ -850,7 +898,7 @@ interface EmbeddedFolderProps {
 }
 
 function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
-  const openInternalLink = useOpenInternalLink()
+  const { addResource } = useMothershipResources()
   const { data: folderList, isPending: isFoldersPending } = useFolders(workspaceId)
   const { data: workflowList = [] } = useWorkflows(workspaceId)
 
@@ -884,7 +932,9 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
             <button
               key={w.id}
               type='button'
-              onClick={() => openInternalLink(`/workspace/${workspaceId}/w/${w.id}`)}
+              onClick={() =>
+                addResource({ type: 'workflow', id: w.id, title: w.name, workspaceId })
+              }
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
               <WorkflowIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />

@@ -27,6 +27,25 @@ const hoisted = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
 }))
 
+vi.mock('@/hooks/queries/projects', () => ({
+  useOrganizationProjectsQuery: () => ({
+    data: [
+      {
+        id: 'project-1',
+        name: 'Operations',
+        organizationId: 'org-1',
+        workspaces: WORKSPACES.map((environment, position) => ({
+          ...environment,
+          position,
+          forkedFromWorkspaceId: null,
+        })),
+      },
+    ],
+    error: null,
+    isPending: false,
+  }),
+}))
+
 vi.mock('@sim/emcn', () => ({
   Chip: ({ children, onClick, disabled }: ComponentProps<'button'>) => (
     <button type='button' onClick={onClick} disabled={disabled}>
@@ -158,8 +177,8 @@ function renderAccess(searchParams = '') {
     return match
   }
   const add = async (grant: WorkspaceAccess['grants'][number]) => {
-    act(() => button('Add workspace').click())
-    await act(async () => mocks.grantModal?.onSave(grant))
+    act(() => button('Add project').click())
+    await act(async () => mocks.grantModal?.onSave([grant], []))
   }
   const rows = () =>
     [...container.querySelectorAll('[data-workspace]')].map((row) =>
@@ -200,8 +219,8 @@ afterEach(() => {
 it('edits one workspace without changing other workspace grants', async () => {
   setAccess(gmailGrants(['workspace-1', 'workspace-2']))
   const editor = renderAccess('?credential-group-workspace=+FINANCE+')
-  expect(editor.rows()).toEqual(['Finance'])
-  const finance = editor.container.querySelector('[data-workspace="Finance"]')
+  expect(editor.rows()).toEqual(['Operations / Finance'])
+  const finance = editor.container.querySelector('[data-workspace="Operations / Finance"]')
   if (!finance) throw new Error('Finance row not found')
   act(() => editor.button('Edit access', finance).click())
   if (mocks.grantModal?.mode !== 'edit') throw new Error('Edit modal not found')
@@ -210,11 +229,12 @@ it('edits one workspace without changing other workspace grants', async () => {
     workspaceId: 'workspace-1',
     access: { mode: 'selected', credentialTypes: ['oauth:google-calendar'] },
   } satisfies WorkspaceAccess['grants'][number]
-  await act(async () => mocks.grantModal?.onSave(changed))
+  await act(async () => mocks.grantModal?.onSave([changed], []))
   expect(mocks.mutateAsync).toHaveBeenCalledExactlyOnceWith({
     organizationId: 'org-1',
     revision: 3,
-    grants: [changed, ...gmailGrants(['workspace-2'])],
+    grants: [...gmailGrants(['workspace-2']), changed],
+    projectGrants: [],
   })
 })
 
@@ -222,11 +242,11 @@ it.each(['create', 'edit'] as const)(
   'keeps the revision captured when the %s editor opened',
   async (mode) => {
     const editor = renderAccess()
-    act(() => editor.button(mode === 'create' ? 'Add workspace' : 'Edit access').click())
+    act(() => editor.button(mode === 'create' ? 'Add project' : 'Edit access').click())
     setAccess(gmailGrants(['workspace-1']), 4)
     editor.rerender()
     await act(async () =>
-      mocks.grantModal?.onSave(gmailGrants([mode === 'create' ? 'workspace-2' : 'workspace-1'])[0])
+      mocks.grantModal?.onSave(gmailGrants([mode === 'create' ? 'workspace-2' : 'workspace-1']), [])
     )
     expect(mocks.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ revision: 3 }))
   }

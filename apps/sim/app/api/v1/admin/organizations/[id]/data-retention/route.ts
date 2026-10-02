@@ -9,7 +9,7 @@
  * `DATA_RETENTION_ENABLED` (or `ENTERPRISE_ENABLED`) when billing is off.
  *
  * Body: any subset of `logRetentionHours`, `softDeleteRetentionHours`,
- * `taskCleanupHours`, `fileVersionRetentionHours`, `piiRedaction`, `retentionOverrides`.
+ * `taskCleanupHours`, `fileVersionRetentionHours`, `piiRedaction`, `retentionOverrides`, `projectOverrides`.
  * Omitted keys keep their current value; `null` means "forever" for an hours field.
  *
  * Response: AdminSingleResponse<{ success, organizationId }>
@@ -85,6 +85,7 @@ export const PATCH = withRouteHandler(
         merged.piiRedaction = body.piiRedaction
       }
 
+      if (body.projectOverrides !== undefined) merged.projectOverrides = body.projectOverrides
       if (body.retentionOverrides !== undefined) {
         merged.retentionOverrides = body.retentionOverrides
       }
@@ -97,6 +98,7 @@ export const PATCH = withRouteHandler(
       const foreignTargetsReason = await getForeignWorkspaceTargetsReason({
         organizationId,
         retentionOverrides: body.retentionOverrides,
+        projectOverrides: body.projectOverrides,
         piiRedaction: body.piiRedaction,
       })
       if (foreignTargetsReason) {

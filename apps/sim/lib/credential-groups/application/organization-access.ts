@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { ORGANIZATION_ACCOUNT_POLICY_DOCUMENT_MAX_BYTES } from '@sim/db/credential-group-resource-policies'
-import { workspace } from '@sim/db/schema'
+import { project, workspace } from '@sim/db/schema'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import type { OrganizationMembershipContext } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -15,7 +15,9 @@ import { getOrganizationCredentialTypeCatalog } from '@/lib/credential-groups/cr
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
 import {
+  type OrganizationAccountProjectGrant,
   type OrganizationAccountWorkspaceGrant,
+  organizationAccountProjectGrantsSchema,
   organizationAccountWorkspaceGrantsSchema,
 } from '@/lib/credential-groups/workspace-grants'
 import {
@@ -81,6 +83,7 @@ export const getOrganizationAccountWorkspaceAccess = defineOrganizationAccountsU
     return {
       revision: policy.revision,
       grants: listOrganizationAccountWorkspaceGrants(policy.document),
+      projectGrants: policy.document.projectGrants ?? [],
       workspaces,
       credentialTypes: getOrganizationCredentialTypeCatalog(),
     }
@@ -93,7 +96,12 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
     input,
     context,
   }: {
-    input: { organizationId: string; revision: number; grants: OrganizationAccountWorkspaceGrant[] }
+    input: {
+      organizationId: string
+      revision: number
+      grants: OrganizationAccountWorkspaceGrant[]
+      projectGrants?: OrganizationAccountProjectGrant[]
+    }
     context: OrganizationMembershipContext
   }) {
     const parsed = organizationAccountWorkspaceGrantsSchema.safeParse(input.grants)
@@ -123,7 +131,40 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
           'Every allowed workspace must be active and belong to this organization'
         )
     }
-    const document = buildOrganizationAccountAccessPolicy(group.credentialGroupId, parsed.data)
+    const currentPolicy = await requireResourcePolicy({
+      organizationId: context.organizationId,
+      resourceType: 'credential_group',
+      resourceId: group.credentialGroupId,
+      codec: organizationAccountAccessPolicyCodec,
+    })
+    const projectGrants = organizationAccountProjectGrantsSchema.parse(
+      input.projectGrants ?? currentPolicy.document.projectGrants ?? []
+    )
+    if (projectGrants.length) {
+      const projects = await db
+        .select({ id: project.id })
+        .from(project)
+        .where(
+          and(
+            eq(project.organizationId, context.organizationId),
+            isNull(project.archivedAt),
+            inArray(
+              project.id,
+              projectGrants.map((grant) => grant.projectId)
+            )
+          )
+        )
+      if (projects.length !== projectGrants.length)
+        throw new OrchestrationError(
+          'validation',
+          'Every allowed project must be active and belong to this organization'
+        )
+    }
+    const document = buildOrganizationAccountAccessPolicy(
+      group.credentialGroupId,
+      parsed.data,
+      projectGrants
+    )
     /** Indented JSON conservatively includes the whitespace PostgreSQL adds to jsonb text. */
     if (
       Buffer.byteLength(JSON.stringify(document, null, 1), 'utf8') >
@@ -149,6 +190,7 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
         name: group.name,
         revision: policy.revision,
         grants: listOrganizationAccountWorkspaceGrants(policy.document),
+        projectGrants: policy.document.projectGrants ?? [],
       }
     } catch (error) {
       if (error instanceof ResourcePolicyRevisionConflictError)
@@ -162,6 +204,6 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
   projectAudit: (result) => ({
     resourceId: result.credentialGroupId,
     resourceName: result.name,
-    description: `Allowed ${result.grants.length} workspaces to use organization connected accounts`,
+    description: `Configured connected-account access for ${result.projectGrants.length} projects and ${result.grants.length} individual environments`,
   }),
 })

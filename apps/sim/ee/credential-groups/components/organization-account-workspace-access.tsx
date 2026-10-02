@@ -6,6 +6,7 @@ import { Plus, Workspaces } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountWorkspaceAccess as WorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
+import type { ProjectApi } from '@/lib/api/contracts/projects'
 import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
 import {
   SettingsEmptyState,
@@ -23,12 +24,19 @@ import {
   useOrganizationAccountWorkspaceAccess,
   useUpdateOrganizationAccountWorkspaceAccess,
 } from '@/hooks/queries/organization-accounts'
+import { useOrganizationProjectsQuery } from '@/hooks/queries/projects'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 type Grant = WorkspaceAccess['grants'][number]
 type GrantEditor =
   | { mode: 'create'; revision: number }
   | { mode: 'edit'; grant: Grant; revision: number }
+  | {
+      mode: 'edit-project'
+      project: ProjectApi
+      grant: NonNullable<WorkspaceAccess['projectGrants']>[number]
+      revision: number
+    }
 
 interface OrganizationAccountWorkspaceAccessProps {
   organizationId: string
@@ -46,7 +54,11 @@ export function OrganizationAccountWorkspaceAccess({
   const setSearchTerm = useDebouncedSearchSetter(setSearchParam)
   return (
     <SettingsPanel
-      search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search workspaces...' }}
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: 'Search projects and environments...',
+      }}
     >
       {access.error ? (
         <SettingsQueryErrorState
@@ -57,7 +69,7 @@ export function OrganizationAccountWorkspaceAccess({
           variant='inline'
         />
       ) : !access.data ? (
-        <SettingsEmptyState variant='inline'>Loading workspace access…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading project access…</SettingsEmptyState>
       ) : (
         <WorkspaceAccessForm
           key={organizationId}
@@ -77,6 +89,13 @@ interface WorkspaceAccessFormProps extends OrganizationAccountWorkspaceAccessPro
 
 function WorkspaceAccessForm({ organizationId, access, searchTerm }: WorkspaceAccessFormProps) {
   const update = useUpdateOrganizationAccountWorkspaceAccess()
+  const projects = useOrganizationProjectsQuery(organizationId)
+  const projectByWorkspace = new Map(
+    (projects.data ?? []).flatMap((project) =>
+      project.workspaces.map((environment) => [environment.id, project] as const)
+    )
+  )
+  const projectGrants = access.projectGrants ?? []
   const [editor, setEditor] = useState<GrantEditor | null>(null)
   const byId = new Map(access.workspaces.map((workspace) => [workspace.id, workspace]))
   const grantsById = new Map(access.grants.map((grant) => [grant.workspaceId, grant]))
@@ -95,51 +114,73 @@ function WorkspaceAccessForm({ organizationId, access, searchTerm }: WorkspaceAc
   const allowedWorkspaces = access.workspaces.filter((workspace) => grantsById.has(workspace.id))
   const normalizedSearch = searchTerm.trim().toLowerCase()
   const visibleWorkspaces = allowedWorkspaces.filter((workspace) =>
-    workspace.name.toLowerCase().includes(normalizedSearch)
+    `${projectByWorkspace.get(workspace.id)?.name ?? ''} ${workspace.name}`
+      .toLowerCase()
+      .includes(normalizedSearch)
   )
-  const availableWorkspaces = access.workspaces.filter((workspace) => !grantsById.has(workspace.id))
 
-  const save = async (grants: WorkspaceAccess['grants'], revision: number) => {
+  const save = async (
+    grants: WorkspaceAccess['grants'],
+    revision: number,
+    nextProjectGrants = projectGrants
+  ) => {
     try {
-      await update.mutateAsync({ organizationId, revision, grants })
+      await update.mutateAsync({
+        organizationId,
+        revision,
+        grants,
+        projectGrants: nextProjectGrants,
+      })
       setEditor(null)
-      toast.success('Workspace access updated')
+      toast.success('Project access updated')
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Could not update workspace access'))
+      toast.error(getErrorMessage(error, 'Could not update project access'))
     }
   }
-  const saveGrant = (grant: Grant) => {
-    if (!editor) throw new Error('Workspace access editor is not open')
-    if (!byId.has(grant.workspaceId)) throw new Error('Selected workspace is unavailable')
-    if (editor.mode === 'create') {
-      if (grantsById.has(grant.workspaceId)) throw new Error('Workspace already has access')
-      if (access.grants.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT)
-        throw new Error(
-          `Workspace access cannot exceed ${ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT} workspaces`
-        )
-      void save([...access.grants, grant], editor.revision)
-    } else {
-      if (grant.workspaceId !== editor.grant.workspaceId)
-        throw new Error('Cannot change the workspace of an existing grant')
-      void save(
-        access.grants.map((existing) =>
-          existing.workspaceId === grant.workspaceId ? grant : existing
-        ),
-        editor.revision
-      )
-    }
+  const saveGrant = (
+    grants: Grant[],
+    nextProjectGrants: NonNullable<WorkspaceAccess['projectGrants']>
+  ) => {
+    if (!editor) return
+    const removedWorkspaceIds = new Set([
+      ...(editor.mode === 'edit' ? [editor.grant.workspaceId] : []),
+      ...grants.map((grant) => grant.workspaceId),
+      ...(projects.data ?? [])
+        .filter((project) => nextProjectGrants.some((grant) => grant.projectId === project.id))
+        .flatMap((project) => project.workspaces.map((environment) => environment.id)),
+    ])
+    const removedProjectId = editor.mode === 'edit-project' ? editor.project.id : undefined
+    void save(
+      [...access.grants.filter((grant) => !removedWorkspaceIds.has(grant.workspaceId)), ...grants],
+      editor.revision,
+      [
+        ...projectGrants.filter((grant) => grant.projectId !== removedProjectId),
+        ...nextProjectGrants,
+      ]
+    )
   }
+  const availableProjects = (projects.data ?? []).filter(
+    (project) => !projectGrants.some((grant) => grant.projectId === project.id)
+  )
+  const visibleProjectGrants = projectGrants.filter(
+    (grant) =>
+      !normalizedSearch ||
+      (projects.data ?? [])
+        .find((project) => project.id === grant.projectId)
+        ?.name.toLowerCase()
+        .includes(normalizedSearch)
+  )
 
   return (
     <>
       <SettingsSection
-        label='Workspaces'
+        label='Projects'
         action={
           <Chip
             leftAdornment={<Plus className='size-[14px]' />}
             disabled={
               update.isPending ||
-              !availableWorkspaces.length ||
+              !availableProjects.length ||
               access.grants.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT
             }
             onClick={() => {
@@ -147,7 +188,7 @@ function WorkspaceAccessForm({ organizationId, access, searchTerm }: WorkspaceAc
               setEditor({ mode: 'create', revision: access.revision })
             }}
           >
-            Add workspace
+            Add project
           </Chip>
         }
       >
@@ -156,12 +197,51 @@ function WorkspaceAccessForm({ organizationId, access, searchTerm }: WorkspaceAc
             {update.error.message}
           </p>
         )}
-        {!visibleWorkspaces.length ? (
+        {projects.error ? (
+          <p role='alert' className='text-small'>
+            {projects.error.message}
+          </p>
+        ) : !visibleWorkspaces.length && !visibleProjectGrants.length ? (
           <SettingsEmptyState variant='inline'>
-            {normalizedSearch ? 'No workspaces match your search' : 'No workspaces have access'}
+            {normalizedSearch ? 'No projects match your search' : 'No projects have access'}
           </SettingsEmptyState>
         ) : (
           <div className={RESOURCE_LIST_STACK}>
+            {visibleProjectGrants.map((grant) => {
+              const project = (projects.data ?? []).find(
+                (project) => project.id === grant.projectId
+              ) ?? {
+                id: grant.projectId,
+                name: 'Unavailable project',
+                organizationId,
+                workspaces: [],
+              }
+              return (
+                <SettingsResourceRow
+                  key={project.id}
+                  icon={<Workspaces aria-hidden />}
+                  iconFilled
+                  title={project.name}
+                  description={`All current and future environments · ${grant.access.mode === 'all' ? 'All integrations' : grant.access.credentialTypes.map((type) => typesById.get(type)).join(', ')}`}
+                  trailing={
+                    <Chip
+                      disabled={update.isPending}
+                      onClick={() => {
+                        update.reset()
+                        setEditor({
+                          mode: 'edit-project',
+                          project,
+                          grant,
+                          revision: access.revision,
+                        })
+                      }}
+                    >
+                      Edit access
+                    </Chip>
+                  }
+                />
+              )
+            })}
             {visibleWorkspaces.map((workspace) => {
               const grant = grantsById.get(workspace.id)!
               return (
@@ -169,7 +249,7 @@ function WorkspaceAccessForm({ organizationId, access, searchTerm }: WorkspaceAc
                   key={workspace.id}
                   icon={<Workspaces className='text-[var(--text-icon)]' aria-hidden />}
                   iconFilled
-                  title={workspace.name}
+                  title={`${projectByWorkspace.get(workspace.id)?.name ?? 'Project unavailable'} / ${workspace.name}`}
                   description={
                     grant.access.mode === 'all'
                       ? 'All integrations'
@@ -198,17 +278,31 @@ function WorkspaceAccessForm({ organizationId, access, searchTerm }: WorkspaceAc
       {editor && (
         <OrganizationWorkspaceGrantModal
           {...(editor.mode === 'create'
-            ? ({ mode: 'create', workspaces: availableWorkspaces } as const)
-            : ({
-                mode: 'edit',
-                grant: editor.grant,
-                workspaceName: byId.get(editor.grant.workspaceId)!.name,
-                onRemove: () =>
-                  void save(
-                    access.grants.filter((grant) => grant.workspaceId !== editor.grant.workspaceId),
-                    editor.revision
-                  ),
-              } as const))}
+            ? ({ mode: 'create', projects: availableProjects } as const)
+            : editor.mode === 'edit-project'
+              ? ({
+                  mode: 'edit-project',
+                  project: editor.project,
+                  grant: editor.grant,
+                  onRemove: () =>
+                    void save(
+                      access.grants,
+                      editor.revision,
+                      projectGrants.filter((grant) => grant.projectId !== editor.project.id)
+                    ),
+                } as const)
+              : ({
+                  mode: 'edit',
+                  grant: editor.grant,
+                  workspaceName: byId.get(editor.grant.workspaceId)!.name,
+                  onRemove: () =>
+                    void save(
+                      access.grants.filter(
+                        (grant) => grant.workspaceId !== editor.grant.workspaceId
+                      ),
+                      editor.revision
+                    ),
+                } as const))}
           credentialTypes={access.credentialTypes}
           disabled={update.isPending}
           error={update.error?.message}

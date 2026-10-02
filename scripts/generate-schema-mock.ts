@@ -92,11 +92,23 @@ function collect(path: string) {
     for (const declaration of statement.declarationList.declarations) {
       if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
       const name = declaration.name.text
-      const initializer = declaration.initializer
+      let initializer = declaration.initializer
+      if (
+        ts.isCallExpression(initializer) &&
+        ts.isPropertyAccessExpression(initializer.expression) &&
+        initializer.expression.name.text === 'as' &&
+        ts.isCallExpression(initializer.expression.expression)
+      ) {
+        initializer = initializer.expression.expression
+      }
       if (ts.isCallExpression(initializer) && ts.isIdentifier(initializer.expression)) {
         const callee = initializer.expression.text
         const [, second] = initializer.arguments
-        if (callee === 'pgTable' && second && ts.isObjectLiteralExpression(second)) {
+        if (
+          (callee === 'pgTable' || callee === 'pgView') &&
+          second &&
+          ts.isObjectLiteralExpression(second)
+        ) {
           tables[name] = second.properties.flatMap((property) =>
             property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
               ? [property.name.text]

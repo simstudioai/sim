@@ -1,9 +1,11 @@
 'use client'
 
-import { lazy, type ReactNode, Suspense, useCallback } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useState } from 'react'
+import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import type { ResourcePanelNavigation } from '@/app/workspace/[workspaceId]/home/components/resource-panel-navigation'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
 import type { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { useChatResourcePanel } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
@@ -16,6 +18,7 @@ const MothershipView = lazy(() =>
 )
 
 interface ChatResourcePanelProps {
+  navigation?: ResourcePanelNavigation
   workspaceId?: string
   organizationId?: string
   allowBuildControls?: boolean
@@ -27,6 +30,7 @@ interface ChatResourcePanelProps {
 
 /** Shared resizable resource chrome for workspace and organization chat. */
 export function ChatResourcePanel({
+  navigation,
   workspaceId,
   organizationId,
   allowBuildControls,
@@ -35,6 +39,11 @@ export function ChatResourcePanel({
   children,
   onSummarize,
 }: ChatResourcePanelProps) {
+  const [chatHidden, setChatHidden] = useState(false)
+  const isChatHidden = Boolean(navigation) && chatHidden && !panel.isResourceCollapsed
+  useEffect(() => {
+    if (chat.isSending) setChatHidden(false)
+  }, [chat.isSending])
   useBrowserTabResources(panel.desktopTabResourceOptions)
   useTerminalTabResources(panel.desktopTabResourceOptions)
   const {
@@ -73,9 +82,15 @@ export function ChatResourcePanel({
   return (
     <ChatPanelLayout
       collapsed={isResourceCollapsed}
+      chatHidden={isChatHidden}
+      onToggleChat={navigation ? () => setChatHidden((hidden) => !hidden) : undefined}
       label='resource view'
       activityCount={resourceActivityIds.size}
-      onToggle={isResourceCollapsed ? expandResource : collapseResource}
+      onToggle={() => {
+        setChatHidden(false)
+        if (isResourceCollapsed) expandResource()
+        else collapseResource()
+      }}
       onResize={handleResourceResizePointerDown}
       onResizeKeyDown={handleResourceResizeKeyDown}
       onResizeFocus={handleResourceResizeFocus}
@@ -89,6 +104,7 @@ export function ChatResourcePanel({
         >
           <Suspense fallback={null}>
             <MothershipView
+              navigation={navigation}
               ref={mothershipRef}
               workspaceId={workspaceId}
               organizationId={organizationId}
@@ -105,7 +121,10 @@ export function ChatResourcePanel({
               genericResourceData={genericResourceData ?? undefined}
               onSummarize={summarize}
               onUserInteraction={handleResourceInteraction}
-              className={skipResourceTransition ? 'transition-none!' : undefined}
+              className={cn(
+                skipResourceTransition && 'transition-none!',
+                isChatHidden && 'w-full! min-w-0! flex-1 border-l-0!'
+              )}
             />
           </Suspense>
         </MothershipResourcesProvider>

@@ -12,8 +12,13 @@ import {
 } from '@sim/emcn'
 import { Check, ChevronDown, ChevronLeft, Clock, RefreshCw } from '@sim/emcn/icons'
 import { getBrowserTimezone, zonedWallClock } from '@/lib/core/utils/timezone'
-import type { DashboardRange } from '@/lib/dashboards/spec'
-import { type DashboardTimeRange, dashboardTimeLabel } from '@/lib/dashboards/time'
+import { DASHBOARD_RANGES, type DashboardRange } from '@/lib/dashboards/spec'
+import {
+  DASHBOARD_RANGE_LABELS,
+  type DashboardTimeRange,
+  dashboardRangeText,
+  dashboardTimeLabel,
+} from '@/lib/dashboards/time'
 
 interface DashboardControlsProps {
   period: DashboardRange | 'custom'
@@ -27,13 +32,10 @@ interface DashboardControlsProps {
   onZoneChange: (zone: 'utc' | 'local') => void
   onRefresh: () => void
 }
-const RANGE_OPTIONS = [
-  { value: '1h', label: 'Last hour' },
-  { value: '24h', label: 'Last 24 hours' },
-  { value: '7d', label: 'Last 7 days' },
-  { value: '30d', label: 'Last 30 days' },
-  { value: '90d', label: 'Last 90 days' },
-] as const
+const RANGE_OPTIONS = DASHBOARD_RANGES.map((value) => ({
+  value,
+  label: DASHBOARD_RANGE_LABELS[value],
+}))
 
 export function DashboardControls({
   period,
@@ -54,26 +56,14 @@ export function DashboardControls({
     new Intl.DateTimeFormat('en-US', { timeZone: localTimeZone, timeZoneName: 'short' })
       .formatToParts(new Date(range.to))
       .find((part) => part.type === 'timeZoneName')?.value ?? localTimeZone
-  const from = new Date(range.from)
-  const to = new Date(Date.parse(range.to) - 1)
-  const fromLocal = zonedWallClock(from, timeZone)
-  const toLocal = zonedWallClock(to, timeZone)
-  const sameDay = fromLocal.slice(0, 10) === toLocal.slice(0, 10)
-  const dates = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    month: 'short',
-    day: 'numeric',
-    year: fromLocal.slice(0, 4) === toLocal.slice(0, 4) ? undefined : 'numeric',
-    hour: sameDay ? '2-digit' : undefined,
-    minute: sameDay ? '2-digit' : undefined,
-    hourCycle: 'h23',
-  })
+  const fromLocal = zonedWallClock(new Date(range.from), timeZone)
+  const toLocal = zonedWallClock(new Date(Date.parse(range.to) - 1), timeZone)
   const label =
     period === 'custom'
       ? rangeError
         ? 'Custom: choose range'
-        : `Custom: ${dates.formatRange(from, to)}`
-      : RANGE_OPTIONS.find((option) => option.value === period)!.label
+        : `Custom: ${dashboardRangeText(range, timeZone)}`
+      : DASHBOARD_RANGE_LABELS[period]
   return (
     <div className='flex w-[360px] max-w-full shrink-0 items-center gap-2'>
       <Popover

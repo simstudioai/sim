@@ -96,7 +96,7 @@ export function orderEnvironments(
     if (!environment) continue
     columns.push({
       id: current,
-      label: environment.label,
+      label: nameOf.get(current) ?? environment.label,
       name: nameOf.get(current) ?? environment.label,
       parentId: current === rootId ? null : (parentOf.get(current) ?? null),
     })

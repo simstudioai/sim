@@ -17,13 +17,14 @@ import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organ
 interface EnvironmentSwitcherProps {
   project: Project
   section: ProjectSection
+  onChange?: (workspaceId: string) => void
 }
 
 /**
  * The project's environment (Prod, Staging, Sandbox): each is a forked workspace in the same
  * lineage, and switching keeps the section you are looking at.
  */
-export function EnvironmentSwitcher({ project, section }: EnvironmentSwitcherProps) {
+export function EnvironmentSwitcher({ project, section, onChange }: EnvironmentSwitcherProps) {
   const router = useRouter()
   const { organization } = useOrganizationContext()
   if (project.environments.length <= 1)
@@ -44,9 +45,11 @@ export function EnvironmentSwitcher({ project, section }: EnvironmentSwitcherPro
           <DropdownMenuItem
             key={environment.workspaceId}
             onSelect={() =>
-              router.push(
-                organizationRoutes(organization.id).project(environment.workspaceId, section)
-              )
+              onChange
+                ? onChange(environment.workspaceId)
+                : router.push(
+                    organizationRoutes(organization.id).project(environment.workspaceId, section)
+                  )
             }
           >
             <span className='flex-1'>{environment.label}</span>

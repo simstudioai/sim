@@ -15,7 +15,6 @@ import {
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
@@ -29,6 +28,7 @@ import {
   UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import {
   RESOURCE_TILE_BASE,
   RESOURCE_TILE_PLAIN,
@@ -69,7 +69,7 @@ export function ConnectedCredentialDetail({
   workspaceId,
   credentialId,
 }: ConnectedCredentialDetailProps) {
-  const router = useRouter()
+  const router = useResourceRouter()
   const integrationsHref = `/workspace/${workspaceId}/integrations`
 
   useOAuthReturnRouter()

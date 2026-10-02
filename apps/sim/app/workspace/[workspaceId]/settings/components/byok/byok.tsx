@@ -3,7 +3,6 @@
 import { useMemo } from 'react'
 import { ChipTag } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import {
   AnthropicIcon,
@@ -73,6 +72,7 @@ import {
   useUpsertBYOKKey,
   useUpsertOrganizationBYOKKey,
 } from '@/hooks/queries/byok-keys'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
   {
@@ -405,8 +405,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
 ]
 
 export function BYOK() {
-  const params = useParams()
-  const workspaceId = (params?.workspaceId as string) || ''
+  const workspaceId = useSettingsWorkspaceId()
   const hostContext = useWorkspaceHostContext()
   const workspacePermissions = useUserPermissionsContext()
   const { hosted } = useDeploymentShape()

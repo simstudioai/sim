@@ -6,7 +6,6 @@ import { Avatar, Button, ChipConfirmModal, ChipDropdown, Tooltip, toast } from '
 import { Database, FolderPlus, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/constants'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
@@ -65,6 +64,11 @@ import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  ResourceListHeader,
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal'
@@ -206,9 +210,8 @@ export function Knowledge() {
 }
 
 function KnowledgeContent() {
-  const params = useParams()
-  const router = useRouter()
-  const workspaceId = params.workspaceId as string
+  const router = useResourceRouter()
+  const workspaceId = useResourceWorkspaceId()
 
   const { config: permissionConfig } = usePermissionConfig()
   useEffect(() => {
@@ -1507,7 +1510,7 @@ function KnowledgeContent() {
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
-        <Resource.Header
+        <ResourceListHeader
           icon={FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon}
           title={ROOT_BREADCRUMB_LABEL}
           breadcrumbs={listBreadcrumbs}

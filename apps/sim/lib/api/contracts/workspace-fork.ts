@@ -235,7 +235,11 @@ export const forkMappingEntrySchema = z.object({
 })
 export type ForkMappingEntry = z.output<typeof forkMappingEntrySchema>
 
+export const forkMappingScopeSchema = z.enum(['sync', 'all'])
+export type ForkMappingScope = z.output<typeof forkMappingScopeSchema>
+
 export const getForkMappingQuerySchema = z.object({
+  scope: forkMappingScopeSchema.default('sync'),
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema.default('push'),
 })
@@ -1021,3 +1025,27 @@ export type GetForkWorkflowDiffQuery = z.input<typeof getForkWorkflowDiffQuerySc
 export type GetForkWorkflowDiffResponse = z.output<
   typeof getForkWorkflowDiffContract.response.schema
 >
+
+export const createForkSecretMappingBodySchema = z.object({
+  otherWorkspaceId: workspaceIdSchema,
+  direction: forkDirectionSchema,
+  sourceId: z.string().min(1).max(256),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Secret name is required')
+    .max(256)
+    .regex(
+      /^[A-Za-z_][A-Za-z0-9_]*$/,
+      'Use letters, numbers, and underscores; start with a letter or underscore'
+    ),
+  value: z.string().min(1, 'Secret value is required').max(65536),
+})
+export type CreateForkSecretMappingBody = z.input<typeof createForkSecretMappingBodySchema>
+export const createForkSecretMappingContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/fork/mapping',
+  params: workspaceIdParamsSchema,
+  body: createForkSecretMappingBodySchema,
+  response: { mode: 'json', schema: z.object({ name: z.string() }) },
+})

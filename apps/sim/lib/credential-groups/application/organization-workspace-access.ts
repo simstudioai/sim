@@ -1,15 +1,12 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { CredentialGroupApplicationContext } from '@/lib/credential-groups/application/authorization'
 import { resolveCredentialGroupWorkspaceContext } from '@/lib/credential-groups/application/context'
+import { requireOrganizationAccountRuntimePolicy } from '@/lib/credential-groups/application/resolve-organization-access-policy'
 import type { OrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
-import {
-  organizationAccountAccessPolicyCodec,
-  organizationAccountPolicyAllowsWorkspace,
-} from '@/lib/credential-groups/application/workspace-access-policy'
+import { organizationAccountPolicyAllowsWorkspace } from '@/lib/credential-groups/application/workspace-access-policy'
 import type { OrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
-import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 export interface OrganizationAccountsWorkspaceContext extends CredentialGroupApplicationContext {
   organizationId: string
@@ -54,11 +51,10 @@ export async function requireOrganizationAccountsWorkspaceAccess(
   ) {
     throw new OrchestrationError('not_found', 'Organization connected accounts are not available')
   }
-  const policy = await requireResourcePolicy({
+  const policy = await requireOrganizationAccountRuntimePolicy({
     organizationId: context.organizationId,
     resourceType: 'credential_group',
     resourceId: context.credentialGroupId,
-    codec: organizationAccountAccessPolicyCodec,
   })
   if (
     !organizationAccountPolicyAllowsWorkspace(policy.document, context.workspaceId, credentialType)

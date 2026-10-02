@@ -2,6 +2,8 @@
 export const projectKeys = {
   all: ['projects'] as const,
   lists: () => [...projectKeys.all, 'list'] as const,
+  organizationList: (organizationId: string) =>
+    [...projectKeys.lists(), 'organization-admin', organizationId] as const,
   list: (organizationId: string | undefined) =>
     [...projectKeys.lists(), organizationId ?? ''] as const,
 }

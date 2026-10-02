@@ -4,6 +4,7 @@ import type { ElementType, ReactNode } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
 import {
   Connections,
+  Dashboard,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
@@ -187,6 +188,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TableIcon} />,
   },
+  dashboard: {
+    type: 'dashboard',
+    label: 'Dashboards',
+    icon: Dashboard,
+    renderTabIcon: (_resource, className) => (
+      <Dashboard className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Dashboard} />,
+  },
   file: {
     type: 'file',
     label: 'Files',
@@ -291,6 +301,7 @@ export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
  * surface them lands in the right place.
  */
 export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
+  'dashboard',
   'integration',
   'task',
   'table',

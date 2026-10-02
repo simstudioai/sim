@@ -9,6 +9,7 @@ import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { captureEvent } from '@/lib/posthog/client'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
+import type { DeletedResource } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   getSettingsSectionMeta,
@@ -133,6 +134,8 @@ const WhitelabelingSettings = dynamic(() =>
 
 interface SettingsPageProps {
   section: SettingsSection
+  resourceChats?: boolean
+  onViewResource?: (resource: DeletedResource) => void
 }
 
 export function SettingsPage(props: SettingsPageProps) {
@@ -145,7 +148,7 @@ export function SettingsPage(props: SettingsPageProps) {
   )
 }
 
-function SettingsPageContent({ section }: SettingsPageProps) {
+function SettingsPageContent({ section, resourceChats = true, onViewResource }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { billingEnabled } = useDeploymentShape()
@@ -244,7 +247,9 @@ function SettingsPageContent({ section }: SettingsPageProps) {
       {effectiveSection === 'custom-tools' && <CustomTools />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}
-      {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
+      {effectiveSection === 'recently-deleted' && (
+        <RecentlyDeleted includeChats={resourceChats} onViewResource={onViewResource} />
+      )}
       {effectiveSection === 'self-host' && <SelfHost />}
       {effectiveSection === 'admin' && <Admin />}
       {effectiveSection === 'mothership' && <Mothership />}

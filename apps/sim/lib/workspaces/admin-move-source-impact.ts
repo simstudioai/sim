@@ -10,6 +10,7 @@ import {
   organizationMemberUsageLimit,
   permissionGroup,
   permissionGroupWorkspace,
+  permissionGroupWorkspaceScope,
   permissions,
   subscription,
   user,
@@ -550,12 +551,15 @@ export async function findAttachedPermissionGroups(
 ): Promise<Array<{ permissionGroupId: string; name: string }>> {
   return executor
     .select({
-      permissionGroupId: permissionGroupWorkspace.permissionGroupId,
+      permissionGroupId: permissionGroupWorkspaceScope.permissionGroupId,
       name: permissionGroup.name,
     })
-    .from(permissionGroupWorkspace)
-    .innerJoin(permissionGroup, eq(permissionGroup.id, permissionGroupWorkspace.permissionGroupId))
-    .where(eq(permissionGroupWorkspace.workspaceId, workspaceId))
+    .from(permissionGroupWorkspaceScope)
+    .innerJoin(
+      permissionGroup,
+      eq(permissionGroup.id, permissionGroupWorkspaceScope.permissionGroupId)
+    )
+    .where(eq(permissionGroupWorkspaceScope.workspaceId, workspaceId))
 }
 
 /** Counts the source-org retention entries that name this workspace. */

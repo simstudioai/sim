@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import type { DataRetentionSettings, WorkspaceMode } from '@sim/db/schema'
-import { organization, workspace } from '@sim/db/schema'
+import { organization, project, projectWorkspace, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { tasks } from '@trigger.dev/sdk'
@@ -9,7 +9,11 @@ import { validateCleanupLimits } from '@/lib/api/contracts/cleanup'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
-import { type RetentionHoursKey, resolveEffectiveRetentionHours } from '@/lib/billing/retention'
+import {
+  applyProjectRetentionDefaults,
+  type RetentionHoursKey,
+  resolveEffectiveRetentionHours,
+} from '@/lib/billing/retention'
 import { type CleanupBudgets, type CleanupLimits, createCleanupBudgets } from '@/lib/cleanup/limits'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
@@ -55,6 +59,7 @@ interface CleanupJobConfig {
 }
 
 interface WorkspaceCleanupScopeRow {
+  projectId: string | null
   id: string
   billedAccountUserId: string
   organizationId: string | null
@@ -106,9 +111,19 @@ async function listActiveWorkspaceCleanupScopeRowsPage(
       organizationId: workspace.organizationId,
       workspaceMode: workspace.workspaceMode,
       organizationSettings: organization.dataRetentionSettings,
+      projectId: project.id,
     })
     .from(workspace)
     .leftJoin(organization, eq(organization.id, workspace.organizationId))
+    .leftJoin(projectWorkspace, eq(projectWorkspace.workspaceId, workspace.id))
+    .leftJoin(
+      project,
+      and(
+        eq(project.id, projectWorkspace.projectId),
+        eq(project.organizationId, workspace.organizationId),
+        isNull(project.archivedAt)
+      )
+    )
     .where(
       afterId
         ? and(isNull(workspace.archivedAt), gt(workspace.id, afterId))
@@ -308,7 +323,9 @@ async function forEachCleanupChunk(
     for (const row of rows) {
       if (planByWorkspaceId.get(row.id) !== 'enterprise') continue
       const hours = resolveEffectiveRetentionHours({
-        orgSettings: row.organizationSettings,
+        orgSettings: row.organizationSettings
+          ? applyProjectRetentionDefaults(row.organizationSettings, row.projectId)
+          : null,
         workspaceId: row.id,
         key: config.key,
       })

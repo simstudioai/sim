@@ -40,7 +40,25 @@ describe('workspace integration grant editor', () => {
                 workspaceName: 'Finance',
                 onRemove: remove,
               } as const)
-            : ({ mode: 'create', workspaces: [{ id: 'finance', name: 'Finance' }] } as const))}
+            : ({
+                mode: 'create',
+                projects: [
+                  {
+                    id: 'finance-project',
+                    name: 'Finance',
+                    organizationId: 'org-1',
+                    workspaces: [
+                      { id: 'finance', name: 'Prod', position: 0, forkedFromWorkspaceId: null },
+                      {
+                        id: 'finance-staging',
+                        name: 'Staging',
+                        position: 1,
+                        forkedFromWorkspaceId: 'finance',
+                      },
+                    ],
+                  },
+                ],
+              } as const))}
           credentialTypes={credentialTypes}
           disabled={disabled}
           onSave={save}
@@ -78,8 +96,8 @@ describe('workspace integration grant editor', () => {
   async function click(label: string) {
     await act(async () => button(label).click())
   }
-  async function selectWorkspace() {
-    const trigger = button('Select workspace')
+  async function selectProject() {
+    const trigger = button('Select project')
     await act(async () =>
       trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
     )
@@ -92,16 +110,16 @@ describe('workspace integration grant editor', () => {
 
   it('allows explicitly granting all current and future integrations', async () => {
     await render(null)
-    await selectWorkspace()
+    await selectProject()
     await openIntegrations()
     await act(async () => integrationOption('All integrations').click())
     await closeIntegrations()
     expect(document.body.textContent).toContain('Includes integrations added in the future.')
-    await click('Add workspace')
-    expect(save).toHaveBeenCalledExactlyOnceWith({
-      workspaceId: 'finance',
-      access: { mode: 'all' },
-    })
+    await click('Add project')
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+      [],
+      [{ projectId: 'finance-project', access: { mode: 'all' } }]
+    )
   })
 
   it('narrows broad access when a specific integration is selected', async () => {
@@ -111,10 +129,15 @@ describe('workspace integration grant editor', () => {
     await act(async () => integrationOption('Gmail').click())
     await closeIntegrations()
     await click('Save access')
-    expect(save).toHaveBeenCalledExactlyOnceWith({
-      workspaceId: 'finance',
-      access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
-    })
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+      [
+        {
+          workspaceId: 'finance',
+          access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
+        },
+      ],
+      []
+    )
   })
 
   it('does not implicitly grant future integrations when every individual integration is selected', async () => {
@@ -123,10 +146,15 @@ describe('workspace integration grant editor', () => {
     await act(async () => integrationOption('Google Calendar').click())
     await closeIntegrations()
     await click('Save access')
-    expect(save).toHaveBeenCalledExactlyOnceWith({
-      workspaceId: 'finance',
-      access: { mode: 'selected', credentialTypes: ['oauth:gmail', 'oauth:google-calendar'] },
-    })
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+      [
+        {
+          workspaceId: 'finance',
+          access: { mode: 'selected', credentialTypes: ['oauth:gmail', 'oauth:google-calendar'] },
+        },
+      ],
+      []
+    )
   })
 
   it('replaces individual selections with an explicit all-integration grant', async () => {
@@ -135,9 +163,14 @@ describe('workspace integration grant editor', () => {
     await act(async () => integrationOption('All integrations').click())
     await closeIntegrations()
     await click('Save access')
-    expect(save).toHaveBeenCalledExactlyOnceWith({
-      workspaceId: 'finance',
-      access: { mode: 'all' },
-    })
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+      [
+        {
+          workspaceId: 'finance',
+          access: { mode: 'all' },
+        },
+      ],
+      []
+    )
   })
 })

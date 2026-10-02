@@ -2,7 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
-import { listProjectsContract, renameProjectContract } from '@/lib/api/contracts/projects'
+import {
+  listOrganizationProjectsContract,
+  listProjectsContract,
+  renameProjectContract,
+} from '@/lib/api/contracts/projects'
 import { projectKeys } from '@/hooks/queries/utils/project-keys'
 
 /** Projects change when workspaces are created, forked or disconnected, which invalidate this. */
@@ -35,5 +39,21 @@ export function useRenameProject() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
     },
+  })
+}
+
+/** Full organization inventory for settings; the server requires organization admin authority. */
+export function useOrganizationProjectsQuery(organizationId: string, enabled = true) {
+  return useQuery({
+    queryKey: projectKeys.organizationList(organizationId),
+    queryFn: async ({ signal }) => {
+      const data = await requestJson(listOrganizationProjectsContract, {
+        params: { id: organizationId },
+        signal,
+      })
+      return data.projects
+    },
+    enabled: Boolean(organizationId) && enabled,
+    staleTime: PROJECT_LIST_STALE_TIME,
   })
 }

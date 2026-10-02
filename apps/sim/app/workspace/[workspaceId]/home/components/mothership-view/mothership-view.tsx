@@ -1,7 +1,7 @@
 'use client'
 
 import { type ComponentProps, forwardRef, memo, useCallback, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
@@ -9,6 +9,7 @@ import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
@@ -24,6 +25,8 @@ import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/compo
 import { SearchResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/search-resource-content'
 import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
+import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import type { ResourcePanelNavigation } from '@/app/workspace/[workspaceId]/home/components/resource-panel-navigation'
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
@@ -91,6 +94,7 @@ function shouldShowStreamingFilePanel(
 }
 
 interface MothershipViewProps {
+  navigation?: ResourcePanelNavigation
   workspaceId?: string
   organizationId?: string
   allowBuildControls?: boolean
@@ -113,6 +117,7 @@ interface MothershipViewProps {
 export const MothershipView = memo(
   forwardRef<HTMLDivElement, MothershipViewProps>(function MothershipView(
     {
+      navigation,
       workspaceId,
       organizationId,
       allowBuildControls,
@@ -132,7 +137,9 @@ export const MothershipView = memo(
     }: MothershipViewProps,
     ref
   ) {
-    const active = resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null
+    const active = navigation?.active
+      ? null
+      : (resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null)
     const activeWorkspaceId = active?.workspaceId ?? workspaceId
     const inheritedPermissions = useUserPermissionsContext()
     const permissions = useWorkspacePermissionsQuery(organizationId ? activeWorkspaceId : undefined)
@@ -234,6 +241,7 @@ export const MothershipView = memo(
       >
         <div className='flex min-h-0 flex-1 flex-col'>
           <ResourceTabs
+            navigation={navigation}
             organizationId={organizationId}
             allowBuildControls={allowBuildControls}
             workspaceId={workspaceId}
@@ -243,7 +251,7 @@ export const MothershipView = memo(
             activeId={active ? getChatResourceSelectionId(active) : null}
             activityIds={activityResourceIds}
             actions={
-              active && active.type !== 'search' && activeWorkspaceId ? (
+              !navigation && active && active.type !== 'search' && activeWorkspaceId ? (
                 <ResourceWorkspaceHost
                   workspaceId={activeWorkspaceId}
                   organizationId={organizationId}
@@ -251,6 +259,7 @@ export const MothershipView = memo(
                   isFileViewer={active.type === 'file'}
                 >
                   <ResourceActions
+                    allowWorkspaceNavigation={!navigation}
                     workspaceId={activeWorkspaceId}
                     resource={active}
                     downloadSourceRef={fileDownloadSourceRef}
@@ -258,8 +267,8 @@ export const MothershipView = memo(
                 </ResourceWorkspaceHost>
               ) : null
             }
-            previewMode={isActivePreviewable ? previewMode : undefined}
-            onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
+            previewMode={!navigation && isActivePreviewable ? previewMode : undefined}
+            onCyclePreviewMode={!navigation && isActivePreviewable ? handleCyclePreview : undefined}
             onRequestAddResourceOpen={requestAddResourceOpen}
             onAddResourceClose={closeAddResource}
           />
@@ -306,6 +315,9 @@ export const MothershipView = memo(
             )}
             {active && active.type !== 'sources' && !isPersistentPanel(active) && (
               <ScopedResourceContent
+                showHeader={Boolean(navigation)}
+                onBrowse={navigation ? () => navigation.onBrowseResource(active) : undefined}
+                onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
                 workspaceId={activeWorkspaceId}
                 organizationId={organizationId}
                 desktopScopeId={desktopScopeId}
@@ -321,7 +333,8 @@ export const MothershipView = memo(
                 onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
               />
             )}
-            {!active && (
+            {navigation?.active && navigation.content}
+            {!active && !navigation?.active && (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
                 {workspaceId
                   ? 'Click "+" above to add a resource'
@@ -339,10 +352,16 @@ function ScopedResourceContent({
   workspaceId,
   organizationId,
   onSummarize,
+  showHeader,
+  onBrowse,
+  onCyclePreviewMode,
   ...props
 }: Omit<ComponentProps<typeof ResourceContent>, 'workspaceId'> & {
   workspaceId?: string
   organizationId?: string
+  showHeader?: boolean
+  onBrowse?: () => void
+  onCyclePreviewMode?: () => void
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
 }) {
   if (props.resource.type === 'search')
@@ -374,7 +393,35 @@ function ScopedResourceContent({
       workflowId={props.resource.type === 'workflow' ? props.resource.id : undefined}
       isFileViewer={props.resource.type === 'file'}
     >
-      <ResourceContent workspaceId={workspaceId} {...props} />
+      {showHeader ? (
+        <div className='flex h-full min-h-0 flex-col'>
+          <Resource.Header
+            icon={getResourceConfig(props.resource.type).icon}
+            breadcrumbs={[
+              { label: getResourceConfig(props.resource.type).label, onClick: onBrowse },
+              { label: props.resource.title },
+            ]}
+            aside={
+              <>
+                <ResourceActions
+                  workspaceId={workspaceId}
+                  resource={props.resource}
+                  downloadSourceRef={props.downloadSourceRef}
+                  allowWorkspaceNavigation={false}
+                />
+                {onCyclePreviewMode && (
+                  <Chip onClick={onCyclePreviewMode}>View: {props.previewMode}</Chip>
+                )}
+              </>
+            }
+          />
+          <div className='min-h-0 flex-1 overflow-hidden'>
+            <ResourceContent workspaceId={workspaceId} {...props} />
+          </div>
+        </div>
+      ) : (
+        <ResourceContent workspaceId={workspaceId} {...props} />
+      )}
     </ResourceWorkspaceHost>
   )
 }

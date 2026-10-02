@@ -13,6 +13,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 
 interface SearchResultsViewProps {
+  embedded?: boolean
   composer: ReactNode
   query: string
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
@@ -25,6 +26,7 @@ export function SearchResultsView({
   query,
   onSummarize,
   onSearchChange,
+  embedded = false,
 }: SearchResultsViewProps) {
   const { organization } = useOrganizationContext()
   const scope = { kind: 'organization' as const, organizationId: organization.id }
@@ -39,9 +41,11 @@ export function SearchResultsView({
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
       {searching ? (
         <>
-          <div className={PAGE_HEADER_BAR}>
-            <div className={HEADER_ACTION_CLUSTER} />
-          </div>
+          {!embedded && (
+            <div className={PAGE_HEADER_BAR}>
+              <div className={HEADER_ACTION_CLUSTER} />
+            </div>
+          )}
           <div className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'shrink-0 pt-8')}>
             {composer}
           </div>

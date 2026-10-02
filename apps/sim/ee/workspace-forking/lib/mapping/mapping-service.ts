@@ -1,7 +1,11 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
-import type { ForkMappableResourceType, ForkMappingEntry } from '@/lib/api/contracts/workspace-fork'
+import type {
+  ForkMappableResourceType,
+  ForkMappingEntry,
+  ForkMappingScope,
+} from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import { toScannerBlocks } from '@/lib/workflows/references/reference-scan'
 import {
@@ -39,6 +43,7 @@ import {
 import { resolveForkExcludedTargetId } from '@/ee/workspace-forking/lib/promote/promote-plan'
 
 interface ForkMappingViewParams {
+  scope?: ForkMappingScope
   edge: ForkEdge
   sourceWorkspaceId: string
   targetWorkspaceId: string
@@ -145,6 +150,25 @@ export async function getForkMappingView(
   for (const reference of cascade.references) {
     referenceByKey.set(`${reference.kind}:${reference.sourceId}`, reference)
   }
+  const syncReferenceKeys = new Set(referenceByKey.keys())
+  /** Stored mappings remain inspectable even when no current deployment references them. */
+  if (params.scope === 'all') {
+    for (const row of mappingRows) {
+      if (
+        row.resourceType === 'workflow' ||
+        row.resourceType === 'workflow_mcp_server' ||
+        row.resourceType === 'knowledge_document'
+      )
+        continue
+      const sourceId = sourceIsParent ? row.parentResourceId : row.childResourceId
+      if (!sourceId) continue
+      const kind = resourceTypeToForkKind(row.resourceType)
+      if (!kind) continue
+      const key = `${kind}:${sourceId}`
+      if (!referenceByKey.has(key))
+        referenceByKey.set(key, { kind, sourceId, subBlockKey: '', required: false })
+    }
+  }
   const references: ForkReference[] = Array.from(referenceByKey.values())
 
   // Source-side labels and credential providers, both looked up by EXACT ID (never the capped
@@ -184,7 +208,12 @@ export async function getForkMappingView(
   for (const reference of references) {
     // Only SOURCE workspace secrets are mappable; a `{{KEY}}` that isn't a source
     // workspace env var is a personal (user-scoped) secret - leave it as-is.
-    if (reference.kind === 'env-var' && !sourceEnvKeys.has(reference.sourceId)) continue
+    if (
+      reference.kind === 'env-var' &&
+      !sourceEnvKeys.has(reference.sourceId) &&
+      params.scope !== 'all'
+    )
+      continue
     // Knowledge documents are not a standalone mappable kind: a document is a dependent field
     // of its knowledge base (the `document-selector` dependsOn the KB selector), re-picked in
     // that KB's reconfigure flow and auto-remapped when the KB is copied. So a document never
@@ -205,8 +234,9 @@ export async function getForkMappingView(
         ? reference.sourceId
         : (sourceLabels[reference.kind]?.get(reference.sourceId) ?? reference.sourceId)
     const sourceDeleted =
-      reference.kind !== 'env-var' &&
-      !(sourceLabels[reference.kind]?.has(reference.sourceId) ?? false)
+      reference.kind === 'env-var'
+        ? !sourceEnvKeys.has(reference.sourceId)
+        : !(sourceLabels[reference.kind]?.has(reference.sourceId) ?? false)
     const sourceProviderId = sourceProviders.get(reference.sourceId) ?? undefined
     // A credential reference only maps to a target credential of the SAME OAuth
     // provider - a Gmail (google-email) reference must never offer a Google Calendar
@@ -278,12 +308,8 @@ export async function getForkMappingView(
       sourceDeleted: p.sourceDeleted,
       targetId,
       suggested,
-      // Every entry here is a reference a synced workflow actually carries, and a sync is
-      // blocked while ANY reference would clear - so every entry is required. Copyable kinds
-      // (table / KB / file / custom tool / skill) also satisfy the gate by being selected for
-      // copy; map-only kinds (credential / env-var / MCP server) and source-deleted resources
-      // (no copy candidate) must be mapped.
-      required: true,
+      /** Saved-only mappings do not become requirements of the current sync. */
+      required: syncReferenceKeys.has(`${p.reference.kind}:${p.reference.sourceId}`),
       candidates,
       // The full (unfiltered) target list for this kind hit the cap, so the picker is
       // showing a partial list - the UI tells the user to refine.

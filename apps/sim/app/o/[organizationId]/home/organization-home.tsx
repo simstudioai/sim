@@ -1,9 +1,10 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import { toast } from '@sim/emcn'
+import { OverflowText, toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -15,13 +16,21 @@ import {
   getMothershipAttachmentPreviewUrl,
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
+import {
+  MOTHERSHIP_SEND_MESSAGE_EVENT,
+  type MothershipSendMessageDetail,
+} from '@/lib/mothership/events'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
+import { projectPaneParsers } from '@/app/o/[organizationId]/home/components/project-pane/search-params'
+import { useDraftResourceTabs } from '@/app/o/[organizationId]/home/components/project-pane/use-draft-resource-tabs'
+import { useProjectPane } from '@/app/o/[organizationId]/home/components/project-pane/use-project-pane'
 import { organizationHomeParsers } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { organizationSearchUrlKeys } from '@/app/o/[organizationId]/search/search-params'
+import { SearchResultsView } from '@/app/o/[organizationId]/search/search-results-view'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
@@ -46,7 +55,10 @@ import type {
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
-import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
+import {
+  useMarkMothershipChatRead,
+  useOrganizationMothershipChats,
+} from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
@@ -108,15 +120,35 @@ function OrganizationHomeContent({
   const rememberedMode = useOrganizationChatModeStore(
     (state) => state.modes[`${userId}:${organization.id}`]
   )
-  const [{ q, source, updated, from, to, searchLevel: urlSearchLevel }, setSearchParams] =
-    useQueryStates(organizationHomeParsers, organizationSearchUrlKeys)
+  const [
+    { q, source, updated, from, to, mode: composerMode, searchLevel: urlSearchLevel },
+    setSearchParams,
+  ] = useQueryStates(organizationHomeParsers, organizationSearchUrlKeys)
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const planEnabled = useFeatureFlag('mothership-plan-mode')
+  const projectViewEnabled = useFeatureFlag('org-project-view')
+  const lookupMode =
+    projectViewEnabled && !chatId && composerMode === 'search' && searchAccess.memberScoped
+  const [, setPaneParams] = useQueryStates(projectPaneParsers)
+  const onResourceSelected = useCallback(() => {
+    if (!projectViewEnabled) return
+    void setPaneParams((current) => ({
+      pane: null,
+      browse: current.browse.filter((tab) => tab.split(':')[0] !== current.pane),
+    }))
+  }, [projectViewEnabled, setPaneParams])
   const requestMode =
     selectedMode ??
     (urlSearchLevel && searchAccess.memberScoped && !chatId ? 'assistant' : undefined) ??
     savedMode ??
+    (projectViewEnabled &&
+    !chatId &&
+    (composerMode === 'agent' ||
+      (composerMode === 'plan' && planEnabled) ||
+      (composerMode === 'assistant' && searchAccess.memberScoped))
+      ? composerMode
+      : undefined) ??
     (!canBuild || !mothershipAvailable
       ? 'assistant'
       : rememberedMode === 'plan' && planEnabled
@@ -124,7 +156,10 @@ function OrganizationHomeContent({
         : rememberedMode === 'assistant' && searchAccess.memberScoped
           ? 'assistant'
           : 'agent')
-  const controller = useResourcePanelController()
+  const controller = useResourcePanelController({
+    defaultExpanded: projectViewEnabled,
+    onResourceSelected,
+  })
   const queryClient = useQueryClient()
   const chat = useChat(
     { organizationId: organization.id },
@@ -136,12 +171,24 @@ function OrganizationHomeContent({
       ...(syncChatUrl === false ? { syncChatUrl } : {}),
     })
   )
+  useDraftResourceTabs({
+    storageKey: `org-draft-tabs:${userId}:${organization.id}`,
+    enabled: projectViewEnabled,
+    hasChat: Boolean(chatId || chat.resolvedChatId),
+    resources: chat.resources,
+    addResource: chat.addResource,
+  })
+  const { data: organizationChats } = useOrganizationMothershipChats(organization.id)
+  const chatTitle = organizationChats?.find(
+    (entry) => entry.id === (chat.resolvedChatId ?? chatId)
+  )?.name
   const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
   const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? 'new'}`
   const savedDraft = useMothershipDraftsStore.getState().drafts
   const initialDraft = savedDraft[draftKey] ?? savedDraft[initialDraftKey]
   const draft = useMothershipDraftsStore(
-    (state) => (state.drafts[draftKey] ?? state.drafts[initialDraftKey])?.text ?? ''
+    (state) =>
+      (state.drafts[draftKey] ?? state.drafts[initialDraftKey])?.text ?? (lookupMode ? q : '')
   )
   const setDraft = useCallback(
     (text: string, contexts?: ChatContext[]) => {
@@ -161,11 +208,17 @@ function OrganizationHomeContent({
     !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
   const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
   const assistantSearchLevel = 'fast'
-  const panel = useChatResourcePanel(chat, controller)
+  const panel = useChatResourcePanel(chat, controller, projectViewEnabled)
+  const projectPane = useProjectPane(
+    chat.resources,
+    chat.activeResourceId,
+    chat.desktopScopeId,
+    panel.expandResource
+  )
   const addResource = panel.addResourceFromUser
   /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
   useEffect(() => {
-    if (hasChat || !q.trim()) return
+    if (lookupMode || hasChat || !q.trim()) return
     const resource = createSearchResource({
       scope: { kind: 'organization', organizationId: organization.id },
       query: q.trim(),
@@ -178,6 +231,7 @@ function OrganizationHomeContent({
       return
     addResource(resource)
   }, [
+    lookupMode,
     hasChat,
     q,
     source,
@@ -247,6 +301,54 @@ function OrganizationHomeContent({
   }, [chat.error])
   const { recordQuery } = useSearchHistoryActions()
   const { sendMessage } = chat
+  const router = useRouter()
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<MothershipSendMessageDetail>).detail
+      if (event.defaultPrevented || !detail?.message) return
+      const mode = detail.requestMode ?? requestMode
+      if (!mothershipAvailable || (mode !== 'assistant' && !canBuild)) return
+      event.preventDefault()
+      if (hasChat && mode !== requestMode) {
+        if (
+          !MothershipHandoffStorage.store(
+            { ...detail, requestMode: mode },
+            { organizationId: organization.id }
+          )
+        ) {
+          toast.error('Could not start dashboard setup in a new chat.')
+          return
+        }
+        const params = new URLSearchParams(window.location.search)
+        params.set('mode', mode)
+        params.delete('q')
+        params.delete('searchLevel')
+        router.push(`/o/${organization.id}/home?${params}`)
+        return
+      }
+      setSelectedMode(mode)
+      void setSearchParams({ mode, searchLevel: null, q: null })
+      void sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
+        requestMode: mode,
+        ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
+        ...(detail.assistantSearch ? { assistantSearch: detail.assistantSearch } : {}),
+        ...(detail.assistantSearchLevel !== undefined
+          ? { assistantSearchLevel: detail.assistantSearchLevel }
+          : {}),
+      })
+    }
+    window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
+    return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
+  }, [
+    requestMode,
+    hasChat,
+    canBuild,
+    mothershipAvailable,
+    organization.id,
+    router,
+    sendMessage,
+    setSearchParams,
+  ])
   const { mutate: markRead } = useMarkMothershipChatRead({ organizationId: organization.id })
   const firstName = userName?.split(' ')[0] ?? ''
 
@@ -296,14 +398,21 @@ function OrganizationHomeContent({
     })
   }
   const changeMode = (mode: ChatRequestMode) => {
-    if (!canSelectMode || mode === requestMode) return
+    if (!canSelectMode || (mode === requestMode && !lookupMode)) return
     setSelectedMode(mode)
-    void setSearchParams({ searchLevel: null })
+    void setSearchParams({ searchLevel: null, mode, q: null })
     if (userId) rememberMode(userId, organization.id, mode)
   }
 
   const submit = (text: string, contexts?: ChatContext[]) => {
     const message = text.trim()
+    if (lookupMode) {
+      if (!message) return
+      recordQuery(message)
+      setDraft(message)
+      void setSearchParams({ q: message })
+      return
+    }
     if (files.attachedFiles.some((file) => file.uploading)) return
     const attachments: FileAttachmentForApi[] = files.attachedFiles
       .filter((file) => file.key)
@@ -333,13 +442,19 @@ function OrganizationHomeContent({
         Build requires permission to create workspaces.{' '}
         {searchAccess.memberScoped && (
           <Link href={`/o/${organization.id}/home`} className='underline'>
-            Start a Search chat
+            Ask about your sources
           </Link>
         )}
       </div>
     ) : (
       <Composer
         requestMode={requestMode}
+        lookupMode={lookupMode}
+        onSearchMode={
+          projectViewEnabled && canSelectMode
+            ? () => void setSearchParams({ mode: 'search', searchLevel: null })
+            : undefined
+        }
         searchEnabled={searchAccess.memberScoped}
         showModeSelector={canSelectMode}
         onModeChange={canSelectMode ? changeMode : undefined}
@@ -361,96 +476,126 @@ function OrganizationHomeContent({
 
   const hostLanding = hasChat ? undefined : landing?.(requestMode)
   const content = (
-    <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
-      {hasChat ? (
-        <MothershipChat
-          onViewSources={(messageId, requestId) =>
-            addResource({
-              type: 'sources',
-              id: 'cited-sources',
-              title: 'Sources',
-              sources: { messageId, ...(requestId ? { requestId } : {}) },
-            })
-          }
-          SearchConnectionComponent={SearchIntegrationConnection}
-          messages={chat.messages}
-          isSending={chat.isSending}
-          isReconnecting={chat.isReconnecting}
-          isLoading={Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending}
-          onSubmit={send}
-          onStopGeneration={() => {
-            void chat.stopGeneration()
-          }}
-          messageQueue={chat.messageQueue}
-          editingQueuedId={chat.editingQueuedId}
-          dispatchingHeadId={chat.dispatchingHeadId}
-          onRemoveQueuedMessage={chat.removeFromQueue}
-          onSendQueuedMessage={chat.sendNow}
-          onEditQueuedMessage={(id) => {
-            const queued = chat.editQueuedMessage(id)
-            if (queued) {
-              const queuedMode = queued.requestMode ?? requestMode
-              setSelectedMode(queuedMode)
-              setDraft(queued.content, queued.contexts)
-              setRestoredContexts(queued.contexts ?? [])
-              files.restoreAttachedFiles(
-                (queued.fileAttachments ?? []).map((file) => ({
-                  id: file.id,
-                  key: file.key,
-                  name: file.filename,
-                  type: file.media_type,
-                  size: file.size,
-                  path:
-                    file.path ||
-                    getMothershipAttachmentPreviewUrl(file) ||
-                    getMothershipAttachmentUrl(file),
-                  previewUrl: getMothershipAttachmentPreviewUrl(file),
-                  uploading: false,
-                }))
-              )
-            }
-            return queued
-          }}
-          onCancelQueueEdit={chat.cancelQueueEdit}
-          userId={session?.user?.id}
-          chatId={chat.resolvedChatId}
+    <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]'>
+      {projectViewEnabled && (
+        <header className='flex h-[calc(var(--resource-header-controls-height)+1px)] shrink-0 items-center gap-2 border-[var(--border)] border-b px-4'>
+          <OverflowText
+            label={chatTitle || (lookupMode ? 'Search' : 'New chat')}
+            className='text-[var(--text-body)] text-small'
+          />
+        </header>
+      )}
+      {lookupMode ? (
+        <SearchResultsView
+          embedded
           composer={composer}
-          onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={
-            (requestMode !== 'assistant' || liveSearch) &&
-            chat.resources.length > 0 &&
-            panel.isResourceCollapsed
-          }
+          query={q}
+          onSummarize={(message, filters) => {
+            setSelectedMode('assistant')
+            void setSearchParams({ mode: 'assistant', q: null })
+            void sendMessage(message, undefined, undefined, {
+              requestMode: 'assistant',
+              assistantSearchLevel,
+              assistantSearch: filters,
+            })
+          }}
         />
       ) : (
-        <OrganizationLanding
-          heading={
-            hostLanding?.heading ??
-            (requestMode === 'assistant'
-              ? `Search ${organization.name}`
-              : requestMode === 'plan'
-                ? `What should we understand and plan${firstName ? `, ${firstName}` : ''}?`
-                : `What should we get done${firstName ? `, ${firstName}` : ''}?`)
-          }
-        >
-          {hostLanding?.accessory}
-          {composer}
-          <div className='absolute inset-x-0 top-full'>
-            {requestMode === 'agent' ? (
-              <SuggestedActions
-                organizationId={organization.id}
-                onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
-              />
-            ) : searchAccess.memberScoped ? (
-              <GetStarted />
-            ) : null}
-          </div>
-        </OrganizationLanding>
+        <>
+          {hasChat ? (
+            <MothershipChat
+              onViewSources={(messageId, requestId) =>
+                addResource({
+                  type: 'sources',
+                  id: 'cited-sources',
+                  title: 'Sources',
+                  sources: { messageId, ...(requestId ? { requestId } : {}) },
+                })
+              }
+              SearchConnectionComponent={SearchIntegrationConnection}
+              messages={chat.messages}
+              isSending={chat.isSending}
+              isReconnecting={chat.isReconnecting}
+              isLoading={Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending}
+              onSubmit={send}
+              onStopGeneration={() => {
+                void chat.stopGeneration()
+              }}
+              messageQueue={chat.messageQueue}
+              editingQueuedId={chat.editingQueuedId}
+              dispatchingHeadId={chat.dispatchingHeadId}
+              onRemoveQueuedMessage={chat.removeFromQueue}
+              onSendQueuedMessage={chat.sendNow}
+              onEditQueuedMessage={(id) => {
+                const queued = chat.editQueuedMessage(id)
+                if (queued) {
+                  const queuedMode = queued.requestMode ?? requestMode
+                  setSelectedMode(queuedMode)
+                  setDraft(queued.content, queued.contexts)
+                  setRestoredContexts(queued.contexts ?? [])
+                  files.restoreAttachedFiles(
+                    (queued.fileAttachments ?? []).map((file) => ({
+                      id: file.id,
+                      key: file.key,
+                      name: file.filename,
+                      type: file.media_type,
+                      size: file.size,
+                      path:
+                        file.path ||
+                        getMothershipAttachmentPreviewUrl(file) ||
+                        getMothershipAttachmentUrl(file),
+                      previewUrl: getMothershipAttachmentPreviewUrl(file),
+                      uploading: false,
+                    }))
+                  )
+                }
+                return queued
+              }}
+              onCancelQueueEdit={chat.cancelQueueEdit}
+              userId={session?.user?.id}
+              chatId={chat.resolvedChatId}
+              composer={composer}
+              onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
+              initialScrollBlocked={
+                (requestMode !== 'assistant' || liveSearch) &&
+                chat.resources.length > 0 &&
+                panel.isResourceCollapsed
+              }
+            />
+          ) : (
+            <OrganizationLanding
+              heading={
+                hostLanding?.heading ??
+                (requestMode === 'assistant'
+                  ? projectViewEnabled
+                    ? 'What would you like to know?'
+                    : `Search ${organization.name}`
+                  : requestMode === 'plan'
+                    ? `What should we understand and plan${firstName ? `, ${firstName}` : ''}?`
+                    : `What should we get done${firstName ? `, ${firstName}` : ''}?`)
+              }
+            >
+              {hostLanding?.accessory}
+              {composer}
+              <div className='absolute inset-x-0 top-full'>
+                {requestMode === 'agent' ? (
+                  <SuggestedActions
+                    organizationId={organization.id}
+                    onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
+                  />
+                ) : searchAccess.memberScoped ? (
+                  <GetStarted />
+                ) : null}
+              </div>
+            </OrganizationLanding>
+          )}
+        </>
       )}
     </div>
   )
   return (
     <ChatResourcePanel
+      navigation={projectViewEnabled ? projectPane.navigation : undefined}
       allowBuildControls={requestMode !== 'assistant' && canBuild}
       organizationId={organization.id}
       chat={chat}

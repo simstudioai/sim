@@ -40,3 +40,19 @@ export const organizationAccountWorkspaceGrantsSchema = z
 export type OrganizationAccountWorkspaceGrant = z.output<
   typeof organizationAccountWorkspaceGrantSchema
 >
+
+/** An explicit project rule follows its current and future environments. */
+export const organizationAccountProjectGrantSchema = z
+  .object({
+    projectId: z.string().trim().min(1).max(128),
+    access: organizationAccountWorkspaceGrantSchema.shape.access,
+  })
+  .strict()
+export const organizationAccountProjectGrantsSchema = z
+  .array(organizationAccountProjectGrantSchema)
+  .max(ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT)
+  .refine(
+    (grants) => new Set(grants.map((grant) => grant.projectId)).size === grants.length,
+    'Project grants must be unique'
+  )
+export type OrganizationAccountProjectGrant = z.output<typeof organizationAccountProjectGrantSchema>

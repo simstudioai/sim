@@ -23,8 +23,8 @@ import {
   SquareArrowUpRight,
   Trash,
 } from '@sim/emcn/icons'
-import Link from 'next/link'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { SettingsGuardedLink as Link } from '@/components/settings/settings-guarded-link'
 import { useProjectActions } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/use-project-actions'
 import type { ProjectDragProps } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/use-project-order'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'

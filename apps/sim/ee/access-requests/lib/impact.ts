@@ -2,7 +2,7 @@ import {
   member,
   permissionGroup,
   permissionGroupMember,
-  permissionGroupWorkspace,
+  permissionGroupWorkspaceScope,
   permissions,
   workspace,
 } from '@sim/db/schema'
@@ -33,7 +33,7 @@ export async function loadAccessRequestGroupImpact(
     isNull(workspace.archivedAt),
     group?.isDefault
       ? undefined
-      : sql`exists (select 1 from ${permissionGroupWorkspace} where ${permissionGroupWorkspace.permissionGroupId} = ${groupId} and ${permissionGroupWorkspace.workspaceId} = ${workspace.id})`
+      : sql`exists (select 1 from ${permissionGroupWorkspaceScope} where ${permissionGroupWorkspaceScope.permissionGroupId} = ${groupId} and ${permissionGroupWorkspaceScope.workspaceId} = ${workspace.id})`
   )
   const scopedWorkspaces = executor.select({ id: workspace.id }).from(workspace).where(scope)
   const scopedGrantees = executor
@@ -54,9 +54,9 @@ export async function loadAccessRequestGroupImpact(
           inArray(
             permissionGroup.id,
             executor
-              .select({ groupId: permissionGroupWorkspace.permissionGroupId })
-              .from(permissionGroupWorkspace)
-              .where(inArray(permissionGroupWorkspace.workspaceId, scopedWorkspaces))
+              .select({ groupId: permissionGroupWorkspaceScope.permissionGroupId })
+              .from(permissionGroupWorkspaceScope)
+              .where(inArray(permissionGroupWorkspaceScope.workspaceId, scopedWorkspaces))
           )
         )
       )
@@ -119,14 +119,14 @@ export async function loadAccessRequestGroupImpact(
   const [scopes] = await executor
     .select({
       revision: membershipRevision(
-        sql`jsonb_build_array(${permissionGroupWorkspace.id}, ${permissionGroupWorkspace.workspaceId}, ${permissionGroupWorkspace.permissionGroupId})::text`
+        sql`jsonb_build_array(${permissionGroupWorkspaceScope.id}, ${permissionGroupWorkspaceScope.workspaceId}, ${permissionGroupWorkspaceScope.permissionGroupId})::text`
       ),
     })
-    .from(permissionGroupWorkspace)
+    .from(permissionGroupWorkspaceScope)
     .where(
       and(
-        eq(permissionGroupWorkspace.organizationId, organizationId),
-        inArray(permissionGroupWorkspace.workspaceId, scopedWorkspaces)
+        eq(permissionGroupWorkspaceScope.organizationId, organizationId),
+        inArray(permissionGroupWorkspaceScope.workspaceId, scopedWorkspaces)
       )
     )
   const candidates = executor

@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import { ChipTag } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -25,10 +24,10 @@ import { CustomBlockDetail } from '@/ee/custom-blocks/components/custom-block-de
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCanPublishCustomBlock, useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 export function CustomBlocks() {
-  const params = useParams()
-  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
+  const workspaceId = useSettingsWorkspaceId()
   const workspacePermissions = useUserPermissionsContext()
   const canAdmin = canMutateWorkspaceSettingsSection('custom-blocks', workspacePermissions)
   const permissionsLoading = workspacePermissions.isLoading

@@ -1,75 +1,45 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
-import { Check, ChevronDown } from '@sim/emcn/icons'
-import { useQueryStates } from 'nuqs'
-import { DashboardFile } from '@/app/o/[organizationId]/p/components/dashboard-file'
-import { RunsDashboard } from '@/app/o/[organizationId]/p/components/runs-dashboard'
-import { useProjectResources } from '@/app/o/[organizationId]/p/hooks/use-project-resources'
+import { Chip, toast } from '@sim/emcn'
+import { DashboardResource } from '@/components/dashboards/dashboard-resource'
+import { EmptyState } from '@/components/empty-state/empty-state'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
-import { projectParsers } from '@/app/o/[organizationId]/p/search-params'
+import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 
-const RUNS_ID = 'runs'
-
-interface DashboardOption {
-  id: string
-  title: string
-  kind: 'file' | 'runs'
-}
-
-/** The project's dashboards: its `.dashboard` files rendered live, then a built-in Runs dashboard. */
-export function ProjectDashboard({ project }: { project: Project }) {
-  const [{ dashboard: selected }, setParams] = useQueryStates(projectParsers)
-  const { dashboardFiles, filesPending } = useProjectResources(project.id)
-
-  if (filesPending)
-    return <p className='px-6 py-16 text-center text-[var(--text-muted)] text-small'>Loading…</p>
-
-  const options: DashboardOption[] = [
-    ...dashboardFiles.map((file) => ({ id: file.id, title: file.name, kind: 'file' as const })),
-    { id: RUNS_ID, title: 'Runs', kind: 'runs' },
-  ]
-  const current = options.find((option) => option.id === selected) ?? options[0]
-
-  const title = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type='button'
-          className='flex items-center gap-2 self-start rounded-lg text-left @min-[1000px]/dashboard:text-[32px] text-[28px] text-[var(--text-primary)] leading-tight tracking-[-0.02em]'
-        >
-          {current.title}
-          <ChevronDown className='size-[16px] text-[var(--text-icon)]' />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='start'>
-        {options.map((option) => (
-          <DropdownMenuItem
-            key={option.id}
-            onSelect={() => void setParams({ dashboard: option.id }, { history: 'replace' })}
-          >
-            <span className='flex-1'>{option.title}</span>
-            {option.id === current.id && <Check className='size-[14px] text-[var(--text-icon)]' />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-
-  return <DashboardBody project={project} option={current} title={title} />
-}
-
-interface DashboardBodyProps {
+interface ProjectDashboardProps {
   project: Project
-  option: DashboardOption
-  title: ReactNode
 }
 
-function DashboardBody({ project, option, title }: DashboardBodyProps) {
-  const { dashboardFiles } = useProjectResources(project.id)
-  if (option.kind === 'runs') return <RunsDashboard key={RUNS_ID} project={project} title={title} />
-  const file = dashboardFiles.find((candidate) => candidate.id === option.id)
-  if (!file) return null
-  return <DashboardFile key={file.id} workspaceId={project.id} file={file} title={title} />
+export function ProjectDashboard({ project }: ProjectDashboardProps) {
+  const { canBuild, mothershipAvailable } = useOrganizationContext()
+  const createDashboard = () => {
+    const message = [
+      `Help me create the first dashboard for project ${JSON.stringify(project.name)} (project ID: ${project.projectId}).`,
+      `I'm viewing environment ${JSON.stringify(project.environment)} (workspace ID: ${project.id}), which has no dashboard.`,
+      `Project environments: ${JSON.stringify(project.environments)}.`,
+      'First ask me what I want to see in the dashboard: goals, metrics, data sources, and layout. Do not create dashboards until we agree on what to include.',
+      'Then check the dashboard in every accessible environment of this project and create one for each environment that does not already have one, using that environment’s own tables and data. Preserve existing dashboards. Tell me if an environment needs data or permissions before it can be set up.',
+    ].join('\n\n')
+    if (!sendMothershipMessage(message, undefined, undefined, undefined, 'agent')) {
+      toast.error('Could not open dashboard setup in chat. Please try again.')
+    }
+  }
+  return (
+    <DashboardResource
+      key={project.id}
+      workspaceId={project.id}
+      emptyState={
+        <EmptyState
+          title='Create your first dashboard'
+          description='Tell Sim what you want to track across your project’s environments.'
+          action={
+            canBuild && mothershipAvailable ? (
+              <Chip onClick={createDashboard}>Create dashboard</Chip>
+            ) : undefined
+          }
+        />
+      }
+    />
+  )
 }

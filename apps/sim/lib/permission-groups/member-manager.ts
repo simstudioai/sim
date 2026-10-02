@@ -45,7 +45,13 @@ export async function addPermissionGroupMemberRecord(
       throw new OrchestrationError('conflict', 'User is already in this permission group')
     const workspaceIds = (await getGroupWorkspaces(groupId, tx)).map((workspace) => workspace.id)
     const conflicts = await findScopeConflicts(
-      { organizationId, excludeGroupId: groupId, workspaceIds, candidateUserIds: [userId] },
+      {
+        organizationId,
+        excludeGroupId: groupId,
+        workspaceIds,
+        projectIds: group.projectIds,
+        candidateUserIds: [userId],
+      },
       tx
     )
     if (conflicts.length)
@@ -100,7 +106,7 @@ export async function removePermissionGroupMemberRecord(
           (workspace) => workspace.id
         )
         const conflict = await findAllMembersWorkspaceConflict(
-          { organizationId, excludeGroupId: groupId, workspaceIds },
+          { organizationId, excludeGroupId: groupId, workspaceIds, projectIds: group.projectIds },
           tx
         )
         if (conflict)

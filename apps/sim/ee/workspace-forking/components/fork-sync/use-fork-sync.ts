@@ -8,6 +8,7 @@ import type {
   ForkCopyableUnmapped,
   ForkDependentReconfig,
   ForkMappingEntry,
+  ForkMappingScope,
   ForkResourceUsage,
   ForkTriggerMapping,
   ForkTriggerUrlChange,
@@ -298,6 +299,7 @@ function takenTargetOwners(
  * settled (non-placeholder) diff so a stale payload can't latch wrong keys.
  */
 export function useForkSync(params: {
+  mappingScope?: ForkMappingScope
   workspaceId: string
   /** This workspace's name, for copy that must say which side a pull overwrites. */
   workspaceName?: string
@@ -345,9 +347,15 @@ export function useForkSync(params: {
     setCopyDefaulted(false)
     setDroppedRefs(new Set())
     setTriggerAdoptions({})
-  }, [direction, otherWorkspaceId])
+  }, [direction, otherWorkspaceId, workspaceId])
 
-  const mapping = useForkMapping({ workspaceId, otherWorkspaceId, direction, enabled })
+  const mapping = useForkMapping({
+    workspaceId,
+    otherWorkspaceId,
+    direction,
+    enabled,
+    scope: params.mappingScope,
+  })
   const diff = useForkDiff({ workspaceId, otherWorkspaceId, direction, enabled })
   const updateMapping = useUpdateForkMapping()
   const promote = usePromoteFork()

@@ -10,8 +10,10 @@ export const metadata: Metadata = { title: 'Search' }
 
 export default async function OrganizationSearchPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ organizationId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { organizationId } = await params
   const session = await getSession()
@@ -20,7 +22,13 @@ export default async function OrganizationSearchPage({
   if (!context) notFound()
   if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
   /** With the org project view, search is a mode of the Home composer rather than its own page. */
-  if (await isOrgProjectViewEnabled(organizationId))
-    redirect(organizationRoutes(organizationId).home)
+  if (await isOrgProjectViewEnabled(organizationId)) {
+    const query = new URLSearchParams({ mode: 'search' })
+    for (const [key, value] of Object.entries(await searchParams)) {
+      if (['q', 'source', 'updated', 'from', 'to'].includes(key) && typeof value === 'string')
+        query.set(key, value)
+    }
+    redirect(`${organizationRoutes(organizationId).home}?${query}`)
+  }
   return <OrganizationSearch userId={session.user.id} />
 }

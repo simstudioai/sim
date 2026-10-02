@@ -1,7 +1,14 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
+import {
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspace,
+  project,
+  projectWorkspace,
+  workspace,
+} from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -20,7 +27,6 @@ import {
 import { withPermissionGroupMutation } from '@/lib/permission-groups/mutation'
 import {
   findWorkspacesNotInOrganization,
-  getGroupWorkspaces,
   loadGroupInOrganization,
 } from '@/lib/permission-groups/repository'
 
@@ -29,6 +35,7 @@ export interface PermissionGroupChanges {
   description?: string | null
   config?: Partial<PermissionGroupConfig>
   isDefault?: boolean
+  projectIds?: string[]
   workspaceIds?: string[]
 }
 
@@ -52,6 +59,50 @@ async function validateWorkspaces(
       'validation',
       'One or more selected workspaces do not belong to this organization'
     )
+}
+
+/** Validate project ownership and resolve current environments for overlap checks. */
+async function resolveProjectEnvironments(
+  organizationId: string,
+  projectIds: string[],
+  tx: DbOrTx
+) {
+  if (!projectIds.length) return []
+  const projects = await tx
+    .select({ id: project.id })
+    .from(project)
+    .where(
+      and(
+        inArray(project.id, projectIds),
+        eq(project.organizationId, organizationId),
+        isNull(project.archivedAt)
+      )
+    )
+  if (projects.length !== projectIds.length)
+    throw new OrchestrationError(
+      'validation',
+      'Every selected project must be active and belong to this organization'
+    )
+  const environments = await tx
+    .select({ id: workspace.id })
+    .from(projectWorkspace)
+    .innerJoin(workspace, eq(workspace.id, projectWorkspace.workspaceId))
+    .where(
+      and(
+        inArray(projectWorkspace.projectId, projectIds),
+        eq(workspace.organizationId, organizationId),
+        isNull(workspace.archivedAt)
+      )
+    )
+  return environments.map((environment) => environment.id)
+}
+
+async function explicitWorkspaceIds(groupId: string, tx: DbOrTx) {
+  const rows = await tx
+    .select({ id: permissionGroupWorkspace.workspaceId })
+    .from(permissionGroupWorkspace)
+    .where(eq(permissionGroupWorkspace.permissionGroupId, groupId))
+  return rows.map((row) => row.id)
 }
 
 async function assertAvailableName(
@@ -103,19 +154,22 @@ export async function createPermissionGroupRecord(
   input: PermissionGroupChanges & { name: string }
 ) {
   const isDefault = input.isDefault === true
-  const workspaceIds = [...new Set(input.workspaceIds ?? [])]
-  if (isDefault && workspaceIds.length)
+  const explicitIds = [...new Set(input.workspaceIds ?? [])]
+  const projectIds = [...new Set(input.projectIds ?? [])]
+  if (isDefault && (explicitIds.length || projectIds.length))
     throw new OrchestrationError(
       'validation',
       'The default group governs all workspaces and cannot target specific workspaces'
     )
-  if (!isDefault && !workspaceIds.length)
+  if (!isDefault && !explicitIds.length && !projectIds.length)
     throw new OrchestrationError(
       'validation',
       'Select at least one workspace when the group targets specific workspaces'
     )
   return withPermissionGroupMutation(organizationId, async (tx) => {
-    await validateWorkspaces(organizationId, workspaceIds, tx)
+    await validateWorkspaces(organizationId, explicitIds, tx)
+    const inheritedIds = await resolveProjectEnvironments(organizationId, projectIds, tx)
+    const workspaceIds = [...new Set([...explicitIds, ...inheritedIds])]
     await assertAvailableName(organizationId, input.name, tx)
     const now = new Date()
     const group = {
@@ -129,10 +183,11 @@ export async function createPermissionGroupRecord(
       updatedAt: now,
       isDefault,
       membershipMode: 'inherit',
+      projectIds,
     }
     if (!isDefault) {
       const conflict = await findAllMembersWorkspaceConflict(
-        { organizationId, excludeGroupId: group.id, workspaceIds },
+        { organizationId, excludeGroupId: group.id, workspaceIds, projectIds },
         tx
       )
       if (conflict)
@@ -140,7 +195,13 @@ export async function createPermissionGroupRecord(
     }
     if (isDefault) await demoteDefault(organizationId, now, tx)
     await tx.insert(permissionGroup).values(group)
-    await insertWorkspaceLinks(organizationId, group.id, workspaceIds, now, tx)
+    await insertWorkspaceLinks(
+      organizationId,
+      group.id,
+      explicitIds.filter((id) => !inheritedIds.includes(id)),
+      now,
+      tx
+    )
     return { ...group, workspaceIds }
   })
 }
@@ -155,23 +216,33 @@ export async function updatePermissionGroupRecord(
     if (updates.name !== undefined)
       await assertAvailableName(organizationId, updates.name, tx, groupId)
     const isDefault = updates.isDefault ?? group.isDefault
-    if (isDefault && updates.workspaceIds?.length)
+    if (isDefault && (updates.workspaceIds?.length || updates.projectIds?.length))
       throw new OrchestrationError(
         'validation',
         'The default group governs all workspaces and cannot target specific workspaces'
       )
     const demotingToInert =
-      group.isDefault && updates.isDefault === false && updates.workspaceIds === undefined
+      group.isDefault &&
+      updates.isDefault === false &&
+      updates.workspaceIds === undefined &&
+      updates.projectIds === undefined
     const scopeProvided =
-      demotingToInert || updates.workspaceIds !== undefined || updates.isDefault === true
-    const workspaceIds =
+      demotingToInert ||
+      updates.workspaceIds !== undefined ||
+      updates.projectIds !== undefined ||
+      updates.isDefault === true
+    const projectIds =
+      isDefault || demotingToInert ? [] : [...new Set(updates.projectIds ?? group.projectIds)]
+    const explicitIds =
       isDefault || demotingToInert
         ? []
         : updates.workspaceIds !== undefined
           ? [...new Set(updates.workspaceIds)]
-          : (await getGroupWorkspaces(groupId, tx)).map((workspace) => workspace.id)
+          : await explicitWorkspaceIds(groupId, tx)
     if (updates.workspaceIds !== undefined)
-      await validateWorkspaces(organizationId, workspaceIds, tx)
+      await validateWorkspaces(organizationId, explicitIds, tx)
+    const inheritedIds = await resolveProjectEnvironments(organizationId, projectIds, tx)
+    const workspaceIds = [...new Set([...explicitIds, ...inheritedIds])]
     if (scopeProvided) {
       const members = await tx
         .select({ userId: permissionGroupMember.userId })
@@ -182,6 +253,7 @@ export async function updatePermissionGroupRecord(
           organizationId,
           excludeGroupId: groupId,
           workspaceIds,
+          projectIds,
           candidateUserIds: members.map((member) => member.userId),
         },
         tx
@@ -190,7 +262,7 @@ export async function updatePermissionGroupRecord(
         throw new OrchestrationError('conflict', formatScopeConflictError(conflicts))
       if (!isDefault && group.membershipMode === 'inherit' && members.length === 0) {
         const conflict = await findAllMembersWorkspaceConflict(
-          { organizationId, excludeGroupId: groupId, workspaceIds },
+          { organizationId, excludeGroupId: groupId, workspaceIds, projectIds },
           tx
         )
         if (conflict)
@@ -209,6 +281,7 @@ export async function updatePermissionGroupRecord(
         ...(updates.description !== undefined && { description: updates.description }),
         ...(updates.isDefault !== undefined && { isDefault: updates.isDefault }),
         ...(updates.config !== undefined && { config }),
+        ...(scopeProvided && { projectIds }),
         updatedAt: now,
       })
       .where(
@@ -220,7 +293,13 @@ export async function updatePermissionGroupRecord(
       await tx
         .delete(permissionGroupWorkspace)
         .where(eq(permissionGroupWorkspace.permissionGroupId, groupId))
-      await insertWorkspaceLinks(organizationId, groupId, workspaceIds, now, tx)
+      await insertWorkspaceLinks(
+        organizationId,
+        groupId,
+        explicitIds.filter((id) => !inheritedIds.includes(id)),
+        now,
+        tx
+      )
     }
     return { ...updated, config: parsePermissionGroupConfig(updated.config), workspaceIds }
   })

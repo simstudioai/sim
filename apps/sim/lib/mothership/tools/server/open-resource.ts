@@ -5,11 +5,13 @@ import {
   openResourceOutputSchema,
 } from '@/lib/api/contracts/mothership-resource-tools'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { logDelegationPolicy } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetailUseCase } from '@/lib/logs/application/read-log-detail'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
+import { executeDashboardUseCase } from '@/lib/mothership/application/execute-dashboard-use-case'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import { executeCopilotKnowledgeUseCase } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
@@ -83,6 +85,15 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
             title: table.name,
             ...(resource.viewId ? { viewId: resource.viewId } : {}),
           })
+          break
+        }
+        case 'dashboard': {
+          const { dashboard } = await executeDashboardUseCase(context, readWorkspaceDashboard, {
+            workspaceId,
+          })
+          if (dashboard?.id !== resource.id)
+            throw new OrchestrationError('not_found', 'Dashboard not found')
+          resources.push({ ...base, title: dashboard.name })
           break
         }
         case 'file': {

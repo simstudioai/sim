@@ -18,6 +18,7 @@ import {
   type UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { projectEnvironmentLabel } from '@/lib/projects/environment-label'
 import {
   ManageCreditsModal,
   type ManageCreditsTarget,
@@ -46,6 +47,7 @@ import {
   useOrganizationUsageBreakdown,
   useOrganizationUsageOverview,
 } from '@/hooks/queries/organization-usage'
+import { useOrganizationProjectsQuery } from '@/hooks/queries/projects'
 
 const TABS = USAGE_TAB_ORDER.map((tab) => ({ value: tab, label: USAGE_TAB_LABELS[tab] }))
 
@@ -87,6 +89,7 @@ export function UsageMonitoring({
   auditLogsHref: auditLogsBaseHref,
 }: UsageMonitoringProps) {
   const router = useRouter()
+  const projects = useOrganizationProjectsQuery(organizationId)
   const { hosted, features } = useDeploymentShape()
   const { window, tab, workspace, expanded, preset, startDate, endDate, periodLabel, setState } =
     useUsageWindow()
@@ -224,11 +227,15 @@ export function UsageMonitoring({
       <SettingsPanel
         /** Replace when leaving a detail opened with push. */
         back={{
-          text: 'Workspaces',
+          text: 'Environments',
           icon: ArrowLeft,
           onSelect: () => void setState({ workspace: null, expanded: null }),
         }}
-        title={workspaceName ?? 'Workspace usage'}
+        title={projectEnvironmentLabel(
+          projects.data,
+          workspace ?? '',
+          workspaceName ?? 'Environment usage'
+        )}
         actions={
           auditLogsHref
             ? [
@@ -255,7 +262,17 @@ export function UsageMonitoring({
         <UsageSection dimension='workflow' unit='credits'>
           <UsageConsumers
             dimension='workflow'
-            breakdown={breakdown.data}
+            breakdown={
+              dimension === 'workspace' && breakdown.data
+                ? {
+                    ...breakdown.data,
+                    rows: breakdown.data.rows.map((row) => ({
+                      ...row,
+                      label: projectEnvironmentLabel(projects.data, row.id, row.label),
+                    })),
+                  }
+                : breakdown.data
+            }
             isLoading={breakdown.isLoading}
             isError={breakdown.isError}
             isPlaceholderData={breakdown.isPlaceholderData}
@@ -365,7 +382,17 @@ export function UsageMonitoring({
           <UsageSection dimension={dimension} unit={dimension === 'byok' ? 'tokens' : 'credits'}>
             <UsageConsumers
               dimension={dimension}
-              breakdown={breakdown.data}
+              breakdown={
+                dimension === 'workspace' && breakdown.data
+                  ? {
+                      ...breakdown.data,
+                      rows: breakdown.data.rows.map((row) => ({
+                        ...row,
+                        label: projectEnvironmentLabel(projects.data, row.id, row.label),
+                      })),
+                    }
+                  : breakdown.data
+              }
               isLoading={breakdown.isLoading}
               isError={breakdown.isError}
               isPlaceholderData={breakdown.isPlaceholderData}

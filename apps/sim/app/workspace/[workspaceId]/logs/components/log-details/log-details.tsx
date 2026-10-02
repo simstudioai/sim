@@ -47,7 +47,6 @@ import {
 } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { createPortal } from 'react-dom'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
@@ -59,6 +58,10 @@ import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-s
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import {
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 /**
  * Deep imports on purpose: importing these back through the parent `logs/components`
  * barrel forms a parent->child cycle that would keep the barrel edge to the snapshot
@@ -326,8 +329,8 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  const router = useRouter()
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const router = useResourceRouter()
+  const workspaceId = useResourceWorkspaceId()
 
   const { config: permissionConfig } = usePermissionConfig()
 

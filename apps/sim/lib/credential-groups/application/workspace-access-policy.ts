@@ -5,7 +5,9 @@ import {
 } from '@/lib/credential-groups/credential-types'
 import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
 import {
+  type OrganizationAccountProjectGrant,
   type OrganizationAccountWorkspaceGrant,
+  organizationAccountProjectGrantsSchema,
   organizationAccountWorkspaceGrantsSchema,
   organizationCredentialTypeSchema,
 } from '@/lib/credential-groups/workspace-grants'
@@ -58,6 +60,7 @@ const workspaceAccessStatementSchema = z
 export const organizationAccountAccessPolicySchema = z
   .object({
     version: z.literal(2),
+    projectGrants: organizationAccountProjectGrantsSchema.optional(),
     resource: z
       .object({ type: z.literal('credential_group'), id: z.string().min(1).max(128) })
       .strict(),
@@ -107,7 +110,8 @@ export const organizationAccountAccessPolicyCodec: ResourcePolicyCodec<
 
 export function buildOrganizationAccountAccessPolicy(
   credentialGroupId: string,
-  grants: OrganizationAccountWorkspaceGrant[]
+  grants: OrganizationAccountWorkspaceGrant[],
+  projectGrants: OrganizationAccountProjectGrant[] = []
 ): OrganizationAccountAccessPolicy {
   const parsed = organizationAccountWorkspaceGrantsSchema.parse(grants)
   const byType = new Map<OrganizationCredentialType | 'all', string[]>()
@@ -121,6 +125,7 @@ export function buildOrganizationAccountAccessPolicy(
   }
   return organizationAccountAccessPolicySchema.parse({
     version: 2,
+    ...(projectGrants.length ? { projectGrants } : {}),
     resource: { type: 'credential_group', id: credentialGroupId },
     statements: [...byType]
       .sort(([left], [right]) => left.localeCompare(right))

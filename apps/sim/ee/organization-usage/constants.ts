@@ -57,7 +57,7 @@ export const USAGE_TAB_LABELS: Record<UsageTab, string> = {
   overview: 'Overview',
   activity: 'Activity',
   member: 'Members',
-  workspace: 'Workspaces',
+  workspace: 'Environments',
   model: 'Models',
   byok: 'BYOK',
 }
@@ -65,7 +65,7 @@ export const USAGE_TAB_LABELS: Record<UsageTab, string> = {
 /** Section heading per view, so a list is never an unlabelled slab of rows. */
 export const USAGE_SECTION_LABELS: Record<UsageBreakdownDimension, string> = {
   member: 'Members',
-  workspace: 'Workspaces',
+  workspace: 'Environments',
   workflow: 'Workflows',
   model: 'Models',
   byok: 'BYOK',
@@ -75,8 +75,8 @@ export const USAGE_SECTION_LABELS: Record<UsageBreakdownDimension, string> = {
 /** Empty-state copy per view, so a quiet dimension says which one it means. */
 export const USAGE_TAB_EMPTY_COPY: Record<UsageBreakdownDimension, string> = {
   member: 'No member used credits in this period.',
-  workspace: 'No workspace used credits in this period.',
-  workflow: 'No workflow ran in this workspace in this period.',
+  workspace: 'No environment used credits in this period.',
+  workflow: 'No workflow ran in this environment in this period.',
   model: 'No models ran in this period.',
   byok: 'No usage on your own provider keys in this period.',
   source: 'Nothing consumed credits in this period.',

@@ -1,3 +1,6 @@
+import { useQueryStates } from 'nuqs'
+import { projectPaneParsers } from '@/app/o/[organizationId]/home/components/project-pane/search-params'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 
 export interface OrganizationChat {
@@ -9,21 +12,22 @@ export interface OrganizationChat {
   /** Has a reply the viewer has not opened. */
   isUnread?: boolean
   isPinned?: boolean
-  /** Projects the chat worked in, shown as marks on its row. */
-  projectIds?: string[]
 }
 
 /** Lists only the current member's private organization conversations. */
 export function useOrganizationChats(organizationId: string) {
+  const [{ project, section }] = useQueryStates(projectPaneParsers)
+  const enabled = useFeatureFlag('org-project-view')
+  const paneQuery =
+    enabled && project ? `?${new URLSearchParams({ project, section, pane: 'project' })}` : ''
   const query = useOrganizationMothershipChats(organizationId)
   const chats: OrganizationChat[] = (query.data ?? []).map((chat) => ({
     id: chat.id,
     name: chat.name,
-    href: `/o/${organizationId}/chat/${chat.id}`,
+    href: `/o/${organizationId}/chat/${chat.id}${paneQuery}`,
     isActive: chat.isActive,
     isUnread: chat.isUnread,
     isPinned: chat.isPinned,
-    projectIds: chat.projectIds,
   }))
   return { chats, isLoading: query.isPending }
 }

@@ -92,7 +92,7 @@ export const PreviewPanel = memo(function PreviewPanel({
       <DashboardPreview
         content={content}
         workspaceId={workspaceId}
-        fileId={fileId}
+        dashboardId={fileId}
         isStreaming={isStreaming}
         readOnly
       />
@@ -101,7 +101,7 @@ export const PreviewPanel = memo(function PreviewPanel({
         <DashboardPreview
           content={content}
           workspaceId={workspaceId}
-          fileId={fileId}
+          dashboardId={fileId}
           isStreaming={isStreaming}
           readOnly={readOnly}
         />

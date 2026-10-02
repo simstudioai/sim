@@ -1,5 +1,9 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
+import {
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspaceScope,
+} from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import {
   permissionGroupLocksMock,
@@ -112,7 +116,7 @@ function stageGroup(
   )
   if (group) {
     queueTableRows(
-      permissionGroupWorkspace,
+      permissionGroupWorkspaceScope,
       workspaceIds.map((workspaceId) => ({ workspaceId }))
     )
   }

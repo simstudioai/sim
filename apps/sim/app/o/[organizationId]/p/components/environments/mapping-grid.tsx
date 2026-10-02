@@ -1,26 +1,14 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Badge, ChipCombobox, OverflowText, Skeleton, toast } from '@sim/emcn'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
-import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
+import { Badge, OverflowText, Skeleton } from '@sim/emcn'
 import {
   type EnvironmentColumn,
-  isCopyableKind,
-  leafResourceId,
   MAPPING_STATUS,
-  type MappingCell,
-  type MappingRow,
   type MappingStatus,
   type WorkflowCell,
   type WorkflowRow,
 } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
-import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import { useUpdateForkMapping } from '@/ee/workspace-forking/hooks/workspace-fork'
-
-/** Option that clears the target so a sync copies the resource instead; handled via onSelect, never sent. */
-const NEW_COPY_VALUE = '__new_copy__'
 
 const SKELETON_ROW_COUNT = 3
 
@@ -114,151 +102,6 @@ export function SkeletonRows({ columns }: SkeletonRowsProps) {
 
 function AbsentCell() {
   return <span className='text-[var(--text-muted)]'>—</span>
-}
-
-interface MappingCellViewProps {
-  cell: MappingCell
-  /** The viewer may change this edge's target; the cell renders the candidate picker. */
-  editable: boolean
-  /** This cell's edit is in flight. */
-  pending: boolean
-  onChange: (targetId: string | null) => void
-}
-
-/** A resource on one environment's side: its name (or the target picker) and its status. */
-function MappingCellView({ cell, editable, pending, onChange }: MappingCellViewProps) {
-  const entry = cell.entry
-  if (!editable || !entry) {
-    return (
-      <div className='flex flex-col gap-1.5'>
-        <OverflowText label={cell.label || '—'} className='text-[var(--text-body)]' />
-        {cell.status ? <StatusBadge status={cell.status} /> : null}
-      </div>
-    )
-  }
-  const copyable = isCopyableKind(entry.kind) && !entry.sourceDeleted
-  const targetListed = entry.candidates.some((candidate) => candidate.id === entry.targetId)
-  const options = [
-    // A stored target past the capped candidate list still shows its name when closed.
-    ...(entry.targetId && !targetListed
-      ? [{ label: cell.label, value: entry.targetId, hidden: true }]
-      : []),
-    // The way back to the copy flow after mapping: clears the target via onSelect.
-    ...(copyable && entry.targetId
-      ? [{ label: 'New copy', value: NEW_COPY_VALUE, onSelect: () => onChange(null) }]
-      : []),
-    ...entry.candidates.map((candidate) => ({ label: candidate.label, value: candidate.id })),
-  ]
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <ChipCombobox
-        className='w-full'
-        align='start'
-        options={options}
-        value={entry.targetId ?? undefined}
-        onChange={(value) => onChange(value)}
-        placeholder={copyable ? 'Copy on sync' : 'Select target'}
-        searchable
-        searchPlaceholder='Search targets'
-        disabled={pending}
-      />
-      {cell.status ? <StatusBadge status={cell.status} /> : null}
-    </div>
-  )
-}
-
-interface MappingGridProps {
-  columns: readonly EnvironmentColumn[]
-  rows: readonly MappingRow[]
-  /** Admin with forking available: child cells become candidate pickers. */
-  canEdit: boolean
-  empty: string
-  /** Credentials by environment id, for the provider mark on credential rows. */
-  credentialsByEnv?: ReadonlyMap<string, ReadonlyMap<string, WorkspaceCredential>>
-}
-
-interface ResourceLabelProps {
-  row: MappingRow
-  columns: readonly EnvironmentColumn[]
-  credentialsByEnv?: ReadonlyMap<string, ReadonlyMap<string, WorkspaceCredential>>
-}
-
-/** The resource's name, led by its provider's mark for a credential the lineage still holds. */
-function ResourceLabel({ row, columns, credentialsByEnv }: ResourceLabelProps) {
-  const leaf = row.kind === 'credential' ? leafResourceId(row, columns) : null
-  const credential = leaf ? credentialsByEnv?.get(leaf.environmentId)?.get(leaf.id) : undefined
-  const display = credential ? resolveCredentialDisplay(credential) : null
-  return (
-    <div className='flex min-w-0 items-center gap-2'>
-      {display?.icon ? <IntegrationTile blockType={display.blockType} icon={display.icon} /> : null}
-      <OverflowText label={row.label} className='text-[var(--text-body)]' />
-    </div>
-  )
-}
-
-/**
- * One row per resource, one cell per environment. A child cell's picker saves through the
- * edge's mapping route at once, so the forks settings page of that fork shows the same target.
- */
-export function MappingGrid({ columns, rows, canEdit, credentialsByEnv, empty }: MappingGridProps) {
-  const updateMapping = useUpdateForkMapping()
-  const pendingKey =
-    updateMapping.isPending && updateMapping.variables
-      ? `${updateMapping.variables.workspaceId}:${updateMapping.variables.body.entries[0]?.sourceId ?? ''}`
-      : null
-
-  const saveTarget = (cell: MappingCell, targetId: string | null) => {
-    if (!cell.entry || !cell.edge) return
-    updateMapping.mutate(
-      {
-        workspaceId: cell.edge.childId,
-        body: {
-          otherWorkspaceId: cell.edge.parentId,
-          direction: 'pull',
-          entries: [
-            { resourceType: cell.entry.resourceType, sourceId: cell.entry.sourceId, targetId },
-          ],
-        },
-      },
-      {
-        onSuccess: () => toast.success('Mapping saved'),
-        onError: (error) => toast.error(getErrorMessage(error, 'Failed to save mapping')),
-      }
-    )
-  }
-
-  return (
-    <EnvironmentTable columns={columns}>
-      {rows.length === 0 ? (
-        <EmptyRow columns={columns}>{empty}</EmptyRow>
-      ) : (
-        rows.map((row) => (
-          <tr key={row.key} className='border-[var(--border)] border-b align-top last:border-b-0'>
-            <td className='px-3 py-2'>
-              <ResourceLabel row={row} columns={columns} credentialsByEnv={credentialsByEnv} />
-            </td>
-            {columns.map((column) => {
-              const cell = row.cells[column.id]
-              return (
-                <td key={column.id} className='px-3 py-2'>
-                  {cell ? (
-                    <MappingCellView
-                      cell={cell}
-                      editable={canEdit}
-                      pending={pendingKey === `${cell.edge?.childId}:${cell.entry?.sourceId}`}
-                      onChange={(targetId) => saveTarget(cell, targetId)}
-                    />
-                  ) : (
-                    <AbsentCell />
-                  )}
-                </td>
-              )
-            })}
-          </tr>
-        ))
-      )}
-    </EnvironmentTable>
-  )
 }
 
 interface WorkflowCellViewProps {

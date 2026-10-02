@@ -11,6 +11,7 @@ const WORKSPACE_OWNED_CONTEXT_KINDS = [
   'table_selection',
   'file',
   'file_selection',
+  'dashboard',
   'folder',
   'filefolder',
   'skill',

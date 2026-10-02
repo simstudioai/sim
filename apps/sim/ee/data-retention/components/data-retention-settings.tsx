@@ -5,7 +5,6 @@ import {
   Checkbox,
   Chip,
   ChipConfirmModal,
-  ChipDropdown,
   ChipInput,
   ChipSelect,
   ChipSwitch,
@@ -20,10 +19,12 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
+import { ProjectEnvironmentSelect } from '@/components/settings/project-environment-select'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
-import type { RetentionOverride } from '@/lib/api/contracts/primitives'
+import type { ProjectRetentionOverride, RetentionOverride } from '@/lib/api/contracts/primitives'
+import type { ProjectApi } from '@/lib/api/contracts/projects'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type CustomPiiPattern,
@@ -56,7 +57,7 @@ import {
   useOrganizationRetention,
   useUpdateOrganizationRetention,
 } from '@/ee/data-retention/hooks/data-retention'
-import { useWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
+import { useOrganizationProjectsQuery } from '@/hooks/queries/projects'
 
 const logger = createLogger('DataRetentionSettings')
 
@@ -92,6 +93,7 @@ interface PiiOverride {
  */
 interface PolicyDraft {
   isOrgDefault: boolean
+  projectIds: string[]
   workspaceIds: string[]
   logDays: string
   softDeleteDays: string
@@ -196,6 +198,7 @@ function normalizePolicyDraft(draft: PolicyDraft): string {
   return JSON.stringify({
     isOrgDefault: draft.isOrgDefault,
     workspaceIds: [...draft.workspaceIds].sort(),
+    projectIds: [...draft.projectIds].sort(),
     logDays: draft.logDays,
     softDeleteDays: draft.softDeleteDays,
     taskCleanupDays: draft.taskCleanupDays,
@@ -267,15 +270,13 @@ function dayValueLabel(days: string): string {
 interface RetentionSelectProps {
   value: string
   onChange: (value: string) => void
-  /** Prepend an "Inherit from organization" option (workspace-override fields). */
+  /** Prepend an "Inherit defaults" option (workspace-override fields). */
   allowInherit?: boolean
 }
 
 function RetentionSelect({ value, onChange, allowInherit = false }: RetentionSelectProps) {
   const base = DAY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))
-  const withInherit = allowInherit
-    ? [{ value: INHERIT, label: 'Inherit from organization' }, ...base]
-    : base
+  const withInherit = allowInherit ? [{ value: INHERIT, label: 'Inherit defaults' }, ...base] : base
   const isKnown = value === INHERIT || DAY_OPTIONS.some((o) => o.value === value)
   const options = isKnown
     ? withInherit
@@ -458,7 +459,7 @@ interface PolicyDetailProps {
   changed: boolean
   isSaving: boolean
   canRemove: boolean
-  workspaceOptions: { value: string; label: string }[]
+  projects: ProjectApi[]
   onChange: (draft: PolicyDraft) => void
   onBack: () => void
   onDiscard: () => void
@@ -472,7 +473,7 @@ function PolicyDetail({
   changed,
   isSaving,
   canRemove,
-  workspaceOptions,
+  projects,
   onChange,
   onBack,
   onDiscard,
@@ -491,11 +492,11 @@ function PolicyDetail({
   const title = isOrg
     ? 'Organization defaults'
     : isNew
-      ? 'Add workspace override'
-      : 'Edit workspace override'
+      ? 'Add project override'
+      : 'Edit retention override'
   const description = isOrg
-    ? 'Applied to every workspace without its own override.'
-    : 'Overrides the organization defaults for the selected workspaces.'
+    ? 'Applied to environments without a project or environment override.'
+    : 'Applies to the selected projects and environments. Environment overrides take precedence over project defaults.'
 
   return (
     <>
@@ -509,7 +510,8 @@ function PolicyDetail({
             saving: isSaving,
             onSave,
             onDiscard,
-            saveDisabled: !isOrg && draft.workspaceIds.length === 0,
+            saveDisabled:
+              !isOrg && draft.workspaceIds.length === 0 && draft.projectIds.length === 0,
           }),
           ...(canRemove
             ? [
@@ -524,23 +526,15 @@ function PolicyDetail({
         ]}
       >
         {!isOrg && (
-          <SettingsSection label='Workspaces'>
-            <div className='flex items-center justify-between gap-3'>
-              <span className='min-w-0 text-[var(--text-muted)] text-small'>
-                {draft.workspaceIds.length > 0
-                  ? `Overrides ${draft.workspaceIds.length} workspace${draft.workspaceIds.length === 1 ? '' : 's'}`
-                  : 'Select the workspaces this override applies to'}
-              </span>
-              <ChipDropdown
-                multiple
-                showAllOption={false}
-                allLabel='Select workspaces'
-                value={draft.workspaceIds}
-                onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
-                options={workspaceOptions}
-                className='shrink-0'
-              />
-            </div>
+          <SettingsSection label='Projects'>
+            <ProjectEnvironmentSelect
+              projects={projects}
+              value={{ projectIds: draft.projectIds, workspaceIds: draft.workspaceIds }}
+              onChange={(selection) => onChange({ ...draft, ...selection })}
+              disabled={isSaving}
+              fullWidth
+              aria-label='Projects'
+            />
           </SettingsSection>
         )}
 
@@ -604,7 +598,7 @@ function PolicyDetail({
             {!isOrg && (
               <div className='flex items-center justify-between gap-3'>
                 <span className='text-[var(--text-muted)] text-small'>
-                  Inherit the organization defaults or set workspace-specific redaction
+                  Inherit defaults or set redaction for this selection
                 </span>
                 <ChipSwitch
                   value={draft.piiOverride ? 'override' : 'inherit'}
@@ -619,7 +613,7 @@ function PolicyDetail({
             )}
             {!isOrg && draft.piiOverride && (
               <span className='text-[var(--text-muted)] text-caption'>
-                Overriding replaces all three redaction stages for this workspace.
+                Overriding replaces all three redaction stages for the selected scope.
               </span>
             )}
             {showPiiGrid && (
@@ -658,12 +652,12 @@ function PolicyDetail({
           'This removes the retention and PII redaction override for ',
           {
             text:
-              draft.workspaceIds.length === 1
-                ? 'this workspace'
-                : `these ${draft.workspaceIds.length} workspaces`,
+              draft.projectIds.length + draft.workspaceIds.length === 1
+                ? 'this selection'
+                : 'these selections',
             bold: true,
           },
-          { text: '. They will fall back to the organization defaults.', error: true },
+          { text: '. They will fall back to their inherited defaults.', error: true },
         ]}
         confirm={{
           label: 'Remove override',
@@ -683,16 +677,23 @@ interface DataRetentionSettingsProps {
 interface DataRetentionFormProps {
   initialData: DataRetentionResponse
   orgId: string
-  workspaces: Workspace[]
+  projects: ProjectApi[]
 }
 
-function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetentionFormProps) {
+function DataRetentionForm({ initialData: data, orgId, projects }: DataRetentionFormProps) {
   const updateMutation = useUpdateOrganizationRetention()
-  const workspaceOptions = workspaces
-    .filter((w) => w.organizationId === orgId)
-    .map((w) => ({ value: w.id, label: w.name }))
+  const workspaceOptions = projects.flatMap((project) =>
+    project.workspaces.map((environment) => ({
+      value: environment.id,
+      label: `${project.name} / ${environment.name}`,
+    }))
+  )
   const workspaceName = (id: string) =>
-    workspaceOptions.find((w) => w.value === id)?.label ?? 'Unknown workspace'
+    workspaceOptions.find((environment) => environment.value === id)?.label ??
+    'Unavailable environment'
+  const [projectOverrides, setProjectOverrides] = useState<ProjectRetentionOverride[]>(
+    () => data.configured.projectOverrides ?? []
+  )
 
   const [logDays, setLogDays] = useState(() => hoursToDisplayDays(data.effective.logRetentionHours))
   const [softDeleteDays, setSoftDeleteDays] = useState(() =>
@@ -729,15 +730,6 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   const overrideWorkspaceIds = Array.from(
     new Set([...overrides.map((o) => o.workspaceId), ...piiOverrides.map((p) => p.workspaceId)])
   ).sort((a, b) => workspaceName(a).localeCompare(workspaceName(b)))
-  const takenWorkspaceIds = new Set(overrideWorkspaceIds)
-  const freeWorkspaces = workspaceOptions.filter((w) => !takenWorkspaceIds.has(w.value))
-
-  /** Options for the detail workspace picker — excludes workspaces taken by OTHER overrides. */
-  function workspacePickerOptions(draft: PolicyDraft): { value: string; label: string }[] {
-    const others = new Set(overrideWorkspaceIds.filter((id) => !draft.workspaceIds.includes(id)))
-    return workspaceOptions.filter((w) => !others.has(w.value))
-  }
-
   function orgRowSummary(): string {
     const parts = [
       `Log ${dayValueLabel(logDays)}`,
@@ -776,6 +768,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
     defaultPii: Omit<PiiOverride, 'workspaceId'> | null
     piiOverrides: PiiOverride[]
     overrides: RetentionOverride[]
+    projectOverrides: ProjectRetentionOverride[]
   }) {
     if (!orgId) return
     const settings: UpdateOrganizationDataRetentionBody = {
@@ -783,6 +776,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       softDeleteRetentionHours: daysToHours(next.softDeleteDays),
       taskCleanupHours: daysToHours(next.taskCleanupDays),
       retentionOverrides: next.overrides,
+      projectOverrides: next.projectOverrides,
     }
     const rules: { id: string; workspaceId: string | null; stages: PiiStages }[] =
       next.piiOverrides.map((p) => ({
@@ -803,18 +797,28 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
     setSoftDeleteDays(next.softDeleteDays)
     setTaskCleanupDays(next.taskCleanupDays)
     setOverrides(next.overrides)
+    setProjectOverrides(next.projectOverrides)
     setDefaultPii(next.defaultPii)
     setPiiOverrides(next.piiOverrides)
   }
 
   function snapshot() {
-    return { logDays, softDeleteDays, taskCleanupDays, defaultPii, piiOverrides, overrides }
+    return {
+      logDays,
+      softDeleteDays,
+      taskCleanupDays,
+      defaultPii,
+      piiOverrides,
+      overrides,
+      projectOverrides,
+    }
   }
 
   function openEditOrg() {
     const draft: PolicyDraft = {
       isOrgDefault: true,
       workspaceIds: [],
+      projectIds: [],
       logDays,
       softDeleteDays,
       taskCleanupDays,
@@ -825,10 +829,11 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   }
 
   function openAddOverride() {
-    if (freeWorkspaces.length === 0) return
+    if (!projects.length) return
     const draft: PolicyDraft = {
       isOrgDefault: false,
       workspaceIds: [],
+      projectIds: [],
       logDays: INHERIT,
       softDeleteDays: INHERIT,
       taskCleanupDays: INHERIT,
@@ -844,11 +849,28 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
     const draft: PolicyDraft = {
       isOrgDefault: false,
       workspaceIds: [workspaceId],
+      projectIds: [],
       logDays: hoursToOverrideValue(ov?.logRetentionHours),
       softDeleteDays: hoursToOverrideValue(ov?.softDeleteRetentionHours),
       taskCleanupDays: hoursToOverrideValue(ov?.taskCleanupHours),
       piiOverride: Boolean(pii),
       piiStages: pii?.stages ?? emptyPiiStages(),
+    }
+    setEditing({ draft, original: draft, isNew: false })
+  }
+
+  function openEditProjectOverride(override: ProjectRetentionOverride) {
+    const draft: PolicyDraft = {
+      isOrgDefault: false,
+      projectIds: [override.projectId],
+      workspaceIds: [],
+      logDays: hoursToOverrideValue(override.logRetentionHours),
+      softDeleteDays: hoursToOverrideValue(override.softDeleteRetentionHours),
+      taskCleanupDays: hoursToOverrideValue(override.taskCleanupHours),
+      piiOverride: Boolean(override.piiStages),
+      piiStages: override.piiStages
+        ? normalizeRuleStages({ stages: override.piiStages })
+        : emptyPiiStages(),
     }
     setEditing({ draft, original: draft, isNew: false })
   }
@@ -883,8 +905,51 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
         return
       }
 
+      if (
+        draft.projectIds.some(
+          (id) =>
+            projectOverrides.some((override) => override.projectId === id) &&
+            !editing.original.projectIds.includes(id)
+        )
+      ) {
+        toast.error(
+          'This project already has a policy. Edit that policy or select individual environments.'
+        )
+        return
+      }
+      if (
+        draft.workspaceIds.some(
+          (id) => overrideWorkspaceIds.includes(id) && !editing.original.workspaceIds.includes(id)
+        )
+      ) {
+        toast.error('This environment already has a policy. Edit that policy instead.')
+        return
+      }
       const ids = draft.workspaceIds
-      if (ids.length === 0) return
+      if (ids.length === 0 && draft.projectIds.length === 0) return
+      const clearProjectIds = new Set([...editing.original.projectIds, ...draft.projectIds])
+      const nextProjectOverrides = projectOverrides.filter(
+        (override) => !clearProjectIds.has(override.projectId)
+      )
+      for (const projectId of draft.projectIds) {
+        const previous = projectOverrides.find((override) => override.projectId === projectId)
+        const retention = buildRetentionOverride(
+          projectId,
+          draft,
+          previous
+            ? {
+                workspaceId: projectId,
+                fileVersionRetentionHours: previous.fileVersionRetentionHours,
+              }
+            : undefined
+        )
+        const { workspaceId: _workspaceId, ...hours } = retention ?? { workspaceId: projectId }
+        nextProjectOverrides.push({
+          projectId,
+          ...hours,
+          ...(draft.piiOverride ? { piiStages: withSyncedEnabled(draft.piiStages) } : {}),
+        })
+      }
       const clearIds = new Set([...editing.original.workspaceIds, ...ids])
       const nextOverrides = overrides.filter((o) => !clearIds.has(o.workspaceId))
       const nextPiiOverrides = piiOverrides.filter((p) => !clearIds.has(p.workspaceId))
@@ -912,10 +977,11 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       await persistSnapshot({
         ...snapshot(),
         overrides: nextOverrides,
+        projectOverrides: nextProjectOverrides,
         piiOverrides: nextPiiOverrides,
       })
       closeEditing()
-      toast.success('Workspace override saved.')
+      toast.success('Retention override saved.')
     } catch (error) {
       const msg = toError(error).message
       logger.error('Failed to save data retention policy', { error: msg })
@@ -930,10 +996,13 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       await persistSnapshot({
         ...snapshot(),
         overrides: overrides.filter((o) => !idSet.has(o.workspaceId)),
+        projectOverrides: projectOverrides.filter(
+          (override) => !editing.original.projectIds.includes(override.projectId)
+        ),
         piiOverrides: piiOverrides.filter((p) => !idSet.has(p.workspaceId)),
       })
       closeEditing()
-      toast.success('Workspace override removed.')
+      toast.success('Retention override removed.')
     } catch (error) {
       const msg = toError(error).message
       logger.error('Failed to remove workspace override', { error: msg })
@@ -948,7 +1017,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       icon: Plus,
       variant: 'primary' as const,
       onSelect: openAddOverride,
-      disabled: freeWorkspaces.length === 0,
+      disabled: !projects.length,
     },
   ]
 
@@ -961,7 +1030,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
           changed={editingChanged}
           isSaving={updateMutation.isPending}
           canRemove={!editing.draft.isOrgDefault && !editing.isNew}
-          workspaceOptions={workspacePickerOptions(editing.draft)}
+          projects={projects}
           onChange={(draft) => setEditing({ ...editing, draft })}
           onBack={() => guard.guardBack(closeEditing)}
           onDiscard={handleDiscard}
@@ -980,6 +1049,21 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
                 clickLabel='Open organization retention policy'
                 navigable
               />
+              {projectOverrides.map((override) => {
+                const name =
+                  projects.find((project) => project.id === override.projectId)?.name ??
+                  'Unavailable project'
+                return (
+                  <SettingsResourceRow
+                    key={override.projectId}
+                    title={name}
+                    description='All current and future environments'
+                    onClick={() => openEditProjectOverride(override)}
+                    clickLabel={`Open ${name} retention override`}
+                    navigable
+                  />
+                )
+              })}
               {overrideWorkspaceIds.map((workspaceId) => (
                 <SettingsResourceRow
                   key={workspaceId}
@@ -1005,10 +1089,10 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
 
 export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
   const { data, isLoading } = useOrganizationRetention(orgId)
-  const { data: workspaces = [] } = useWorkspacesQuery(Boolean(orgId))
+  const projects = useOrganizationProjectsQuery(orgId)
   const { billingEnabled } = useDeploymentShape()
 
-  if (isLoading) {
+  if (isLoading || projects.isPending) {
     return (
       <SettingsPanel
         actions={[
@@ -1025,6 +1109,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     )
   }
 
+  if (projects.error) return <SettingsEmptyState>{projects.error.message}</SettingsEmptyState>
   if (!data) {
     return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
   }
@@ -1035,5 +1120,12 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     )
   }
 
-  return <DataRetentionForm key={orgId} initialData={data} orgId={orgId} workspaces={workspaces} />
+  return (
+    <DataRetentionForm
+      key={orgId}
+      initialData={data}
+      orgId={orgId}
+      projects={projects.data ?? []}
+    />
+  )
 }

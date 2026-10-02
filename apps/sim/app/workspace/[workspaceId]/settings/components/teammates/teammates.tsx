@@ -5,7 +5,7 @@ import { ChipDropdown, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   RoleLockTooltip,
   type WorkspaceRoleSource,
@@ -37,6 +37,7 @@ import {
   useWorkspacePermissionsQuery,
   useWorkspacesQuery,
 } from '@/hooks/queries/workspace'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
 
 const ROLE_OPTIONS = [
@@ -79,8 +80,7 @@ function buildInviteLink(invitationId: string, token: string) {
 }
 
 export function Teammates() {
-  const params = useParams()
-  const workspaceId = (params?.workspaceId as string) || ''
+  const workspaceId = useSettingsWorkspaceId()
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const { billingEnabled } = useDeploymentShape()

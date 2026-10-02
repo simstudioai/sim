@@ -14,6 +14,7 @@ import { ArrowLeft, Clock, Key, Send } from '@sim/emcn/icons'
 import { useQueryState } from 'nuqs'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { SettingsActionChips } from '@/components/settings/settings-header'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   AddPeopleModal,
@@ -37,6 +38,7 @@ import {
   secretUsageTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/secrets/[credentialId]/search-params'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 interface SecretDetailProps {
   workspaceId: string
@@ -52,7 +54,8 @@ const SECRET_USAGE_TABS = [
 ] as const
 
 export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
-  const secretsHref = `/workspace/${workspaceId}/settings/secrets`
+  const { getSettingsHref } = useSettingsNavigation()
+  const secretsHref = getSettingsHref({ section: 'secrets' })
 
   const { data: credential = null, isPending, error } = useWorkspaceCredential(credentialId)
   const isAdmin = credential?.role === 'admin'
@@ -84,6 +87,8 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
     backHref: secretsHref,
     section: valueField,
   })
+
+  useSettingsUnsavedGuard({ isDirty: form.isDirty, navigationBlocked: form.isSaving })
 
   const back = (
     <ChipLink href={secretsHref} onClick={form.handleBackClick} leftIcon={ArrowLeft}>

@@ -29,6 +29,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
+import {
+  ProjectEnvironmentSelect,
+  type ProjectEnvironmentSelection,
+} from '@/components/settings/project-environment-select'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
@@ -58,7 +62,6 @@ import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
   type PermissionGroup,
   type PermissionGroupWorkspaceRef,
@@ -76,6 +79,7 @@ import {
 import { SettingRow } from '@/ee/components/setting-row'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useOrganizationRoster } from '@/hooks/queries/organization'
+import { useOrganizationProjectsQuery } from '@/hooks/queries/projects'
 import { useProviderModels } from '@/hooks/queries/providers'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import {
@@ -693,9 +697,7 @@ interface GroupDetailProps {
   group: PermissionGroup
   organizationId: string
   workspaceId?: string
-  workspaceOptions: { value: string; label: string }[]
   organizationWorkspaces: PermissionGroupWorkspaceRef[]
-  workspacesLoading: boolean
   onBack: () => void
   onDeleted: () => void
 }
@@ -709,9 +711,7 @@ export function GroupDetail({
   group,
   organizationId,
   workspaceId,
-  workspaceOptions,
   organizationWorkspaces,
-  workspacesLoading,
   onBack,
   onDeleted,
 }: GroupDetailProps) {
@@ -1301,24 +1301,35 @@ export function GroupDetail({
     guard.guardBack(onBack)
   }, [guard.guardBack, onBack])
 
+  const organizationProjects = useOrganizationProjectsQuery(organizationId)
+
   const handleScopeChange = useCallback(
-    async (workspaceIds: string[]) => {
+    async ({ workspaceIds, projectIds }: ProjectEnvironmentSelection) => {
+      const effectiveIds = new Set([
+        ...workspaceIds,
+        ...(organizationProjects.data ?? [])
+          .filter((project) => projectIds.includes(project.id))
+          .flatMap((project) => project.workspaces.map((environment) => environment.id)),
+      ])
       const previous = viewingGroup
       const seq = ++scopeWriteSeqRef.current
 
       setViewingGroup((prev) => ({
         ...prev,
-        workspaces: organizationWorkspaces.filter((ws) => workspaceIds.includes(ws.id)),
+        projectIds,
+        workspaces: organizationWorkspaces.filter((ws) => effectiveIds.has(ws.id)),
       }))
       try {
         const result = await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
           organizationId,
           workspaceIds,
+          projectIds,
         })
         if (seq !== scopeWriteSeqRef.current) return
         setViewingGroup((prev) => ({
           ...prev,
+          projectIds: result.permissionGroup.projectIds,
           workspaces: organizationWorkspaces.filter((ws) =>
             result.permissionGroup.workspaceIds.includes(ws.id)
           ),
@@ -1327,12 +1338,18 @@ export function GroupDetail({
         logger.error('Failed to update workspace scope', error)
         if (seq !== scopeWriteSeqRef.current) return
         setViewingGroup(previous)
-        toast.error("Couldn't update workspaces", {
+        toast.error("Couldn't update project scope", {
           description: getErrorMessage(error, 'Please try again in a moment.'),
         })
       }
     },
-    [viewingGroup, organizationId, organizationWorkspaces, updatePermissionGroup]
+    [
+      viewingGroup,
+      organizationId,
+      organizationWorkspaces,
+      organizationProjects.data,
+      updatePermissionGroup,
+    ]
   )
 
   const handleToggleDefault = useCallback(
@@ -1347,6 +1364,7 @@ export function GroupDetail({
         if (seq !== scopeWriteSeqRef.current) return
         setViewingGroup((prev) => ({
           ...prev,
+          projectIds: result.permissionGroup.projectIds,
           isDefault: result.permissionGroup.isDefault,
           workspaces: result.permissionGroup.isDefault
             ? []
@@ -1513,11 +1531,11 @@ export function GroupDetail({
               </div>
             </SettingsSection>
 
-            <SettingsSection label='Workspaces'>
+            <SettingsSection label='Projects'>
               {viewingGroup.isDefault ? (
                 <div className='flex items-center justify-between gap-3'>
                   <span className='text-[var(--text-muted)] text-small'>
-                    Governs every workspace in the organization
+                    Governs every project and environment in the organization
                   </span>
                 </div>
               ) : (
@@ -1525,17 +1543,30 @@ export function GroupDetail({
                   <div className='flex items-center justify-between gap-3'>
                     <span className='min-w-0 text-[var(--text-muted)] text-small'>
                       {viewingGroup.workspaces.length > 0
-                        ? `Governs ${viewingGroup.workspaces.length} workspace${
+                        ? `Governs ${viewingGroup.workspaces.length} environment${
                             viewingGroup.workspaces.length === 1 ? '' : 's'
                           }`
-                        : 'Select the workspaces this group governs'}
+                        : 'Select the projects and environments this group governs'}
                     </span>
-                    <WorkspaceSelect
-                      workspaceIds={viewingGroup.workspaces.map((ws) => ws.id)}
+                    <ProjectEnvironmentSelect
+                      value={{
+                        projectIds: viewingGroup.projectIds,
+                        workspaceIds: viewingGroup.workspaces
+                          .map((ws) => ws.id)
+                          .filter(
+                            (id) =>
+                              !(organizationProjects.data ?? []).some(
+                                (project) =>
+                                  viewingGroup.projectIds.includes(project.id) &&
+                                  project.workspaces.some((environment) => environment.id === id)
+                              )
+                          ),
+                      }}
                       onChange={handleScopeChange}
-                      options={workspaceOptions}
-                      isLoading={workspacesLoading}
-                      allowAllWorkspaces={false}
+                      projects={organizationProjects.data ?? []}
+                      isLoading={organizationProjects.isPending}
+                      error={organizationProjects.error?.message}
+                      disabled={updatePermissionGroup.isPending}
                       className='shrink-0'
                     />
                   </div>
@@ -1544,7 +1575,11 @@ export function GroupDetail({
                       {viewingGroup.workspaces.map((ws) => (
                         <MemberRow
                           key={ws.id}
-                          name={ws.name}
+                          name={
+                            (organizationProjects.data ?? []).find((project) =>
+                              project.workspaces.some((environment) => environment.id === ws.id)
+                            )?.name ?? ws.name
+                          }
                           email={ws.name}
                           image={null}
                           status=''

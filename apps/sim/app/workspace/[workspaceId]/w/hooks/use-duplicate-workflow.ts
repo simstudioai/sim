@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { useRouter } from 'next/navigation'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
@@ -26,7 +26,7 @@ interface UseDuplicateWorkflowProps {
  * @returns Duplicate workflow handlers and state
  */
 export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWorkflowProps) {
-  const router = useRouter()
+  const router = useResourceRouter()
   const duplicateMutation = useDuplicateWorkflowMutation()
 
   const workspaceIdRef = useRef(workspaceId)

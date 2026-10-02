@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import type { CustomPiiPattern, DataRetentionSettings, PiiStagePolicy } from '@sim/db/schema'
-import { workspace } from '@sim/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { project, projectWorkspace, workspace } from '@sim/db/schema'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
   coercePiiLanguage,
   DEFAULT_PII_LANGUAGE,
@@ -162,9 +162,25 @@ export function resolveEffectiveRetentionHours(params: {
  */
 export async function getForeignWorkspaceTargetsReason(params: {
   organizationId: string
+  projectOverrides?: Array<{ projectId: string }>
   retentionOverrides?: Array<{ workspaceId: string }> | null
   piiRedaction?: PiiRedactionRulesLike | null
 }): Promise<string | null> {
+  const projectIds = (params.projectOverrides ?? []).map((override) => override.projectId)
+  if (projectIds.length) {
+    const projects = await db
+      .select({ id: project.id })
+      .from(project)
+      .where(
+        and(
+          eq(project.organizationId, params.organizationId),
+          inArray(project.id, projectIds),
+          isNull(project.archivedAt)
+        )
+      )
+    if (projects.length !== new Set(projectIds).size)
+      return 'Override targets a project outside this organization or an archived project'
+  }
   const targeted = new Set<string>()
   for (const override of params.retentionOverrides ?? []) {
     if (override?.workspaceId) targeted.add(override.workspaceId)
@@ -186,4 +202,50 @@ export async function getForeignWorkspaceTargetsReason(params: {
   return unknown.length > 0
     ? `Override targets workspaces outside this organization: ${unknown.join(', ')}`
     : null
+}
+
+/** Apply project defaults without replacing explicit environment retention or PII exceptions. */
+export function applyProjectRetentionDefaults(
+  settings: DataRetentionSettings,
+  projectId: string | null
+): DataRetentionSettings {
+  const override = settings.projectOverrides?.find((entry) => entry.projectId === projectId)
+  if (!override) return settings
+  const { projectId: _projectId, piiStages, ...hours } = override
+  return {
+    ...settings,
+    ...hours,
+    ...(piiStages
+      ? {
+          piiRedaction: {
+            rules: [
+              ...(settings.piiRedaction?.rules ?? []).filter((rule) => rule.workspaceId !== null),
+              { id: `project:${projectId}`, workspaceId: null, stages: piiStages },
+            ],
+          },
+        }
+      : {}),
+  }
+}
+
+/** Read live canonical membership only when this organization has project overrides. */
+export async function resolveProjectRetentionSettings(
+  settings: DataRetentionSettings | null | undefined,
+  workspaceId: string
+) {
+  if (!settings?.projectOverrides?.length) return settings
+  const [row] = await db
+    .select({ projectId: project.id })
+    .from(workspace)
+    .innerJoin(projectWorkspace, eq(projectWorkspace.workspaceId, workspace.id))
+    .innerJoin(
+      project,
+      and(
+        eq(project.id, projectWorkspace.projectId),
+        eq(project.organizationId, workspace.organizationId)
+      )
+    )
+    .where(and(eq(workspace.id, workspaceId), isNull(project.archivedAt)))
+    .limit(1)
+  return applyProjectRetentionDefaults(settings, row?.projectId ?? null)
 }

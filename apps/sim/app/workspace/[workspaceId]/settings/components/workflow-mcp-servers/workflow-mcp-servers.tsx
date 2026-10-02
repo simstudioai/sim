@@ -24,7 +24,6 @@ import {
 import { ArrowLeft, Check, Clipboard, Plus, Server } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { McpIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -62,6 +61,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 const logger = createLogger('WorkflowMcpServers')
 
@@ -901,8 +901,7 @@ function ServerDetailView({
  * Allows users to create and manage MCP servers that expose workflows as tools.
  */
 export function WorkflowMcpServers() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
   const workspacePermissions = useUserPermissionsContext()
   const canAdmin = canMutateWorkspaceSettingsSection('workflow-mcp-servers', workspacePermissions)
 

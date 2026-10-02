@@ -6,7 +6,7 @@ import { useProjectsQuery } from '@/hooks/queries/projects'
 export interface Project {
   /** The workspace this view is on; every route and hook uses it. */
   id: string
-  /** The project's own id, for renaming it and for chats that record it. */
+  /** The project's own id, used for project settings. */
   projectId: string
   name: string
   organizationId: string | null

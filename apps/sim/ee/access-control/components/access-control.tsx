@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   Checkbox,
   ChipLink,
@@ -18,6 +18,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { ProjectEnvironmentSelect } from '@/components/settings/project-environment-select'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -42,7 +43,6 @@ import {
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
-import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
   useCreatePermissionGroup,
   useOrganizationWorkspaces,
@@ -50,6 +50,7 @@ import {
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
+import { useOrganizationProjectsQuery } from '@/hooks/queries/projects'
 
 const logger = createLogger('AccessControl')
 
@@ -95,8 +96,10 @@ export function AccessControl({
     isFetching: groupsFetching,
     refetch: refetchGroups,
   } = usePermissionGroups(organizationId, !!organizationId && currentUserIsOrgAdmin)
-  const { data: organizationWorkspaces = [], isPending: workspacesLoading } =
-    useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
+  const { data: organizationWorkspaces = [] } = useOrganizationWorkspaces(
+    organizationId,
+    !!organizationId && currentUserIsOrgAdmin
+  )
 
   /**
    * Must be the resolved flag, not the raw `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`
@@ -161,13 +164,13 @@ export function AccessControl({
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
   const [newGroupIsDefault, setNewGroupIsDefault] = useState(false)
+  const organizationProjects = useOrganizationProjectsQuery(
+    organizationId ?? '',
+    currentUserIsOrgAdmin
+  )
+  const [newGroupProjectIds, setNewGroupProjectIds] = useState<string[]>([])
   const [newGroupWorkspaceIds, setNewGroupWorkspaceIds] = useState<string[]>([])
   const [createError, setCreateError] = useState<string | null>(null)
-
-  const workspaceOptions = useMemo(
-    () => organizationWorkspaces.map((ws) => ({ value: ws.id, label: ws.name })),
-    [organizationWorkspaces]
-  )
 
   const searchLower = searchTerm.trim().toLowerCase()
   const filteredGroups = searchLower
@@ -186,6 +189,7 @@ export function AccessControl({
         name: newGroupName.trim(),
         description: newGroupDescription.trim() || undefined,
         isDefault: newGroupIsDefault,
+        projectIds: newGroupIsDefault ? undefined : newGroupProjectIds,
         workspaceIds: newGroupIsDefault ? undefined : newGroupWorkspaceIds,
       })
       setShowCreateModal(false)
@@ -193,6 +197,7 @@ export function AccessControl({
       setNewGroupDescription('')
       setNewGroupIsDefault(false)
       setNewGroupWorkspaceIds([])
+      setNewGroupProjectIds([])
     } catch (error) {
       logger.error('Failed to create permission group', error)
       setCreateError(getErrorMessage(error, 'Failed to create permission group'))
@@ -205,6 +210,7 @@ export function AccessControl({
     setNewGroupDescription('')
     setNewGroupIsDefault(false)
     setNewGroupWorkspaceIds([])
+    setNewGroupProjectIds([])
     setCreateError(null)
   }
 
@@ -271,9 +277,7 @@ export function AccessControl({
         group={selectedGroup}
         organizationId={organizationId}
         workspaceId={workspaceId}
-        workspaceOptions={workspaceOptions}
         organizationWorkspaces={organizationWorkspaces}
-        workspacesLoading={workspacesLoading}
         onBack={closeGroupDetail}
         onDeleted={closeGroupDetail}
       />
@@ -308,7 +312,7 @@ export function AccessControl({
                           group.memberCount === 0
                             ? 'All members'
                             : `${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`
-                        } · ${group.workspaces.length} workspace${
+                        } · ${group.workspaces.length} environment${
                           group.workspaces.length === 1 ? '' : 's'
                         }`
                   }
@@ -357,6 +361,7 @@ export function AccessControl({
                   const isDefault = checked === true
                   setNewGroupIsDefault(isDefault)
                   if (isDefault) setNewGroupWorkspaceIds([])
+                  setNewGroupProjectIds([])
                 }}
               />
               <Label htmlFor='default-group' className='cursor-pointer font-normal'>
@@ -366,23 +371,27 @@ export function AccessControl({
           </ChipModalField>
           <ChipModalField
             type='custom'
-            title='Workspaces'
+            title='Projects'
             hint={
               newGroupIsDefault
                 ? undefined
-                : "Applies to all members of the selected workspaces. Restrict to specific people later from the group's Members section."
+                : "Applies to all members of the selected environments. Restrict to specific people later from the group's Members section."
             }
           >
             {(aria) => (
-              <WorkspaceSelect
+              <ProjectEnvironmentSelect
                 {...aria}
-                aria-label='Workspaces'
-                workspaceIds={newGroupWorkspaceIds}
-                onChange={setNewGroupWorkspaceIds}
-                options={workspaceOptions}
+                aria-label='Projects'
+                value={{ projectIds: newGroupProjectIds, workspaceIds: newGroupWorkspaceIds }}
+                onChange={(selection) => {
+                  setNewGroupProjectIds(selection.projectIds)
+                  setNewGroupWorkspaceIds(selection.workspaceIds)
+                }}
+                projects={organizationProjects.data ?? []}
                 disabled={newGroupIsDefault}
-                isLoading={workspacesLoading}
-                allowAllWorkspaces={newGroupIsDefault}
+                isLoading={organizationProjects.isPending}
+                error={organizationProjects.error?.message}
+                allOrganization={newGroupIsDefault}
                 fullWidth
               />
             )}
@@ -397,7 +406,9 @@ export function AccessControl({
             disabled:
               !newGroupName.trim() ||
               createPermissionGroup.isPending ||
-              (!newGroupIsDefault && newGroupWorkspaceIds.length === 0),
+              (!newGroupIsDefault &&
+                newGroupWorkspaceIds.length === 0 &&
+                newGroupProjectIds.length === 0),
           }}
         />
       </ChipModal>

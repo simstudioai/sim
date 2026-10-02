@@ -1504,9 +1504,17 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
     'isDefault',
+    'projectIds',
     'membershipMode',
   ],
   permissionGroupWorkspace: [
+    'id',
+    'permissionGroupId',
+    'workspaceId',
+    'organizationId',
+    'createdAt',
+  ],
+  permissionGroupWorkspaceScope: [
     'id',
     'permissionGroupId',
     'workspaceId',
@@ -1998,6 +2006,16 @@ export const GENERATED_SCHEMA_TABLES = {
     'attempts',
     'deliveredAt',
     'lastError',
+  ],
+  dashboard: [
+    'id',
+    'workspaceId',
+    'content',
+    'revision',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
   ],
 } as const
 

@@ -28,6 +28,8 @@ export const AuditAction = {
 
   // Custom Blocks (deploy-as-block)
   CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',
+  DASHBOARD_CREATED: 'dashboard.created',
+  DASHBOARD_UPDATED: 'dashboard.updated',
   CUSTOM_BLOCK_UPDATED: 'custom_block.updated',
   CUSTOM_BLOCK_DELETED: 'custom_block.deleted',
 
@@ -287,6 +289,7 @@ export const AuditResourceType = {
   CREDENTIAL_GROUP: 'credential_group',
   CUSTOM_BLOCK: 'custom_block',
   CUSTOM_TOOL: 'custom_tool',
+  DASHBOARD: 'dashboard',
   DATA_DRAIN: 'data_drain',
   DOCUMENT: 'document',
   ENVIRONMENT: 'environment',

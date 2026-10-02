@@ -2,6 +2,7 @@ import type { DataRetentionSettings, PiiRedactionRule } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
+  applyProjectRetentionDefaults,
   DEFAULT_PII_REDACTION,
   getForeignWorkspaceTargetsReason,
   resolveEffectivePiiRedaction,
@@ -311,5 +312,69 @@ describe('getForeignWorkspaceTargetsReason', () => {
         piiRedaction: { rules: [{ workspaceId: 'ws-foreign' }] },
       })
     ).resolves.toContain('ws-foreign')
+  })
+})
+
+describe('project retention inheritance', () => {
+  it('applies project defaults to a newly created environment while preserving explicit exceptions', () => {
+    const configured: DataRetentionSettings = {
+      logRetentionHours: 720,
+      softDeleteRetentionHours: 2160,
+      projectOverrides: [{ projectId: 'project-a', logRetentionHours: 168 }],
+      retentionOverrides: [{ workspaceId: 'prod', logRetentionHours: null }],
+    }
+    const inherited = applyProjectRetentionDefaults(configured, 'project-a')
+    expect(
+      resolveEffectiveRetentionHours({
+        orgSettings: inherited,
+        workspaceId: 'new-environment',
+        key: 'logRetentionHours',
+      })
+    ).toBe(168)
+    expect(
+      resolveEffectiveRetentionHours({
+        orgSettings: inherited,
+        workspaceId: 'prod',
+        key: 'logRetentionHours',
+      })
+    ).toBeNull()
+    expect(
+      resolveEffectiveRetentionHours({
+        orgSettings: inherited,
+        workspaceId: 'new-environment',
+        key: 'softDeleteRetentionHours',
+      })
+    ).toBe(2160)
+    expect(applyProjectRetentionDefaults(configured, 'unrelated')).toBe(configured)
+    expect(configured.logRetentionHours).toBe(720)
+  })
+
+  it('uses project PII defaults but honors an explicit environment exemption', () => {
+    const configured: DataRetentionSettings = {
+      piiRedaction: {
+        rules: [
+          { id: 'org', workspaceId: null, entityTypes: ['PHONE_NUMBER'] },
+          { id: 'exempt', workspaceId: 'sandbox', entityTypes: [] },
+        ],
+      },
+      projectOverrides: [
+        {
+          projectId: 'project-a',
+          piiStages: {
+            input: { enabled: false, entityTypes: [] },
+            blockOutputs: { enabled: false, entityTypes: [] },
+            logs: { enabled: true, entityTypes: ['EMAIL_ADDRESS'] },
+          },
+        },
+      ],
+    }
+    const inherited = applyProjectRetentionDefaults(configured, 'project-a')
+    expect(
+      resolveEffectivePiiRedaction({ orgSettings: inherited, workspaceId: 'new-environment' }).logs
+        .entityTypes
+    ).toEqual(['EMAIL_ADDRESS'])
+    expect(
+      resolveEffectivePiiRedaction({ orgSettings: inherited, workspaceId: 'sandbox' })
+    ).toEqual(DEFAULT_PII_REDACTION)
   })
 })

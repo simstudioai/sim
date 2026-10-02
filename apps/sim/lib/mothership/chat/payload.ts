@@ -29,6 +29,7 @@ import {
 import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-images'
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
+import { computeEntitlements } from '@/lib/mothership/entitlements'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
@@ -442,7 +443,15 @@ export async function buildCopilotRequestPayload(
     !isAssistant && params.principal && params.workspaceId
       ? await buildWorkspaceInventory(params.principal, params.workspaceId)
       : undefined
+  const entitlements = isAssistant
+    ? []
+    : await computeEntitlements({
+        principal: params.principal,
+        workspaceId: params.workspaceId,
+        organizationId: params.organizationId,
+      })
   return {
+    entitlements,
     message,
     ...(!isAssistant && workflowId ? { workflowId } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),

@@ -1,19 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipLink, ChipTag, OverflowText, toast } from '@sim/emcn'
-import { ArrowUpRight, Plus, Server, TriangleAlert } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, ChipTag, toast } from '@sim/emcn'
+import { Plus, Server, TriangleAlert } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { GetForkLineageResponse } from '@/lib/api/contracts/workspace-fork'
+import { parseAsString, useQueryStates } from 'nuqs'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { EnvironmentName } from '@/app/o/[organizationId]/p/components/environments/environment-name'
 import type { EnvironmentColumn } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
 import { PipelineConnector } from '@/app/o/[organizationId]/p/components/environments/pipeline-connector'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
-import { workspaceRoutes } from '@/app/o/[organizationId]/p/routes'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { ForkWorkspaceModal } from '@/ee/workspace-forking/components/fork-workspace-modal/fork-workspace-modal'
 import { type ForkDirection, useUnlinkFork } from '@/ee/workspace-forking/hooks/workspace-fork'
-import { useWorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 interface UnlinkTarget {
@@ -25,8 +25,9 @@ interface EnvironmentCardProps {
   column: EnvironmentColumn
   parent?: EnvironmentColumn
   current: boolean
-  lineage?: GetForkLineageResponse
   canManage: boolean
+  canRename: boolean
+  onManageTeammates?: () => void
   onDisconnect: () => void
 }
 
@@ -34,44 +35,37 @@ function EnvironmentCard({
   column,
   parent,
   current,
-  lineage,
   canManage,
+  canRename,
   onDisconnect,
+  onManageTeammates,
 }: EnvironmentCardProps) {
-  const undoable = lineage?.undoableRun ?? null
   return (
     <article className='flex w-[250px] shrink-0 flex-col gap-2 rounded-lg border border-[var(--border)] px-4 py-3'>
-      <div className='flex items-center gap-2'>
+      <div className='flex flex-wrap items-center gap-2'>
         <Server className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='text-[var(--text-body)] text-small'>{column.label}</span>
+        <EnvironmentName workspaceId={column.id} name={column.name} canRename={canRename} />
         {current ? <ChipTag variant='gray'>Current</ChipTag> : null}
-        {canManage && parent ? (
+        {onManageTeammates || (canManage && parent) ? (
           <RowActionsMenu
             label={`${column.label} actions`}
             triggerClassName='ml-auto'
             actions={[
-              // Disconnect stays enabled regardless of access: severing the edge acts on this
-              // workspace only, and must remain reachable exactly when the parent is inaccessible.
-              {
-                label: `Disconnect from ${parent.label}`,
-                destructive: true,
-                onSelect: onDisconnect,
-              },
+              ...(onManageTeammates
+                ? [{ label: 'Manage teammates', onSelect: onManageTeammates }]
+                : []),
+              ...(canManage && parent
+                ? [
+                    {
+                      label: `Disconnect from ${parent.label}`,
+                      destructive: true,
+                      onSelect: onDisconnect,
+                    },
+                  ]
+                : []),
             ]}
           />
         ) : null}
-      </div>
-      {column.name !== column.label ? (
-        <OverflowText label={column.name} className='text-[var(--text-muted)] text-small' />
-      ) : null}
-      <p className='text-[var(--text-muted)] text-caption'>
-        {parent ? `Forked from ${parent.label}` : 'Root of the lineage'}
-        {undoable ? ` · last sync from ${undoable.otherName} can be undone` : ''}
-      </p>
-      <div className='mt-auto flex flex-wrap items-center gap-1 pt-1'>
-        <ChipLink href={workspaceRoutes.workflows(column.id)} leftIcon={ArrowUpRight}>
-          Open workspace
-        </ChipLink>
       </div>
     </article>
   )
@@ -81,8 +75,6 @@ interface LineageStripProps {
   project: Project
   /** Root first, each fork after its parent. */
   columns: readonly EnvironmentColumn[]
-  /** Each environment's lineage node, once loaded; empty until the fork gate passes. */
-  lineageByEnv: ReadonlyMap<string, GetForkLineageResponse | undefined>
   /** Admin with forking available: Create fork, sync and Disconnect are offered. */
   canManage: boolean
   /** The edge whose sync is shown below the pipeline, by its fork's id, and its direction. */
@@ -107,7 +99,6 @@ export interface PipelineFocus {
 export function LineageStrip({
   project,
   columns,
-  lineageByEnv,
   canManage,
   focus,
   changeCounts,
@@ -115,12 +106,28 @@ export function LineageStrip({
 }: LineageStripProps) {
   const { billingEnabled } = useDeploymentShape()
   const { data: creationPolicy } = useWorkspaceCreationPolicy()
+  const { data: workspaces } = useWorkspacesQuery()
   const { navigateToSettings } = useSettingsNavigation()
+  const [, setDestination] = useQueryStates(
+    {
+      project: parseAsString,
+      pane: parseAsString,
+      section: parseAsString,
+      setting: parseAsString,
+      search: parseAsString,
+    },
+    { history: 'push' }
+  )
   const unlink = useUnlinkFork()
   const [forkModalOpen, setForkModalOpen] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState<UnlinkTarget | null>(null)
 
   const byId = new Map(columns.map((column) => [column.id, column]))
+  const renameableIds = new Set(
+    workspaces
+      ?.filter((workspace) => workspace.permissions === 'admin')
+      .map((workspace) => workspace.id)
+  )
   /** Root-first reversed, so changes flow left to right toward production. */
   const flow = [...columns].reverse()
   const current = byId.get(project.id)
@@ -163,8 +170,21 @@ export function LineageStrip({
                 column={column}
                 parent={parent}
                 current={column.id === project.id}
-                lineage={lineageByEnv.get(column.id)}
                 canManage={canManage}
+                canRename={renameableIds.has(column.id)}
+                onManageTeammates={
+                  renameableIds.has(column.id)
+                    ? () => {
+                        void setDestination({
+                          project: column.id,
+                          pane: 'project',
+                          section: 'settings',
+                          setting: 'teammates',
+                          search: null,
+                        })
+                      }
+                    : undefined
+                }
                 onDisconnect={() => {
                   if (parent) setConfirmUnlink({ column, parent })
                 }}
@@ -177,8 +197,9 @@ export function LineageStrip({
                   changeCount={changeCounts.get(column.id)?.[direction]}
                   focused={focus?.childId === column.id}
                   canManage={canManage}
-                  onReview={() => onFocus({ childId: column.id, direction })}
-                  onDirectionChange={(next) => onFocus({ childId: column.id, direction: next })}
+                  onReview={() =>
+                    onFocus({ childId: column.id, direction: focus?.direction ?? 'push' })
+                  }
                 />
               ) : next ? (
                 <div className='w-6 shrink-0' />

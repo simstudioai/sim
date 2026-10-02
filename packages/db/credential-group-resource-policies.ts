@@ -361,7 +361,46 @@ export function validateOrganizationAccountPolicyDocument(
   expectedResourceId: string
 ): void {
   const document = requireRecord(value, 'Organization account policy')
-  requireExactKeys(document, ['version', 'resource', 'statements'], 'Organization account policy')
+  requireExactKeys(
+    document,
+    [
+      'version',
+      'resource',
+      'statements',
+      ...(document.projectGrants === undefined ? [] : ['projectGrants']),
+    ],
+    'Organization account policy'
+  )
+  if (document.projectGrants !== undefined) {
+    if (!Array.isArray(document.projectGrants) || document.projectGrants.length > 1000)
+      throw new Error('Invalid organization project grants')
+    const ids = new Set<string>()
+    for (const value of document.projectGrants) {
+      const grant = requireRecord(value, 'Project grant')
+      requireExactKeys(grant, ['projectId', 'access'], 'Project grant')
+      const id = requireCanonicalId(grant.projectId, 'Project grant ID')
+      if (ids.has(id)) throw new Error('Duplicate project grant')
+      ids.add(id)
+      const access = requireRecord(grant.access, 'Project integration access')
+      if (access.mode === 'all') requireExactKeys(access, ['mode'], 'Project integration access')
+      else if (access.mode === 'selected') {
+        requireExactKeys(access, ['mode', 'credentialTypes'], 'Project integration access')
+        if (
+          !Array.isArray(access.credentialTypes) ||
+          !access.credentialTypes.length ||
+          access.credentialTypes.length > 128
+        )
+          throw new Error('Invalid project integration selection')
+        const types = new Set<string>()
+        for (const type of access.credentialTypes) {
+          const name = requireCanonicalId(type, 'Project credential type')
+          if (!/^(oauth|mcp|personal_token):[a-z][a-z0-9-]*$/.test(name) || types.has(name))
+            throw new Error('Invalid project credential type')
+          types.add(name)
+        }
+      } else throw new Error('Invalid project integration access mode')
+    }
+  }
   if (document.version !== 2) throw new Error('Organization account policy version must be 2')
   const resource = requireRecord(document.resource, 'Organization account resource')
   requireExactKeys(resource, ['type', 'id'], 'Organization account resource')

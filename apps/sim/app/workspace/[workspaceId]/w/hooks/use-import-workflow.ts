@@ -3,7 +3,6 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import {
@@ -12,6 +11,7 @@ import {
   persistImportedWorkflow,
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { useCreateFolder } from '@/hooks/queries/folders'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
@@ -35,7 +35,7 @@ interface UseImportWorkflowProps {
  * @returns Import state and handlers
  */
 export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
-  const router = useRouter()
+  const router = useResourceRouter()
   const { mutateAsync: createWorkflow } = useCreateWorkflow()
   const queryClient = useQueryClient()
   const { mutateAsync: createFolder } = useCreateFolder()

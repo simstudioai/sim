@@ -8,6 +8,7 @@ import {
   type ActivityDimension,
   type ActivitySort,
 } from '@/lib/billing/core/organization-activity'
+import { projectEnvironmentLabel } from '@/lib/projects/environment-label'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { ActivitySummary } from '@/ee/organization-usage/components/activity-summary'
@@ -17,9 +18,10 @@ import {
   useOrganizationActivityBreakdown,
   useOrganizationActivitySummary,
 } from '@/hooks/queries/organization-activity'
+import { useOrganizationProjectsQuery } from '@/hooks/queries/projects'
 
 const DIMENSIONS = [
-  { value: 'workspace', label: 'Workspaces' },
+  { value: 'workspace', label: 'Environments' },
   { value: 'workflow', label: 'Workflows' },
   { value: 'member', label: 'Members' },
   { value: 'trigger', label: 'Triggers' },
@@ -37,6 +39,7 @@ interface ActivityPanelProps {
 export function ActivityPanel({ organizationId }: ActivityPanelProps) {
   const { window, workspace, activityDimension, activitySort, activityPage, setState } =
     useUsageWindow()
+  const projects = useOrganizationProjectsQuery(organizationId)
   const options = { workspaceId: workspace ?? undefined }
   const sort = activityDimension === 'member' ? 'runs' : activitySort
   const summary = useOrganizationActivitySummary(organizationId, window, options)
@@ -51,13 +54,13 @@ export function ActivityPanel({ organizationId }: ActivityPanelProps) {
   if (workspace && isApiClientError(summary.error) && summary.error.status === 404) {
     return (
       <SettingsEmptyState variant='inline'>
-        Workspace unavailable.
+        Environment unavailable.
         <Chip
           onClick={() =>
             void setState({ workspace: null, activityDimension: 'workspace', activityPage: 0 })
           }
         >
-          All workspaces
+          All environments
         </Chip>
       </SettingsEmptyState>
     )
@@ -72,10 +75,14 @@ export function ActivityPanel({ organizationId }: ActivityPanelProps) {
               void setState({ workspace: null, activityDimension: 'workspace', activityPage: 0 })
             }
           >
-            All workspaces
+            All environments
           </Chip>
           <span className='text-[var(--text-body)] text-small'>
-            {summary.data?.workspace?.name ?? 'Workspace activity'}
+            {projectEnvironmentLabel(
+              projects.data,
+              workspace,
+              summary.data?.workspace?.name ?? 'Environment activity'
+            )}
           </span>
         </div>
       )}
@@ -125,7 +132,18 @@ export function ActivityPanel({ organizationId }: ActivityPanelProps) {
             <SettingsEmptyState variant='inline'>No activity in this period.</SettingsEmptyState>
           ) : (
             <ActivityTable
-              rows={breakdown.data.rows}
+              rows={
+                activityDimension === 'workspace'
+                  ? breakdown.data.rows.map((row) => ({
+                      ...row,
+                      label: projectEnvironmentLabel(
+                        projects.data,
+                        row.workspaceId ?? row.id,
+                        row.label
+                      ),
+                    }))
+                  : breakdown.data.rows
+              }
               dimension={activityDimension}
               onSelectWorkspace={(id) =>
                 void setState(

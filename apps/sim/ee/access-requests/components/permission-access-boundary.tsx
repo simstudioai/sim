@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { Chip } from '@sim/emcn'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
 import { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/files-empty-state'
@@ -12,11 +12,11 @@ import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-gr
 import { RequestAccessAction } from '@/ee/access-requests/components/request-access-action'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import { workspaceFeatureDiscoveryQuery } from '@/hooks/queries/utils/access-request-keys'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 /** Safe feature metadata shared by navigation and access-required pages. */
 export function useWorkspaceAccessRequestFeatures() {
-  const params = useParams()
-  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
+  const workspaceId = useSettingsWorkspaceId()
   return useDiscoverAccessRequests(
     workspaceFeatureDiscoveryQuery(workspaceId),
     Boolean(workspaceId)
@@ -30,9 +30,8 @@ interface PermissionAccessBoundaryProps {
 
 /** Omit children on a server-denied page to keep protected content behind a fresh server check. */
 export function PermissionAccessBoundary({ configKey, children }: PermissionAccessBoundaryProps) {
-  const params = useParams()
   const router = useRouter()
-  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
+  const workspaceId = useSettingsWorkspaceId()
   const policy = useUserPermissionConfig(workspaceId)
   const discovery = useWorkspaceAccessRequestFeatures()
   const blocked = policy.data?.config?.[configKey] === true

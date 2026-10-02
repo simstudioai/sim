@@ -5,9 +5,9 @@ import {
   requireOrganizationAccountsWorkspaceAccess,
   resolveOrganizationAccountsWorkspaceContext,
 } from '@/lib/credential-groups/application/organization-workspace-access'
+import { requireOrganizationAccountRuntimePolicy } from '@/lib/credential-groups/application/resolve-organization-access-policy'
 import {
   listOrganizationAccountWorkspaceIds,
-  organizationAccountAccessPolicyCodec,
   organizationAccountPolicyAllowsWorkspace,
 } from '@/lib/credential-groups/application/workspace-access-policy'
 import {
@@ -23,7 +23,6 @@ import {
   type CredentialGroupTriggerEventType,
 } from '@/lib/credential-groups/trigger-constants'
 import { fetchCredentialGroupTriggerSubscriptions } from '@/lib/credential-groups/trigger-subscriptions'
-import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 interface CredentialGroupTriggerEventBase {
   workspaceId?: string
@@ -121,11 +120,10 @@ export async function fireCredentialGroupTrigger(
   event: CredentialGroupTriggerEvent
 ): Promise<void> {
   if (!event.organizationId) return
-  const policy = await requireResourcePolicy({
+  const policy = await requireOrganizationAccountRuntimePolicy({
     organizationId: event.organizationId,
     resourceType: 'credential_group',
     resourceId: event.credentialGroupId,
-    codec: organizationAccountAccessPolicyCodec,
   })
   const credentialType: OrganizationCredentialType | undefined =
     event.event === 'form_submitted'

@@ -44,3 +44,11 @@ export const renameProjectContract = defineRouteContract({
     schema: z.object({ project: z.object({ id: z.string(), name: z.string() }) }),
   },
 })
+
+/** Organization administration lists every active environment, without borrowing workspace membership. */
+export const listOrganizationProjectsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/projects',
+  params: z.object({ id: nonEmptyIdSchema }),
+  response: { mode: 'json', schema: z.object({ projects: z.array(projectSchema) }) },
+})

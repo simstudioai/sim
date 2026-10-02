@@ -3,8 +3,8 @@
 import { Button } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useRouter } from 'next/navigation'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 
 const logger = createLogger('FileCards')
 
@@ -42,7 +42,7 @@ function formatFileSize(bytes: number): string {
 }
 
 function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps) {
-  const router = useRouter()
+  const router = useResourceRouter()
 
   const handleDownload = () => {
     try {

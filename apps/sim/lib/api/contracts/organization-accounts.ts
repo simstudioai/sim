@@ -23,6 +23,7 @@ import {
   ORGANIZATION_VIEWER_ACCOUNT_LIMIT,
 } from '@/lib/credential-groups/limits'
 import {
+  organizationAccountProjectGrantsSchema,
   organizationAccountWorkspaceGrantsSchema,
   organizationCredentialTypeSchema,
 } from '@/lib/credential-groups/workspace-grants'
@@ -162,6 +163,7 @@ export type UpdateOrganizationAccountsBody = z.input<typeof updateCredentialGrou
 export const organizationAccountWorkspaceAccessSchema = z.object({
   revision: z.number().int().positive(),
   grants: organizationAccountWorkspaceGrantsSchema,
+  projectGrants: organizationAccountProjectGrantsSchema.optional(),
 })
 export const getOrganizationAccountWorkspaceAccessContract = defineRouteContract({
   method: 'GET',

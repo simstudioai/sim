@@ -1,14 +1,6 @@
 'use client'
 
-import {
-  Chip,
-  cn,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@sim/emcn'
-import { Check, ChevronDown } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn'
 import type { EnvironmentColumn } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
 import { PipelineEdge } from '@/app/o/[organizationId]/p/components/environments/pipeline-edge'
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
@@ -26,14 +18,9 @@ interface PipelineConnectorProps {
   focused: boolean
   canManage: boolean
   onReview: () => void
-  onDirectionChange: (direction: ForkDirection) => void
 }
 
-/**
- * The link between two environments: how far apart they are, a running edge pointing the way
- * changes would flow, and a split button whose main half reviews that sync and whose chevron
- * turns it from a promotion into a refresh, reversing the edge.
- */
+/** Selects the environment pair reviewed below and shows its current sync direction. */
 export function PipelineConnector({
   child,
   parent,
@@ -42,7 +29,6 @@ export function PipelineConnector({
   focused,
   canManage,
   onReview,
-  onDirectionChange,
 }: PipelineConnectorProps) {
   const promote = direction === 'push'
   const drift =
@@ -57,6 +43,7 @@ export function PipelineConnector({
         {drift}
       </span>
       <PipelineEdge
+        animated={focused}
         direction={promote ? 'forward' : 'backward'}
         label={
           promote
@@ -65,40 +52,14 @@ export function PipelineConnector({
         }
       />
       {canManage ? (
-        <div
-          className={cn(
-            'flex items-center gap-px rounded-lg',
-            focused && 'ring-2 ring-[var(--text-secondary)] ring-offset-2 ring-offset-[var(--bg)]'
-          )}
+        <Chip
+          active={focused}
+          aria-pressed={focused}
+          aria-label={`Review sync between ${child.label} and ${parent.label}`}
+          onClick={onReview}
         >
-          <Chip variant='primary' className='rounded-r-none' onClick={onReview}>
-            {promote ? 'Review promotion' : 'Review refresh'}
-          </Chip>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Chip
-                variant='primary'
-                leftIcon={ChevronDown}
-                aria-label='Choose sync direction'
-                className='rounded-l-none'
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end' className='min-w-[240px]'>
-              <DropdownMenuItem onSelect={() => onDirectionChange('push')}>
-                <span className='flex-1'>
-                  Promote {child.label} to {parent.label}
-                </span>
-                <Check className={cn('size-[14px]', !promote && 'invisible')} />
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onDirectionChange('pull')}>
-                <span className='flex-1'>
-                  Refresh {child.label} from {parent.label}
-                </span>
-                <Check className={cn('size-[14px]', promote && 'invisible')} />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          Review
+        </Chip>
       ) : null}
     </div>
   )

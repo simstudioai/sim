@@ -33,7 +33,6 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
-import { useOrganizationWorkspaces } from '@/ee/access-control/hooks/permission-groups'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 import {
@@ -41,6 +40,7 @@ import {
   auditLogFilterUrlKeys,
   DEFAULT_AUDIT_TIME_RANGE,
 } from '@/ee/audit-logs/search-params'
+import { useOrganizationProjectsQuery } from '@/hooks/queries/projects'
 import { useDebounce } from '@/hooks/use-debounce'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
@@ -279,9 +279,16 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
    * from an old link would otherwise be shown under a chip labelled with a bare uuid.
    */
   const workspaceScope = urlFilters.workspace
-  const orgWorkspaces = useOrganizationWorkspaces(organizationId, Boolean(workspaceScope))
+  const orgWorkspaces = useOrganizationProjectsQuery(organizationId, Boolean(workspaceScope))
   const scopedWorkspace = workspaceScope
-    ? orgWorkspaces.data?.find((entry) => entry.id === workspaceScope)
+    ? orgWorkspaces.data
+        ?.flatMap((project) =>
+          project.workspaces.map((environment) => ({
+            ...environment,
+            name: `${project.name} / ${environment.name}`,
+          }))
+        )
+        .find((entry) => entry.id === workspaceScope)
     : undefined
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
@@ -516,13 +523,13 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           <Chip
             rightIcon={X}
             onClick={() => void setUrlFilters({ workspace: null })}
-            aria-label='Clear the workspace filter'
+            aria-label='Clear the environment filter'
             className='max-w-[280px] shrink-0'
           >
             {/* Rendered for an unresolved scope too, or a bad link would leave the
                 feed closed with no control to reopen it. */}
             <OverflowText
-              label={`Workspace: ${scopedWorkspace?.name ?? (isWorkspaceScopeUnavailable ? 'unavailable' : 'not found')}`}
+              label={`Environment: ${scopedWorkspace?.name ?? (isWorkspaceScopeUnavailable ? 'unavailable' : 'not found')}`}
               className='block min-w-0'
             />
           </Chip>

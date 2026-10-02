@@ -101,6 +101,25 @@ function configuredRetention(
         }
       : null,
     retentionOverrides: settings?.retentionOverrides ?? null,
+    projectOverrides: (settings?.projectOverrides ?? []).map((override) => ({
+      ...override,
+      piiStages: override.piiStages
+        ? {
+            input: {
+              ...override.piiStages.input,
+              language: coercePiiLanguage(override.piiStages.input.language),
+            },
+            blockOutputs: {
+              ...override.piiStages.blockOutputs,
+              language: coercePiiLanguage(override.piiStages.blockOutputs.language),
+            },
+            logs: {
+              ...override.piiStages.logs,
+              language: coercePiiLanguage(override.piiStages.logs.language),
+            },
+          }
+        : undefined,
+    })),
   }
 }
 
@@ -279,9 +298,11 @@ export const updateOrganizationDataRetention = defineOrganizationConfigurationUs
       merged.fileVersionRetentionHours = body.fileVersionRetentionHours
     if (body.piiRedaction !== undefined) merged.piiRedaction = body.piiRedaction
     if (body.retentionOverrides !== undefined) merged.retentionOverrides = body.retentionOverrides
+    if (body.projectOverrides !== undefined) merged.projectOverrides = body.projectOverrides
     const reason = await getForeignWorkspaceTargetsReason({
       organizationId: input.organizationId,
       retentionOverrides: body.retentionOverrides,
+      projectOverrides: body.projectOverrides,
       piiRedaction: body.piiRedaction,
     })
     if (reason) throw new OrchestrationError('validation', reason)

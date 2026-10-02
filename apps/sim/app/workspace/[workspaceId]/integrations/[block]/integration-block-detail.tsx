@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -15,6 +14,7 @@ import {
 } from '@/lib/integrations'
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
@@ -63,7 +63,7 @@ interface IntegrationBlockDetailProps {
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   useOAuthReturnRouter()
-  const router = useRouter()
+  const router = useResourceRouter()
   const [connectMode, setConnectMode] = useQueryState(connectParam.key, connectParam.parser)
   const Icon = blockTypeToIconMap[integration.type]
   const matchingTemplates = getTemplatesForBlock(integration.type)
@@ -323,7 +323,7 @@ interface TemplatesSectionProps {
 }
 
 function TemplatesSection({ integration, templates, workspaceId }: TemplatesSectionProps) {
-  const router = useRouter()
+  const router = useResourceRouter()
 
   const handleSelect = (prompt: string) => {
     storeCuratedPrompt(prompt)

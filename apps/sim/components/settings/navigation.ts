@@ -474,7 +474,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     icon: Users,
     unified: {
       id: 'teammates',
-      description: 'Manage your teammates in this workspace.',
+      description: 'Manage your teammates in this environment.',
       group: 'workspace',
       order: 0,
     },
@@ -531,7 +531,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     icon: GridOffset,
     unified: {
       id: 'connected-accounts',
-      description: 'Manage integrations and workspace access for workflows and Chat.',
+      description: 'Manage integrations and project environment access for workflows and Chat.',
       group: 'organization',
       order: 1,
       organizationSection: 'connected-accounts',
@@ -724,7 +724,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'data-retention',
       description:
-        'Control data retention windows and PII redaction. Workspaces without an override inherit the organization defaults.',
+        'Control data retention windows and PII redaction. Environments inherit project overrides, then organization defaults.',
       group: 'organization',
       order: 9,
       requiresHosted: true,
@@ -933,7 +933,7 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
     return {
       id,
       label: 'Credential Groups',
-      description: 'Manage integrations and workspace access for workflows and Chat.',
+      description: 'Manage integrations and project environment access for workflows and Chat.',
       icon: GridOffset,
       group,
     }

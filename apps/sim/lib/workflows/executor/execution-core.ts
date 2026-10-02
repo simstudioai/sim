@@ -13,7 +13,11 @@ import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblock
 import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
+import {
+  type EffectivePiiRedaction,
+  resolveEffectivePiiRedaction,
+  resolveProjectRetentionSettings,
+} from '@/lib/billing/retention'
 import {
   getExecutionDeadlineAt,
   getTimeoutErrorMessage,
@@ -940,7 +944,7 @@ async function executeWorkflowCoreImpl(
       { label: 'resolvePiiRedactionPolicy' }
     )
     const piiRedaction: EffectivePiiRedaction = resolveEffectivePiiRedaction({
-      orgSettings: row?.orgSettings,
+      orgSettings: await resolveProjectRetentionSettings(row?.orgSettings, providedWorkspaceId),
       workspaceId: providedWorkspaceId,
     })
 

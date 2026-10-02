@@ -68,6 +68,10 @@ afterAll(resetEnvFlagsMock)
 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => mocks.hostContext.current,
+  useOptionalWorkspaceHostContext: () => ({
+    ...mocks.hostContext.current,
+    workspace: { id: 'workspace-1' },
+  }),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({

@@ -22,7 +22,7 @@ import {
 import { Check, Download, Link, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
@@ -109,6 +109,11 @@ import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  ResourceListHeader,
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
@@ -287,10 +292,10 @@ function FilesContent() {
   const discardRef = useRef<(() => void) | null>(null)
 
   const params = useParams()
-  const router = useRouter()
+  const router = useResourceRouter()
   const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
     useQueryStates(filesParsers, filesUrlKeys)
-  const workspaceId = params?.workspaceId as string
+  const workspaceId = useResourceWorkspaceId()
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -2154,7 +2159,7 @@ function FilesContent() {
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
       <Resource>
-        <Resource.Header icon={FILES_HEADER.rootIcon} breadcrumbs={loadingBreadcrumbs} />
+        <ResourceListHeader icon={FILES_HEADER.rootIcon} breadcrumbs={loadingBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center bg-[var(--bg)]'>
           <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
@@ -2170,7 +2175,7 @@ function FilesContent() {
             header's FileDocAvatars reads it — both must be descendants. */}
         <FileDocRoomProvider>
           <Resource>
-            <Resource.Header
+            <ResourceListHeader
               icon={FILES_HEADER.rootIcon}
               breadcrumbs={fileDetailBreadcrumbs}
               actions={fileActions}
@@ -2239,7 +2244,7 @@ function FilesContent() {
       onDrop={canEdit ? handleDrop : undefined}
     >
       <Resource onContextMenu={handleContentContextMenu}>
-        <Resource.Header
+        <ResourceListHeader
           icon={FILES_HEADER.rootIcon}
           title={FILES_HEADER.rootLabel}
           breadcrumbs={listBreadcrumbs}

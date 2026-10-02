@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import {
   permissionGroup,
   permissionGroupMember,
-  permissionGroupWorkspace,
+  permissionGroupWorkspaceScope,
   workspace,
 } from '@sim/db/schema'
 import { asc, count, desc, eq, inArray } from 'drizzle-orm'
@@ -80,13 +80,13 @@ export async function listPermissionGroupRoster(
   const workspaceRows = groupIds.length
     ? await db
         .select({
-          groupId: permissionGroupWorkspace.permissionGroupId,
+          groupId: permissionGroupWorkspaceScope.permissionGroupId,
           id: workspace.id,
           name: workspace.name,
         })
-        .from(permissionGroupWorkspace)
-        .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
-        .where(inArray(permissionGroupWorkspace.permissionGroupId, groupIds))
+        .from(permissionGroupWorkspaceScope)
+        .innerJoin(workspace, eq(permissionGroupWorkspaceScope.workspaceId, workspace.id))
+        .where(inArray(permissionGroupWorkspaceScope.permissionGroupId, groupIds))
         .orderBy(asc(workspace.name))
     : []
   const workspacesByGroupId = new Map<string, OrgWorkspaceRef[]>()

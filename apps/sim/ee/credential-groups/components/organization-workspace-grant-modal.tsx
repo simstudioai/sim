@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import {
+  Checkbox,
   ChipDropdown,
   ChipModal,
   ChipModalBody,
@@ -12,6 +13,7 @@ import {
   ChipSelect,
 } from '@sim/emcn'
 import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
+import type { ProjectApi } from '@/lib/api/contracts/projects'
 import { isOrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
@@ -21,14 +23,17 @@ interface OrganizationWorkspaceGrantModalBaseProps {
   credentialTypes: OrganizationAccountWorkspaceAccess['credentialTypes']
   disabled: boolean
   error?: string
-  onSave: (grant: Grant) => void
+  onSave: (
+    grants: Grant[],
+    projectGrants: NonNullable<OrganizationAccountWorkspaceAccess['projectGrants']>
+  ) => void
   onClose: () => void
 }
 
 interface CreateOrganizationWorkspaceGrantModalProps
   extends OrganizationWorkspaceGrantModalBaseProps {
   mode: 'create'
-  workspaces: OrganizationAccountWorkspaceAccess['workspaces']
+  projects: ProjectApi[]
 }
 
 interface EditOrganizationWorkspaceGrantModalProps
@@ -39,30 +44,54 @@ interface EditOrganizationWorkspaceGrantModalProps
   onRemove: () => void
 }
 
+interface EditOrganizationProjectGrantModalProps extends OrganizationWorkspaceGrantModalBaseProps {
+  mode: 'edit-project'
+  project: ProjectApi
+  grant: NonNullable<OrganizationAccountWorkspaceAccess['projectGrants']>[number]
+  onRemove: () => void
+}
+
 type OrganizationWorkspaceGrantModalProps =
   | CreateOrganizationWorkspaceGrantModalProps
   | EditOrganizationWorkspaceGrantModalProps
+  | EditOrganizationProjectGrantModalProps
 
 /** All integrations is an explicit grant; an empty picker selection never grants access. */
 export function OrganizationWorkspaceGrantModal(props: OrganizationWorkspaceGrantModalProps) {
   const { credentialTypes, disabled, error, onSave, onClose } = props
-  const [workspaceId, setWorkspaceId] = useState(
-    props.mode === 'edit' ? props.grant.workspaceId : ''
-  )
+  const [projectId, setProjectId] = useState(props.mode === 'edit-project' ? props.project.id : '')
+  const [allEnvironments, setAllEnvironments] = useState(true)
+  const [workspaceIds, setWorkspaceIds] = useState<string[]>([])
+  const selectedProject =
+    props.mode === 'create'
+      ? props.projects.find((project) => project.id === projectId)
+      : props.mode === 'edit-project'
+        ? props.project
+        : undefined
   const [access, setAccess] = useState<Grant['access']>(
-    props.mode === 'edit' ? props.grant.access : { mode: 'selected', credentialTypes: [] }
+    props.mode !== 'create' ? props.grant.access : { mode: 'selected', credentialTypes: [] }
   )
-  const title = props.mode === 'create' ? 'Add workspace' : `Edit ${props.workspaceName} access`
+  const title =
+    props.mode === 'create'
+      ? 'Add project'
+      : props.mode === 'edit-project'
+        ? `Edit ${props.project.name} access`
+        : `Edit ${props.workspaceName} access`
   const save = () => {
-    if (!workspaceId) throw new Error('Select a workspace before granting access')
-    if (
-      props.mode === 'create' &&
-      !props.workspaces.some((workspace) => workspace.id === workspaceId)
-    )
-      throw new Error('Selected workspace is unavailable')
-    if (access.mode === 'selected' && !access.credentialTypes.length)
-      throw new Error('Select at least one integration')
-    onSave({ workspaceId, access })
+    if (access.mode === 'selected' && !access.credentialTypes.length) return
+    if (props.mode === 'edit') {
+      onSave([{ workspaceId: props.grant.workspaceId, access }], [])
+      return
+    }
+    if (!selectedProject) return
+    if (allEnvironments) onSave([], [{ projectId: selectedProject.id, access }])
+    else
+      onSave(
+        workspaceIds
+          .filter((id) => selectedProject.workspaces.some((environment) => environment.id === id))
+          .map((workspaceId) => ({ workspaceId, access })),
+        []
+      )
   }
 
   return (
@@ -78,19 +107,23 @@ export function OrganizationWorkspaceGrantModal(props: OrganizationWorkspaceGran
       </ChipModalHeader>
       <ChipModalBody>
         {props.mode === 'create' && (
-          <ChipModalField type='custom' title='Workspace' required submitOnEnter={false}>
+          <ChipModalField type='custom' title='Project' required submitOnEnter={false}>
             {(aria) => (
               <ChipSelect
-                options={props.workspaces.map((workspace) => ({
-                  value: workspace.id,
-                  label: workspace.name,
+                options={props.projects.map((project) => ({
+                  value: project.id,
+                  label: project.name,
                 }))}
-                value={workspaceId}
-                onChange={setWorkspaceId}
-                placeholder='Select workspace'
-                aria-label='Workspace'
+                value={projectId}
+                onChange={(id) => {
+                  setProjectId(id)
+                  setAllEnvironments(true)
+                  setWorkspaceIds([])
+                }}
+                placeholder='Select project'
+                aria-label='Project'
                 searchable
-                searchPlaceholder='Search workspaces'
+                searchPlaceholder='Search projects'
                 disabled={disabled}
                 fullWidth
                 dropdownWidth='trigger'
@@ -98,6 +131,56 @@ export function OrganizationWorkspaceGrantModal(props: OrganizationWorkspaceGran
                 {...aria}
               />
             )}
+          </ChipModalField>
+        )}
+        {selectedProject && (
+          <ChipModalField type='custom' title='Environments' required submitOnEnter={false}>
+            <div className='flex flex-col gap-2'>
+              <label
+                htmlFor='credential-project-all-environments'
+                className='flex items-center gap-2 text-small'
+              >
+                <Checkbox
+                  id='credential-project-all-environments'
+                  checked={allEnvironments}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => {
+                    setAllEnvironments(checked === true)
+                    setWorkspaceIds(
+                      checked === true
+                        ? []
+                        : selectedProject.workspaces.map((environment) => environment.id)
+                    )
+                  }}
+                />
+                All current and future environments
+              </label>
+              {selectedProject.workspaces.map((environment) => (
+                <label
+                  key={environment.id}
+                  htmlFor={`credential-environment-${environment.id}`}
+                  className='flex items-center gap-2 pl-4 text-small'
+                >
+                  <Checkbox
+                    id={`credential-environment-${environment.id}`}
+                    checked={allEnvironments || workspaceIds.includes(environment.id)}
+                    disabled={disabled}
+                    onCheckedChange={(checked) => {
+                      const selected = new Set(
+                        allEnvironments
+                          ? selectedProject.workspaces.map((item) => item.id)
+                          : workspaceIds
+                      )
+                      if (checked === true) selected.add(environment.id)
+                      else selected.delete(environment.id)
+                      setAllEnvironments(false)
+                      setWorkspaceIds([...selected])
+                    }}
+                  />
+                  {environment.name}
+                </label>
+              ))}
+            </div>
           </ChipModalField>
         )}
         <ChipModalField
@@ -144,15 +227,16 @@ export function OrganizationWorkspaceGrantModal(props: OrganizationWorkspaceGran
         onCancel={onClose}
         cancelDisabled={disabled}
         primaryAction={{
-          label: props.mode === 'create' ? 'Add workspace' : 'Save access',
+          label: props.mode === 'create' ? 'Add project' : 'Save access',
           disabled:
             disabled ||
-            !workspaceId ||
+            (props.mode !== 'edit' &&
+              (!selectedProject || (!allEnvironments && !workspaceIds.length))) ||
             (access.mode === 'selected' && !access.credentialTypes.length),
           onClick: save,
         }}
         secondaryActions={
-          props.mode === 'edit'
+          props.mode !== 'create'
             ? [
                 {
                   label: 'Remove access',

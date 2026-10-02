@@ -1,18 +1,18 @@
 'use client'
 
 import { cn } from '@sim/emcn'
+import { useSearchParams } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { ProjectRow } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/project-row'
 import {
   type ProjectDragProps,
   useProjectOrder,
 } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/use-project-order'
+import { projectPaneParsers } from '@/app/o/[organizationId]/home/components/project-pane/search-params'
 import { type Project, useProjects } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { SIDEBAR_ITEM_GAP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-
-/** Chats listed under an open project before "Show more". */
-const CHAT_PREVIEW = 3
 
 interface ProjectsSectionProps {
   organizationId: string
@@ -20,7 +20,7 @@ interface ProjectsSectionProps {
   pathname: string | null
 }
 
-/** The organization's projects, one per fork lineage, each with its chats underneath. */
+/** Projects select the pinned pane; chats remain independent organization conversations. */
 export function ProjectsSection({ organizationId, isCollapsed, pathname }: ProjectsSectionProps) {
   const { roots } = useProjects(organizationId)
   const { projects, dragProps, isAnyDragActive } = useProjectOrder(roots)
@@ -52,10 +52,6 @@ interface ProjectTreeProps {
   isAnyDragActive: boolean
 }
 
-/**
- * A project row. Chats are organization-wide and can touch several projects, so they live in
- * the Chats section, each marked with the projects it worked in, rather than under one project.
- */
 function ProjectTree({
   organizationId,
   project,
@@ -65,15 +61,23 @@ function ProjectTree({
   isAnyDragActive,
 }: ProjectTreeProps) {
   const routes = organizationRoutes(organizationId)
-  const inProject = project.environments.some((environment) => {
-    const base = `${routes.root}/p/${environment.workspaceId}`
-    return pathname === base || pathname?.startsWith(`${base}/`)
-  })
+  const searchParams = useSearchParams()
+  const [{ project: selectedWorkspace }] = useQueryStates(projectPaneParsers)
+  const inProject = project.environments.some(
+    (environment) => environment.workspaceId === selectedWorkspace
+  )
+  const query = new URLSearchParams(searchParams.toString())
+  if (inProject) query.delete('project')
+  else query.set('project', project.id)
+  query.delete('section')
+  query.set('pane', 'project')
+  const chatPath = pathname?.startsWith(`/o/${organizationId}/chat/`) ? pathname : routes.home
+  const href = `${chatPath}?${query}`
   return (
     <ProjectRow
       project={project}
-      href={routes.project(project.id)}
-      newChatHref={`${inProject && pathname ? pathname : routes.project(project.id)}?chat=new`}
+      href={href}
+      newChatHref={`${routes.home}?project=${encodeURIComponent(project.id)}&pane=project`}
       active={inProject}
       railCollapsed={railCollapsed}
       drag={drag}

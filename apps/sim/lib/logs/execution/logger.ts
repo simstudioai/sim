@@ -29,7 +29,10 @@ import {
   recordUsage,
   stableEventKey,
 } from '@/lib/billing/core/usage-log'
-import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
+import {
+  resolveEffectivePiiRedaction,
+  resolveProjectRetentionSettings,
+} from '@/lib/billing/retention'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -801,7 +804,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     // Stored rules are the source of truth. Absence of rules yields the disabled
     // default, so non-PII organizations incur only the lookup.
-    const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
+    const config = resolveEffectivePiiRedaction({
+      orgSettings: await resolveProjectRetentionSettings(row.orgSettings, workspaceId),
+      workspaceId,
+    }).logs
     if (!config.enabled) return payload
 
     // Masking large payloads can take a while; let the caller surface the phase
