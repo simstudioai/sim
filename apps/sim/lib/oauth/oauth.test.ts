@@ -39,6 +39,7 @@ import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { getPerRequestOAuthLinkScopes, OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { PowerBIBlock } from '@/blocks/blocks/powerbi'
 
 /**
  * Default OAuth token response for successful requests.
@@ -119,23 +120,21 @@ describe('Power BI OAuth callback scope compatibility', () => {
     const tokens = {
       accessToken: 'powerbi-access',
       idToken: oauthTestJwt({ sub: 'fixture-subject', email: 'fixture@example.invalid' }),
-      scopes: [
-        'Workspace.Read.All',
-        'Report.Read.All',
-        'Dataset.ReadWrite.All',
-        'openid',
-        'profile',
-        'email',
-      ],
+      scopes: ['Workspace.Read.All', 'Report.Read.All', 'Dataset.ReadWrite.All'],
     }
+    const requiredScopes = PowerBIBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'credential'
+    )?.requiredScopes
+    if (!requiredScopes) throw new Error('Power BI credential requirements are missing')
     const profile = await connector.getUserInfo(tokens)
     expect(profile).toMatchObject({ email: 'fixture@example.invalid' })
+    expect(getMissingRequiredScopes(tokens, requiredScopes)).toEqual([])
     expect(
       getMissingRequiredScopes(
-        tokens,
-        OAUTH_PROVIDERS.microsoft.services['microsoft-powerbi'].scopes
+        { scopes: tokens.scopes?.filter((scope) => !scope.endsWith('/Dataset.ReadWrite.All')) },
+        requiredScopes
       )
-    ).toEqual([])
+    ).toEqual(['https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All'])
   })
 
   it('does not promote a Graph-qualified lookalike into a Power BI grant', async () => {

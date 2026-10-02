@@ -90,7 +90,9 @@ export const PowerBIBlock: BlockConfig = {
       type: 'oauth-input',
       canonicalParamId: 'oauthCredential',
       serviceId: 'microsoft-powerbi',
-      requiredScopes: getScopesForService('microsoft-powerbi'),
+      requiredScopes: getScopesForService('microsoft-powerbi').filter((scope) =>
+        scope.startsWith('https://analysis.windows.net/powerbi/api/')
+      ),
       placeholder: 'Select Power BI account',
       mode: 'basic',
       required: true,
