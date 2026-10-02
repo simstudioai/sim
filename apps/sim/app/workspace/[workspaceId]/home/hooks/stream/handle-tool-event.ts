@@ -1,5 +1,6 @@
 import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName } from '@sim/terminal-protocol'
+import { isDesktopApp } from '@/lib/desktop'
 import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
@@ -16,6 +17,7 @@ import {
 } from '@/lib/mothership/resources/extraction'
 import {
   isClientExecutedToolCall,
+  isDesktopExecutedToolCall,
   isWorkflowToolName,
 } from '@/lib/mothership/tools/client-executed-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -191,8 +193,11 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   const isPartial =
     payload.partial === true || payload.status === MothershipStreamV1ToolStatus.generating
   const args = payload.arguments as Record<string, unknown> | undefined
+  // Every client tailing the chat sees the call. A client without the desktop app leaves desktop
+  // tools to it: its answer could only be an error, and that error would beat the real result.
   const shouldStartClientTool =
     isClientExecutedToolCall(name, args) &&
+    (isDesktopApp() || !isDesktopExecutedToolCall(name, args)) &&
     !isPartial &&
     !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
     node?.kind === 'tool' &&

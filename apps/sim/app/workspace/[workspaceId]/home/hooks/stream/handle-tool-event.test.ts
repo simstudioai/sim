@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/desktop', () => libDesktopMock)
 vi.mock('@/lib/mothership/resources/extraction', () => ({
   isResourceToolName: vi.fn(() => false),
   extractResourcesFromToolResult: vi.fn(() => []),
@@ -48,6 +50,10 @@ function toolNode(ctx: StreamLoopContext, id: string): ToolNode {
 }
 
 describe('tool events (dispatch → model + side effects)', () => {
+  beforeEach(() => {
+    libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({})
+  })
+
   it('buffers a result that arrives before its call, then applies it', () => {
     const ctx = createStreamLoopContext(makeStreamLoopDeps())
     dispatchStreamEvent(ctx, toolResult('tc-2', true))
