@@ -267,6 +267,28 @@ export async function runExecutorScenario(
           : `missing [${missingHistory.map((message) => message.content).join(', ')}]`,
     })
 
+    /** Each prior turn must appear as a subsequence with its role, in order. */
+    let cursor = 0
+    const inOrder = memory.history.every((message) => {
+      while (cursor < requestMessages.length) {
+        const candidate = requestMessages[cursor]
+        cursor += 1
+        if (
+          candidate.role === message.role &&
+          typeof candidate.content === 'string' &&
+          candidate.content.includes(message.content)
+        ) {
+          return true
+        }
+      }
+      return false
+    })
+    checks.push({
+      name: 'memory-history-order',
+      passed: inOrder,
+      detail: 'each prior turn reached the provider in order with its role',
+    })
+
     const lastHistoryIndex =
       memory.history.length === 0
         ? -1

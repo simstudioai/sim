@@ -311,8 +311,8 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       finalContent: /A-1937.*shipped/,
       maxIterations: 3,
     },
-    /** A live model may answer with the user-facing order number and the grounded status. */
-    liveExpect: { finalContent: /shipped/i },
+    /** The rubric decides grounding; a content pattern would reject valid paraphrases. */
+    liveExpect: { finalContent: undefined },
     judge: {
       criteria: [
         {
@@ -571,6 +571,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       ],
       minScore: 0.7,
     },
+    liveExpect: { finalContent: undefined },
   },
   {
     id: 'long-chain-dependency',
@@ -634,6 +635,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       toolCallSequence: undefined,
       requiredTools: ['list_orders', 'get_order', 'get_shipping'],
       successfulToolCalls: 3,
+      finalContent: undefined,
     },
     judge: {
       criteria: [

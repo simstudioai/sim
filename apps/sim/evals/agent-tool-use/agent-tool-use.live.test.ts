@@ -119,6 +119,7 @@ describe.skipIf(!LIVE)('agent tool-use eval suite (live DeepSeek)', () => {
         ).toBeGreaterThanOrEqual(MIN_PASS_RATE)
       }
     },
-    TIMEOUT_MS
+    /** The test runs TRIALS trials, each with a task call and possibly a judge call. */
+    TRIALS * TIMEOUT_MS
   )
 })

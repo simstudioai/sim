@@ -7,7 +7,7 @@ import { toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { isRecordLike } from '@sim/utils/object'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { type JudgeRubric, judgeAnswer } from '@/evals/agent-tool-use/judge'
+import { type JudgeRubric, type JudgeVerdict, judgeAnswer } from '@/evals/agent-tool-use/judge'
 import type {
   AgentToolUseExpectations,
   AgentToolUseResult,
@@ -438,6 +438,7 @@ export async function runScenario(
         success: response.success,
         ...(response.error ? { error: response.error } : {}),
         durationMs: Date.now() - startedAt,
+        result: response.output,
       })
       return response
     }
@@ -481,9 +482,10 @@ export async function runScenario(
   const iterations = completed?.iterations ?? 0
   const checks = scoreExpectations(expected, toolCalls, finalContent, iterations, streamError, mode)
 
+  let judgeVerdict: JudgeVerdict | undefined
   if (options.judge) {
     try {
-      const verdict = await judgeAnswer({
+      judgeVerdict = await judgeAnswer({
         completion: options.judge.completion,
         model: options.judge.model,
         rubric: options.judge.rubric,
@@ -493,15 +495,16 @@ export async function runScenario(
       })
       checks.push({
         name: 'judge',
-        passed: verdict.passed,
-        detail: `weighted ${verdict.weightedScore.toFixed(2)} [judge ${verdict.identity.model} ${verdict.identity.rubricDigest}]; ${verdict.rationale}`,
+        passed: judgeVerdict.passed,
+        detail: `weighted ${judgeVerdict.weightedScore.toFixed(2)} [judge ${judgeVerdict.identity.model} ${judgeVerdict.identity.rubricDigest}]; ${judgeVerdict.rationale}`,
       })
     } catch (error) {
       checks.push({ name: 'judge', passed: false, detail: `judge failed: ${String(error)}` })
     }
   }
 
-  if (invocations.length > 0) {
+  /** Only scripted runs know the exact arguments; a live model may choose valid ones. */
+  if (invocations.length > 0 && mode !== 'live') {
     const expectedCalls = expectedExecutableCalls(scenario)
     const mismatched = invocations.filter(
       (invocation) =>
@@ -533,6 +536,7 @@ export async function runScenario(
     checks,
     finalContent,
     toolInvocations: invocations,
+    ...(judgeVerdict ? { judge: judgeVerdict } : {}),
     metrics: {
       iterations,
       toolCalls: toolCalls.length,

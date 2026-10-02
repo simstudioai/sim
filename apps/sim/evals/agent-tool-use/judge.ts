@@ -1,9 +1,15 @@
 import { createHash } from 'node:crypto'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
-import type { JudgeCriterion, JudgeRubric } from '@/evals/agent-tool-use/types'
+import type {
+  JudgeCriterion,
+  JudgeIdentity,
+  JudgeRubric,
+  JudgeScore,
+  JudgeVerdict,
+} from '@/evals/agent-tool-use/types'
 import type { OpenAICompatCreateCompletion } from '@/providers/openai-compat/streaming-tool-loop'
 
-export type { JudgeCriterion, JudgeRubric }
+export type { JudgeCriterion, JudgeIdentity, JudgeRubric, JudgeScore, JudgeVerdict }
 
 /**
  * LLM-as-judge scoring for open-ended answers.
@@ -29,36 +35,19 @@ export interface JudgeInput {
 export const JUDGE_PARSER_VERSION = '1'
 
 /**
- * Who judged and how. Two scores are only comparable when this matches; a delta
- * across differing identity is not evidence of improvement.
+ * Stable digest of the rubric's grading contract, independent of key order. The
+ * passing threshold is part of the contract: changing only `minScore` changes
+ * which scores pass, so it must change the digest too.
  */
-export interface JudgeIdentity {
-  model: string
-  rubricDigest: string
-  parserVersion: string
-  temperature?: number
-}
-
-export interface JudgeScore {
-  scores: Record<string, number>
-  rationale: string
-  weightedScore: number
-  passed: boolean
-}
-
-export interface JudgeVerdict extends JudgeScore {
-  identity: JudgeIdentity
-}
-
-/** Stable digest of the rubric's grading contract, independent of key order. */
 export function rubricDigest(rubric: JudgeRubric): string {
-  const canonical = JSON.stringify(
-    rubric.criteria.map((criterion) => ({
+  const canonical = JSON.stringify({
+    minScore: rubric.minScore ?? 0.5,
+    criteria: rubric.criteria.map((criterion) => ({
       id: criterion.id,
       description: criterion.description,
       weight: criterion.weight ?? 1,
-    }))
-  )
+    })),
+  })
   return `sha256:${createHash('sha256').update(canonical).digest('hex').slice(0, 16)}`
 }
 

@@ -60,6 +60,9 @@ describe.skipIf(!LIVE)('agent tool-use model comparison', () => {
           mode: 'live',
           model: spec.model,
           providerName: spec.provider.label,
+          ...(scenario.judge
+            ? { judge: { completion, model: spec.model, rubric: scenario.judge } }
+            : {}),
         })
         runs.push({
           provider: spec.provider.id,
@@ -69,7 +72,8 @@ describe.skipIf(!LIVE)('agent tool-use model comparison', () => {
         })
       }
     },
-    TIMEOUT_MS
+    /** The test runs TRIALS trials, each with a task call and possibly a judge call. */
+    TRIALS * TIMEOUT_MS
   )
 
   it('meets the per-model pass-rate floor', () => {

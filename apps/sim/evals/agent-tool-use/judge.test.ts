@@ -128,6 +128,12 @@ describe('judge identity', () => {
     expect(rubricDigest(reordered)).toBe(rubricDigest(rubric))
   })
 
+  it('changes the digest when only the passing threshold changes', () => {
+    expect(rubricDigest({ criteria: rubric.criteria, minScore: 0.9 })).not.toBe(
+      rubricDigest(rubric)
+    )
+  })
+
   it('changes the digest when a criterion changes', () => {
     const changed = {
       criteria: [

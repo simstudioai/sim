@@ -83,6 +83,27 @@ export interface JudgeRubric {
   minScore?: number
 }
 
+/** Who judged and how. Two scores are comparable only when this matches. */
+export interface JudgeIdentity {
+  model: string
+  rubricDigest: string
+  parserVersion: string
+  temperature?: number
+}
+
+/** A parsed judge response, before the identity envelope is attached. */
+export interface JudgeScore {
+  scores: Record<string, number>
+  rationale: string
+  weightedScore: number
+  passed: boolean
+}
+
+/** A judge verdict retained in structured form so reports can compare it. */
+export interface JudgeVerdict extends JudgeScore {
+  identity: JudgeIdentity
+}
+
 /** A single agent behavior case. */
 export interface AgentToolUseScenario {
   id: string
@@ -125,6 +146,8 @@ export interface EvalToolInvocation {
   success: boolean
   error?: string
   durationMs: number
+  /** The tool's returned output, so a judge can verify grounding. */
+  result?: unknown
 }
 
 /** Measured properties of one completed run. */
@@ -163,5 +186,7 @@ export interface AgentToolUseResult {
   finalContent: string
   toolInvocations: EvalToolInvocation[]
   metrics: AgentToolUseMetrics
+  /** Structured judge verdict, present when a judge ran. */
+  judge?: JudgeVerdict
   error?: string
 }
