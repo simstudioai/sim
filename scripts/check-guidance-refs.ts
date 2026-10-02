@@ -13,7 +13,8 @@
  *   (rules usually name app paths without the prefix). A path whose first segment exists in none
  *   of those is not treated as a path, so MIME types and prose like `basic/advanced` pass.
  * - `script`: `bun run <name>`, `turbo run <name>`, or a bare `check:<x>` / `<x>:check` that is
- *   not a script in any workspace `package.json`.
+ *   not a script in any workspace `package.json`; `bun run --cwd <dir> <name>` must be a script in
+ *   `<dir>/package.json`.
  * - `skill`: `/name` on a line that talks about skills, or `` `name` skill ``, with no
  *   `.agents/skills/<name>/SKILL.md`.
  * - `import`: an `@/…` or `@sim/…` specifier (in a code span, or a fenced `import`/`from` line)
@@ -30,13 +31,13 @@
  *
  * Run: `bun run check:guidance-refs`
  */
+import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const APP_ROOT = path.join(ROOT, 'apps/sim')
 const SKILLS_DIR = path.join(ROOT, '.agents/skills')
-const SKIP_DIRS = new Set(['node_modules', '.git', '.next', '.turbo', 'dist', 'build', 'worktrees'])
 const SOURCE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.mjs', '.json', '.md', '.css']
 
 interface Finding {
@@ -53,22 +54,17 @@ function guidanceFiles(): string[] {
     const real = realpathSync(file)
     if (!found.has(real)) found.set(real, path.relative(ROOT, file))
   }
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (SKIP_DIRS.has(entry.name)) continue
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        // `.claude/skills` is a generated projection of `.agents/skills`.
-        if (full === path.join(ROOT, '.claude/skills') || full === path.join(ROOT, '.cursor')) {
-          continue
-        }
-        walk(full)
-      } else if (entry.name === 'AGENTS.md' || entry.name === 'CLAUDE.md') {
-        add(full)
-      }
-    }
+  const tracked = execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', '*AGENTS.md', '*CLAUDE.md'],
+    { cwd: ROOT, encoding: 'utf8' }
+  )
+  for (const rel of tracked.split('\n')) {
+    // `.claude/skills` and `.cursor` are generated projections of `.agents/skills`.
+    if (!rel || rel.startsWith('.claude/skills/') || rel.startsWith('.cursor/')) continue
+    const full = path.join(ROOT, rel)
+    if (existsSync(full)) add(full)
   }
-  walk(ROOT)
   for (const entry of readdirSync(path.join(ROOT, '.claude/rules'))) {
     if (entry.endsWith('.md')) add(path.join(ROOT, '.claude/rules', entry))
   }
@@ -83,21 +79,30 @@ function guidanceFiles(): string[] {
   return [...found.values()].sort()
 }
 
+interface ScriptNames {
+  /** Every script declared by the root or any workspace. */
+  all: Set<string>
+  /** Scripts per workspace directory (`''` is the root), for `bun run --cwd <dir>`. */
+  byDir: Map<string, Set<string>>
+}
+
 /** Script names declared by the root and every workspace `package.json`. */
-function scriptNames(): Set<string> {
-  const names = new Set<string>()
-  const manifests = [path.join(ROOT, 'package.json')]
+function scriptNames(): ScriptNames {
+  const all = new Set<string>()
+  const byDir = new Map<string, Set<string>>()
+  const dirs = ['']
   for (const group of ['apps', 'packages']) {
     for (const entry of readdirSync(path.join(ROOT, group))) {
-      const manifest = path.join(ROOT, group, entry, 'package.json')
-      if (existsSync(manifest)) manifests.push(manifest)
+      if (existsSync(path.join(ROOT, group, entry, 'package.json'))) dirs.push(`${group}/${entry}`)
     }
   }
-  for (const manifest of manifests) {
-    const scripts = JSON.parse(readFileSync(manifest, 'utf8')).scripts ?? {}
-    for (const name of Object.keys(scripts)) names.add(name)
+  for (const dir of dirs) {
+    const manifest = path.join(ROOT, dir, 'package.json')
+    const names = new Set(Object.keys(JSON.parse(readFileSync(manifest, 'utf8')).scripts ?? {}))
+    byDir.set(dir, names)
+    for (const name of names) all.add(name)
   }
-  return names
+  return { all, byDir }
 }
 
 interface WorkspacePackage {
@@ -181,7 +186,7 @@ function skillExists(name: string): boolean {
 const CODE_SPAN = /`([^`\n]+)`/g
 const MD_LINK = /\]\(([^)\s]+)\)/g
 const SCRIPT_RUN =
-  /\b(?:bun run|turbo run|bunx turbo run)\s+(?:--filter[= ]\S+\s+|-F\s+\S+\s+)?([^\s`'"]+)/g
+  /\b(?:bun run|turbo run|bunx turbo run)\s+(?:--filter[= ]\S+\s+|-F\s+\S+\s+|--cwd[= ](\S+)\s+)?([^\s`'"]+)/g
 const IMPORT_SPEC = /(['"`])((?:@\/|@sim\/)[^'"`\s]+)\1/g
 const SKILL_SLASH = /(?:^|[\s(`"'])\/([a-z][a-z0-9]*(?:-[a-z0-9]+)+|[a-z]{3,})(?=[\s`)"',.:;]|$)/g
 const SKILL_NAMED = /`\/?([a-z][a-z0-9-]+)`\s+skills?\b/g
@@ -230,7 +235,7 @@ function trimProse(ref: string): string {
 /** Extracts every unresolved reference from one document. */
 function auditDocument(
   relFile: string,
-  scripts: Set<string>,
+  scripts: ScriptNames,
   packages: Map<string, WorkspacePackage>
 ): Finding[] {
   const findings: Finding[] = []
@@ -244,11 +249,17 @@ function auditDocument(
     findings.push({ file: relFile, line, kind, ref })
   }
 
-  const checkScript = (line: number, raw: string) => {
+  const checkScript = (line: number, raw: string, cwd?: string) => {
     const name = raw.replace(/[.,;:)]+$/, '')
     if (isPlaceholder(name) || name.includes('/') || name.endsWith('.ts')) return
     if (name.startsWith('-')) return
-    if (!scripts.has(name)) report(line, 'script', name)
+    if (cwd !== undefined) {
+      if (isPlaceholder(cwd)) return
+      const declared = scripts.byDir.get(cwd.replace(/^\.\//, '').replace(/\/$/, ''))
+      if (!declared?.has(name)) report(line, 'script', `${name} (in ${cwd})`)
+      return
+    }
+    if (!scripts.all.has(name)) report(line, 'script', name)
   }
 
   const checkPath = (line: number, raw: string) => {
@@ -273,7 +284,7 @@ function auditDocument(
       inFence = !inFence
       return
     }
-    for (const match of text.matchAll(SCRIPT_RUN)) checkScript(line, match[1])
+    for (const match of text.matchAll(SCRIPT_RUN)) checkScript(line, match[2], match[1])
     for (const match of text.matchAll(REPO_PATH)) checkPath(line, trimProse(match[1]))
     if (inFence) {
       // Example code: only imports are concrete enough to check.

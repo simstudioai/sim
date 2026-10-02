@@ -549,7 +549,7 @@ params: (params) => {
 
 Name each subBlock (or its `canonicalParamId`) exactly after the tool param it fills. A required
 `user-only` param that is only renamed in `tools.config.params` fails
-`bun run apps/sim/scripts/check-block-registry.ts`; remap only optional or `user-or-llm` params.
+`bun run apps/sim/scripts/check-block-registry.ts origin/staging`; remap only optional or `user-or-llm` params.
 
 ### 6. Add new outputs
 

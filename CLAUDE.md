@@ -22,7 +22,7 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
   - `compareStrings(left, right)` from `@sim/utils/string` — code-unit ordering for hashes, fingerprints, and cross-process comparisons; never `localeCompare` there
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — never reimplement exponential backoff inline
 - **Deployment flags in the browser**: client code inside a workspace, organization, or standalone settings surface reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never `isHosted`/`isBillingEnabled`/... from `env-flags`. Those constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit, so a recovered tab would render Sim Cloud as self-hosted; the reader is seeded from the server-resolved workspace host context, organization layout, or standalone settings layout instead. Server code keeps reading `env-flags`.
-- **Type-checking**: `bun run type-check` at the root checks every workspace (`bun run type-check` inside a workspace checks just that one). Never remove the `@typescript/native` alias from the root `devDependencies`: nothing imports it, but without it a bare `tsc` resolves to the ~10x slower TypeScript 6 compiler. `bun run check:native-typecheck` enforces this; its header explains the bin-resolution trap.
+- **Type-checking**: `bun run type-check` at the root checks every workspace (`bun run type-check` inside a workspace checks just that one). `apps/sim`'s tsconfig excludes `*.test.ts(x)`, so its tests are not type-checked. Never remove the `@typescript/native` alias from the root `devDependencies`: nothing imports it, but without it a bare `tsc` resolves to the ~10x slower TypeScript 6 compiler. `bun run check:native-typecheck` enforces this; its header explains the bin-resolution trap.
 
 ## Architecture
 
@@ -137,16 +137,18 @@ Never add a `case 'sometype':` outside `column-types/`, except the one documente
 
 ## How your work is checked
 
-Before declaring a change done, run the local gate from the repo root; CI runs the same commands and fails on any of them:
+Before declaring a change done, run the local gate from the repo root; CI runs these and fails on any of them:
 
 ```bash
 bun run lint            # biome format + lint, autofixes (CI runs lint:check)
 bun run type-check      # every workspace
 bun run check:audits    # every check:* audit plus the generated-artifact checks
 bun run test            # script tests, then every workspace's Vitest suite
+bun run docs-manifest:check
+bun run apps/sim/scripts/check-block-registry.ts origin/staging
 ```
 
-A diff that touches `packages/db/migrations/**` also runs `bun run check:migrations origin/staging` (it needs a base ref, so it is not in `check:audits`). When an audit fails, its output and its script's header say what the rule protects; fix the code, never the check. Ratchet baselines (`scripts/*.baseline.json`) only shrink: regenerate one with the script's `--update`/`--write` flag after removing violations, never to admit new ones.
+CI also runs `bun run check:migrations <base>` (it needs a base ref, so it is not in `check:audits`; run it with `origin/staging` when you touch `packages/db/migrations/**`), checks that `drizzle-kit generate` in `packages/db` produces no new migration, and runs a non-blocking `bun audit`. When an audit fails, its output and its script's header say what the rule protects; fix the code, never the check. Ratchet baselines (`scripts/*baseline.json`) only shrink: regenerate one with the update flag its failure output names (`--update` or `--update-baseline`) after removing violations, never to admit new debt. The one exception is `check:tool-registry-boundary`, whose module-count baseline is re-recorded when growth is deliberate (see its skill).
 
 | Written rule | Enforced by |
 | --- | --- |
@@ -169,6 +171,6 @@ A diff that touches `packages/db/migrations/**` also runs `bun run check:migrati
 | kebab-case file names; no file repeating its folder's name | `check:file-names` |
 | No banner separators or commented-out code | `check:comment-hygiene` |
 | Skills and rules projections in sync; guidance references resolve | `check:skills`, `check:guidance-refs` |
-| Generated artifacts fresh (tool metadata, docs, catalog, CLI/MCP/OpenAPI surfaces) | the `*:check` entries in `check:audits` |
+| Generated artifacts fresh (tool metadata, deployment config, docs, catalog, agent stream docs; CLI/MCP/OpenAPI surfaces) | the five `*:check` entries in `check:audits`; `check:cli-api`, `check:mcp-operations`, `check:openapi` |
 
 Rules not in this table (logging, the rest of comment style and naming, imports, styling, state ownership, caching) are enforced by review only; follow them as written.

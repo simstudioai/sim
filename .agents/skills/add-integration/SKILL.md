@@ -542,7 +542,8 @@ operations beside it. The handler validates `request.input`, derives storage aut
 trusted `request.context`, authorizes every stored file before reading bytes, forwards
 `request.signal`, enforces declared and actual byte caps, and returns the canonical tool response.
 Register `{service}_upload` in `apps/sim/lib/internal/tool-operations/registry.server.ts`; the
-existing `registry.server.test.ts` completeness test covers registration. For anything more, run the
+sweep in `apps/sim/tools/request-transport.test.ts` fails a forgotten registration
+(`registry.server.test.ts` checks registered ids are canonical with loadable handlers). For anything more, run the
 `test-audit` gate. There is no HTTP fallback.
 
 ### File Output Pattern (Downloads)

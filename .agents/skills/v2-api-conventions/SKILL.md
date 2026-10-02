@@ -30,7 +30,7 @@ Each rule below guards a caller-visible failure: a non-integer `limit` reaching 
 
 ## Rule 1 — the envelope is produced by helpers, never by hand
 
-`v2Data`, `v2Error`, and the typed error helpers in `response.ts` (`v2ValidationError`, `v2RateLimitError`, `v2HttpError`) are the only things that build a v2 body. They also set `Cache-Control: private, no-store`, which every v2 response needs because every v2 response is authed per-caller data.
+`v2Data`, `v2Error`, and the typed error helpers in `response.ts` (`v2ValidationError`, `v2RateLimitError`, `v2HttpError`, `v2InsufficientScope`, `v2HeadNoEffect`, `v2UploadDataPlaneError`) are the only things that build a v2 body. They also set `Cache-Control: private, no-store`, which every v2 response needs because every v2 response is authed per-caller data.
 
 A route built with `defineV2JsonRoute` gets this for free: its `present` returns the *body shape* and the builder renders it. Never call `NextResponse.json` from a v2 route.
 

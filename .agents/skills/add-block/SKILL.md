@@ -73,7 +73,7 @@ export const {ServiceName}Block: BlockConfig = {
 
 ## SubBlock Types Reference
 
-**Critical:** A subblock `id` is unique per condition. The only sanctioned cross-condition reuse is the hosted-key `apiKey` pair (`add-hosted-key` skill), where both fields deliberately share one value. `blocks.test.ts` fails same-condition duplicates.
+**Critical:** Give every subblock a unique `id`: duplicates collide silently (the last definition wins). `blocks.test.ts` fails a duplicate within one condition unless the copies are a basic/advanced mode-swap pair, one basic plus trigger-mode copies, or all carry `canonicalParamId`. The only sanctioned cross-condition reuse is the hosted-key `apiKey` pair (`add-hosted-key` skill), where both fields deliberately share one value.
 
 ### Text Inputs
 ```typescript
@@ -959,7 +959,7 @@ But if the same change also adds, edits **or removes** a tool, run `bun run tool
 A visible integration block does require the generated integration catalog and docs to be refreshed:
 `bun run tool-metadata:generate` (only when a tool changed), `bun run scripts/generate-docs.ts`,
 `bun run deployment-config:generate`, then `bun run check:audits`. Also run
-`bun run apps/sim/scripts/check-block-registry.ts` (CI runs it outside `check:audits`). Commit the
+`bun run apps/sim/scripts/check-block-registry.ts origin/staging` (CI runs it outside `check:audits`). Commit the
 full generator output. For what each check verifies, see the `validate-integration` skill →
 Regenerate Derived Artifacts.
 
@@ -1002,7 +1002,7 @@ Validate the block against every tool in `tools.access`:
 2. **For each tool, verify the block has correct:**
    - SubBlock inputs that cover all required tool params (with correct `condition` to show for that operation)
    - SubBlock input types that match the tool param types (e.g., dropdown for enums, short-input for strings)
-   - Each subBlock (or its `canonicalParamId`) is named exactly after the tool param it fills. A required `user-only` param that is only renamed in `tools.config.params` fails `bun run apps/sim/scripts/check-block-registry.ts`; remap only optional or `user-or-llm` params
+   - Each subBlock (or its `canonicalParamId`) is named exactly after the tool param it fills. A required `user-only` param that is only renamed in `tools.config.params` fails `bun run apps/sim/scripts/check-block-registry.ts origin/staging`; remap only optional or `user-or-llm` params
    - Type coercions in `tools.config.params` for any params that need conversion (Number(), Boolean(), JSON.parse())
 3. **Verify block outputs** cover the key fields returned by all tools
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it

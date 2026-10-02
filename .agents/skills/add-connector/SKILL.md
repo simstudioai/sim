@@ -347,7 +347,7 @@ Every document returned from `listDocuments`/`getDocument` must include:
   content: string             // Extracted plain text (or '' if contentDeferred)
   contentDeferred?: boolean   // true = content will be fetched via getDocument
   mimeType: 'text/plain'     // extracted text; for a format the KB pipeline parses (PDF, Office), set `sourceFile` instead
-  contentHash: string         // Metadata-based hash for change detection
+  contentHash: string         // Change-detection hash (metadata-based when content is deferred)
   sourceUrl?: string          // Link back to original (stored on document record)
   metadata?: Record<string, unknown>  // Source-specific data (fed to mapTags)
 }
@@ -627,7 +627,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
 - [ ] `listDocuments` handles pagination; deferred-content connectors use metadata-based content hashes
 - [ ] `syncContext.listingCapped = true` set whenever the listing is truncated (max-items cap or transient per-item error) — required to prevent the engine's deletion reconciliation from removing unseen documents
 - [ ] `contentDeferred: true` used if content requires per-doc API calls (file download, export, blocks fetch)
-- [ ] `contentHash` is metadata-based (not content-based) and identical between stub and `getDocument`
+- [ ] `contentHash` is metadata-based for deferred-content connectors (inline-content ones may use `computeContentHash`) and identical between stub and `getDocument`
 - [ ] `sourceUrl` set on each ExternalDocument (full URL, not relative)
 - [ ] `metadata` includes source-specific data for tag mapping
 - [ ] `tagDefinitions` declared for each semantic key returned by `mapTags`

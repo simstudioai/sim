@@ -42,15 +42,19 @@ Key paths:
 
 For each page component, confirm the checklist in `.claude/rules/sim-settings-pages.md`:
 
+Each grep lists candidates; review every match against the expected ones named below.
+
 1. Find hand-rolled shells that should be `SettingsPanel`:
    `git grep -n "flex h-full flex-col bg-\[var(--bg)\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`
-   — every match should be the settings shell (`settings/layout.tsx`),
-   `CredentialDetailLayout` (the `settings/secrets/[credentialId]` exception), or an
-   entitlement/loading gate. A detail sub-view is never a match: it passes
-   `back={{ text, icon: ArrowLeft, onSelect }}` to `SettingsPanel`. Anything else is a
-   violation: render it through `SettingsPanel`.
-2. Find hand-rolled title blocks (should match only `settings-header.tsx`, the shell):
+   — expected matches: the workspace and organization `settings/layout.tsx` shells, the shared
+   header shell (`components/settings/settings-header.tsx`), `CredentialDetailLayout` (the
+   `settings/secrets/[credentialId]` exception), or an entitlement/loading gate. A detail
+   sub-view is never a match: it passes `back={{ text, icon: ArrowLeft, onSelect }}` to
+   `SettingsPanel`. Anything else is a violation: render it through `SettingsPanel`.
+2. Find hand-rolled title blocks:
    `git grep -n "text-\[var(--text-body)\] text-lg" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`
+   — the only title is the `<h1>` in `settings-header.tsx`; a non-heading value at that size
+   (e.g. the credit balance in `ee/organization-usage/components/usage-credits.tsx`) is fine.
 3. Find literal pixel text sizes (should be 0 — see "Text Scale" in
    `.claude/rules/sim-styling.md`):
    `git grep -nE "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`.

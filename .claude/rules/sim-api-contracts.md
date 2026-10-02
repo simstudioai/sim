@@ -18,7 +18,7 @@ Boundary HTTP request and response shapes for all routes under `apps/sim/app/api
 
 ## Enforcement
 
-`bun run check:api-validation:strict` is the gate (it runs in `check:audits`): it enforces boundary policy, prints ratchet metrics (route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports), and fails on annotations with empty reasons. `check:api-validation` is the same audit without the strict reason check.
+`bun run check:api-validation:strict` is the gate (it runs in `check:audits`): it enforces boundary policy, prints ratchet metrics (route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports), and fails on annotations with empty reasons. `check:api-validation` (non-strict) only fails when the non-Zod route count grows; every boundary ratchet, including the reason check, is strict-only, so always run the `:strict` variant.
 
 Whole-file allowlists for routes that legitimately import Zod for non-boundary reasons go through `INDIRECT_ZOD_ROUTES` in `scripts/check-api-validation-contracts.ts`, not per-line annotations.
 

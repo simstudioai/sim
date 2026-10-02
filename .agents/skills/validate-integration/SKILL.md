@@ -198,9 +198,9 @@ For **each tool** in `tools.access`:
   - Shown when that operation is selected (correct `condition`)
   - Marked as `required: true` (or conditionally required)
 - [ ] Every **optional** tool param has a corresponding subBlock input (or is intentionally omitted if truly never needed)
-- [ ] A subBlock `id` is unique per condition. The only sanctioned cross-condition reuse is the hosted-key `apiKey` pair (`add-hosted-key` skill), where both fields deliberately share one value. `blocks.test.ts` fails same-condition duplicates
+- [ ] Every subBlock `id` is unique (duplicates collide silently; the last definition wins). `blocks.test.ts` fails a duplicate within one condition unless the copies are a basic/advanced mode-swap pair, one basic plus trigger-mode copies, or all carry `canonicalParamId`. The only sanctioned cross-condition reuse is the hosted-key `apiKey` pair (`add-hosted-key` skill)
 - [ ] The `tools.config.tool` function returns the correct tool ID for every possible operation value
-- [ ] Each subBlock (or its `canonicalParamId`) is named exactly after the tool param it fills. A required `user-only` param that is only renamed in `tools.config.params` fails `bun run apps/sim/scripts/check-block-registry.ts`; remap only optional or `user-or-llm` params
+- [ ] Each subBlock (or its `canonicalParamId`) is named exactly after the tool param it fills. A required `user-only` param that is only renamed in `tools.config.params` fails `bun run apps/sim/scripts/check-block-registry.ts origin/staging`; remap only optional or `user-or-llm` params
 
 ### SubBlocks
 - [ ] Operation dropdown lists ALL tool operations available in `tools.access`
@@ -435,7 +435,7 @@ bun run integration-catalog:check    # registry ↔ committed deployment metadat
 bun run docs:check                   # committed docs ↔ what the generator renders today
 bun run deployment-config:check     # OAuth registry/catalog ↔ provider-ID fact drift
 bun run check:audits                 # every audit CI enforces, including docs:check
-bun run apps/sim/scripts/check-block-registry.ts  # block ↔ tool param coverage (CI, not in check:audits)
+bun run apps/sim/scripts/check-block-registry.ts origin/staging  # block ↔ tool param coverage (CI, not in check:audits)
 ```
 
 - **`tool-metadata:generate`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run tool-metadata:check`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
@@ -471,7 +471,7 @@ After fixing, confirm:
 4. Derived artifacts regenerated and their diffs reviewed (see above)
 5. `bun run integration-catalog:check` passes
 6. `bun run docs:check` passes
-7. `bun run apps/sim/scripts/check-block-registry.ts` passes
+7. `bun run apps/sim/scripts/check-block-registry.ts origin/staging` passes
 8. For OAuth or service-account changes, `bun run deployment-config:check` passes
 9. For OAuth or service-account changes, `bun run --cwd apps/sim test lib/integrations/availability.server.test.ts` passes
 10. Re-read all modified files to verify fixes are correct
