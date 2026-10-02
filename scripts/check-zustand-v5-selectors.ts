@@ -298,6 +298,14 @@ function auditFile(file: string, source: string): Violation[] {
 const PERSIST_IMPORT =
   /import\s*\{[^}]*\bpersist\b(?:\s+as\s+(\w+))?[^}]*\}\s*from\s*'zustand\/middleware'/
 
+/** Removes comments while leaving string literals (which may contain `//`) intact. */
+function stripComments(code: string): string {
+  return code.replace(
+    /('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+    (_, literal: string | undefined) => literal ?? ''
+  )
+}
+
 /**
  * `.claude/rules/sim-stores.md`: every `persist` names its durable fields in `partialize`.
  * Without one, zustand writes the whole state — transient flags, drag state, `_hasHydrated` —
@@ -315,12 +323,18 @@ function auditPersist(file: string, source: string): Violation[] {
     const openParenIndex = match.index + match[0].length - 1
     const closeParenIndex = findMatchingParen(source, openParenIndex)
     if (closeParenIndex === -1) continue
-    const call = source.slice(openParenIndex + 1, closeParenIndex)
-    const hasPartialize = /\bpartialize\b/.test(call)
-    /** `(s) => s`, `(s) => ({ ...s })`, or a block body returning either: the whole state persists. */
+    const args = splitTopLevelArguments(
+      stripComments(source.slice(openParenIndex + 1, closeParenIndex))
+    )
+    const options = args.length > 1 ? args[args.length - 1] : ''
+    const hasPartialize = /(?:^|[{,])\s*partialize\s*[:(,}]/.test(options)
+    /**
+     * `(s) => s`, `(s) => ({ ...s })`, or a block body returning either — with `s` also bound as
+     * `({ ...s })` — persists the whole state.
+     */
     const spreadsState =
-      /\bpartialize\s*:\s*\(?\s*(\w+)[^)]*\)?\s*=>\s*(?:\1\b(?!\s*[.[])|\(\s*\{\s*\.\.\.\1\b|\{[^}]*\breturn\s+(?:\1\b(?!\s*[.[])|\{\s*\.\.\.\1\b))/.test(
-        call
+      /\bpartialize\s*:\s*\(?\s*(?:\{\s*\.\.\.)?(\w+)[^)]*\)?\s*=>\s*(?:\1\b(?!\s*[.[])|\(\s*\{\s*\.\.\.\1\b|\{[^}]*\breturn\s+(?:\1\b(?!\s*[.[])|\{\s*\.\.\.\1\b))/.test(
+        options
       )
     if (hasPartialize && !spreadsState) continue
     violations.push({

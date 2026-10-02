@@ -214,7 +214,7 @@ The user sees a toggle button (ArrowLeftRight) to switch between the selector dr
 
 1. **Every selector field MUST have a canonical pair** — a corresponding `short-input` (or `dropdown`) field with the same `canonicalParamId` and `mode: 'advanced'`.
 2. **`required` must be set identically on both fields** in a pair. If the selector is required, the manual input must also be required.
-3. **`canonicalParamId` must match the key the connector expects in `sourceConfig`** (e.g. `baseId`, `channel`, `teamId`). The advanced field's `id` should typically match `canonicalParamId` (connector config fields differ from block subBlocks here; the block rule that `canonicalParamId` must not equal a subblock id does not apply).
+3. **`canonicalParamId` must match the key the connector expects in `sourceConfig`** (e.g. `baseId`, `channel`, `teamId`). The advanced field's `id` should typically match `canonicalParamId` (connector config fields differ from block subBlocks here; the block rule that `canonicalParamId` must not equal the id of a subblock without a `canonicalParamId` does not apply).
 4. **`dependsOn` references the selector field's `id`**, not the `canonicalParamId`. The modal propagates dependency clearing across canonical siblings automatically — changing either field in a parent pair clears dependent children.
 
 ### Selector canonical pair example (Airtable base → table cascade)

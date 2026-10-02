@@ -146,10 +146,13 @@ const BANNED_PATTERNS: Array<{
   },
   // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
   {
-    pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(|\.with\(\s*-?\d+\s*,/g,
+    /** `.with(i, value)`; a function second argument is OpenTelemetry's `context.with(ctx, fn)`. */
+    pattern:
+      /\.(?:toSorted|toReversed|toSpliced)\s*\(|\.with\(\s*[^,()]+,(?!\s*(?:async\s*)?(?:\([^)]*\)\s*=>|\w+\s*=>|function\b))/g,
     description:
       'ES2023 array method (throws on Safari/iOS 15 wherever the module reaches the browser)',
-    suggestion: 'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice()',
+    suggestion:
+      'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice(), or [...arr] then next[i] = value',
   },
   {
     pattern: /\buseRef(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*new\s+[A-Z]\w*/g,

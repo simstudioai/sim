@@ -50,9 +50,11 @@
  *
  * Client code — `stores/`, `hooks/`, `blocks/`, and any `'use client'` module or hook
  * under the workspace, organization, or standalone settings surfaces — must not import the
- * deployment-shape flags from `env-flags` (named or namespace); it reads them through
+ * deployment-shape flags from `env-flags`; it reads them through
  * `@/lib/core/config/deployment-shape`. The flag list is that module's own `env-flags`
- * import, so it cannot drift. Same escape hatch as above. Why: CLAUDE.md "Deployment flags
+ * import, so it cannot drift. A namespace import (`* as flags`) is refused outright: its reads
+ * (`flags.x`, `flags['x']`, destructuring) cannot be enumerated, and named imports cover every
+ * legitimate use. Same escape hatch as above. Why: CLAUDE.md "Deployment flags
  * in the browser".
  *
  * Usage:
@@ -77,7 +79,7 @@ function isServerSurface(rel: string): boolean {
   return false
 }
 
-const ENV_FLAGS = '@/lib/core/config/env-flags'
+const ENV_FLAGS_MODULE = path.join(APP_DIR, 'lib/core/config/env-flags.ts')
 const DEPLOYMENT_SHAPE_MODULE = path.join(APP_DIR, 'lib/core/config/deployment-shape.ts')
 
 /** Surfaces whose shell seeds the server-resolved deployment shape (paths relative to apps/sim). */
@@ -96,15 +98,8 @@ async function isDeploymentShapeClient(rel: string, absFile: string): Promise<bo
   return /(?:^|\/)(?:hooks\/|use-[^/]+\.tsx?$)/.test(rel) || isUseClientModule(absFile)
 }
 
-/**
- * Exports of `env-flags` an import clause reads: its named members, or, for a namespace
- * import (`* as flags`), every `flags.<name>` access in the file.
- */
-function envFlagReads(clause: string, content: string): string[] {
-  const namespace = /^\*\s+as\s+(\w+)$/.exec(clause.trim())?.[1]
-  if (namespace) {
-    return [...content.matchAll(new RegExp(`\\b${namespace}\\.(\\w+)`, 'g'))].map((m) => m[1])
-  }
+/** The named members an import clause brings in. */
+function namedImports(clause: string): string[] {
   if (!clause.includes('{')) return []
   return clause
     .slice(clause.indexOf('{') + 1, clause.lastIndexOf('}'))
@@ -331,8 +326,11 @@ async function main() {
 
   const shapeFlags = new Set(
     parseImports(await readSource(DEPLOYMENT_SHAPE_MODULE))
-      .filter((imp) => imp.specifier === ENV_FLAGS)
-      .flatMap((imp) => envFlagReads(imp.clause, ''))
+      .filter(
+        (imp) =>
+          resolveSpecifier(imp.specifier, DEPLOYMENT_SHAPE_MODULE, sourceFiles) === ENV_FLAGS_MODULE
+      )
+      .flatMap((imp) => namedImports(imp.clause))
   )
   if (shapeFlags.size === 0) {
     throw new Error(
@@ -346,10 +344,11 @@ async function main() {
     if (!(await isDeploymentShapeClient(rel, absFile))) continue
     const content = await readSource(absFile)
     for (const imp of parseImports(content)) {
-      if (imp.specifier !== ENV_FLAGS || !importsAValue(imp.clause)) continue
-      const flags = [...new Set(envFlagReads(imp.clause, content))].filter((name) =>
-        shapeFlags.has(name)
-      )
+      if (!importsAValue(imp.clause)) continue
+      if (resolveSpecifier(imp.specifier, absFile, sourceFiles) !== ENV_FLAGS_MODULE) continue
+      const flags = /\*\s*as\s/.test(imp.clause)
+        ? [imp.clause.trim()]
+        : namedImports(imp.clause).filter((name) => shapeFlags.has(name))
       if (flags.length === 0 || hasAllowDirective(content, imp.line)) continue
       shapeViolations.push({ file: rel, line: imp.line, specifier: imp.specifier, flags })
     }
@@ -361,7 +360,8 @@ async function main() {
     failed = true
     console.error(
       `\n✗ ${shapeViolations.length} client module(s) read deployment-shape flags from env-flags.\n` +
-        `  Read them via useDeploymentShape() (components) or getDeploymentShape() (helpers) from @/lib/core/config/deployment-shape.\n`
+        `  Read them via useDeploymentShape() (components) or getDeploymentShape() (helpers) from @/lib/core/config/deployment-shape;\n` +
+        `  import any other env-flags export by name, never as a namespace.\n`
     )
     for (const v of shapeViolations) {
       console.error(`  ${v.file}:${v.line}  imports ${v.flags.join(', ')} from '${v.specifier}'`)

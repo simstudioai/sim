@@ -310,7 +310,7 @@ When several fields are mutually exclusive alternatives, mark them all `required
 other paths ever get a chance to supply the value.
 
 **Constraints (block-wide):**
-- `canonicalParamId` must not equal any subblock `id` in the block.
+- `canonicalParamId` must not equal the `id` of a subblock that has no `canonicalParamId`. A group member may share it, as `channel` does in the canonicalParamId Pattern below.
 - One canonical id links exactly one basic/advanced pair for one logical parameter. Groups are keyed by canonical id across every subblock and hold one `basicId`, so two operations that each need a pair need two canonical ids.
 - All members of a group share the same `required` status.
 
