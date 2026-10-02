@@ -1770,7 +1770,6 @@
   "apps/sim/lib/api/contracts/memory.ts#memoryWorkspaceQuerySchema",
   "apps/sim/lib/api/contracts/mothership-assistant-tools.ts#liveSearchAccountStatusSchema",
   "apps/sim/lib/api/contracts/mothership-assistant-tools.ts#liveSearchCoverageSchema",
-  "apps/sim/lib/api/contracts/mothership-assistant-tools.ts#nativeSearchQuerySchema",
   "apps/sim/lib/api/contracts/mothership-assistant-tools.ts#workspaceKnowledgeSearchResultSchema",
   "apps/sim/lib/api/contracts/mothership-chat-images.ts#InlineChatImageParams",
   "apps/sim/lib/api/contracts/mothership-chat-images.ts#InlineChatImageQuery",
