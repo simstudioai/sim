@@ -185,6 +185,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     queueTableRows(copilotChats, [chat])
     queueTableRows(copilotChats, [chat])
     queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(copilotChats, [{ id: chat.id }])
     const attachments = [
       {
         id: 'upload-1',
@@ -213,6 +214,26 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       expect.objectContaining({ organizationId: 'org-1', workspaceId: null })
     )
     expect(mockAssertActiveWorkspaceAccess).not.toHaveBeenCalled()
+  })
+
+  it('refuses to publish a fork whose source chat was purged while it copied', async () => {
+    // The fork shares its attachment keys with the source, and cleanup deletes an unreferenced
+    // key only after deleting the source row: publishing without the source would leave the
+    // fork pointing at bytes that cleanup is about to delete.
+    dbChainMockFns.limit.mockReset()
+    const chat = { ...parentRow, workspaceId: null, organizationId: 'org-1', resources: [] }
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(copilotChats, [])
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(404)
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+    expect(mockFetchGo.mock.calls.map(([url]) => url)).toEqual([
+      'http://mothership.test/api/chats/fork',
+      'http://mothership.test/api/tasks/cleanup',
+    ])
   })
 
   it.each(['membership', 'capability'] as const)(

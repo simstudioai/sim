@@ -156,6 +156,20 @@ export const forkChat = defineAuthorizedChatUseCase({
 
       /** Publish only after both the file bytes and the worker conversation are prepared. */
       await db.transaction(async (tx) => {
+        /**
+         * The fork can share keys with its source (organization attachments, files whose copy
+         * failed), and chat cleanup deletes a shared key once no remaining chat references it,
+         * checking only after it deletes the source row. Holding the source row until commit
+         * orders the two: a purge that already removed it refuses this fork, and one that has
+         * not waits for this commit and then sees the fork's references.
+         */
+        const [source] = await tx
+          .select({ id: copilotChats.id })
+          .from(copilotChats)
+          .where(eq(copilotChats.id, chatId))
+          .for('key share')
+          .limit(1)
+        if (!source) throw new OrchestrationError('not_found', 'Chat not found')
         const [row] = await tx
           .insert(copilotChats)
           .values({
