@@ -2283,6 +2283,9 @@ export const workspaceForkWorkflowSync = pgTable(
       .where(sql`${table.rollbackOperationId} IS NOT NULL`),
     sourceIdx: index('workspace_fork_workflow_sync_source_idx').on(table.sourceWorkflowId),
     targetIdx: index('workspace_fork_workflow_sync_target_idx').on(table.targetWorkflowId),
+    childWorkspaceIdx: index('workspace_fork_workflow_sync_child_workspace_idx').on(
+      table.childWorkspaceId
+    ),
   })
 )
 

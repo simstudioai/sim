@@ -4,6 +4,7 @@ import type { ForkWorkflowComparison } from '@/lib/api/contracts/workspace-fork'
 import { WorkflowComparisonModal } from '@/app/workspace/[workspaceId]/w/components/workflow-diff'
 import { useDeploymentVersionState } from '@/hooks/queries/workflows'
 
+/** Pins the last synced and proposed deployment identities within one source workflow. */
 export interface ForkComparisonSelection {
   sourceWorkflowId: string
   comparison: Extract<ForkWorkflowComparison, { status: 'available' }>
@@ -13,6 +14,7 @@ interface ForkComparisonModalProps extends ForkComparisonSelection {
   onClose: () => void
 }
 
+/** Loads the pinned source snapshots; missing or replaced versions remain explicit load errors. */
 export function ForkComparisonModal({
   sourceWorkflowId,
   comparison,

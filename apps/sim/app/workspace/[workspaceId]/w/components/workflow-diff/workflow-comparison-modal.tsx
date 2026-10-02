@@ -21,6 +21,10 @@ interface WorkflowComparisonModalProps {
   targetLabel?: string
 }
 
+/**
+ * Renders caller-loaded snapshots once both are ready, with errors taking precedence.
+ * Changing comparisonKey resets selection in the shared diff view.
+ */
 export function WorkflowComparisonModal({
   open,
   onOpenChange,

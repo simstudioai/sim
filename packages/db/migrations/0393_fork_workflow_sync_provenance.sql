@@ -18,4 +18,5 @@ CREATE INDEX "workspace_fork_workflow_sync_baseline_idx" ON "workspace_fork_work
 CREATE INDEX "workspace_fork_workflow_sync_run_idx" ON "workspace_fork_workflow_sync" USING btree ("promote_run_id","target_workflow_id");--> statement-breakpoint
 CREATE INDEX "workspace_fork_workflow_sync_rollback_idx" ON "workspace_fork_workflow_sync" USING btree ("rollback_operation_id") WHERE "workspace_fork_workflow_sync"."rollback_operation_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "workspace_fork_workflow_sync_source_idx" ON "workspace_fork_workflow_sync" USING btree ("source_workflow_id");--> statement-breakpoint
-CREATE INDEX "workspace_fork_workflow_sync_target_idx" ON "workspace_fork_workflow_sync" USING btree ("target_workflow_id");
+CREATE INDEX "workspace_fork_workflow_sync_target_idx" ON "workspace_fork_workflow_sync" USING btree ("target_workflow_id");--> statement-breakpoint
+CREATE INDEX "workspace_fork_workflow_sync_child_workspace_idx" ON "workspace_fork_workflow_sync" USING btree ("child_workspace_id");

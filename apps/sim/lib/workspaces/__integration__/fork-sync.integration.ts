@@ -26,10 +26,15 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
+import * as workflowMcpSync from '@/lib/mcp/workflow-mcp-sync'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
-import { performActivateVersion, performFullDeploy } from '@/lib/workflows/orchestration/deploy'
+import {
+  finishPreparedWorkflowDeployment,
+  performActivateVersion,
+  performFullDeploy,
+} from '@/lib/workflows/orchestration/deploy'
 import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { admitWorkflowState, saveAdmittedWorkflowState } from '@/lib/workflows/persistence/utils'
@@ -403,6 +408,9 @@ describe('authorized fork and sync against PostgreSQL', () => {
       .from(workflowDeploymentOperation)
       .where(eq(workflowDeploymentOperation.id, pendingOperationId))
     expect(superseded.status).toBe('superseded')
+    expect(
+      await finishPreparedWorkflowDeployment({ operation: superseded }, generateId())
+    ).toMatchObject({ success: false, errorCode: 'conflict' })
     expect(await comparison()).toEqual({
       status: 'available',
       base: first,
@@ -420,6 +428,23 @@ describe('authorized fork and sync against PostgreSQL', () => {
       base: second,
       target: second,
     })
+    const blockedCutover = vi
+      .spyOn(workflowMcpSync, 'syncMcpToolsForWorkflow')
+      .mockRejectedValue(new Error('Rollback cutover temporarily unavailable'))
+    try {
+      const pendingUndo = await rollbackWorkspaceFork.execute({
+        principal,
+        input: { workspaceId: childId, otherWorkspaceId: sourceWorkspaceId },
+      })
+      expect(pendingUndo.pendingActivations).toEqual([targetId])
+      expect(await comparison()).toEqual({
+        status: 'available',
+        base: second,
+        target: second,
+      })
+    } finally {
+      blockedCutover.mockRestore()
+    }
     const undone = await rollbackWorkspaceFork.execute({
       principal,
       input: { workspaceId: childId, otherWorkspaceId: sourceWorkspaceId },

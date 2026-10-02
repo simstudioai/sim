@@ -29059,6 +29059,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "workspace_fork_workflow_sync_child_workspace_idx": {
+          "name": "workspace_fork_workflow_sync_child_workspace_idx",
+          "columns": [
+            {
+              "expression": "child_workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
