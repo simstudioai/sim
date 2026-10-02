@@ -1,4 +1,4 @@
-/** Real execution-file storage, ZIP extraction, durable provenance, table import, and KB indexing. */
+/** Real execution-file storage, ZIP extraction, durable provenance, and KB indexing. */
 import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -182,70 +182,74 @@ afterAll(async () => {
 })
 
 describe('execution archive durable provenance', () => {
-  it('carries exact-empty lineage through extraction and delayed KB indexing/search', async () => {
-    const ids = await seed()
-    const archive = await uploadArchive(ids, { status: 'exact', entries: [] })
-    const [storedArchive] = await db
-      .select({
-        secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
-        context: workspaceFiles.context,
-      })
-      .from(workspaceFiles)
-      .where(eq(workspaceFiles.key, archive.key))
-    expect(storedArchive.secretProvenanceVersion).toBe(1)
-    expect(storedArchive.context).toBe('execution')
-    const source = await extract(ids, archive)
-    expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, source.identity)).toEqual({
-      status: 'exact',
-      entries: [],
-    })
-    expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, source.identity)).toBe(true)
-    expect((await downloadFile({ key: source.child.key, context: 'workspace' })).toString()).toBe(
-      REPORT_CSV
-    )
+  it.each(['exact', 'unrecorded'] as const)(
+    'carries %s lineage through extraction and delayed KB indexing/search',
+    async (status) => {
+      const ids = await seed()
+      const provenance: WorkspaceFileSecretProvenance =
+        status === 'exact' ? { status, entries: [] } : { status }
+      const archive = await uploadArchive(ids, provenance)
+      const [storedArchive] = await db
+        .select({
+          secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
+          context: workspaceFiles.context,
+        })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.key, archive.key))
+      expect(storedArchive.secretProvenanceVersion).toBe(1)
+      expect(storedArchive.context).toBe('execution')
+      const source = await extract(ids, archive)
+      expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, source.identity)).toEqual(
+        provenance
+      )
+      expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, source.identity)).toBe(true)
+      expect((await downloadFile({ key: source.child.key, context: 'workspace' })).toString()).toBe(
+        REPORT_CSV
+      )
 
-    const imported = await addWorkspaceFilesToKnowledgeBase.execute({
-      principal: sessionPrincipal(ids),
-      input: { knowledgeBaseId: ids.knowledgeBaseId, fileReferences: [source.child.id] },
-    })
-    expect(imported.failed).toEqual([])
-    expect(imported.added).toHaveLength(1)
-    const documentId = imported.added[0].documentId
-    const [admitted] = await db.select().from(document).where(eq(document.id, documentId))
-    expect(admitted.secretProvenanceVersion).toBe(1)
-    expect(admitted.storageKey).toMatch(/^kb\//)
-    const events = await db
-      .select()
-      .from(outboxEvent)
-      .where(sql`${outboxEvent.payload}::jsonb ->> 'documentId' = ${documentId}`)
-    trackedEventIds.push(...events.map((event) => event.id))
-    const dispatch = events.find(
-      (event) => event.eventType === KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT
-    )
-    if (!dispatch) throw new Error('Knowledge import did not atomically admit processing')
-    await deleteWorkspaceFile(ids.workspaceId, source.child.id)
-    await deleteFile({ key: source.child.key, context: 'workspace' })
-    await deleteFile({ key: archive.key, context: 'execution' })
-    await processOutboxEventById(dispatch.id, knowledgeDocumentProcessingOutboxHandlers)
-    const [indexed] = await db.select().from(document).where(eq(document.id, documentId))
-    expect(indexed.processingStatus, indexed.processingError ?? undefined).toBe('completed')
-    const chunks = await listKnowledgeChunks.execute({
-      principal: sessionPrincipal(ids),
-      input: { knowledgeBaseId: ids.knowledgeBaseId, documentId },
-    })
-    expect(chunks.chunks.map((chunk) => chunk.content).join('\n')).toContain(REPORT_TEXT)
-    const search = await searchKnowledge.execute({
-      principal: sessionPrincipal(ids),
-      input: {
-        workspaceId: ids.workspaceId,
-        knowledgeBaseIds: [ids.knowledgeBaseId],
-        query: 'Orion',
-        searchMode: 'hybrid',
-        topK: 10,
-      },
-    })
-    expect(search.results.map((entry) => entry.documentId)).toContain(documentId)
-  })
+      const imported = await addWorkspaceFilesToKnowledgeBase.execute({
+        principal: sessionPrincipal(ids),
+        input: { knowledgeBaseId: ids.knowledgeBaseId, fileReferences: [source.child.id] },
+      })
+      expect(imported.failed).toEqual([])
+      expect(imported.added).toHaveLength(1)
+      const documentId = imported.added[0].documentId
+      const [admitted] = await db.select().from(document).where(eq(document.id, documentId))
+      expect(admitted.secretProvenanceVersion).toBe(1)
+      expect(admitted.storageKey).toMatch(/^kb\//)
+      const events = await db
+        .select()
+        .from(outboxEvent)
+        .where(sql`${outboxEvent.payload}::jsonb ->> 'documentId' = ${documentId}`)
+      trackedEventIds.push(...events.map((event) => event.id))
+      const dispatch = events.find(
+        (event) => event.eventType === KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT
+      )
+      if (!dispatch) throw new Error('Knowledge import did not atomically admit processing')
+      await deleteWorkspaceFile(ids.workspaceId, source.child.id)
+      await deleteFile({ key: source.child.key, context: 'workspace' })
+      await deleteFile({ key: archive.key, context: 'execution' })
+      await processOutboxEventById(dispatch.id, knowledgeDocumentProcessingOutboxHandlers)
+      const [indexed] = await db.select().from(document).where(eq(document.id, documentId))
+      expect(indexed.processingStatus, indexed.processingError ?? undefined).toBe('completed')
+      const chunks = await listKnowledgeChunks.execute({
+        principal: sessionPrincipal(ids),
+        input: { knowledgeBaseId: ids.knowledgeBaseId, documentId },
+      })
+      expect(chunks.chunks.map((chunk) => chunk.content).join('\n')).toContain(REPORT_TEXT)
+      const search = await searchKnowledge.execute({
+        principal: sessionPrincipal(ids),
+        input: {
+          workspaceId: ids.workspaceId,
+          knowledgeBaseIds: [ids.knowledgeBaseId],
+          query: 'Orion',
+          searchMode: 'hybrid',
+          topK: 10,
+        },
+      })
+      expect(search.results.map((entry) => entry.documentId)).toContain(documentId)
+    }
+  )
 
   it('keeps an explicitly unknown execution source unavailable to model and KB consumers', async () => {
     const ids = await seed()
@@ -345,8 +349,10 @@ describe('execution archive durable provenance', () => {
   it.each([
     { status: 'exact', deleted: false },
     { status: 'unknown', deleted: false },
+    { status: 'unrecorded', deleted: false },
     { status: 'exact', deleted: true },
     { status: 'unknown', deleted: true },
+    { status: 'unrecorded', deleted: true },
   ] as const)(
     'binds $status execution bytes into KB admission despite URL-only classification (deleted=$deleted)',
     async ({ status, deleted }) => {
@@ -390,12 +396,12 @@ describe('execution archive durable provenance', () => {
         .from(document)
         .leftJoin(documentSecretProvenance, eq(documentSecretProvenance.documentId, document.id))
         .where(eq(document.id, admitted.id))
-      expect(stored).toEqual({ version: 1, status })
+      expect(stored).toEqual({ version: 1, status: status === 'unrecorded' ? 'exact' : status })
       const registry = loadKnowledgeDocumentSecretRegistry(admitted.id, {
         userId: ids.aliceId,
         workspaceId: ids.workspaceId,
       })
-      if (status === 'exact') {
+      if (status !== 'unknown') {
         await expect(registry).resolves.toMatchObject({
           tracked: true,
           provenance: { status: 'exact', entries: [] },

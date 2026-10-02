@@ -13,6 +13,7 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -146,7 +147,14 @@ async function proxyAuthorizedSandboxRequest(
       },
       () =>
         observeWorkspaceFileDelivery(async (provenance) => {
-          await recordInput(provenance?.status === 'exact' ? provenance : false)
+          if (provenance?.status === 'unrecorded') {
+            reportDurableSecretProvenanceUnrecorded({
+              surface: 'workspace-file',
+              workspaceId: targetWorkspaceId,
+              actorUserId: scope.userId,
+            })
+          }
+          await recordInput(provenance?.status === 'unrecorded' ? true : (provenance ?? false))
           fileObserved = true
         }, dispatch)
     )

@@ -11,16 +11,12 @@ import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-deleg
 const hoisted = vi.hoisted(() => ({
   context: vi.fn(),
   snapshot: vi.fn(),
-  clean: vi.fn(),
   receipt: vi.fn(),
   dispose: vi.fn(),
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: hoisted.context,
-}))
-vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
-  isSessionFileProvenanceClean: hoisted.clean,
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
   openSessionFileSnapshot: hoisted.snapshot,
@@ -55,8 +51,7 @@ beforeEach(() => {
     allowPersonalApiKeys: true,
     billedAccountUserId: 'owner',
   })
-  mocks.clean.mockResolvedValue(true)
-  mocks.receipt.mockReturnValue({ status: 'unknown' })
+  mocks.receipt.mockReturnValue({ status: 'exact', entries: [] })
   mocks.snapshot.mockImplementation(async (_key, _path, _signal, observer) => ({
     size: 3,
     dispose: hoisted.dispose,
@@ -87,7 +82,6 @@ describe('owned scratch snapshot reads', () => {
       expect.any(Function),
       { allowedRoots: ['/home/user', '/tmp'], maxBytes: 25 * 1024 * 1024 }
     )
-    expect(mocks.clean).toHaveBeenCalledWith('mothership-chat:chat', machine)
     expect(mocks.dispose).toHaveBeenCalledOnce()
   })
   it.each(['permission', 'foreign-workspace', 'foreign-chat'])(
@@ -103,24 +97,12 @@ describe('owned scratch snapshot reads', () => {
   it.each([
     { status: 'unknown' },
     { status: 'exact', entries: [{ encryptedValue: 'secret', sourceUserId: 'u' }] },
-  ])(
-    'refuses unknown or secret prior machine inputs even without a current registry: %j',
-    async (receipt) => {
-      mocks.clean.mockResolvedValue(false)
-      mocks.receipt.mockReturnValue(receipt)
-      await expect(readChatSandboxFile.execute({ principal, input })).rejects.toThrow(
-        'no verified secret-free provenance'
-      )
-      expect(mocks.dispose).toHaveBeenCalledOnce()
-    }
-  )
-  it('permits an unchanged exact-empty digest receipt after other machine inputs became unknown', async () => {
-    mocks.clean.mockResolvedValue(false)
-    mocks.receipt.mockReturnValue({ status: 'exact', entries: [] })
-    expect((await readChatSandboxFile.execute({ principal, input })).buffer).toEqual(
-      Buffer.from('png')
+  ])('refuses explicit unknown or secret-bearing opaque file provenance: %j', async (receipt) => {
+    mocks.receipt.mockReturnValue(receipt)
+    await expect(readChatSandboxFile.execute({ principal, input })).rejects.toThrow(
+      'no verified secret-free provenance'
     )
-    expect(mocks.clean).not.toHaveBeenCalled()
+    expect(mocks.dispose).toHaveBeenCalledOnce()
   })
   it('enforces size before streaming and still disposes the snapshot', async () => {
     await expect(
@@ -176,17 +158,6 @@ describe('scoped chat file delegation', () => {
   )
 })
 
-it('never lets a broad clean marker override an exact secret-bearing file receipt', async () => {
-  mocks.clean.mockResolvedValue(true)
-  mocks.receipt.mockReturnValue({
-    status: 'exact',
-    entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'u' }],
-  })
-  await expect(readChatSandboxFile.execute({ principal, input })).rejects.toThrow(
-    'no verified secret-free provenance'
-  )
-})
-
 it('accepts the verified personal API principal through the same canonical chat authorization', async () => {
   const personal = createPersonalApiKeyPrincipal({ userId: 'u', keyId: 'verified-key' })
   expect((await readChatSandboxFile.execute({ principal: personal, input })).name).toBe('image.png')
@@ -200,4 +171,11 @@ it('rejects a workspace API key before canonical lookup or sandbox access', asyn
   ).rejects.toThrow()
   expect(mocks.context).not.toHaveBeenCalled()
   expect(mocks.snapshot).not.toHaveBeenCalled()
+})
+
+it('permits a source explicitly classified as unrecorded', async () => {
+  mocks.receipt.mockReturnValue({ status: 'unrecorded' })
+  expect((await readChatSandboxFile.execute({ principal, input })).buffer).toEqual(
+    Buffer.from('png')
+  )
 })

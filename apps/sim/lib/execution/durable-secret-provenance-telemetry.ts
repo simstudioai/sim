@@ -1,3 +1,10 @@
+import {
+  AuditAction,
+  type AuditLogParams,
+  AuditResourceType,
+  recordAudit,
+  recordAuditBatch,
+} from '@sim/audit'
 import { createLogger } from '@sim/logger'
 
 const persistenceLogger = createLogger('DurableSecretProvenancePersistence')
@@ -28,7 +35,6 @@ export type DurableSecretProvenanceRefusalCause =
   | 'workspace-file-provenance-unavailable'
   | 'workspace-file-opaque-secret-content'
   | 'workspace-file-registry-unavailable'
-  | 'workspace-file-unrecorded-enforced'
 
 export interface DurableSecretProvenanceRefusalReport {
   surface: DurableSecretProvenanceSurface
@@ -64,4 +70,57 @@ export function reportDurableSecretProvenanceRefusal(
     ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
     ...(report.resourceId ? { resourceId: report.resourceId } : {}),
   })
+}
+
+export interface DurableSecretProvenanceUnrecordedReport {
+  surface: DurableSecretProvenanceSurface
+  workspaceId?: string
+  organizationId?: string
+  resourceId?: string
+  recordCount?: number
+  actorUserId?: string
+}
+
+function unrecordedProvenanceAuditEntry(
+  report: DurableSecretProvenanceUnrecordedReport
+): AuditLogParams | undefined {
+  const metadata = {
+    surface: report.surface,
+    ...(report.organizationId ? { organizationId: report.organizationId } : {}),
+    ...(report.recordCount !== undefined ? { recordCount: report.recordCount } : {}),
+  }
+  persistenceLogger.warn('Using content without recorded secret provenance', {
+    ...metadata,
+    ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
+    ...(report.resourceId ? { resourceId: report.resourceId } : {}),
+  })
+  if (!report.workspaceId && !report.organizationId) return undefined
+  return {
+    workspaceId: report.organizationId ? null : report.workspaceId,
+    actorId: report.actorUserId ?? null,
+    action: AuditAction.SECRET_PROVENANCE_UNRECORDED,
+    resourceType: AuditResourceType.SECRET_PROVENANCE,
+    ...(report.resourceId ? { resourceId: report.resourceId } : {}),
+    description: 'Used content without recorded secret provenance',
+    metadata,
+  }
+}
+
+/** Records accepted content whose producer did not supply provenance, without recording bytes. */
+export function reportDurableSecretProvenanceUnrecorded(
+  report: DurableSecretProvenanceUnrecordedReport
+): void {
+  const entry = unrecordedProvenanceAuditEntry(report)
+  if (entry) recordAudit(entry)
+}
+
+/** Batches tenant-scoped admission events without one pooled database query per source. */
+export function reportDurableSecretProvenanceUnrecordedBatch(
+  reports: readonly DurableSecretProvenanceUnrecordedReport[]
+): void {
+  const entries = reports.flatMap((report) => {
+    const entry = unrecordedProvenanceAuditEntry(report)
+    return entry ? [entry] : []
+  })
+  if (entries.length > 0) recordAuditBatch(entries)
 }
