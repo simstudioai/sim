@@ -7,11 +7,11 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import * as schema from '@sim/db/schema'
-import { document, workspace } from '@sim/db/schema'
+import { document, organization, user, workspace } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -90,6 +90,8 @@ describe('knowledge-base list totals plan', () => {
 
   afterAll(async () => {
     await database.current?.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await database.current?.delete(organization).where(eq(organization.id, ids.organizationId))
+    await database.current?.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     await connection.end()
     vi.unstubAllGlobals()
   })
