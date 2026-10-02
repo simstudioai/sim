@@ -200,25 +200,36 @@ async function readCountedKnowledgeBaseRows(
   Array<ActiveKnowledgeBaseReference & Pick<KnowledgeBaseWithCounts, 'docCount' | 'tokenCount'>>
 > {
   const scope = 'get' in access ? await access.get() : access
-  const query = db
+  /**
+   * A lateral aggregate, so each base is counted through its own `knowledge_base_id` index and
+   * never through a bitmap of every tenant's documents sharing the `ws` token. An aggregate always
+   * yields one row, so an empty base stays at zero, and the limit stops counting past the page.
+   */
+  const totals = db
     .select({
-      ...ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      docCount: count(document.knowledgeBaseId),
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`
+        .mapWith(Number)
+        .as('readable_token_count'),
+      docCount: count().as('readable_doc_count'),
     })
-    .from(knowledgeBase)
-    .leftJoin(
-      document,
+    .from(document)
+    .where(
       and(
         eq(document.knowledgeBaseId, knowledgeBase.id),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
+        ...ACTIVE_DOCUMENT_CONDITIONS,
         knowledgeAccessCondition(scope)
       )
     )
+    .as('totals')
+  const query = db
+    .select({
+      ...ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
+      tokenCount: totals.tokenCount,
+      docCount: totals.docCount,
+    })
+    .from(knowledgeBase)
+    .innerJoinLateral(totals, sql`true`)
     .where(where)
-    .groupBy(knowledgeBase.id)
     .orderBy(...orderBy)
 
   const rows = limit === undefined ? await query : await query.limit(limit)

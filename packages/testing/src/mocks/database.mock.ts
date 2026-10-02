@@ -91,7 +91,16 @@ function createMockSqlOperators() {
     gte: vi.fn((a, b) => ({ type: 'gte', left: a, right: b })),
     lt: vi.fn((a, b) => ({ type: 'lt', left: a, right: b })),
     lte: vi.fn((a, b) => ({ type: 'lte', left: a, right: b })),
-    count: vi.fn((column) => ({ type: 'count', column })),
+    /** Drizzle's `count()` is an `SQL` expression, so it aliases and decodes like one. */
+    count: vi.fn((column) => {
+      const expression = {
+        type: 'count',
+        column,
+        as: (alias: string) => ({ ...expression, alias }),
+        mapWith: (decoder: unknown) => ({ ...expression, decoder }),
+      }
+      return expression
+    }),
     avg: vi.fn((column) => ({ type: 'avg', column })),
     sum: vi.fn((column) => ({ type: 'sum', column })),
     min: vi.fn((column) => ({ type: 'min', column })),
@@ -235,6 +244,8 @@ const asAlias = chainSpy()
 const forClause = chainSpy()
 const innerJoin = chainSpy()
 const leftJoin = chainSpy()
+const innerJoinLateral = chainSpy()
+const leftJoinLateral = chainSpy()
 const insert = chainSpy()
 const update = chainSpy()
 const set = chainSpy()
@@ -334,6 +345,12 @@ const joinBuilder = (tables: unknown[], fields: SelectedFields = {}): any => {
   builder.leftJoin = spyOrDefault(leftJoin, (table: unknown) =>
     joinBuilder([...tables, table], fields)
   )
+  builder.innerJoinLateral = spyOrDefault(innerJoinLateral, (subquery: unknown) =>
+    joinBuilder([...tables, subquery], fields)
+  )
+  builder.leftJoinLateral = spyOrDefault(leftJoinLateral, (subquery: unknown) =>
+    joinBuilder([...tables, subquery], fields)
+  )
   return builder
 }
 
@@ -359,6 +376,8 @@ export const dbChainMockFns = {
   returning,
   innerJoin,
   leftJoin,
+  innerJoinLateral,
+  leftJoinLateral,
   groupBy,
   having,
   as: asAlias,
