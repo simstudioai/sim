@@ -12,6 +12,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, inArray, isNotNull } from 'drizzle-orm'
 import { defineOperation } from '@/lib/core/application'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { sameResourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { createCredentialGroupOAuthStartUrl } from '@/lib/credential-groups/enrollment-links'
@@ -156,20 +157,22 @@ export const reconnectPersonalOrganizationAccount = defineAuthorizedCredentialUs
         completionId: input.oauthCompletionId,
         returnTo: 'integrations' as const,
       }
-      if (account.type === 'managed_oauth' && account.optionId) {
-        return startViewerCredentialGroupOAuth({
-          ...connection,
-          optionId: account.optionId,
-          connectionIntent: { kind: 'reconnect', credentialId: account.credentialId },
-        })
-      }
-      if (account.type === 'managed_mcp' && account.mcpServerId) {
-        return startViewerCredentialGroupMcpOAuth({
-          ...connection,
-          mcpServerId: account.mcpServerId,
-        })
-      }
-      throw new OrchestrationError('not_found', 'This account provider is no longer available')
+      return runWithOutboundOrganization(account.organizationId, () => {
+        if (account.type === 'managed_oauth' && account.optionId) {
+          return startViewerCredentialGroupOAuth({
+            ...connection,
+            optionId: account.optionId,
+            connectionIntent: { kind: 'reconnect', credentialId: account.credentialId },
+          })
+        }
+        if (account.type === 'managed_mcp' && account.mcpServerId) {
+          return startViewerCredentialGroupMcpOAuth({
+            ...connection,
+            mcpServerId: account.mcpServerId,
+          })
+        }
+        throw new OrchestrationError('not_found', 'This account provider is no longer available')
+      })
     }
     const { invitationLink } = await createViewerCredentialGroupEnrollment({
       organizationId: account.organizationId,

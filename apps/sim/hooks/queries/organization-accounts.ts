@@ -48,7 +48,6 @@ import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
-import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
@@ -241,9 +240,6 @@ export function useUpdateOrganizationAccounts() {
         invalidateSelectorQueries(queryClient),
         queryClient.invalidateQueries({
           queryKey: slackSearchKeys.organizationManifests(organizationId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: searchSourceKeys.organizationOverview(organizationId),
         }),
       ]),
   })

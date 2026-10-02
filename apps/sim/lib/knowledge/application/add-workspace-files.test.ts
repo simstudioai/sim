@@ -125,7 +125,10 @@ describe('add workspace files to knowledge base application command', () => {
       billedAccountUserId: 'billing-owner-1',
     })
     workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue(
-      { status: 'exact', entries: [] }
+      {
+        status: 'exact',
+        entries: [],
+      }
     )
     workspaceFileManagerMockFns.mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
       buffer: Buffer.alloc(100),

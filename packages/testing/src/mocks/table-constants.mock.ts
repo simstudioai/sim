@@ -124,7 +124,6 @@ export const tableConstantsMock = {
   SORT_DIRECTIONS: ['asc', 'desc'],
   NAME_PATTERN: /^[A-Za-z_][A-Za-z0-9_]*$/,
   USER_TABLE_ROWS_SQL_NAME: 'user_table_rows',
-  CSV_ASYNC_IMPORT_THRESHOLD_BYTES: 8 * 1024 * 1024,
   getMaxPageBytes: tableConstantsMockFns.mockGetMaxPageBytes,
   getMaxRowSizeBytes: tableConstantsMockFns.mockGetMaxRowSizeBytes,
   getDeleteSnapshotBatchSize: tableConstantsMockFns.mockGetDeleteSnapshotBatchSize,

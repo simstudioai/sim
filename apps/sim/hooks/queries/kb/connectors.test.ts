@@ -287,7 +287,7 @@ describe('useSearchSources', () => {
     expect(sources.queryKey).not.toEqual(searchSourceKeys.list('scope-1'))
     await sources.queryFn({ signal })
     expect(mockRequestJson).toHaveBeenLastCalledWith(listSearchSourcesContract, {
-      query: { organizationId: 'scope-1', search: '', mine: false },
+      query: { organizationId: 'scope-1', search: '' },
       signal,
     })
   })

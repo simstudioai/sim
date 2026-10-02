@@ -3,7 +3,7 @@ import {
   fileUtilsServerMockFns,
 } from '@sim/testing/mocks/file-utils-server.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
-import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import { uploadsCopilotMock } from '@sim/testing/mocks/uploads-copilot.mock'
 import {
   uploadsExecutionMock,
   uploadsExecutionMockFns,
@@ -26,8 +26,6 @@ const { mockDeleteFileMetadata } = uploadsMetadataMockFns
 
 import { executeInstagramTool } from '@/lib/internal/instagram/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
-
-const { mockUploadCopilotFile } = uploadsCopilotMockFns
 
 const { mockUploadExecutionFile } = uploadsExecutionMockFns
 

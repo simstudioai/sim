@@ -600,7 +600,6 @@ export function TableGrid({
     workflows,
     columns,
     tableWorkflowGroups,
-    workflowStates,
     columnSourceInfo,
     ensureAllRowsLoaded,
     ensureRowsLoadedUpTo,

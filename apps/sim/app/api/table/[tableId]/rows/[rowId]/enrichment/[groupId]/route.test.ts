@@ -12,10 +12,6 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: { readDetail: vi.fn(), authenticate: vi.fn() },
-}))
-
 vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 vi.mock('@/lib/table/api', () => tableApiMock)

@@ -80,6 +80,6 @@ Conversations remain private to their author. Connecting an external account doe
 
 ## Legacy indexing and workspace knowledge bases
 
-Live Search is the default. An operator can explicitly set `SIM_SEARCH_LIVE=false` to restore the legacy indexed Search backend. Its content sync, document processing, and stored permission maintenance are specific to that mode. These guides describe live Search.
+Enterprise Search uses live provider queries. Search sources do not run content indexing or stored permission maintenance; ordinary knowledge-base connectors retain their indexing behavior.
 
 Ordinary workspace [knowledge bases](/knowledgebase) still ingest, chunk, and index documents for their own features. Their connector setup, processing status, and access settings remain separate.

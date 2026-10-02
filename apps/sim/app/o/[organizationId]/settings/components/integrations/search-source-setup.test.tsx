@@ -4,7 +4,6 @@
 
 import { act, cloneElement, type ReactNode } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,
@@ -406,15 +405,8 @@ afterEach(async () => {
   container?.remove()
   root = null
   container = null
-  resetEnvFlagsMock()
   resetDeploymentShape()
 })
-
-/** Selects the indexed backend, whose arms of these dialogs index and mirror sources. */
-function selectIndexedSearch() {
-  setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
-  resetDeploymentShape()
-}
 
 describe('Search source setup with real connector dialogs', () => {
   it.each([
@@ -439,25 +431,6 @@ describe('Search source setup with real connector dialogs', () => {
       expect(document.querySelector('[role="dialog"]')).toBeNull()
     }
   )
-
-  it('prepares organization connected-account indexing in members mode even when central access is available', async () => {
-    selectIndexedSearch()
-    mocks.bases = []
-    await render(
-      <SearchSourceSetup
-        scope={{ kind: 'organization', organizationId: 'org-1' }}
-        canAdmin
-        memberAccessAvailable
-        mirroredAccessAvailable
-      />,
-      '?addConnector=slack'
-    )
-    expect(mocks.prepare).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      connectorType: 'slack',
-      accessMode: 'members',
-    })
-  })
 })
 
 describe('member content credentials in real add and edit dialogs', () => {
@@ -742,43 +715,6 @@ describe('administrator source prerequisites in real connector dialogs', () => {
     mocks.credentials = [driveCredential]
   })
 
-  it.each(['admin', 'members'] as const)(
-    'shows and saves Gmail’s Search default date window in %s mode',
-    async (accessMode) => {
-      selectIndexedSearch()
-      mocks.credentials = [
-        {
-          id: 'gmail-service',
-          name: 'Gmail indexing',
-          provider: 'google-email',
-          type: 'service_account',
-        },
-      ]
-      await render(
-        <AddConnectorModal
-          open
-          onOpenChange={vi.fn()}
-          knowledgeBaseId='kb-search'
-          isSearchIndex
-          initialConnectorType='gmail'
-          initialAccessMode={accessMode}
-        />
-      )
-      expect(document.body.textContent).toContain('Last 6 months')
-      expect(document.body.textContent).not.toContain('All time (default)')
-      if (accessMode === 'admin') await fill(adminEmailPlaceholder, 'admin@example.com')
-      await click(button(accessMode === 'admin' ? 'Connect & Sync' : 'Create & Invite'))
-      expect(mocks.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          accessMode,
-          connectorType: 'gmail',
-          sourceConfig: expect.objectContaining({ dateRange: '6m' }),
-        }),
-        expect.any(Object)
-      )
-    }
-  )
-
   it('preserves a deliberate Gmail date-range draft and keeps general KB defaults separate', async () => {
     const key = 'gmail-all-time'
     useConnectorSetupStore.getState().saveDraft(key, {
@@ -929,14 +865,12 @@ describe('administrator source prerequisites in real connector dialogs', () => {
   ])(
     'requires the Directory administrator email in $type administrator mode and refuses empty or blank subjects',
     async ({ type, provider }) => {
-      selectIndexedSearch()
       mocks.credentials = [{ ...driveCredential, provider }]
       await render(
         <AddConnectorModal
           open
           onOpenChange={vi.fn()}
-          knowledgeBaseId='kb-search'
-          isSearchIndex
+          knowledgeBaseId='ordinary-kb'
           initialConnectorType={type}
           initialAccessMode='admin'
         />
@@ -970,7 +904,6 @@ describe('administrator source prerequisites in real connector dialogs', () => {
   ])(
     'excludes personal OAuth accounts and stale OAuth drafts from $type administrator setup',
     async ({ type, provider, name }) => {
-      selectIndexedSearch()
       const oauthCredential = {
         id: 'drive-personal',
         name: 'Personal Drive account',
@@ -992,8 +925,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
         <AddConnectorModal
           open
           onOpenChange={vi.fn()}
-          knowledgeBaseId='kb-search'
-          isSearchIndex
+          knowledgeBaseId='ordinary-kb'
           initialConnectorType={type}
           setupDraftKey={setupDraftKey}
         />
@@ -1096,42 +1028,6 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       expect(mocks.create.mock.calls[0][0].sourceConfig.adminEmail).toBeFalsy()
     }
   )
-
-  it('does not let an administrator erase the crawl subject from an existing mirrored Drive source', async () => {
-    selectIndexedSearch()
-    await render(
-      <EditConnectorModal
-        open
-        onOpenChange={vi.fn()}
-        knowledgeBaseId='kb-search'
-        isSearchIndex
-        connector={connector({
-          connectorType: 'google_drive',
-          accessMode: 'admin',
-          credentialId: driveCredential.id,
-          sourceConfig: { adminEmail: 'admin@example.com', fileType: 'documents' },
-        })}
-      />
-    )
-    expect(document.body.textContent).toContain('Directory administrator email*')
-    await fill(adminEmailPlaceholder, '')
-    expect(button('Save')).toBeDisabled()
-    await click(button('Save'))
-    expect(mocks.update).not.toHaveBeenCalled()
-    await fill(adminEmailPlaceholder, 'replacement@example.com')
-    expect(button('Save')).toBeEnabled()
-    await click(button('Save'))
-    expect(mocks.update.mock.calls[0][0]).toMatchObject({
-      connectorId: 'connector-1',
-      updates: {
-        sourceConfig: {
-          adminEmail: 'replacement@example.com',
-          fileType: 'documents',
-        },
-      },
-    })
-    expect(mocks.applyAccess).not.toHaveBeenCalled()
-  })
 
   it('guides a general knowledge-base member source back to saving its crawl subject without losing drafts or combining mutations', async () => {
     const existing = connector({
@@ -1335,48 +1231,6 @@ describe('canonical Search connector safety', () => {
     expect(sourceButtons.some((node) => node.getAttribute('aria-label') === 'Airtable')).toBe(false)
     expect(sourceButtons.some((node) => node.getAttribute('aria-label') === 'Google Chat')).toBe(
       false
-    )
-  })
-
-  it('defaults an OAuth source to member accounts and never offers workspace-wide access', async () => {
-    selectIndexedSearch()
-    await render(
-      <AddConnectorModal
-        open
-        onOpenChange={() => {}}
-        knowledgeBaseId='kb-search'
-        isSearchIndex
-        initialConnectorType='google_drive'
-      />
-    )
-    expect(button('Member accounts')).toHaveAttribute('aria-checked', 'true')
-    expect(
-      Array.from(document.querySelectorAll('button')).some(
-        (node) => node.textContent === 'Workspace'
-      )
-    ).toBe(false)
-    expect(document.body.textContent).not.toContain('Everyone in this workspace')
-    await click(button('Choose another source'))
-    const gitlab = Array.from(document.querySelectorAll('button')).find(
-      (node) => node.getAttribute('aria-label') === 'GitLab'
-    )
-    expect(gitlab).toBeDefined()
-    await click(gitlab!)
-    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
-    expect(button('Non-admin token')).toHaveAttribute('aria-checked', 'false')
-    expect(document.body.textContent).not.toContain('Connection method')
-    expect(
-      Array.from(document.querySelectorAll('button')).some(
-        (node) => node.textContent === 'Workspace'
-      )
-    ).toBe(false)
-    await fill('Enter your GitLab PAT', 'fixture-pat')
-    await fill('gitlab.example.com', 'gitlab.example.test')
-    await fill('group/project or numeric ID', 'engineering/search')
-    await click(button('Connect & Sync'))
-    expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ accessMode: 'admin', connectorType: 'gitlab' }),
-      expect.any(Object)
     )
   })
 

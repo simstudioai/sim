@@ -25,7 +25,6 @@ import { TriggerDevJobQueue } from '@/lib/core/async-jobs/backends/trigger-dev'
 import { AsyncJobEnqueueError, JOB_PENDING_RETENTION_HOURS } from '@/lib/core/async-jobs/types'
 
 const {
-  mockTasksBatchTriggerAndWait: mockBatchTriggerAndWait,
   mockRunsCancel: mockCancel,
   mockRunsList: mockList,
   mockRunsRetrieve: mockRetrieve,

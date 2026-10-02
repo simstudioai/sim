@@ -592,7 +592,7 @@ function buildUnifiedStartOutput(
   return output
 }
 
-function buildApiOrInputOutput(finalInput: unknown, workflowInput: unknown): NormalizedBlockOutput {
+function buildApiOrInputOutput(finalInput: unknown): NormalizedBlockOutput {
   const isObjectInput = isRecordLike(finalInput)
 
   const output: NormalizedBlockOutput = isObjectInput
@@ -770,7 +770,7 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
 
     case StartBlockPath.SPLIT_API:
     case StartBlockPath.SPLIT_INPUT:
-      output = buildApiOrInputOutput(finalInput, workflowInput)
+      output = buildApiOrInputOutput(finalInput)
       break
 
     case StartBlockPath.SPLIT_CHAT:

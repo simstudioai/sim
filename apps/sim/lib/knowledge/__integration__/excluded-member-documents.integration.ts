@@ -3,7 +3,6 @@ import { db } from '@sim/db'
 import {
   document,
   embedding,
-  knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -17,12 +16,6 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const provider = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), changes: vi.fn() }))
-/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
-  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
-    importOriginal
-  )
-)
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     google_drive: {
@@ -139,10 +132,6 @@ describe('excluded member documents retain current source authorization', () => 
       },
       ids.aliceId
     )
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     await db
       .update(knowledgeConnector)
       .set({ status: 'active', memberSyncStatus: 'idle', memberSyncLockToken: null })

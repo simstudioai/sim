@@ -3,7 +3,7 @@ slug: reproducible-ai-coding-agent-benchmark
 title: 'AI coding-agent benchmark: a reproducible test of debugging, test generation, and refactoring'
 description: 'A reproducible AI coding-agent benchmark protocol for measuring debugging, unit-test generation, and multi-file refactoring performance with auditable runs.'
 date: 2026-09-20
-updated: 2026-09-20
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 11
@@ -36,7 +36,7 @@ faq:
   - q: "Is n8n an AI coding agent?"
     a: "n8n is a workflow-automation platform rather than a dedicated repository-focused AI coding agent."
   - q: "Is Sim open source?"
-    a: "Sim is available under the Apache License 2.0, an OSI-approved open-source license, as of September 2026."
+    a: "Sim's core is available under the Apache License 2.0, an OSI-approved open-source license, as of September 2026. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use."
   - q: "Is n8n open source?"
     a: "n8n uses the source-available Sustainable Use License, which is not OSI-approved, as of September 2026."
   - q: "What is the best AI agent builder?"
@@ -233,13 +233,13 @@ Sim is a workflow-agent platform rather than a dedicated AI coding agent, so Sim
 
 Sim helps teams build and operate AI workflows that connect models, tools, APIs, and data sources. Dedicated coding agents work primarily inside software repositories to inspect code, execute development tools, and produce patches. The distinction is explored further in [AI coding agents vs. AI workflow agents](https://www.sim.ai/library/ai-coding-agents-vs-ai-workflow-agents).
 
-As of September 2026, Sim is available under the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), which appears on the [OSI list of approved licenses](https://opensource.org/licenses). Readers looking for a broader comparison of platforms for building AI agents should use Sim’s canonical guide to the [best AI agent builders](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+As of September 2026, Sim's core is available under the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), which appears on the [OSI list of approved licenses](https://opensource.org/licenses). Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. Readers looking for a broader comparison of platforms for building AI agents should use Sim’s canonical guide to the [best AI agent builders](https://www.sim.ai/library/best-ai-agent-platforms-2026).
 
 ## Why does this benchmark mention n8n?
 
 [n8n describes itself as a workflow-automation platform](https://n8n.io/), but n8n is not a coding agent and should not be scored against repository-focused coding tools.
 
-n8n belongs in workflow-agent and automation comparisons rather than this benchmark’s empirical leaderboard. As of September 2026, [n8n uses the Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available and does not appear on the [OSI list of approved licenses](https://opensource.org/licenses). Sim uses the OSI-approved Apache License 2.0.
+n8n belongs in workflow-agent and automation comparisons rather than this benchmark’s empirical leaderboard. As of September 2026, [n8n uses the Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available and does not appear on the [OSI list of approved licenses](https://opensource.org/licenses). Sim's core uses the OSI-approved Apache License 2.0.
 
 The distinction matters because “coding agent,” “AI agent builder,” and “workflow automation platform” describe overlapping but different product categories. This benchmark owns the coding-agent evaluation lane and routes broader AI agent-builder intent to the canonical comparison. For a dedicated survey of licensing and deployment choices, see [Open-Source AI Agent Platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
 

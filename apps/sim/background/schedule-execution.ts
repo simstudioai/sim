@@ -674,7 +674,7 @@ async function runWorkflowExecution({
       timeoutController.isTimedOut() &&
       timeoutMs !== undefined
     if (timedOut) {
-      const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutMs)
+      const timeoutErrorMessage = getTimeoutErrorMessage(timeoutMs)
       logger.info(`[${requestId}] Scheduled workflow execution timed out`, {
         timeoutMs,
       })

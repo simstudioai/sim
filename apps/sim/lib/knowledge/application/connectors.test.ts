@@ -18,10 +18,6 @@ import {
   knowledgeContextsMockFns,
 } from '@sim/testing/mocks/knowledge-contexts.mock'
 import {
-  knowledgeSearchIntegrationPolicyMock,
-  knowledgeSearchIntegrationPolicyMockFns,
-} from '@sim/testing/mocks/knowledge-search-integration-policy.mock'
-import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
@@ -43,8 +39,6 @@ const hoisted = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-
-vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
@@ -120,7 +114,6 @@ import { internalOrchestrationErrorPolicy } from '@/lib/api/server/routes/intern
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import * as encryption from '@/lib/core/security/encryption'
 import {
-  createApprovedSearchSource,
   createKnowledgeConnector,
   deleteKnowledgeConnector,
   resolveConnectorCredentialAccessToken,
@@ -140,7 +133,6 @@ import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 
 const mocks = {
   ...hoisted,
-  requireApproval: knowledgeSearchIntegrationPolicyMockFns.mockRequireOrganizationSearchApproval,
   getCredentialActorContext: credentialsAccessMockFns.mockGetCredentialActorContext,
   canUseCredential: credentialsAccessMockFns.mockCanUseCredential,
   resolveTokenIdentity: credentialsAccessMockFns.mockResolveCredentialTokenIdentity,
@@ -933,89 +925,6 @@ describe('members-mode connector creation', () => {
     await expect(
       createKnowledgeConnector.execute({ principal: sessionPrincipal, input: membersInput })
     ).rejects.toMatchObject({ name: 'InsufficientWorkspacePermissionsError' })
-    expect(mocks.createConnector).not.toHaveBeenCalled()
-  })
-})
-
-describe('approved organization member source creation', () => {
-  const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
-  const input = {
-    knowledgeBaseId: 'org-index',
-    assertedOrganizationId: 'org',
-    connectorType: 'google_drive',
-    sourceConfig: {},
-  }
-  beforeEach(() => {
-    resetDbChainMock()
-    queueTableRows(member, [{ role: 'member' }])
-    permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue(null)
-    mocks.requireApproval.mockResolvedValue(undefined)
-    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue({
-      organizationId: 'org',
-      knowledgeBaseId: 'org-index',
-      knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
-    })
-    mocks.resolveMembersBinding.mockResolvedValue({
-      organizationId: 'org',
-      credentialGroupId: 'group',
-      credentialGroupOptionId: 'option',
-    })
-    mocks.createConnector.mockResolvedValue({
-      success: true,
-      connector: { id: 'connector', connectorType: 'google_drive', accessMode: 'members' },
-    })
-  })
-
-  it('uses the member actor and ignores attempts to supply credentials or broader access', async () => {
-    const maliciousInput = {
-      ...input,
-      credentialId: 'other-person',
-      apiKey: 'injected',
-      accessMode: 'admin',
-    }
-    await createApprovedSearchSource.execute({ principal, input: maliciousInput })
-    expect(mocks.requireApproval).toHaveBeenCalledWith('org', 'google_drive')
-    expect(mocks.resolveMembersBinding).toHaveBeenCalledWith(
-      expect.objectContaining({ actingUserId: 'actor', organizationId: 'org' })
-    )
-    expect(mocks.createConnector).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'actor',
-        accessMode: 'members',
-        credentialId: undefined,
-        apiKey: undefined,
-      })
-    )
-  })
-
-  it('refuses deactivated integrations before provisioning a credential group', async () => {
-    mocks.requireApproval.mockRejectedValue(new Error('Integration is deactivated'))
-    await expect(createApprovedSearchSource.execute({ principal, input })).rejects.toThrow(
-      'deactivated'
-    )
-    expect(mocks.resolveMembersBinding).not.toHaveBeenCalled()
-    expect(mocks.createConnector).not.toHaveBeenCalled()
-  })
-
-  it('refuses custom configuration outside the personal setup fields', async () => {
-    await expect(
-      createApprovedSearchSource.execute({
-        principal,
-        input: { ...input, sourceConfig: { adminEmail: 'other-person@fixture.test' } },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.createConnector).not.toHaveBeenCalled()
-  })
-
-  it('refuses a knowledge base that is not the organization Search index', async () => {
-    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue({
-      organizationId: 'org',
-      knowledgeBaseId: 'org-index',
-      knowledgeBase: { isSearchIndex: false },
-    })
-    await expect(createApprovedSearchSource.execute({ principal, input })).rejects.toMatchObject({
-      code: 'forbidden',
-    })
     expect(mocks.createConnector).not.toHaveBeenCalled()
   })
 })

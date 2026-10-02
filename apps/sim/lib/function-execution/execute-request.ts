@@ -1089,6 +1089,10 @@ async function importRuntimeInputProvenance(
     })
     if (decision.safe && decision.provenance.status === 'unrecorded') {
       context.runtimeInputProvenanceUnrecorded = true
+      context.runtimeFileSecretTraceRegistry = new ResolvedSecretTraceRegistry([], {
+        userId: context.attributedUserId,
+        workspaceId: context.workspaceId,
+      })
       return
     }
   }
@@ -1483,14 +1487,6 @@ async function appendPrivateResolvedSecretNames(
 export interface FunctionExecutionRequestContext {
   headers: Headers
   signal: AbortSignal
-}
-
-export function projectFunctionValidationResponse(
-  req: Pick<FunctionExecutionRequestContext, 'headers'>,
-  response: NextResponse
-): Promise<NextResponse> {
-  const metadataType = getRequestedResolvedSecretNamesMetadataType(req.headers)
-  return appendPrivateResolvedSecretNames(response, metadataType ? [] : null, metadataType)
 }
 
 /**
@@ -2726,6 +2722,9 @@ export async function executeFunctionRequest(
           logger,
         },
       })
+      if (resolvedMounts.unprovenancedMountCount > 0) {
+        routeContext.runtimeInputProvenanceUnrecorded = true
+      }
       await importRuntimeFileContributors(
         routeContext,
         resolvedMounts.contributingFiles,
@@ -2755,7 +2754,6 @@ export async function executeFunctionRequest(
     const mothershipSession = admittedSession
       ? {
           ...admittedSession,
-          unprovenancedInputs: resolvedMounts.unprovenancedMountCount > 0,
           inputProvenance: () => {
             const runtime = activeRouteContext.runtimeFileSecretTraceRegistry?.exportProvenance()
             return mergeDurableSecretProvenance(

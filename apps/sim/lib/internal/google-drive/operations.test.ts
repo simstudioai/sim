@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/internal/google-drive/client', () => ({
-  asObject: (value: unknown) => toRecord(value),
   googleApiErrorMessage: (data: { error?: { message?: string } }, fallback: string) =>
     data.error?.message || fallback,
   requestGoogleDrive: mocks.request,
@@ -17,7 +16,6 @@ vi.mock('@/lib/internal/google-drive/file-input', () => ({
   resolveGoogleDriveUploadFile: mocks.resolveFile,
 }))
 
-import { toRecord } from '@sim/utils/object'
 import { executeGoogleDriveExport } from '@/lib/internal/google-drive/operations'
 import { MAX_EXPORT_BYTES } from '@/tools/google_drive/utils'
 

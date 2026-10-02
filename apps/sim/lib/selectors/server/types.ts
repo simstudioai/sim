@@ -78,11 +78,6 @@ export type SelectorCredentialPolicy =
 export interface AuthorizedSelectorCredential {
   suppliedId: string
   organization?: { principal: SessionPrincipal; organizationId: string }
-  personalSearchSetup?: {
-    principal: SessionPrincipal
-    organizationId: string
-    connectorType: 'jira' | 'confluence'
-  }
   access?: CredentialAccessResult
   fixedToken?: string
   /** Trusted provider id loaded during server-side credential binding. */
@@ -232,16 +227,6 @@ export function requireListRequest(
 ): Extract<SelectorRequest, { kind: 'list' }> {
   if (request.kind !== 'list') {
     throw new Error(`Selector ${selectorKey} received an unsupported detail request`)
-  }
-  return request
-}
-
-export function requireDetailRequest(
-  selectorKey: SelectorKey,
-  request: SelectorRequest
-): Extract<SelectorRequest, { kind: 'detail' }> {
-  if (request.kind !== 'detail') {
-    throw new Error(`Selector ${selectorKey} received an unsupported list request`)
   }
   return request
 }

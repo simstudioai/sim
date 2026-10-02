@@ -19,12 +19,14 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import {
   importWorkspaceFileSnapshotProvenance,
+  mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
+import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -60,6 +62,40 @@ export function createFileReadTransport(context: {
         actorUserId: context.userId,
       }))
     if (!imported) context.registry?.markIncomplete('workspace-file-provenance-unknown')
+    return imported
+  }
+
+  const forward: typeof fetch = async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    if (!context.invocation || method !== 'GET' || url.origin !== base.origin) {
+      return (context.transport ?? fetch)(input, init)
+    }
+    let provenance: WorkspaceFileSecretProvenance | undefined
+    const response = await observeWorkspaceFileDelivery(
+      async (source) => {
+        provenance = mergeWorkspaceFileSecretProvenance(
+          provenance ?? { status: 'exact', entries: [] },
+          source ?? { status: 'unknown' }
+        )
+      },
+      () => (context.transport ?? fetch)(input, init)
+    )
+    if (!provenance) return response
+    try {
+      if (!context.registry || !(await observe(context.invocation.workspaceId, provenance))) {
+        await response.body?.cancel().catch(() => {})
+        return Response.json(
+          { error: { message: 'File read provenance is unavailable. Retry the read.' } },
+          { status: 503 }
+        )
+      }
+      if (response.body) context.trackDownload?.(response.body, provenance)
+      return response
+    } catch (error) {
+      await response.body?.cancel().catch(() => {})
+      throw error
+    }
   }
 
   return async (input, init) => {
@@ -71,10 +107,10 @@ export function createFileReadTransport(context: {
       !url.pathname.startsWith(prefix) ||
       collectionPaths.has(url.pathname)
     ) {
-      return (context.transport ?? fetch)(input, init)
+      return forward(input, init)
     }
     const match = /^([^/]+)(\/text)?$/.exec(url.pathname.slice(prefix.length))
-    if (!match) return (context.transport ?? fetch)(input, init)
+    if (!match) return forward(input, init)
     const request = new NextRequest(new Request(input, init))
     let stream: ReadableStream<Uint8Array> | undefined
     try {
@@ -106,20 +142,25 @@ export function createFileReadTransport(context: {
         )
         if (!parsed.success) return parsed.response
         request.signal.throwIfAborted()
-        const result = await readWorkspaceFileText.execute({
-          principal,
-          input: {
-            workspaceId: parsed.data.query.workspaceId,
-            reference: parsed.data.params.fileId,
-            ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
-            maxBytes: parsed.data.query.maxBytes,
-            offset: parsed.data.query.offset,
-            limit: parsed.data.query.limit,
-            includeSecretProvenance: true,
-            allowPlainText: true,
+        const result = await observeWorkspaceFileDelivery(
+          async (source) => {
+            await observe(parsed.data.query.workspaceId, source)
           },
-        })
-        await observe(result.file.workspaceId, result.secretProvenance)
+          () =>
+            readWorkspaceFileText.execute({
+              principal,
+              input: {
+                workspaceId: parsed.data.query.workspaceId,
+                reference: parsed.data.params.fileId,
+                ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
+                maxBytes: parsed.data.query.maxBytes,
+                offset: parsed.data.query.offset,
+                limit: parsed.data.query.limit,
+                includeSecretProvenance: true,
+                allowPlainText: true,
+              },
+            })
+        )
         request.signal.throwIfAborted()
         return Response.json(presentWorkspaceFileText(result))
       }
@@ -131,16 +172,21 @@ export function createFileReadTransport(context: {
       )
       if (!parsed.success) return parsed.response
       request.signal.throwIfAborted()
-      const result = await downloadWorkspaceFileStream.execute({
-        principal,
-        input: {
-          fileId: parsed.data.params.fileId,
-          assertedWorkspaceId: parsed.data.query.workspaceId,
-          includeSecretProvenance: true,
+      const result = await observeWorkspaceFileDelivery(
+        async (source) => {
+          await observe(parsed.data.query.workspaceId, source)
         },
-      })
+        () =>
+          downloadWorkspaceFileStream.execute({
+            principal,
+            input: {
+              fileId: parsed.data.params.fileId,
+              assertedWorkspaceId: parsed.data.query.workspaceId,
+              includeSecretProvenance: true,
+            },
+          })
+      )
       stream = result.stream
-      await observe(result.file.workspaceId, result.secretProvenance)
       request.signal.throwIfAborted()
       const response = new Response(
         stream.pipeThrough(new TransformStream(), { signal: request.signal }),

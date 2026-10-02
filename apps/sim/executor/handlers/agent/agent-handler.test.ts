@@ -259,7 +259,7 @@ describe('AgentBlockHandler', () => {
       timing: { total: 100 },
     })
 
-    mockFetch.mockImplementation((url: string) => {
+    mockFetch.mockImplementation(() => {
       return Promise.resolve({
         ok: true,
         headers: {
@@ -295,7 +295,7 @@ describe('AgentBlockHandler', () => {
         writable: true,
         configurable: true,
       })
-    } catch (e) {}
+    } catch {}
   })
 
   afterAll(() => {
@@ -1233,7 +1233,6 @@ describe('AgentBlockHandler', () => {
       ).buildAutoRoutingSignals(inputs, undefined)
 
     const png = { id: 'f1', type: 'image/png' }
-    const pdf = { id: 'f2', type: 'application/pdf' }
 
     it('detects media carried on inbound messages, not just the files input', async () => {
       const signals = buildAutoRoutingSignalsFor({

@@ -200,7 +200,7 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Name collisions: REST overloads one path for single and bulk ─────────
+  // Name collisions: REST overloads one path for single and bulk
   // The derived name is identical for both, so the bulk form is renamed. AWS's
   // `batch-` prefix rather than a `--all` flag: the plural is a different and
   // more dangerous operation, and it should be a different word.
@@ -314,7 +314,6 @@ export const CLI_CONTRACT: CliContract = {
   },
   setSecret: { hidden: true },
 
-  // ─── Destructive single-resource operations ───────────────────────────────
   // Soft deletes, all three: `tables restore`, `knowledge restore` and
   // `workflows restore` bring the resource back with its contents intact. The
   // messages promised an irreversible loss, which is the one thing a confirm
@@ -374,7 +373,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'remaining columns', path: 'columns', format: 'count' },
     ],
   },
-  // ─── Fields whose type misdescribes their meaning ─────────────────────────
+  // Fields whose type misdescribes their meaning
   // `z.string()` that the route splits on commas. No generator can infer this.
   listLogs: {
     describe: 'List run logs, such as failed or errored runs, by workflow, trigger or time',
@@ -470,7 +469,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   readFileText: {
     command: 'files read',
-    describe: 'Read a file’s text content',
+    describe: 'Read a file’s text content as JSON or YAML',
+    document: true,
   },
   // Publishing a workflow for an outside agent to call, and withdrawing it.
   createWorkflowMcpServer: {
@@ -546,6 +546,7 @@ export const CLI_CONTRACT: CliContract = {
       operations: { json: true, describe: WORKFLOW_VARIABLE_OPERATIONS_HELP },
     },
   },
+  compareWorkflowVersions: { command: 'workflows versions compare' },
   // A revert is a graph write too: it overwrites the draft with an older
   // deployment's graph. Nothing about the name says "delete", so the destructive
   // sweep does not reach it, and the work it discards is whatever is in the
@@ -656,7 +657,6 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Friendlier flag names ────────────────────────────────────────────────
   upsertTableRow: {
     describe: 'Insert a row, or update the one that conflicts on a unique column',
     flags: {
@@ -715,7 +715,15 @@ export const CLI_CONTRACT: CliContract = {
     variants: [moveResource('knowledge mv', 'knowledge base')],
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
-  createWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  createWorkflow: {
+    flags: {
+      folderPath: {
+        ...FOLDER_PATH_FLAG,
+        describe:
+          'Existing folder path (leading / optional); create it first with sim workflows mkdir <path>',
+      },
+    },
+  },
   updateWorkflow: {
     variants: [moveResource('workflows mv', 'workflow')],
     flags: { folderPath: FOLDER_PATH_FLAG },
@@ -800,7 +808,6 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
 
-  // ─── Output columns for list commands ─────────────────────────────────────
   listTables: {
     flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [
@@ -837,7 +844,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: [
       { header: 'id' },
       { header: 'name' },
-      // Now that files live in folders, which one is the difference between two
+      // Files live in folders, so the folder is the difference between two
       // identically-named rows.
       FOLDER_COLUMN,
       { header: 'size', format: 'bytes' },
@@ -1321,7 +1328,6 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
 
-  // ─── The expanded files surface ───────────────────────────────────────────
   // Every one of these derives badly. `/files/move`, `/files/bulk-delete` and
   // `/files/[fileId]/restore` are verbs sitting where the deriver expects a
   // sub-resource, so it made them groups holding a lone `create`.
@@ -1416,7 +1422,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   readFileVersionText: {
     command: 'files versions read',
-    describe: 'Read the text content of one version of a file',
+    describe: 'Read the text content of one version of a file as JSON or YAML',
+    document: true,
   },
   /** No confirm: a revert writes the old content as a new version, so what it replaces stays revertible. */
   revertFileVersion: {
@@ -1583,7 +1590,6 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Resource-scoped, path-addressed folders ──────────────────────────────
   /**
    * None of the four folder lists paginates: the route declares no `cursor` and
    * answers with the whole set. That is deliberate — a folder tree is bounded
@@ -1704,7 +1710,6 @@ export const CLI_CONTRACT: CliContract = {
     confirm: 'This archives the workflow folder and, when recursive, everything inside it.',
   },
 
-  // ─── The expanded tables surface ──────────────────────────────────────────
   // `/cancel-runs`, `/rows/search`, `/query/count` and the
   // enrichment path all put a verb where the deriver expects a sub-resource, so
   // each became a group holding a lone `create`.
@@ -1847,7 +1852,7 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Get the download URL for a finished export',
   },
 
-  // ─── Documents, not records ───────────────────────────────────────────────
+  // Documents, not records
   // The payload is the artifact: `sim workflows export <id> > wf.json` has to
   // produce something `sim workflows import` accepts back.
   exportWorkflow: {
@@ -1861,7 +1866,6 @@ export const CLI_CONTRACT: CliContract = {
     document: true,
   },
 
-  // ─── Catalog ──────────────────────────────────────────────────────────────
   // `tools get` and `tools list` derive cleanly; only the verb needs naming, for
   // the same reason `workflows run` does — `/execute` is not in the action list,
   // so POST would derive `tools execute create`.
@@ -1894,7 +1898,6 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Runs ─────────────────────────────────────────────────────────────────
   // The derived names land badly here: `/execute` and `/cancel` are verbs in
   // the path, but neither is in the action list, so POST would derive
   // `workflows execute create` and `workflows cancel create`.
@@ -2030,7 +2033,7 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Not a terminal-shaped operation ──────────────────────────────────────
+  // Not a terminal-shaped operation
   // Multipart upload; `sim knowledge documents upload <id> <path>` needs its
   // own file-reading command rather than a generated flag surface.
   uploadKnowledgeDocument: { hidden: true },
@@ -2039,8 +2042,8 @@ export const CLI_CONTRACT: CliContract = {
   completeKnowledgeDocumentUpload: { hidden: true },
   abortKnowledgeDocumentUpload: { hidden: true },
 
-  // ─── Steps of a transfer, not commands ────────────────────────────────────
-  // Uploading is now a presigned multipart handshake: create the upload, ask for
+  // Steps of a transfer, not commands
+  // Uploading is a presigned multipart handshake: create the upload, ask for
   // part URLs in batches, PUT each part to storage, then complete with the
   // ETags — and abort if any of it fails. Exposing the steps individually would
   // advertise a protocol whose halfway states leak storage, so `sim files

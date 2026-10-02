@@ -17,7 +17,6 @@ import { calculateCost } from '@/providers/utils'
 
 providersMock.MAX_TOOL_ITERATIONS = 5
 const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
-const mockRecordError = providersConversationHistoryMockFns.mockRecordProviderConversationToolError
 
 const mockExecuteTool = toolsMockFns.mockExecuteTool
 

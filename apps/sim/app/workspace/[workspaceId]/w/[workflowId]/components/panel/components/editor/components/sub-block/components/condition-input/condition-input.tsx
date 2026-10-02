@@ -593,42 +593,6 @@ export function ConditionInput({
     }
   }
 
-  // Handle tag selection - updated for individual blocks
-  const handleTagSelect = (blockId: string, newValue: string) => {
-    if (isPreview || disabled) return
-    shouldPersistRef.current = true
-    setConditionalBlocks((blocks) =>
-      blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              value: newValue,
-              showTags: false,
-              activeSourceBlockId: null,
-            }
-          : block
-      )
-    )
-  }
-
-  // Handle environment variable selection - updated for individual blocks
-  const handleEnvVarSelect = (blockId: string, newValue: string) => {
-    if (isPreview || disabled) return
-    shouldPersistRef.current = true
-    setConditionalBlocks((blocks) =>
-      blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              value: newValue,
-              showEnvVars: false,
-              searchTerm: '',
-            }
-          : block
-      )
-    )
-  }
-
   const handleTagSelectImmediate = (
     blockId: string,
     newValue: string,

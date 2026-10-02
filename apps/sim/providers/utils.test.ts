@@ -14,6 +14,12 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import { normalizeFileInput } from '@/blocks/utils'
+import {
+  findProviderFromModel,
+  getMaxOutputTokensForModel,
+  getMaxTemperature,
+  supportsTemperature,
+} from '@/providers/models'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
 import type { ProviderToolConfig } from '@/providers/types'
 import {
@@ -21,20 +27,16 @@ import {
   calculateCost,
   describeModelLevel,
   extractAndParseJSON,
-  findProviderFromModel,
   formatCost,
   generateStructuredOutputInstructions,
   getApiKey,
   getBaseModelProviders,
-  getMaxOutputTokensForModel,
-  getMaxTemperature,
   getProvider,
   getProviderFromModel,
   isGemini3Model,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   shouldBillModelUsage,
-  supportsTemperature,
   transformBlockTool,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'

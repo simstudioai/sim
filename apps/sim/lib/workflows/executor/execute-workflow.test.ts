@@ -1,7 +1,6 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
-import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { loggingSessionMock, loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
@@ -45,8 +44,6 @@ encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => 
   if (value !== 'encrypted-secret') throw new Error('Invalid ciphertext')
   return { decrypted: 'secret-value' }
 })
-
-const workflowExecutionLogger = getMockLogger('WorkflowExecution')
 
 const billingAttribution: BillingAttributionSnapshot = {
   actorUserId: 'actor-1',

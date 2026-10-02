@@ -234,25 +234,22 @@ export async function runSlackSearchAssistant(
         }),
     })
     stream = responseStream
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: job.message.query,
+    const payload = await buildCopilotRequestPayload({
+      message: job.message.query,
+      userId,
+      userMessageId: messageId,
+      organizationId: installation.organizationId,
+      chatId: chat.id,
+      mode: 'assistant',
+      workspaceContext: await loadCopilotSearchIntegrations({
         userId,
-        userMessageId: messageId,
         organizationId: installation.organizationId,
         chatId: chat.id,
-        mode: 'assistant',
-        workspaceContext: await loadCopilotSearchIntegrations({
-          userId,
-          organizationId: installation.organizationId,
-          chatId: chat.id,
-          messageId,
-          signal: controller.signal,
-        }),
-        model: '',
-      },
-      { selectedModel: '' }
-    )
+        messageId,
+        signal: controller.signal,
+      }),
+      model: '',
+    })
     const billingAttribution = await resolveOrganizationBillingAttribution({
       actorUserId: userId,
       organizationId: installation.organizationId,

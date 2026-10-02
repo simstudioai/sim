@@ -16,42 +16,26 @@ import {
 } from '@/lib/mothership/tool-executor/types'
 import type {
   CancelWorkflowRunParams,
-  CreateWorkflowParams,
   GenerateApiKeyParams,
-  MoveWorkflowParams,
-  RenameWorkflowParams,
   RunBlockParams,
   RunFromBlockParams,
   RunWorkflowParams,
   RunWorkflowUntilBlockParams,
-  SetBlockEnabledParams,
-  SetGlobalWorkflowVariablesParams,
-  VariableOperation,
 } from '@/lib/mothership/tools/handlers/param-types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
 import {
   boundRunResultForModel,
   presentWorkflowLogsForModel,
 } from '@/lib/mothership/tools/workflow-output'
-import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
-import { createWorkflow } from '@/lib/workflows/application/create-workflow'
-import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
   runBlockFromCopilot,
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
   runWorkflowUntilBlockFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
-import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
-import {
-  applyWorkflowVariableOperations,
-  setWorkflowBlockEnabled,
-} from '@/lib/workflows/application/update-workflow-content'
-import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowMutations')
 
@@ -277,63 +261,6 @@ function assertWorkflowMutationNotAborted(
   }
 }
 
-export async function executeCreateWorkflow(
-  params: CreateWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const name = typeof params?.name === 'string' ? params.name.trim() : ''
-    if (!name) {
-      return { success: false, error: 'name is required' }
-    }
-    if (name.length > 200) {
-      return { success: false, error: 'Workflow name must be 200 characters or less' }
-    }
-    const workspaceId = requireCopilotWorkspace(context, params?.workspaceId)
-
-    const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
-    const folderId =
-      typeof params?.folderId === 'string' && params.folderId.trim() ? params.folderId.trim() : null
-    let canonicalFolderPath: string | undefined
-    if (folderPath) {
-      const relativePath = workflowFolderRelativePath(folderPath)
-      canonicalFolderPath = relativePath
-        ? `/${encodeVfsPathSegments(decodeVfsPathSegments(relativePath))}`
-        : '/'
-    }
-
-    assertWorkflowMutationNotAborted(context)
-
-    const result = await executeCopilotWorkflowUseCase(context, createWorkflow, {
-      workspaceId,
-      name,
-      ...(canonicalFolderPath !== undefined ? { folderPath: canonicalFolderPath } : { folderId }),
-    })
-    const copilotSanitizedWorkflowState = sanitizeForCopilot({
-      blocks: result.normalizedState.blocks || {},
-      edges: result.normalizedState.edges || [],
-      loops: result.normalizedState.loops || {},
-      parallels: result.normalizedState.parallels || {},
-    } as WorkflowState)
-
-    return {
-      success: true,
-      output: {
-        workflowId: result.workflow.id,
-        workflowName: result.workflow.name,
-        workspaceId: result.workflow.workspaceId,
-        folderId: result.workflow.folderId,
-        ...(copilotSanitizedWorkflowState ? { copilotSanitizedWorkflowState } : {}),
-      },
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: messageForCopilotWorkflowError(error, 'Failed to create workflow'),
-    }
-  }
-}
-
 export async function executeRunWorkflow(
   params: RunWorkflowParams,
   context: ExecutionContext
@@ -406,94 +333,6 @@ export async function executeCancelWorkflowRun(
       success: false,
       error: messageForCopilotWorkflowError(error, 'Failed to cancel workflow run'),
     }
-  }
-}
-
-export async function executeSetGlobalWorkflowVariables(
-  params: SetGlobalWorkflowVariablesParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-    const operations: VariableOperation[] = Array.isArray(params.operations)
-      ? params.operations
-      : []
-
-    assertWorkflowMutationNotAborted(context)
-    const result = await executeCopilotWorkflowUseCase(context, applyWorkflowVariableOperations, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      operations,
-    })
-
-    return { success: true, output: { updated: result.updated } }
-  } catch (error) {
-    return { success: false, error: messageForCopilotWorkflowError(error) }
-  }
-}
-
-export async function executeRenameWorkflow(
-  params: RenameWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-    const name = typeof params.name === 'string' ? params.name.trim() : ''
-    if (!name) {
-      return { success: false, error: 'name is required' }
-    }
-    if (name.length > 200) {
-      return { success: false, error: 'Workflow name must be 200 characters or less' }
-    }
-
-    assertWorkflowMutationNotAborted(context)
-    await executeCopilotWorkflowUseCase(context, updateWorkflow, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      name,
-    })
-
-    return { success: true, output: { workflowId, name } }
-  } catch (error) {
-    return {
-      success: false,
-      error: messageForCopilotWorkflowError(error, 'Failed to rename workflow'),
-    }
-  }
-}
-
-export async function executeMoveWorkflow(
-  params: MoveWorkflowParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowIds = params.workflowIds
-    if (!workflowIds || workflowIds.length === 0) {
-      return { success: false, error: 'workflowIds is required' }
-    }
-    if (!context.workspaceId) {
-      return { success: false, error: 'Workspace context is required' }
-    }
-
-    assertWorkflowMutationNotAborted(context)
-    const result = await executeCopilotWorkflowUseCase(context, moveWorkflowsBulk, {
-      workspaceId: context.workspaceId,
-      workflowIds,
-      folderId: params.folderId || null,
-    })
-
-    return {
-      success: result.moved.length > 0,
-      output: { moved: result.moved, failed: result.failed, folderId: result.folderId },
-    }
-  } catch (error) {
-    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }
 
@@ -617,62 +456,6 @@ export async function executeRunFromBlock(
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
-}
-
-export async function executeSetBlockEnabled(
-  params: SetBlockEnabledParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-    if (!params.blockId) {
-      return { success: false, error: 'blockId is required' }
-    }
-    if (typeof params.enabled !== 'boolean') {
-      return { success: false, error: 'enabled must be a boolean' }
-    }
-
-    assertWorkflowMutationNotAborted(context)
-    const result = await executeCopilotWorkflowUseCase(context, setWorkflowBlockEnabled, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      blockId: params.blockId,
-      enabled: params.enabled,
-    })
-
-    return {
-      success: true,
-      output: {
-        workflowId,
-        workflowName: result.workflowName,
-        blockId: params.blockId,
-        enabled: params.enabled,
-        affectedBlockIds: result.affectedBlockIds,
-        copilotSanitizedWorkflowState: sanitizeForCopilot(result.state),
-        ...(!result.changed
-          ? {
-              message: `Block ${params.blockId} is already ${params.enabled ? 'enabled' : 'disabled'}`,
-            }
-          : {}),
-      },
-    }
-  } catch (error) {
-    return { success: false, error: messageForCopilotWorkflowError(error) }
-  }
-}
-
-/**
- * Strip the `workflows/` VFS prefix from a folder path, returning the
- * folder-relative remainder. `workflows` (or an empty path) maps to the
- * workspace root and yields an empty string.
- */
-function workflowFolderRelativePath(rawPath: string): string {
-  const trimmed = rawPath.trim().replace(/^\/+|\/+$/g, '')
-  if (!trimmed || trimmed === 'workflows') return ''
-  return trimmed.startsWith('workflows/') ? trimmed.slice('workflows/'.length) : trimmed
 }
 
 export async function executeRunBlock(

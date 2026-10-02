@@ -113,7 +113,7 @@ export const mailgunSendMessageTool: ToolConfig<SendMessageParams, SendMessageRe
     },
   },
 
-  transformResponse: async (response, params): Promise<SendMessageResult> => {
+  transformResponse: async (response): Promise<SendMessageResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to send message')

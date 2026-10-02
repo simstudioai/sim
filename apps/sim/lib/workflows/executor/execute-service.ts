@@ -718,7 +718,7 @@ export async function executeWorkflowService(
           timeoutController.isTimedOut() &&
           timeoutController.timeoutMs
         ) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           reqLogger.info('Execution timed out', { timeoutMs: timeoutController.timeoutMs })
           await loggingSession.markAsFailed(timeoutErrorMessage)
           const compactTimeoutOutput = await compactServiceOutput(result.output, compactionContext)

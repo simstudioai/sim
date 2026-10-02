@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -68,9 +68,7 @@ async function resolveZoomChallengeSecrets(
 
   const resolvedRows = await Promise.all(
     rows.map(async (row) => {
-      const rawConfig = isRecordLike(row.providerConfig)
-        ? (row.providerConfig as Record<string, unknown>)
-        : {}
+      const rawConfig = toRecord(row.providerConfig)
 
       try {
         /**

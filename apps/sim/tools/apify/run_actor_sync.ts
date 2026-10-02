@@ -79,7 +79,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       if (params.input) {
         try {
           inputData = JSON.parse(params.input)
-        } catch (e) {
+        } catch {
           throw new Error('Invalid JSON in input parameter')
         }
       }

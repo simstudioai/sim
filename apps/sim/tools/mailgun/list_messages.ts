@@ -62,7 +62,7 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
     }),
   },
 
-  transformResponse: async (response, params): Promise<ListMessagesResult> => {
+  transformResponse: async (response): Promise<ListMessagesResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to list messages')

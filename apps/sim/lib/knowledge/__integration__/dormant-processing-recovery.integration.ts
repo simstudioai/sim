@@ -24,11 +24,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({ root: '' }))
 vi.mock('@/lib/core/config/trigger-runtime', () => ({ isInsideTriggerRun: () => false }))
-/** Pinned to Live Search, whatever `SIM_SEARCH_LIVE` the run was started with. */
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  isLiveEnterpriseSearchEnabled: true,
-}))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixture.root

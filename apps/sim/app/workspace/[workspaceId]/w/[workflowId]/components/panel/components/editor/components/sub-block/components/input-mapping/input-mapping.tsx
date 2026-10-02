@@ -220,11 +220,7 @@ function InputMappingField({
   const fieldId = fieldName
   const fieldState = inputController.fieldHelpers.getFieldState(fieldId)
   const handlers = inputController.fieldHelpers.createFieldHandlers(fieldId, value, onChange)
-  const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
-    fieldId,
-    value,
-    onChange
-  )
+  const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(fieldId, onChange)
 
   /**
    * Synchronizes scroll position between input and overlay

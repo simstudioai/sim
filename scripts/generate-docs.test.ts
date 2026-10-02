@@ -64,7 +64,7 @@ describe('documentation tool metadata', () => {
         ],
         tools: { access: ['download_file', 'download_list'] },
         outputs: { file: { type: 'file' }, content: { type: 'string' } },
-      } as const) satisfies BlockConfig<Response>
+      } as const) satisfies BlockConfig
       export const DownloadV2Block: BlockConfig = {
         ...DownloadBlock,
         type: 'download_v2', name: 'Download', hideFromToolbar: false,

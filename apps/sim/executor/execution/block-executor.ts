@@ -74,7 +74,7 @@ import {
   buildBranchNodeId,
   buildOuterBranchScopedId,
   extractOuterBranchIndex,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,

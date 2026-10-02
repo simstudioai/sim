@@ -72,7 +72,7 @@ function getS3EndpointSources(
   return [origin, `${url.protocol}//*.${url.host}`]
 }
 
-export interface CSPDirectives {
+interface CSPDirectives {
   'default-src'?: string[]
   'script-src'?: string[]
   'style-src'?: string[]
@@ -208,7 +208,7 @@ const STATIC_FRAME_SRC = [
 ] as const
 
 // Build-time CSP directives (for next.config.ts)
-export const buildTimeCSPDirectives: CSPDirectives = {
+const buildTimeCSPDirectives: CSPDirectives = {
   'default-src': ["'self'"],
   'script-src': [...STATIC_SCRIPT_SRC],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
@@ -336,27 +336,4 @@ export function getChatEmbedCSPPolicy(): string {
     ],
     'frame-ancestors': ['*'],
   })
-}
-
-/**
- * Add a source to a specific directive (modifies build-time directives)
- */
-export function addCSPSource(directive: keyof CSPDirectives, source: string): void {
-  if (!buildTimeCSPDirectives[directive]) {
-    buildTimeCSPDirectives[directive] = []
-  }
-  if (!buildTimeCSPDirectives[directive]!.includes(source)) {
-    buildTimeCSPDirectives[directive]!.push(source)
-  }
-}
-
-/**
- * Remove a source from a specific directive (modifies build-time directives)
- */
-export function removeCSPSource(directive: keyof CSPDirectives, source: string): void {
-  if (buildTimeCSPDirectives[directive]) {
-    buildTimeCSPDirectives[directive] = buildTimeCSPDirectives[directive]!.filter(
-      (s: string) => s !== source
-    )
-  }
 }

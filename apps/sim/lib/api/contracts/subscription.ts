@@ -225,10 +225,6 @@ export const invoicesApiResponseSchema = z.object({
   hasMore: z.boolean(),
 })
 
-const successResponseSchema = z.object({
-  success: z.boolean(),
-})
-
 export const getBillingContract = defineRouteContract({
   method: 'GET',
   path: '/api/billing',

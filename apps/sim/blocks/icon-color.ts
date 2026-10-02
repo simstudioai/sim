@@ -1,30 +1,11 @@
 /**
- * Contrast helpers for brand tiles. Pure colour maths — deliberately free of any
- * `@/blocks/registry` import so the public landing `/integrations` page can use
- * these without pulling 282 block configs and the tool registry into its bundle.
- * Registry-backed icon styling lives in `@/blocks/brand-icon`.
+ * Tailwind classes for brand-tile icons, built on the shared
+ * `isLightTileColor` predicate. Deliberately free of any `@/blocks/registry`
+ * import so the public landing `/integrations` page can use it without pulling
+ * every block config and the tool registry into its bundle. Registry-backed
+ * icon styling lives in `@/blocks/brand-icon`.
  */
-import { perceivedBackgroundBrightness } from '@sim/utils/color'
-
-/**
- * Brightness above which a brand tile is "clearly light" and a white foreground
- * icon would wash out. Set deliberately high (0.75) so only genuinely light
- * tiles flip their icon to dark: it keeps monochrome `currentColor` icons
- * legible on their pale tiles (Notion/Mailchimp/Infisical sit at ~0.83+) while
- * leaving mid-bright saturated brand tiles (HubSpot orange, amber notes) on the
- * white icon they have always used — avoiding a needless app-wide recolor.
- */
-const LIGHT_TILE_THRESHOLD = 0.75
-
-/**
- * True when a block's {@link BlockConfig.bgColor} tile is light enough that a
- * white foreground icon would wash out. Gradients use the average brightness
- * of their supported color stops; unknown values are treated as dark.
- */
-export function isLightTileColor(bgColor: string | null | undefined): boolean {
-  const brightness = bgColor ? perceivedBackgroundBrightness(bgColor) : null
-  return brightness !== null && brightness > LIGHT_TILE_THRESHOLD
-}
+import { isLightTileColor } from '@sim/workflow-renderer/tile-icon-color'
 
 /**
  * Tailwind foreground class for a brand icon rendered inside its

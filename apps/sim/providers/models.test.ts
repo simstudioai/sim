@@ -225,8 +225,6 @@ describe('orderModelIdsByReleaseDate', () => {
 })
 
 describe('sakana provider definition', () => {
-  const sakana = PROVIDER_DEFINITIONS.sakana
-
   it('routes bare fugu model IDs to the sakana provider', () => {
     const baseModels = getBaseModelProviders()
     expect(baseModels.fugu).toBe('sakana')
@@ -237,8 +235,6 @@ describe('sakana provider definition', () => {
 })
 
 describe('nvidia provider definition', () => {
-  const nvidia = PROVIDER_DEFINITIONS.nvidia
-
   const expectedModels = [
     { id: 'nvidia/nemotron-3.5-lightning-30b-a3b', contextWindow: 1000000 },
     { id: 'nvidia/llama-3.1-nemotron-70b-instruct', contextWindow: 128000 },
@@ -258,8 +254,6 @@ describe('nvidia provider definition', () => {
 })
 
 describe('zai provider definition', () => {
-  const zai = PROVIDER_DEFINITIONS.zai
-
   const expectedModels = [
     { id: 'glm-5.3', contextWindow: 1000000 },
     { id: 'glm-5.3-flash', contextWindow: 1000000 },
@@ -286,8 +280,6 @@ describe('zai provider definition', () => {
 })
 
 describe('kimi provider definition', () => {
-  const kimi = PROVIDER_DEFINITIONS.kimi
-
   const expectedModels = [
     { id: 'kimi-k3', contextWindow: 1048576 },
     { id: 'kimi-k2.7-code', contextWindow: 262144 },

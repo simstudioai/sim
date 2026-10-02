@@ -17,7 +17,6 @@ export const organizationSearchSourcesInputSchema = z.discriminatedUnion('action
     cursor: z.string().min(1).max(1024).optional(),
     connectorType: connectorTypeSchema.optional(),
     search: z.string().trim().max(200).optional(),
-    mine: z.boolean().optional(),
   }),
   z.strictObject({ action: z.literal('get'), connectorId: z.string().min(1).max(255) }),
   z.strictObject({ action: z.literal('providers') }),

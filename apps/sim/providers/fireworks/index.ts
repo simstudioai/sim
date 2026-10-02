@@ -8,6 +8,7 @@ import {
   type ChatCompletionPayload,
   executeChatCompletionRequest,
 } from '@/providers/openai-compat/chat-completions'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { openAICompatTransport } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
@@ -21,13 +22,9 @@ async function applyResponseFormat(
   model: string
 ): Promise<ChatCompletionMessageParam[]> {
   logger.info('Using native structured outputs for Fireworks model', { model })
-  targetPayload.response_format = {
-    type: 'json_schema',
-    json_schema: {
-      name: responseFormat.name || 'response_schema',
-      schema: responseFormat.schema || responseFormat,
-    },
-  }
+  targetPayload.response_format = buildJsonSchemaResponseFormat(responseFormat, {
+    includeStrict: false,
+  })
   return messages
 }
 

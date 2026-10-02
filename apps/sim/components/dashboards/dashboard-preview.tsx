@@ -1,9 +1,6 @@
 'use client'
 
-import { Suspense, useMemo, useRef, useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
-import { toRecord } from '@sim/utils/object'
-import { useIsFetching, useQueryClient } from '@tanstack/react-query'
+import { Suspense, useMemo } from 'react'
 import { useQueryStates } from 'nuqs'
 import { DashboardControls } from '@/components/dashboards/dashboard-controls'
 import { DashboardInteractionContext } from '@/components/dashboards/dashboard-interactions'
@@ -13,21 +10,8 @@ import {
   dashboardUrlKeys,
   dashboardUrlOptions,
 } from '@/components/dashboards/search-params'
-import { getBrowserTimezone } from '@/lib/core/utils/timezone'
-import {
-  type DashboardBlock,
-  type DashboardSpec,
-  parseDashboardSpec,
-  resolveDashboardSource,
-} from '@/lib/dashboards/spec'
-import {
-  type DashboardTimeRange,
-  dashboardRangeFromCalendar,
-  parseDashboardCustomRange,
-  relativeDashboardRange,
-} from '@/lib/dashboards/time'
-import { tableAnalyticsKeys } from '@/hooks/queries/table-analytics'
-import { createDashboardCursorStore, type DashboardCursorStore } from '@/stores/dashboards/cursor'
+import { useDashboardTime } from '@/components/dashboards/use-dashboard-time'
+import { type DashboardSpec, dashboardTableIds, parseDashboardSpec } from '@/lib/dashboards/spec'
 
 interface DashboardPreviewProps {
   content: string
@@ -42,60 +26,21 @@ interface DashboardViewProps {
   dashboardId: string
 }
 
-function dashboardTableIds(spec: DashboardSpec): Set<string> {
-  const ids = new Set<string>()
-  const visit = (blocks: DashboardBlock[]) => {
-    for (const block of blocks) {
-      if ('row' in block) visit(block.row)
-      else if ('tabs' in block) Object.values(block.tabs).forEach(visit)
-      else if (!('text' in block))
-        ids.add(resolveDashboardSource(spec.source, block.source).tableId)
-    }
-  }
-  visit(spec.blocks)
-  return ids
-}
-
 function DashboardView({ spec, workspaceId, dashboardId }: DashboardViewProps) {
-  const cursorStoreRef = useRef<DashboardCursorStore | null>(null)
-  cursorStoreRef.current ??= createDashboardCursorStore()
   const [state, setState] = useQueryStates(dashboardParsers, {
     ...dashboardUrlOptions,
     urlKeys: dashboardUrlKeys(dashboardId),
   })
-  const [now, setNow] = useState(() => Date.now())
-  const [inputError, setInputError] = useState<string | null>(null)
-  const queryClient = useQueryClient()
-  const tableIds = dashboardTableIds(spec)
-  const queryFilter = {
-    queryKey: tableAnalyticsKeys.queries(),
-    predicate: (query: { queryKey: readonly unknown[] }) => {
-      return (
-        toRecord(query.queryKey[3]).workspaceId === workspaceId &&
-        tableIds.has(String(query.queryKey[2]))
-      )
-    },
-  }
-  const isFetching = useIsFetching(queryFilter) > 0
-  const localTimeZone = getBrowserTimezone()
-  const timeZone = state.zone === 'local' ? localTimeZone : 'UTC'
-  const period = state.range ?? spec.time ?? '7d'
+  const time = useDashboardTime({
+    state,
+    setState: (update) => void setState(update),
+    time: spec.time,
+    workspaceId,
+    tableIds: dashboardTableIds(spec.blocks, spec.source),
+  })
   const firstBlock = spec.blocks[0]
   const description = firstBlock && 'text' in firstBlock ? firstBlock.text : null
   const startIndex = description === null ? 0 : 1
-  let range = relativeDashboardRange(period === 'custom' ? '7d' : period, now)
-  let rangeError: string | null = null
-  if (period === 'custom') {
-    try {
-      range = parseDashboardCustomRange(state.from ?? '', state.to ?? '')
-    } catch (error) {
-      rangeError = getErrorMessage(error, 'Choose a custom range')
-    }
-  }
-  const onZoom = (selected: DashboardTimeRange) => {
-    setInputError(null)
-    void setState({ range: 'custom', ...selected })
-  }
   return (
     <div className='mx-auto flex w-full max-w-[1120px] flex-col gap-6'>
       <header className='grid @min-[1000px]/dashboard:grid-cols-[minmax(0,1fr)_auto] grid-cols-1 items-start gap-4'>
@@ -109,59 +54,28 @@ function DashboardView({ spec, workspaceId, dashboardId }: DashboardViewProps) {
             </p>
           )}
         </div>
-        <DashboardControls
-          period={period}
-          range={range}
-          timeZone={timeZone}
-          zone={state.zone}
-          isFetching={isFetching}
-          rangeError={rangeError !== null}
-          onPeriodChange={(value) => {
-            setInputError(null)
-            cursorStoreRef.current?.getState().clearCursor()
-            setNow(Date.now())
-            void setState({ range: value, from: null, to: null })
-          }}
-          onCalendarChange={(from, to) => {
-            try {
-              const selected = dashboardRangeFromCalendar(from, to, timeZone)
-              setInputError(null)
-              void setState({ range: 'custom', ...selected })
-              return true
-            } catch (error) {
-              setInputError(getErrorMessage(error, 'Invalid range'))
-              return false
-            }
-          }}
-          onRefresh={() => {
-            setNow(Date.now())
-            cursorStoreRef.current?.getState().clearCursor()
-            if (period === 'custom') void queryClient.invalidateQueries(queryFilter)
-          }}
-          onZoneChange={(zone) => void setState({ zone })}
-        />
+        <DashboardControls {...time.controls} />
       </header>
-      {inputError && (
+      {time.inputError && (
         <p role='alert' className='text-[var(--text-error)] text-caption'>
-          {inputError}
+          {time.inputError}
         </p>
       )}
-      {rangeError ? (
+      {time.rangeError ? (
         <p role='status' className='text-[var(--text-muted)] text-caption'>
-          {rangeError}
+          {time.rangeError}
         </p>
       ) : (
-        <DashboardInteractionContext
-          value={{ cursorStore: cursorStoreRef.current, timeZone, onZoom }}
-        >
+        <DashboardInteractionContext value={time.interactions}>
           <DashboardLayout
             blocks={spec.blocks.slice(startIndex)}
             startIndex={startIndex}
             defaults={spec.source}
             workspaceId={workspaceId}
             dashboardId={dashboardId}
-            range={range}
-            now={now}
+            range={time.range}
+            now={time.now}
+            highlights={spec.highlights}
           />
         </DashboardInteractionContext>
       )}

@@ -1,10 +1,9 @@
 import { TwilioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { TwilioSMSBlockOutput } from '@/tools/twilio/types'
 import { getTrigger } from '@/triggers'
 
-export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
+export const TwilioSMSBlock: BlockConfig = {
   type: 'twilio_sms',
   name: 'Twilio SMS',
   description: 'Send SMS messages',

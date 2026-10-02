@@ -1,9 +1,8 @@
 import { MailgunIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { SendMessageResult } from '@/tools/mailgun/types'
 
-export const MailgunBlock: BlockConfig<SendMessageResult> = {
+export const MailgunBlock: BlockConfig = {
   type: 'mailgun',
   name: 'Mailgun',
   description: 'Send emails and manage mailing lists with Mailgun',

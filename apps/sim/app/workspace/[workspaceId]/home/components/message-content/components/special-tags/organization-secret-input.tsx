@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext } from 'react'
+import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { organizationRoutes } from '@/lib/navigation/paths'
@@ -75,12 +76,12 @@ export function OrganizationSecretInputHost({
         {organizationContext.viewer.isAdmin ? (
           <>
             Enable Generic Secrets in{' '}
-            <a
+            <SettingsGuardedLink
               className='underline'
               href={organizationRoutes(organizationId).settingsSection('integrations')}
             >
               organization Integrations settings
-            </a>
+            </SettingsGuardedLink>
             , then return here to enter the keys.
           </>
         ) : (

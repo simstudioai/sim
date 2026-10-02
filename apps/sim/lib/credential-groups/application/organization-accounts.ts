@@ -12,6 +12,7 @@ import {
   defineOrganizationOperation,
   type OrganizationOperation,
 } from '@/lib/core/application/organization-operation'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { validateUpdateCredentialGroupInput } from '@/lib/credential-groups/application/validation'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
@@ -119,41 +120,43 @@ export function defineOrganizationAccountsUseCase<
         if (group)
           await requireOrganizationAccountsSetup(context.organizationId, group.credentialGroupId)
       }
-      const result = await definition.execute({ input, context }).catch((error: unknown) => {
-        if (error instanceof ManagedMcpConnectorError)
-          throw new OrchestrationError(
-            error.code === 'bad_gateway' ? 'internal' : error.code,
-            error.message
-          )
-        if (error instanceof CredentialGroupEnrollmentError)
-          throw new OrchestrationError(
-            error.status === 404
-              ? 'not_found'
-              : error.status === 409
-                ? 'conflict'
-                : error.status === 400
-                  ? 'validation'
-                  : 'internal',
-            error.message
-          )
-        throw error
-      })
-      const audit = definition.projectAudit?.(result)
-      if (audit)
-        recordAudit({
-          ...audit,
-          actorId: context.userId,
-          action: AuditAction.CREDENTIAL_GROUP_UPDATED,
-          resourceType: AuditResourceType.CREDENTIAL_GROUP,
-          metadata: {
-            organizationId: context.organizationId,
-            operation: definition.operation.id,
-            actor: resolvePrincipalAuditAttribution(principal).actor,
-          },
-          request,
+      return runWithOutboundOrganization(context.organizationId, async () => {
+        const result = await definition.execute({ input, context }).catch((error: unknown) => {
+          if (error instanceof ManagedMcpConnectorError)
+            throw new OrchestrationError(
+              error.code === 'bad_gateway' ? 'internal' : error.code,
+              error.message
+            )
+          if (error instanceof CredentialGroupEnrollmentError)
+            throw new OrchestrationError(
+              error.status === 404
+                ? 'not_found'
+                : error.status === 409
+                  ? 'conflict'
+                  : error.status === 400
+                    ? 'validation'
+                    : 'internal',
+              error.message
+            )
+          throw error
         })
-      await definition.afterSuccess?.({ result, context })
-      return result
+        const audit = definition.projectAudit?.(result)
+        if (audit)
+          recordAudit({
+            ...audit,
+            actorId: context.userId,
+            action: AuditAction.CREDENTIAL_GROUP_UPDATED,
+            resourceType: AuditResourceType.CREDENTIAL_GROUP,
+            metadata: {
+              organizationId: context.organizationId,
+              operation: definition.operation.id,
+              actor: resolvePrincipalAuditAttribution(principal).actor,
+            },
+            request,
+          })
+        await definition.afterSuccess?.({ result, context })
+        return result
+      })
     },
   }
 }

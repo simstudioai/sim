@@ -42,6 +42,7 @@ import {
   toActiveKnowledgeBaseReference,
 } from '@/lib/knowledge/knowledge-base-reference'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
+import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -421,22 +422,6 @@ export async function getWorkspaceKnowledgeBases(
     data: await attachConnectorTypes(page.data),
     nextCursorKeys: page.nextCursorKeys,
   }
-}
-
-/** Loads at most two active exact-name matches so a caller can fail on corrupt ambiguity. */
-export async function findActiveKnowledgeBasesByExactName(
-  workspaceId: string,
-  name: string
-): Promise<ActiveKnowledgeBaseReference[]> {
-  return readKnowledgeBaseRows(
-    and(
-      eq(knowledgeBase.workspaceId, workspaceId),
-      eq(knowledgeBase.name, name),
-      isNull(knowledgeBase.deletedAt)
-    ),
-    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc'),
-    2
-  )
 }
 
 /**
@@ -1011,6 +996,12 @@ export async function deleteKnowledgeBase(
   const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
+    const [owner] = await tx
+      .select({ organizationId: knowledgeBase.organizationId })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .limit(1)
+    if (owner?.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
     /**
      * Soft deletion leaves the referenced key intact. Allow embedding inserts to
      * take their foreign-key KEY SHARE lock while holding a document row lock,
@@ -1156,6 +1147,7 @@ export async function restoreKnowledgeBase(
     attemptedRestoreName = ''
     try {
       await db.transaction(async (tx) => {
+        if (kb.organizationId) await lockOrganizationSearchApproval(tx, kb.organizationId)
         await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
         attemptedRestoreName = await generateRestoreName(kb.name, async (candidate) => {

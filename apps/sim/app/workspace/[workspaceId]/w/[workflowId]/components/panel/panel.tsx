@@ -66,7 +66,7 @@ import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hook
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
 import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
@@ -141,7 +141,6 @@ export const Panel = memo(function Panel() {
   const posthogRef = useRef(posthog)
 
   const panelRef = useRef<HTMLElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const {
     activeTab: storedActiveTab,
     setActiveTab,
@@ -181,7 +180,6 @@ export const Panel = memo(function Panel() {
   const isCopilotTabAvailable = chatEnabled && !permissionConfig.hideCopilot
   const activeTab: PanelTab =
     storedActiveTab === 'copilot' && !isCopilotTabAvailable ? 'toolbar' : storedActiveTab
-  const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)

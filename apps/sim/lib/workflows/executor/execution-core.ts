@@ -67,7 +67,10 @@ import {
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { isRunMetadataEnabled } from '@/executor/utils/start-block'
-import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
+import {
+  buildLoopSentinelEndId,
+  buildParallelSentinelEndId,
+} from '@/executor/utils/subflow-node-id-codec'
 import { Serializer } from '@/serializer'
 
 const logger = createLogger('ExecutionCore')
@@ -353,7 +356,7 @@ async function finalizeExecutionOutcome(params: {
       await loggingSession.safeCompleteWithError({
         endedAt,
         totalDurationMs: totalDuration || 0,
-        error: { message: getTimeoutErrorMessage(null) },
+        error: { message: getTimeoutErrorMessage() },
         traceSpans: traceSpans || [],
         executionState: result.executionState,
       })
@@ -901,7 +904,7 @@ async function executeWorkflowCoreImpl(
     let resolvedStopAfterBlockId = stopAfterBlockId
     if (stopAfterBlockId) {
       if (serializedWorkflow.loops?.[stopAfterBlockId]) {
-        resolvedStopAfterBlockId = buildSentinelEndId(stopAfterBlockId)
+        resolvedStopAfterBlockId = buildLoopSentinelEndId(stopAfterBlockId)
       } else if (serializedWorkflow.parallels?.[stopAfterBlockId]) {
         resolvedStopAfterBlockId = buildParallelSentinelEndId(stopAfterBlockId)
       }

@@ -45,8 +45,6 @@ export async function rocketlaneError(response: Response): Promise<string> {
   return text || `Rocketlane API error (HTTP ${response.status})`
 }
 
-type Raw = Record<string, unknown>
-
 // region Shared object shapes
 
 /** Compact user reference returned inside most Rocketlane resources. */

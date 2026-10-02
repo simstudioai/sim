@@ -13,7 +13,6 @@ import type {
 } from '@/lib/table/types'
 import type { BlockConfig } from '@/blocks/types'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
-import type { TableQueryV2Response } from '@/tools/table/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -222,7 +221,7 @@ const TABLE_FIELD = ['tableSelector', 'manualTableId'] as const
 const FILTER_FIELD = ['filterBuilder', 'filter'] as const
 const SORT_FIELD = ['sortBuilder', 'order'] as const
 
-export const TableV2Block: BlockConfig<TableQueryV2Response> = {
+export const TableV2Block: BlockConfig = {
   type: 'table_v2',
   name: 'Table',
   description: 'User-defined data tables',

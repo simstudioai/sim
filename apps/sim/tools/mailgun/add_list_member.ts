@@ -77,7 +77,7 @@ export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMe
     },
   },
 
-  transformResponse: async (response, params): Promise<AddListMemberResult> => {
+  transformResponse: async (response): Promise<AddListMemberResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to add list member')

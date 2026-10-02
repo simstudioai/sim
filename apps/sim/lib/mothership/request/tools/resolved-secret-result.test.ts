@@ -23,7 +23,7 @@ function createRegistry(): ResolvedSecretTraceRegistry {
 describe('projectToolResultForCopilot', () => {
   it.each([RunFunction.id, RunCode.id])(
     'projects active exact and embedded secrets for %s without mutating runtime output',
-    (toolName) => {
+    () => {
       const registry = createRegistry()
       registry.recordResolved('SECRET', 'secret-value', { propagated: true })
       const runtimeResult = {

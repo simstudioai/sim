@@ -332,7 +332,7 @@ describe('execution event buffer', () => {
       () => Promise.resolve(),
     ]
 
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const batchEntries: ExecutionEventEntry[] = []
       const { zaddArgs } = parseFlushEvalArgs(args)
       for (let i = 0; i < zaddArgs.length; i += 2) {
@@ -417,7 +417,7 @@ describe('execution event buffer', () => {
   it('flushes replay events after a recovered final replay flush without terminal meta', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     let flushAttempt = 0
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const { zaddArgs } = parseFlushEvalArgs(args)
       if (flushAttempt > 0) {
         for (let i = 0; i < zaddArgs.length; i += 2) {
@@ -470,7 +470,7 @@ describe('execution event buffer', () => {
   it('budgets only net event bytes after pruning during flush', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     let netBudgetBytes = 0
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const keyCount = Number(args[0])
       netBudgetBytes = Number(args[keyCount + 5])
       const { zaddArgs } = parseFlushEvalArgs(args)

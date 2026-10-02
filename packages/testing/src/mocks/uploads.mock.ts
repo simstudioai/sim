@@ -5,9 +5,9 @@ import { storageServiceMock } from './storage-service.mock'
  * Controllable mock functions for the `@/lib/uploads` barrel.
  *
  * Defaults describe local storage: `isUsingCloudStorage` → `false`,
- * `getStorageProvider` → `'local'`, `getServePathPrefix` → `'/api/files/serve/'` (the real
- * constant). The `StorageService` namespace is `storageServiceMock`, so drive storage I/O
- * through `storageServiceMockFns` from `@sim/testing/mocks/storage-service.mock`.
+ * `getServePathPrefix` → `'/api/files/serve/'` (the real constant). The `StorageService`
+ * namespace is `storageServiceMock`, so drive storage I/O through `storageServiceMockFns`
+ * from `@sim/testing/mocks/storage-service.mock`.
  *
  * @example
  * ```ts
@@ -23,7 +23,6 @@ export const uploadsMockFns = {
   mockIsUsingCloudStorage: vi.fn(() => false),
   mockGetFileMetadata: vi.fn(),
   mockGetServePathPrefix: vi.fn(() => '/api/files/serve/'),
-  mockGetStorageProvider: vi.fn((): 'blob' | 's3' | 'gcs' | 'local' => 'local'),
   mockProcessChatFiles: vi.fn(),
   mockDownloadCopilotFile: vi.fn(),
   mockUploadCopilotFile: vi.fn(),
@@ -42,7 +41,6 @@ export const uploadsMock = {
   isUsingCloudStorage: uploadsMockFns.mockIsUsingCloudStorage,
   getFileMetadata: uploadsMockFns.mockGetFileMetadata,
   getServePathPrefix: uploadsMockFns.mockGetServePathPrefix,
-  getStorageProvider: uploadsMockFns.mockGetStorageProvider,
   ChatFiles: {
     processChatFiles: uploadsMockFns.mockProcessChatFiles,
   },

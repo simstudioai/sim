@@ -163,7 +163,7 @@ async function fetchGitHubCommitDetails(
           githubUsername: 'unknown',
           prNumber,
         })
-      } catch (fallbackError) {
+      } catch {
         console.error(`❌ Failed to get fallback data for ${hash.substring(0, 7)}`)
       }
     }

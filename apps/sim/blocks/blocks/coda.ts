@@ -1,9 +1,6 @@
 import { CodaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { CodaResponse } from '@/tools/coda/types'
 
-/** Canonical credential pair: the credential picker in basic mode, a raw credential id in advanced. */
-const CREDENTIAL_FIELD = ['credential', 'manualCredential']
 const DOC_FIELD = ['docSelector', 'manualDocId']
 const PAGE_FIELD = ['pageSelector', 'manualPageId']
 const TABLE_FIELD = ['tableSelector', 'manualTableId']
@@ -160,7 +157,7 @@ const DATE_WAND = {
   generationType: 'timestamp',
 } as const
 
-export const CodaBlock: BlockConfig<CodaResponse> = {
+export const CodaBlock: BlockConfig = {
   type: 'coda',
   name: 'Coda',
   description: 'Read and write Coda docs, pages, tables, and rows',

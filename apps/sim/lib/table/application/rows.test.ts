@@ -101,7 +101,6 @@ import { encodeCursor } from '@/lib/table/rows/cursor'
 
 const {
   mockReplaceTableRows: mockReplaceRowsPrimitive,
-  mockDeleteRowsByIds,
   mockQueryRows,
   mockUpsertRow,
   mockWithLockedTable,
@@ -127,7 +126,6 @@ const mockGetWorkspaceOrganizationId = workspacesUtilsMockFns.mockGetWorkspaceOr
 const mockRecordAudit = auditMockFns.mockRecordAudit
 const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 const mockSignalRowsChanged = tableEventsMockFns.mockSignalTableRowsChanged
-const mockSignalRowsChangedByActor = tableEventsMockFns.mockSignalTableRowsChangedByActor
 
 const TABLE: TableDefinition = {
   id: 'table-1',

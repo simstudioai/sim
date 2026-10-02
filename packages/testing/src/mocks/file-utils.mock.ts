@@ -545,18 +545,6 @@ export const fileUtilsMockFns = {
       'name' in error &&
       String((error as { name?: unknown }).name) === 'AbortError'
   ),
-  mockIsNetworkError: vi.fn((error: unknown) => {
-    if (!(error instanceof Error)) return false
-    const message = error.message.toLowerCase()
-    return (
-      message.includes('network') ||
-      message.includes('fetch') ||
-      message.includes('connection') ||
-      message.includes('timeout') ||
-      message.includes('timed out') ||
-      message.includes('econnreset')
-    )
-  }),
   mockGetExtensionFromMimeType: vi.fn(getExtensionFromMimeType),
   mockEnsureFileNameExtension: vi.fn((fileName: string, contentType: string | null | undefined) => {
     if (!contentType || /^[a-z0-9]+$/.test(getFileExtension(fileName))) return fileName
@@ -738,7 +726,6 @@ export const fileUtilsMock = {
   resolveFileType: fileUtilsMockFns.mockResolveFileType,
   getFileContentType: fileUtilsMockFns.mockGetFileContentType,
   isAbortError: fileUtilsMockFns.mockIsAbortError,
-  isNetworkError: fileUtilsMockFns.mockIsNetworkError,
   getExtensionFromMimeType: fileUtilsMockFns.mockGetExtensionFromMimeType,
   ensureFileNameExtension: fileUtilsMockFns.mockEnsureFileNameExtension,
   formatFileSize: fileUtilsMockFns.mockFormatFileSize,

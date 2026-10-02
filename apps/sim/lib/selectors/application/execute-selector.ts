@@ -10,7 +10,6 @@ import type { OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { authorizePersonalSearchSetup } from '@/lib/knowledge/application/personal-search-account'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import {
   SELECTOR_DELEGATION_AUDIENCE,
@@ -45,8 +44,6 @@ const logger = createLogger('ExecuteSelector')
 export interface ExecuteSelectorInput extends ExecuteSelectorRequest {
   signal?: AbortSignal
   auditRequest?: CredentialAuditRequest
-  /** Set only by the personal Search setup use case; excluded from the public selector contract. */
-  personalSearchSetup?: 'jira' | 'confluence'
 }
 
 function validateAuthorizedInput(
@@ -172,7 +169,6 @@ async function executeAuthorizedSelector(args: {
             scope: args.input.scope,
             workspaceId: args.context.workspaceId,
             organizationId,
-            personalSearchSetup: args.input.personalSearchSetup,
             policy: attachment.credential,
             protectedValues,
             references: resolved.references,
@@ -203,9 +199,7 @@ async function executeAuthorizedSelector(args: {
     })
 
     const credentialAccess = credential?.access
-    const credentialResourceId = credential?.personalSearchSetup
-      ? credential.suppliedId
-      : credentialAccess?.resolvedCredentialId
+    const credentialResourceId = credentialAccess?.resolvedCredentialId
     let credentialUseRecorded = false
     const recordCredentialUse =
       attachment.auditCredentialUse && credentialResourceId
@@ -355,25 +349,15 @@ export const executeSelector: OperationUseCase<
       },
     }
     if (args.input.scope.kind !== 'organization') {
-      if (args.input.personalSearchSetup) throw new SelectorContextUnavailableError()
       return executeWorkspaceSelector.execute(args)
     }
     if (args.principal.kind !== 'session') throw new SelectorContextUnavailableError()
-    if (args.input.personalSearchSetup) {
-      const selectorKey =
-        args.input.personalSearchSetup === 'jira' ? 'jira.projectKeys' : 'confluence.spaces'
-      if (args.input.selectorKey !== selectorKey) throw new SelectorContextUnavailableError()
-      await authorizePersonalSearchSetup(args.principal, {
-        organizationId: args.input.scope.organizationId,
-        connectorType: args.input.personalSearchSetup,
-      })
-    } else
-      await requireOrganizationMembership(
-        args.principal,
-        args.input.scope.organizationId,
-        'admin',
-        'knowledge.use'
-      )
+    await requireOrganizationMembership(
+      args.principal,
+      args.input.scope.organizationId,
+      'admin',
+      'knowledge.use'
+    )
     const context = await resolveSelectorApplicationContext({
       selectorKey: args.input.selectorKey as ServerSelectorKey,
       scope: args.input.scope,

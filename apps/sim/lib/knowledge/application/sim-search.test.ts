@@ -1,4 +1,4 @@
-import { knowledgeBase, knowledgeConnector, member } from '@sim/db/schema'
+import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
@@ -6,7 +6,6 @@ import {
   credentialGroupsServiceMock,
   credentialGroupsServiceMockFns,
 } from '@sim/testing/mocks/credential-groups-service.mock'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
@@ -24,10 +23,6 @@ import {
   knowledgeEmbeddingsMockFns,
 } from '@sim/testing/mocks/knowledge-embeddings.mock'
 import {
-  knowledgeSearchIntegrationPolicyMock,
-  knowledgeSearchIntegrationPolicyMockFns,
-} from '@sim/testing/mocks/knowledge-search-integration-policy.mock'
-import {
   knowledgeServiceMock,
   knowledgeServiceMockFns,
 } from '@sim/testing/mocks/knowledge-service.mock'
@@ -36,14 +31,8 @@ import {
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const hoisted = vi.hoisted(() => ({
-  createConnector: vi.fn(),
-  createApprovedSource: vi.fn(),
-  deleteConnector: vi.fn(),
-  enroll: vi.fn(),
-}))
 vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 
 vi.mock('@sim/audit', () => auditMock)
@@ -58,35 +47,12 @@ vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
 vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
 
-vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
-
-vi.mock('@/lib/knowledge/application/connectors', () => ({
-  createApprovedSearchSource: { execute: hoisted.createApprovedSource },
-  createKnowledgeConnector: { execute: hoisted.createConnector },
-  deleteKnowledgeConnector: { execute: hoisted.deleteConnector },
-}))
-
-vi.mock('@/lib/knowledge/application/connector-access', () => ({
-  startKnowledgeConnectorMemberEnrollment: { execute: hoisted.enroll },
-}))
-
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/lib/sim-search/connectors', () => ({
   SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
   canConnectPersonally: (meta: { permissionScopedListing?: unknown }) =>
     Boolean(meta.permissionScopedListing),
-  withSearchSourceDefaults: (
-    meta: { searchDefaultSourceConfig?: Record<string, string> },
-    sourceConfig: Record<string, string> = {}
-  ) => ({ ...(meta.searchDefaultSourceConfig ?? {}), ...sourceConfig }),
-  missingSetupFields: (
-    meta: { configFields: Array<{ id: string; title: string; required?: boolean }> },
-    sourceConfig: Record<string, unknown>
-  ) =>
-    meta.configFields.filter(
-      (field) => field.required && typeof sourceConfig[field.id] !== 'string'
-    ),
 }))
 
 vi.mock('@/connectors/registry', () => ({
@@ -124,21 +90,13 @@ vi.mock('@/connectors/registry', () => ({
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  configureSimSearchConnector,
-  connectSimSearchConnector,
-  prepareSearchSource,
-} from '@/lib/knowledge/application/sim-search'
+import { prepareSearchSource } from '@/lib/knowledge/application/sim-search'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
-import { SearchIndexDormantError } from '@/lib/sim-search/indexed/gate'
 
 const mocks = {
-  ...hoisted,
   ensureAccounts: credentialGroupsServiceMockFns.mockEnsureWorkspaceAccountsGroup,
   createOrganizationKnowledgeBase: knowledgeServiceMockFns.mockCreateAuthorizedKnowledgeBase,
   createKnowledgeBase: knowledgeBaseUseCasesMockFns.mockCreateKnowledgeBaseExecute,
-  deleteKnowledgeBase: knowledgeBaseUseCasesMockFns.mockDeleteKnowledgeBaseOperationExecute,
-  requireApproval: knowledgeSearchIntegrationPolicyMockFns.mockRequireOrganizationSearchApproval,
 }
 
 knowledgeEmbeddingsMockFns.mockGetConfiguredKbEmbedding.mockResolvedValue({
@@ -164,80 +122,19 @@ const workspaceContext = {
 }
 
 const principal = createSessionPrincipal()
-const existingConnector = { knowledgeBaseId: 'kb-search', connectorId: 'connector-drive' }
-
-/** The first lookup runs before the coalesced creation and the second inside it. */
-function queueConnectorLookups(...results: Array<typeof existingConnector | null>) {
-  for (const result of results) {
-    queueTableRows(knowledgeConnector, result ? [result] : [])
-  }
-}
-
-describe('connectSimSearchConnector', () => {
+describe('prepareSearchSource', () => {
   afterAll(resetDbChainMock)
-  afterEach(resetEnvFlagsMock)
 
   beforeEach(() => {
     resetDbChainMock()
-    /** A Search source crawls into the search index, which only indexed organization search reads. */
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue(workspaceContext)
     permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue(
       DEFAULT_PERMISSION_GROUP_CONFIG
     )
     knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(true)
     mocks.createKnowledgeBase.mockResolvedValue({ knowledgeBase: { id: 'kb-new' } })
-    mocks.createConnector.mockResolvedValue({ connector: { id: 'connector-new' } })
-    mocks.enroll.mockResolvedValue({ url: 'https://sim.test/enroll/token' })
     mocks.ensureAccounts.mockResolvedValue({ id: 'accounts-group' })
   })
-
-  it('reuses a prepared account only when the source enrollment group and option match', async () => {
-    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
-    queueTableRows(knowledgeConnector, [
-      { ...existingConnector, credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
-    ])
-    await expect(
-      configureSimSearchConnector.execute({
-        principal,
-        input: {
-          workspaceId: 'workspace-1',
-          connectorType: 'google_drive',
-          memberCredentialBinding: {
-            credentialGroupId: 'group-1',
-            credentialGroupOptionId: 'option-1',
-          },
-        },
-      })
-    ).resolves.toEqual(existingConnector)
-    expect(mocks.enroll).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    { credentialGroupId: 'other-group', credentialGroupOptionId: 'option-1' },
-    { credentialGroupId: 'group-1', credentialGroupOptionId: 'other-option' },
-  ])(
-    'refuses an existing source with a mismatched prepared account binding %#',
-    async (sourceBinding) => {
-      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
-      queueTableRows(knowledgeConnector, [{ ...existingConnector, ...sourceBinding }])
-      await expect(
-        configureSimSearchConnector.execute({
-          principal,
-          input: {
-            workspaceId: 'workspace-1',
-            connectorType: 'google_drive',
-            memberCredentialBinding: {
-              credentialGroupId: 'group-1',
-              credentialGroupOptionId: 'option-1',
-            },
-          },
-        })
-      ).rejects.toMatchObject({ code: 'conflict' })
-      expect(mocks.enroll).not.toHaveBeenCalled()
-      expect(mocks.createConnector).not.toHaveBeenCalled()
-    }
-  )
 
   it('requires an administrator before preparing a managed source', async () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
@@ -260,153 +157,20 @@ describe('connectSimSearchConnector', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
   })
-
-  it('refuses while indexed organization search is dormant, before creating anything', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
-    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
-    queueConnectorLookups(null)
-
-    await expect(
-      connectSimSearchConnector.execute({
-        principal,
-        input: { workspaceId: 'workspace-1', connectorType: 'google_drive' },
-      })
-    ).rejects.toBeInstanceOf(SearchIndexDormantError)
-    expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
-    expect(mocks.createConnector).not.toHaveBeenCalled()
-    expect(mocks.enroll).not.toHaveBeenCalled()
-  })
-
-  it('refuses before creating anything when per-member access is unavailable', async () => {
-    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
-    knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(false)
-    queueConnectorLookups(null)
-
-    await expect(
-      connectSimSearchConnector.execute({
-        principal,
-        input: { workspaceId: 'workspace-1', connectorType: 'google_drive' },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
-    expect(mocks.createConnector).not.toHaveBeenCalled()
-  })
-
-  it('uses the source returned by transaction-level creation reuse without deleting another source', async () => {
-    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
-    mocks.createKnowledgeBase.mockRejectedValueOnce(new Error('Duplicate knowledge base name'))
-    mocks.createConnector.mockResolvedValueOnce({
-      connector: { id: existingConnector.connectorId },
-      reused: true,
-    })
-    queueTableRows(knowledgeBase, [])
-    queueTableRows(knowledgeBase, [{ id: existingConnector.knowledgeBaseId }])
-    queueConnectorLookups(null, null)
-    const result = await connectSimSearchConnector.execute({
-      principal,
-      input: { workspaceId: 'workspace-1', connectorType: 'google_drive' },
-    })
-    expect(mocks.deleteConnector).not.toHaveBeenCalled()
-    expect(mocks.createConnector).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ reuseSearchSource: true }),
-      })
-    )
-    expect(result).toEqual({ ...existingConnector, url: 'https://sim.test/enroll/token' })
-  })
-
-  it('requires an explicit source when legacy duplicate settings make selection ambiguous', async () => {
-    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
-    queueTableRows(knowledgeConnector, [
-      { ...existingConnector, connectorId: 'one', sourceConfig: {} },
-      { ...existingConnector, connectorId: 'two', sourceConfig: {} },
-    ])
-    await expect(
-      connectSimSearchConnector.execute({
-        principal,
-        input: { workspaceId: 'workspace-1', connectorType: 'google_drive' },
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
-    expect(mocks.enroll).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    { name: 'missing or outside the canonical index', rows: [], config: undefined },
-    {
-      name: 'different settings',
-      rows: [{ ...existingConnector, sourceConfig: { spaceKey: 'OPS' } }],
-      config: { spaceKey: 'ENG' },
-    },
-  ])('rejects an explicitly selected source that is $name', async ({ rows, config }) => {
-    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
-    queueTableRows(knowledgeConnector, rows)
-    await expect(
-      connectSimSearchConnector.execute({
-        principal,
-        input: {
-          workspaceId: 'workspace-1',
-          connectorType: 'confluence',
-          connectorId: existingConnector.connectorId,
-          sourceConfig: config,
-        },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.enroll).not.toHaveBeenCalled()
-    expect(mocks.createConnector).not.toHaveBeenCalled()
-  })
 })
 
 describe('organization Search setup', () => {
   const owner = { organizationId: 'org-1' }
-  afterEach(resetEnvFlagsMock)
   beforeEach(() => {
     resetDbChainMock()
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue(owner)
     knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(true)
     mocks.ensureAccounts.mockResolvedValue({ id: 'org-accounts' })
     mocks.createOrganizationKnowledgeBase.mockResolvedValue({ id: 'org-index' })
-    mocks.enroll.mockResolvedValue({ url: 'https://fixture.test/enroll' })
   })
   function asRole(role: string) {
     for (let i = 0; i < 4; i++) queueTableRows(member, [{ role }])
   }
-  it('lets an approved member create a personal source without impersonating an admin', async () => {
-    asRole('member')
-    queueTableRows(knowledgeBase, [])
-    mocks.createApprovedSource.mockResolvedValue({ connector: { id: 'approved-source' } })
-    await expect(
-      connectSimSearchConnector.execute({
-        principal,
-        input: { ...owner, connectorType: 'google_drive' },
-      })
-    ).resolves.toMatchObject({ knowledgeBaseId: 'org-index', connectorId: 'approved-source' })
-    expect(mocks.requireApproval).toHaveBeenCalledWith('org-1', 'google_drive')
-    expect(mocks.createApprovedSource).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: {
-          knowledgeBaseId: 'org-index',
-          assertedOrganizationId: 'org-1',
-          connectorType: 'google_drive',
-          sourceConfig: {},
-        },
-      })
-    )
-    expect(mocks.createConnector).not.toHaveBeenCalled()
-  })
-  it('refuses unapproved members before provisioning anything', async () => {
-    asRole('member')
-    mocks.requireApproval.mockRejectedValueOnce(new Error('Approval required'))
-    await expect(
-      connectSimSearchConnector.execute({
-        principal,
-        input: { ...owner, connectorType: 'google_drive' },
-      })
-    ).rejects.toThrow('Approval required')
-    expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
-    expect(mocks.enroll).not.toHaveBeenCalled()
-  })
   it('refuses organization source setup by a member before provisioning accounts or an index', async () => {
     asRole('member')
     await expect(
@@ -416,17 +180,6 @@ describe('organization Search setup', () => {
       })
     ).rejects.toThrow('administrator')
     expect(mocks.ensureAccounts).not.toHaveBeenCalled()
-    expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
-  })
-  it('refuses a former organization member before looking up any configured source', async () => {
-    queueTableRows(member, [])
-    await expect(
-      connectSimSearchConnector.execute({
-        principal,
-        input: { ...owner, connectorType: 'google_drive' },
-      })
-    ).rejects.toThrow('Organization not found')
-    expect(mocks.enroll).not.toHaveBeenCalled()
     expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
   })
 })
@@ -461,7 +214,6 @@ describe('Mothership Search setup authorization', () => {
       else await expect(action).resolves.toBeUndefined()
       expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
       expect(mocks.ensureAccounts).not.toHaveBeenCalled()
-      expect(mocks.enroll).not.toHaveBeenCalled()
     }
   )
 })

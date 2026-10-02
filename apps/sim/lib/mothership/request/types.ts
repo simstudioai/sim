@@ -240,30 +240,6 @@ export interface StreamingContext {
   }
 }
 
-interface FileAttachment {
-  id: string
-  key: string
-  name: string
-  mimeType: string
-  size: number
-}
-
-interface OrchestratorRequest {
-  message: string
-  workflowId: string
-  userId: string
-  chatId?: string
-  mode?: 'agent' | 'assistant' | 'plan'
-  model?: string
-  contexts?: Array<{ type: string; content: string }>
-  fileAttachments?: FileAttachment[]
-  commands?: string[]
-  provider?: string
-  version?: string
-  prefetch?: boolean
-  userName?: string
-}
-
 export interface OrchestratorOptions {
   /** Checks the server controller, independently of user cancellation. */
   assertControllerOwnership?: () => Promise<void>

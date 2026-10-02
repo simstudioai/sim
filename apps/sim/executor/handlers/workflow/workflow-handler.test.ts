@@ -15,7 +15,7 @@ import {
   loggingSessionMock,
   loggingSessionMockFns,
 } from '@sim/testing/mocks/logging-session.mock'
-import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
@@ -35,7 +35,6 @@ import {
 import type { SerializedBlock } from '@/serializer/types'
 
 const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
-const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
 const { mockGetCustomBlockAuthority } = customBlockOperationsMockFns
 const { mockGetUserEmailById } = usersQueriesMockFns
 const {
@@ -764,11 +763,11 @@ describe('WorkflowBlockHandler', () => {
       }
 
       expect(() =>
-        (handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow', 100)
+        (handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow')
       ).toThrow('"Child Workflow" failed: Child workflow failed')
 
       try {
-        ;(handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow', 100)
+        ;(handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow')
       } catch (error: any) {
         expect(error.childTraceSpans).toEqual([])
       }

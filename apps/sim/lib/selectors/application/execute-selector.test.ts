@@ -21,12 +21,8 @@ const hoisted = vi.hoisted(() => ({
   resolveReferences: vi.fn(),
   resolveScope: vi.fn(),
   sanitize: vi.fn(),
-  authorizePersonalSearch: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
-  authorizePersonalSearchSetup: hoisted.authorizePersonalSearch,
-}))
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
 vi.mock('@sim/audit', () => auditMock)
@@ -169,7 +165,6 @@ describe('executeSelector', () => {
         'admin',
         'knowledge.use'
       )
-      expect(mocks.authorizePersonalSearch).not.toHaveBeenCalled()
       expect(mocks.getAttachment).not.toHaveBeenCalled()
     }
   )
@@ -187,39 +182,6 @@ describe('executeSelector', () => {
       'Context unavailable'
     )
     expect(mocks.authorizeCredential).not.toHaveBeenCalled()
-    expect(mocks.executeAttachment).not.toHaveBeenCalled()
-  })
-
-  it('rejects a personal setup marker outside its approved provider selector and organization scope', async () => {
-    await expect(execute({ personalSearchSetup: 'jira' })).rejects.toBeInstanceOf(
-      SelectorContextUnavailableError
-    )
-    await expect(
-      execute({
-        scope: { kind: 'organization', organizationId: 'org-1' },
-        selectorKey: 'jira.issues',
-        personalSearchSetup: 'jira',
-      })
-    ).rejects.toBeInstanceOf(SelectorContextUnavailableError)
-    expect(mocks.authorizeCredential).not.toHaveBeenCalled()
-    expect(mocks.executeAttachment).not.toHaveBeenCalled()
-  })
-
-  it('requires the personal setup authorization before canonical discovery and provider calls', async () => {
-    mocks.authorizePersonalSearch.mockRejectedValueOnce(new Error('Integration unapproved'))
-    await expect(
-      execute({
-        scope: { kind: 'organization', organizationId: 'org-1' },
-        selectorKey: 'jira.projectKeys',
-        context: { oauthCredential: 'managed-1', domain: 'example.atlassian.net' },
-        personalSearchSetup: 'jira',
-      })
-    ).rejects.toThrow('Integration unapproved')
-    expect(mocks.authorizePersonalSearch).toHaveBeenCalledWith(principal, {
-      organizationId: 'org-1',
-      connectorType: 'jira',
-    })
-    expect(mocks.resolveScope).not.toHaveBeenCalled()
     expect(mocks.executeAttachment).not.toHaveBeenCalled()
   })
 

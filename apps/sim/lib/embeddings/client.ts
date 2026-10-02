@@ -1,3 +1,8 @@
+import {
+  type FallbackFactories,
+  KNOWLEDGE_EMBEDDINGS_CAPABILITY,
+  wireFallback,
+} from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { chunkArray } from '@sim/utils/helpers'
@@ -5,11 +10,6 @@ import { truncate } from '@sim/utils/string'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
-import {
-  type FallbackFactories,
-  KNOWLEDGE_EMBEDDINGS_CAPABILITY,
-  wireFallback,
-} from '@/lib/core/config/env-capabilities'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
 import {

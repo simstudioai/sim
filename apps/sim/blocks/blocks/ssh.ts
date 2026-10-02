@@ -4,7 +4,6 @@ import { SshIcon, SshTerminalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
-import type { SSHResponse } from '@/tools/ssh/types'
 
 export const SSHBlock = {
   type: 'ssh',
@@ -665,7 +664,7 @@ Examples:
     os: { type: 'string', description: 'Operating system' },
     message: { type: 'string', description: 'Operation status message' },
   },
-} satisfies BlockConfig<SSHResponse>
+} satisfies BlockConfig
 
 const selectSshV2Tool = createVersionedToolSelector({
   baseToolSelector: SSHBlock.tools.config.tool,

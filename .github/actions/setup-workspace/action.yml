@@ -1,0 +1,61 @@
+name: Setup Workspace
+description: Install the pinned Bun and Node toolchain, mount the dependency (and optionally Turbo) caches, and install workspace dependencies.
+
+inputs:
+  provider:
+    description: The CI_PROVIDER repo variable, forwarded to cache-mount.
+    required: false
+    default: ''
+  turbo-cache-key:
+    description: Suffix for a Turbo cache mounted at ./.turbo. Empty skips the mount. Jobs that write Turbo entries need distinct suffixes, or last-writer-wins commits evict each other's entries.
+    required: false
+    default: ''
+
+# Cache keys are scoped by event name, and fork PRs get their own namespace on
+# top: untrusted fork runs must never share a cache with push runs (whose caches
+# feed production image builds) or with trusted internal-PR runs.
+#
+# node_modules also keys on the lockfile hash: a sticky disk is a mutable volume,
+# and `bun install --frozen-lockfile` adds what the lockfile needs without
+# pruning what it dropped, so branches on different lockfiles were contaminating
+# each other (a stale @next/swc 16.2.6 outlived the 16.2.11 bump). The bun and
+# Turbo caches are content/hash-addressed, so they stay shared — that is what
+# keeps a fresh node_modules disk cheap to fill.
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      with:
+        bun-version: 1.4.2
+
+    - name: Setup Node
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      with:
+        node-version: 24
+
+    - name: Mount Bun cache
+      uses: ./.github/actions/cache-mount
+      with:
+        provider: ${{ inputs.provider }}
+        key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+        path: ~/.bun/install/cache
+
+    - name: Mount node_modules
+      uses: ./.github/actions/cache-mount
+      with:
+        provider: ${{ inputs.provider }}
+        key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
+        path: ./node_modules
+
+    - name: Mount Turbo cache
+      if: inputs.turbo-cache-key != ''
+      uses: ./.github/actions/cache-mount
+      with:
+        provider: ${{ inputs.provider }}
+        key: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+        path: ./.turbo
+
+    - name: Install dependencies
+      shell: bash
+      run: bun install --frozen-lockfile --ignore-scripts

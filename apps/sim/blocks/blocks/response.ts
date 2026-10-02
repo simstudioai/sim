@@ -1,8 +1,7 @@
 import { ResponseIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { ResponseBlockOutput } from '@/tools/response/types'
 
-export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
+export const ResponseBlock: BlockConfig = {
   type: 'response',
   name: 'Response',
   description: 'Send structured API response',

@@ -69,7 +69,10 @@ function proseToMarkdown(prose: Prose): string {
 /** A fact as a table cell: its compact form, as the comparison table renders it. */
 function factCell(fact: Fact | undefined): string {
   const value = fact ? (fact.shortValue ?? fact.value) : 'Unknown'
-  return value.replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ')
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\s*\n\s*/g, ' ')
 }
 
 function isoDate(date: Date): string {

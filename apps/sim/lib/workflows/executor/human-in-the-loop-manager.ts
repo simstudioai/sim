@@ -1918,7 +1918,7 @@ export class PauseResumeManager {
         timeoutController.isTimedOut() &&
         timeoutController.timeoutMs
       ) {
-        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+        const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
         logger.info('Resume execution timed out', {
           resumeExecutionId,
           timeoutMs: timeoutController.timeoutMs,

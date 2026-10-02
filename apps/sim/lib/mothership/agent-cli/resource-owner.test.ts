@@ -85,7 +85,7 @@ beforeEach(() => {
 })
 
 describe('scoped CLI resource ownership', () => {
-  it('gives a workspace upload completion and explicit open the same resource identity', async () => {
+  it('gives a workspace upload completion, explicit open, and an open tab one identity', async () => {
     const upload = await executeAgentCliRequest(
       { invocation: { kind: 'cli', argv: ['files', 'upload', '@/tmp/upload-acceptance.txt'] } },
       context
@@ -102,9 +102,10 @@ describe('scoped CLI resource ownership', () => {
       id: fileId,
       title: file.name,
       path: 'files/upload-acceptance.txt',
-      workspaceId: first,
     })
-    expect(getChatResourceKey(resource)).toBe(getChatResourceKey(opened.resources[0]))
+    const openTab = getChatResourceKey({ type: 'file', id: fileId })
+    expect(getChatResourceKey(resource)).toBe(openTab)
+    expect(getChatResourceKey(opened.resources[0])).toBe(openTab)
     expect(mocks.transport).toHaveBeenCalledTimes(1)
   })
 

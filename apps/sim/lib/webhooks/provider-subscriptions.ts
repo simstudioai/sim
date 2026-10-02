@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { omit, toRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { isSensitiveKey } from '@/lib/core/security/redaction'
@@ -174,7 +174,7 @@ export async function createExternalWebhookSubscription(
   options: { signal?: AbortSignal } = {}
 ): Promise<ExternalSubscriptionResult> {
   const provider = webhookData.provider as string
-  const providerConfig = (webhookData.providerConfig as Record<string, unknown>) || {}
+  const providerConfig = toRecord(webhookData.providerConfig)
   const handler = getProviderHandler(provider)
 
   if (!handler.createSubscription) {

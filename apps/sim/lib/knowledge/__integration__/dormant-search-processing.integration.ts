@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -13,11 +13,6 @@ import {
   processDocumentAsync,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
-
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  isLiveEnterpriseSearchEnabled: true,
-}))
 
 /** Queued work cannot revive dormant Search before retirement reaches its documents. */
 describe('dormant Search document processing', () => {

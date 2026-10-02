@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-29",
+  "updatedAt": "2026-10-02",
   "integrations": [
     {
       "type": "onepassword",
@@ -11410,10 +11410,6 @@
           "description": "Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions."
         },
         {
-          "name": "Search",
-          "description": "Search repositories in natural language and get relevant code references without generating an answer. Useful for finding specific code locations."
-        },
-        {
           "name": "Index Repository",
           "description": "Submit a repository to be indexed by Greptile. Indexing must complete before the repository can be queried. Small repos take 3-5 minutes, larger ones can take over an hour."
         },
@@ -11422,7 +11418,7 @@
           "description": "Check the indexing status of a repository. Use this to verify if a repository is ready to be queried or to monitor indexing progress."
         }
       ],
-      "operationCount": 4,
+      "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
-import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
+import { buildBranchNodeId } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock, SerializedLoop, SerializedWorkflow } from '@/serializer/types'
 import { EdgeConstructor } from './edges'
 

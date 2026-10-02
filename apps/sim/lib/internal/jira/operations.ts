@@ -26,12 +26,8 @@ export interface JiraOperationContext {
 
 type JsonObject = Record<string, unknown>
 
-function asObject(value: unknown): JsonObject {
-  return toRecord(value)
-}
-
 function parseObject(text: string): JsonObject {
-  return asObject(JSON.parse(text))
+  return toRecord(JSON.parse(text))
 }
 
 function optionalObject(text: string): JsonObject {
@@ -44,7 +40,7 @@ function optionalObject(text: string): JsonObject {
 }
 
 function nestedString(value: unknown, key: string): string | undefined {
-  const nested = asObject(value)[key]
+  const nested = toRecord(value)[key]
   return typeof nested === 'string' ? nested : undefined
 }
 
@@ -243,7 +239,7 @@ async function throwResponse(response: Response): Promise<never> {
 }
 
 function attachmentObject(value: unknown) {
-  const object = asObject(value)
+  const object = toRecord(value)
   return {
     id: typeof object.id === 'string' ? object.id : '',
     filename: typeof object.filename === 'string' ? object.filename : '',

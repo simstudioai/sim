@@ -14,7 +14,6 @@ import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),
   buildSortClause: vi.fn(() => sql`true`),
-  escapeLikePattern: vi.fn((s: string) => s),
 }))
 
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)

@@ -36,9 +36,6 @@ vi.mock('@/lib/table/snapshot-cache', () => ({
 }))
 vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/executor/utils/code-secret-references', () => ({
-  extractCodeSecretNames: vi.fn().mockResolvedValue([]),
-}))
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 

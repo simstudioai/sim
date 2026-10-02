@@ -15,10 +15,7 @@ import {
   workflowsOrchestrationMock,
   workflowsOrchestrationMockFns,
 } from '@sim/testing/mocks/workflows-orchestration.mock'
-import {
-  workflowsPersistenceUtilsMock,
-  workflowsPersistenceUtilsMockFns,
-} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,9 +41,6 @@ v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
   body,
   headers: {},
 }))
-
-const mockFindPreviousDeploymentVersion =
-  workflowsPersistenceUtilsMockFns.mockFindPreviousDeploymentVersion
 
 const WORKFLOW_ID = 'wf-1'
 const WORKFLOW_RECORD = {

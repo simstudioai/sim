@@ -1,6 +1,6 @@
 # Federated Search access and connector behavior
 
-This describes the live enterprise-search path. Credential Groups and ordinary knowledge-base indexing retain their existing behavior. Live Search is enabled by default; only an explicit `SIM_SEARCH_LIVE=false` selects the legacy indexed backend, which is kept dormant in `../indexed/` (see its README). Live Search sources do not create content-indexing jobs, and queued content or persisted-directory jobs stop before crawling, embedding, or building ACL snapshots. Ordinary KB jobs remain enabled. Administrators can still maintain GitLab CSV grants, and request-time source permission checks remain required.
+This describes the live enterprise-search path. Credential Groups and ordinary knowledge-base indexing retain their existing behavior. Enterprise Search uses this live backend. The legacy indexed backend and its runtime toggle have been removed. Live Search sources do not create content-indexing jobs, and queued content or persisted-directory jobs stop before crawling, embedding, or building ACL snapshots. Ordinary KB jobs remain enabled. Administrators can still maintain GitLab CSV grants, and request-time source permission checks remain required.
 
 ## Admin and member surfaces
 

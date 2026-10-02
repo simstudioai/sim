@@ -53,7 +53,7 @@ const mockReplace = nextNavigationMockFns.router.replace
 nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
-const { success: mockToastSuccess, error: mockToastError } = emcnMockFns.mockToast
+const { error: mockToastError } = emcnMockFns.mockToast
 libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
   mocks.desktop ? { onOAuthConnectComplete: mocks.onOAuthConnectComplete } : undefined
 )

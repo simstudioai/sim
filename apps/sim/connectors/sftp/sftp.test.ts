@@ -105,10 +105,10 @@ vi.mock('ssh2', () => {
 
 /** Minimal SFTP subsystem: one directory holding one indexable text file. */
 const fakeSftp = {
-  stat(path: string, cb: (err: Error | null, attrs?: unknown) => void) {
+  stat(_path: string, cb: (err: Error | null, attrs?: unknown) => void) {
     cb(null, { mode: S_IFDIR, size: 0, mtime: 0 })
   },
-  lstat(path: string, cb: (err: Error | null, attrs?: unknown) => void) {
+  lstat(_path: string, cb: (err: Error | null, attrs?: unknown) => void) {
     cb(null, { mode: S_IFREG, size: 10, mtime: 1_700_000_000 })
   },
   opendir(path: string, cb: (err: Error | null, handle?: Buffer) => void) {

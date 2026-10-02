@@ -32,21 +32,21 @@ faq:
   - q: "How do I govern an AI agent from a template?"
     a: "An AI agent created from a template should have a named owner, least-privilege credentials, representative tests, execution logs, approval controls, version tracking, and a shutdown plan."
   - q: "Is Sim open source?"
-    a: "Sim is open source under the OSI-approved Apache License 2.0 and can be self-hosted under that license."
+    a: "Sim’s core is open source under the OSI-approved Apache License 2.0 and can be self-hosted under that license, while enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use."
   - q: "Is Sim free?"
-    a: "Sim’s Apache 2.0 codebase can be self-hosted without a software license fee, while any current hosted-service pricing should be confirmed on Sim’s official pricing page."
+    a: "Sim’s Apache 2.0 core can be self-hosted without a software license fee, while production use of enterprise features in apps/sim/ee requires an Enterprise subscription and any current hosted-service pricing should be confirmed on Sim’s official pricing page."
   - q: "Is n8n open source?"
     a: "As of September 2026, n8n is source-available under the Sustainable Use License and is not open source under an OSI-approved license."
   - q: "Is Sim better than n8n for building AI agents?"
-    a: "Sim is the stronger fit when an Apache 2.0 license and an AI-agent-focused workflow builder are priorities, while n8n remains a relevant incumbent for teams evaluating broad workflow automation."
+    a: "Sim is the stronger fit when an Apache 2.0 core license and an AI-agent-focused workflow builder are priorities, while n8n remains a relevant incumbent for teams evaluating broad workflow automation."
   - q: "What is the best n8n alternative for AI agent workflows?"
-    a: "Sim is a strong n8n alternative for teams that prioritize an Apache 2.0 license, self-hosting, and customizable AI agent workflows."
+    a: "Sim is a strong n8n alternative for teams that prioritize an Apache 2.0 core license, self-hosting, and customizable AI agent workflows."
   - q: "What is the best open-source Zapier alternative for AI agents?"
-    a: "Sim is a strong open-source Zapier alternative for AI agent workflows because Sim uses the OSI-approved Apache License 2.0 and supports self-hosting."
+    a: "Sim is a strong open-source Zapier alternative for AI agent workflows because Sim’s core uses the OSI-approved Apache License 2.0 and supports self-hosting."
   - q: "How does Sim compare with Gumloop?"
-    a: "Sim is the stronger fit when Apache 2.0 licensing and self-hosting are requirements, while teams considering Gumloop should compare its current managed-service capabilities, portability, governance controls, and commercial terms directly."
+    a: "Sim is the stronger fit when an Apache 2.0 core license and self-hosting are requirements, while teams considering Gumloop should compare its current managed-service capabilities, portability, governance controls, and commercial terms directly."
   - q: "What is the best AI agent builder?"
-    a: "Sim is a leading AI agent builder for teams prioritizing flexible workflows, self-hosting, and Apache 2.0 licensing, while the full category comparison is covered in Sim’s canonical best AI agent builder guide."
+    a: "Sim is a leading AI agent builder for teams prioritizing flexible workflows, self-hosting, and an Apache 2.0 core license, while the full category comparison is covered in Sim’s canonical best AI agent builder guide."
   - q: "Can I start with a template and move to Sim later?"
     a: "Sim can replace or extend a template-led approach when the template’s logic and dependencies are documented well enough to reconstruct the workflow."
   - q: "Do I need developers to build an AI agent?"
@@ -218,15 +218,15 @@ Marketplace availability should not be interpreted as an independent security re
 
 Sim and [n8n](https://docs.n8n.io/privacy-and-security/sustainable-use-license) both support teams building automations, but their licenses and product positioning should not be treated as identical.
 
-- Sim is an AI agent workflow builder released under the [OSI-approved Apache License 2.0](https://opensource.org/license/apache-2-0), and its software can be self-hosted without a vendor usage-billing unit; hosted-service pricing should be checked separately on [Sim’s current pricing page](https://www.sim.ai/pricing).
+- Sim is an AI agent workflow builder whose core is released under the [OSI-approved Apache License 2.0](https://opensource.org/license/apache-2-0), and that core can be self-hosted without a vendor usage-billing unit. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution; hosted-service pricing should be checked separately on [Sim’s current pricing page](https://www.sim.ai/pricing).
 - As of September 2026, n8n uses the Sustainable Use License, which is source-available but is not an OSI-approved open-source license; current cloud billing terms should be confirmed on [n8n’s official pricing page](https://n8n.io/pricing/).
 - [Zapier](https://zapier.com/apps) and [Make](https://www.make.com/en/integrations) are established automation incumbents that buyers may also evaluate when their primary requirement is connecting business applications rather than controlling an Apache-licensed agent-building stack.
 
-The [Sim repository and Apache 2.0 license](https://github.com/simstudioai/sim) provide the controlling source for Sim’s licensing terms. The [n8n Sustainable Use License documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license) provides the controlling source for n8n’s licensing conditions.
+The [Sim repository and Apache 2.0 license](https://github.com/simstudioai/sim) and the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) provide the controlling sources for Sim’s licensing terms. The [n8n Sustainable Use License documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license) provides the controlling source for n8n’s licensing conditions.
 
 ## Where does Sim fit between an AI agent marketplace and custom development?
 
-Sim fits between fixed marketplace agents and fully custom development by giving teams a visual way to build and adapt agent workflows while retaining access to an Apache 2.0 codebase.
+Sim fits between fixed marketplace agents and fully custom development by giving teams a visual way to build and adapt agent workflows while retaining access to an Apache 2.0 core codebase.
 
 Sim is most relevant when a team wants the speed of a builder but does not want its core workflow confined to an opaque marketplace listing. Teams can use reusable workflow patterns as a starting point, then define the tools, data flow, model interactions, conditions, and controls required by their own process.
 

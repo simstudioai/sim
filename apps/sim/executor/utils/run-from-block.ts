@@ -1,23 +1,13 @@
 import { isPlainRecord } from '@sim/utils/object'
-import { LOOP, normalizeName, PARALLEL } from '@/executor/constants'
+import { normalizeName } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import {
+  buildLoopSentinelStartId,
+  buildParallelSentinelStartId,
+} from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedWorkflow } from '@/serializer/types'
-
-/**
- * Builds the sentinel-start node ID for a loop.
- */
-function buildLoopSentinelStartId(loopId: string): string {
-  return `${LOOP.SENTINEL.PREFIX}${loopId}${LOOP.SENTINEL.START_SUFFIX}`
-}
-
-/**
- * Builds the sentinel-start node ID for a parallel.
- */
-function buildParallelSentinelStartId(parallelId: string): string {
-  return `${PARALLEL.SENTINEL.PREFIX}${parallelId}${PARALLEL.SENTINEL.START_SUFFIX}`
-}
 
 /**
  * Checks if a block ID is a loop or parallel container and returns the sentinel-start ID if so.
