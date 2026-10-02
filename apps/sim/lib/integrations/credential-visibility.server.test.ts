@@ -67,40 +67,56 @@ describe('integration credential visibility', () => {
     ])
   })
 
-  it('exposes Coda token credentials without OAuth while honoring integration policy and visibility', () => {
-    const catalog = resolveIntegrationAvailability({})
-    expect(catalog.find((entry) => entry.type === 'coda')).toMatchObject({
-      state: 'ready',
-      oauthAvailable: false,
-      serviceAccountAvailable: true,
-    })
-    getIntegrationAvailabilityMock.mockReturnValue(catalog)
-    const service: OAuthServiceMetadata = {
+  it.each([
+    {
       serviceId: 'coda',
-      providerId: 'coda',
-      serviceAccountProviderId: 'coda-service-account',
-      authType: 'service_account',
+      providerId: 'coda-service-account',
+      blockType: 'coda',
       name: 'Coda',
-      description: 'Coda token',
-      baseProvider: 'coda',
-    }
-    const identity = { providerId: 'coda-service-account', type: 'service_account' } as const
-    const visibility = (allowed: ReadonlySet<string> | null, disabled: boolean) =>
-      createIntegrationCredentialVisibility({
-        allowedIntegrationTypes: allowed,
-        oauthServices: [service],
-        blockVisibility: {
-          revealed: new Set(),
-          previewTagged: new Set(),
-          disabled: new Set(disabled ? ['coda'] : []),
-        },
+    },
+    {
+      serviceId: 'claude-platform',
+      providerId: 'claude-platform-service-account',
+      blockType: 'managed_agent',
+      name: 'Claude Platform',
+    },
+  ])(
+    'exposes $name token credentials without OAuth while honoring integration policy and visibility',
+    ({ serviceId, providerId, blockType, name }) => {
+      const catalog = resolveIntegrationAvailability({})
+      expect(catalog.find((entry) => entry.type === blockType)).toMatchObject({
+        state: 'ready',
+        oauthAvailable: false,
+        serviceAccountAvailable: true,
       })
-    expect(visibility(new Set(['coda']), false).isCredentialVisible(identity)).toBe(true)
-    expect(visibility(new Set(['slack_v2']), false).isCredentialVisible(identity)).toBe(false)
-    expect(visibility(null, true).isCredentialVisible(identity)).toBe(false)
-    getBlockMock.mockReturnValue({ type: 'coda', preview: true } as never)
-    expect(visibility(null, false).isCredentialVisible(identity)).toBe(false)
-  })
+      getIntegrationAvailabilityMock.mockReturnValue(catalog)
+      const service: OAuthServiceMetadata = {
+        serviceId,
+        providerId: serviceId,
+        serviceAccountProviderId: providerId,
+        authType: 'service_account',
+        name,
+        description: `${name} token`,
+        baseProvider: serviceId,
+      }
+      const identity = { providerId, type: 'service_account' } as const
+      const visibility = (allowed: ReadonlySet<string> | null, disabled: boolean) =>
+        createIntegrationCredentialVisibility({
+          allowedIntegrationTypes: allowed,
+          oauthServices: [service],
+          blockVisibility: {
+            revealed: new Set(),
+            previewTagged: new Set(),
+            disabled: new Set(disabled ? [blockType] : []),
+          },
+        })
+      expect(visibility(new Set([blockType]), false).isCredentialVisible(identity)).toBe(true)
+      expect(visibility(new Set(['slack_v2']), false).isCredentialVisible(identity)).toBe(false)
+      expect(visibility(null, true).isCredentialVisible(identity)).toBe(false)
+      getBlockMock.mockReturnValue({ type: blockType, preview: true } as never)
+      expect(visibility(null, false).isCredentialVisible(identity)).toBe(false)
+    }
+  )
 
   it('applies the integration allowlist to OAuth and service-account credentials', () => {
     const visibility = createIntegrationCredentialVisibility({
