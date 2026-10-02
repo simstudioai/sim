@@ -738,7 +738,7 @@
     },
     "packages/ts-sdk": {
       "name": "simstudio-ts-sdk",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "@types/node": "24.2.1",
