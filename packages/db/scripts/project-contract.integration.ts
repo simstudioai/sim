@@ -625,4 +625,24 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       expect(await sql`SELECT 1 FROM project_workspace`).toHaveLength(2)
     })
   }, 15000)
+  it.each(['separate-roots', 'large-family'] as const)(
+    'preserves a complete existing Project with %s without putting it through legacy assignment',
+    async (shape) => {
+      await database(async (sql) => {
+        await sql`INSERT INTO project (id, name, owner_id) VALUES ('existing', 'Keep this Project', 'owner')`
+        await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('root', 'Root', 'owner')`
+        const count = shape === 'large-family' ? 1001 : 1
+        await sql`INSERT INTO workspace (id, name, owner_id, forked_from_workspace_id)
+          SELECT 'other-' || n, 'Other', 'owner', ${shape === 'large-family' ? 'root' : null} FROM generate_series(1, ${count}) n`
+        await sql`INSERT INTO project_workspace (project_id, workspace_id) SELECT 'existing', id FROM workspace`
+        await enforce(sql)
+        expect(await sql`SELECT id, name FROM project`).toEqual([
+          { id: 'existing', name: 'Keep this Project' },
+        ])
+        expect((await sql`SELECT count(*)::int AS count FROM project_workspace`)[0].count).toBe(
+          count + 1
+        )
+      })
+    }
+  )
 })

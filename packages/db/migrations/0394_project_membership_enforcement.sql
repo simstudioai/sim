@@ -6,7 +6,14 @@ SET statement_timeout = '15min';
 --> statement-breakpoint
 CREATE TEMP TABLE IF NOT EXISTS project_backfill_roots (id text PRIMARY KEY) ON COMMIT PRESERVE ROWS;
 TRUNCATE project_backfill_roots;
-INSERT INTO project_backfill_roots SELECT id FROM workspace WHERE forked_from_workspace_id IS NULL;
+-- Only legacy families need assignment locks; existing complete Projects only need validation.
+WITH RECURSIVE ancestors(id, parent_id) AS (
+  SELECT w.id, w.forked_from_workspace_id FROM workspace w
+    LEFT JOIN project_workspace pw ON pw.workspace_id = w.id WHERE pw.workspace_id IS NULL
+  UNION
+  SELECT w.id, w.forked_from_workspace_id FROM workspace w JOIN ancestors a ON a.parent_id = w.id
+)
+INSERT INTO project_backfill_roots SELECT id FROM ancestors WHERE parent_id IS NULL;
 --> statement-breakpoint
 CREATE OR REPLACE PROCEDURE pg_temp.backfill_project_families() LANGUAGE plpgsql AS $$
 DECLARE
@@ -138,7 +145,7 @@ BEGIN
     RAISE EXCEPTION 'Project backfill found a fork cycle or missing parent; reconcile before retrying' USING ERRCODE = '55000';
   END IF;
   IF EXISTS (SELECT 1 FROM workspace w LEFT JOIN project_workspace pw ON pw.workspace_id = w.id WHERE pw.workspace_id IS NULL) THEN
-    RAISE EXCEPTION 'Project enforcement found environments unreachable from a valid fork root or concurrently detached; reconcile and retry' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'Project backfill found newly unassigned or detached environments; retry migration discovery' USING ERRCODE = '55P03';
   END IF;
   IF EXISTS (
     SELECT 1 FROM project p LEFT JOIN project_workspace pw ON pw.project_id = p.id
