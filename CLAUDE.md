@@ -10,7 +10,7 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
 - **Logging**: `createLogger` from `@sim/logger`; `logger.info` / `logger.warn` / `logger.error`, never `console.log`. Inside `withRouteHandler` the logger already carries the request ID — no manual `withMetadata({ requestId })`.
 - **Comments**: TSDoc for documentation. An inline `//` only for a terse, non-obvious why, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, …). No `====` separators.
 - **ID generation**: `generateId()` (UUID v4, the default) or `generateShortId(size?)` (URL-safe, 21 chars by default) from `@sim/utils/id` — never `crypto.randomUUID()`, `nanoid`, or `uuid`. Both use `crypto.getRandomValues()`, so they also work in non-secure (HTTP) browsers.
-- **Common utilities**: use the shared helpers from `@sim/utils` instead of inline implementations (`check:utils` enforces the idioms below):
+- **Common utilities**: use the shared helpers from `@sim/utils` instead of inline implementations (`check:utils` bans most of the inline forms below):
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
   - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`; never `e instanceof Error ? e : new Error(String(e))`
   - `getErrorMessage(e, fallback?)` from `@sim/utils/errors` — never `e instanceof Error ? e.message : 'fallback'`
