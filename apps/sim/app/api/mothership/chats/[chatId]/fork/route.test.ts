@@ -355,6 +355,103 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(mockPublishStatusChanged).not.toHaveBeenCalled()
   })
 
+  it('keeps references on the source file when its copy fails', async () => {
+    const oldKey = 'workspace/ws-1/old-cat.png'
+    mockListForkableChatFiles.mockResolvedValue([
+      { id: OLD_FILE_ID, key: oldKey, messageId: 'msg-1', workspaceId: 'ws-1' },
+    ])
+    mockPlanChatFileCopies.mockReturnValue({
+      idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
+      keyMap: new Map([[oldKey, 'workspace/ws-1/new-cat.png']]),
+      blobTasks: [
+        {
+          copyId: NEW_FILE_ID,
+          sourceKey: oldKey,
+          targetKey: 'workspace/ws-1/new-cat.png',
+          context: 'mothership',
+          fileName: 'cat.png',
+          contentType: 'image/png',
+        },
+      ],
+    })
+    mockExecuteChatFileBlobCopies.mockResolvedValue({
+      copied: 0,
+      failed: 1,
+      failedCopyIds: [NEW_FILE_ID],
+    })
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(200)
+    // The copy is never published, so neither Sim's transcript nor the worker's may name it.
+    expect(mockAppendCopilotChatMessages.mock.calls[0][1][0].content).toBe(
+      `See ![cat](/api/files/view/${OLD_FILE_ID})`
+    )
+    const forkRequest = JSON.parse(mockFetchGo.mock.calls[0][1].body)
+    expect(forkRequest.fileIds).toEqual({})
+    expect(forkRequest.fileKeys).toEqual({})
+  })
+
+  it('re-points in-app file links and tool-call arguments at the copied file', async () => {
+    mockLoadCopilotChatMessages.mockResolvedValue([
+      { ...threeMessages[0], content: `Open /workspace/ws-1/files/${OLD_FILE_ID}` },
+      {
+        ...threeMessages[1],
+        contentBlocks: [
+          {
+            type: 'tool',
+            toolCall: {
+              id: 'call-1',
+              name: 'sim_cli',
+              state: 'success',
+              params: { fileId: OLD_FILE_ID, args: ['files', 'read', OLD_FILE_ID], n: 2 },
+              display: { title: `Read /api/files/view/${OLD_FILE_ID}` },
+            },
+          },
+        ],
+      },
+    ])
+    mockPlanChatFileCopies.mockReturnValue({
+      idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
+      keyMap: new Map(),
+      blobTasks: [],
+    })
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(200)
+    const [user, assistant] = mockAppendCopilotChatMessages.mock.calls[0][1]
+    expect(user.content).toBe(`Open /workspace/ws-1/files/${NEW_FILE_ID}`)
+    expect(assistant.contentBlocks[0].toolCall).toMatchObject({
+      params: { fileId: NEW_FILE_ID, args: ['files', 'read', NEW_FILE_ID], n: 2 },
+      display: { title: `Read /api/files/view/${NEW_FILE_ID}` },
+    })
+  })
+
+  it('drops a Sources tab whose response is past the cut', async () => {
+    const kept = { type: 'sources', id: 'cited-sources', title: 'Sources' }
+    dbChainMockFns.limit.mockResolvedValue([
+      { ...parentRow, resources: [{ ...kept, sources: { messageId: 'msg-3' } }] },
+    ])
+    await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ resources: [] }))
+
+    dbChainMockFns.values.mockClear()
+    dbChainMockFns.limit.mockResolvedValue([
+      {
+        ...parentRow,
+        resources: [{ ...kept, sources: { messageId: 'live-id', requestId: 'req-2' } }],
+      },
+    ])
+    mockLoadCopilotChatMessages.mockResolvedValue([
+      threeMessages[0],
+      { ...threeMessages[1], requestId: 'req-2' },
+      threeMessages[2],
+    ])
+    await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resources: [{ ...kept, sources: { messageId: 'live-id', requestId: 'req-2' } }],
+      })
+    )
+  })
+
   it('copies pre-cut uploads and drops only post-cut ghosts', async () => {
     // The source chat owns two more uploads (apple pre-cut, banana post-cut)
     // beside the kept one, plus one shared workspace-file resource. The fork
