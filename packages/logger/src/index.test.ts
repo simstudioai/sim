@@ -224,6 +224,21 @@ describe('Logger', () => {
       expect(parsed.errorCode).toBe('57014')
     })
 
+    test('reports the cause of the same error the line reports when given two', () => {
+      const conflict = Object.assign(new Error('duplicate key value'), {
+        name: 'PostgresError',
+        code: '23505',
+      })
+      const second = new Error('Failed query: insert into "t" values ($1)', { cause: conflict })
+
+      createEnabledLogger().error('Retry failed', queryError('tbl_1'), second)
+
+      const parsed = JSON.parse(consoleErrorSpy.mock.calls[0][0] as string)
+      expect(parsed.error).toBe(second.message)
+      expect(parsed.errorCause).toBe('PostgresError: duplicate key value')
+      expect(parsed.errorCode).toBe('23505')
+    })
+
     test.each([
       ['an object field', (error: Error) => [{ error }]],
       ['a bare argument', (error: Error) => [error]],

@@ -210,10 +210,15 @@ const formatObject = (obj: unknown, isDev: boolean): string => {
   }
 }
 
-/** The error a line is about: the first bare `Error` argument, else the first `{ error }` field. */
+/**
+ * The error a line is about, chosen as `mergeArgs` chooses it: the last bare
+ * `Error` argument, else the first `{ error }` field.
+ */
 const primaryError = (args: unknown[]): Error | undefined => {
-  const bare = args.find((arg) => arg instanceof Error)
-  if (bare) return bare as Error
+  for (let i = args.length - 1; i >= 0; i--) {
+    const arg = args[i]
+    if (arg instanceof Error) return arg
+  }
   for (const arg of args) {
     if (isRecordLike(arg) && arg.error instanceof Error) return arg.error
   }
@@ -238,13 +243,14 @@ const assignErrorCause = (entry: Record<string, unknown>, logged: LoggedError) =
  * cause and its code go in `errorCause` and `errorCode`.
  */
 const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<string, unknown> => {
+  /** The error whose stack the line carries; its cause is assigned last so a later error cannot inherit an earlier one's. */
+  let reported: LoggedError | undefined
   for (const arg of args) {
     if (arg === null || arg === undefined) continue
     if (arg instanceof Error) {
-      const logged = toLoggedError(arg)
-      entry.error = logged.message
-      entry.stack = logged.stack
-      assignErrorCause(entry, logged)
+      reported = toLoggedError(arg)
+      entry.error = reported.message
+      entry.stack = reported.stack
     } else if (typeof arg === 'object') {
       const source = arg as Record<string, unknown>
       for (const key of Object.keys(source)) {
@@ -254,7 +260,7 @@ const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<stri
           entry[key] = logged.message
           if (key === 'error' && entry.stack === undefined) {
             entry.stack = logged.stack
-            assignErrorCause(entry, logged)
+            reported = logged
           }
         } else {
           entry[key] = value
@@ -264,6 +270,7 @@ const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<stri
       entry.extra = arg
     }
   }
+  if (reported) assignErrorCause(entry, reported)
   return entry
 }
 
