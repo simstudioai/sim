@@ -43,6 +43,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: async () => 'fixture' }))
 
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
@@ -317,6 +318,38 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
         inspectToolResultForCopilot({ success: true, output }, trace, 'sim_cli').result
       )
     ).not.toContain(content)
+  })
+
+  it('redacts generated document contents in a download renderer failure', async () => {
+    resetDbChainMock()
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: revision,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: revision,
+        status: 'exact',
+        entries: [
+          {
+            name: 'FILE_SECRET',
+            encryptedValue: 'fixture-ciphertext',
+            sourceUserId: 'reader',
+            sourceWorkspaceId: 'workspace',
+          },
+        ],
+      },
+    ])
+    mocks.file.mockResolvedValue({ ...file, name: 'private.pdf', type: 'text/x-pdflibjs' })
+    mocks.render.mockRejectedValue(
+      new OrchestrationError('conflict', `Document could not be generated: ${content}`)
+    )
+    const trace = registry()
+    const response = await readTransport(trace)(fileRequest())
+    expect(response.status).toBe(409)
+    const output = await response.text()
+    expect(output).toContain(content)
+    const projected = inspectToolResultForCopilot({ success: false, output }, trace, 'sim_cli')
+    expect(JSON.stringify(projected.result)).not.toContain(content)
+    expect(JSON.stringify(projected.result)).toContain('{{FILE_SECRET}}')
   })
 
   it.each(['sequential', 'parallel'])(

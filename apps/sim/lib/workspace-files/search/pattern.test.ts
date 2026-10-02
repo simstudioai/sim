@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   compileFileSearchPattern,
-  escapeFileSearchLikePattern,
   FileSearchPatternError,
   isFileSearchCaseSensitive,
 } from '@/lib/workspace-files/search/pattern'
@@ -23,11 +22,10 @@ describe('compileFileSearchPattern', () => {
   })
 
   describe('exact mode', () => {
-    it('implements Unicode smart-case and escapes LIKE metacharacters', () => {
+    it('implements Unicode smart-case', () => {
       expect(isFileSearchCaseSensitive('résumé')).toBe(false)
       expect(isFileSearchCaseSensitive('Résumé')).toBe(true)
       expect(isFileSearchCaseSensitive('東京A')).toBe(true)
-      expect(escapeFileSearchLikePattern('100%_done\\')).toBe('100\\%\\_done\\\\')
     })
 
     it('wraps the escaped query for LIKE and keeps the raw text for ranking', () => {

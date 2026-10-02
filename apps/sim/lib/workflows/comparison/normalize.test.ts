@@ -63,6 +63,16 @@ describe('Workflow Normalization Utilities', () => {
   })
 
   describe('normalizedStringify', () => {
+    it.concurrent('preserves own __proto__ data at every nesting depth in canonical JSON', () => {
+      const input = JSON.parse(
+        '{"__proto__":null,"items":[{"ordinary":2,"__proto__":{"answer":1}}]}'
+      )
+      expect(normalizedStringify(input)).toBe(
+        '{"__proto__":null,"items":[{"__proto__":{"answer":1},"ordinary":2}]}'
+      )
+      expect(normalizedStringify(input)).not.toBe(normalizedStringify({ items: [{ ordinary: 2 }] }))
+    })
+
     it.concurrent('should produce identical strings for objects with different key orders', () => {
       const obj1 = { b: 2, a: 1, c: 3 }
       const obj2 = { a: 1, c: 3, b: 2 }

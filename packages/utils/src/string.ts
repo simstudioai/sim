@@ -371,6 +371,18 @@ export function escapeRegExp(value: string): string {
   return value.replace(REGEX_METACHARACTERS, '\\$&')
 }
 
+/**
+ * Escapes the SQL LIKE/ILIKE metacharacters `%`, `_`, and `\` in `value` so
+ * each matches itself. Postgres uses `\` as the default LIKE escape character,
+ * so the result needs no explicit `ESCAPE` clause.
+ *
+ * @example
+ * escapeLikePattern('100%_done') // '100\\%\\_done'
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&')
+}
+
 /** Reports whether `value` carries a character {@link escapeRegExp} would escape. */
 export function hasRegexMetacharacter(value: string): boolean {
   return REGEX_METACHARACTER.test(value)

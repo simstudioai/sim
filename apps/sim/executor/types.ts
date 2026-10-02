@@ -836,12 +836,3 @@ interface Tool<P = any, O = Record<string, any>> {
 interface ToolRegistry {
   [key: string]: Tool
 }
-
-export interface ResponseFormatStreamProcessor {
-  processStream(
-    originalStream: ReadableStream,
-    blockId: string,
-    selectedOutputs: string[],
-    responseFormat?: any
-  ): ReadableStream
-}

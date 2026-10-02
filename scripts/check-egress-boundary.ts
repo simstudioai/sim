@@ -74,8 +74,6 @@ const ALLOWED = new Set([
   'apps/sim/lib/core/security/input-validation.server.ts',
   // Streaming MCP transport, built on the guard's pinned dispatcher.
   'apps/sim/lib/mcp/pinned-fetch.ts',
-  // Builds a dispatcher to carry a caller's deadline; issues no request itself.
-  'apps/sim/lib/core/utils/fetch-deadline.ts',
 ])
 
 function walk(dir: string, out: string[] = []): string[] {

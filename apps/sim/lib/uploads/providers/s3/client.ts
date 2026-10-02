@@ -146,21 +146,6 @@ export async function uploadToS3(
 }
 
 /**
- * Generate a presigned URL for direct file access
- * @param key S3 object key
- * @param expiresIn Time in seconds until URL expires
- * @returns Presigned URL
- */
-export async function getPresignedUrl(key: string, expiresIn = 3600) {
-  const command = new GetObjectCommand({
-    Bucket: S3_CONFIG.bucket,
-    Key: key,
-  })
-
-  return getSignedUrl(getS3Client(), command, { expiresIn })
-}
-
-/**
  * Generate a presigned URL for direct file access with custom bucket
  * @param key S3 object key
  * @param customConfig Custom S3 configuration

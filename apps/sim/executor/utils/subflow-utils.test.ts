@@ -6,7 +6,7 @@ import {
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
 import type { ExecutionContext } from '@/executor/types'
-import { findEffectiveContainerId } from '@/executor/utils/subflow-utils'
+import { findEffectiveContainerId } from '@/executor/utils/subflow-node-id-codec'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 

@@ -33,11 +33,9 @@ vi.mock('@/lib/selectors/client/execute-selector', () => ({
 }))
 
 import { WorkflowBuilder } from '@sim/testing'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
-import {
-  formatDiffSummaryForDescription,
-  formatDiffSummaryForDescriptionAsync,
-} from '@/lib/workflows/comparison/describe'
+import { formatDiffSummaryForDescriptionAsync } from '@/lib/workflows/comparison/describe'
 import {
   resolveFieldLabel,
   resolveValueForDisplay,
@@ -119,8 +117,10 @@ describe('resolveValueForDisplay', () => {
   })
 })
 
-describe('formatDiffSummaryForDescription', () => {
-  it('uses human-readable field labels for modified blocks', () => {
+describe('formatDiffSummaryForDescriptionAsync shared formatting', () => {
+  const state: WorkflowState = { blocks: {}, edges: [], loops: {}, parallels: {} }
+
+  it('uses human-readable field labels for modified blocks', async () => {
     mockGetBlock.mockReturnValue({
       subBlocks: [
         { id: 'systemPrompt', title: 'System Prompt' },
@@ -136,14 +136,24 @@ describe('formatDiffSummaryForDescription', () => {
           type: 'agent',
           name: 'My Agent',
           changes: [
-            { field: 'systemPrompt', oldValue: 'You are helpful', newValue: 'You are an expert' },
-            { field: 'model', oldValue: 'gpt-4o', newValue: 'claude-sonnet-4-5' },
+            {
+              scope: 'subblock' as const,
+              field: 'systemPrompt',
+              oldValue: 'You are helpful',
+              newValue: 'You are an expert',
+            },
+            {
+              scope: 'subblock' as const,
+              field: 'model',
+              oldValue: 'gpt-4o',
+              newValue: 'claude-sonnet-4-5',
+            },
           ],
         },
       ],
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     expect(result).toContain(
       'Modified My Agent: System Prompt changed from "You are helpful" to "You are an expert"'
     )
@@ -154,7 +164,7 @@ describe('formatDiffSummaryForDescription', () => {
     expect(result).not.toContain('model changed')
   })
 
-  it('filters out .properties changes', () => {
+  it('filters out .properties changes', async () => {
     mockGetBlock.mockReturnValue({ subBlocks: [] })
 
     const summary = emptyDiffSummary({
@@ -165,28 +175,35 @@ describe('formatDiffSummaryForDescription', () => {
           type: 'agent',
           name: 'Agent',
           changes: [
-            { field: 'systemPrompt', oldValue: 'old', newValue: 'new' },
+            { scope: 'subblock' as const, field: 'systemPrompt', oldValue: 'old', newValue: 'new' },
             {
+              scope: 'subblock' as const,
               field: 'systemPrompt.properties',
               oldValue: { some: 'meta' },
               newValue: { some: 'other' },
             },
-            { field: 'model.properties', oldValue: {}, newValue: { x: 1 } },
+            {
+              scope: 'subblock' as const,
+              field: 'model.properties',
+              oldValue: {},
+              newValue: { x: 1 },
+            },
           ],
         },
       ],
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     expect(result).toContain('systemPrompt changed')
     expect(result).not.toContain('.properties')
     expect(result).not.toContain('model.properties')
   })
 
-  it('respects MAX_CHANGES_PER_BLOCK limit of 6', () => {
+  it('respects MAX_CHANGES_PER_BLOCK limit of 6', async () => {
     mockGetBlock.mockReturnValue({ subBlocks: [] })
 
     const changes = Array.from({ length: 8 }, (_, i) => ({
+      scope: 'subblock' as const,
       field: `field${i}`,
       oldValue: `old${i}`,
       newValue: `new${i}`,
@@ -197,51 +214,53 @@ describe('formatDiffSummaryForDescription', () => {
       modifiedBlocks: [{ id: 'b1', type: 'agent', name: 'Agent', changes }],
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     const lines = result.split('\n')
     const modifiedLines = lines.filter((l) => l.startsWith('Modified'))
     expect(modifiedLines).toHaveLength(6)
     expect(result).toContain('...and 2 more changes in Agent')
   })
 
-  it('shows edge changes with block names', () => {
+  it('shows edge changes with block names', async () => {
     const summary = emptyDiffSummary({
       hasChanges: true,
       edgeChanges: {
         added: 2,
         removed: 1,
         addedDetails: [
-          { sourceName: 'My Agent', targetName: 'Slack' },
-          { sourceName: 'Router', targetName: 'Gmail' },
+          { source: 'my-agent', target: 'slack', sourceName: 'My Agent', targetName: 'Slack' },
+          { source: 'router', target: 'gmail', sourceName: 'Router', targetName: 'Gmail' },
         ],
-        removedDetails: [{ sourceName: 'Function', targetName: 'Webhook' }],
+        removedDetails: [
+          { source: 'function', target: 'webhook', sourceName: 'Function', targetName: 'Webhook' },
+        ],
       },
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     expect(result).toContain('Added connection: My Agent -> Slack')
     expect(result).toContain('Added connection: Router -> Gmail')
     expect(result).toContain('Removed connection: Function -> Webhook')
   })
 
-  it('truncates edge details beyond MAX_EDGE_DETAILS', () => {
+  it('truncates edge details beyond MAX_EDGE_DETAILS', async () => {
     const summary = emptyDiffSummary({
       hasChanges: true,
       edgeChanges: {
         added: 5,
         removed: 0,
         addedDetails: [
-          { sourceName: 'A', targetName: 'B' },
-          { sourceName: 'C', targetName: 'D' },
-          { sourceName: 'E', targetName: 'F' },
-          { sourceName: 'G', targetName: 'H' },
-          { sourceName: 'I', targetName: 'J' },
+          { source: 'a', target: 'b', sourceName: 'A', targetName: 'B' },
+          { source: 'c', target: 'd', sourceName: 'C', targetName: 'D' },
+          { source: 'e', target: 'f', sourceName: 'E', targetName: 'F' },
+          { source: 'g', target: 'h', sourceName: 'G', targetName: 'H' },
+          { source: 'i', target: 'j', sourceName: 'I', targetName: 'J' },
         ],
         removedDetails: [],
       },
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     const connectionLines = result.split('\n').filter((l) => l.startsWith('Added connection'))
     expect(connectionLines).toHaveLength(3)
     expect(result).toContain('...and 2 more added connection(s)')
@@ -273,6 +292,7 @@ describe('formatDiffSummaryForDescriptionAsync', () => {
           name: 'Calendly',
           changes: [
             {
+              scope: 'subblock' as const,
               field: 'operation',
               oldValue: 'calendly_get_current_user',
               newValue: 'calendly_list_event_types',

@@ -1,3 +1,4 @@
+import { toArray, toRecord } from '@sim/utils/object'
 import type {
   AsanaAddCommentBody,
   AsanaAddFollowersBody,
@@ -15,7 +16,7 @@ import type {
   AsanaUpdateTaskBody,
 } from '@/lib/api/contracts/tools/asana'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
-import { AsanaClient, type AsanaJsonObject, asArray, asObject } from '@/lib/internal/asana/client'
+import { AsanaClient, type AsanaJsonObject } from '@/lib/internal/asana/client'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
 
 const TASK_OPT_FIELDS =
@@ -35,7 +36,7 @@ function validateId(value: string, name: string): void {
 }
 
 function dataObject(result: AsanaJsonObject): AsanaJsonObject {
-  return asObject(result.data)
+  return toRecord(result.data)
 }
 
 function optionalString(value: unknown): string | undefined {
@@ -51,9 +52,9 @@ function optionalBoolean(value: unknown): boolean | undefined {
 }
 
 function taskSummary(value: unknown) {
-  const task = asObject(value)
-  const assignee = asObject(task.assignee)
-  const createdBy = asObject(task.created_by)
+  const task = toRecord(value)
+  const assignee = toRecord(task.assignee)
+  const createdBy = toRecord(task.created_by)
   return {
     gid: requiredString(task.gid),
     resource_type: optionalString(task.resource_type),
@@ -124,7 +125,7 @@ export async function executeAsanaAddComment(input: AsanaAddCommentBody, signal?
     signal
   )
   const story = dataObject(result)
-  const createdBy = asObject(story.created_by)
+  const createdBy = toRecord(story.created_by)
   return {
     success: true as const,
     ts: timestamp(),
@@ -152,8 +153,8 @@ export async function executeAsanaAddFollowers(input: AsanaAddFollowersBody, sig
     ts: timestamp(),
     gid: requiredString(task.gid),
     name: requiredString(task.name),
-    followers: asArray(task.followers).map((value) => {
-      const follower = asObject(value)
+    followers: toArray(task.followers).map((value) => {
+      const follower = toRecord(value)
       return { gid: requiredString(follower.gid), name: requiredString(follower.name) }
     }),
   }
@@ -255,8 +256,8 @@ export async function executeAsanaGetProjects(input: AsanaGetProjectsBody, signa
   return {
     success: true as const,
     ts: timestamp(),
-    projects: asArray(result.data).map((value) => {
-      const project = asObject(value)
+    projects: toArray(result.data).map((value) => {
+      const project = toRecord(value)
       return {
         gid: requiredString(project.gid),
         name: requiredString(project.name),
@@ -296,7 +297,7 @@ export async function executeAsanaGetTask(input: AsanaGetTaskBody, signal?: Abor
   return {
     success: true as const,
     ts: timestamp(),
-    tasks: asArray(result.data).map(taskSummary),
+    tasks: toArray(result.data).map(taskSummary),
     next_page: result.next_page,
   }
 }
@@ -311,8 +312,8 @@ export async function executeAsanaListSections(input: AsanaListSectionsBody, sig
   return {
     success: true as const,
     ts: timestamp(),
-    sections: asArray(result.data).map((value) => {
-      const section = asObject(value)
+    sections: toArray(result.data).map((value) => {
+      const section = toRecord(value)
       return {
         gid: requiredString(section.gid),
         name: requiredString(section.name),
@@ -334,8 +335,8 @@ export async function executeAsanaListWorkspaces(
   return {
     success: true as const,
     ts: timestamp(),
-    workspaces: asArray(result.data).map((value) => {
-      const workspace = asObject(value)
+    workspaces: toArray(result.data).map((value) => {
+      const workspace = toRecord(value)
       return {
         gid: requiredString(workspace.gid),
         name: requiredString(workspace.name),
@@ -363,7 +364,7 @@ export async function executeAsanaSearchTasks(input: AsanaSearchTasksBody, signa
   return {
     success: true as const,
     ts: timestamp(),
-    tasks: asArray(result.data).map(taskSummary),
+    tasks: toArray(result.data).map(taskSummary),
     next_page: result.next_page,
   }
 }

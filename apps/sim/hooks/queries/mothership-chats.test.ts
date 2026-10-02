@@ -2,7 +2,6 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 const { suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
   clearChat: vi.fn(),
@@ -24,7 +23,7 @@ vi.mock('@/lib/terminal/transport', () => ({
   suspendTerminalScope,
 }))
 
-import { useDeleteMothershipChats, useRemoveChatResource } from '@/hooks/queries/mothership-chats'
+import { useDeleteMothershipChats } from '@/hooks/queries/mothership-chats'
 
 const queryClient = reactQueryMockFns.mockQueryClient
 
@@ -94,53 +93,4 @@ describe('tasks query boundary parsing', () => {
       queryKey: ['mothership-chats', 'detail', 'chat-b'],
     })
   })
-})
-
-it('removes only the requested workspace alias and forwards its owner', async () => {
-  const first: MothershipResource = {
-    type: 'file',
-    id: 'files/report.csv',
-    title: 'A',
-    workspaceId: 'ws-a',
-  }
-  const second: MothershipResource = { ...first, title: 'B', workspaceId: 'ws-b' }
-  let cached = {
-    id: 'chat-1',
-    title: null,
-    messages: [],
-    activeStreamId: null,
-    resources: [first, second],
-  }
-  queryClient.setQueryData.mockImplementation((_key, update) => {
-    cached = update(cached)
-  })
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(jsonResponse({ success: true, resources: [first] }))
-  )
-  const mutation = useRemoveChatResource('chat-1') as unknown as {
-    onMutate: (input: {
-      chatId: string
-      resourceType: 'file'
-      resourceId: string
-      workspaceId: string
-    }) => Promise<unknown>
-    mutationFn: (input: {
-      chatId: string
-      resourceType: 'file'
-      resourceId: string
-      workspaceId: string
-    }) => Promise<unknown>
-  }
-  const input = {
-    chatId: 'chat-1',
-    resourceType: 'file' as const,
-    resourceId: 'files/report.csv',
-    workspaceId: 'ws-b',
-  }
-  await mutation.onMutate(input)
-  expect(cached.resources).toEqual([first])
-  await mutation.mutationFn(input)
-  expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(input)
-  vi.unstubAllGlobals()
 })

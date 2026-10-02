@@ -49,6 +49,7 @@ export const GET = defineInternalJsonRoute({
     workflowId: params.id,
     version: params.version,
     includeCredentialValues: true,
+    representation: 'comparison' as const,
   }),
   present: ({ version }) => ({ deployedState: version.state }),
 })

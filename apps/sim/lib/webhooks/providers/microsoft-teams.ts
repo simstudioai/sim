@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
@@ -16,7 +16,7 @@ import {
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import {
-  getCredentialOwner,
+  getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
@@ -197,7 +197,7 @@ async function formatTeamsGraphNotification(
   }
   const resolvedChatId = chatId as string
   const resolvedMessageId = messageId as string
-  const providerConfig = (foundWebhook?.providerConfig as Record<string, unknown>) || {}
+  const providerConfig = toRecord(foundWebhook?.providerConfig)
   const credentialId = providerConfig.credentialId
   const includeAttachments = providerConfig.includeAttachments !== false
 
@@ -621,14 +621,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       )
     }
 
-    const credentialOwner = await getCredentialOwner(credentialId, requestId)
-    const accessToken = credentialOwner
-      ? await refreshAccessTokenIfNeeded(
-          credentialOwner.accountId,
-          credentialOwner.userId,
-          requestId
-        )
-      : null
+    const accessToken = await getCredentialAccessToken(credentialId, requestId)
     if (!accessToken) {
       logger.error(`[${requestId}] Failed to get access token for Teams subscription ${webhook.id}`)
       throw new Error(
@@ -763,14 +756,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         return
       }
 
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      const accessToken = credentialOwner
-        ? await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            requestId
-          )
-        : null
+      const accessToken = await getCredentialAccessToken(credentialId, requestId)
       if (!accessToken) {
         logger.warn(
           `[${requestId}] Could not get access token to delete Teams subscription for webhook ${webhook.id}`

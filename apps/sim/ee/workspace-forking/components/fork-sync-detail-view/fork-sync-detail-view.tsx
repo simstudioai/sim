@@ -6,6 +6,7 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
+import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   forkSyncDirectionParam,
@@ -19,7 +20,6 @@ import {
   useForkSync,
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
-import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 interface ForkSyncDetailViewProps {
   title: string

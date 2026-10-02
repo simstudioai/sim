@@ -10,8 +10,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { sleep } from '../helpers'
 import { configPath, credentialsPath } from './paths'
 import {
   DEFAULT_ENDPOINT,

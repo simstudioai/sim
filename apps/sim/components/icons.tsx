@@ -9668,7 +9668,7 @@ export function EnrowIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-// ---- Competitor brand logos (sourced via Context.dev brand-intelligence API, 2026-07-02) ----
+// Competitor brand logos (sourced via Context.dev brand-intelligence API, 2026-07-02)
 
 export function N8nIcon(props: SVGProps<SVGSVGElement>) {
   return (

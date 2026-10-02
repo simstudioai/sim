@@ -629,7 +629,6 @@ export function getProviderIdFromServiceId(serviceId: string): string {
     }
   }
 
-  // Default fallback
   return serviceId
 }
 
@@ -891,7 +890,6 @@ for (const [baseProviderId, providerConfig] of Object.entries(OAUTH_PROVIDERS)) 
  * Uses the pre-computed mapping from OAUTH_PROVIDERS for accuracy.
  */
 export function parseProvider(provider: OAuthProvider): ProviderConfig {
-  // First, check if this is a known providerId from our config
   const mapping = PROVIDER_ID_TO_BASE_PROVIDER[provider]
   if (mapping) {
     return {
@@ -910,7 +908,6 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
     }
   }
 
-  // For simple providers, use 'default' as feature type
   return {
     baseProvider: provider,
     featureType: 'default',

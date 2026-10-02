@@ -2,13 +2,8 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
-import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { isPro, isTeam } from '@/lib/billing/plan-helpers'
-import {
-  hasUsableSubscriptionAccess,
-  isOrgScopedSubscription,
-} from '@/lib/billing/subscriptions/utils'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbClient } from '@/lib/db/types'
 
@@ -149,17 +144,4 @@ async function atomicDeductOrgCredits(orgId: string, cost: number): Promise<numb
 
   const oldBalance = toDecimal(rows[0].old_balance)
   return toNumber(oldBalance.lessThan(costDecimal) ? oldBalance : costDecimal)
-}
-
-export async function canPurchaseCredits(userId: string): Promise<boolean> {
-  const subscription = await getHighestPrioritySubscription(userId)
-  if (!subscription) {
-    return false
-  }
-  const billingStatus = await getEffectiveBillingStatus(userId)
-  if (!hasUsableSubscriptionAccess(subscription.status, billingStatus.billingBlocked)) {
-    return false
-  }
-  // Enterprise users must contact support to purchase credits
-  return isPro(subscription.plan) || isTeam(subscription.plan)
 }

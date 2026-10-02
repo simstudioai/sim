@@ -1,8 +1,8 @@
+import { sleep } from '@sim/utils/helpers'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { type GetWorkspaceOperationResponse, V2_OPERATIONS } from '../../generated/v2-api'
-import { sleep } from '../../helpers'
 import { resolvePath, SimApiError, type SimClient } from '../../http/client'
 import { renderResult } from '../../runtime/result'
 

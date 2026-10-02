@@ -1,6 +1,6 @@
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
-import { sleep } from '../helpers'
 import {
   formatApiErrorDetails,
   requestAllPages,

@@ -14,6 +14,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, asc, count, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -77,7 +78,6 @@ import {
   buildFilterClause,
   buildPredicateClause,
   buildSortClause,
-  escapeLikePattern,
   uniqueValuePredicate,
 } from '@/lib/table/sql'
 import { fireTableTrigger } from '@/lib/table/trigger'

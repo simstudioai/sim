@@ -1,7 +1,10 @@
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 export interface PreparedWorkflowState {
   blocks: Record<string, BlockState>

@@ -424,22 +424,6 @@ export async function getWorkspaceKnowledgeBases(
   }
 }
 
-/** Loads at most two active exact-name matches so a caller can fail on corrupt ambiguity. */
-export async function findActiveKnowledgeBasesByExactName(
-  workspaceId: string,
-  name: string
-): Promise<ActiveKnowledgeBaseReference[]> {
-  return readKnowledgeBaseRows(
-    and(
-      eq(knowledgeBase.workspaceId, workspaceId),
-      eq(knowledgeBase.name, name),
-      isNull(knowledgeBase.deletedAt)
-    ),
-    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc'),
-    2
-  )
-}
-
 /**
  * Create a new knowledge base
  */

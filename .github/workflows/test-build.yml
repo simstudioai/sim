@@ -195,7 +195,7 @@ jobs:
       # immediately, and either way the server log tail lands in the job log. No
       # step timeout: the job's bound covers a hang without cutting a slow but
       # healthy suite short of writing its report.
-      - name: Verify SCIM and administration over real HTTP
+      - name: Verify SCIM, administration and workflow comparisons over real HTTP
         working-directory: apps/sim
         env:
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3017
@@ -247,6 +247,11 @@ jobs:
           SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
           SCIM_E2E_REPORT_PATH="$report_dir/scim-e2e-report.json" \
             bun run test:scim:e2e
+          VERSION_COMPARE_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+          VERSION_COMPARE_E2E_DATABASE_URL="$DATABASE_URL" \
+          VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+          VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
+            bun run test:workflow-version-compare:e2e
 
       - name: Upload end-to-end reports and server logs
         if: failure()

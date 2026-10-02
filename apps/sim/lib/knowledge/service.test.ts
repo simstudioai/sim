@@ -1,6 +1,5 @@
 import {
   dbChainMockFns,
-  hasMockCondition,
   permissionsMock,
   permissionsMockFns,
   queueTableRows,
@@ -18,7 +17,6 @@ vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 import {
   attachKnowledgeBaseConnectors,
-  findActiveKnowledgeBasesByExactName,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
   updateKnowledgeBase,
@@ -56,31 +54,6 @@ describe('getWorkspaceKnowledgeBases — paging', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
     expect(result.data).toHaveLength(2)
     expect(result.nextCursorKeys).not.toBeNull()
-  })
-})
-
-/**
- * A VFS path names one knowledge base exactly. Resolving it by reading every base whose name
- * merely CONTAINS the term, then filtering in JS, makes a single-row lookup scale with the
- * workspace — the sibling `findActiveTablesByExactName` is the shape to match.
- */
-describe('findActiveKnowledgeBasesByExactName', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-  })
-
-  it('matches the name exactly and reads at most two rows', async () => {
-    await findActiveKnowledgeBasesByExactName('ws-1', 'Docs')
-
-    const [condition] = dbChainMockFns.where.mock.calls[0] ?? []
-    expect(
-      hasMockCondition(
-        condition,
-        (node) =>
-          node.type === 'eq' && node.left === schemaMock.knowledgeBase.name && node.right === 'Docs'
-      )
-    ).toBe(true)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
   })
 })
 

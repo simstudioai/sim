@@ -40,7 +40,7 @@ export class InvalidRequestError extends Error {
   }
 }
 
-export const contentTypeMap: Record<string, string> = {
+const contentTypeMap: Record<string, string> = {
   txt: 'text/plain',
   csv: 'text/csv',
   json: 'application/json',

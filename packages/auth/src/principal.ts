@@ -847,3 +847,15 @@ export function resolvePrincipalAttribution(
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }
+
+/** User ID every request acts as when `DISABLE_AUTH` is enabled. */
+export const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
+
+/** The user record behind {@link ANONYMOUS_USER_ID}, shared by the app and the realtime server. */
+export const ANONYMOUS_USER = {
+  id: ANONYMOUS_USER_ID,
+  name: 'Anonymous',
+  email: 'anonymous@localhost',
+  emailVerified: true,
+  image: null,
+} as const

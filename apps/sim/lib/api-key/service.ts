@@ -8,22 +8,6 @@ import { getWorkspaceBillingSettings, type WorkspaceBillingSettings } from '@/li
 
 const logger = createLogger('ApiKeyService')
 
-export async function listApiKeys(workspaceId: string) {
-  return db
-    .select({
-      id: apiKeyTable.id,
-      name: apiKeyTable.name,
-      type: apiKeyTable.type,
-      lastUsed: apiKeyTable.lastUsed,
-      createdAt: apiKeyTable.createdAt,
-      expiresAt: apiKeyTable.expiresAt,
-      createdBy: apiKeyTable.createdBy,
-    })
-    .from(apiKeyTable)
-    .where(and(eq(apiKeyTable.workspaceId, workspaceId), eq(apiKeyTable.type, 'workspace')))
-    .orderBy(apiKeyTable.createdAt)
-}
-
 export interface ApiKeyAuthOptions {
   userId?: string
   workspaceId?: string

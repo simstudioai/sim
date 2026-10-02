@@ -1,9 +1,6 @@
 import type { ComponentType } from 'react'
 import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
-import {
-  findCredentialGroupProviderFromProviderId,
-  isCredentialGroupStandardOAuthProvider,
-} from '@/lib/credential-groups/providers'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
   getCanonicalScopesForProvider,
@@ -83,13 +80,6 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
   })
   .sort((a, b) => a.meta.name.localeCompare(b.meta.name))
 
-/** Standard member sign-in configured by an explicit Search source addition. */
-export function searchMemberAccountProvider(connectorType: string) {
-  const connector = SEARCH_CONNECTORS.find((candidate) => candidate.type === connectorType)
-  const provider = connector && findCredentialGroupProviderFromProviderId(connector.providerId)
-  return provider && isCredentialGroupStandardOAuthProvider(provider) ? provider : null
-}
-
 /**
  * Every source an admin may set up for Sim Search, alphabetical by name: the
  * connectors that either mirror their source's permissions or connect per person.
@@ -123,11 +113,6 @@ export function personalSetupFields(meta: ConnectorMeta): ConnectorConfigField[]
   return meta.configFields.filter(
     (field) => field.required && field.type !== 'selector' && !capFieldIds.has(field.id)
   )
-}
-
-/** Personal sources use defaults even when they also support central indexing. Slack needs a custom app first. */
-export function canConnectWithDefaults(meta: ConnectorMeta): boolean {
-  return canConnectPersonally(meta) && meta.id !== 'slack' && personalSetupFields(meta).length === 0
 }
 
 /** The name a connector shows, from its registry entry. */

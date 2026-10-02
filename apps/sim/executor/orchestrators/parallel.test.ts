@@ -5,11 +5,11 @@ import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext } from '@/executor/types'
 import {
   buildBranchNodeId,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 
 const { mockCompactSubflowResults } = vi.hoisted(() => ({
   mockCompactSubflowResults: vi.fn(async (results: unknown) => results),
@@ -331,8 +331,8 @@ describe('ParallelOrchestrator', () => {
     const taskId = 'task-1'
     const parallelStartId = buildParallelSentinelStartId(parallelId)
     const parallelEndId = buildParallelSentinelEndId(parallelId)
-    const loopStartId = buildSentinelStartId(loopId)
-    const loopEndId = buildSentinelEndId(loopId)
+    const loopStartId = buildLoopSentinelStartId(loopId)
+    const loopEndId = buildLoopSentinelEndId(loopId)
 
     dag.parallelConfigs.set(parallelId, {
       id: parallelId,

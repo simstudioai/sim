@@ -212,14 +212,12 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Core Data Operations
         { label: 'Capture Event', id: 'posthog_capture_event' },
         { label: 'Batch Events', id: 'posthog_batch_events' },
         { label: 'List Persons', id: 'posthog_list_persons' },
         { label: 'Get Person', id: 'posthog_get_person' },
         { label: 'Delete Person', id: 'posthog_delete_person' },
         { label: 'Run Query (HogQL)', id: 'posthog_query' },
-        // Analytics
         { label: 'List Insights', id: 'posthog_list_insights' },
         { label: 'Get Insight', id: 'posthog_get_insight' },
         { label: 'Create Insight', id: 'posthog_create_insight' },
@@ -234,7 +232,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'Update Cohort', id: 'posthog_update_cohort' },
         { label: 'List Annotations', id: 'posthog_list_annotations' },
         { label: 'Create Annotation', id: 'posthog_create_annotation' },
-        // Feature Management
         { label: 'List Feature Flags', id: 'posthog_list_feature_flags' },
         { label: 'Get Feature Flag', id: 'posthog_get_feature_flag' },
         { label: 'Create Feature Flag', id: 'posthog_create_feature_flag' },
@@ -245,7 +242,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'Get Experiment', id: 'posthog_get_experiment' },
         { label: 'Create Experiment', id: 'posthog_create_experiment' },
         { label: 'Update Experiment', id: 'posthog_update_experiment' },
-        // User Engagement
         { label: 'List Surveys', id: 'posthog_list_surveys' },
         { label: 'Get Survey', id: 'posthog_get_survey' },
         { label: 'Create Survey', id: 'posthog_create_survey' },
@@ -254,14 +250,12 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
         { label: 'List Session Recordings', id: 'posthog_list_session_recordings' },
         { label: 'Get Session Recording', id: 'posthog_get_session_recording' },
         { label: 'List Recording Playlists', id: 'posthog_list_recording_playlists' },
-        // Data Management
         { label: 'List Event Definitions', id: 'posthog_list_event_definitions' },
         { label: 'Get Event Definition', id: 'posthog_get_event_definition' },
         { label: 'Update Event Definition', id: 'posthog_update_event_definition' },
         { label: 'List Property Definitions', id: 'posthog_list_property_definitions' },
         { label: 'Get Property Definition', id: 'posthog_get_property_definition' },
         { label: 'Update Property Definition', id: 'posthog_update_property_definition' },
-        // Configuration
         { label: 'List Projects', id: 'posthog_list_projects' },
         { label: 'Get Project', id: 'posthog_get_project' },
         { label: 'List Organizations', id: 'posthog_list_organizations' },
@@ -270,7 +264,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       value: () => 'posthog_capture_event',
     },
 
-    // Common fields
     {
       id: 'region',
       title: 'Region',
@@ -283,30 +276,25 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       required: {
         field: 'operation',
         value: [
-          // Feature Flags
           'posthog_create_feature_flag',
           'posthog_update_feature_flag',
           'posthog_delete_feature_flag',
           'posthog_get_feature_flag',
           'posthog_list_feature_flags',
-          // Experiments
           'posthog_create_experiment',
           'posthog_update_experiment',
           'posthog_get_experiment',
           'posthog_list_experiments',
-          // Data Management
           'posthog_list_property_definitions',
           'posthog_get_property_definition',
           'posthog_update_property_definition',
           'posthog_list_event_definitions',
           'posthog_get_event_definition',
           'posthog_update_event_definition',
-          // Core Operations (with personalApiKey)
           'posthog_list_persons',
           'posthog_get_person',
           'posthog_delete_person',
           'posthog_query',
-          // Analytics
           'posthog_list_insights',
           'posthog_get_insight',
           'posthog_create_insight',
@@ -321,7 +309,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_update_cohort',
           'posthog_list_annotations',
           'posthog_create_annotation',
-          // Surveys & Recordings
           'posthog_list_surveys',
           'posthog_get_survey',
           'posthog_create_survey',
@@ -330,7 +317,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_list_session_recordings',
           'posthog_get_session_recording',
           'posthog_list_recording_playlists',
-          // Configuration
           'posthog_list_projects',
           'posthog_get_project',
           'posthog_list_organizations',
@@ -346,25 +332,21 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       condition: {
         field: 'operation',
         value: [
-          // Feature Flags
           'posthog_create_feature_flag',
           'posthog_update_feature_flag',
           'posthog_delete_feature_flag',
           'posthog_get_feature_flag',
           'posthog_list_feature_flags',
-          // Experiments
           'posthog_create_experiment',
           'posthog_update_experiment',
           'posthog_get_experiment',
           'posthog_list_experiments',
-          // Data Management
           'posthog_list_property_definitions',
           'posthog_get_property_definition',
           'posthog_update_property_definition',
           'posthog_list_event_definitions',
           'posthog_get_event_definition',
           'posthog_update_event_definition',
-          // Core Operations
           'posthog_capture_event',
           'posthog_batch_events',
           'posthog_list_persons',
@@ -372,7 +354,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_delete_person',
           'posthog_query',
           'posthog_evaluate_flags',
-          // Analytics
           'posthog_list_insights',
           'posthog_get_insight',
           'posthog_create_insight',
@@ -387,7 +368,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_update_cohort',
           'posthog_list_annotations',
           'posthog_create_annotation',
-          // Surveys & Recordings
           'posthog_list_surveys',
           'posthog_get_survey',
           'posthog_create_survey',
@@ -396,7 +376,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
           'posthog_list_session_recordings',
           'posthog_get_session_recording',
           'posthog_list_recording_playlists',
-          // Configuration
           'posthog_list_projects',
           'posthog_get_project',
           'posthog_list_organizations',
@@ -405,7 +384,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       },
     },
 
-    // API Keys (conditional based on operation)
     {
       id: 'projectApiKey',
       title: 'Project API Key',
@@ -453,7 +431,6 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       required: true,
     },
 
-    // Capture Event fields
     {
       id: 'event',
       title: 'Event Name',
@@ -529,7 +506,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Evaluate Flags fields
     {
       id: 'groups',
       title: 'Groups (JSON)',
@@ -604,7 +580,6 @@ Return ONLY the JSON object.`,
       condition: { field: 'operation', value: 'posthog_evaluate_flags' },
     },
 
-    // Batch Events fields
     {
       id: 'batch',
       title: 'Batch Events (JSON Array)',
@@ -640,7 +615,6 @@ Return ONLY the JSON array.`,
       },
     },
 
-    // Query fields
     {
       id: 'query',
       title: 'Query',
@@ -681,7 +655,6 @@ Return ONLY the JSON array.`,
       },
     },
 
-    // ID fields for get/update/delete operations
     {
       id: 'personId',
       title: 'Person ID',
@@ -804,7 +777,6 @@ Return ONLY the JSON array.`,
       required: true,
     },
 
-    // Create/Update fields (name, description, etc.)
     {
       id: 'name',
       title: 'Name',
@@ -869,7 +841,6 @@ Return ONLY the description text.`,
       },
     },
 
-    // Feature Flag specific fields
     {
       id: 'key',
       title: 'Flag Key',
@@ -940,7 +911,6 @@ Return ONLY the JSON object.`,
       },
     },
 
-    // Insight specific fields
     {
       id: 'insightQuery',
       title: 'Query (JSON)',
@@ -978,7 +948,6 @@ Return ONLY the JSON object.`,
       condition: { field: 'operation', value: 'posthog_update_insight' },
     },
 
-    // Feature Flag fields
     {
       id: 'active',
       title: 'Active',
@@ -1010,7 +979,6 @@ Return ONLY the JSON object.`,
       },
     },
 
-    // Cohort fields
     {
       id: 'groups',
       title: 'Groups (JSON Array)',
@@ -1032,7 +1000,6 @@ Return ONLY the JSON object.`,
       condition: { field: 'operation', value: 'posthog_update_cohort' },
     },
 
-    // Annotation fields
     {
       id: 'content',
       title: 'Content',
@@ -1094,7 +1061,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'posthog_create_annotation' },
     },
 
-    // Experiment fields
     {
       id: 'featureFlagKey',
       title: 'Feature Flag Key',
@@ -1169,7 +1135,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Survey fields
     {
       id: 'questions',
       title: 'Questions (JSON Array)',
@@ -1352,7 +1317,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // List operations - pagination fields
     {
       id: 'limit',
       title: 'Limit',
@@ -1402,7 +1366,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Search/Filter fields
     {
       id: 'search',
       title: 'Search',
@@ -1418,7 +1381,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Tags field
     {
       id: 'tags',
       title: 'Tags (comma-separated)',
@@ -1434,7 +1396,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Property type field
     {
       id: 'propertyType',
       title: 'Property Type',
@@ -1448,7 +1409,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'posthog_update_property_definition' },
     },
 
-    // Organization/Project ID fields
     {
       id: 'organizationId',
       title: 'Organization ID',
@@ -1469,14 +1429,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
   tools: {
     access: [
-      // Core Data
       'posthog_capture_event',
       'posthog_batch_events',
       'posthog_list_persons',
       'posthog_get_person',
       'posthog_delete_person',
       'posthog_query',
-      // Analytics
       'posthog_list_insights',
       'posthog_get_insight',
       'posthog_create_insight',
@@ -1491,7 +1449,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'posthog_update_cohort',
       'posthog_list_annotations',
       'posthog_create_annotation',
-      // Feature Management
       'posthog_list_feature_flags',
       'posthog_get_feature_flag',
       'posthog_create_feature_flag',
@@ -1502,7 +1459,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'posthog_get_experiment',
       'posthog_create_experiment',
       'posthog_update_experiment',
-      // Engagement
       'posthog_list_surveys',
       'posthog_get_survey',
       'posthog_create_survey',
@@ -1511,14 +1467,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'posthog_list_session_recordings',
       'posthog_get_session_recording',
       'posthog_list_recording_playlists',
-      // Data Management
       'posthog_list_event_definitions',
       'posthog_get_event_definition',
       'posthog_update_event_definition',
       'posthog_list_property_definitions',
       'posthog_get_property_definition',
       'posthog_update_property_definition',
-      // Configuration
       'posthog_list_projects',
       'posthog_get_project',
       'posthog_list_organizations',
@@ -1626,7 +1580,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     projectApiKey: { type: 'string', description: 'Project API key for public endpoints' },
     apiKey: { type: 'string', description: 'Personal API key for private endpoints' },
     projectId: { type: 'string', description: 'PostHog project ID' },
-    // Core Data
     event: { type: 'string', description: 'Event name' },
     distinctId: { type: 'string', description: 'Unique user identifier' },
     properties: { type: 'string', description: 'Event properties as JSON' },
@@ -1634,7 +1587,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     batch: { type: 'string', description: 'Batch events as JSON array' },
     query: { type: 'string', description: 'HogQL query or JSON object' },
     values: { type: 'string', description: 'Query parameters' },
-    // IDs
     personId: { type: 'string', description: 'Person ID' },
     insightId: { type: 'string', description: 'Insight ID' },
     dashboardId: { type: 'string', description: 'Dashboard ID' },
@@ -1647,7 +1599,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     propertyDefinitionId: { type: 'string', description: 'Property Definition ID' },
     organizationId: { type: 'string', description: 'Organization ID' },
     projectIdParam: { type: 'string', description: 'Project ID parameter' },
-    // Common fields
     name: { type: 'string', description: 'Name' },
     description: { type: 'string', description: 'Description' },
     key: { type: 'string', description: 'Feature flag key' },
@@ -1671,7 +1622,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     favorited: { type: 'boolean', description: 'Whether the insight is favorited' },
     pinned: { type: 'boolean', description: 'Whether the dashboard is pinned' },
     useTemplate: { type: 'string', description: 'Dashboard template name to seed from' },
-    // List parameters
     limit: { type: 'number', description: 'Number of results to return' },
     offset: { type: 'number', description: 'Number of results to skip' },
     search: { type: 'string', description: 'Search query' },

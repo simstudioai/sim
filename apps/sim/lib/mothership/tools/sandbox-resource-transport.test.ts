@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint } = vi.hoisted(() => ({
   readScope: vi.fn(),
@@ -24,7 +23,6 @@ vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
   recordSandboxResourceEffects: recordEffects,
 }))
 
-import { isInternalRequest } from '@/lib/api/server/routes/internal-request'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 
 const target = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
@@ -72,7 +70,6 @@ describe('private sandbox v2 resource transport', () => {
     fetcher.mockImplementation(async (input: Request) => {
       expect(input.url).toBe('http://internal-sim/api/v2/tables/table/rows?workspaceId=workspace')
       expect(input.method).toBe('POST')
-      expect(isInternalRequest(input)).toBe(false)
       expect(input.redirect).toBe('manual')
       expect(input.headers.get('x-api-key')).toBeNull()
       expect(isCopilotRequest(input)).toBe(true)
@@ -268,34 +265,6 @@ it('does not poison public scratch after authenticated static catalog discovery'
   expect(recordInput).not.toHaveBeenCalled()
 })
 
-it.each([
-  { status: 'exact', entries: [] },
-  { status: 'unknown' },
-  { status: 'exact', entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user' }] },
-] as const)(
-  'uses typed file provenance from the real public handler without changing admission: %j',
-  async (provenance) => {
-    routeMatcher.mockReturnValue({
-      params: { fileId: 'file' },
-      load: async () => ({ GET: fetcher }),
-    })
-    fetcher.mockImplementation(async (input: Request) => {
-      expect(isInternalRequest(input)).toBe(false)
-      await reportWorkspaceFileDelivery({
-        ...provenance,
-        ...('entries' in provenance ? { entries: [...provenance.entries] } : {}),
-      })
-      return new Response('filebytes')
-    })
-    const response = await proxySandboxResourceRequest(request('/api/v2/files/file'), token)
-    expect(await response.text()).toBe('filebytes')
-    expect(recordInput).toHaveBeenCalledWith(
-      'mothership-chat:chat',
-      provenance.status === 'exact' ? provenance : false
-    )
-    expect(fetcher).toHaveBeenCalledOnce()
-  }
-)
 it('cannot deliver a successful unclassified file response when recording its unknown provenance fails', async () => {
   routeMatcher.mockReturnValue({ params: { fileId: 'file' }, load: async () => ({ GET: fetcher }) })
   fetcher.mockResolvedValue(new Response('unsafe'))

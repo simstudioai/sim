@@ -77,6 +77,7 @@ export async function readCliInputFile(
     const registry = new ResolvedSecretTraceRegistry([])
     if (!(await importDurableSecretProvenance(registry, provenance)))
       throw new Error('CLI input withheld because workbench secret provenance is unavailable')
+    if (registry.getActiveMatches().length === 0) return buffer
     const text = buffer.toString('utf8')
     const projection = projectResolvedSecretModelContent(text, registry)
     if (!projection.safe || isBinarySandboxPath(path) || projection.value !== text)

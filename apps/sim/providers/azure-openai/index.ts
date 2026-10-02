@@ -41,6 +41,7 @@ import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -176,14 +177,7 @@ async function executeChatCompletionsRequest(
     payload.verbosity = request.verbosity as ChatCompletionVerbosity
 
   if (request.responseFormat) {
-    payload.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: request.responseFormat.name || 'response_schema',
-        schema: request.responseFormat.schema || request.responseFormat,
-        strict: request.responseFormat.strict !== false,
-      },
-    }
+    payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
 
     logger.info('Added JSON schema response format to Azure OpenAI request')
   }

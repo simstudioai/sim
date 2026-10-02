@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { getTrigger, isTriggerValid } from '@/triggers'
 import { isInternalTriggerProvider, isPollingWebhookProvider } from '@/triggers/constants'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
-import { blockAdvertisesWebhookUrl } from '@/triggers/webhook-url'
+import { blockAdvertisesWebhookUrl, resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 function block(overrides: Partial<BlockState> = {}): BlockState {
   return {
@@ -16,6 +17,26 @@ function block(overrides: Partial<BlockState> = {}): BlockState {
     ...overrides,
   } as unknown as BlockState
 }
+
+describe('stored trigger identifier validation', () => {
+  it.each(['constructor', '__proto__', 'toString', 'deleted_provider_trigger'])(
+    'rejects %s and resolves the valid legacy trigger instead',
+    (triggerId) => {
+      vi.mocked(getBlock).mockReturnValueOnce(undefined)
+      const stored = block({
+        triggerMode: true,
+        subBlocks: {
+          selectedTriggerId: { id: 'selectedTriggerId', type: 'dropdown', value: triggerId },
+          triggerId: { id: 'triggerId', type: 'short-input', value: 'slack_webhook' },
+        },
+      })
+
+      expect(isTriggerValid(triggerId)).toBe(false)
+      expect(() => getTrigger(triggerId)).toThrow(`Trigger not found: ${triggerId}`)
+      expect(resolveBlockTriggerId(stored)).toBe('slack_webhook')
+    }
+  )
+})
 
 describe('blockAdvertisesWebhookUrl', () => {
   it('is false for a trigger block that declares no webhook-URL field (poller, schedule, chat)', () => {

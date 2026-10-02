@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 import {
   assertUserFileContentAccess,
@@ -277,15 +278,7 @@ export async function resolveUserFileMounts(args: {
   manifest: SandboxMountManifestEntry[]
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
   renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
-  /**
-   * Mounts whose own bytes have no provenance source (no principal to bind one, or a key with no
-   * canonical metadata record). Workflow runs keep their legacy absence policy; a persistent
-   * workbench must not certify a machine that received one.
-   *
-   * Storage contexts other than workspace and execution (chat, copilot, knowledge-base, logs, and
-   * the other public contexts) never have a source, so they always count here and taint a
-   * workbench. That is conservative by design.
-   */
+  /** Mounts without producer provenance remain usable and report the recording gap. */
   unprovenancedMountCount: number
 }> {
   let unprovenancedMountCount = 0
@@ -365,6 +358,14 @@ export async function resolveUserFileMounts(args: {
     })
   }
 
+  if (unprovenancedMountCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: args.context.workspaceId,
+      actorUserId: args.context.userId,
+      recordCount: unprovenancedMountCount,
+    })
+  }
   logger.info('Resolved sandbox file mounts', {
     mountCount: sandboxFiles.length,
     bufferedBytes: budget.buffered,

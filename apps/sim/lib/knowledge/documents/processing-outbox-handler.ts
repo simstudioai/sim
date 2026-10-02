@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
@@ -67,7 +68,7 @@ import {
 } from '@/lib/knowledge/documents/storage-cleanup'
 
 function requirePayloadRecord(payload: unknown): Record<string, unknown> {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (!isRecordLike(payload)) {
     throw new Error('Knowledge document processing outbox payload must be an object')
   }
   return payload as Record<string, unknown>
