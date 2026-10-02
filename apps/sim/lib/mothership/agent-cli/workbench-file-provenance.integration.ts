@@ -1,13 +1,15 @@
 import { createHash } from 'node:crypto'
+import * as audit from '@sim/audit'
 import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
-import { auditLog, organization, user } from '@sim/db/schema'
+import { auditLog, organization, user, workspace } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import Redis from 'ioredis'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildOrgScopeCondition } from '@/lib/audit-logs/query'
 import { initializeSessionFileProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
@@ -28,7 +30,11 @@ const redis = redisUrl
 redis?.on('error', () => {})
 const receiptPrefixes = new Set<string>()
 const historyKeys = new Set<string>()
-let scope = { workspaceId: 'workspace', userId: 'reader', sessionKey: 'chat' }
+const fixtureWorkspaceId = generateShortId()
+const fixtureUserId = generateShortId()
+let scope = { workspaceId: fixtureWorkspaceId, userId: fixtureUserId, sessionKey: 'chat' }
+let submittedAudits = 0
+let restoreAuditObservation: (() => void) | undefined
 const machine = { providerId: 'e2b', sandboxId: 'physical-machine' } as const
 const bytes = new Uint8Array([255, 254, 0, 1, 90, 13, 10])
 const secret: WorkspaceFileSecretProvenance = {
@@ -77,8 +83,36 @@ function receiptPrefix(currentScope: {
   return prefix
 }
 
+/** Waits for real fire-and-forget audit writes before inspecting or removing fixture rows. */
+async function settledWorkspaceAudits() {
+  const read = () => db.select().from(auditLog).where(eq(auditLog.workspaceId, fixtureWorkspaceId))
+  await vi.waitFor(async () => expect(await read()).toHaveLength(submittedAudits))
+  return read()
+}
+
 beforeAll(async () => {
-  await redis?.connect()
+  if (!redis) return
+  await redis.connect()
+  await db.insert(user).values({
+    id: fixtureUserId,
+    name: 'Receipt test actor',
+    email: `${fixtureUserId}@fixture.test`,
+    emailVerified: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+  await db.insert(workspace).values({
+    id: fixtureWorkspaceId,
+    name: 'Receipt test workspace',
+    ownerId: fixtureUserId,
+    billedAccountUserId: fixtureUserId,
+  })
+  const recordAudit = audit.recordAudit
+  const observation = vi.spyOn(audit, 'recordAudit').mockImplementation((entry) => {
+    if (entry.workspaceId === fixtureWorkspaceId) submittedAudits += 1
+    recordAudit(entry)
+  })
+  restoreAuditObservation = () => observation.mockRestore()
 })
 beforeEach(() => {
   redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis ?? null)
@@ -89,6 +123,12 @@ beforeEach(() => {
       .update(JSON.stringify([scope.sessionKey, machine.providerId, machine.sandboxId]))
       .digest('hex')}`
   )
+})
+afterEach(async () => {
+  if (!redis) return
+  await settledWorkspaceAudits()
+  await db.delete(auditLog).where(eq(auditLog.workspaceId, fixtureWorkspaceId))
+  submittedAudits = 0
 })
 afterAll(async () => {
   if (!redis) return
@@ -102,7 +142,11 @@ afterAll(async () => {
       } while (cursor !== '0')
     }
     if (historyKeys.size > 0) await redis.del(...historyKeys)
+    await db.delete(auditLog).where(eq(auditLog.workspaceId, fixtureWorkspaceId))
+    await db.delete(workspace).where(eq(workspace.id, fixtureWorkspaceId))
+    await db.delete(user).where(eq(user.id, fixtureUserId))
   } finally {
+    restoreAuditObservation?.()
     await Promise.all([redis.quit(), db.$client.end()])
   }
 })
@@ -315,6 +359,77 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
       'storage is unavailable'
     )
     expect(() => unavailable.uploadProvenance()).toThrow('has not finished')
+  })
+
+  it.each([
+    'complete',
+    'source failure',
+    'cancel',
+    'abort',
+    'storage failure',
+    'abort during persistence',
+  ] as const)('audits unrecorded downloads only after acceptance: %s', async (outcome) => {
+    const stop = new AbortController()
+    let producer!: ReadableStreamDefaultController<Uint8Array>
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        producer = controller
+        controller.enqueue(bytes)
+      },
+    })
+    const invocation = createWorkbenchFileProvenance({ ...scope, signal: stop.signal })
+    invocation.trackDownload(stream, { status: 'unrecorded' })
+    const reader = invocation.observeDownload(machine, stream).getReader()
+    try {
+      expect(await reader.read()).toEqual({ done: false, value: bytes })
+      expect(await settledWorkspaceAudits()).toEqual([])
+      if (outcome === 'cancel') {
+        await reader.cancel()
+      } else if (outcome === 'source failure') {
+        producer.error(new Error('transfer failed'))
+        await expect(reader.read()).rejects.toThrow('transfer failed')
+      } else if (outcome === 'abort') {
+        stop.abort(new Error('stopped'))
+        await expect(reader.read()).rejects.toThrow('stopped')
+      } else {
+        if (outcome === 'storage failure') {
+          redisConfigMockFns.mockGetRedisClient.mockReturnValueOnce(null)
+        } else if (outcome === 'abort during persistence') {
+          redisConfigMockFns.mockGetRedisClient.mockImplementationOnce(() => {
+            stop.abort(new Error('stopped during persistence'))
+            return redis!
+          })
+        }
+        producer.close()
+        if (outcome === 'complete') {
+          expect(await reader.read()).toEqual({ done: true, value: undefined })
+        } else {
+          await expect(reader.read()).rejects.toThrow(
+            outcome === 'storage failure' ? 'storage is unavailable' : 'stopped during persistence'
+          )
+        }
+      }
+      if (outcome === 'abort during persistence') {
+        /** Cancellation rejects the reader before the already-issued receipt write settles. */
+        await redis!.ping()
+        await flushMacrotask()
+      }
+      const entries = await settledWorkspaceAudits()
+      expect(entries).toHaveLength(outcome === 'complete' ? 1 : 0)
+      if (outcome === 'complete') {
+        expect(entries[0]).toMatchObject({
+          action: AuditAction.SECRET_PROVENANCE_UNRECORDED,
+          actorId: fixtureUserId,
+          workspaceId: fixtureWorkspaceId,
+        })
+        const next = createWorkbenchFileProvenance(scope)
+        await consume(next.observeUpload(machine, body()))
+        expect(next.uploadProvenance()).toEqual({ status: 'unrecorded' })
+      }
+    } finally {
+      await reader.cancel().catch(() => {})
+      reader.releaseLock()
+    }
   })
 
   it('records accepted organization bytes in the owning organization audit scope', async () => {

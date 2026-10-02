@@ -91,8 +91,7 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
             RECEIPT_SECONDS,
             unrecorded
           )
-        },
-        () => {
+          scope.signal?.throwIfAborted()
           if (provenance.status === 'unrecorded') {
             reportDurableSecretProvenanceUnrecorded({
               surface: 'workspace-file',
@@ -101,12 +100,13 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
               actorUserId: scope.userId,
             })
           }
-          return recordSessionFileInput(
+        },
+        () =>
+          recordSessionFileInput(
             scope.sessionKey,
             machine,
             provenance.status === 'unrecorded' ? true : provenance
           )
-        }
       )
   const observeDownload: SessionFileObserver = (machine, stream) =>
     record(downloads.get(stream) ?? { status: 'unrecorded' })(machine, stream)
