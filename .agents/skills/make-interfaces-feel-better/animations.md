@@ -1,5 +1,7 @@
 # Animations
 
+> In this repo: `import { motion, AnimatePresence } from 'framer-motion'`; never `motion/react`.
+
 Interruptible animations, enter/exit transitions, and contextual icon animations.
 
 ## Interruptible Animations

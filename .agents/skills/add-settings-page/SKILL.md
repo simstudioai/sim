@@ -21,65 +21,54 @@ Key paths:
 
 ## Mode A — Add a new settings page
 
-1. **Navigation.** In `navigation.ts`: add the id to the `SettingsSection` union,
-   then a `NavigationItem` with `label` AND a one-line `description` (verb-first,
-   ~40–55 chars, product voice per `.claude/rules/constitution.md`). Place it in
-   the right `section` group and set any gating flags (`requiresHosted`,
-   `requiresEnterprise`, etc.).
-2. **Wire the switch.** Add the component to the `effectiveSection` render switch
-   in `settings/[section]/settings.tsx` (lazy `dynamic(...)` like its siblings).
+1. **Navigation.** In `navigation.ts`: add the id to `UnifiedSettingsSection`, then a
+   `SETTINGS_SECTION_REGISTRY` entry with `label`, `icon`, and
+   `unified: { id, description, group, order }` (description verb-first, ~40–55 chars,
+   product voice per `.claude/rules/constitution.md`). Set gating flags
+   (`requiresHosted`, `requiresEnterprise`, …) on `unified`, and add `planes` only if the
+   section also exists on a standalone plane.
+2. **Wire the switch.** Register the module in `SECTION_MODULES`
+   (`settings/section-warmers.ts`), then add
+   `const X = dynamic(() => SECTION_MODULES.x().then((m) => m.X))` and its case in the
+   `effectiveSection` switch in `settings/[section]/settings.tsx`.
 3. **Build the body inside `SettingsPanel`** per the rule's canonical page shape:
    `actions`, `search`, `children`, modal siblings in a fragment.
-4. **If the page has editable state**, wire the shared save/discard stack — put
-   `SaveDiscardActions` (dirty-gated Discard+Save chips) in `actions`, and call
-   `useSettingsUnsavedGuard({ isDirty })` **before any early-return gate**.
-   Detail sub-views additionally route the back chip through
-   `guard.guardBack(closeFn)` and render the shared `UnsavedChangesModal`. Never
-   hand-roll a Save button, a `beforeunload`, or an "Unsaved changes" modal —
-   they're centralized. See the "Save / Discard + unsaved-changes guard" section
-   in `.claude/rules/sim-settings-pages.md`.
-5. **Verify:** `cd apps/sim && bun run type-check`; `bunx biome check --write <file>`.
+4. **If the page has editable state**, wire the shared save/discard stack exactly as in
+   `.claude/rules/sim-settings-pages.md` "Save / Discard + unsaved-changes guard"
+   (`saveDiscardActions()`, `useSettingsUnsavedGuard` before any early return).
+5. **Verify:** the local gate in the root `CLAUDE.md` ("How your work is checked").
 
 ## Mode B — Audit existing settings pages
 
 For each page component, confirm the checklist in `.claude/rules/sim-settings-pages.md`:
 
 1. Find hand-rolled shells that should be `SettingsPanel`:
-   `git grep -n "flex h-full flex-col bg-\[var(--bg)\]" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
-   — every match should be either `settings-panel.tsx`, a **detail sub-view**
-   (has a `<Chip leftIcon={ArrowLeft}>` back button), or an entitlement/loading
-   **gate** early-return. Anything else is a page that still needs migrating.
-2. Find hand-rolled title blocks (should be 0 outside detail views):
-   `git grep -n "text-\[var(--text-body)\] text-lg" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
-3. Find literal pixel text sizes (should be 0 — see "Text-scale tokens" in
-   `.claude/rules/sim-settings-pages.md` for the token map and the row
-   title/subtitle pairing convention):
-   `git grep -nE "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/' 'apps/sim/ee/'` — should
-   be 0. Display type above the scale (`text-[40px]` hero headings) is deliberate
-   and out of scope.
-4. Confirm each page imports `SettingsPanel` and that its `NavigationItem` has an
+   `git grep -n "flex h-full flex-col bg-\[var(--bg)\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`
+   — every match should be the settings shell (`settings/layout.tsx`),
+   `CredentialDetailLayout` (the `settings/secrets/[credentialId]` exception), or an
+   entitlement/loading gate. A detail sub-view is never a match: it passes
+   `back={{ text, icon: ArrowLeft, onSelect }}` to `SettingsPanel`. Anything else is a
+   violation: render it through `SettingsPanel`.
+2. Find hand-rolled title blocks (should match only `settings-header.tsx`, the shell):
+   `git grep -n "text-\[var(--text-body)\] text-lg" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`
+3. Find literal pixel text sizes (should be 0 — see "Text Scale" in
+   `.claude/rules/sim-styling.md`):
+   `git grep -nE "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`.
+   Display type above the scale (`text-[40px]` hero headings) is deliberate and out of
+   scope.
+4. Confirm each page imports `SettingsPanel` and that its registry entry has an
    accurate `description` of consistent length with its peers.
-   - Editable pages: confirm Save/Discard go through `SaveDiscardActions` and
+   - Editable pages: confirm Save/Discard go through `saveDiscardActions()` and
      dirty is wired via `useSettingsUnsavedGuard` (called before early-return
      gates) — flag any hand-rolled Save button, `beforeunload`, or unsaved modal.
-     `git grep -n "beforeunload" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
+     `git grep -n "beforeunload" -- 'apps/sim/**/settings/**' 'apps/sim/ee/'`
      should only hit the centralized `use-settings-before-unload.ts`.
-5. When migrating a page, change ONLY the structural shell→`SettingsPanel` swap:
-   move header chips to `actions`, the standalone search to `search`, delete the
-   `<h1>` title block, replace the three closing `</div>` (column/scroll/shell)
-   with `</SettingsPanel>`, and keep modal siblings in a `<>` fragment. Do NOT
-   touch handlers, state, queries, conditional rendering, or detail/gate returns.
-   Drop per-page `gap-*`/`pt-*` on the content column in favor of the panel default.
-6. When fixing literal pixel text sizes, replace ONLY the size class with its
-   exact-pixel-equivalent named token (e.g. `text-[12px]` → `text-caption`,
-   never a different size) — this must render pixel-identical, not restyle the
-   page. Leave color tokens (`--text-primary` vs `--text-body`, etc.) untouched
-   unless they're also being changed for an unrelated, deliberate reason.
-7. Remove now-unused imports (`ChipInput`/`Search`) ONLY after grepping that
-   they are not still used elsewhere in the file (e.g. by a detail view).
-8. **Verify the whole sweep:** `bun run type-check`, `biome check` on every touched
-   file, and run the affected pages' tests. Diff each file against the base and
-   confirm the change is purely structural before shipping.
+5. Fix each finding with the smallest structural change that satisfies the checklist;
+   do not touch handlers, state, queries, or gate returns. A pixel-size fix swaps
+   only the size class for its exact-pixel token (`text-[12px]` → `text-caption`).
+6. **Verify the whole sweep:** the local gate in the root `CLAUDE.md`, plus the
+   affected pages' tests. Diff each file against the base and confirm the change is
+   purely structural before shipping.
 
 ## Mode C — Migrate list rows to `SettingsResourceRow`
 
@@ -91,20 +80,13 @@ contract. Then, per page:
    Every match outside `settings-resource-row.tsx` is either a row to migrate or a
    genuinely different shape (multi-line body, tabular columns, a grid) that stays
    bespoke — decide which, and say so.
-2. Replace the row *and* its wrapper: a `<button>`/`<Link>` around the row becomes
-   `onClick`/`href` on the row itself. Wrapping the row is what the primitive
-   exists to stop — it is also invalid HTML once `trailing` holds a control.
-3. Sort the trailing content: interactive → `trailing`, decorative → `badge`.
-   Getting this backwards makes the row's right edge a dead zone.
-4. Add `navigable` only if the row opens a detail page, and `clickLabel` always.
-5. Drop the container's `-mx-2` — the row now owns the bleed. Use
-   `RESOURCE_LIST_STACK` / `RESOURCE_LIST_GRID`; do not hand-write the gap.
-6. Unlike Mode B, this migration **may** change conditional rendering: a
-   `<button disabled={!can}>` becomes `onClick={can ? … : undefined}` +
-   `navigable={can}`, which renders a plain non-interactive row. Verify the gated
-   state has no clickable affordance left.
-7. Check what the old row rendered *beside* the title (a badge, a timestamp, a
+2. Convert the row and its wrapper per "The resource row" (props, `trailing` vs
+   `badge`, bleed, `navigable`/`clickLabel`). Unlike Mode B, this conversion **may**
+   change conditional rendering (a permission gate becomes
+   `onClick={can ? … : undefined}` + `navigable={can}`); verify the gated state has no
+   clickable affordance left.
+3. Check what the hand-rolled row rendered *beside* the title (a badge, a timestamp, a
    transport label). The row's title truncates as one unit, so anything folded
    into it can be ellipsised away — move it to `description` or `badge`.
-8. Verify: `bun run type-check`, `biome check`, the page's tests, and a diff read of
+4. Verify: the local gate, the page's tests, and a diff read of
    every converted block for lost props, conditions, and `key` placement.
