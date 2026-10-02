@@ -188,4 +188,81 @@ describe('Logger', () => {
       expect(parsed.metadataError).toBe(true)
     })
   })
+
+  describe('wrapped driver errors', () => {
+    const createEnabledLogger = () =>
+      new Logger('Test', { enabled: true, colorize: false, logLevel: LogLevel.DEBUG })
+
+    /** Mirrors Drizzle's `DrizzleQueryError`: SQL plus bound values, wrapping the driver error. */
+    const queryError = (params: string) => {
+      const cause = Object.assign(new Error('canceling statement due to statement timeout'), {
+        name: 'PostgresError',
+        code: '57014',
+      })
+      const error = new Error(
+        `Failed query: select "id" from "user_table_rows" where "table_id" = $1 limit $2\nparams: ${params}`,
+        { cause }
+      )
+      error.name = 'DrizzleQueryError'
+      return error
+    }
+
+    test('names the deepest cause and its code on the line', () => {
+      createEnabledLogger().error('Failed to query rows:', { error: queryError('tbl_1,52') })
+
+      const parsed = JSON.parse(consoleErrorSpy.mock.calls[0][0] as string)
+      expect(parsed.errorCause).toBe('PostgresError: canceling statement due to statement timeout')
+      expect(parsed.errorCode).toBe('57014')
+    })
+
+    test.each([
+      ['an object field', (error: Error) => [{ error }]],
+      ['a bare argument', (error: Error) => [error]],
+    ])('keeps bound values out of the message and stack when passed as %s', (_, args) => {
+      createEnabledLogger().error(
+        'Failed to query rows:',
+        ...args(queryError('alice@example.com,52'))
+      )
+
+      const line = consoleErrorSpy.mock.calls[0][0] as string
+      expect(line).not.toContain('alice@example.com')
+      const parsed = JSON.parse(line)
+      expect(parsed.error).toContain('Failed query: select "id"')
+      expect(parsed.error).toContain('params: [redacted]')
+      expect(parsed.stack).toContain('params: [redacted]')
+      expect(parsed.stack).toMatch(/\n\s+at /)
+    })
+
+    test('keeps bound values out of an error logged under another key', () => {
+      createEnabledLogger().error('Insert failed', { dbError: queryError('alice@example.com') })
+
+      expect(consoleErrorSpy.mock.calls[0][0] as string).not.toContain('alice@example.com')
+    })
+
+    test('keeps bound values out of the exported log record', () => {
+      const emit = vi.fn()
+      const getLoggerSpy = vi
+        .spyOn(logs, 'getLogger')
+        .mockReturnValue({ emit, enabled: () => true })
+      try {
+        createEnabledLogger().error('Failed to query rows:', queryError('alice@example.com'))
+
+        const { attributes } = emit.mock.calls[0][0]
+        expect(JSON.stringify(attributes)).not.toContain('alice@example.com')
+        expect(attributes['error.cause']).toBe(
+          'PostgresError: canceling statement due to statement timeout'
+        )
+      } finally {
+        getLoggerSpy.mockRestore()
+      }
+    })
+
+    test('leaves an unwrapped error without cause fields', () => {
+      createEnabledLogger().error('Request failed', { error: new Error('plain failure') })
+
+      const parsed = JSON.parse(consoleErrorSpy.mock.calls[0][0] as string)
+      expect(parsed.error).toBe('plain failure')
+      expect(parsed).not.toHaveProperty('errorCause')
+    })
+  })
 })

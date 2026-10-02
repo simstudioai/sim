@@ -295,7 +295,10 @@ export async function loadDeployedWorkflowState(
       await resolveWorkspaceId(workflowId, providedWorkspaceId)
     )
   } catch (error) {
-    logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
+    // An undeployed workflow is an outcome each caller handles, not a load failure.
+    if (!(error instanceof NoActiveDeploymentError)) {
+      logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
+    }
     throw error
   }
 }

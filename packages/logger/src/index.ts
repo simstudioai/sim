@@ -5,6 +5,7 @@
  * Provides standardized console logging with environment-aware configuration.
  */
 import { logs, SeverityNumber } from '@opentelemetry/api-logs'
+import { describeError, redactBoundParameters } from '@sim/utils/errors'
 import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import chalk from 'chalk'
 import { getRequestContext, type RequestContext } from './request-context'
@@ -180,6 +181,46 @@ const formatObject = (obj: unknown, isDev: boolean): string => {
   }
 }
 
+interface LoggedError {
+  message: string
+  stack?: string
+  /** `"Name: message"` of the deepest `.cause` link, present only when the error wraps another. */
+  cause?: string
+  code?: string
+}
+
+/**
+ * The fields a log line keeps for an error.
+ *
+ * Drizzle's `DrizzleQueryError` appends `\nparams: <values>` — user data — to
+ * its message, and the stack repeats the message, so both are redacted. The
+ * wrapper's message is only the failing SQL; the reason (a statement timeout, a
+ * constraint violation) lives on the driver error in `.cause`, which no field
+ * would otherwise carry.
+ */
+const toLoggedError = (error: Error): LoggedError => {
+  const message = redactBoundParameters(error.message)
+  const stack =
+    error.stack === undefined || message === error.message
+      ? error.stack
+      : error.stack.includes(error.message)
+        ? error.stack.replace(error.message, () => message)
+        : redactBoundParameters(error.stack)
+  const described = describeError(error)
+  return {
+    message,
+    stack,
+    ...(described.causeChain ? { cause: `${described.name}: ${described.message}` } : {}),
+    ...(described.code ? { code: described.code } : {}),
+  }
+}
+
+/** Adds an error's cause fields to the entry without displacing caller-supplied values. */
+const assignErrorCause = (entry: Record<string, unknown>, logged: LoggedError) => {
+  if (logged.cause !== undefined && entry.errorCause === undefined) entry.errorCause = logged.cause
+  if (logged.code !== undefined && entry.errorCode === undefined) entry.errorCode = logged.code
+}
+
 /**
  * Merges caller-supplied log arguments into the structured entry.
  *
@@ -188,23 +229,27 @@ const formatObject = (obj: unknown, isDev: boolean): string => {
  * is by far the most common call shape, which would otherwise reduce the one
  * field worth reading to an empty object. Errors nested in an object argument
  * are therefore unwrapped like a bare `Error` argument. `error` stays a plain
- * message string so log queries can group on it; richer diagnostics are opt-in
- * via `describeError` from `@sim/utils/errors`.
+ * message string so log queries can group on it; the primary error's deepest
+ * cause and its code go in `errorCause` and `errorCode`.
  */
 const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<string, unknown> => {
   for (const arg of args) {
     if (arg === null || arg === undefined) continue
     if (arg instanceof Error) {
-      entry.error = arg.message
-      entry.stack = arg.stack
+      const logged = toLoggedError(arg)
+      entry.error = logged.message
+      entry.stack = logged.stack
+      assignErrorCause(entry, logged)
     } else if (typeof arg === 'object') {
       const source = arg as Record<string, unknown>
       for (const key of Object.keys(source)) {
         const value = source[key]
         if (value instanceof Error) {
-          entry[key] = value.message
+          const logged = toLoggedError(value)
+          entry[key] = logged.message
           if (key === 'error' && entry.stack === undefined) {
-            entry.stack = value.stack
+            entry.stack = logged.stack
+            assignErrorCause(entry, logged)
           }
         } else {
           entry[key] = value
@@ -585,8 +630,10 @@ function emitOtelLogRecord(
     }
     const firstError = args.find((arg) => arg instanceof Error) as Error | undefined
     if (firstError) {
-      attributes['error.message'] = firstError.message
-      if (firstError.stack) attributes['error.stack'] = firstError.stack
+      const logged = toLoggedError(firstError)
+      attributes['error.message'] = logged.message
+      if (logged.stack) attributes['error.stack'] = logged.stack
+      if (logged.cause) attributes['error.cause'] = logged.cause
     }
     const plainArgs = args.filter((arg) => !(arg instanceof Error))
     if (plainArgs.length > 0) {
