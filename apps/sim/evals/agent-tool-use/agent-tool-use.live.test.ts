@@ -40,6 +40,7 @@ const RECORD = process.env.EVAL_RECORD === '1'
 const TRIALS = Number(process.env.EVAL_TRIALS ?? '3')
 const MIN_PASS_RATE = Number(process.env.EVAL_MIN_PASS_RATE ?? '0')
 const MODEL = process.env.EVAL_MODEL ?? 'deepseek-chat'
+const JUDGE_MODEL = process.env.EVAL_JUDGE_MODEL ?? MODEL
 const TIMEOUT_MS = Number(process.env.EVAL_TIMEOUT_MS ?? '180000')
 const FIXTURES_DIR = fileURLToPath(new URL('./fixtures', import.meta.url))
 
@@ -61,6 +62,7 @@ describe.skipIf(!LIVE)('agent tool-use eval suite (live DeepSeek)', () => {
     '$id: $name',
     async (scenario) => {
       const base = createDeepSeekLiveCompletion(MODEL)
+      const judgeCompletion = scenario.judge ? createDeepSeekLiveCompletion(JUDGE_MODEL) : undefined
       const results: AgentToolUseResult[] = []
 
       for (let trial = 0; trial < TRIALS; trial++) {
@@ -76,6 +78,15 @@ describe.skipIf(!LIVE)('agent tool-use eval suite (live DeepSeek)', () => {
             mode: 'live',
             model: MODEL,
             providerName: 'DeepSeek',
+            ...(scenario.judge && judgeCompletion
+              ? {
+                  judge: {
+                    completion: judgeCompletion,
+                    model: JUDGE_MODEL,
+                    rubric: scenario.judge,
+                  },
+                }
+              : {}),
           })
         )
 

@@ -1,5 +1,8 @@
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { JudgeCriterion, JudgeRubric } from '@/evals/agent-tool-use/types'
 import type { OpenAICompatCreateCompletion } from '@/providers/openai-compat/streaming-tool-loop'
+
+export type { JudgeCriterion, JudgeRubric }
 
 /**
  * LLM-as-judge scoring for open-ended answers.
@@ -10,20 +13,6 @@ import type { OpenAICompatCreateCompletion } from '@/providers/openai-compat/str
  * assert behavior instead of wording. The judge transport is injectable, so a
  * recorded transcript can replay it deterministically in CI.
  */
-
-/** One rubric criterion the judge scores from 0 to 1. */
-export interface JudgeCriterion {
-  id: string
-  description: string
-  /** Relative weight in the weighted score. Default 1. */
-  weight?: number
-}
-
-export interface JudgeRubric {
-  criteria: JudgeCriterion[]
-  /** Weighted score at or above this passes. Default 0.5. */
-  minScore?: number
-}
 
 export interface JudgeInput {
   completion: OpenAICompatCreateCompletion

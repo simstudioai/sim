@@ -68,6 +68,21 @@ export interface AgentToolUseExpectations {
   completesWithoutError?: boolean
 }
 
+/** One rubric criterion an LLM judge scores from 0 to 1. */
+export interface JudgeCriterion {
+  id: string
+  description: string
+  /** Relative weight in the weighted score. Default 1. */
+  weight?: number
+}
+
+/** A rubric the LLM judge scores an answer against. */
+export interface JudgeRubric {
+  criteria: JudgeCriterion[]
+  /** Weighted score at or above this passes. Default 0.5. */
+  minScore?: number
+}
+
 /** A single agent behavior case. */
 export interface AgentToolUseScenario {
   id: string
@@ -84,6 +99,11 @@ export interface AgentToolUseScenario {
    * meaningful once a real model chooses the calls.
    */
   liveExpect?: Partial<AgentToolUseExpectations>
+  /**
+   * Optional LLM-as-judge rubric. Deterministic checks still run; the judge adds
+   * a `judge` check in runs that supply a judge model (the live suite does).
+   */
+  judge?: JudgeRubric
   /**
    * True when the case only makes sense with a scripted model (e.g. it requires
    * the model to emit malformed JSON on demand). Excluded from live runs.

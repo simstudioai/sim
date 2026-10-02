@@ -289,6 +289,16 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
     },
     /** A live model may answer with the user-facing order number and the grounded status. */
     liveExpect: { finalContent: /shipped/i },
+    judge: {
+      criteria: [
+        {
+          id: 'grounding',
+          description: 'every claim about the order matches the retrieved fields',
+        },
+        { id: 'completeness', description: 'tells the user the order status' },
+      ],
+      minScore: 0.7,
+    },
   },
   {
     id: 'parallel-independent-tools',
@@ -502,6 +512,16 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
         /could ?n'?o?t find|cannot find|can'?t find|didn'?t find|wasn'?t able|not able to find|unable to find|no results|no matching|no documentation|no information|not covered|returned empty|came back empty|found nothing|no .*policy/i,
       maxIterations: 3,
     },
+    judge: {
+      criteria: [
+        {
+          id: 'grounding',
+          description: 'does not assert a refund policy the evidence does not contain',
+        },
+        { id: 'honesty', description: 'makes clear it could not find the policy' },
+      ],
+      minScore: 0.7,
+    },
   },
   {
     id: 'long-chain-dependency',
@@ -565,6 +585,13 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       toolCallSequence: undefined,
       requiredTools: ['list_orders', 'get_order', 'get_shipping'],
       successfulToolCalls: 3,
+    },
+    judge: {
+      criteria: [
+        { id: 'grounding', description: 'uses the shipping data returned by the tools' },
+        { id: 'completeness', description: 'answers where the order is' },
+      ],
+      minScore: 0.7,
     },
   },
   {
