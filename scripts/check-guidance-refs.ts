@@ -178,14 +178,15 @@ function importResolves(spec: string, packages: Map<string, WorkspacePackage>): 
   if (!pkg) return false
   if (!pkg.exports) return rest.length === 0 || moduleResolves(pkg.dir, rest.join('/'))
   const subpath = rest.length === 0 ? '.' : `./${rest.join('/')}`
+  // An export key only proves the specifier is declared; the file it maps to must also exist.
   return Object.entries(pkg.exports).some(([key, value]) => {
-    const [head, tail] = key.split('*')
-    if (tail === undefined) return key === subpath
-    if (!subpath.startsWith(head) || !subpath.endsWith(tail)) return false
-    // A wildcard export only proves the pattern; the file it maps to must also exist.
     const target = exportTarget(value)
+    if (target === null) return false
+    const [head, tail] = key.split('*')
+    if (tail === undefined) return key === subpath && moduleResolves(pkg.dir, target)
+    if (!subpath.startsWith(head) || !subpath.endsWith(tail)) return false
     const matched = subpath.slice(head.length, subpath.length - tail.length)
-    return target !== null && moduleResolves(pkg.dir, target.replace('*', matched))
+    return moduleResolves(pkg.dir, target.replace('*', matched))
   })
 }
 
@@ -309,8 +310,18 @@ function auditDocument(relFile: string, workspaces: Workspaces, files: string[])
     for (const match of text.matchAll(MD_LINK)) {
       const target = match[1]
       if (/^(mailto:|#)/.test(target)) continue
-      // A leading `/` in a link is the repo root.
-      checkPath(line, target.replace(/^\//, ''))
+      if (isPlaceholder(target) || /^[a-z]+:\/\//i.test(target)) continue
+      if (target.startsWith('@/') || target.startsWith('@sim/')) {
+        checkPath(line, target)
+        continue
+      }
+      // A link names its destination explicitly, so there is no prose fallback: it resolves from
+      // the repo root (leading `/`) or from the document's own folder.
+      const dest = target.replace(/[#?].*$/, '')
+      const base = dest.startsWith('/') ? ROOT : docDir
+      if (dest && !resolvesFrom(base, dest.replace(/^\//, '').replace(/\/$/, ''))) {
+        report(line, 'path', target)
+      }
     }
 
     const outsideSpans = text.replace(/`[^`\n]*`/g, (span) =>
