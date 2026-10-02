@@ -1,6 +1,5 @@
 'use client'
 
-import { ArrowRight } from '@sim/emcn/icons'
 import type { ForkWorkflowComparison } from '@/lib/api/contracts/workspace-fork'
 import { WorkflowComparisonModal } from '@/app/workspace/[workspaceId]/w/components/workflow-diff'
 import { useDeploymentVersionState } from '@/hooks/queries/workflows'
@@ -35,13 +34,7 @@ export function ForkComparisonModal({
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
-      header={
-        <div className='flex items-center gap-2'>
-          <span>Last Sync</span>
-          <ArrowRight className='size-[14px] text-[var(--text-icon)]' />
-          <span>Now</span>
-        </div>
-      }
+      header='Compare versions'
       baseState={base.data ?? null}
       targetState={target.data ?? null}
       isLoading={base.isLoading || target.isLoading}
