@@ -241,6 +241,81 @@ describe('workspace file version history in PostgreSQL', () => {
     }
   )
 
+  it.each(['legacy', 'nonempty', 'malformed'] as const)(
+    'requires a valid empty legacy snapshot before delivering historical bytes: %s',
+    async (kind) => {
+      const content = 'Historical content whose protection must not be discarded'
+      const fixture = await seedFile(content)
+      await updateWorkspaceFileContent(
+        fixture.workspaceId,
+        fixture.fileId,
+        fixture.aliceId,
+        Buffer.from('current content'),
+        undefined,
+        { version: { source: 'api', authorUserId: fixture.aliceId } }
+      )
+      await db
+        .update(workspaceFileVersion)
+        .set({
+          secretProvenanceStatus: null,
+          secretProvenanceEntries:
+            kind === 'malformed'
+              ? sql`'{}'::jsonb`
+              : kind === 'nonempty'
+                ? [
+                    {
+                      name: 'TOKEN',
+                      encryptedValue: 'fixture-ciphertext',
+                      sourceUserId: fixture.aliceId,
+                    },
+                  ]
+                : [],
+        })
+        .where(
+          and(eq(workspaceFileVersion.fileId, fixture.fileId), eq(workspaceFileVersion.version, 1))
+        )
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: fixture.aliceId,
+        workspaceId: fixture.workspaceId,
+      })
+      const transport = createFileReadTransport({
+        endpoint: 'https://version-fixture.test',
+        userId: fixture.aliceId,
+        registry,
+        invocation: {
+          userId: fixture.aliceId,
+          workspaceId: fixture.workspaceId,
+          chatId: 'version-fixture',
+        },
+        transport: async () => {
+          const result = await downloadWorkspaceFileVersion.execute({
+            principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
+            input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 1 },
+          })
+          return new Response(result.stream, { headers: { 'content-type': result.contentType } })
+        },
+      })
+      const result = await runCli(
+        ['files', 'versions', 'download', fixture.fileId, '1'],
+        {
+          endpoint: 'https://version-fixture.test',
+          apiKey: 'fixture',
+          workspaceId: fixture.workspaceId,
+          transport,
+        },
+        null
+      )
+      if (kind === 'legacy') {
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout).toContain(content)
+      } else {
+        expect(result.exitCode).not.toBe(0)
+        expect(`${result.stdout}${result.stderr}`).not.toContain(content)
+        expect(`${result.stdout}${result.stderr}`).toContain('provenance is unavailable')
+      }
+    }
+  )
+
   it.each(['current', 'historical'] as const)(
     'redacts %s file contents when the real parser includes them in a CLI error',
     async (revision) => {

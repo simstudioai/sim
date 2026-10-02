@@ -663,17 +663,14 @@ const KNOWLEDGE_DOCUMENT_TAG_FIELDS = new Set<KnowledgeDocumentMetadataField>([
   'boolean3',
 ])
 
-function reportUnrecordedFileSources(
-  provenances: ReadonlyMap<string, WorkspaceFileSecretProvenance>,
-  workspaceId: string
-): void {
+function countUnrecordedFileSources(
+  provenances: ReadonlyMap<string, WorkspaceFileSecretProvenance>
+): number {
   let recordCount = 0
   for (const provenance of provenances.values()) {
     if (provenance.status === 'unrecorded') recordCount += 1
   }
-  if (recordCount > 0) {
-    reportDurableSecretProvenanceUnrecorded({ surface: 'workspace-file', workspaceId, recordCount })
-  }
+  return recordCount
 }
 
 function durableSecretProvenanceFromWorkspaceFile(
@@ -2546,7 +2543,7 @@ export async function createDocumentRecords(
   const resolvedDocuments = await resolveServerKnownDocumentSizes(documents)
   const totalBytes = resolvedDocuments.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
   const admission = await resolveDocumentStorageAdmission(knowledgeBaseId, totalBytes)
-  const { returnData, storageNotification } = await db.transaction(async (tx) => {
+  const { returnData, storageNotification, unrecordedCount } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
 
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
@@ -2595,7 +2592,6 @@ export async function createDocumentRecords(
       tx,
       trackedBindings
     )
-    reportUnrecordedFileSources(boundFileProvenanceById, admission.workspaceId)
     for (const [documentIndex, docData] of resolvedDocuments.entries()) {
       const currentSize = getServerKnownDocumentSize(
         docData.fileUrl,
@@ -2742,9 +2738,20 @@ export async function createDocumentRecords(
         .where(eq(knowledgeBase.id, knowledgeBaseId))
     }
 
-    return { returnData, storageNotification }
+    return {
+      returnData,
+      storageNotification,
+      unrecordedCount: countUnrecordedFileSources(boundFileProvenanceById),
+    }
   })
 
+  if (unrecordedCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: admission.workspaceId,
+      recordCount: unrecordedCount,
+    })
+  }
   if (storageNotification) {
     void maybeNotifyStorageLimitForBillingContext(
       storageNotification.context,
@@ -3216,7 +3223,7 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
-  const storageNotification = await db.transaction(async (tx) => {
+  const { storageNotification, unrecordedCount } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
     if (options?.uploadedArtifact) {
       await claimKnowledgeUploadForAttachment(tx, options.uploadedArtifact.cleanupEventId)
@@ -3287,7 +3294,6 @@ export async function createSingleDocument(
       tx,
       provenanceBinding ? [provenanceBinding] : []
     )
-    reportUnrecordedFileSources(boundFileProvenanceById, admission.workspaceId)
     const currentSize = getServerKnownDocumentSize(
       resolvedDocumentData.fileUrl,
       resolvedDocumentData.fileSize,
@@ -3349,9 +3355,19 @@ export async function createSingleDocument(
       })
     }
 
-    return storageNotification
+    return {
+      storageNotification,
+      unrecordedCount: countUnrecordedFileSources(boundFileProvenanceById),
+    }
   })
 
+  if (unrecordedCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: admission.workspaceId,
+      recordCount: unrecordedCount,
+    })
+  }
   if (storageNotification) {
     void maybeNotifyStorageLimitForBillingContext(
       storageNotification.context,

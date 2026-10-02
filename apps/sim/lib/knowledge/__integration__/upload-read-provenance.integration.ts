@@ -3,8 +3,10 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  auditLog,
   copilotChats,
   knowledgeBase,
   organization,
@@ -14,7 +16,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
@@ -33,6 +35,7 @@ import {
   trackChatUpload,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
+  areModelSafeWorkspaceFileKeys,
   filterModelSafeWorkspaceFileAttachments,
   getBoundWorkspaceFileSecretProvenance,
   getBoundWorkspaceFileSecretProvenanceByMetadata,
@@ -125,6 +128,7 @@ beforeAll(() => {
 
 afterAll(async () => {
   for (const ids of fixtures) {
+    await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
@@ -232,6 +236,64 @@ describe('chat upload reads racing with save_upload', () => {
 })
 
 describe('recorded file absence policy', () => {
+  it.each(['keys', 'attachments'] as const)(
+    'records unscoped admitted %s once per canonical workspace',
+    async (boundary) => {
+      const first = await seedUpload({ status: 'unrecorded' })
+      const second = await seedUpload({ status: 'unrecorded' })
+      const sibling = {
+        ...first.file,
+        id: generateId(),
+        key: `${first.file.key}-sibling`,
+        originalName: 'sibling.txt',
+        displayName: 'sibling.txt',
+      }
+      await db.insert(workspaceFiles).values(sibling)
+      await db.transaction((tx) =>
+        replaceWorkspaceFileSecretProvenanceInTx(tx, sibling.id, sibling.contentUpdatedAt, {
+          status: 'unrecorded',
+        })
+      )
+      const files = [first.file, sibling, second.file]
+      if (boundary === 'keys') {
+        expect(await areModelSafeWorkspaceFileKeys(files.map((file) => file.key))).toBe(true)
+      } else {
+        const attachments = files.map((file) => ({ id: file.id, key: file.key }))
+        expect(await filterModelSafeWorkspaceFileAttachments(attachments)).toEqual(attachments)
+      }
+      const query = () =>
+        db
+          .select({ workspaceId: auditLog.workspaceId, metadata: auditLog.metadata })
+          .from(auditLog)
+          .where(
+            and(
+              inArray(auditLog.workspaceId, [first.workspaceId, second.workspaceId]),
+              eq(auditLog.action, AuditAction.SECRET_PROVENANCE_UNRECORDED)
+            )
+          )
+      await expect.poll(query).toHaveLength(2)
+      const rows = await query()
+      expect(rows.find((row) => row.workspaceId === first.workspaceId)?.metadata).toMatchObject({
+        recordCount: 2,
+      })
+      expect(rows.find((row) => row.workspaceId === second.workspaceId)?.metadata).toMatchObject({
+        recordCount: 1,
+      })
+      if (boundary === 'keys') {
+        await db
+          .delete(auditLog)
+          .where(inArray(auditLog.workspaceId, [first.workspaceId, second.workspaceId]))
+        await db.transaction((tx) =>
+          replaceWorkspaceFileSecretProvenanceInTx(tx, sibling.id, sibling.contentUpdatedAt, {
+            status: 'unknown',
+          })
+        )
+        expect(await areModelSafeWorkspaceFileKeys(files.map((file) => file.key))).toBe(false)
+        expect(await query()).toEqual([])
+      }
+    }
+  )
+
   it('keeps valid unrecorded bytes usable across runtime, opaque and attachment boundaries', async () => {
     const ids = await seedUpload({ status: 'unrecorded' })
     const read = await readUpload(ids)

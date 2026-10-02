@@ -125,6 +125,7 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
         reportDurableSecretProvenanceUnrecorded({
           surface: 'workspace-file',
           workspaceId: context.workspaceId,
+          organizationId: context.organizationId,
           actorUserId: context.userId,
         })
       }

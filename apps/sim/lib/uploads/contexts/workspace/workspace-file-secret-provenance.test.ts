@@ -14,6 +14,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
 
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
   reportDurableSecretProvenanceUnrecorded: vi.fn(),
+  reportDurableSecretProvenanceUnrecordedBatch: vi.fn(),
   reportDurableSecretProvenanceWrite: mockReportWrite,
   reportDurableSecretProvenanceRefusal: mockReportRefusal,
 }))

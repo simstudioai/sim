@@ -90,6 +90,7 @@ vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
   reportDurableSecretProvenanceUnrecorded: vi.fn(),
+  reportDurableSecretProvenanceUnrecordedBatch: vi.fn(),
   reportDurableSecretProvenanceWrite: vi.fn(),
   reportDurableSecretProvenanceRefusal: vi.fn(),
 }))

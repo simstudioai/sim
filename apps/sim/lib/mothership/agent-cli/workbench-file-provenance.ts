@@ -97,6 +97,7 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
             reportDurableSecretProvenanceUnrecorded({
               surface: 'workspace-file',
               workspaceId: scope.workspaceId,
+              organizationId: scope.organizationId,
               actorUserId: scope.userId,
             })
           }

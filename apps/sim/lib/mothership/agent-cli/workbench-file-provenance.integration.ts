@@ -1,9 +1,14 @@
 import { createHash } from 'node:crypto'
+import { AuditAction } from '@sim/audit'
+import { db } from '@sim/db'
+import { auditLog, organization, user } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
+import { and, eq } from 'drizzle-orm'
 import Redis from 'ioredis'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildOrgScopeCondition } from '@/lib/audit-logs/query'
 import { initializeSessionFileProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -49,7 +54,7 @@ async function download(provenance: WorkspaceFileSecretProvenance = secret) {
 }
 
 function receiptPrefix(currentScope: {
-  workspaceId: string
+  workspaceId?: string
   organizationId?: string
   userId: string
   sessionKey: string
@@ -98,7 +103,7 @@ afterAll(async () => {
     }
     if (historyKeys.size > 0) await redis.del(...historyKeys)
   } finally {
-    await redis.quit()
+    await Promise.all([redis.quit(), db.$client.end()])
   }
 })
 
@@ -310,6 +315,62 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
       'storage is unavailable'
     )
     expect(() => unavailable.uploadProvenance()).toThrow('has not finished')
+  })
+
+  it('records accepted organization bytes in the owning organization audit scope', async () => {
+    const organizationId = generateShortId()
+    const userId = generateShortId()
+    await db
+      .insert(organization)
+      .values({ id: organizationId, name: 'Receipt audit fixture', slug: organizationId })
+    await db.insert(user).values({
+      id: userId,
+      name: 'Receipt audit actor',
+      email: `${userId}@fixture.test`,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    try {
+      const orgScope = { organizationId, userId, sessionKey: scope.sessionKey }
+      receiptPrefix(orgScope)
+      const invocation = createWorkbenchFileProvenance(orgScope)
+      const stream = body()
+      invocation.trackDownload(stream, { status: 'unrecorded' })
+      expect(await consume(invocation.observeDownload(machine, stream))).toEqual(bytes)
+      const query = (owner: string) =>
+        db
+          .select({
+            workspaceId: auditLog.workspaceId,
+            actorId: auditLog.actorId,
+            metadata: auditLog.metadata,
+          })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.action, AuditAction.SECRET_PROVENANCE_UNRECORDED),
+              buildOrgScopeCondition({
+                organizationId: owner,
+                orgWorkspaceIds: [],
+                orgMemberIds: [userId],
+                includeDeparted: false,
+              })
+            )
+          )
+      await expect.poll(() => query(organizationId)).toHaveLength(1)
+      expect(await query(organizationId)).toEqual([
+        {
+          workspaceId: null,
+          actorId: userId,
+          metadata: { surface: 'workspace-file', organizationId },
+        },
+      ])
+      expect(await query(generateShortId())).toEqual([])
+    } finally {
+      await db.delete(auditLog).where(eq(auditLog.actorId, userId))
+      await db.delete(user).where(eq(user.id, userId))
+      await db.delete(organization).where(eq(organization.id, organizationId))
+    }
   })
 
   it('shares an org chat receipt across explicit targets but never across orgs or chats', async () => {

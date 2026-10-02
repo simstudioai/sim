@@ -16,6 +16,7 @@ import {
 import {
   reportDurableSecretProvenanceRefusal,
   reportDurableSecretProvenanceUnrecorded,
+  reportDurableSecretProvenanceUnrecordedBatch,
   reportDurableSecretProvenanceWrite,
 } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
@@ -390,7 +391,7 @@ function isValidStoredEntries(
   if (
     !Array.isArray(value) ||
     value.length > PROVENANCE_MAX_ENTRIES ||
-    (status === 'unrecorded' && value.length > 0)
+    ((status === null || status === 'unrecorded') && value.length > 0)
   ) {
     return false
   }
@@ -623,8 +624,8 @@ export async function snapshotWorkspaceFileSecretProvenanceInTx(
 export function workspaceFileSecretProvenanceFromSnapshot(
   snapshot: WorkspaceFileSecretProvenanceSnapshot
 ): WorkspaceFileSecretProvenance {
-  if (snapshot.status === null) return EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
   if (!isValidStoredEntries(snapshot.entries, snapshot.status)) return { status: 'unknown' }
+  if (snapshot.status === null) return EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
   if (snapshot.status !== 'exact') return { status: snapshot.status }
   return { status: 'exact', entries: deserializeExactEntriesFromStorage(snapshot.entries) }
 }
@@ -1000,6 +1001,16 @@ function allowUnrecordedWorkspaceFile(
   return true
 }
 
+function reportUnrecordedWorkspaceFileBatch(counts: ReadonlyMap<string | undefined, number>): void {
+  reportDurableSecretProvenanceUnrecordedBatch(
+    Array.from(counts, ([workspaceId, recordCount]) => ({
+      surface: 'workspace-file',
+      workspaceId,
+      recordCount,
+    }))
+  )
+}
+
 /** Reports the canonical file identity without exposing its storage key or contents. */
 function refuseWorkspaceFileProvenance(
   cause:
@@ -1176,7 +1187,7 @@ export async function filterModelSafeWorkspaceFileAttachments<
 
   const rowByKey = new Map(rows.map((row) => [row.key, row]))
   const versionKeys = await findWorkspaceFileVersionKeys(keys.filter((key) => !rowByKey.has(key)))
-  let unrecorded = 0
+  const unrecordedByWorkspace = new Map<string | undefined, number>()
   let refused = 0
   const kept = attachments.filter((attachment) => {
     if (typeof attachment.key !== 'string' || attachment.key.length === 0) return true
@@ -1199,16 +1210,14 @@ export async function filterModelSafeWorkspaceFileAttachments<
       refused += 1
       return false
     }
-    unrecorded += 1
+    const workspaceId = options.workspaceId ?? row.workspaceId ?? undefined
+    unrecordedByWorkspace.set(workspaceId, (unrecordedByWorkspace.get(workspaceId) ?? 0) + 1)
     return true
   })
   if (refused > 0) {
     refuseWorkspaceFileProvenance('workspace-file-provenance-unavailable', options.workspaceId)
   }
-  /** One report for the whole set of attachments, which is one read, rather than one per file. */
-  if (unrecorded > 0) {
-    allowUnrecordedWorkspaceFile(options.workspaceId)
-  }
+  reportUnrecordedWorkspaceFileBatch(unrecordedByWorkspace)
   return kept
 }
 
@@ -1303,7 +1312,7 @@ export async function areModelSafeWorkspaceFileKeys(
     )
   }
 
-  let unrecorded = 0
+  const unrecordedByWorkspace = new Map<string | undefined, number>()
   for (const row of rows) {
     if (
       row.context !== 'workspace' &&
@@ -1319,8 +1328,11 @@ export async function areModelSafeWorkspaceFileKeys(
         options.workspaceId ?? row.workspaceId ?? undefined
       )
     }
-    if (classification === 'unrecorded') unrecorded += 1
+    if (classification === 'unrecorded') {
+      const workspaceId = options.workspaceId ?? row.workspaceId ?? undefined
+      unrecordedByWorkspace.set(workspaceId, (unrecordedByWorkspace.get(workspaceId) ?? 0) + 1)
+    }
   }
-  /** One report for the batch, not one per key: a caller checking many keys is one read. */
-  return unrecorded === 0 || allowUnrecordedWorkspaceFile(options.workspaceId)
+  reportUnrecordedWorkspaceFileBatch(unrecordedByWorkspace)
+  return true
 }
