@@ -24,7 +24,7 @@
  *
  * Run: `bun run check:unused-exports`
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { localBin } from './local-bin'
 
@@ -112,14 +112,23 @@ if (strict.length) {
 
 const current = [...kindByEntry.keys()].sort()
 
+const baseline = new Set<string>(
+  existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : current
+)
+const added = current.filter((entry) => !baseline.has(entry))
+
 if (process.argv.includes('--update')) {
-  writeFileSync(BASELINE, `${JSON.stringify(current, null, 2)}\n`)
-  console.log(`Wrote ${current.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
-  process.exit(strict.length ? 1 : 0)
+  // Shrink-only: drop fixed entries, never admit a new one.
+  const kept = current.filter((entry) => baseline.has(entry))
+  writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
+  console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
+  if (added.length) {
+    console.error(`✗ refused to baseline ${added.length} new unused export(s); fix them instead:`)
+    for (const entry of added) console.error(`  ${entry}`)
+  }
+  process.exit(strict.length || added.length ? 1 : 0)
 }
 
-const baseline = new Set<string>(JSON.parse(readFileSync(BASELINE, 'utf8')))
-const added = current.filter((entry) => !baseline.has(entry))
 const currentSet = new Set(current)
 const stale = [...baseline].filter((entry) => !currentSet.has(entry))
 

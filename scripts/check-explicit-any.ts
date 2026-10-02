@@ -17,7 +17,7 @@
  *
  * Run: `bun run check:explicit-any`
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { localBin } from './local-bin'
 
@@ -56,7 +56,8 @@ function collect(): Baseline {
     ],
     { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
   )
-  if (result.exitCode !== 0) {
+  // Hits are reported as diagnostics, so only a run that produced none counts as a failure.
+  if (result.exitCode !== 0 && !result.stdout.toString().includes('::')) {
     console.error(`biome lint failed:\n${result.stderr.toString()}`)
     process.exit(1)
   }
@@ -86,21 +87,44 @@ function total(counts: Counts): number {
 }
 
 const current = collect()
+const baseline: Baseline = existsSync(BASELINE)
+  ? (JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline)
+  : current
 
-if (process.argv.includes('--update')) {
-  const baseline: Baseline = {
-    explicitAny: sorted(current.explicitAny),
-    nonNullAssertion: sorted(current.nonNullAssertion),
-  }
-  writeFileSync(BASELINE, `${JSON.stringify(baseline, null, 2)}\n`)
-  console.log(
-    `Wrote ${path.relative(ROOT, BASELINE)}: ${total(baseline.explicitAny)} explicit any, ` +
-      `${total(baseline.nonNullAssertion)} non-null assertions`
+/** Per-file counts clamped to the baseline, so an update can only lower them. */
+function shrunkTo(after: Counts, before: Counts): Counts {
+  return Object.fromEntries(
+    Object.entries(after)
+      .map(([file, count]): [string, number] => [file, Math.min(count, before[file] ?? 0)])
+      .filter(([, count]) => count > 0)
   )
-  process.exit(0)
 }
 
-const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline
+if (process.argv.includes('--update')) {
+  const next: Baseline = {
+    explicitAny: sorted(shrunkTo(current.explicitAny, baseline.explicitAny ?? {})),
+    nonNullAssertion: sorted(shrunkTo(current.nonNullAssertion, baseline.nonNullAssertion ?? {})),
+  }
+  writeFileSync(BASELINE, `${JSON.stringify(next, null, 2)}\n`)
+  console.log(
+    `Wrote ${path.relative(ROOT, BASELINE)}: ${total(next.explicitAny)} explicit any, ` +
+      `${total(next.nonNullAssertion)} non-null assertions`
+  )
+  const raised = (Object.keys(METRICS) as Metric[]).flatMap((metric) =>
+    Object.entries(current[metric])
+      .filter(([file, count]) => count > (baseline[metric]?.[file] ?? 0))
+      .map(
+        ([file, count]) =>
+          `  ${metric} ${file}: ${count} (baseline ${baseline[metric]?.[file] ?? 0})`
+      )
+  )
+  if (raised.length) {
+    console.error(`✗ refused to raise the baseline for ${raised.length} file(s); fix them instead:`)
+    console.error(raised.sort().join('\n'))
+  }
+  process.exit(raised.length ? 1 : 0)
+}
+
 let regressed = 0
 let stale = 0
 

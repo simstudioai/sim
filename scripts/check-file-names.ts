@@ -34,7 +34,7 @@
  * Run: `bun run check:file-names`
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
@@ -187,14 +187,23 @@ const violations = sourceFiles().flatMap(check)
 const byKey = new Map(violations.map((violation) => [key(violation), violation]))
 const current = [...byKey.keys()].sort()
 
+const baseline = new Set<string>(
+  existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : current
+)
+const added = current.filter((entry) => !baseline.has(entry))
+
 if (process.argv.includes('--update')) {
-  writeFileSync(BASELINE, `${JSON.stringify(current, null, 2)}\n`)
-  console.log(`Wrote ${current.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
-  process.exit(0)
+  // Shrink-only: drop fixed entries, never admit a new one.
+  const kept = current.filter((entry) => baseline.has(entry))
+  writeFileSync(BASELINE, `${JSON.stringify(kept, null, 2)}\n`)
+  console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
+  for (const entry of added) {
+    const violation = byKey.get(entry) as Violation
+    console.error(`✗ not baselined — rename: ${violation.file} → ${violation.expected}`)
+  }
+  process.exit(added.length ? 1 : 0)
 }
 
-const baseline = new Set<string>(JSON.parse(readFileSync(BASELINE, 'utf8')))
-const added = current.filter((entry) => !baseline.has(entry))
 const currentSet = new Set(current)
 const stale = [...baseline].filter((entry) => !currentSet.has(entry))
 
