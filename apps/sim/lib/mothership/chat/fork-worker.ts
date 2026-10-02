@@ -50,8 +50,9 @@ export async function copyWorkerConversation(request: ForkChatRequest): Promise<
       })
       if (response.ok) outcome = { kind: 'receipt', body: await response.json() }
       else {
-        await response.body?.cancel()
         outcome = { kind: 'status', status: response.status }
+        // Releasing the unread error body is best effort; the status is already the answer.
+        await response.body?.cancel().catch(() => undefined)
       }
     } catch (error) {
       // fetch reports a refused or dropped connection, including mid-body, as a TypeError.

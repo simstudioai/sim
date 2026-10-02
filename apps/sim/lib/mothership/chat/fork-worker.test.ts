@@ -15,8 +15,6 @@ import type { ForkChatRequest } from '@/lib/mothership/generated/protocol'
 vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
-const fetchWorker = mothershipGoFetchMockFns.mockFetchGo
-
 const request: ForkChatRequest = {
   sourceChatId: generateId(),
   newChatId: generateId(),
@@ -28,39 +26,64 @@ const request: ForkChatRequest = {
   fileKeys: {},
 }
 
+type Answer = () => Promise<Response>
+
+/** A fake worker: it records every fork request it receives and answers from a script. */
+let received: unknown[] = []
+let script: Answer[] = []
+const receipt: Answer = async () =>
+  Response.json({ chatId: request.newChatId, sourceThroughSeq: 7 })
+
+function answer(...answers: Answer[]) {
+  script = answers
+}
+
+const status =
+  (code: number, body: BodyInit | null = ''): Answer =>
+  async () =>
+    new Response(body, { status: code })
+
 beforeEach(() => {
   mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('http://worker.test')
-  fetchWorker.mockReset()
-  fetchWorker.mockImplementation(async () =>
-    Response.json({ chatId: request.newChatId, sourceThroughSeq: 7 })
+  received = []
+  script = []
+  mothershipGoFetchMockFns.mockFetchGo.mockReset()
+  mothershipGoFetchMockFns.mockFetchGo.mockImplementation(
+    async (_url: string, init: { body: string }) => {
+      received.push(JSON.parse(init.body))
+      return (script.shift() ?? receipt)()
+    }
   )
 })
 
 it.each(['lost-response', 'temporary-error'])(
   'retries the same immutable fork after %s',
   async (failure) => {
-    if (failure === 'lost-response')
-      fetchWorker.mockRejectedValueOnce(new TypeError('Connection ended'))
-    else fetchWorker.mockResolvedValueOnce(new Response('', { status: 503 }))
+    answer(
+      failure === 'lost-response'
+        ? async () => {
+            throw new TypeError('Connection ended')
+          }
+        : status(503)
+    )
     await copyWorkerConversation(request)
-    expect(fetchWorker).toHaveBeenCalledTimes(2)
-    expect(fetchWorker.mock.calls[0][1].body).toBe(fetchWorker.mock.calls[1][1].body)
-    expect(JSON.parse(fetchWorker.mock.calls[1][1].body)).toEqual(request)
+    expect(received).toEqual([request, request])
   }
 )
 
 it.each(['missing-receipt', 'wrong-chat', 'unavailable'])(
   'refuses an unconfirmed copy: %s',
   async (failure) => {
-    fetchWorker.mockImplementation(async () => {
+    const reply: Answer = async () => {
       if (failure === 'unavailable') throw new TypeError('Worker unavailable')
       return Response.json(
         failure === 'wrong-chat' ? { chatId: generateId(), sourceThroughSeq: 7 } : { ok: true }
       )
-    })
+    }
+    answer(reply, reply)
     await expect(copyWorkerConversation(request)).rejects.toThrow()
     // Only the unreachable worker may never have seen the request; an answer is final.
-    expect(fetchWorker).toHaveBeenCalledTimes(failure === 'unavailable' ? 2 : 1)
+    expect(received).toHaveLength(failure === 'unavailable' ? 2 : 1)
   }
 )
 
@@ -68,28 +91,43 @@ it.each([
   [404, 'not_found'],
   [409, 'conflict'],
   [413, 'payload_too_large'],
-] as const)('classifies a worker %i refusal as %s without retrying it', async (status, code) => {
-  fetchWorker.mockResolvedValue(Response.json({ error: 'refused' }, { status }))
+] as const)('classifies a worker %i refusal as %s without retrying it', async (code, kind) => {
+  answer(status(code, JSON.stringify({ error: 'refused' })), receipt)
   const failure = await copyWorkerConversation(request).catch((error: unknown) => error)
-  expect(asOrchestrationError(failure)?.code).toBe(code)
-  expect(fetchWorker).toHaveBeenCalledTimes(1)
+  expect(asOrchestrationError(failure)?.code).toBe(kind)
+  expect(received).toHaveLength(1)
 })
 
-it.each([500, 400])('does not repeat a fork the worker failed with %i', async (status) => {
-  fetchWorker.mockResolvedValue(new Response('', { status }))
+it('classifies a refusal whose body fails to cancel', async () => {
+  const body = new ReadableStream({
+    cancel() {
+      throw new TypeError('Body already closed')
+    },
+  })
+  answer(status(404, body), receipt)
   const failure = await copyWorkerConversation(request).catch((error: unknown) => error)
+  expect(asOrchestrationError(failure)?.code).toBe('not_found')
+  expect(received).toHaveLength(1)
+})
+
+it.each([500, 400])('does not repeat a fork the worker failed with %i', async (code) => {
+  answer(status(code), receipt)
+  const failure = await copyWorkerConversation(request).catch((error: unknown) => error)
+  expect(failure).toBeInstanceOf(Error)
   expect(asOrchestrationError(failure)).toBeNull()
-  expect(fetchWorker).toHaveBeenCalledTimes(1)
+  expect(received).toHaveLength(1)
 })
 
-it.each([502, 504])('retries a %i gateway failure once', async (status) => {
-  fetchWorker.mockResolvedValueOnce(new Response('', { status }))
+it.each([502, 504])('retries a %i gateway failure once', async (code) => {
+  answer(status(code))
   await copyWorkerConversation(request)
-  expect(fetchWorker).toHaveBeenCalledTimes(2)
+  expect(received).toEqual([request, request])
 })
 
 it('does not start a second copy while a timed-out one may still be running', async () => {
-  fetchWorker.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
+  answer(async () => {
+    throw new DOMException('The operation timed out.', 'TimeoutError')
+  }, receipt)
   await expect(copyWorkerConversation(request)).rejects.toThrow()
-  expect(fetchWorker).toHaveBeenCalledTimes(1)
+  expect(received).toHaveLength(1)
 })
