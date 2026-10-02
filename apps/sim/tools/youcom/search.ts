@@ -218,12 +218,12 @@ export const youComSearchTool: ToolConfig<YouComSearchParams, YouComSearchRespon
       items: {
         type: 'object',
         properties: {
-          url: { type: 'string', description: 'URL of the result', optional: true },
-          title: { type: 'string', description: 'Title of the result', optional: true },
+          url: { type: 'string', description: 'URL of the result', nullable: true },
+          title: { type: 'string', description: 'Title of the result', nullable: true },
           description: {
             type: 'string',
             description: 'Brief description of the result',
-            optional: true,
+            nullable: true,
           },
           snippets: {
             type: 'array',
@@ -231,23 +231,23 @@ export const youComSearchTool: ToolConfig<YouComSearchParams, YouComSearchRespon
               'Short keyword-centered fragments (omitted when highlights extraction is used)',
             items: { type: 'string' },
           },
-          thumbnailUrl: { type: 'string', description: 'Thumbnail URL', optional: true },
+          thumbnailUrl: { type: 'string', description: 'Thumbnail URL', nullable: true },
           faviconUrl: {
             type: 'string',
             description: "Favicon URL of the result's domain",
-            optional: true,
+            nullable: true,
           },
-          pageAge: { type: 'string', description: 'Age of the result', optional: true },
+          pageAge: { type: 'string', description: 'Age of the result', nullable: true },
           highlights: {
             type: 'array',
             description: 'Query-relevant passages (highlights extraction only)',
             items: { type: 'string' },
           },
-          html: { type: 'string', description: 'Full page HTML (full_page only)', optional: true },
+          html: { type: 'string', description: 'Full page HTML (full_page only)', nullable: true },
           markdown: {
             type: 'string',
             description: 'Full page Markdown (full_page only)',
-            optional: true,
+            nullable: true,
           },
         },
       },
@@ -258,20 +258,20 @@ export const youComSearchTool: ToolConfig<YouComSearchParams, YouComSearchRespon
       items: {
         type: 'object',
         properties: {
-          url: { type: 'string', description: 'URL of the article', optional: true },
-          title: { type: 'string', description: 'Title of the article', optional: true },
+          url: { type: 'string', description: 'URL of the article', nullable: true },
+          title: { type: 'string', description: 'Title of the article', nullable: true },
           description: {
             type: 'string',
             description: 'Brief description of the article',
-            optional: true,
+            nullable: true,
           },
-          thumbnailUrl: { type: 'string', description: 'Thumbnail URL', optional: true },
-          pageAge: { type: 'string', description: 'UTC publication timestamp', optional: true },
-          html: { type: 'string', description: 'Full page HTML (full_page only)', optional: true },
+          thumbnailUrl: { type: 'string', description: 'Thumbnail URL', nullable: true },
+          pageAge: { type: 'string', description: 'UTC publication timestamp', nullable: true },
+          html: { type: 'string', description: 'Full page HTML (full_page only)', nullable: true },
           markdown: {
             type: 'string',
             description: 'Full page Markdown (full_page only)',
-            optional: true,
+            nullable: true,
           },
         },
       },
@@ -287,12 +287,12 @@ export const youComSearchTool: ToolConfig<YouComSearchParams, YouComSearchRespon
           description: {
             type: 'string',
             description: 'Knowledge drawn from licensed data',
-            optional: true,
+            nullable: true,
           },
           asOf: {
             type: 'string',
             description: 'Date the data covers (YYYY-MM-DD)',
-            optional: true,
+            nullable: true,
           },
           attribution: {
             type: 'array',
@@ -304,7 +304,7 @@ export const youComSearchTool: ToolConfig<YouComSearchParams, YouComSearchRespon
                 sourceDescription: {
                   type: 'string',
                   description: 'Description of the provider',
-                  optional: true,
+                  nullable: true,
                 },
               },
             },
@@ -312,8 +312,8 @@ export const youComSearchTool: ToolConfig<YouComSearchParams, YouComSearchRespon
         },
       },
     },
-    searchUuid: { type: 'string', description: 'Unique ID of the search', optional: true },
-    query: { type: 'string', description: 'Query used to retrieve the results', optional: true },
-    latency: { type: 'number', description: 'Search latency in seconds', optional: true },
+    searchUuid: { type: 'string', description: 'Unique ID of the search', nullable: true },
+    query: { type: 'string', description: 'Query used to retrieve the results', nullable: true },
+    latency: { type: 'number', description: 'Search latency in seconds', nullable: true },
   },
 }

@@ -1,5 +1,5 @@
 import { toStringOrNull } from '@sim/utils/coerce'
-import { toArray, toRecordOrNull } from '@sim/utils/object'
+import { toRecordOrNull } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
 import type { YouComGetContentsParams, YouComGetContentsResponse } from '@/tools/youcom/types'
 import {
@@ -69,11 +69,14 @@ export const youComGetContentsTool: ToolConfig<YouComGetContentsParams, YouComGe
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
+      if (!Array.isArray(data)) {
+        throw new Error('Unexpected You.com Contents response: expected an array of pages')
+      }
 
       return {
         success: true,
         output: {
-          pages: toArray(data).map((item) => {
+          pages: data.map((item) => {
             const page = toRecordOrNull(item) ?? {}
             const metadata = toRecordOrNull(page.metadata) ?? {}
             return {
@@ -96,23 +99,23 @@ export const youComGetContentsTool: ToolConfig<YouComGetContentsParams, YouComGe
         items: {
           type: 'object',
           properties: {
-            url: { type: 'string', description: 'URL of the fetched page', optional: true },
-            title: { type: 'string', description: 'Title of the page', optional: true },
-            html: { type: 'string', description: 'Page HTML (html format)', optional: true },
+            url: { type: 'string', description: 'URL of the fetched page', nullable: true },
+            title: { type: 'string', description: 'Title of the page', nullable: true },
+            html: { type: 'string', description: 'Page HTML (html format)', nullable: true },
             markdown: {
               type: 'string',
               description: 'Page Markdown (markdown format)',
-              optional: true,
+              nullable: true,
             },
             siteName: {
               type: 'string',
               description: 'OpenGraph site name (metadata format)',
-              optional: true,
+              nullable: true,
             },
             faviconUrl: {
               type: 'string',
               description: "Favicon URL of the page's domain (metadata format)",
-              optional: true,
+              nullable: true,
             },
           },
         },

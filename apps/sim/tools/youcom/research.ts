@@ -130,30 +130,30 @@ export const youComResearchTool: ToolConfig<YouComResearchParams, YouComResearch
   },
 
   outputs: {
-    content: { ...RESEARCH_CONTENT_OUTPUT, optional: true },
-    contentType: { ...RESEARCH_CONTENT_TYPE_OUTPUT, optional: true },
+    content: { ...RESEARCH_CONTENT_OUTPUT, nullable: true },
+    contentType: { ...RESEARCH_CONTENT_TYPE_OUTPUT, nullable: true },
     sources: RESEARCH_SOURCES_OUTPUT,
     warnings: RESEARCH_WARNINGS_OUTPUT,
     taskId: {
       type: 'string',
       description: 'Background task ID to pass to Get Research Task (background only)',
-      optional: true,
+      nullable: true,
     },
     status: {
       type: 'string',
       description:
         'Background task status: queued, running, completed, failed, or cancelled (background only)',
-      optional: true,
+      nullable: true,
     },
     streamUrl: {
       type: 'string',
       description: 'URL path of the task progress event stream (background only)',
-      optional: true,
+      nullable: true,
     },
     createdAt: {
       type: 'string',
       description: 'When the background task was created, RFC 3339 (background only)',
-      optional: true,
+      nullable: true,
     },
   },
 }

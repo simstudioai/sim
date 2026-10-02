@@ -78,23 +78,23 @@ export const youComSearchImagesTool: ToolConfig<
       items: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: 'Title of the image result', optional: true },
+          title: { type: 'string', description: 'Title of the image result', nullable: true },
           pageUrl: {
             type: 'string',
             description: 'URL of the page containing the image',
-            optional: true,
+            nullable: true,
           },
-          imageUrl: { type: 'string', description: 'Direct URL to the image', optional: true },
-          thumbnail: { type: 'string', description: 'Proxy-hosted thumbnail URL', optional: true },
+          imageUrl: { type: 'string', description: 'Direct URL to the image', nullable: true },
+          thumbnail: { type: 'string', description: 'Proxy-hosted thumbnail URL', nullable: true },
           largeThumbnail: {
             type: 'string',
             description: 'Larger resized image URL; fall back to thumbnail or imageUrl if it fails',
-            optional: true,
+            nullable: true,
           },
         },
       },
     },
-    query: { type: 'string', description: 'Query that was submitted', optional: true },
-    searchUuid: { type: 'string', description: 'Unique ID of the search', optional: true },
+    query: { type: 'string', description: 'Query that was submitted', nullable: true },
+    searchUuid: { type: 'string', description: 'Unique ID of the search', nullable: true },
   },
 }

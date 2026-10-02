@@ -90,7 +90,7 @@ export const RESEARCH_SOURCES_OUTPUT = {
     type: 'object',
     properties: {
       url: { type: 'string', description: 'URL of the source webpage' },
-      title: { type: 'string', description: 'Title of the source webpage', optional: true },
+      title: { type: 'string', description: 'Title of the source webpage', nullable: true },
       snippets: {
         type: 'array',
         description: 'Excerpts from the source used to generate the answer',

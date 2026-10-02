@@ -89,18 +89,18 @@ export const youComGetResearchTaskTool: ToolConfig<
     updatedAt: {
       type: 'string',
       description: 'When the task was last updated, RFC 3339',
-      optional: true,
+      nullable: true,
     },
     completedAt: {
       type: 'string',
       description: 'When the task reached a terminal status, RFC 3339',
-      optional: true,
+      nullable: true,
     },
-    error: { type: 'string', description: 'Diagnostic message when failed', optional: true },
+    error: { type: 'string', description: 'Diagnostic message when failed', nullable: true },
     taskInput: {
       type: 'json',
       description: 'Original request parameters submitted for the task',
-      optional: true,
+      nullable: true,
       properties: {
         input: { type: 'string', description: 'Research question that was submitted' },
         researchEffort: { type: 'string', description: 'Research effort level submitted' },
@@ -108,12 +108,12 @@ export const youComGetResearchTaskTool: ToolConfig<
         outputSchema: {
           type: 'json',
           description: 'Structured output schema submitted',
-          optional: true,
+          nullable: true,
         },
         sourceControl: {
           type: 'json',
           description: 'Source control configuration submitted',
-          optional: true,
+          nullable: true,
         },
         type: { type: 'string', description: 'Task type (research)' },
       },
@@ -121,9 +121,9 @@ export const youComGetResearchTaskTool: ToolConfig<
     content: {
       ...RESEARCH_CONTENT_OUTPUT,
       description: `${RESEARCH_CONTENT_OUTPUT.description} (completed only)`,
-      optional: true,
+      nullable: true,
     },
-    contentType: { ...RESEARCH_CONTENT_TYPE_OUTPUT, optional: true },
+    contentType: { ...RESEARCH_CONTENT_TYPE_OUTPUT, nullable: true },
     sources: RESEARCH_SOURCES_OUTPUT,
     warnings: RESEARCH_WARNINGS_OUTPUT,
   },
