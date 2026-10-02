@@ -106,6 +106,8 @@ const ANSWER_LANGUAGE_IDS = new Set(
   ANSWER_LANGUAGE_OPTIONS.map((option) => option.id).filter((id) => id !== '')
 )
 
+const FINANCE_RESEARCH_EFFORTS = new Set(['deep', 'exhaustive'])
+
 const SEARCH_ONLY_LANGUAGES = [
   { label: 'Chinese (Simplified)', id: 'ZH-HANS' },
   { label: 'Chinese (Traditional)', id: 'ZH-HANT' },
@@ -163,16 +165,14 @@ export const YouComBlock: BlockConfig = {
           { text: ', within', field: 'includeDomains' },
         ],
         [GET_CONTENTS]: [{ text: 'Read page contents from', field: 'urls', core: true }],
-        [ANSWER]: [{ text: 'Answer', field: 'question', after: 'with cited sources', core: true }],
+        [ANSWER]: [{ text: 'Answer', field: 'query', after: 'with cited sources', core: true }],
         [RESEARCH]: [
           { text: 'Research', field: 'input', core: true },
           { text: 'at', field: 'researchEffort', after: 'effort' },
         ],
         [GET_RESEARCH_TASK]: [{ text: 'Check research task', field: 'taskId', core: true }],
-        [FINANCE_RESEARCH]: [
-          { text: 'Research financial question', field: 'financeInput', core: true },
-        ],
-        [SEARCH_IMAGES]: [{ text: 'Find images of', field: 'imageQuery', core: true }],
+        [FINANCE_RESEARCH]: [{ text: 'Research financial question', field: 'input', core: true }],
+        [SEARCH_IMAGES]: [{ text: 'Find images of', field: 'query', core: true }],
         [GET_ACCOUNT_BALANCE]: ['Get remaining API credit balance'],
       },
     },
@@ -203,7 +203,7 @@ export const YouComBlock: BlockConfig = {
       required: true,
     },
     {
-      id: 'question',
+      id: 'query',
       title: 'Question',
       type: 'long-input',
       placeholder: 'Enter your question',
@@ -211,7 +211,7 @@ export const YouComBlock: BlockConfig = {
       required: true,
     },
     {
-      id: 'imageQuery',
+      id: 'query',
       title: 'Image Query',
       type: 'long-input',
       placeholder: 'Enter what to find images of (supports site: and filetype:)',
@@ -348,7 +348,7 @@ export const YouComBlock: BlockConfig = {
       required: true,
     },
     {
-      id: 'financeInput',
+      id: 'input',
       title: 'Financial Question',
       type: 'long-input',
       placeholder: 'e.g., What drove NVIDIA revenue growth in fiscal 2025?',
@@ -356,7 +356,7 @@ export const YouComBlock: BlockConfig = {
       required: true,
     },
     {
-      id: 'financeResearchEffort',
+      id: 'researchEffort',
       title: 'Research Effort',
       type: 'dropdown',
       options: [
@@ -416,7 +416,7 @@ export const YouComBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'answerLanguage',
+      id: 'language',
       title: 'Language',
       type: 'dropdown',
       options: ANSWER_LANGUAGE_OPTIONS,
@@ -510,19 +510,20 @@ export const YouComBlock: BlockConfig = {
         const maxAge = toOptionalNumber(params.maxAge)
         if (maxAge !== undefined) result.maxAge = maxAge
 
-        // Agent tool calls run this over LLM args too, so fall back to the tool param names
-        if (params.operation === ANSWER) {
-          result.query = params.question ?? params.query
-          // Hidden advanced fields still serialize; keep Search-only languages (JA) out of Answer
-          const language = params.answerLanguage || params.language
-          result.language = ANSWER_LANGUAGE_IDS.has(language) ? language : undefined
+        // Operations share field ids, so a value set under one operation can carry over to
+        // another. Drop values the active endpoint rejects so it falls back to its default.
+        if (
+          params.operation === ANSWER &&
+          params.language &&
+          !ANSWER_LANGUAGE_IDS.has(params.language)
+        ) {
+          result.language = undefined
         }
-        if (params.operation === SEARCH_IMAGES) result.query = params.imageQuery ?? params.query
-        if (params.operation === FINANCE_RESEARCH) {
-          result.input = params.financeInput ?? params.input
-          if (params.financeResearchEffort) result.researchEffort = params.financeResearchEffort
+        const isFinanceEffort = FINANCE_RESEARCH_EFFORTS.has(params.researchEffort)
+        if (params.operation === FINANCE_RESEARCH && params.researchEffort && !isFinanceEffort) {
+          result.researchEffort = undefined
         }
-        const effort = result.researchEffort ?? params.researchEffort
+        const effort = 'researchEffort' in result ? result.researchEffort : params.researchEffort
         const isSyncResearch =
           params.operation === FINANCE_RESEARCH ||
           (params.operation === RESEARCH && params.background !== true && effort !== 'frontier')
@@ -535,28 +536,23 @@ export const YouComBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'You.com API key' },
-    query: { type: 'string', description: 'Search query' },
-    question: { type: 'string', description: 'Question to answer' },
-    imageQuery: { type: 'string', description: 'Image search query' },
+    query: { type: 'string', description: 'Search query, question, or image query' },
     extractionMode: { type: 'string', description: 'Per-result content: highlights or full_page' },
     extractionFormats: { type: 'json', description: 'Full page formats: markdown, html' },
     extractionSource: { type: 'string', description: 'Full page source: blend, cache, or fetch' },
     urls: { type: 'string', description: 'Comma-separated URLs to fetch' },
     formats: { type: 'json', description: 'Content formats: markdown, html, metadata' },
     maxAge: { type: 'number', description: 'Maximum cached content age in seconds' },
-    input: { type: 'string', description: 'Research question' },
-    financeInput: { type: 'string', description: 'Financial research question' },
+    input: { type: 'string', description: 'Research or financial research question' },
     researchEffort: { type: 'string', description: 'Research effort level' },
     outputSchema: { type: 'json', description: 'JSON Schema for structured research output' },
     background: { type: 'boolean', description: 'Run research as a background task' },
     taskId: { type: 'string', description: 'Background research task ID' },
-    financeResearchEffort: { type: 'string', description: 'Finance research effort level' },
     count: { type: 'number', description: 'Maximum number of results' },
     offset: { type: 'number', description: 'Search page offset' },
     freshness: { type: 'string', description: 'Result recency or date range' },
     country: { type: 'string', description: 'Two-letter country code' },
-    language: { type: 'string', description: 'Search result language' },
-    answerLanguage: { type: 'string', description: 'Answer result language' },
+    language: { type: 'string', description: 'Result language' },
     safesearch: { type: 'string', description: 'Safe search level' },
     includeDomains: { type: 'string', description: 'Domains to restrict results to' },
     excludeDomains: { type: 'string', description: 'Domains to exclude' },
