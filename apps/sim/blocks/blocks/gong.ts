@@ -194,7 +194,6 @@ export const GongBlock: BlockConfig<GongResponse> = {
       value: () => 'list_calls',
     },
 
-    // Create Call inputs
     {
       id: 'clientUniqueId',
       title: 'Client Unique ID',
@@ -314,7 +313,6 @@ Return ONLY the JSON array - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
     },
 
-    // List Calls inputs
     {
       id: 'fromDateTime',
       title: 'From Date/Time',
@@ -365,7 +363,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       },
     },
 
-    // Get Call inputs
     {
       id: 'callId',
       title: 'Call ID',
@@ -375,7 +372,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       required: { field: 'operation', value: 'get_call' },
     },
 
-    // Get Call Transcript / Get Extensive Calls inputs
     {
       id: 'callIds',
       title: 'Call IDs',
@@ -446,7 +442,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       },
     },
 
-    // List Users inputs
     {
       id: 'includeAvatars',
       title: 'Include Avatars',
@@ -460,7 +455,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // Get User inputs
     {
       id: 'userId',
       title: 'User ID',
@@ -470,7 +464,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       required: { field: 'operation', value: 'get_user' },
     },
 
-    // Aggregate Activity & Interaction Stats inputs
     {
       id: 'statsFromDate',
       title: 'From Date',
@@ -568,7 +561,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       },
     },
 
-    // Aggregate by Period inputs
     {
       id: 'aggregationPeriod',
       title: 'Aggregation Period',
@@ -585,7 +577,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       required: { field: 'operation', value: 'aggregate_by_period' },
     },
 
-    // Answered Scorecards inputs
     {
       id: 'callFromDate',
       title: 'Call From Date',
@@ -682,7 +673,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       },
     },
 
-    // Get Folder Content inputs
     {
       id: 'folderId',
       title: 'Folder ID',
@@ -691,7 +681,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       condition: { field: 'operation', value: 'get_folder_content' },
     },
 
-    // Workspace ID (shared by multiple operations)
     {
       id: 'workspaceId',
       title: 'Workspace ID',
@@ -712,7 +701,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // List Flows inputs
     {
       id: 'flowOwnerEmail',
       title: 'Flow Owner Email',
@@ -722,7 +710,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       required: { field: 'operation', value: 'list_flows' },
     },
 
-    // Assign Flow Prospects / Get Prospect Flows inputs
     {
       id: 'flowId',
       title: 'Flow ID',
@@ -777,7 +764,6 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       required: { field: 'operation', value: 'assign_flow_prospects' },
     },
 
-    // Get Coaching inputs
     {
       id: 'managerId',
       title: 'Manager ID',
@@ -837,7 +823,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       },
     },
 
-    // Ask Anything / Get Brief inputs
     {
       id: 'entityWorkspaceId',
       title: 'Workspace ID',
@@ -957,7 +942,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       },
     },
 
-    // Get Logs inputs
     {
       id: 'logType',
       title: 'Log Type',
@@ -1008,7 +992,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       },
     },
 
-    // Lookup Email / Purge Email Address inputs
     {
       id: 'emailAddress',
       title: 'Email Address',
@@ -1018,7 +1001,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       required: { field: 'operation', value: ['lookup_email', 'purge_email_address'] },
     },
 
-    // Lookup Phone / Purge Phone Number inputs
     {
       id: 'phoneNumber',
       title: 'Phone Number',
@@ -1028,7 +1010,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       required: { field: 'operation', value: ['lookup_phone', 'purge_phone_number'] },
     },
 
-    // Pagination cursor (shared)
     {
       id: 'cursor',
       title: 'Cursor',
@@ -1053,7 +1034,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       mode: 'advanced',
     },
 
-    // API credentials
     {
       id: 'accessKey',
       title: 'Access Key',

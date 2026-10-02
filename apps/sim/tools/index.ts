@@ -399,8 +399,8 @@ async function resolveToolEnvReferences(
   // what lets a caller pass a real secret in the same field.
   //
   // Models improvise reference syntax: after `{{NAME}}`, the bare variable name
-  // is the common fallback — it previously went upstream as the literal
-  // credential and failed with an undiagnosable 401. So under
+  // is the common fallback, and sent upstream as the literal credential it
+  // fails with an undiagnosable 401. So under
   // `explicit-and-bare` a bare name is a reference too, but only when a variable
   // by that exact name exists (`soft`), since plenty of real API keys match the
   // identifier pattern. `$NAME` is deliberately NOT a reference — real
@@ -565,7 +565,6 @@ async function injectHostedKeyIfNeeded(
 
   const { workspaceId, userId, workflowId } = resolveToolScope(params, executionContext)
 
-  // Check BYOK workspace key first
   if (byokProviderId && workspaceId) {
     try {
       const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId)
@@ -619,7 +618,6 @@ async function injectHostedKeyIfNeeded(
     )
   }
 
-  // Handle no keys configured (503)
   if (!acquireResult.success) {
     logger.error(`[${requestId}] No hosted keys configured for ${tool.id}: ${acquireResult.error}`)
     throw new HostedKeyUnavailableError(
@@ -799,7 +797,6 @@ async function executeWithRetry<T>(
 
       const delayMs = backoffWithJitter(attempt + 1, null, { baseMs: baseDelayMs })
 
-      // Track throttling event via telemetry
       PlatformEvents.hostedKeyRateLimited({
         toolId,
         envVarName,
@@ -1706,7 +1703,6 @@ async function executeToolImplementation(
       resolvedSecretTraceRegistry:
         nestedOptions.resolvedSecretTraceRegistry ?? resolvedSecretTraceRegistry,
     })
-  // Capture start time for precise timing
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
   const requestId = generateRequestId()
@@ -1821,7 +1817,6 @@ async function executeToolImplementation(
         effectiveSignal
       )
     } else {
-      // For built-in tools, use the synchronous version
       tool = getTool(normalizedToolId)
       if (!tool) {
         logger.error(`[${requestId}] Built-in tool not found: ${normalizedToolId}`)
@@ -1832,7 +1827,6 @@ async function executeToolImplementation(
       tool = projectAssistantConnectedAccountTool(tool)
     }
 
-    // Ensure context is preserved if it exists
     const contextParams = { ...params }
     for (const paramId of tool?.oauth?.authoritativeParams ?? []) {
       contextParams[paramId] = undefined
@@ -1844,10 +1838,8 @@ async function executeToolImplementation(
       }
     }
 
-    // Validate the tool and its parameters
     validateRequiredParametersAfterMerge(toolId, tool, contextParams)
 
-    // After validation, we know tool exists
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
     }
@@ -1857,7 +1849,6 @@ async function executeToolImplementation(
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
     await resolveToolEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
 
-    // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(
       tool,
       contextParams,
@@ -1873,7 +1864,6 @@ async function executeToolImplementation(
       }
     }
 
-    // If we have a credential parameter, fetch the access token
     if (contextParams.oauthCredential) {
       contextParams.credential = contextParams.oauthCredential
     }
@@ -2025,7 +2015,6 @@ async function executeToolImplementation(
         if (workflowId) {
           ;(contextParams as any)._workflowId = workflowId
         }
-        // Clean up params we don't need to pass to the actual tool
         contextParams.credential = undefined
         contextParams.impersonateUserEmail = undefined
         if (contextParams.workflowId) contextParams.workflowId = undefined
@@ -2043,10 +2032,9 @@ async function executeToolImplementation(
     // dynamic executor import in the tool descriptor itself would break the client
     // build — and with it `getTool('workflow_executor')`).
     // Workflow-as-agent-tool runs in-process through WorkflowBlockHandler —
-    // the same invocation boundary canvas child workflows use. Replaces the
-    // historical HTTP hop to /api/workflows/{id}/execute (double admission
-    // slot + duplicate top-level log row); billing/observability now match the
-    // canvas workflow block.
+    // the same invocation boundary canvas child workflows use — so it takes one
+    // admission slot and one top-level log row, and billing/observability match
+    // the canvas workflow block.
     if (normalizedToolId === 'workflow_executor') {
       logger.info(`[${requestId}] Running workflow tool ${toolId} in-process`)
       const { runWorkflowTool } = await import('@/executor/handlers/workflow/workflow-tool-runner')
@@ -2195,7 +2183,6 @@ async function executeToolImplementation(
       }
     }
 
-    // Wrap external requests with hosted-key retry and reacquisition.
     const result = hostedKeyInfo.isUsingHostedKey
       ? await executeWithRetry(
           () =>
@@ -2245,7 +2232,6 @@ async function executeToolImplementation(
           resolvedSecretTraceRegistry
         )
 
-    // Apply post-processing if available and not skipped
     let finalResult = result
     if (tool.postProcess && result.success && !skipPostProcess) {
       try {
@@ -2276,7 +2262,6 @@ async function executeToolImplementation(
       effectiveSignal
     )
 
-    // Add timing data to the result
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
@@ -2337,7 +2322,6 @@ async function executeToolImplementation(
       })
     }
 
-    // Default error handling
     let errorMessage = 'Unknown error occurred'
     let errorDetails = {}
 
@@ -2360,7 +2344,6 @@ async function executeToolImplementation(
     } else if (typeof error === 'string') {
       errorMessage = error
     } else if (error && typeof error === 'object') {
-      // Handle HTTP response errors
       if (error.status) {
         errorMessage = `HTTP ${error.status}: ${error.statusText || 'Request failed'}`
 
@@ -2383,13 +2366,10 @@ async function executeToolImplementation(
           statusText: error.statusText,
           data: error.data,
         }
-      }
-      // Handle other errors with messages
-      else if (error.message) {
+      } else if (error.message) {
         // Don't pass along "undefined (undefined)" messages
         if (error.message === 'undefined (undefined)') {
           errorMessage = `Error executing tool ${toolId}`
-          // Add status if available
           if (error.status) {
             errorMessage += ` (Status: ${error.status})`
           }
@@ -2403,7 +2383,6 @@ async function executeToolImplementation(
       }
     }
 
-    // Add timing data even for errors
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
@@ -2442,7 +2421,6 @@ function isErrorResponse(
   response: Response | any,
   data?: any
 ): { isError: boolean; errorInfo?: { status?: number; statusText?: string; data?: any } } {
-  // HTTP Response object
   if (response && typeof response === 'object' && 'ok' in response) {
     if (!response.ok) {
       return {
@@ -2457,7 +2435,6 @@ function isErrorResponse(
     return { isError: false }
   }
 
-  // ToolResponse object
   if (response && typeof response === 'object' && 'success' in response) {
     return {
       isError: !response.success,
@@ -2465,7 +2442,6 @@ function isErrorResponse(
     }
   }
 
-  // Check for error indicators in data
   if (data && typeof data === 'object') {
     if (data.error || data.success === false) {
       return {
@@ -2836,10 +2812,8 @@ async function executeToolRequest(
       }
     }
 
-    // Check request body size before sending to detect potential size limit issues
     validateRequestBodySize(requestParams.body, requestId, toolId)
 
-    // Convert Headers to plain object for secureFetchWithPinnedIP
     const headersRecord: Record<string, string> = {}
     headers.forEach((value, key) => {
       headersRecord[key] = value
@@ -3071,11 +3045,9 @@ async function executeToolRequest(
       }
     }
 
-    // Check for error conditions
     const { isError, errorInfo } = isErrorResponse(response, responseData)
 
     if (isError) {
-      // Handle error case
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
 
       logger.error(
@@ -3097,7 +3069,6 @@ async function executeToolRequest(
       throw errorToTransform
     }
 
-    // Success case: use transformResponse if available
     if (tool.transformResponse) {
       try {
         // Forward the real body stream. Some transformResponse helpers (e.g. TikTok)
@@ -3159,7 +3130,6 @@ async function executeToolRequest(
       }
     }
 
-    // Default success response handling
     return {
       success: true,
       output: responseData.output || responseData,
@@ -3168,7 +3138,6 @@ async function executeToolRequest(
   } catch (error: any) {
     handleResponseSizeLimitError(error, requestId, toolId)
 
-    // Check if this is a body size limit error and throw user-friendly message
     handleBodySizeLimitError(
       error,
       requestId,
@@ -3190,7 +3159,6 @@ async function executeToolRequest(
       )
     )
 
-    // Let the error bubble up to be handled in the main executeTool function
     throw error
   }
 }
@@ -3210,7 +3178,6 @@ function validateClientSideParams(
     throw new Error('Invalid schema format')
   }
 
-  // Internal parameters that should be excluded from validation
   const internalParamSet = new Set([
     '_context',
     '_toolSchema',
@@ -3221,7 +3188,6 @@ function validateClientSideParams(
     'blockNameMapping',
   ])
 
-  // Check required parameters
   if (schema.required) {
     for (const requiredParam of schema.required) {
       if (!(requiredParam in params)) {
@@ -3230,9 +3196,7 @@ function validateClientSideParams(
     }
   }
 
-  // Check parameter types (basic validation)
   for (const [paramName, paramValue] of Object.entries(params)) {
-    // Skip validation for internal parameters
     if (internalParamSet.has(paramName)) {
       continue
     }
@@ -3242,7 +3206,6 @@ function validateClientSideParams(
       throw new Error(`Unknown parameter: ${paramName}`)
     }
 
-    // Basic type checking
     const type = paramSchema.type
     if (type === 'string' && typeof paramValue !== 'string') {
       throw new Error(`Parameter ${paramName} should be a string`)

@@ -32,7 +32,6 @@ export interface MessageContent {
  * Mapping of MIME types to content types
  */
 export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 'video'> = {
-  // Images
   'image/jpeg': 'image',
   'image/jpg': 'image',
   'image/png': 'image',
@@ -47,7 +46,6 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 
   'image/x-icon': 'image',
   'image/vnd.microsoft.icon': 'image',
 
-  // Documents
   'application/pdf': 'document',
   'text/plain': 'document',
   'text/csv': 'document',
@@ -64,7 +62,6 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 
   'text/markdown': 'document',
   'application/rtf': 'document',
 
-  // Audio
   'audio/mpeg': 'audio', // .mp3
   'audio/mp3': 'audio',
   'audio/mp4': 'audio', // .m4a
@@ -82,7 +79,6 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 
   'audio/x-aac': 'audio',
   'audio/opus': 'audio',
 
-  // Video
   'video/mp4': 'video',
   'video/mpeg': 'video',
   'video/quicktime': 'video', // .mov
@@ -301,7 +297,6 @@ export function buildArchiveExtractGuidance(name: string): string {
 }
 
 const EXTENSION_TO_MIME: Record<string, string> = {
-  // Images
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',
@@ -316,7 +311,6 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   avif: 'image/avif',
   ico: 'image/x-icon',
 
-  // Documents
   pdf: 'application/pdf',
   txt: 'text/plain',
   csv: 'text/csv',
@@ -335,11 +329,9 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   yml: 'application/x-yaml',
   rtf: 'application/rtf',
 
-  // Archives
   zip: 'application/zip',
   gz: 'application/gzip',
 
-  // Code / plain-text source
   py: 'text/x-python',
   js: 'text/javascript',
   mjs: 'text/javascript',
@@ -382,7 +374,6 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   gql: 'text/x-graphql',
   proto: 'text/x-protobuf',
 
-  // Audio
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
   wav: 'audio/wav',
@@ -392,7 +383,6 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   aac: 'audio/aac',
   opus: 'audio/opus',
 
-  // Video
   mp4: 'video/mp4',
   mov: 'video/quicktime',
   avi: 'video/x-msvideo',
@@ -525,7 +515,6 @@ export function isAbortError(error: unknown): boolean {
 }
 
 const MIME_TO_EXTENSION: Record<string, string> = {
-  // Images
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
   'image/png': 'png',
@@ -540,7 +529,6 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'image/x-icon': 'ico',
   'image/vnd.microsoft.icon': 'ico',
 
-  // Documents
   'application/pdf': 'pdf',
   'text/plain': 'txt',
   'text/csv': 'csv',
@@ -557,7 +545,6 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'text/markdown': 'md',
   'application/rtf': 'rtf',
 
-  // Audio
   'audio/mpeg': 'mp3',
   'audio/mp3': 'mp3',
   'audio/mp4': 'm4a',
@@ -575,7 +562,6 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'audio/x-aac': 'aac',
   'audio/opus': 'opus',
 
-  // Video
   'video/mp4': 'mp4',
   'video/mpeg': 'mpg',
   'video/quicktime': 'mov',
@@ -585,7 +571,6 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'video/x-matroska': 'mkv',
   'video/webm': 'webm',
 
-  // Archives
   'application/zip': 'zip',
   'application/x-zip-compressed': 'zip',
   'application/gzip': 'gz',
@@ -657,7 +642,6 @@ export function validateKnowledgeBaseFile(
     return `File "${file.name}" is too large. Maximum size is ${maxSizeMB}MB.`
   }
 
-  // Check MIME type first
   if (ACCEPTED_FILE_TYPES.includes(file.type)) {
     return null
   }
@@ -1052,16 +1036,11 @@ export function processFilesToUserFiles(
 export function sanitizeFilenameForMetadata(filename: string): string {
   return (
     filename
-      // Remove non-ASCII characters (keep only printable ASCII 0x20-0x7E)
       .replace(/[^\x20-\x7E]/g, '')
       // Remove characters that are problematic in HTTP headers
       .replace(/["\\]/g, '')
-      // Replace multiple spaces with single space
       .replace(/\s+/g, ' ')
-      // Trim whitespace
-      .trim() ||
-    // Provide fallback if completely sanitized
-    'file'
+      .trim() || 'file'
   )
 }
 
