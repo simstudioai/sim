@@ -100,7 +100,13 @@ async function completeManagedMcpCallback(params: {
     throw error
   }
   if (!attempt) {
-    return htmlClose('Invalid or expired authorization state.', false, 'invalid_state')
+    return htmlClose(
+      'Invalid or expired authorization state.',
+      false,
+      'invalid_state',
+      undefined,
+      params.state
+    )
   }
   const failureRedirect = (oauth: CredentialGroupOAuthFailure) =>
     attempt.completionId
@@ -110,7 +116,30 @@ async function completeManagedMcpCallback(params: {
           attempt.returnTo === 'integrations' ? attempt.organizationId : undefined
         )
       : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth })
-  if (params.error) return failureRedirect('denied')
+  if (params.error) {
+    const errorCode = [
+      'invalid_request',
+      'unauthorized_client',
+      'access_denied',
+      'unsupported_response_type',
+      'invalid_scope',
+      'server_error',
+      'temporarily_unavailable',
+    ].includes(params.error)
+      ? params.error
+      : 'unknown'
+    logger.warn('Managed MCP authorization returned a provider error', {
+      phase: 'provider_authorization',
+      errorCode,
+    })
+    return failureRedirect(
+      errorCode === 'access_denied'
+        ? 'denied'
+        : errorCode === 'server_error' || errorCode === 'temporarily_unavailable'
+          ? 'provider_unavailable'
+          : 'failed'
+    )
+  }
   if (!params.code) {
     return failureRedirect('failed')
   }
