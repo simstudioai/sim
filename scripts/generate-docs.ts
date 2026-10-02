@@ -2238,6 +2238,8 @@ function extractSpreadBase(blockContent: string): string | null {
 /**
  * Operations a block inherits by spreading a same-file block's fields array
  * (`subBlocks: [...NotionBlock.subBlocks, ...]`) rather than the whole config.
+ * Only a plain spread counts: a transformed one (`...XBlock.subBlocks.map(...)`) may rewrite the
+ * operations, so it falls through to the block's own `tools.access`.
  */
 function extractSpreadSubBlocksOperations(
   blockContent: string,
@@ -2245,7 +2247,7 @@ function extractSpreadSubBlocksOperations(
 ): { label: string; id: string }[] {
   if (!fileContent) return []
   const declarations = blockDeclarations(fileContent)
-  for (const match of blockContent.matchAll(/\.\.\.(\w+Block)\.subBlocks\b/g)) {
+  for (const match of blockContent.matchAll(/\.\.\.(\w+Block)\.subBlocks\s*[,\]]/g)) {
     const declaration = declarations.find((candidate) => candidate.name === match[1])
     const operations = declaration ? extractOperationsFromContent(declaration.content) : []
     if (operations.length > 0) return operations
@@ -2354,7 +2356,7 @@ function extractBlockConfigFromContent(
     }
 
     const ownOperations = extractOperationsFromContent(blockContent)
-    const baseOperations: { label: string; id: string }[] = (baseConfig as any)?.operations ?? []
+    const baseOperations = baseConfig?.operations ?? []
     const operations =
       ownOperations.length > 0
         ? ownOperations
