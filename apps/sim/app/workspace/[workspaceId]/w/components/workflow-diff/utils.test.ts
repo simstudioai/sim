@@ -107,30 +107,35 @@ describe('structured field rendering', () => {
     expect(toDiffText([1])).not.toBe(toDiffText(['1']))
   })
 
-  it('masks declared tool password fields without projecting away other tool data', () => {
-    declareSubBlocks({
-      convex: [
-        { id: 'deployKey', type: 'short-input', password: true },
-        { id: 'secretAccess', type: 'dropdown' },
-      ],
-    })
-    const tools = [
-      {
-        type: 'convex',
-        customToolId: 'tool-a',
-        params: { deployKey: 'private', secretAccess: 'none', query: 'ok' },
-      },
-    ]
-    const rendered = toDiffText(tools, 'agent', 'tools')
-    expect(rendered).not.toContain('private')
-    expect(JSON.parse(rendered)).toEqual([
-      {
-        type: 'convex',
-        customToolId: 'tool-a',
-        params: { deployKey: '•••', secretAccess: 'none', query: 'ok' },
-      },
-    ])
-  })
+  it.each([false, true])(
+    'masks declared tool passwords without discarding other params (encoded: %s)',
+    (encoded) => {
+      declareSubBlocks({
+        convex: [
+          { id: 'deployKey', type: 'short-input', password: true },
+          { id: 'secretAccess', type: 'dropdown' },
+        ],
+      })
+      const stored = (params: Record<string, unknown>) =>
+        encoded ? JSON.stringify(params) : params
+      const tools = [
+        {
+          type: 'convex',
+          customToolId: 'tool-a',
+          params: stored({ deployKey: 'private', secretAccess: 'none', query: 'ok' }),
+        },
+      ]
+      const rendered = toDiffText(tools, 'agent', 'tools')
+      expect(rendered).not.toContain('private')
+      expect(JSON.parse(rendered)).toEqual([
+        {
+          type: 'convex',
+          customToolId: 'tool-a',
+          params: stored({ deployKey: '•••', secretAccess: 'none', query: 'ok' }),
+        },
+      ])
+    }
+  )
 
   it('masks nested secrets in objects, encoded JSON and table cells', () => {
     const value = {

@@ -193,7 +193,7 @@ function isSecretKey(key: string): boolean {
  * Tool params persist structured values as JSON strings, so a header map with
  * an Authorization entry arrives encoded; decode, mask and re-encode it.
  */
-function maskEncodedSecrets(value: string): string {
+function maskEncodedSecrets(value: string, blockType?: string): string {
   const trimmed = value.trimStart()
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return value
   let parsed: unknown
@@ -203,7 +203,7 @@ function maskEncodedSecrets(value: string): string {
     return value
   }
   if (parsed === null || typeof parsed !== 'object') return value
-  const masked = maskSecretsDeep(parsed)
+  const masked = maskSecretsDeep(parsed, blockType)
   return JSON.stringify(masked) === JSON.stringify(parsed) ? value : JSON.stringify(masked)
 }
 
@@ -214,7 +214,7 @@ function maskEncodedSecrets(value: string): string {
  */
 export function maskSecretsDeep(value: unknown, blockType?: string): unknown {
   if (Array.isArray(value)) return value.map((entry) => maskSecretsDeep(entry))
-  if (typeof value === 'string') return maskEncodedSecrets(value)
+  if (typeof value === 'string') return maskEncodedSecrets(value, blockType)
   if (value === null || typeof value !== 'object') return value
   let record = value as Record<string, unknown>
   const cells = record.cells
