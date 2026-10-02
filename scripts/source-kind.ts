@@ -2,13 +2,13 @@
 const DIRECTIVE_STATEMENT = /^(['"])(use [a-z-]+)\1\s*;?$/
 
 /**
- * The directive a single source line states, e.g. `use client`, or null. A note may follow the
- * directive on the same line, so a trailing `//` or `/* *\/` comment comes off before matching.
+ * The directive a single source line states, e.g. `use client`, or null. Notes may sit on the same
+ * line, so `//` and inline `/* *\/` comments come off before matching.
  */
 export function directiveOn(line: string): string | null {
   const statement = line
-    .trim()
-    .replace(/(?:\/\/.*|\/\*.*?\*\/)\s*$/, '')
+    .replace(/\/\*.*?\*\//g, '')
+    .replace(/\/\/.*$/, '')
     .trim()
   return DIRECTIVE_STATEMENT.exec(statement)?.[2] ?? null
 }

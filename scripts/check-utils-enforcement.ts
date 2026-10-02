@@ -4,7 +4,8 @@
  *
  * Most patterns point at an `@sim/utils` helper (CLAUDE.md "Common utilities"). A few encode
  * render-path rules from `.claude/rules/sim-react-performance.md` and `sim-styling.md` that no
- * linter covers: ES2023 array methods that Safari 15 lacks, `useRef(new X())` allocating on
+ * linter covers: ES2023 array methods that Safari 15 lacks (banned everywhere, since whether a
+ * module reaches the browser is not visible from its path and a copy-then-sort costs the same), `useRef(new X())` allocating on
  * every render, and `h-N w-N` where `size-N` is the convention.
  *
  * Biome's noRestrictedImports covers the import-based bans it lists — today `nanoid` and
@@ -18,7 +19,6 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { leadingDirective } from './source-kind'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
@@ -43,25 +43,6 @@ const ALLOWLISTED_FILES = new Set([
   'packages/testing/src/factories/id.ts',
 ])
 
-/** App Router files Next only ever evaluates on the server, plus `*.server.ts` modules. */
-const SERVER_ONLY_FILE =
-  /\/(?:route|sitemap|robots|manifest)\.[jt]sx?$|\/(?:opengraph-image|twitter-image|icon|apple-icon)\.[^/]+$|\.server\.[jt]sx?$/
-
-/**
- * Files that ship to the browser: client directories plus any `'use client'` module. Server-only
- * code (route handlers, metadata routes, tests) may use Node 20+ runtime methods freely.
- */
-function isClientRenderPath(rel: string, content: string): boolean {
-  if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(rel) || /\/app\/api\//.test(rel)) return false
-  if (SERVER_ONLY_FILE.test(rel)) return false
-  return (
-    /^apps\/sim\/(app|components|hooks|stores)\//.test(rel) ||
-    /^apps\/docs\/(app|components)\//.test(rel) ||
-    /^packages\/(emcn|workflow-renderer)\/src\//.test(rel) ||
-    leadingDirective(content) === 'use client'
-  )
-}
-
 /** `s.slice(0, n)` plus a suffix, by `+` or in a template literal; `\1` is `s` and `\2` is `n`. */
 const TRUNCATED = String.raw`(?:\`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^\`$]*\`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))`
 /** Literal gate for both truncate patterns, whose backreferences are slow over every file. */
@@ -75,7 +56,6 @@ const BANNED_PATTERNS: Array<{
   description: string
   suggestion: string
   /** Restricts the pattern to matching files; unrestricted patterns apply everywhere. */
-  appliesTo?: (rel: string, content: string) => boolean
   /** Cheap literal test that skips the pattern on files that cannot match; memoized per file. */
   prefilter?: RegExp
 }> = [
@@ -167,9 +147,9 @@ const BANNED_PATTERNS: Array<{
   // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
   {
     pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(|\.with\(\s*-?\d+\s*,/g,
-    description: 'ES2023 array method in browser code (throws on Safari/iOS 15)',
+    description:
+      'ES2023 array method (throws on Safari/iOS 15 wherever the module reaches the browser)',
     suggestion: 'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice()',
-    appliesTo: isClientRenderPath,
   },
   {
     pattern: /\buseRef(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*new\s+[A-Z]\w*/g,
@@ -288,8 +268,7 @@ async function main() {
     }> = []
 
     const prefilterHits = new Map<RegExp, boolean>()
-    for (const { pattern, description, suggestion, appliesTo, prefilter } of BANNED_PATTERNS) {
-      if (appliesTo && !appliesTo(rel, content)) continue
+    for (const { pattern, description, suggestion, prefilter } of BANNED_PATTERNS) {
       if (prefilter) {
         let hit = prefilterHits.get(prefilter)
         if (hit === undefined) {

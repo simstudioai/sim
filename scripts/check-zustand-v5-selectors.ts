@@ -317,9 +317,11 @@ function auditPersist(file: string, source: string): Violation[] {
     if (closeParenIndex === -1) continue
     const call = source.slice(openParenIndex + 1, closeParenIndex)
     const hasPartialize = /\bpartialize\b/.test(call)
-    const spreadsState = /\bpartialize\s*:\s*\(?\s*(\w+)[^)]*\)?\s*=>\s*\(\s*\{\s*\.\.\.\1\b/.test(
-      call
-    )
+    /** `(s) => s`, `(s) => ({ ...s })`, or a block body returning either: the whole state persists. */
+    const spreadsState =
+      /\bpartialize\s*:\s*\(?\s*(\w+)[^)]*\)?\s*=>\s*(?:\1\b(?!\s*[.[])|\(\s*\{\s*\.\.\.\1\b|\{[^}]*\breturn\s+(?:\1\b(?!\s*[.[])|\{\s*\.\.\.\1\b))/.test(
+        call
+      )
     if (hasPartialize && !spreadsState) continue
     violations.push({
       file,
