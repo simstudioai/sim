@@ -16,6 +16,7 @@ import {
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, desc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
@@ -100,6 +101,7 @@ import {
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
+import { normalizeDisplaySegment } from '@/lib/vfs/path'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
@@ -1577,13 +1579,21 @@ export function parseChatUploadReference(fileReference: string): string | null {
 /**
  * Display names are unique per chat. Mothership supplies that namespace; callers
  * without a chat scope retain the workspace-wide newest-name lookup.
+ *
+ * `name` is in VFS display form ({@link normalizeDisplaySegment}), since that is what the
+ * upload notice's path encodes, while the stored name keeps the uploaded spelling (a macOS
+ * screenshot carries U+202F before AM/PM). The query narrows to names that, composed and
+ * stripped of control characters, hold each of `name`'s words in order — a superset of the
+ * exact match, which then compares the stored name in display form.
  */
 async function getChatUploadByName(
   workspaceId: string,
   name: string,
   chatId?: string
 ): Promise<WorkspaceFileRecord | null> {
-  const [file] = await db
+  const storedName = sql<string>`coalesce(${workspaceFiles.displayName}, ${workspaceFiles.originalName})`
+  const wordsInOrder = `%${name.split(' ').map(escapeLikePattern).join('%')}%`
+  const candidates = await db
     .select()
     .from(workspaceFiles)
     .where(
@@ -1591,16 +1601,15 @@ async function getChatUploadByName(
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.context, 'mothership'),
         chatId === undefined ? undefined : eq(workspaceFiles.chatId, chatId),
-        or(
-          eq(workspaceFiles.displayName, name),
-          and(isNull(workspaceFiles.displayName), eq(workspaceFiles.originalName, name))
-        ),
+        sql`regexp_replace(normalize(${storedName}, NFC), '[\\x01-\\x1f\\x7f]', '', 'g') LIKE ${wordsInOrder} ESCAPE '\\'`,
         isNull(workspaceFiles.deletedAt)
       )
     )
     .orderBy(desc(workspaceFiles.uploadedAt))
-    .limit(1)
 
+  const file = candidates.find(
+    (candidate) => normalizeDisplaySegment(candidate.displayName ?? candidate.originalName) === name
+  )
   return file ? mapChatUploadRecord(file, workspaceId) : null
 }
 

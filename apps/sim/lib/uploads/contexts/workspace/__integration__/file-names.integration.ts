@@ -1,10 +1,13 @@
-/** Real PostgreSQL name allocation and name lookups for workspace files, plus the URL fetch path. */
+/**
+ * Real PostgreSQL name allocation and name lookups for workspace files and chat uploads, plus the
+ * URL fetch path.
+ */
 import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db, dbFor } from '@sim/db'
-import { organization, user, workspace, workspaceFiles } from '@sim/db/schema'
+import { copilotChats, organization, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -29,8 +32,12 @@ import {
   workspaceFileNameFolderCondition,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
+  generateWorkspaceFileKey,
   getWorkspaceFileByName,
+  resolveWorkspaceFileReference,
+  trackChatUpload,
   uploadWorkspaceFile,
+  workspaceFileVfsPath,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 
@@ -64,6 +71,19 @@ describe('workspace file names in PostgreSQL', () => {
       folderId,
       notifyWorkspaceChange: false,
     })
+  }
+
+  async function seedChat(workspaceId: string, userId: string) {
+    const chatId = generateId()
+    await db.insert(copilotChats).values({ id: chatId, userId, workspaceId, type: 'mothership' })
+    return chatId
+  }
+
+  async function trackUpload(workspaceId: string, userId: string, chatId: string, name: string) {
+    const key = generateWorkspaceFileKey(workspaceId, name)
+    await trackChatUpload(workspaceId, userId, chatId, key, name, 'image/png', 10)
+    const [row] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.key, key))
+    return row
   }
 
   async function parseExternalUrl(executionId?: string) {
@@ -193,5 +213,73 @@ describe('workspace file names in PostgreSQL', () => {
     const names = concurrent.map((file) => file.name)
     for (const name of names) expect(name).toMatch(shortIdSuffixed)
     expect(new Set([next.name, ...names]).size).toBe(names.length + 1)
+  })
+
+  it('resolves a chat upload by the path its upload notice prints when the name is not in VFS form', async () => {
+    const fixture = await seedWorkspace()
+    const chatId = await seedChat(fixture.workspaceId, fixture.aliceId)
+    const otherChatId = await seedChat(fixture.workspaceId, fixture.aliceId)
+    // macOS screenshot names carry U+202F before AM/PM, pasted names keep doubled spaces, some
+    // pickers report decomposed (NFD) accents, and control characters drop out of VFS names.
+    const names = [
+      'Screenshot 2026-01-15 at 9.41.07\u202fAM.png',
+      'Quarterly  Report.pdf',
+      'Cafe\u0301 menu.png',
+      'ring\u0007ing.png',
+    ]
+    for (const name of names) {
+      const row = await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, name)
+      const noticePath = workspaceFileVfsPath({ folderPath: null, name, vfsNamespace: 'uploads' })
+      for (const reference of [noticePath, `uploads/${name}`]) {
+        for (const options of [{ chatId }, {}]) {
+          const record = await resolveWorkspaceFileReference(fixture.workspaceId, reference, {
+            includeChatUploads: true,
+            ...options,
+          })
+          expect(record?.id).toBe(row.id)
+          expect(record?.name).toBe(name)
+        }
+      }
+      expect(
+        await resolveWorkspaceFileReference(fixture.workspaceId, noticePath, {
+          includeChatUploads: true,
+          chatId: otherChatId,
+        })
+      ).toBeNull()
+    }
+  })
+
+  it('matches a chat upload name exactly, never as a pattern or a fragment', async () => {
+    const fixture = await seedWorkspace()
+    const chatId = await seedChat(fixture.workspaceId, fixture.aliceId)
+    await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'axb.png')
+    await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'my notes.png.bak')
+    await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'notes 100%.png')
+    await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'back\\slash.png')
+
+    for (const reference of ['uploads/a_b.png', 'uploads/notes.png', 'uploads/notes%20%25.png']) {
+      expect(
+        await resolveWorkspaceFileReference(fixture.workspaceId, reference, {
+          includeChatUploads: true,
+          chatId,
+        })
+      ).toBeNull()
+    }
+    expect(
+      (
+        await resolveWorkspaceFileReference(fixture.workspaceId, 'uploads/notes%20100%25.png', {
+          includeChatUploads: true,
+          chatId,
+        })
+      )?.name
+    ).toBe('notes 100%.png')
+    expect(
+      (
+        await resolveWorkspaceFileReference(fixture.workspaceId, 'uploads/back%5Cslash.png', {
+          includeChatUploads: true,
+          chatId,
+        })
+      )?.name
+    ).toBe('back\\slash.png')
   })
 })

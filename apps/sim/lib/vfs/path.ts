@@ -8,7 +8,11 @@ export class VfsPathError extends Error {
   }
 }
 
-function normalizeDisplaySegment(segment: string): string {
+/**
+ * The display form every VFS path segment is built from and decoded to: NFC, trimmed,
+ * control characters removed, and each whitespace run (including U+202F) one space.
+ */
+export function normalizeDisplaySegment(segment: string): string {
   return segment.normalize('NFC').trim().replace(CONTROL_CHARS, '').replace(WHITESPACE, ' ')
 }
 
