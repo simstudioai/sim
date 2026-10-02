@@ -63,9 +63,34 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { directiveOn, leadingDirective } from './source-kind'
 
 const ROOT = path.resolve(import.meta.dir, '..')
+
+/** A lone directive statement, e.g. `'use server'` or `"use client";`. */
+const DIRECTIVE_STATEMENT = /^(['"])(use [a-z-]+)\1\s*;?$/
+
+/**
+ * The directive a single source line states, e.g. `use client`, or null. Notes may sit on the same
+ * line, so `//` and inline `/* *\/` comments come off before matching.
+ */
+function directiveOn(line: string): string | null {
+  const statement = line
+    .replace(/\/\*.*?\*\//g, '')
+    .replace(/\/\/.*$/, '')
+    .trim()
+  return DIRECTIVE_STATEMENT.exec(statement)?.[2] ?? null
+}
+
+/** Comments and whitespace ahead of a module's first statement. */
+const LEADING_COMMENTS = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*/
+
+/**
+ * The module's leading directive prologue, if any. A directive must be the first statement;
+ * comments and blank lines may precede it.
+ */
+function leadingDirective(content: string): string | null {
+  return directiveOn(content.replace(LEADING_COMMENTS, '').split('\n', 1)[0])
+}
 const APP_DIR = path.join(ROOT, 'apps/sim')
 /** Everything Next compiles into the app's module graph. */
 const DIRECTIVE_SCAN_DIRS = [path.join(ROOT, 'apps'), path.join(ROOT, 'packages')]

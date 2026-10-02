@@ -4,9 +4,13 @@
  *
  * Most patterns point at an `@sim/utils` helper (CLAUDE.md "Common utilities"). A few encode
  * render-path rules from `.claude/rules/sim-react-performance.md` and `sim-styling.md` that no
- * linter covers: ES2023 array methods that Safari 15 lacks (banned everywhere, since whether a
- * module reaches the browser is not visible from its path and a copy-then-sort costs the same), `useRef(new X())` allocating on
- * every render, and `h-N w-N` where `size-N` is the convention.
+ * linter covers: `useRef(new X())` allocating on every render, and `h-N w-N` where `size-N` is the
+ * convention.
+ *
+ * ES2023 array methods (`toSorted`, `with`, …) throw on Safari/iOS 15, and SWC does not polyfill
+ * them. Every tsconfig keeps `lib` at ES2022 so `tsc` rejects them at each call site, telling
+ * `Array.prototype.with` apart from OpenTelemetry's `context.with` by type; this script fails
+ * if a tsconfig raises `lib` past that, which is how they shipped once (#5340).
  *
  * Biome's noRestrictedImports covers the import-based bans it lists — today `nanoid` and
  * `uuid`. It does NOT cover named crypto imports; `import { randomBytes } from 'node:crypto'`
@@ -17,10 +21,9 @@
  * multi-token expression that the formatter wraps at 100 columns, and a line-scoped scan sees
  * none of the wrapped forms. Deliberate exceptions carry `// utils-lint-allow: <reason>`.
  */
+import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { parse } from '@babel/parser'
-import { getErrorMessage } from '@sim/utils/errors'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
@@ -52,14 +55,6 @@ const TRUNCATE_PREFILTER = /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/
 
 /** Literal gate shared by the `filterUndefined` and `omit` patterns. */
 const FROM_ENTRIES = /Object\.fromEntries\(/
-
-/** Shared by the toSorted/toReversed/toSpliced pattern and the AST-based `.with` check. */
-const ES2023_ARRAY_METHOD = {
-  description:
-    'ES2023 array method (throws on Safari/iOS 15 wherever the module reaches the browser)',
-  suggestion:
-    'a copy you then mutate: [...arr].sort(), [...arr].reverse(), [...arr].splice(), or [...arr] then next[i] = value',
-}
 
 const BANNED_PATTERNS: Array<{
   pattern: RegExp
@@ -155,10 +150,6 @@ const BANNED_PATTERNS: Array<{
   },
   // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
   {
-    pattern: /\.(?:toSorted|toReversed|toSpliced)\s*\(/g,
-    ...ES2023_ARRAY_METHOD,
-  },
-  {
     pattern: /\buseRef(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*new\s+[A-Z]\w*/g,
     description: 'useRef(new X()) allocates a throwaway X on every render',
     suggestion: 'useRef<X | null>(null), then `ref.current ??= new X()` before first use',
@@ -172,149 +163,6 @@ const BANNED_PATTERNS: Array<{
     suggestion: 'size-N (Tailwind) — e.g. `size-4`, `size-full`',
   },
 ]
-
-/** Cheap gate: only files that contain a `.with(` call are parsed. */
-const WITH_CALL = /\.with\s*(?:\?\.\s*)?\(/
-
-/** A Babel AST node, read structurally rather than through `@babel/types`. */
-interface SyntaxNode extends Record<string, unknown> {
-  type: string
-  start: number
-}
-
-function isSyntaxNode(value: unknown): value is SyntaxNode {
-  return (
-    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
-  )
-}
-
-function walkNodes(node: SyntaxNode, visit: (node: SyntaxNode) => void): void {
-  visit(node)
-  for (const value of Object.values(node)) {
-    if (isSyntaxNode(value)) walkNodes(value, visit)
-    else if (Array.isArray(value))
-      for (const item of value) if (isSyntaxNode(item)) walkNodes(item, visit)
-  }
-}
-
-/**
- * Local names bound to OpenTelemetry's context API, whose `context.with(ctx, fn)` shares the
- * array method's shape: `context` (or an alias) imported from `@opentelemetry/api`, and any
- * namespace import of it (whose `.context` member is the same object).
- */
-function otelContextBindings(program: SyntaxNode): {
-  contexts: Set<string>
-  namespaces: Set<string>
-} {
-  const contexts = new Set<string>()
-  const namespaces = new Set<string>()
-  const body = Array.isArray(program.body) ? program.body : []
-  for (const statement of body) {
-    if (!isSyntaxNode(statement) || statement.type !== 'ImportDeclaration') continue
-    if (!isSyntaxNode(statement.source) || statement.source.value !== '@opentelemetry/api') continue
-    for (const specifier of Array.isArray(statement.specifiers) ? statement.specifiers : []) {
-      if (!isSyntaxNode(specifier) || !isSyntaxNode(specifier.local)) continue
-      const local = specifier.local.name
-      if (typeof local !== 'string') continue
-      if (specifier.type === 'ImportNamespaceSpecifier') namespaces.add(local)
-      else if (
-        specifier.type === 'ImportSpecifier' &&
-        isSyntaxNode(specifier.imported) &&
-        specifier.imported.name === 'context'
-      )
-        contexts.add(local)
-    }
-  }
-  return { contexts, namespaces }
-}
-
-/** Names bound by a pattern: `a`, `{ a, b: c }`, `[a, ...rest]`, `a = 1`. */
-function patternNames(pattern: unknown, names: string[]): void {
-  if (!isSyntaxNode(pattern)) return
-  if (pattern.type === 'Identifier' && typeof pattern.name === 'string') names.push(pattern.name)
-  else if (pattern.type === 'AssignmentPattern') patternNames(pattern.left, names)
-  else if (pattern.type === 'RestElement') patternNames(pattern.argument, names)
-  else if (pattern.type === 'ArrayPattern' && Array.isArray(pattern.elements)) {
-    for (const element of pattern.elements) patternNames(element, names)
-  } else if (pattern.type === 'ObjectPattern' && Array.isArray(pattern.properties)) {
-    for (const property of pattern.properties) {
-      patternNames(
-        isSyntaxNode(property) && property.type === 'ObjectProperty' ? property.value : property,
-        names
-      )
-    }
-  }
-}
-
-/** Every name a variable, parameter, catch clause, function, or class declares in the file. */
-function declaredNames(program: SyntaxNode): Set<string> {
-  const names: string[] = []
-  walkNodes(program, (node) => {
-    if (node.type === 'VariableDeclarator') patternNames(node.id, names)
-    else if (node.type === 'CatchClause') patternNames(node.param, names)
-    else if (/Function|ObjectMethod|ClassMethod/.test(node.type)) {
-      if (Array.isArray(node.params)) for (const param of node.params) patternNames(param, names)
-      if (node.type === 'FunctionDeclaration') patternNames(node.id, names)
-    } else if (node.type === 'ClassDeclaration') patternNames(node.id, names)
-  })
-  return new Set(names)
-}
-
-/** Whether `receiver` is OpenTelemetry's context object: `context`, an alias, or `api.context`. */
-function isOtelContext(
-  receiver: unknown,
-  bindings: { contexts: Set<string>; namespaces: Set<string> }
-): boolean {
-  if (!isSyntaxNode(receiver)) return false
-  if (receiver.type === 'Identifier') return bindings.contexts.has(String(receiver.name))
-  return (
-    receiver.type === 'MemberExpression' &&
-    receiver.computed !== true &&
-    isSyntaxNode(receiver.object) &&
-    receiver.object.type === 'Identifier' &&
-    bindings.namespaces.has(String(receiver.object.name)) &&
-    isSyntaxNode(receiver.property) &&
-    receiver.property.name === 'context'
-  )
-}
-
-/**
- * Offsets of every `Array.prototype.with(index, value)` call: a two-argument `.with` on any
- * receiver except OpenTelemetry's context API (resolved through its `@opentelemetry/api` import). Drizzle's one-argument `.with(cte)` and
- * `index().with({ … })` never match.
- */
-function findArrayWithCalls(file: string, content: string): number[] {
-  let program: unknown
-  try {
-    program = parse(content, {
-      sourceType: 'module',
-      plugins: ['typescript', ...(/\.[jt]sx$/.test(file) ? (['jsx'] as const) : [])],
-      errorRecovery: true,
-    }).program
-  } catch (error) {
-    throw new Error(`Cannot parse ${file} to check its .with calls: ${getErrorMessage(error)}`)
-  }
-  if (!isSyntaxNode(program)) return []
-
-  const bindings = otelContextBindings(program)
-  // A name the file also declares elsewhere may be shadowed at the call; exempt only unique bindings.
-  for (const name of declaredNames(program)) {
-    bindings.contexts.delete(name)
-    bindings.namespaces.delete(name)
-  }
-  const offsets: number[] = []
-  walkNodes(program, (node) => {
-    if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return
-    if (!Array.isArray(node.arguments) || node.arguments.length !== 2) return
-    const callee = node.callee
-    if (!isSyntaxNode(callee) || callee.computed === true || !isSyntaxNode(callee.property)) return
-    if (callee.type !== 'MemberExpression' && callee.type !== 'OptionalMemberExpression') return
-    if (callee.property.name !== 'with') return
-    if (isOtelContext(callee.object, bindings)) return
-    offsets.push(callee.property.start)
-  })
-  return offsets
-}
 
 async function walk(dir: string, results: string[] = []): Promise<string[]> {
   let entries
@@ -398,6 +246,31 @@ function hasAllow(lines: string[], line: number): boolean {
   return false
 }
 
+/** A `lib` entry at ES2023 or later, including its sub-libs (`ES2023.Array`) and `ESNext`. */
+const LIB_PAST_ES2022 = /^es(?:20(?:2[3-9]|[3-9]\d)|next)\b/i
+
+/** Tracked tsconfigs whose `lib` admits the ES2023 runtime methods `tsc` would otherwise reject. */
+function es2023LibViolations(): Violation[] {
+  const listed = Bun.spawnSync(['git', 'ls-files', '*tsconfig*.json'], { cwd: ROOT })
+  const violations: Violation[] = []
+  for (const file of listed.stdout.toString().split('\n').filter(Boolean)) {
+    const content = readFileSync(path.join(ROOT, file), 'utf8')
+    const lib = /"lib"\s*:\s*\[([^\]]*)\]/.exec(content)
+    const entries = lib?.[1]?.match(/"[^"]*"/g) ?? []
+    if (!entries.some((entry) => LIB_PAST_ES2022.test(entry.slice(1, -1)))) continue
+    const line = content.slice(0, lib?.index).split('\n').length
+    violations.push({
+      file,
+      line,
+      description:
+        '"lib" past ES2022 lets ES2023 array methods (toSorted, with, …) type-check; they throw on Safari/iOS 15 and SWC does not polyfill them',
+      suggestion: '"lib" at ES2022, and a copy in code: [...arr].sort(), [...arr].reverse()',
+      snippet: (content.split('\n')[line - 1] ?? '').trim(),
+    })
+  }
+  return violations
+}
+
 async function main() {
   const allFiles: string[] = []
   for (const dir of SCAN_DIRS) {
@@ -432,11 +305,6 @@ async function main() {
         matches.push({ index: match.index, description, suggestion })
       }
     }
-    if (WITH_CALL.test(content)) {
-      for (const index of findArrayWithCalls(rel, content)) {
-        matches.push({ index, ...ES2023_ARRAY_METHOD })
-      }
-    }
     if (matches.length === 0) continue
 
     const lines = content.split('\n')
@@ -453,6 +321,8 @@ async function main() {
       })
     }
   }
+
+  violations.push(...es2023LibViolations())
 
   if (violations.length === 0) {
     console.log('✓ No banned patterns found.')
