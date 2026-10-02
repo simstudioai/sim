@@ -37,6 +37,9 @@
       // Required/discoverable barrels whose children have direct live imports.
       // Ignore only the barrel file finding, so it cannot keep dead children alive.
       "ignoreIssues": {
+        // Generated contracts mirror their source of truth; regenerating them must not
+        // trip the unused-export ratchet, and hand edits would be overwritten.
+        "lib/mothership/generated/**": ["exports", "types", "duplicates"],
         "sandbox-tasks/index.ts": ["files"],
         "components/mcp/index.ts": ["files"],
         "triggers/quickbooks/index.ts": ["files"],
@@ -91,7 +94,11 @@
     },
     "packages/ts-sdk": { "entry": ["examples/*.ts"] },
     // The contract audit reads this snapshot by filename.
-    "packages/desktop-bridge": { "entry": ["contract-snapshot.ts"] },
+    // Generated, so its export surface is not ratcheted either.
+    "packages/desktop-bridge": {
+      "entry": ["contract-snapshot.ts"],
+      "ignoreIssues": { "contract-snapshot.ts": ["exports", "types", "duplicates"] }
+    },
     // This shared config is consumed by apps that own the Next dependency.
     "packages/tsconfig": { "ignoreUnresolved": ["next"] }
   }

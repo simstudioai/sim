@@ -9,7 +9,9 @@
  * export alive after deleting its last caller, and nothing objected. This script adds knip's
  * `exports`, `types`, and `duplicates` issues on top of the same pass:
  *
- * - `files`, `dependencies`, `unlisted`, `unresolved` must be empty (what `check:dead-code` gates).
+ * - Every other issue knip reports must be empty: `files`, `unlisted`, `unresolved`, and every
+ *   dependency type the `dependencies` include expands to (`devDependencies`,
+ *   `optionalPeerDependencies`, …). Unknown keys count too, so a new knip issue type fails closed.
  * - Each unused export is normalized to a sorted `path#symbol` entry and compared with
  *   `scripts/check-unused-exports.baseline.json`. A new entry fails; so does a baseline entry that
  *   no longer occurs, so the baseline only shrinks. Regenerate with `--update`.
@@ -19,7 +21,7 @@
  * never reports their exports. Exports used only by tests count as used because knip's Vitest
  * plugin makes test files entries.
  *
- * Knip takes ~13 s, so `run-audits.ts` runs this script and skips `check:dead-code`, which stays
+ * Knip is slow, so `run-audits.ts` runs this script and skips `check:dead-code`, which stays
  * available as the human-readable report.
  *
  * Run: `bun run check:unused-exports`
@@ -31,12 +33,15 @@ import { localBin } from './local-bin'
 const ROOT = path.resolve(import.meta.dir, '..')
 const BASELINE = path.join(ROOT, 'scripts/check-unused-exports.baseline.json')
 
-/** Issue types gated at zero, matching the `include` list in knip.jsonc. */
-const STRICT_TYPES = ['files', 'dependencies', 'devDependencies', 'unlisted', 'unresolved'] as const
+/** Issue types requested from knip beyond the ratchet; knip expands `dependencies` itself. */
+const STRICT_TYPES = ['files', 'dependencies', 'unlisted', 'unresolved'] as const
 /** Issue types ratcheted against the baseline. */
 const RATCHET_TYPES = ['exports', 'types', 'duplicates'] as const
 
 type RatchetType = (typeof RATCHET_TYPES)[number]
+
+/** Row keys that are not issues. Everything else that is not ratcheted is gated at zero. */
+const NOT_STRICT = new Set<string>(['file', 'owners', ...RATCHET_TYPES])
 
 interface KnipSymbol {
   name: string
@@ -80,9 +85,12 @@ const kindByEntry = new Map<string, RatchetType>()
 const lineByEntry = new Map<string, number>()
 
 for (const issue of issues) {
-  for (const type of STRICT_TYPES) {
-    for (const item of (issue[type] as KnipSymbol[] | undefined) ?? []) {
-      strict.push(type === 'files' ? `files: ${issue.file}` : `${type}: ${issue.file} ${item.name}`)
+  // Fail closed: an issue type knip adds later is gated too, never silently dropped.
+  for (const [type, items] of Object.entries(issue)) {
+    if (NOT_STRICT.has(type)) continue
+    for (const item of (items as Array<KnipSymbol | KnipSymbol[]>) ?? []) {
+      const name = Array.isArray(item) ? item.map((symbol) => symbol.name).join(' → ') : item.name
+      strict.push(type === 'files' ? `files: ${issue.file}` : `${type}: ${issue.file} ${name}`)
     }
   }
   for (const type of RATCHET_TYPES) {
@@ -169,6 +177,21 @@ if (stale.length) {
   )
   for (const entry of stale.slice(0, 20)) console.error(`  ${entry}`)
   if (stale.length > 20) console.error(`  … and ${stale.length - 20} more`)
+}
+
+const staleBySymbol = new Map(
+  stale.map((entry) => entry.split('#')).map(([file, symbol]) => [symbol, file])
+)
+const renames = new Set<string>()
+for (const [file, symbol] of added.map((entry) => entry.split('#'))) {
+  const old = staleBySymbol.get(symbol)
+  if (old && old !== file) renames.add(`${old} → ${file}`)
+}
+for (const rename of renames) {
+  console.error(
+    `\nLooks like a rename: ${rename}. Move its baseline entries to the new path in ` +
+      `${path.relative(ROOT, BASELINE)} (debt carries over; it may not grow).`
+  )
 }
 
 if (strict.length || added.length || stale.length) process.exit(1)
