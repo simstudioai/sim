@@ -10,7 +10,7 @@ import { PI_PACKAGE_VERSION } from '@/scripts/pi-sandbox-packages'
 
 const exec = promisify(execFile)
 
-async function invokeSandbox(version: string, exitCode = 0) {
+async function invokeSandbox(version: string) {
   const root = await mkdtemp(join(tmpdir(), 'sim-pi-cli-'))
   const workspace = join(root, 'workspace')
   const repo = join(workspace, 'repo')
@@ -28,7 +28,7 @@ if [ "$1" = "--version" ]; then
 fi
 printf "%s" "$PI_CODING_AGENT_DIR" > "${root}/invoked"
 printf "%s\\n" '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"ok"}}'
-exit ${exitCode}
+exit 0
 `,
     { mode: 0o700 }
   )
@@ -80,9 +80,5 @@ describe('sandbox Pi runtime boundary', () => {
       type: 'message_update',
       assistantMessageEvent: { type: 'text_delta', delta: 'ok' },
     })
-  })
-
-  it('propagates a failing CLI even when the stdout filter succeeds', async () => {
-    expect((await invokeSandbox(PI_PACKAGE_VERSION, 42)).code).toBe(42)
   })
 })

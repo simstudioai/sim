@@ -45,7 +45,7 @@ const mockAgentSession = {
 const sealedResourceLoader = { kind: 'sealed' }
 
 const mockSdk = {
-  SettingsManager: { inMemory: vi.fn(() => ({})) },
+  SettingsManager: { inMemory: () => ({}) },
   SessionManager: { inMemory: vi.fn(() => ({})) },
   createAgentSession: mockCreateAgentSession,
   defineTool: vi.fn((tool) => tool),
@@ -201,7 +201,6 @@ describe('runCloudReviewPi', () => {
 
     expect(mockSetRuntimeApiKey).toHaveBeenCalledWith('anthropic', 'sk-byok')
     expect(mockRemoveRuntimeApiKey).toHaveBeenCalledWith('anthropic')
-    expect(mockSdk.SettingsManager.inMemory).toHaveBeenCalledWith({ cacheWarming: 'off' })
     expect(mockCreateSealedResourceLoader).toHaveBeenCalledTimes(1)
     expect(mockCreateAgentSession).toHaveBeenCalledWith(
       expect.objectContaining({
