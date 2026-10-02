@@ -4,6 +4,11 @@
  */
 
 import {
+  hasEnvCapabilityValue,
+  inspectCapability,
+  SANDBOX_CAPABILITY,
+} from '@sim/deployment-config/env-capabilities'
+import {
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
@@ -16,7 +21,6 @@ import {
   resolveSandboxFeatureAvailability,
 } from './enterprise-entitlements'
 import { env, envBoolean, envNumber, getEnv, isFalsy, isTruthy } from './env'
-import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
 
 /**
  * Is the application running in production mode

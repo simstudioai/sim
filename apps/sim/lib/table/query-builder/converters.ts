@@ -251,7 +251,7 @@ function parseScalar(value: string): JsonValue {
 }
 
 function parseFilterGroup(group: Filter): FilterRule[] {
-  if (!group || typeof group !== 'object' || Array.isArray(group)) return []
+  if (!isRecordLike(group)) return []
 
   const rules: FilterRule[] = []
 

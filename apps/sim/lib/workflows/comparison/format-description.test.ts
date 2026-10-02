@@ -33,11 +33,9 @@ vi.mock('@/lib/selectors/client/execute-selector', () => ({
 }))
 
 import { WorkflowBuilder } from '@sim/testing'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
-import {
-  formatDiffSummaryForDescription,
-  formatDiffSummaryForDescriptionAsync,
-} from '@/lib/workflows/comparison/describe'
+import { formatDiffSummaryForDescriptionAsync } from '@/lib/workflows/comparison/describe'
 import {
   resolveFieldLabel,
   resolveValueForDisplay,
@@ -119,8 +117,10 @@ describe('resolveValueForDisplay', () => {
   })
 })
 
-describe('formatDiffSummaryForDescription', () => {
-  it('uses human-readable field labels for modified blocks', () => {
+describe('formatDiffSummaryForDescriptionAsync shared formatting', () => {
+  const state: WorkflowState = { blocks: {}, edges: [], loops: {}, parallels: {} }
+
+  it('uses human-readable field labels for modified blocks', async () => {
     mockGetBlock.mockReturnValue({
       subBlocks: [
         { id: 'systemPrompt', title: 'System Prompt' },
@@ -153,7 +153,7 @@ describe('formatDiffSummaryForDescription', () => {
       ],
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     expect(result).toContain(
       'Modified My Agent: System Prompt changed from "You are helpful" to "You are an expert"'
     )
@@ -164,7 +164,7 @@ describe('formatDiffSummaryForDescription', () => {
     expect(result).not.toContain('model changed')
   })
 
-  it('filters out .properties changes', () => {
+  it('filters out .properties changes', async () => {
     mockGetBlock.mockReturnValue({ subBlocks: [] })
 
     const summary = emptyDiffSummary({
@@ -193,13 +193,13 @@ describe('formatDiffSummaryForDescription', () => {
       ],
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     expect(result).toContain('systemPrompt changed')
     expect(result).not.toContain('.properties')
     expect(result).not.toContain('model.properties')
   })
 
-  it('respects MAX_CHANGES_PER_BLOCK limit of 6', () => {
+  it('respects MAX_CHANGES_PER_BLOCK limit of 6', async () => {
     mockGetBlock.mockReturnValue({ subBlocks: [] })
 
     const changes = Array.from({ length: 8 }, (_, i) => ({
@@ -214,14 +214,14 @@ describe('formatDiffSummaryForDescription', () => {
       modifiedBlocks: [{ id: 'b1', type: 'agent', name: 'Agent', changes }],
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     const lines = result.split('\n')
     const modifiedLines = lines.filter((l) => l.startsWith('Modified'))
     expect(modifiedLines).toHaveLength(6)
     expect(result).toContain('...and 2 more changes in Agent')
   })
 
-  it('shows edge changes with block names', () => {
+  it('shows edge changes with block names', async () => {
     const summary = emptyDiffSummary({
       hasChanges: true,
       edgeChanges: {
@@ -237,13 +237,13 @@ describe('formatDiffSummaryForDescription', () => {
       },
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     expect(result).toContain('Added connection: My Agent -> Slack')
     expect(result).toContain('Added connection: Router -> Gmail')
     expect(result).toContain('Removed connection: Function -> Webhook')
   })
 
-  it('truncates edge details beyond MAX_EDGE_DETAILS', () => {
+  it('truncates edge details beyond MAX_EDGE_DETAILS', async () => {
     const summary = emptyDiffSummary({
       hasChanges: true,
       edgeChanges: {
@@ -260,7 +260,7 @@ describe('formatDiffSummaryForDescription', () => {
       },
     })
 
-    const result = formatDiffSummaryForDescription(summary)
+    const result = await formatDiffSummaryForDescriptionAsync(summary, state, 'wf-1')
     const connectionLines = result.split('\n').filter((l) => l.startsWith('Added connection'))
     expect(connectionLines).toHaveLength(3)
     expect(result).toContain('...and 2 more added connection(s)')

@@ -83,37 +83,6 @@ export function parseResponseFormatSafely(
 }
 
 /**
- * Extract field values from a parsed JSON object based on selected output paths
- * Used for both workspace and chat client field extraction
- */
-export function extractFieldValues(
-  parsedContent: any,
-  selectedOutputs: string[],
-  blockId: string
-): Record<string, any> {
-  const extractedValues: Record<string, any> = {}
-
-  for (const outputId of selectedOutputs) {
-    const blockIdForOutput = extractBlockIdFromOutputId(outputId)
-
-    if (blockIdForOutput !== blockId) {
-      continue
-    }
-
-    const path = extractPathFromOutputId(outputId, blockIdForOutput)
-
-    if (path) {
-      const current = traverseObjectPathInternal(parsedContent, path)
-      if (current !== undefined) {
-        extractedValues[path] = current
-      }
-    }
-  }
-
-  return extractedValues
-}
-
-/**
  * Extract block ID from output ID
  * Handles both formats: "blockId" and "blockId_path" or "blockId.path"
  */

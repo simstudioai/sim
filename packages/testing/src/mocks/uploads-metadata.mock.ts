@@ -29,7 +29,6 @@ export class MockActiveFileMetadataKeyConflictError extends Error {
 export const uploadsMetadataMockFns = {
   mockInsertFileMetadata: vi.fn(),
   mockInsertImmutableFileMetadata: vi.fn(),
-  mockInsertFileMetadataMany: vi.fn(),
   mockGetFileMetadataByKey: vi.fn(async (..._args: unknown[]): Promise<unknown> => null),
   mockResolveStoredFileContext: vi.fn(async (_key: string): Promise<string> => 'workspace'),
   mockGetFileMetadataByKeys: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
@@ -51,7 +50,6 @@ export const uploadsMetadataMock = {
   ActiveFileMetadataKeyConflictError: MockActiveFileMetadataKeyConflictError,
   insertFileMetadata: uploadsMetadataMockFns.mockInsertFileMetadata,
   insertImmutableFileMetadata: uploadsMetadataMockFns.mockInsertImmutableFileMetadata,
-  insertFileMetadataMany: uploadsMetadataMockFns.mockInsertFileMetadataMany,
   getFileMetadataByKey: uploadsMetadataMockFns.mockGetFileMetadataByKey,
   resolveStoredFileContext: uploadsMetadataMockFns.mockResolveStoredFileContext,
   getFileMetadataByKeys: uploadsMetadataMockFns.mockGetFileMetadataByKeys,

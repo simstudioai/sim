@@ -41,7 +41,7 @@ import {
   extractParallelIdFromSentinel,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedWorkflow } from '@/serializer/types'

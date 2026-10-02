@@ -23,50 +23,6 @@ const MAX_EDGE_DETAILS = 3
 const logger = createLogger('WorkflowDescribe')
 
 /**
- * Convert a WorkflowDiffSummary to a human-readable string for AI description generation
- */
-export function formatDiffSummaryForDescription(summary: WorkflowDiffSummary): string {
-  if (!summary.hasChanges) {
-    return 'No structural changes detected (configuration may have changed)'
-  }
-
-  const changes: string[] = []
-
-  for (const block of summary.addedBlocks) {
-    const name = block.name || block.type
-    changes.push(`Added block: ${name} (${block.type})`)
-  }
-
-  for (const block of summary.removedBlocks) {
-    const name = block.name || block.type
-    changes.push(`Removed block: ${name} (${block.type})`)
-  }
-
-  for (const block of summary.modifiedBlocks) {
-    const name = block.name || block.type
-    const meaningfulChanges = block.changes.filter((c) => !c.field.endsWith('.properties'))
-    for (const change of meaningfulChanges.slice(0, MAX_CHANGES_PER_BLOCK)) {
-      const fieldLabel = resolveFieldLabel(block.type, change.field, change.scope)
-      const oldStr = formatValueForDisplay(change.oldValue)
-      const newStr = formatValueForDisplay(change.newValue)
-      changes.push(`Modified ${name}: ${fieldLabel} changed from "${oldStr}" to "${newStr}"`)
-    }
-    if (meaningfulChanges.length > MAX_CHANGES_PER_BLOCK) {
-      changes.push(
-        `  ...and ${meaningfulChanges.length - MAX_CHANGES_PER_BLOCK} more changes in ${name}`
-      )
-    }
-  }
-
-  formatEdgeChanges(summary, changes)
-  formatCountChanges(summary.loopChanges, 'loop', changes)
-  formatCountChanges(summary.parallelChanges, 'parallel group', changes)
-  formatVariableChanges(summary, changes)
-
-  return changes.join('\n')
-}
-
-/**
  * Converts a WorkflowDiffSummary to a human-readable string with resolved display names.
  * Resolves IDs (credentials, channels, workflows, etc.) to human-readable names using
  * the selector registry infrastructure.

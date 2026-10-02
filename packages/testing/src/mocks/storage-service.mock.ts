@@ -35,7 +35,6 @@ export const storageServiceMockFns = {
   mockHeadObject: vi.fn(),
   mockGeneratePresignedDownloadUrl: vi.fn(),
   mockHasCloudStorage: vi.fn(() => false),
-  mockGetS3InfoForKey: vi.fn(),
   mockCreateBlobConfig: vi.fn((config: MockStorageConfig) => {
     if (!config.containerName) {
       throw new Error('Blob configuration missing required property: containerName')
@@ -86,7 +85,6 @@ export const storageServiceMock = {
   headObject: storageServiceMockFns.mockHeadObject,
   generatePresignedDownloadUrl: storageServiceMockFns.mockGeneratePresignedDownloadUrl,
   hasCloudStorage: storageServiceMockFns.mockHasCloudStorage,
-  getS3InfoForKey: storageServiceMockFns.mockGetS3InfoForKey,
   createBlobConfig: storageServiceMockFns.mockCreateBlobConfig,
   createS3Config: storageServiceMockFns.mockCreateS3Config,
   createGcsConfig: storageServiceMockFns.mockCreateGcsConfig,

@@ -29,6 +29,8 @@ interface FieldChangeRowProps {
   field: string
   oldValue: unknown
   newValue: unknown
+  baseValues: Record<string, unknown>
+  targetValues: Record<string, unknown>
 }
 
 /**
@@ -44,19 +46,21 @@ export function FieldChangeRow({
   field,
   oldValue,
   newValue,
+  baseValues,
+  targetValues,
 }: FieldChangeRowProps) {
   const valueBlockType = scope === 'subblock' ? blockType : undefined
   const config = findSubBlockConfig(valueBlockType, field)
   const kind = classifyChange(valueBlockType, field, oldValue, newValue)
   const structuredSettings = scope === 'block' && kind === 'json'
-  const present = (value: unknown) =>
+  const present = (value: unknown, values: Record<string, unknown>) =>
     structuredSettings
       ? mappingPresentation(value)
       : kind === 'structured'
-        ? getStructuredValuePresentation(config, field, value)
+        ? getStructuredValuePresentation(config, field, value, values)
         : null
-  const before = present(oldValue)
-  const after = present(newValue)
+  const before = present(oldValue, baseValues)
+  const after = present(newValue, targetValues)
   const oneSided = isBlankValue(oldValue) !== isBlankValue(newValue)
   const wordDiff = kind === 'scalar' && isSentenceLike(oldValue) && isSentenceLike(newValue)
   const resolvedLabel =
@@ -71,12 +75,12 @@ export function FieldChangeRow({
   let oldText = textual
     ? text(oldValue)
     : scalar
-      ? formatScalar(valueBlockType, field, oldValue)
+      ? formatScalar(valueBlockType, field, oldValue, baseValues)
       : ''
   let newText = textual
     ? text(newValue)
     : scalar
-      ? formatScalar(valueBlockType, field, newValue)
+      ? formatScalar(valueBlockType, field, newValue, targetValues)
       : ''
   if (
     scalar &&
@@ -120,7 +124,7 @@ export function FieldChangeRow({
         (oneSided ? (
           <ValueChip
             tone={isBlankValue(oldValue) ? 'added' : 'removed'}
-            text={formatScalar(valueBlockType, field, isBlankValue(oldValue) ? newValue : oldValue)}
+            text={isBlankValue(oldValue) ? newText : oldText}
           />
         ) : wordDiff ? (
           <InlineDiff oldText={oldText} newText={newText} />

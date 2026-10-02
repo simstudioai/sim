@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { versionNumberPathSchema } from '@/lib/api/contracts/primitives'
+import { versionNumberPathSchema, versionNumberSchema } from '@/lib/api/contracts/primitives'
 
 export const compareWorkflowVersionsQuerySchema = z
   .object({
@@ -113,8 +113,8 @@ export type WorkflowComparisonSummary = z.output<typeof workflowComparisonSummar
 export const compareWorkflowVersionsDataSchema = z
   .object({
     workflowId: z.string().describe('Workflow compared.'),
-    base: z.number().int().describe('Base deployment version.'),
-    target: z.number().int().describe('Target deployment version.'),
+    base: versionNumberSchema.describe('Base deployment version.'),
+    target: versionNumberSchema.describe('Target deployment version.'),
     diff: workflowComparisonSummarySchema.describe('Changes from base to target.'),
   })
   .meta({

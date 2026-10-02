@@ -12,7 +12,11 @@ import {
   SquareArrowUpRight,
   Unlock,
 } from '@sim/emcn/icons'
-import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
+import {
+  type BlockRetryConfig,
+  isWorkflowBlockAncestorLocked,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -50,10 +54,6 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  isAncestorProtected,
-  isBlockProtected,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { BlockTile } from '@/blocks/block-tile'
 import { getBlock } from '@/blocks/registry'
@@ -138,8 +138,10 @@ export function Editor() {
   // Check if block is locked (or inside a locked ancestor) and compute edit permission
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
   const blocks = useWorkflowStore((state) => state.blocks)
-  const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
-  const isAncestorLocked = currentBlockId ? isAncestorProtected(currentBlockId, blocks) : false
+  const isLocked = currentBlockId ? isWorkflowBlockProtected(currentBlockId, blocks) : false
+  const isAncestorLocked = currentBlockId
+    ? isWorkflowBlockAncestorLocked(currentBlockId, blocks)
+    : false
   const canEditBlock = userPermissions.canEdit && !workflowLocked && !isLocked
 
   const { advancedMode, triggerMode } = useEditorBlockProperties(
@@ -332,7 +334,8 @@ export function Editor() {
     const block = blocks[blockId]
     if (!block) return
 
-    if (!userPermissions.canEdit || workflowLocked || isBlockProtected(blockId, blocks)) return
+    if (!userPermissions.canEdit || workflowLocked || isWorkflowBlockProtected(blockId, blocks))
+      return
 
     renamingBlockIdRef.current = blockId
     setEditedName(block.name || '')

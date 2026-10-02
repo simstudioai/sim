@@ -6,7 +6,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
+import { escapeLikePattern, truncate } from '@sim/utils/string'
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -959,11 +959,6 @@ function buildComparisonClause(
     : sql`${cell} ${sql.raw(operator)} ${value}`
 }
 
-/** Escapes LIKE/ILIKE wildcard characters so they match literally */
-export function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, '\\$&')
-}
-
 /**
  * General LIKE/ILIKE pattern match (the `like`/`ilike` ops). The caller's `*`
  * is the only wildcard — it maps to SQL `%`; any literal `%`/`_`/`\` in the
@@ -981,9 +976,7 @@ function buildPatternClause(
   options: { caseInsensitive: boolean; negate?: boolean }
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
-  const pattern = String(value)
-    .replace(/[\\%_]/g, '\\$&')
-    .replace(/\*/g, '%')
+  const pattern = escapeLikePattern(String(value)).replace(/\*/g, '%')
   const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
   const match = options.caseInsensitive
     ? sql`${cell} ILIKE ${pattern}`

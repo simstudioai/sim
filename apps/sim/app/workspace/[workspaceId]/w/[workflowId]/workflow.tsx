@@ -1,6 +1,7 @@
 'use client'
 
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import {
   applyNodeChanges,
   ConnectionLineType,
@@ -102,7 +103,6 @@ import {
   getNodeSelectionContextId,
   getRunFromBlockDependencyState,
   getWorkflowLockToggleIds,
-  isBlockProtected,
   isEdgeProtected,
   isInEditableElement,
   isPositionalTriggerBlock,
@@ -2890,7 +2890,7 @@ const WorkflowContent = React.memo(
             className: block.data?.parentId ? SUBFLOW_CHILD_NODE_CLASS : undefined,
             extent: block.data?.extent || undefined,
             dragHandle: '.workflow-drag-handle',
-            draggable: !workflowReadOnly && !isBlockProtected(block.id, blocks),
+            draggable: !workflowReadOnly && !isWorkflowBlockProtected(block.id, blocks),
             zIndex: depth,
             data: {
               ...block.data,
@@ -2937,7 +2937,7 @@ const WorkflowContent = React.memo(
           parentId,
           className: parentId ? SUBFLOW_CHILD_NODE_CLASS : undefined,
           dragHandle,
-          draggable: !workflowReadOnly && !isBlockProtected(block.id, blocks),
+          draggable: !workflowReadOnly && !isWorkflowBlockProtected(block.id, blocks),
           zIndex: cardZIndex,
           extent: (() => {
             // Clamp children to subflow body (exclude header)

@@ -8,7 +8,7 @@ import {
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
   stripCloneSuffixes,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 function createBlock(id: string, metadataId: string): SerializedBlock {

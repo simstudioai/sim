@@ -4,6 +4,7 @@ import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { shapeSubBlockValue } from '@/lib/workflows/canonical/subblock-value'
 import { normalizedStringify } from '@/lib/workflows/comparison/normalize'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
+import { resolveSubBlockOptions } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
 
 export type SubBlockPresentationKind =
@@ -28,7 +29,11 @@ export interface StructuredValuePresentation {
   sourceKey?: string
 }
 
-type Presenter = (value: unknown, config: SubBlockConfig) => StructuredValuePresentation
+type Presenter = (
+  value: unknown,
+  config: SubBlockConfig,
+  values: Record<string, unknown>
+) => StructuredValuePresentation
 interface PresentationDefinition {
   kind: SubBlockPresentationKind | 'selection'
   present?: Presenter
@@ -125,12 +130,13 @@ function branchPresentation(value: unknown, config: SubBlockConfig): StructuredV
 
 function selectionPresentation(
   value: unknown,
-  config: SubBlockConfig
+  config: SubBlockConfig,
+  values: Record<string, unknown>
 ): StructuredValuePresentation {
   if (value == null) return { columns: ['Selection'], rows: [] }
   const entries = Array.isArray(value) ? value : [value]
   if (entries.length === 0) return valuePresentation(value)
-  const options = Array.isArray(config.options) ? config.options : []
+  const options = resolveSubBlockOptions(config, values)
   const optionsById = new Map(options.map((option) => [option.id, option]))
   const labelCounts = new Map<string, number>()
   for (const option of options)
@@ -145,9 +151,13 @@ function selectionPresentation(
   return { columns: columnsFor(rows, ['Selection']), rows }
 }
 
-function checkboxPresentation(value: unknown, config: SubBlockConfig): StructuredValuePresentation {
+function checkboxPresentation(
+  value: unknown,
+  config: SubBlockConfig,
+  values: Record<string, unknown>
+): StructuredValuePresentation {
   if (!isRecordLike(value) || Object.keys(value).length === 0) return valuePresentation(value)
-  const options = Array.isArray(config.options) ? config.options : []
+  const options = resolveSubBlockOptions(config, values)
   const labelsById = new Map(options.map((option) => [option.id, option.label]))
   const rows = Object.entries(value)
     .sort(([left], [right]) => compareStrings(left, right))
@@ -350,14 +360,15 @@ export function getSubBlockPresentationKind(
 export function getStructuredValuePresentation(
   config: SubBlockConfig | undefined,
   field: string,
-  value: unknown
+  value: unknown,
+  values: Record<string, unknown> = {}
 ): StructuredValuePresentation | null {
   if (!config || !Object.hasOwn(PRESENTATIONS, config.type)) return null
   const definition: PresentationDefinition = PRESENTATIONS[config.type]
   if (!definition.present) return null
   const shaped = shapeSubBlockValue(field, value, config.type)
   const decoded = decodeStructuredText(shaped)
-  const presentation = definition.present(decoded.value, config)
+  const presentation = definition.present(decoded.value, config, values)
   return {
     ...presentation,
     encoding: decoded.encoded ? 'json-text' : 'structured',

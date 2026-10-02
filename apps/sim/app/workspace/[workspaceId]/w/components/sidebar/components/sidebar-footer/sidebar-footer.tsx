@@ -1,6 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
+import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import {
   Chip,
@@ -21,7 +22,6 @@ import { BookOpen, Download, HelpCircle, LogOut, Settings } from '@sim/emcn/icon
 import { useRouter } from 'next/navigation'
 import { SlackIcon } from '@/components/icons'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { getDesktopUpdates } from '@/lib/desktop'
 import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'

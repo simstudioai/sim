@@ -54,12 +54,8 @@ export async function requestGoogleDrive(
 
 export type JsonObject = Record<string, unknown>
 
-export function asObject(value: unknown): JsonObject {
-  return toRecord(value)
-}
-
 export async function responseObject(response: SecureFetchResponse): Promise<JsonObject> {
-  return asObject(await response.json())
+  return toRecord(await response.json())
 }
 
 export async function responseErrorObject(
@@ -72,7 +68,7 @@ export async function responseErrorObject(
       label: 'Google Drive error response',
       signal,
     })
-    return text ? asObject(JSON.parse(text)) : {}
+    return text ? toRecord(JSON.parse(text)) : {}
   } catch {
     signal?.throwIfAborted()
     return {}
@@ -80,6 +76,6 @@ export async function responseErrorObject(
 }
 
 export function googleApiErrorMessage(data: JsonObject, fallback: string): string {
-  const error = asObject(data.error)
+  const error = toRecord(data.error)
   return typeof error.message === 'string' && error.message ? error.message : fallback
 }

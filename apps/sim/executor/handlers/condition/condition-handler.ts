@@ -16,7 +16,7 @@ import {
   extractBaseBlockId,
   extractBranchIndex,
   isBranchNodeId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import { CONDITION_READS_ENVIRONMENT_KEY } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'

@@ -1,5 +1,5 @@
+import { LLM_KEY_POOLS } from '@sim/deployment-config/env-capabilities'
 import { env } from '@/lib/core/config/env'
-import { LLM_KEY_POOLS } from '@/lib/core/config/env-capabilities'
 
 /** Whether the platform holds at least one key for a provider, without selecting one. */
 export function hasRotatingApiKey(provider: string): boolean {

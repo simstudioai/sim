@@ -50,10 +50,12 @@ import {
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
 import { acquireAdvisoryXactLock, tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { deleteKnowledgeConnector } from '@/lib/knowledge/application/connectors'
 import {
   approveSearchIntegration,
   listSearchIntegrations,
 } from '@/lib/knowledge/application/search-integrations'
+import { deleteKnowledgeBase, restoreKnowledgeBase } from '@/lib/knowledge/service'
 import {
   GITHUB_INSTALLATION_PROVIDER_ID,
   type GitHubInstallationBinding,
@@ -331,6 +333,191 @@ describe('atomic organization live Search MCP setup', () => {
     })
     restoreSlackHttp = () => spy.mockRestore()
   }
+
+  async function seedImplicitSlackApproval() {
+    const knowledgeBaseId = generateId()
+    const connectorId = generateId()
+    await db.insert(knowledgeBase).values({
+      id: knowledgeBaseId,
+      userId: ids.owner,
+      organizationId: ids.organization,
+      isSearchIndex: true,
+      name: 'Slack Search fixture',
+    })
+    await db.insert(knowledgeConnector).values({
+      id: connectorId,
+      knowledgeBaseId,
+      connectorType: 'slack',
+      status: 'active',
+      sourceConfig: {},
+    })
+    return connectorId
+  }
+
+  it.each([false, true])(
+    'verifies implicitly approved Search permissions unless explicitly disabled (disabled: %s)',
+    async (disabled) => {
+      const setup = await seedSlackAuthorization()
+      await seedImplicitSlackApproval()
+      if (disabled)
+        await approveSearchIntegration.execute({
+          principal: createSessionPrincipal({ userId: ids.owner, sessionId: generateId() }),
+          input: { organizationId: ids.organization, connectorType: 'slack', approved: false },
+        })
+      expect(await integrationStatus('slack')).toMatchObject({ approved: !disabled })
+      const pending = await setup.start()
+      const scopes = disabled
+        ? [...SLACK_MANAGED_USER_SCOPES]
+        : [...new Set([...SLACK_MANAGED_USER_SCOPES, ...SLACK_SEARCH_USER_SCOPES])]
+      expect(new URL(pending.authorizationUrl).searchParams.get('user_scope')!.split(',')).toEqual(
+        expect.arrayContaining(scopes)
+      )
+      if (disabled)
+        expect(new URL(pending.authorizationUrl).searchParams.get('user_scope')).not.toContain(
+          'search:read.public'
+        )
+      provideSlackConsent(scopes)
+      await expect(setup.complete(pending.state)).resolves.toMatchObject({ ok: true })
+      const state = await snapshot()
+      expect(
+        state.groups[0].options.find((entry) => entry.id === setup.optionId)?.requiredScopes
+      ).toEqual(expect.arrayContaining(scopes))
+      if (disabled)
+        await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+    }
+  )
+
+  it.each(['added', 'removed'] as const)(
+    'rejects pending authorization when implicit Search approval is %s',
+    async (change) => {
+      const setup = await seedSlackAuthorization()
+      const connectorId = change === 'removed' ? await seedImplicitSlackApproval() : null
+      const pending = await setup.start()
+      if (connectorId)
+        await db
+          .update(knowledgeConnector)
+          .set({ archivedAt: new Date() })
+          .where(eq(knowledgeConnector.id, connectorId))
+      else await seedImplicitSlackApproval()
+      provideSlackConsent([...SLACK_MANAGED_USER_SCOPES, ...SLACK_SEARCH_USER_SCOPES])
+      await expect(setup.complete(pending.state)).rejects.toThrow('Search approval changed')
+      expect((await snapshot()).groups).toEqual(setup.before.groups)
+      await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+    }
+  )
+
+  it('stops granting implicit Search approval when a connector is removed with documents kept', async () => {
+    const setup = await seedSlackAuthorization()
+    const connectorId = await seedImplicitSlackApproval()
+    await deleteKnowledgeConnector.execute({
+      principal: createSessionPrincipal({ userId: ids.owner, sessionId: generateId() }),
+      input: { connectorId, assertedOrganizationId: ids.organization, deleteDocuments: false },
+    })
+    expect(await integrationStatus('slack')).toMatchObject({ approved: false })
+    const pending = await setup.start()
+    expect(new URL(pending.authorizationUrl).searchParams.get('user_scope')).not.toContain(
+      'search:read.public'
+    )
+    await setup.complete(pending.state, 'access_denied')
+    await expect(setup.resolveToken()).resolves.toMatchObject({ accessToken: 'fixture-token' })
+  })
+
+  it.each(['remove connector', 'archive index', 'disable approval', 'restore index'] as const)(
+    'serializes the Slack consent commit with Search lifecycle changes: %s',
+    async (change) => {
+      const setup = await seedSlackAuthorization()
+      const connectorId = await seedImplicitSlackApproval()
+      const [index] = await db
+        .select()
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.organizationId, ids.organization))
+      if (change === 'restore index')
+        await deleteKnowledgeBase(index.id, generateId(), { allowSearchIndexDelete: true })
+      const pending = await setup.start()
+      provideSlackConsent([...SLACK_MANAGED_USER_SCOPES, ...SLACK_SEARCH_USER_SCOPES])
+      const probe = `slack_consent_${generateId().replace(/-/g, '')}`
+      const lockKey = `slack-consent-fixture:${setup.groupId}`
+      await db.$client.unsafe(`CREATE FUNCTION ${probe}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          PERFORM pg_advisory_xact_lock(hashtextextended('${lockKey}', 0));
+          RETURN NEW;
+        END $$`)
+      await db.$client.unsafe(`CREATE TRIGGER ${probe} BEFORE UPDATE ON credential_group
+        FOR EACH ROW WHEN (OLD.id = '${setup.groupId}') EXECUTE FUNCTION ${probe}()`)
+      const locked = createDeferred<number>()
+      const release = createDeferred<void>()
+      const blocker = db.transaction(async (tx) => {
+        await acquireAdvisoryXactLock(tx, 'slack_consent_fixture', lockKey)
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        locked.resolve(connection.pid)
+        await release.promise
+      })
+      const blockerPid = await locked.promise
+      const callback = setup.complete(pending.state).catch((error: unknown) => error)
+      let mutation: Promise<unknown> | undefined
+      try {
+        let callbackPid: number | undefined
+        await vi.waitFor(
+          async () => {
+            const [waiting] = await db.execute<{ pid: number }>(sql`
+            SELECT pid FROM pg_stat_activity WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
+          `)
+            expect(waiting).toBeDefined()
+            callbackPid = waiting?.pid
+          },
+          { timeout: 5_000 }
+        )
+        mutation = (
+          change === 'remove connector'
+            ? deleteKnowledgeConnector.execute({
+                principal: createSessionPrincipal({ userId: ids.owner, sessionId: generateId() }),
+                input: {
+                  connectorId,
+                  assertedOrganizationId: ids.organization,
+                  deleteDocuments: false,
+                },
+              })
+            : change === 'archive index'
+              ? deleteKnowledgeBase(index.id, generateId(), { allowSearchIndexDelete: true })
+              : change === 'restore index'
+                ? restoreKnowledgeBase(index.id, generateId())
+                : approveSearchIntegration.execute({
+                    principal: createSessionPrincipal({
+                      userId: ids.owner,
+                      sessionId: generateId(),
+                    }),
+                    input: {
+                      organizationId: ids.organization,
+                      connectorType: 'slack',
+                      approved: false,
+                    },
+                  })
+        ).catch((error: unknown) => error)
+        await vi.waitFor(
+          async () => {
+            const [state] = await db.execute<{ waiting: boolean }>(sql`
+            SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+              WHERE ${callbackPid!} = ANY(pg_blocking_pids(pid))) AS waiting
+          `)
+            expect(state.waiting).toBe(true)
+          },
+          { timeout: 3_000 }
+        )
+      } finally {
+        release.resolve()
+        await blocker
+        const callbackResult = await callback
+        const mutationResult = await mutation
+        await db.$client.unsafe(`DROP TRIGGER ${probe} ON credential_group`)
+        await db.$client.unsafe(`DROP FUNCTION ${probe}()`)
+        expect(callbackResult).toMatchObject({ ok: true })
+        expect(mutationResult).not.toBeInstanceOf(Error)
+      }
+      expect(await integrationStatus('slack')).toMatchObject({
+        approved: change === 'restore index',
+      })
+    }
+  )
 
   it.each([
     { name: 'workflow policy', scopes: SLACK_MANAGED_USER_SCOPES },

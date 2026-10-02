@@ -230,13 +230,3 @@ export function requireListRequest(
   }
   return request
 }
-
-export function requireDetailRequest(
-  selectorKey: SelectorKey,
-  request: SelectorRequest
-): Extract<SelectorRequest, { kind: 'detail' }> {
-  if (request.kind !== 'detail') {
-    throw new Error(`Selector ${selectorKey} received an unsupported list request`)
-  }
-  return request
-}

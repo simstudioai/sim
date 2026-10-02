@@ -1,3 +1,4 @@
+import { sleep } from '@sim/utils/helpers'
 import { type Command, Option } from 'commander'
 import { dump } from 'js-yaml'
 import { printLine, writeStderr } from '#sim-cli/output/io'
@@ -7,7 +8,6 @@ import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import type { ColumnSpec } from '../../contract/types'
 import { type ListLogsResponse, V2_OPERATIONS } from '../../generated/v2-api'
-import { sleep } from '../../helpers'
 import { SimApiError, type SimClient } from '../../http/client'
 import {
   bool,

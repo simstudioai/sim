@@ -136,10 +136,6 @@ async function decryptManagedMcpEnvelope(encrypted: string): Promise<ManagedMcpT
   }
 }
 
-export async function decryptManagedMcpTokens(encrypted: string): Promise<OAuthTokens> {
-  return (await decryptManagedMcpEnvelope(encrypted)).tokens
-}
-
 export async function loadManagedMcpCredentialApplicationContext(
   credentialId: string,
   executingWorkspaceId?: string

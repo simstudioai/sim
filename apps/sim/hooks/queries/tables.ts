@@ -320,18 +320,6 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
   })
 }
 
-/**
- * Shared table-detail query options so non-component callers (e.g. selector
- * providers) can `ensureQueryData` the same cache entry `useTable` populates.
- */
-export function getTableDetailQueryOptions(workspaceId: string, tableId: string) {
-  return {
-    queryKey: tableKeys.detail(tableId),
-    queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
-    staleTime: TABLE_DETAIL_STALE_TIME,
-  }
-}
-
 export interface TableRunState {
   dispatches: ActiveDispatch[]
   runningByRowId: Record<string, number>

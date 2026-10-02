@@ -26,6 +26,7 @@ import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workf
 import { getCanvasPorts } from '@/lib/workflows/blocks/canvas-ports'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison'
 import type { EdgeChange } from '@/lib/workflows/comparison/compare'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { DIFF_LABEL } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
 import {
   DIFF_SIGN,
@@ -137,6 +138,8 @@ export function ChangeList({
             <BlockCard
               key={entry.id}
               entry={entry}
+              baseBlocks={baseBlocks}
+              targetBlocks={targetBlocks}
               selectedBlockId={containsSelection(entry, selectedBlockId) ? selectedBlockId : null}
               onToggleSelected={toggleSelected}
               registerCard={registerCard}
@@ -201,6 +204,8 @@ function Section({ title, children }: SectionProps) {
 
 interface BlockCardProps {
   entry: BlockChangeEntry
+  baseBlocks: Record<string, BlockState>
+  targetBlocks: Record<string, BlockState>
   /** The selected block id when it is this card or one nested inside it, else null */
   selectedBlockId: string | null
   onToggleSelected: (id: string) => void
@@ -216,6 +221,8 @@ interface BlockCardProps {
  */
 const BlockCard = memo(function BlockCard({
   entry,
+  baseBlocks,
+  targetBlocks,
   selectedBlockId,
   onToggleSelected,
   registerCard,
@@ -232,6 +239,8 @@ const BlockCard = memo(function BlockCard({
     (node: HTMLDivElement | null) => registerCard(entry.id, node),
     [registerCard, entry.id]
   )
+  const baseValues = buildSubBlockValues(baseBlocks[entry.id]?.subBlocks ?? {})
+  const targetValues = buildSubBlockValues(targetBlocks[entry.id]?.subBlocks ?? {})
   const fields = entry.changes
   const hasBody =
     fields.length > 0 ||
@@ -295,6 +304,8 @@ const BlockCard = memo(function BlockCard({
               field={change.field}
               oldValue={change.oldValue}
               newValue={change.newValue}
+              baseValues={baseValues}
+              targetValues={targetValues}
             />
           ))}
 
@@ -305,6 +316,8 @@ const BlockCard = memo(function BlockCard({
                   <BlockCard
                     key={child.id}
                     entry={child}
+                    baseBlocks={baseBlocks}
+                    targetBlocks={targetBlocks}
                     selectedBlockId={
                       containsSelection(child, selectedBlockId) ? selectedBlockId : null
                     }

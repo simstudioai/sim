@@ -18,6 +18,7 @@ import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -104,14 +105,7 @@ export const sakanaProvider: ProviderConfig = {
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
       const responseFormatPayload = request.responseFormat
-        ? {
-            type: 'json_schema' as const,
-            json_schema: {
-              name: request.responseFormat.name || 'response_schema',
-              schema: request.responseFormat.schema || request.responseFormat,
-              strict: request.responseFormat.strict !== false,
-            },
-          }
+        ? buildJsonSchemaResponseFormat(request.responseFormat)
         : undefined
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null

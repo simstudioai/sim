@@ -43,14 +43,6 @@ vi.mock('@/lib/sim-search/connectors', () => ({
     ['github', { name: 'GitHub' }],
     ['jira', { name: 'Jira' }],
   ],
-  searchMemberAccountProvider: (type: string) =>
-    type === 'google_drive'
-      ? 'google-drive'
-      : ['gmail', 'jira', 'github'].includes(type)
-        ? type === 'github'
-          ? 'github-repositories'
-          : type
-        : null,
 }))
 
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'

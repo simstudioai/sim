@@ -74,7 +74,6 @@ import type {
   ExecutionEnvironment,
   ExecutionFinalizationPath,
   ExecutionTrigger,
-  ExecutionLoggerService as IExecutionLoggerService,
   TraceSpan,
   WorkflowExecutionLog,
   WorkflowState,
@@ -411,7 +410,7 @@ function recordedFile(file: TraversedFile) {
   }
 }
 
-export class ExecutionLogger implements IExecutionLoggerService {
+export class ExecutionLogger {
   private compactExecutionDataForStorage(
     executionData: ExecutionData,
     executionId: string

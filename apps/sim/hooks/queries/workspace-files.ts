@@ -68,7 +68,6 @@ export const workspaceFilesKeys = {
 export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
-export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
 /** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
 export const CLOUD_STORAGE_CONFIGURED_STALE_TIME = Number.POSITIVE_INFINITY
 

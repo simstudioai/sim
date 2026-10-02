@@ -68,7 +68,7 @@ export async function getWorkspaceOrganizationId(workspaceId: string): Promise<s
  * with no explicit permission row required. Empty when the user is not an org
  * owner/admin. Implements the workspace-permission inheritance model.
  */
-export async function getOrgAdminWorkspaceRows(
+async function getOrgAdminWorkspaceRows(
   userId: string,
   scope: WorkspaceScope = 'active',
   organizationId?: string
@@ -160,16 +160,6 @@ export async function listAccessibleWorkspaceRowsForUser(
   return [...elevatedExplicit, ...derived].sort(
     (a, b) => b.workspace.createdAt.getTime() - a.workspace.createdAt.getTime()
   )
-}
-
-export async function listUserWorkspaces(userId: string, scope: WorkspaceScope = 'active') {
-  const rows = await listAccessibleWorkspaceRowsForUser(userId, scope)
-
-  return rows.map(({ workspace: ws, permissionType }) => ({
-    workspaceId: ws.id,
-    workspaceName: ws.name,
-    role: ws.ownerId === userId ? 'owner' : permissionType,
-  }))
 }
 
 export interface ReassignBilledAccountResult {

@@ -122,9 +122,14 @@ export function classifyChange(
  * Resolves a stored dropdown id to its option label, else falls back to the
  * shared display formatter.
  */
-export function formatScalar(blockType: string | undefined, field: string, value: unknown): string {
+export function formatScalar(
+  blockType: string | undefined,
+  field: string,
+  value: unknown,
+  values: Record<string, unknown> = {}
+): string {
   const config = findSubBlockConfig(blockType, field)
-  const optionLabel = typeof value === 'string' ? resolveDropdownLabel(config, value) : null
+  const optionLabel = typeof value === 'string' ? resolveDropdownLabel(config, value, values) : null
   if (optionLabel) return optionLabel
   /* A comparison must show the whole value: a difference at character 55 is still a difference. */
   if (typeof value === 'string') return maskEncodedSecrets(value) || formatValueForDisplay(value)

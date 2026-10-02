@@ -9275,14 +9275,14 @@
           },
           "base": {
             "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991,
+            "minimum": 1,
+            "maximum": 2147483647,
             "description": "Base deployment version."
           },
           "target": {
             "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991,
+            "minimum": 1,
+            "maximum": 2147483647,
             "description": "Target deployment version."
           },
           "diff": {

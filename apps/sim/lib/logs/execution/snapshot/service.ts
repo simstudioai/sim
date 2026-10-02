@@ -6,7 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, lt, notExists, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { consumeRowBudget, type RowBudget } from '@/lib/cleanup/batch-delete'
-import type { SnapshotService as ISnapshotService, WorkflowState } from '@/lib/logs/types'
+import type { WorkflowState } from '@/lib/logs/types'
 import { normalizedStringify, normalizeWorkflowState } from '@/lib/workflows/comparison'
 
 const logger = createLogger('SnapshotService')
@@ -37,7 +37,7 @@ export interface ResolvedSnapshot {
 const snapshotCacheKey = ({ workflowId, stateHash }: Omit<ResolvedSnapshot, 'id'>) =>
   `${workflowId}:${stateHash}`
 
-export class SnapshotService implements ISnapshotService {
+export class SnapshotService {
   /**
    * Resolves the snapshot row holding `state` for `workflowId`, creating the row
    * only when no identical state (same normalized hash) is stored yet.

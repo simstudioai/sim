@@ -1,8 +1,59 @@
 import { describe, expect, it } from 'vitest'
 import { diffOrderedRows } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/ordered-row-diff'
 import { getStructuredValuePresentation } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation'
+import type { SubBlockConfig } from '@/blocks/types'
 
 describe('structured workflow value presentation', () => {
+  it.each(['dropdown', 'combobox', 'checkbox-list'] as const)(
+    'resolves %s options from each snapshot without losing stored identity',
+    (type) => {
+      const config: SubBlockConfig = {
+        id: 'selection',
+        type,
+        options: ({ values } = { values: {} }) =>
+          values.catalog === 'original'
+            ? [
+                { id: 'first', label: 'Original option' },
+                { id: 'second', label: 'Original option' },
+              ]
+            : [{ id: 'first', label: 'Updated option' }],
+      }
+      const value =
+        type === 'checkbox-list' ? { first: true } : ['first', 'second', 'first', 'missing']
+      const original = getStructuredValuePresentation(config, 'selection', value, {
+        catalog: 'original',
+      })!
+      const updated = getStructuredValuePresentation(config, 'selection', value, {
+        catalog: 'updated',
+      })!
+      expect(original.rows[0].cells).toEqual(
+        type === 'checkbox-list'
+          ? { Option: 'Original option', Selected: true }
+          : { Selection: 'Original option', Identifier: 'first' }
+      )
+      expect(updated.rows[0].cells).toEqual(
+        type === 'checkbox-list'
+          ? { Option: 'Updated option', Selected: true }
+          : { Selection: 'Updated option' }
+      )
+      expect(original.rows.map(({ key }) => key)).toEqual(updated.rows.map(({ key }) => key))
+      if (type !== 'checkbox-list') {
+        expect(original.rows.map(({ cells }) => cells.Selection)).toEqual([
+          'Original option',
+          'Original option',
+          'Original option',
+          'missing',
+        ])
+        expect(updated.rows.map(({ cells }) => cells.Selection)).toEqual([
+          'Updated option',
+          'second',
+          'Updated option',
+          'missing',
+        ])
+      }
+    }
+  )
+
   it.each([false, true])(
     'preserves header order and ignores editor metadata (encoded: %s)',
     (encoded) => {

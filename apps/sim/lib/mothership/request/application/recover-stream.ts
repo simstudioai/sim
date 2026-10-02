@@ -15,7 +15,10 @@ import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/a
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import { restoreBillingAdmission } from '@/lib/mothership/request/lifecycle/admission'
-import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
+import {
+  claimRunController,
+  planRecovery,
+} from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import { isTerminalStreamStatus } from '@/lib/mothership/request/session'
@@ -28,6 +31,7 @@ import { getLatestSeq, readEvents } from '@/lib/mothership/request/session/buffe
 import { assertChatStreamLease } from '@/lib/mothership/request/session/controller-lease'
 import { eventToStreamEvent } from '@/lib/mothership/request/session/event'
 import { startsAtReplayHead } from '@/lib/mothership/request/session/recovery'
+import { StreamRecoveryExhaustedError } from '@/lib/mothership/request/session/turn-failure'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipStreamRecovery')
@@ -81,21 +85,11 @@ export const readChatStream = defineAuthorizedChatUseCase({
     ) {
       throw new OrchestrationError('validation', 'Saved stream identity does not match its chat')
     }
+    const plan = planRecovery(saved.recoveryBackoff, Date.now())
+    if (plan.kind === 'wait') return run
     if (!(await acquirePendingChatStream(chatId, run.streamId, 0))) return run
     const lease = getLocalChatStreamLease(chatId, run.streamId)!
     try {
-      await assertChatStreamLease(lease)
-      if (
-        !(await claimRunController({
-          runId: run.id,
-          chatId,
-          previousToken: saved.controllerToken,
-          token: lease.value,
-        }))
-      ) {
-        await releasePendingChatStream(chatId, run.streamId, lease)
-        return (await getLatestRunForStream(run.streamId, userId)) ?? run
-      }
       if (isHosted && !config.data.billingAdmission)
         throw new OrchestrationError(
           'forbidden',
@@ -132,6 +126,30 @@ export const readChatStream = defineAuthorizedChatUseCase({
       const recoveredEvents = ringIntact ? events : []
       const lastEvent = recoveredEvents.at(-1)
       const resumeSeq = lastEvent ? lastEvent.seq : ((await getLatestSeq(run.streamId)) ?? 0)
+      /**
+       * Claim last: everything before it can fail without touching the run, so a takeover
+       * that cannot start neither spends the recovery budget nor refreshes the run, and
+       * an exhausted claim always reaches the terminal path below.
+       */
+      await assertChatStreamLease(lease)
+      if (
+        !(await claimRunController({
+          runId: run.id,
+          chatId,
+          previousToken: saved.controllerToken,
+          token: lease.value,
+          recoveryBackoff: plan.backoff,
+        }))
+      ) {
+        await releasePendingChatStream(chatId, run.streamId, lease)
+        return (await getLatestRunForStream(run.streamId, userId)) ?? run
+      }
+      logger.info('Claimed stream run for recovery', {
+        runId: run.id,
+        streamId: run.streamId,
+        attempt: plan.backoff.attempts,
+        exhausted: plan.kind === 'exhausted',
+      })
       const requestId = typeof saved?.requestId === 'string' ? saved.requestId : generateId()
       const completion = {
         chatId,
@@ -163,6 +181,7 @@ export const readChatStream = defineAuthorizedChatUseCase({
         message: '',
         titleModel: '',
         resumeSeq,
+        ...(plan.kind === 'exhausted' ? { failure: new StreamRecoveryExhaustedError() } : {}),
         orchestrateOptions: {
           userId,
           workspaceId,

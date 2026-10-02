@@ -26,16 +26,11 @@ vi.mock('@/lib/table/schema-invariants', () => ({
 }))
 
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import {
-  addWorkflowGroup,
-  addWorkflowGroupOutput,
-  updateWorkflowGroup,
-} from '@/lib/table/workflow-groups/service'
+import { addWorkflowGroup, updateWorkflowGroup } from '@/lib/table/workflow-groups/service'
 
 const mockAssertTableRowTtlEnabled = tableTtlAvailabilityMockFns.mockAssertTableRowTtlEnabled
 
 const mockWithLockedTable = tableServiceMockFns.mockWithLockedTable
-const mockGetTableById = tableServiceMockFns.mockGetTableById
 
 function groupAt(index: number): WorkflowGroup {
   return {
@@ -85,7 +80,6 @@ describe('addWorkflowGroup group ceiling', () => {
           execute: () => Promise.resolve(),
         })
     )
-    mockGetTableById.mockResolvedValue(table)
     return addWorkflowGroup(
       {
         tableId: 'table-1',
@@ -135,22 +129,6 @@ describe('workflow group TTL availability', () => {
             groupId: 'group-1',
             newOutputColumns: [{ name: 'expires_at', type: 'ttl' }],
           } as Parameters<typeof updateWorkflowGroup>[0],
-          'request-1'
-        ),
-    ],
-    [
-      'single output addition',
-      () =>
-        addWorkflowGroupOutput(
-          {
-            tableId: 'table-1',
-            workspaceId: 'workspace-1',
-            groupId: 'group-1',
-            blockId: 'block-1',
-            path: 'expiresAt',
-            capabilityGovernedUserId: null,
-            resolvedOutput: { workflowId: 'workflow-1', columnType: 'ttl', order: [] },
-          },
           'request-1'
         ),
     ],

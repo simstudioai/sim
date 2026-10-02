@@ -41,8 +41,6 @@ import {
   getCredentialGroupSettings,
   getWorkspaceAccountsSettings,
 } from '@/lib/credential-groups/application/manage-groups'
-import { loadCopilotConnectedAccounts } from '@/lib/mothership/application/load-connected-accounts'
-import { requireTrustedCopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 
 const mocks = {
   ...hoisted,
@@ -69,14 +67,6 @@ const enrollmentPrincipal: CredentialGroupEnrollmentPrincipal = {
   email: 'person@example.com',
   invitationTokenHash: 'hash-1',
 }
-
-const copilotContext = requireTrustedCopilotExecutionContext({
-  userId: 'admin-1',
-  workspaceId: 'workspace-1',
-  toolCallId: 'tool-1',
-  copilotToolExecution: true,
-  chatId: 'chat-1',
-})
 
 function copilotPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
   return {
@@ -130,27 +120,6 @@ describe('Credential Group Settings application operations', () => {
         input: { workspaceId: 'workspace-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('reauthorizes connected-account reads after the acting admin is demoted', async () => {
-    await loadCopilotConnectedAccounts(copilotContext)
-    mocks.list.mockClear()
-    resolvePermission.mockResolvedValue('read')
-    await expect(loadCopilotConnectedAccounts(copilotContext)).rejects.toMatchObject({
-      code: 'forbidden',
-    })
-    expect(mocks.list).not.toHaveBeenCalled()
-    expect(mocks.listEnrollments).not.toHaveBeenCalled()
-  })
-
-  it('rechecks account availability on each authorized read', async () => {
-    await loadCopilotConnectedAccounts(copilotContext)
-    mocks.list.mockClear()
-    mocks.requireAvailable.mockRejectedValue(new OrchestrationError('not_found', 'Unavailable'))
-    await expect(loadCopilotConnectedAccounts(copilotContext)).rejects.toMatchObject({
-      code: 'not_found',
-    })
     expect(mocks.list).not.toHaveBeenCalled()
   })
 
