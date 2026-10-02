@@ -56,12 +56,17 @@ const ALLOWLISTED_FILES = new Set([
 /** Leading `'use client'` directive, after any comment header. */
 const USE_CLIENT_PROLOGUE = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*['"]use client['"]/
 
+/** App Router files Next only ever evaluates on the server, plus `*.server.ts` modules. */
+const SERVER_ONLY_FILE =
+  /\/(?:route|sitemap|robots|manifest)\.[jt]sx?$|\/(?:opengraph-image|twitter-image|icon|apple-icon)\.[^/]+$|\.server\.[jt]sx?$/
+
 /**
  * Files that ship to the browser: client directories plus any `'use client'` module. Server-only
- * code (route handlers, tests) may use Node 20+ runtime methods freely.
+ * code (route handlers, metadata routes, tests) may use Node 20+ runtime methods freely.
  */
 function isClientRenderPath(rel: string, content: string): boolean {
   if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(rel) || /\/app\/api\//.test(rel)) return false
+  if (SERVER_ONLY_FILE.test(rel)) return false
   return (
     /^apps\/sim\/(app|components|hooks|stores)\//.test(rel) ||
     /^apps\/docs\/(app|components)\//.test(rel) ||
@@ -165,13 +170,13 @@ const BANNED_PATTERNS: Array<{
     appliesTo: isClientRenderPath,
   },
   {
-    pattern: /\buseRef(?:<[^>]*>)?\(\s*new\s+[A-Z]\w*/g,
+    pattern: /\buseRef(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*new\s+[A-Z]\w*/g,
     description: 'useRef(new X()) allocates a throwaway X on every render',
     suggestion: 'useRef<X | null>(null), then `ref.current ??= new X()` before first use',
   },
   {
     pattern:
-      /(?:^|[ \t'"`])((?:[\w-]+:)*)(?:h-(\[[^\]\s]+\]|[\d.]+|px|full|screen|auto|fit|min|max)\s+\1w-\2|w-(\[[^\]\s]+\]|[\d.]+|px|full|screen|auto|fit|min|max)\s+\1h-\3)(?=[\s'"`]|$)/gm,
+      /(?:^|[ \t'"`])((?:[\w-]+:)*)(?:h-(\[[^\]\s]+\]|[\d.]+|px|full|auto|fit|min|max)\s+\1w-\2|w-(\[[^\]\s]+\]|[\d.]+|px|full|auto|fit|min|max)\s+\1h-\3)(?=[\s'"`]|$)/gm,
     prefilter: /[hw]-\S+\s+(?:[\w-]+:)*[hw]-/,
     description: 'h-N w-N with equal N',
     suggestion: 'size-N (Tailwind) — e.g. `size-4`, `size-full`',
@@ -229,15 +234,28 @@ function lineAt(lineStarts: number[], offset: number): number {
   return low + 1
 }
 
+/** The line before ends mid-expression: an open bracket, a comma, or a binary/arrow operator. */
+const ENDS_OPEN = /(?:[([,=?:+]|=>|&&|\|\||\?\?)$/
+/** The line starts mid-expression: a member access, a closing bracket, or a ternary/logical operator. */
+const STARTS_CONTINUED = /^(?:[.?:)\]]|&&|\|\|)/
+
 /**
  * True if a `// utils-lint-allow: <reason>` annotation sits just above `line` (1-based).
  *
  * The reason must be non-empty: an annotation that does not say why is the thing this
- * check exists to prevent. Scans up to three comment lines above, so the annotation can
- * carry context lines with it.
+ * check exists to prevent. A match the formatter wrapped onto a continuation line is first
+ * walked up to its statement's first line (the repo omits semicolons, so continuation is
+ * read from the bracket or operator at the seam), then up to three comment lines above
+ * that are scanned, so the annotation can carry context lines with it.
  */
 function hasAllow(lines: string[], line: number): boolean {
-  for (let i = line - 2; i >= 0 && i >= line - 5; i--) {
+  let start = line - 1
+  while (start > 0) {
+    const previous = lines[start - 1].trim()
+    if (!ENDS_OPEN.test(previous) && !STARTS_CONTINUED.test(lines[start].trim())) break
+    start--
+  }
+  for (let i = start - 1; i >= 0 && i >= start - 4; i--) {
     const text = lines[i]?.trim() ?? ''
     if (text.includes(ALLOW)) {
       return text.slice(text.indexOf(ALLOW) + ALLOW.length).trim().length > 0

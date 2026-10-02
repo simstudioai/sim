@@ -46,14 +46,16 @@
  * Escape hatch: `// client-boundary-allow: <reason>` on the line directly above
  * the import (reason required). Use only for a genuinely browser-only code path.
  *
- * ## Deployment-shape flags in client surfaces
+ * ## Deployment-shape flags in client code
  *
- * A `'use client'` module under the workspace, organization, or standalone settings
- * surfaces must not import `isHosted`, `isBillingEnabled`, `isChatEnabled`, or the
- * enterprise feature flags from `env-flags`: those freeze at module init from the root
+ * Client code — `stores/`, `hooks/`, `blocks/`, and any `'use client'` module or hook
+ * under the workspace, organization, or standalone settings surfaces — must not read
+ * `isHosted`, `isBillingEnabled`, `isChatEnabled`, or the enterprise feature flags from
+ * `env-flags`, by named or namespace import: those freeze at module init from the root
  * layout's `NEXT_PUBLIC_*` transport, which a recovered 404 or `global-error` tab never
  * ran, so Sim Cloud renders as self-hosted. Read them through `useDeploymentShape()` /
- * `getDeploymentShape()` from `@/lib/core/config/deployment-shape` (CLAUDE.md).
+ * `getDeploymentShape()` from `@/lib/core/config/deployment-shape` (CLAUDE.md). The flag
+ * list is read from that module's own `env-flags` import, so it cannot drift.
  *
  * Usage:
  *   bun run scripts/check-client-boundary-imports.ts          # report
@@ -76,30 +78,50 @@ function isServerSurface(rel: string): boolean {
   return false
 }
 
-/** `env-flags` exports that `@/lib/core/config/deployment-shape` re-serves to the browser. */
-const DEPLOYMENT_SHAPE_FLAGS = new Set([
-  'isHosted',
-  'isBillingEnabled',
-  'isChatEnabled',
-  'isAzureConfigured',
-  'isCohereConfigured',
-  'isAccessControlEnabled',
-  'isAuditLogsEnabled',
-  'isCustomBlocksEnabled',
-  'isDataDrainsEnabled',
-  'isDataRetentionEnabled',
-  'isInboxEnabled',
-  'isSandboxesEnabled',
-  'isScimEnabled',
-  'isSessionPoliciesEnabled',
-  'isSsoEnabled',
-  'isUsageMonitoringEnabled',
-  'isWhitelabelingEnabled',
+const ENV_FLAGS = '@/lib/core/config/env-flags'
+const DEPLOYMENT_SHAPE_MODULE = path.join(APP_DIR, 'lib/core/config/deployment-shape.ts')
+
+/**
+ * Known deployment-shape violations awaiting a product decision (paths relative to apps/sim).
+ * Each entry names why it cannot simply move to the reader.
+ */
+const DEPLOYMENT_SHAPE_ALLOWLIST = new Set([
+  // Picks the panel's default tab from `isChatEnabled` at module init, before any surface
+  // seeds the shape; moving it to the reader changes the first-render tab, a product call.
+  'stores/panel/store.ts',
 ])
 
 /** Surfaces whose shell seeds the server-resolved deployment shape (paths relative to apps/sim). */
 function isDeploymentShapeSurface(rel: string): boolean {
   return /^(?:app\/(?:workspace|o|account|selfhost\/settings)|components\/settings|ee)\//.test(rel)
+}
+
+/**
+ * Client code bound by the deployment-shape rule: client-only directories by path, and
+ * `'use client'` modules or hooks (a `hooks/` folder or `use-*` file) inside a surface.
+ */
+async function isDeploymentShapeClient(rel: string, absFile: string): Promise<boolean> {
+  if (/\.(?:test|spec|integration)\.tsx?$/.test(rel)) return false
+  if (/^(?:stores|hooks|blocks)\//.test(rel)) return true
+  if (!isDeploymentShapeSurface(rel)) return false
+  return /(?:^|\/)(?:hooks\/|use-[^/]+\.tsx?$)/.test(rel) || isUseClientModule(absFile)
+}
+
+/**
+ * Exports of `env-flags` an import clause reads: its named members, or, for a namespace
+ * import (`* as flags`), every `flags.<name>` access in the file.
+ */
+function envFlagReads(clause: string, content: string): string[] {
+  const namespace = /^\*\s+as\s+(\w+)$/.exec(clause.trim())?.[1]
+  if (namespace) {
+    return [...content.matchAll(new RegExp(`\\b${namespace}\\.(\\w+)`, 'g'))].map((m) => m[1])
+  }
+  if (!clause.includes('{')) return []
+  return clause
+    .slice(clause.indexOf('{') + 1, clause.lastIndexOf('}'))
+    .split(',')
+    .map((member) => member.trim().split(/\s+as\s+/)[0])
+    .filter(Boolean)
 }
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx']
@@ -231,9 +253,11 @@ function parseImports(content: string): ImportInfo[] {
   const imports: ImportInfo[] = []
   const re = /^\s*import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"]/
   for (let i = 0; i < lines.length; i++) {
-    if (!/^\s*import\b/.test(lines[i]) || !lines[i].includes('import')) continue
-    // Join up to 12 following lines to capture multi-line import clauses.
-    const block = lines.slice(i, i + 12).join('\n')
+    if (!/^\s*import\b/.test(lines[i]) || /^\s*import\s*['"(]/.test(lines[i])) continue
+    // Join through the `from` line so a long multi-line clause is captured whole.
+    let end = i
+    while (end < lines.length - 1 && !/\bfrom\s+['"]/.test(lines[end])) end++
+    const block = lines.slice(i, end + 1).join('\n')
     const match = re.exec(block)
     if (!match) continue
     imports.push({ line: i + 1, clause: match[1], specifier: match[2] })
@@ -345,30 +369,40 @@ async function main() {
     }
   }
 
+  const shapeFlags = new Set(
+    parseImports(await readSource(DEPLOYMENT_SHAPE_MODULE))
+      .filter((imp) => imp.specifier === ENV_FLAGS)
+      .flatMap((imp) => envFlagReads(imp.clause, ''))
+  )
+  if (shapeFlags.size === 0) {
+    throw new Error(
+      `${DEPLOYMENT_SHAPE_MODULE} no longer imports from env-flags; update this check`
+    )
+  }
   const shapeViolations: Array<Violation & { flags: string[] }> = []
   for (const absFile of allFiles) {
     if (!absFile.startsWith(`${APP_DIR}${path.sep}`)) continue
     const rel = path.relative(APP_DIR, absFile)
-    if (!isDeploymentShapeSurface(rel) || !(await isUseClientModule(absFile))) continue
+    if (DEPLOYMENT_SHAPE_ALLOWLIST.has(rel) || !(await isDeploymentShapeClient(rel, absFile))) {
+      continue
+    }
     const content = await readSource(absFile)
     for (const imp of parseImports(content)) {
-      if (imp.specifier !== '@/lib/core/config/env-flags' || !importsAValue(imp.clause)) continue
-      const braced = imp.clause.slice(imp.clause.indexOf('{') + 1, imp.clause.lastIndexOf('}'))
-      const flags = braced
-        .split(',')
-        .map((member) => member.trim().split(/\s+as\s+/)[0])
-        .filter((name) => DEPLOYMENT_SHAPE_FLAGS.has(name))
+      if (imp.specifier !== ENV_FLAGS || !importsAValue(imp.clause)) continue
+      const flags = [...new Set(envFlagReads(imp.clause, content))].filter((name) =>
+        shapeFlags.has(name)
+      )
       if (flags.length === 0 || hasAllowDirective(content, imp.line)) continue
       shapeViolations.push({ file: rel, line: imp.line, specifier: imp.specifier, flags })
     }
   }
 
   if (shapeViolations.length === 0) {
-    console.log('✓ No client settings surface reads deployment-shape flags from env-flags.')
+    console.log('✓ No client code reads deployment-shape flags from env-flags.')
   } else {
     failed = true
     console.error(
-      `\n✗ ${shapeViolations.length} 'use client' module(s) in a workspace/organization/settings surface import deployment-shape flags from env-flags.\n` +
+      `\n✗ ${shapeViolations.length} client module(s) read deployment-shape flags from env-flags.\n` +
         `  Those constants freeze from the root layout's NEXT_PUBLIC_* transport, so a recovered 404/global-error tab renders Sim Cloud as self-hosted.\n` +
         `  Read them via useDeploymentShape() (components) or getDeploymentShape() (helpers) from @/lib/core/config/deployment-shape.\n`
     )

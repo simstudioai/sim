@@ -326,7 +326,7 @@ function auditPersist(file: string, source: string): Violation[] {
       line: lineNumberAt(source, match.index),
       description: spreadsState
         ? 'persist partialize spreads the whole state; return an explicit whitelist of durable fields'
-        : 'persist has no partialize; add `partialize: (state) => ({ <durable fields> })` (sim-stores.md)',
+        : `persist has no partialize; add \`partialize: (state) => ({ <durable fields> })\` (sim-stores.md). If the options object is hoisted into a variable that has one, mark the call // ${SAFE_ANNOTATION} <where>`,
       snippet: oneLineSnippet(
         source,
         match.index,
