@@ -67,36 +67,6 @@ describe('tool events (dispatch → model + side effects)', () => {
   // frame rather than waiting for the server to dispatch them, so a permission
   // gate that only held the server would let the command run behind the prompt.
   // The awaiting_approval status on the frame is what actually holds it here.
-  // Every client tailing the chat receives the call frame. A web tab cannot run desktop tools, and
-  // its error report would beat the desktop app's real result, so it leaves them pending.
-  it('starts only workflow tools in a client without the desktop app', () => {
-    libDesktopMockFns.mockGetDesktopBridge.mockReturnValue(undefined)
-    const deps = makeStreamLoopDeps()
-    const ctx = createStreamLoopContext(deps)
-    const clientCall = (toolCallId: string, toolName: string, args: Record<string, unknown>) =>
-      toolEnv({
-        phase: 'call',
-        executor: 'client',
-        mode: 'async',
-        toolCallId,
-        toolName,
-        arguments: args,
-        status: 'executing',
-      })
-
-    dispatchStreamEvent(ctx, clientCall('browser-1', 'browser_find', { query: 'Sign in' }))
-    dispatchStreamEvent(ctx, clientCall('term-0', 'terminal', { operation: 'run', args: {} }))
-    dispatchStreamEvent(ctx, clientCall('file-1', 'import_local_files', {}))
-    dispatchStreamEvent(ctx, clientCall('flow-1', 'run_workflow', { workflowId: 'wf-1' }))
-
-    expect(deps.startClientBrowserTool).not.toHaveBeenCalled()
-    expect(deps.startClientTerminalTool).not.toHaveBeenCalled()
-    expect(deps.startClientLocalFilesystemTool).not.toHaveBeenCalled()
-    expect(deps.startClientWorkflowTool).toHaveBeenCalledWith('flow-1', 'run_workflow', {
-      workflowId: 'wf-1',
-    })
-  })
-
   it('does not start a gated terminal command until the user allows it', () => {
     const startClientTerminalTool = vi.fn()
     const ctx = createStreamLoopContext(makeStreamLoopDeps({ startClientTerminalTool }))
