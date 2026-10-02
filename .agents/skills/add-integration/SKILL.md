@@ -128,8 +128,8 @@ Three rules that are easy to get wrong when copying from existing blocks:
 - Every remote `selectorKey` must use the unified server selector path. Apply the `add-selector` skill:
   add browser-safe metadata to `apps/sim/lib/selectors/manifest.ts`, reuse or extract a server-only
   provider listing primitive, and add a credential- and destination-bound server attachment. Do not
-  add code under `hooks/selectors/providers`, a provider-specific query key, browser token acquisition,
-  or a selector-only API route. The shared context builder sends only active `dependsOn` values and
+  add a client provider fetcher, a provider-specific query key, browser token acquisition, or a
+  selector-only API route. The shared context builder sends only active `dependsOn` values and
   preserves exact `{{KEY}}` environment references for server-side resolution.
 - A `canonicalParamId` is a third name that neither member of a basic/advanced pair uses as its `id`
   (e.g. `channelSelector` + `channelId` → `canonicalParamId: 'channel'`). It is the only key that

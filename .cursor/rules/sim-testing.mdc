@@ -73,7 +73,7 @@ the report.
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { describe, expect, it } from 'vitest'
-import { GET } from '@/app/api/my-route/route'
+import { GET } from '@/app/api/<route>/route'
 
 describe('GET /api/my-route', () => {
   it('returns 401 without a session', async () => {

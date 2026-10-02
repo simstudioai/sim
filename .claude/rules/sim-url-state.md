@@ -80,7 +80,7 @@ Conventions:
 ### Example — grouped filters (single source of truth)
 
 ```typescript
-// apps/sim/app/workspace/[workspaceId]/things/search-params.ts
+// apps/sim/app/workspace/[workspaceId]/<feature>/search-params.ts
 import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 const VIEW_MODES = ['list', 'grid'] as const
@@ -106,7 +106,7 @@ export const thingsUrlKeys = {
 'use client'
 
 import { useQueryStates } from 'nuqs'
-import { thingsParsers, thingsUrlKeys } from '@/app/workspace/[workspaceId]/things/search-params'
+import { thingsParsers, thingsUrlKeys } from '@/app/workspace/[workspaceId]/<feature>/search-params'
 
 export function useThingFilters() {
   const [filters, setFilters] = useQueryStates(thingsParsers, thingsUrlKeys)
@@ -129,7 +129,7 @@ When a Server Component or loader must read a param, build a cache from the **sa
 ```typescript
 // in a server component / page.tsx
 import { createSearchParamsCache } from 'nuqs/server'
-import { thingsParsers } from '@/app/workspace/[workspaceId]/things/search-params'
+import { thingsParsers } from '@/app/workspace/[workspaceId]/<feature>/search-params'
 
 const thingsCache = createSearchParamsCache(thingsParsers)
 

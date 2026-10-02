@@ -14,10 +14,10 @@ paths:
 ```typescript
 // ✓ Good
 import { Chip } from '@sim/emcn'
-import { useWorkflowStore } from '@/stores/workflows/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 // ✗ Bad
-import { useWorkflowStore } from '../../../stores/workflows/store'
+import { useWorkflowStore } from '../../../stores/workflows/workflow/store'
 ```
 
 ## Barrel Exports

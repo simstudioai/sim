@@ -47,16 +47,16 @@ Read these files completely before editing:
 - `apps/sim/lib/api/server/routes/internal-json-route.ts`
 - `apps/sim/lib/api/server/routes/v2-json-route.ts`
 - `apps/sim/lib/auth/internal-delegation.ts`
-- `apps/sim/lib/copilot/application/application-adapter.ts`
-- `apps/sim/lib/copilot/auth/application-delegation.ts`
+- `apps/sim/lib/mothership/application/application-adapter.ts`
+- `apps/sim/lib/mothership/auth/application-delegation.ts`
 
 Use the file domain only as a representative golden slice:
 
 - `apps/sim/lib/workspace-files/application/operations.ts`
 - `apps/sim/lib/workspace-files/application/authorized-workspace-file-use-case.ts`
 - `apps/sim/lib/workspace-files/application/rename-workspace-file.ts`
-- `apps/sim/lib/copilot/application/execute-file-use-case.ts`
-- `apps/sim/lib/copilot/auth/file-delegation.ts`
+- `apps/sim/lib/mothership/application/execute-file-use-case.ts`
+- `apps/sim/lib/mothership/auth/file-delegation.ts`
 
 Then read the target domain's operation registry, application code, repositories, contracts, adapters, aliases, resume paths, and focused tests. Fail immediately if the shared foundation is absent. Do not recreate it inside the domain.
 
@@ -250,7 +250,7 @@ Keep v1 middleware and routes unchanged unless explicitly included.
 
 ## Adapt Copilot
 
-Copilot is a surface adapter, not a separate application layer. If an HTTP or other surface already uses an application use case, Copilot must call that exact use case rather than reimplementing protected business behavior under `lib/copilot`.
+Copilot is a surface adapter, not a separate application layer. If an HTTP or other surface already uses an application use case, Copilot must call that exact use case rather than reimplementing protected business behavior under `lib/mothership`.
 
 Create one domain-level Copilot application adapter with `createCopilotApplicationAdapter` instead of constructing delegated principals in every tool:
 

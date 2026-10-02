@@ -118,7 +118,7 @@ Rules:
 In `apps/sim/enrichments/registry.ts`, import and add the entry (catalog order is registration order):
 
 ```typescript
-import { myEnrichment } from '@/enrichments/my-enrichment'
+import { myEnrichment } from '@/enrichments/{id}/{id}'
 
 export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
   // ...existing

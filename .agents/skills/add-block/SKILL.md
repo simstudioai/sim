@@ -697,7 +697,7 @@ export const ServiceV2Block: BlockConfig = {
 Register the block in `apps/sim/blocks/registry-maps.ts` — add the import and an entry to each map alphabetically:
 
 ```typescript
-import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
+import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/{service}'
 
 export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   // ... existing blocks ...

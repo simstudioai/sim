@@ -98,7 +98,7 @@ Keep connector selector/manual canonical pairs and fork reconfiguration behavior
 
 Do not add:
 
-- A module under `hooks/selectors/providers` or any client provider fetcher.
+- A client provider fetcher.
 - A provider-specific React Query key.
 - A selector-specific OAuth-token request.
 - A selector-only API route when the provider primitive can be called directly.

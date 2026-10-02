@@ -197,7 +197,7 @@ Add a case to `capabilities.test.ts` for any rule with logic beyond reading one 
 | Guarded root | Forbidden |
 |---|---|
 | `lib/core/application/index.ts`, and `lib/permission-groups/` `capabilities.ts` / `capability-assertions.ts` / `config-scope.server.ts` | `providers/`, `blocks/`, `tools/`, `executor/`, `lib/uploads/`, `lib/workflows/` |
-| `lib/core/utils/with-route-handler.ts` | those six **plus** `lib/billing/`, `lib/permission-groups/resolve.server`, `lib/auth`, `lib/copilot/`, `lib/knowledge/` |
+| `lib/core/utils/with-route-handler.ts` | those six **plus** `lib/billing/`, `lib/permission-groups/resolve.server`, `lib/auth`, `lib/mothership/`, `lib/knowledge/` |
 
 `lib/billing/` stays allowed for the funnel roots because `resolve.server.ts` legitimately reads the subscription to decide whether an organization is on an enterprise plan; the wrapper is a lifecycle shim that opens the memo scope and nothing more. That split is why the scope is two files.
 
