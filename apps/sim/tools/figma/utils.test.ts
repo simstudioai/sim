@@ -8,7 +8,7 @@ import {
 } from '@/tools/figma/utils'
 
 describe('Figma resource locators', () => {
-  it.each(['design', 'file', 'proto', 'board', 'slides'])(
+  it.each(['design', 'file', 'proto', 'board', 'slides', 'deck', 'site', 'buzz', 'make'])(
     'extracts a file key from a %s URL without fetching it',
     (kind) => {
       expect(

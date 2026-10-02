@@ -100,7 +100,7 @@ export const figmaGetFileTool: ToolConfig<
     role: { type: 'string', description: 'Caller file role' },
     lastModified: { type: 'string', description: 'Last modification timestamp' },
     editorType: { type: 'string', description: 'Figma editor type' },
-    thumbnailUrl: { type: 'string', description: 'Thumbnail URL', optional: true, nullable: true },
+    thumbnailUrl: { type: 'string', description: 'Thumbnail URL', nullable: true },
     version: { type: 'string', description: 'Current version ID' },
     document: {
       type: 'json',
@@ -136,13 +136,11 @@ export const figmaGetFileTool: ToolConfig<
     linkAccess: {
       type: 'string',
       description: 'Link access policy',
-      optional: true,
       nullable: true,
     },
     mainFileKey: {
       type: 'string',
       description: 'Main file key for a branch',
-      optional: true,
       nullable: true,
     },
     branches: {
@@ -156,14 +154,12 @@ export const figmaGetFileTool: ToolConfig<
           thumbnail_url: {
             type: 'string',
             description: 'Branch thumbnail URL',
-            optional: true,
             nullable: true,
           },
           last_modified: { type: 'string', description: 'Branch last modification timestamp' },
           link_access: {
             type: 'string',
             description: 'Branch link access policy',
-            optional: true,
             nullable: true,
           },
         },

@@ -89,7 +89,7 @@ export const figmaGetFileNodesTool: ToolConfig<
     role: { type: 'string', description: 'Caller file role' },
     lastModified: { type: 'string', description: 'Last modification timestamp' },
     editorType: { type: 'string', description: 'Figma editor type' },
-    thumbnailUrl: { type: 'string', description: 'Thumbnail URL', optional: true, nullable: true },
+    thumbnailUrl: { type: 'string', description: 'Thumbnail URL', nullable: true },
     version: { type: 'string', description: 'Current version ID' },
     nodes: {
       type: 'json',

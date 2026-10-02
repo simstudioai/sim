@@ -151,13 +151,11 @@ export const figmaExportNodesTool: ToolConfig<
     err: {
       type: 'string',
       description: 'Rendering error message; null on success',
-      optional: true,
       nullable: true,
     },
     status: {
       type: 'number',
       description: 'Provider rendering status; null when omitted on success',
-      optional: true,
       nullable: true,
     },
     images: {

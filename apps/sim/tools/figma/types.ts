@@ -136,7 +136,6 @@ export const FIGMA_FILE_METADATA_OUTPUT_PROPERTIES = {
   folder_name: {
     type: 'string',
     description: 'Containing folder name',
-    optional: true,
     nullable: true,
   },
   last_touched_at: { type: 'string', description: 'Last content update timestamp' },
@@ -157,25 +156,22 @@ export const FIGMA_FILE_METADATA_OUTPUT_PROPERTIES = {
       handle: { type: 'string', description: 'User display name' },
       img_url: { type: 'string', description: 'Profile image URL' },
     },
-    optional: true,
     nullable: true,
   },
   thumbnail_url: {
     type: 'string',
     description: 'Thumbnail URL',
-    optional: true,
     nullable: true,
   },
   editorType: { type: 'string', description: 'Editor type' },
-  version: { type: 'string', description: 'Version ID', optional: true, nullable: true },
-  role: { type: 'string', description: 'Caller role', optional: true, nullable: true },
+  version: { type: 'string', description: 'Version ID', nullable: true },
+  role: { type: 'string', description: 'Caller role', nullable: true },
   link_access: {
     type: 'string',
     description: 'Link access policy',
-    optional: true,
     nullable: true,
   },
-  url: { type: 'string', description: 'File URL', optional: true, nullable: true },
+  url: { type: 'string', description: 'File URL', nullable: true },
 } satisfies Record<string, OutputProperty>
 
 export const FIGMA_COMMENT_OUTPUT_PROPERTIES = {
@@ -185,7 +181,6 @@ export const FIGMA_COMMENT_OUTPUT_PROPERTIES = {
   parent_id: {
     type: 'string',
     description: 'Root comment ID for a reply',
-    optional: true,
     nullable: true,
   },
   user: {
@@ -201,20 +196,17 @@ export const FIGMA_COMMENT_OUTPUT_PROPERTIES = {
   resolved_at: {
     type: 'string',
     description: 'Resolution timestamp',
-    optional: true,
     nullable: true,
   },
   order_id: {
     type: 'string',
     description: 'Number displayed for a root comment',
-    optional: true,
     nullable: true,
   },
   client_meta: {
     type: 'json',
     description:
       'Canvas coordinates or frame-relative position, optionally including region dimensions',
-    optional: true,
     nullable: true,
     properties: {
       x: { type: 'number', description: 'Canvas X coordinate', optional: true },
@@ -259,11 +251,10 @@ export const FIGMA_COMMENT_OUTPUT_PROPERTIES = {
 export const FIGMA_VERSION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Version ID, preserved as a string' },
   created_at: { type: 'string', description: 'Version creation timestamp' },
-  label: { type: 'string', description: 'Version label', optional: true, nullable: true },
+  label: { type: 'string', description: 'Version label', nullable: true },
   description: {
     type: 'string',
     description: 'Version description',
-    optional: true,
     nullable: true,
   },
   user: {
@@ -278,7 +269,6 @@ export const FIGMA_VERSION_OUTPUT_PROPERTIES = {
   thumbnail_url: {
     type: 'string',
     description: 'Version thumbnail URL',
-    optional: true,
     nullable: true,
   },
 } satisfies Record<string, OutputProperty>
@@ -303,7 +293,6 @@ export const FIGMA_PUBLISHED_RESOURCE_OUTPUT_PROPERTIES = {
   thumbnail_url: {
     type: 'string',
     description: 'Resource thumbnail URL',
-    optional: true,
     nullable: true,
   },
 } satisfies Record<string, OutputProperty>

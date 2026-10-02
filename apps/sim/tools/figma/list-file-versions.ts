@@ -92,10 +92,9 @@ export const figmaListFileVersionsTool: ToolConfig<
         prev_page: {
           type: 'string',
           description: 'Previous-page URL',
-          optional: true,
           nullable: true,
         },
-        next_page: { type: 'string', description: 'Next-page URL', optional: true, nullable: true },
+        next_page: { type: 'string', description: 'Next-page URL', nullable: true },
       },
     },
   },

@@ -57,25 +57,21 @@ export const figmaListFileComponentsTool: ToolConfig<
           containing_frame: {
             type: 'object',
             description: 'Containing page/frame',
-            optional: true,
             nullable: true,
             properties: {
               nodeId: {
                 type: 'string',
                 description: 'Containing node ID',
-                optional: true,
                 nullable: true,
               },
               name: {
                 type: 'string',
                 description: 'Containing node name',
-                optional: true,
                 nullable: true,
               },
               backgroundColor: {
                 type: 'string',
                 description: 'Frame background color',
-                optional: true,
                 nullable: true,
               },
               pageId: { type: 'string', description: 'Containing page ID' },
@@ -83,19 +79,16 @@ export const figmaListFileComponentsTool: ToolConfig<
               containingComponentSet: {
                 type: 'object',
                 description: 'Containing component set',
-                optional: true,
                 nullable: true,
                 properties: {
                   nodeId: {
                     type: 'string',
                     description: 'Containing node ID',
-                    optional: true,
                     nullable: true,
                   },
                   name: {
                     type: 'string',
                     description: 'Containing node name',
-                    optional: true,
                     nullable: true,
                   },
                 },

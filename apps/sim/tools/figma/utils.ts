@@ -24,7 +24,7 @@ export function figmaFileKey(value: unknown): string {
     )
       throw new Error('Enter a Figma file URL or file key')
     const match = url.pathname.match(
-      /^\/(?:file|design|proto|board|slides|buzz|sites|make)\/([^/]+)(?:\/|$)/
+      /^\/(?:file|design|proto|board|slides|deck|buzz|site|make)\/([^/]+)(?:\/|$)/
     )
     if (!match?.[1]) throw new Error('The Figma URL does not contain a file key')
     const key = decodeURIComponent(match[1])
