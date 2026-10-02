@@ -20276,7 +20276,8 @@ export const V2_OPERATIONS = {
       },
       offset: {
         kind: 'integer',
-        describe: 'First line to return, 1-based. Absent starts at the first line.',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
@@ -20300,7 +20301,8 @@ export const V2_OPERATIONS = {
       },
       offset: {
         kind: 'integer',
-        describe: 'First line to return, 1-based. Absent starts at the first line.',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
