@@ -226,6 +226,7 @@ describe('workspace file names in PostgreSQL', () => {
       'Quarterly  Report.pdf',
       'Cafe\u0301 menu.png',
       'ring\u0007ing.png',
+      'trail.png \u0007',
     ]
     for (const name of names) {
       const row = await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, name)
@@ -257,7 +258,12 @@ describe('workspace file names in PostgreSQL', () => {
     await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'notes 100%.png')
     await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'back\\slash.png')
 
-    for (const reference of ['uploads/a_b.png', 'uploads/notes.png', 'uploads/notes%20%25.png']) {
+    for (const reference of [
+      'uploads/a_b.png',
+      'uploads/a.b.png',
+      'uploads/notes.png',
+      'uploads/notes%20%25.png',
+    ]) {
       expect(
         await resolveWorkspaceFileReference(fixture.workspaceId, reference, {
           includeChatUploads: true,

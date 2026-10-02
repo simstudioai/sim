@@ -1,5 +1,10 @@
+import { escapeRegExp } from '@sim/utils/string'
+
 const CONTROL_CHARS = /[\x00-\x1f\x7f]/g
-const WHITESPACE = /\s+/g
+/** The characters `\s` matches, spelled out so a PostgreSQL pattern can share the class. */
+const WHITESPACE_CLASS =
+  '[ \\t\\n\\v\\f\\r\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]'
+const WHITESPACE = new RegExp(`${WHITESPACE_CLASS}+`, 'g')
 
 export class VfsPathError extends Error {
   constructor(message: string) {
@@ -8,12 +13,18 @@ export class VfsPathError extends Error {
   }
 }
 
-/**
- * The display form every VFS path segment is built from and decoded to: NFC, trimmed,
- * control characters removed, and each whitespace run (including U+202F) one space.
- */
-export function normalizeDisplaySegment(segment: string): string {
+function normalizeDisplaySegment(segment: string): string {
   return segment.normalize('NFC').trim().replace(CONTROL_CHARS, '').replace(WHITESPACE, ' ')
+}
+
+/**
+ * Anchored regular expression, valid in JavaScript and PostgreSQL, that matches every
+ * NFC-composed, control-character-free name whose segment decodes to `name`: the words of
+ * `name` (already in decoded form) separated by whitespace runs, with any whitespace around them.
+ */
+export function displaySegmentPattern(name: string): string {
+  const words = name.split(' ').map(escapeRegExp)
+  return `^${WHITESPACE_CLASS}*${words.join(`${WHITESPACE_CLASS}+`)}${WHITESPACE_CLASS}*$`
 }
 
 export function encodeVfsSegment(segment: string): string {
