@@ -82,7 +82,7 @@ The `'use client'` server boundary, the app/worker runtime env split, and featur
 
 ## Code Conventions
 
-- **Naming**: components PascalCase (`WorkflowList`); hooks `use*`; files kebab-case (`workflow-list.tsx`); constants SCREAMING_SNAKE_CASE; interfaces PascalCase with a suffix (`WorkflowListProps`); stores `stores/<feature>/store.ts`. A file never repeats its folder's name (`lib/logs/views.ts`, not `lib/logs/log-views.ts`; `utils/date.ts`, not `utils/date-utils.ts`); `check:file-names` enforces this.
+- **Naming**: components PascalCase (`WorkflowList`); hooks `use*`; files kebab-case (`workflow-list.tsx`); constants SCREAMING_SNAKE_CASE; interfaces PascalCase with a suffix (`WorkflowListProps`); stores `stores/<feature>/store.ts`. A file never repeats its folder's name (inside `logs/`, `views.ts` not `log-views.ts`; inside `utils/`, `date.ts` not `date-utils.ts`); `check:file-names` enforces this.
 - **Imports**: absolute (`@/...`) only, never relative (a barrel `index.ts` re-exports its own siblings relatively). A folder with 3+ exports gets an `index.ts` barrel; never re-export from a non-barrel file. `import type` for type-only imports. Order and lazy-loading through barrels: `.claude/rules/sim-imports.md`.
 - **TypeScript**: no `any` and no non-null `!` (use precise types or `unknown` with guards; `check:explicit-any` ratchets both); no export nothing imports (`check:unused-exports`); a props interface for every component; `as const` for constant objects/arrays; explicit ref types (`useRef<HTMLDivElement>(null)`).
 - **Unused bindings** fail lint (biome `noUnusedVariables`, `noUnusedFunctionParameters`): delete the dead variable, import, or parameter and update callers; write `catch {}` when the error is unused. Prefix `_` only for a parameter that must hold its position because a later one is used. `const { a, ...rest } = obj` to omit keys is allowed. The rules carry no autofix, so `bun run lint` will not rename anything for you.
@@ -150,7 +150,7 @@ A diff that touches `packages/db/migrations/**` also runs `bun run check:migrati
 
 | Written rule | Enforced by |
 | --- | --- |
-| Formatting, lint, no `nanoid`/`uuid` imports | `bun run lint` (biome) |
+| Formatting, lint, no `nanoid`/`uuid` imports, no unused variables or parameters | `bun run lint` (biome) |
 | `@sim/utils` over inline idioms (`Math.random`, `crypto.randomUUID`, `JSON` clone, `instanceof Error` message, `setTimeout` sleep) | `check:utils` |
 | `apps → packages` only; realtime import bans | `check:boundaries`, `check:realtime-prune` |
 | Route contracts, no `zod` in routes or clients, `requestJson`, boundary annotations | `check:api-validation:strict`, `check:api-contract-routes`, `check:route-verbs` |
@@ -164,8 +164,11 @@ A diff that touches `packages/db/migrations/**` also runs `bun run check:migrati
 | Canvas sentences, BYOK wiring, fork-dependent subblocks, reachable tool params | `check:canvas-sentences`, `check:byok-providers`, `check:fork-dependent-coverage`, `check:tool-param-reachability` |
 | Central mocks, colocated tests, script tests collected | `check:test-patterns`, `check:script-tests` |
 | Zero-downtime migrations | `check:migrations <base>` |
-| Unused files, exports, dependencies | `check:dead-code` (knip) |
+| Unused files, exports, types, dependencies (exports and types ratcheted) | `check:unused-exports` (knip) |
+| No `any` or non-null `!` (ratcheted), no suppressions of either | `check:explicit-any` |
+| kebab-case file names; no file repeating its folder's name | `check:file-names` |
+| No banner separators or commented-out code | `check:comment-hygiene` |
 | Skills and rules projections in sync; guidance references resolve | `check:skills`, `check:guidance-refs` |
 | Generated artifacts fresh (tool metadata, docs, catalog, CLI/MCP/OpenAPI surfaces) | the `*:check` entries in `check:audits` |
 
-Rules not in this table (logging, comments, naming, imports, styling, state ownership, caching) are enforced by review only; follow them as written.
+Rules not in this table (logging, the rest of comment style and naming, imports, styling, state ownership, caching) are enforced by review only; follow them as written.
