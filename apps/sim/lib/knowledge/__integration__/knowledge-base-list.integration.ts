@@ -25,22 +25,22 @@ const archivedId = generateId()
 const access: KnowledgeAccessScope = { kind: 'workspace', tokens: WORKSPACE_ACCESS_TOKENS }
 const reports: Array<Record<string, unknown>> = []
 
-interface CapturedQuery {
+interface CapturedQueryRecord {
   query: string
   parameters: NonNullable<Parameters<typeof db.$client.unsafe>[1]>
 }
 
-interface ExplainNode {
+interface ExplainNodeData {
   'Relation Name'?: string
   'Index Name'?: string
   'Actual Rows': number
   'Actual Loops': number
   'Rows Removed by Filter'?: number
   'Rows Removed by Index Recheck'?: number
-  Plans?: ExplainNode[]
+  Plans?: ExplainNodeData[]
 }
 
-function documentVisits(node: ExplainNode): number {
+function documentVisits(node: ExplainNodeData): number {
   const readsDocuments =
     node['Relation Name'] === 'document' || node['Index Name']?.startsWith('doc_')
   const own = readsDocuments
@@ -139,7 +139,7 @@ describe('knowledge base list counts on real Postgres', () => {
   it.each(['name', 'createdAt'] as const)(
     'bounds document reads to a small page ordered by %s',
     async (sortBy) => {
-      const captured: CapturedQuery[] = []
+      const captured: CapturedQueryRecord[] = []
       const previousDebug = db.$client.options.debug
       db.$client.options.debug = (_connection, query, parameters) => {
         if (captured.length < 30) captured.push({ query, parameters: [...parameters] })
@@ -160,7 +160,7 @@ describe('knowledge base list counts on real Postgres', () => {
       const plans = []
       for (const statement of captured.filter(({ query }) => query.includes('"document"'))) {
         const [result] = await db.$client.unsafe<
-          Array<{ 'QUERY PLAN': Array<{ Plan: ExplainNode }> }>
+          Array<{ 'QUERY PLAN': Array<{ Plan: ExplainNodeData }> }>
         >(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement.query}`, statement.parameters)
         plans.push(...result['QUERY PLAN'])
       }
