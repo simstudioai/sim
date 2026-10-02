@@ -49,13 +49,11 @@
  * ## Deployment-shape flags in client code
  *
  * Client code — `stores/`, `hooks/`, `blocks/`, and any `'use client'` module or hook
- * under the workspace, organization, or standalone settings surfaces — must not read
- * `isHosted`, `isBillingEnabled`, `isChatEnabled`, or the enterprise feature flags from
- * `env-flags`, by named or namespace import: those freeze at module init from the root
- * layout's `NEXT_PUBLIC_*` transport, which a recovered 404 or `global-error` tab never
- * ran, so Sim Cloud renders as self-hosted. Read them through `useDeploymentShape()` /
- * `getDeploymentShape()` from `@/lib/core/config/deployment-shape` (CLAUDE.md). The flag
- * list is read from that module's own `env-flags` import, so it cannot drift.
+ * under the workspace, organization, or standalone settings surfaces — must not import the
+ * deployment-shape flags from `env-flags` (named or namespace); it reads them through
+ * `@/lib/core/config/deployment-shape`. The flag list is that module's own `env-flags`
+ * import, so it cannot drift. Same escape hatch as above. Why: CLAUDE.md "Deployment flags
+ * in the browser".
  *
  * Usage:
  *   bun run scripts/check-client-boundary-imports.ts          # report
@@ -63,6 +61,7 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { directiveOn, leadingDirective } from './source-kind'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const APP_DIR = path.join(ROOT, 'apps/sim')
@@ -80,16 +79,6 @@ function isServerSurface(rel: string): boolean {
 
 const ENV_FLAGS = '@/lib/core/config/env-flags'
 const DEPLOYMENT_SHAPE_MODULE = path.join(APP_DIR, 'lib/core/config/deployment-shape.ts')
-
-/**
- * Known deployment-shape violations awaiting a product decision (paths relative to apps/sim).
- * Each entry names why it cannot simply move to the reader.
- */
-const DEPLOYMENT_SHAPE_ALLOWLIST = new Set([
-  // Picks the panel's default tab from `isChatEnabled` at module init, before any surface
-  // seeds the shape; moving it to the reader changes the first-render tab, a product call.
-  'stores/panel/store.ts',
-])
 
 /** Surfaces whose shell seeds the server-resolved deployment shape (paths relative to apps/sim). */
 function isDeploymentShapeSurface(rel: string): boolean {
@@ -156,34 +145,6 @@ async function listFiles(dir: string): Promise<string[]> {
   return out
 }
 
-/**
- * Drops a trailing `//` or `/* *\/` comment from an already-trimmed line. A
- * directive keeps its meaning when a note follows it on the same line, so the
- * comment has to come off before the directive is matched.
- */
-function stripTrailingComment(line: string): string {
-  return line.replace(/(?:\/\/.*|\/\*.*?\*\/)\s*$/, '').trim()
-}
-
-/** A lone directive statement, e.g. `'use server'` or `"use client";`. */
-const DIRECTIVE_STATEMENT = /^(['"])(use [a-z-]+)\1\s*;?$/
-
-/**
- * Returns the module's leading directive prologue string, if any. A directive
- * must be the first statement; comments and blank lines may precede it.
- */
-function leadingDirective(content: string): string | null {
-  for (const raw of content.split('\n')) {
-    const line = raw.trim()
-    if (line === '' || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
-      continue
-    }
-    const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(line))
-    return match ? match[2] : null
-  }
-  return null
-}
-
 const useClientCache = new Map<string, boolean>()
 
 async function isUseClientModule(absFile: string): Promise<boolean> {
@@ -206,8 +167,7 @@ async function findUseServerDirectives(files: readonly string[]): Promise<string
   for (const absFile of files) {
     const lines = (await readSource(absFile)).split('\n')
     for (let i = 0; i < lines.length; i++) {
-      const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(lines[i].trim()))
-      if (match?.[2] === 'use server') {
+      if (directiveOn(lines[i]) === 'use server') {
         found.push(`${path.relative(ROOT, absFile)}:${i + 1}`)
       }
     }
@@ -383,9 +343,7 @@ async function main() {
   for (const absFile of allFiles) {
     if (!absFile.startsWith(`${APP_DIR}${path.sep}`)) continue
     const rel = path.relative(APP_DIR, absFile)
-    if (DEPLOYMENT_SHAPE_ALLOWLIST.has(rel) || !(await isDeploymentShapeClient(rel, absFile))) {
-      continue
-    }
+    if (!(await isDeploymentShapeClient(rel, absFile))) continue
     const content = await readSource(absFile)
     for (const imp of parseImports(content)) {
       if (imp.specifier !== ENV_FLAGS || !importsAValue(imp.clause)) continue
@@ -403,7 +361,6 @@ async function main() {
     failed = true
     console.error(
       `\n✗ ${shapeViolations.length} client module(s) read deployment-shape flags from env-flags.\n` +
-        `  Those constants freeze from the root layout's NEXT_PUBLIC_* transport, so a recovered 404/global-error tab renders Sim Cloud as self-hosted.\n` +
         `  Read them via useDeploymentShape() (components) or getDeploymentShape() (helpers) from @/lib/core/config/deployment-shape.\n`
     )
     for (const v of shapeViolations) {

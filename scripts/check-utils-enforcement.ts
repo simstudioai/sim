@@ -18,6 +18,7 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { leadingDirective } from './source-kind'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
@@ -25,22 +26,11 @@ const SCAN_DIRS = [path.join(ROOT, 'apps'), path.join(ROOT, 'packages')]
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage', 'bundles'])
 
-/** Files that implement the utilities themselves — allowed to use the underlying primitives. */
+/** `@sim/utils` implements the helpers, so it may use the primitives they replace. */
+const UTILS_SOURCE = 'packages/utils/src/'
+
+/** Other files allowed to use the underlying primitives. */
 const ALLOWLISTED_FILES = new Set([
-  'packages/utils/src/errors.ts',
-  'packages/utils/src/helpers.ts',
-  'packages/utils/src/random.ts',
-  'packages/utils/src/id.ts',
-  'packages/utils/src/object.ts',
-  'packages/utils/src/retry.ts',
-  'packages/utils/src/string.ts',
-  'packages/utils/src/errors.test.ts',
-  'packages/utils/src/helpers.test.ts',
-  'packages/utils/src/random.test.ts',
-  'packages/utils/src/id.test.ts',
-  'packages/utils/src/object.test.ts',
-  'packages/utils/src/retry.test.ts',
-  'packages/utils/src/string.test.ts',
   // Published standalone CLIs: `@sim/utils` is private, so they carry local
   // copies rather than a dependency that only resolves inside the monorepo.
   'packages/cli/src/index.ts',
@@ -52,9 +42,6 @@ const ALLOWLISTED_FILES = new Set([
   // Uses crypto.getRandomValues() directly (not crypto.randomUUID) — TSDoc comment triggers false positive
   'packages/testing/src/factories/id.ts',
 ])
-
-/** Leading `'use client'` directive, after any comment header. */
-const USE_CLIENT_PROLOGUE = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*['"]use client['"]/
 
 /** App Router files Next only ever evaluates on the server, plus `*.server.ts` modules. */
 const SERVER_ONLY_FILE =
@@ -71,9 +58,17 @@ function isClientRenderPath(rel: string, content: string): boolean {
     /^apps\/sim\/(app|components|hooks|stores)\//.test(rel) ||
     /^apps\/docs\/(app|components)\//.test(rel) ||
     /^packages\/(emcn|workflow-renderer)\/src\//.test(rel) ||
-    USE_CLIENT_PROLOGUE.test(content)
+    leadingDirective(content) === 'use client'
   )
 }
+
+/** `s.slice(0, n)` plus a suffix, by `+` or in a template literal; `\1` is `s` and `\2` is `n`. */
+const TRUNCATED = String.raw`(?:\`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^\`$]*\`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))`
+/** Literal gate for both truncate patterns, whose backreferences are slow over every file. */
+const TRUNCATE_PREFILTER = /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/
+
+/** Literal gate shared by the `filterUndefined` and `omit` patterns. */
+const FROM_ENTRIES = /Object\.fromEntries\(/
 
 const BANNED_PATTERNS: Array<{
   pattern: RegExp
@@ -81,7 +76,7 @@ const BANNED_PATTERNS: Array<{
   suggestion: string
   /** Restricts the pattern to matching files; unrestricted patterns apply everywhere. */
   appliesTo?: (rel: string, content: string) => boolean
-  /** Cheap literal test that gates a backreference-heavy pattern, which is slow over every file. */
+  /** Cheap literal test that skips the pattern on files that cannot match; memoized per file. */
   prefilter?: RegExp
 }> = [
   // Randomness / ID generation — global property access that import bans miss
@@ -130,31 +125,38 @@ const BANNED_PATTERNS: Array<{
       /typeof\s+([\w.]+)\s*===\s*'object'\s*&&\s*\1\s*!==\s*null\s*&&\s*!Array\.isArray\(\s*\1\s*\)/g,
     description: "typeof v === 'object' && v !== null && !Array.isArray(v)",
     suggestion: 'isRecordLike(v) from @sim/utils/object',
+    prefilter: /!Array\.isArray\(/,
   },
   {
     pattern:
       /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*\w*\s*,\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==?\s*undefined\s*\)\s*,?\s*\)/g,
     description: 'Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))',
     suggestion: 'filterUndefined(obj) from @sim/utils/object',
+    prefilter: FROM_ENTRIES,
   },
   {
     pattern:
       /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==\s*[\w.'"]+\s*\)\s*,?\s*\)/g,
     description: 'Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))',
     suggestion: 'omit(obj, [key]) from @sim/utils/object',
+    prefilter: FROM_ENTRIES,
   },
   {
-    pattern:
-      /\b([\w.]+)\.length\s*>\s*([\w.]+)\s*\?\s*(?:`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^`$]*`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))\s*:\s*\1\b(?!\.)/g,
+    pattern: new RegExp(
+      String.raw`\b([\w.]+)\.length\s*>\s*([\w.]+)\s*\?\s*${TRUNCATED}\s*:\s*\1\b(?!\.)`,
+      'g'
+    ),
     description: 's.length > n ? s.slice(0, n) + suffix : s',
-    prefilter: /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/,
+    prefilter: TRUNCATE_PREFILTER,
     suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
   },
   {
-    pattern:
-      /\b([\w.]+)\.length\s*<=\s*([\w.]+)\s*\?\s*\1\s*:\s*(?:`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\}[^`$]*`|\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\)\s*\+\s*(?:'[^']*'|"[^"]*"|\w+))/g,
+    pattern: new RegExp(
+      String.raw`\b([\w.]+)\.length\s*<=\s*([\w.]+)\s*\?\s*\1\s*:\s*${TRUNCATED}`,
+      'g'
+    ),
     description: 's.length <= n ? s : s.slice(0, n) + suffix',
-    prefilter: /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/,
+    prefilter: TRUNCATE_PREFILTER,
     suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
   },
   {
@@ -173,6 +175,7 @@ const BANNED_PATTERNS: Array<{
     pattern: /\buseRef(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*new\s+[A-Z]\w*/g,
     description: 'useRef(new X()) allocates a throwaway X on every render',
     suggestion: 'useRef<X | null>(null), then `ref.current ??= new X()` before first use',
+    prefilter: /useRef/,
   },
   {
     pattern:
@@ -275,7 +278,7 @@ async function main() {
 
   for (const file of allFiles) {
     const rel = path.relative(ROOT, file)
-    if (ALLOWLISTED_FILES.has(rel)) continue
+    if (rel.startsWith(UTILS_SOURCE) || ALLOWLISTED_FILES.has(rel)) continue
 
     const content = await readFile(file, 'utf8')
     const matches: Array<{
@@ -284,9 +287,17 @@ async function main() {
       suggestion: string
     }> = []
 
+    const prefilterHits = new Map<RegExp, boolean>()
     for (const { pattern, description, suggestion, appliesTo, prefilter } of BANNED_PATTERNS) {
       if (appliesTo && !appliesTo(rel, content)) continue
-      if (prefilter && !prefilter.test(content)) continue
+      if (prefilter) {
+        let hit = prefilterHits.get(prefilter)
+        if (hit === undefined) {
+          hit = prefilter.test(content)
+          prefilterHits.set(prefilter, hit)
+        }
+        if (!hit) continue
+      }
       pattern.lastIndex = 0
       for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
         matches.push({ index: match.index, description, suggestion })
