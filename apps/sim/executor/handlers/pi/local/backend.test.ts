@@ -39,6 +39,7 @@ const mockAgentSession = {
 }
 const mockSdk = {
   defineTool: vi.fn((tool) => tool),
+  SettingsManager: { inMemory: vi.fn(() => ({})) },
   SessionManager: { inMemory: vi.fn(() => ({})) },
   createAgentSession: mockCreateAgentSession,
 }
@@ -142,6 +143,7 @@ describe('runLocalPi secret boundaries', () => {
     expect(toolResult.content).toEqual([{ type: 'text', text: 'read a file' }])
     expect(mockSetRuntimeApiKey).toHaveBeenCalledWith('anthropic', 'a')
     expect(mockRemoveRuntimeApiKey).toHaveBeenCalledWith('anthropic')
+    expect(mockSdk.SettingsManager.inMemory).toHaveBeenCalledWith({ cacheWarming: 'off' })
   })
 
   it('scrubs SDK exceptions before they leave Local Dev', async () => {

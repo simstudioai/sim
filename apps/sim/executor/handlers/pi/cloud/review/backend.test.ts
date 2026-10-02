@@ -201,6 +201,7 @@ describe('runCloudReviewPi', () => {
 
     expect(mockSetRuntimeApiKey).toHaveBeenCalledWith('anthropic', 'sk-byok')
     expect(mockRemoveRuntimeApiKey).toHaveBeenCalledWith('anthropic')
+    expect(mockSdk.SettingsManager.inMemory).toHaveBeenCalledWith({ cacheWarming: 'off' })
     expect(mockCreateSealedResourceLoader).toHaveBeenCalledTimes(1)
     expect(mockCreateAgentSession).toHaveBeenCalledWith(
       expect.objectContaining({
