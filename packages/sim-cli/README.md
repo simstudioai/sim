@@ -187,6 +187,16 @@ For each setting, the CLI uses the first available value in this order:
 4. built-in default
 
 `sim whoami` shows both the resolved values and where each one came from.
+Its JSON and YAML `authenticated` field is `true` after the server accepts the
+credential, `false` when it is missing or rejected, and `null` when authentication
+could not be checked (including `--no-verify`). `verification.status` separately
+reports whether the configured workspace is accessible; a valid credential can
+still have `no-workspace` or `rejected` workspace verification.
+
+`sim files read` and `sim files versions read` print the complete text response as
+JSON, or YAML with `--output yaml`, including in table and text display modes.
+The `truncated` field describes server extraction limits, not display clipping.
+For the original file bytes, use `sim files get`.
 
 ## Useful commands
 

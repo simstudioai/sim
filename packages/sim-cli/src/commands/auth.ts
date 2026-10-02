@@ -87,18 +87,18 @@ function openBrowser(url: string): void {
 }
 
 function presentAuthentication(source: SettingSource): {
-  authenticated: boolean
+  configured: boolean
   source: SettingSource
 } {
   switch (source) {
     case 'flag':
-      return { authenticated: true, source: 'flag' }
+      return { configured: true, source: 'flag' }
     case 'env':
-      return { authenticated: true, source: 'env' }
+      return { configured: true, source: 'env' }
     case 'credentials':
-      return { authenticated: true, source: 'credentials' }
+      return { configured: true, source: 'credentials' }
     case 'unset':
-      return { authenticated: false, source: 'unset' }
+      return { configured: false, source: 'unset' }
     case 'config':
     case 'default':
       throw new SimApiError(`Unexpected credential source "${source}".`, 0)
@@ -822,7 +822,7 @@ interface VerifiedWorkspace {
  * missing workspace needs `sim configure`, and an unreachable endpoint needs
  * neither.
  */
-type Verification = { keyType: KeyType | null } & (
+type Verification = { keyType: KeyType | null; authenticated: boolean | null } & (
   | { status: 'verified'; workspace: VerifiedWorkspace; detail: null }
   | {
       status: 'rejected' | 'unreachable' | 'unauthenticated' | 'no-workspace' | 'disabled'
@@ -833,48 +833,12 @@ type Verification = { keyType: KeyType | null } & (
 
 type KeyType = GetMetaResponse['data']['keyType']
 
-/**
- * Reads which kind of key is in play, as a diagnostic only.
- *
- * `PRINCIPAL_KIND_NOT_PERMITTED` is the failure this answers: a personal key on
- * a workspace-key operation refuses every call, and the natural move — running
- * `whoami` — used to show a green check and say nothing about the kind. Failures
- * are swallowed to `null` because the verdict and the exit code belong to the
- * workspace read below; a diagnostic must not change either.
- */
-async function readKeyType(client: Pick<SimClient, 'request'>): Promise<KeyType | null> {
-  const operation = V2_OPERATIONS.getMeta
-  try {
-    const response = await client.request<GetMetaResponse>(operation.path, {
-      method: operation.method,
-    })
-    return response.data.keyType
-  } catch {
-    return null
-  }
-}
+/** Definitive profile refusals, including a workspace the credential cannot access. */
+const PROFILE_REJECTION_STATUSES = new Set([401, 403, 404])
 
 /**
- * The only answers that are a verdict on the credentials themselves.
- *
- * 401 and 403 are the server judging the key; 404 means the configured
- * workspace is not one this key can see. Everything else — a 502 from a proxy
- * mid-deploy, a 429, a transport failure (status 0), an endpoint answering 200
- * with a login page — says nothing about the key, and calling it `rejected`
- * told a user to run `sim login` for something logging in cannot fix. That is
- * the flaky-VPN confusion the exit-code split exists to prevent.
- */
-const CREDENTIAL_VERDICT_STATUSES = new Set([401, 403, 404])
-
-/**
- * `whoami` is the command people run to answer "am I set up correctly?", so the
- * exit status has to carry that answer — reporting a junk key with exit 0 is the
- * defect this mapping closes.
- *
- * 1 is the CLI's blanket "explained failure" code and means the credentials
- * themselves are wrong. 2 is reserved for a check that could not be made at all:
- * that is a different fix — retrying or setting a workspace helps, logging in
- * again does not — and a script must be able to tell the two apart.
+ * Exit 1 reports a definitive refusal or missing credential. Exit 2 means the
+ * profile check could not finish: retrying or configuring a workspace may help.
  */
 const WHOAMI_EXIT_CODES = {
   verified: 0,
@@ -895,10 +859,9 @@ const WHOAMI_EXIT_CODES = {
  * workspace's *name*, which is what tells a user the id they pasted is the
  * workspace they meant.
  *
- * It is workspace-scoped, so a profile with no workspace has nothing to check
- * against. That is reported rather than papered over with an account-scoped call
- * a workspace-bound key would fail for reasons having nothing to do with its
- * validity.
+ * Metadata verifies the credential without requiring a workspace. The workspace
+ * read separately verifies access, and remains a fallback for older servers
+ * whose metadata endpoint is unavailable.
  */
 async function verifyProfile(
   client: Pick<SimClient, 'request'>,
@@ -907,20 +870,40 @@ async function verifyProfile(
   if (!profile.apiKey && !profile.oauth) {
     return {
       status: 'unauthenticated',
+      authenticated: false,
       workspace: null,
       keyType: null,
       detail: `not logged in — run: sim login --profile ${safeOneLine(profile.name)}`,
     }
   }
 
-  // Read the kind before the workspace, so it is reported even for a profile
-  // with no workspace to check against — the case where a key that cannot be
-  // used is most likely to look merely unconfigured.
-  const keyType = await readKeyType(client)
+  let keyType: KeyType | null = null
+  let authenticated: boolean | null = null
+  const metaOperation = V2_OPERATIONS.getMeta
+  try {
+    const response = await client.request<GetMetaResponse>(metaOperation.path, {
+      method: metaOperation.method,
+    })
+    keyType = response.data.keyType
+    authenticated = true
+  } catch (error) {
+    if (!(error instanceof SimApiError)) throw error
+    const rejected = error.status === 401 || error.status === 403
+    if (rejected || !profile.workspaceId) {
+      return {
+        status: rejected ? 'rejected' : 'unreachable',
+        authenticated: rejected ? false : null,
+        workspace: null,
+        keyType: null,
+        detail: error.message,
+      }
+    }
+  }
 
   if (!profile.workspaceId) {
     return {
       status: 'no-workspace',
+      authenticated,
       workspace: null,
       keyType,
       detail: `no workspace to check against — run: sim configure --profile ${safeOneLine(profile.name)} --set-workspace <id>`,
@@ -936,11 +919,18 @@ async function verifyProfile(
     const { id, name, memberCount } = response.data
     // Projected field by field: the record carries display fields the machine
     // output has no business inventing a contract for.
-    return { status: 'verified', workspace: { id, name, memberCount }, keyType, detail: null }
+    return {
+      status: 'verified',
+      authenticated: true,
+      workspace: { id, name, memberCount },
+      keyType,
+      detail: null,
+    }
   } catch (error) {
     if (!(error instanceof SimApiError)) throw error
     return {
-      status: CREDENTIAL_VERDICT_STATUSES.has(error.status) ? 'rejected' : 'unreachable',
+      status: PROFILE_REJECTION_STATUSES.has(error.status) ? 'rejected' : 'unreachable',
+      authenticated: error.status === 401 ? false : authenticated,
       workspace: null,
       keyType,
       detail: error.message,
@@ -982,6 +972,7 @@ export function whoamiCommand(): Command {
         ? await verifyProfile(client, profile)
         : {
             status: 'disabled',
+            authenticated: authentication.configured ? null : false,
             workspace: null,
             keyType: null,
             detail: 'not checked (--no-verify)',
@@ -997,7 +988,7 @@ export function whoamiCommand(): Command {
           ['Endpoint', annotate(profile.endpoint, sources.endpoint)],
           [
             'Login',
-            authentication.authenticated
+            authentication.configured
               ? annotate(profile.oauth ? 'OAuth' : 'API key', authentication.source)
               : styles().yellow('not logged in'),
           ],
@@ -1015,7 +1006,7 @@ export function whoamiCommand(): Command {
           endpoint: profile.endpoint,
           workspaceId: profile.workspaceId,
           output: profile.output,
-          authenticated: authentication.authenticated,
+          authenticated: verification.authenticated,
           sources: {
             endpoint: sources.endpoint,
             authentication: authentication.source,

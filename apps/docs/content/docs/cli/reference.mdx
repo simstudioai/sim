@@ -1015,7 +1015,7 @@ sim files versions list <fileId> [options]
 
 ### sim files versions read
 
-Read the text content of one version of a file
+Read the text content of one version of a file as JSON or YAML
 
 ```bash
 sim files versions read <fileId> <version> [options]
@@ -1258,7 +1258,7 @@ Also available as `sim files mv`.
 
 ### sim files read
 
-Read a file’s text content
+Read a file’s text content as JSON or YAML
 
 ```bash
 sim files read <fileId> [options]
@@ -6293,7 +6293,7 @@ sim workflows create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Workflow name. |
 | `--description <value>` | No | Optional workflow description. |
-| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--folder <value>` | No | Existing folder path (leading / optional); create it first with sim workflows mkdir &lt;path&gt;. |
 
 </CommandTable>
 
