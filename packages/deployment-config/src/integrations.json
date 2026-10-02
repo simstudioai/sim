@@ -846,8 +846,13 @@
       "bgColor": "#6366F1",
       "iconName": "AirweaveIcon",
       "docsUrl": "https://docs.sim.ai/integrations/airweave",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Airweave Search",
+          "description": "Search your synced data collections using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -3734,8 +3739,13 @@
       "bgColor": "#181C1E",
       "iconName": "BrowserUseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/browser_use",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Browser Use",
+          "description": "Runs a browser automation task using BrowserUse"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4366,8 +4376,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "ClayIcon",
       "docsUrl": "https://docs.sim.ai/integrations/clay",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Clay Populate",
+          "description": "Populate Clay with data from a JSON file. Enables direct communication and notifications with timestamp tracking and channel confirmation."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -7617,8 +7632,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "DuckDuckGoIcon",
       "docsUrl": "https://docs.sim.ai/integrations/duckduckgo",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "DuckDuckGo Search",
+          "description": "Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, and related topics for your query. Free to use without an API key."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -8129,8 +8149,33 @@
       "bgColor": "#7B4DFF",
       "iconName": "EmbeddingsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/embeddings",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "OpenAI Embeddings",
+          "description": "Generate embeddings from text using OpenAI's embedding models"
+        },
+        {
+          "name": "OpenRouter Embeddings",
+          "description": "Generate embeddings through OpenRouter"
+        },
+        {
+          "name": "Gemini Embeddings",
+          "description": "Generate embeddings from text using Google's Gemini embedding models"
+        },
+        {
+          "name": "Cohere Embeddings",
+          "description": "Generate embeddings from text using Cohere's embedding models"
+        },
+        {
+          "name": "Mistral Embeddings",
+          "description": "Generate embeddings from text using Mistral's embedding models"
+        },
+        {
+          "name": "Ollama Embeddings",
+          "description": "Generate embeddings on a self-hosted Ollama server"
+        }
+      ],
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8360,8 +8405,13 @@
       "bgColor": "#000000",
       "iconName": "ExtendIcon",
       "docsUrl": "https://docs.sim.ai/integrations/extend",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Extend Document Parser",
+          "description": "Parse and extract content from documents using Extend AI"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -10449,8 +10499,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "GooglePagespeedIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_pagespeed",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Google PageSpeed Analyze",
+          "description": "Analyze a webpage for performance, accessibility, SEO, and best practices using Google PageSpeed Insights."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -10467,8 +10522,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "GoogleIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_search",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Google Search",
+          "description": "Search the web with the Custom Search API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -11835,8 +11895,13 @@
       "bgColor": "#0B0F19",
       "iconName": "HuggingFaceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/huggingface",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Hugging Face Chat",
+          "description": "Generate completions using Hugging Face Inference API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -14435,8 +14500,13 @@
       "bgColor": "#D6D3C7",
       "iconName": "LinkupIcon",
       "docsUrl": "https://docs.sim.ai/integrations/linkup",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Linkup Search",
+          "description": "Search the web for information using Linkup"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16037,8 +16107,13 @@
       "bgColor": "#000000",
       "iconName": "MistralIcon",
       "docsUrl": "https://docs.sim.ai/integrations/mistral_parse",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Mistral PDF Parser",
+          "description": "Parse PDF documents using Mistral OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16419,8 +16494,81 @@
       "bgColor": "#FFFFFF",
       "iconName": "NotionIcon",
       "docsUrl": "https://docs.sim.ai/integrations/notion",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Read Page",
+          "description": "Read content from a Notion page"
+        },
+        {
+          "name": "Read Database",
+          "description": "Read database information and structure from Notion"
+        },
+        {
+          "name": "Create Page",
+          "description": "Create a new page in Notion"
+        },
+        {
+          "name": "Update Page Properties",
+          "description": "Update properties of a Notion page"
+        },
+        {
+          "name": "Create Database",
+          "description": "Create a new database in Notion with custom properties"
+        },
+        {
+          "name": "Add Database Row",
+          "description": "Add a new row to a Notion database with specified properties"
+        },
+        {
+          "name": "Append Content",
+          "description": "Append content to a Notion page"
+        },
+        {
+          "name": "Append Block Children",
+          "description": "Append new block children (content) to a Notion page or block"
+        },
+        {
+          "name": "Retrieve Block",
+          "description": "Retrieve a single Notion block by its UUID, including its type-specific content"
+        },
+        {
+          "name": "Retrieve Block Children",
+          "description": "Retrieve the block children (content) of a Notion page or block"
+        },
+        {
+          "name": "Update Block",
+          "description": "Update the content or archived state of a single Notion block"
+        },
+        {
+          "name": "Delete Block",
+          "description": "Delete (move to trash) a single Notion block"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Create a comment on a Notion page or within an existing discussion thread"
+        },
+        {
+          "name": "List Comments",
+          "description": "List unresolved comments on a Notion page or block"
+        },
+        {
+          "name": "List Users",
+          "description": "List all users (members and bots) in the Notion workspace"
+        },
+        {
+          "name": "Retrieve User",
+          "description": "Retrieve a single Notion user by their UUID"
+        },
+        {
+          "name": "Query Database",
+          "description": "Query and filter Notion database entries with advanced filtering"
+        },
+        {
+          "name": "Search Workspace",
+          "description": "Search across all pages and databases in Notion workspace"
+        }
+      ],
+      "operationCount": 18,
       "triggers": [
         {
           "id": "notion_page_created",
@@ -18680,8 +18828,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "PulseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pulse",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Pulse Document Parser",
+          "description": "Parse documents (PDF, images, Office docs) using Pulse OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -19781,8 +19934,13 @@
       "bgColor": "#5c0c5c",
       "iconName": "ReductoIcon",
       "docsUrl": "https://docs.sim.ai/integrations/reducto",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Reducto PDF Parser",
+          "description": "Parse PDF documents using Reducto OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -22203,8 +22361,13 @@
       "bgColor": "#2B3543",
       "iconName": "SerperIcon",
       "docsUrl": "https://docs.sim.ai/integrations/serper",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Web Search",
+          "description": "A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, images, videos, and shopping. Returns comprehensive results including organic results, knowledge graph, answer box, people also ask, related searches, and top stories."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -23357,8 +23520,13 @@
       "bgColor": "#2D3748",
       "iconName": "SmtpIcon",
       "docsUrl": "https://docs.sim.ai/integrations/smtp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "SMTP Send Mail",
+          "description": "Send emails via SMTP server"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -26122,8 +26290,13 @@
       "bgColor": "#F22F46",
       "iconName": "TwilioIcon",
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Twilio Send SMS",
+          "description": "Send text messages to single or multiple recipients using the Twilio API."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [
         {
           "id": "twilio_sms_received",
