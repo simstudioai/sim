@@ -100,7 +100,7 @@ resolves both via `getSettingsSectionMeta(plane, section)` and the
 Adding a new settings page:
 
 1. Add the section id to the `UnifiedSettingsSection` union + a `SETTINGS_SECTION_REGISTRY`
-   entry (with `label` **and** `unified.description`) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
+   entry (with `label` **and** its description, as described above) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
    ~40–55 chars, in the product voice (see `.claude/rules/constitution.md`).
 2. Register its module in `SECTION_MODULES` (`settings/section-warmers.ts`) and render it
    inside the shell's `effectiveSection` switch in `settings/[section]/settings.tsx`.

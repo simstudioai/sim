@@ -25,8 +25,9 @@
 import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 const SCAN_DIRS = [path.join(ROOT, 'apps'), path.join(ROOT, 'packages')]
 
@@ -63,40 +64,48 @@ const BANNED_PATTERNS: Array<{
   suggestion: string
   /** Cheap literal test that skips the pattern on files that cannot match; memoized per file. */
   prefilter?: RegExp
+  /** Bans re-implementing a helper, so `@sim/utils` and the allowlisted files are exempt. */
+  replacesHelper?: true
 }> = [
   // Randomness / ID generation — global property access that import bans miss
   {
     pattern: /\bMath\.random\s*\(/g,
     description: 'Math.random()',
     suggestion: 'randomInt / randomFloat / randomItem from @sim/utils/random',
+    replacesHelper: true,
   },
   {
     pattern: /\bcrypto\.randomUUID\s*\(/g,
     description: 'crypto.randomUUID()',
     suggestion: 'generateId() or generateShortId() from @sim/utils/id',
+    replacesHelper: true,
   },
   {
     pattern: /\bcrypto\.randomBytes\s*\(/g,
     description: 'crypto.randomBytes()',
     suggestion: 'generateRandomBytes() or generateRandomHex() from @sim/utils/random',
+    replacesHelper: true,
   },
   // Deep clone idiom
   {
     pattern: /JSON\.parse\s*\(\s*JSON\.stringify\s*\(/g,
     description: 'JSON.parse(JSON.stringify(...))',
     suggestion: 'structuredClone() — built-in, no import needed',
+    replacesHelper: true,
   },
   // Inline error message extraction (excludes null/undefined/false fallbacks — those have different semantics)
   {
     pattern: /instanceof Error\s*\?\s*\w+\.message\s*:\s*(?!\s*null\b|\s*undefined\b|\s*false\b)./g,
     description: 'e instanceof Error ? e.message : fallback',
     suggestion: 'getErrorMessage(e, fallback?) from @sim/utils/errors',
+    replacesHelper: true,
   },
   // Inline sleep
   {
     pattern: /new Promise\s*[(<]\s*(?:resolve|\(resolve\))\s*=>\s*setTimeout\s*\(\s*resolve/g,
     description: 'new Promise(resolve => setTimeout(resolve, ms))',
     suggestion: 'sleep(ms) from @sim/utils/helpers',
+    replacesHelper: true,
   },
   {
     pattern:
@@ -104,6 +113,7 @@ const BANNED_PATTERNS: Array<{
     description: 'e instanceof Error ? e : new Error(String(e))',
     suggestion: 'toError(e) from @sim/utils/errors',
     prefilter: /new\s+Error\(\s*String\(/,
+    replacesHelper: true,
   },
   {
     pattern:
@@ -111,6 +121,7 @@ const BANNED_PATTERNS: Array<{
     description: "typeof v === 'object' && v !== null && !Array.isArray(v)",
     suggestion: 'isRecordLike(v) from @sim/utils/object',
     prefilter: /!Array\.isArray\(/,
+    replacesHelper: true,
   },
   {
     pattern:
@@ -118,6 +129,7 @@ const BANNED_PATTERNS: Array<{
     description: 'Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))',
     suggestion: 'filterUndefined(obj) from @sim/utils/object',
     prefilter: FROM_ENTRIES,
+    replacesHelper: true,
   },
   {
     pattern:
@@ -125,6 +137,7 @@ const BANNED_PATTERNS: Array<{
     description: 'Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))',
     suggestion: 'omit(obj, [key]) from @sim/utils/object',
     prefilter: FROM_ENTRIES,
+    replacesHelper: true,
   },
   {
     pattern: new RegExp(
@@ -134,6 +147,7 @@ const BANNED_PATTERNS: Array<{
     description: 's.length > n ? s.slice(0, n) + suffix : s',
     prefilter: TRUNCATE_PREFILTER,
     suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
+    replacesHelper: true,
   },
   {
     pattern: new RegExp(
@@ -143,11 +157,13 @@ const BANNED_PATTERNS: Array<{
     description: 's.length <= n ? s : s.slice(0, n) + suffix',
     prefilter: TRUNCATE_PREFILTER,
     suggestion: "truncate(s, n, suffix?) from @sim/utils/string (suffix defaults to '...')",
+    replacesHelper: true,
   },
   {
     pattern: /\/\[\.\*\+\?\^\$\{\}\(\)\|\[\\\]\\\\\]\/g/g,
     description: 'hand-rolled regex-metacharacter escape',
     suggestion: 'escapeRegExp(value) from @sim/utils/string',
+    replacesHelper: true,
   },
   // Render-path rules (.claude/rules/sim-react-performance.md, sim-styling.md)
   {
@@ -278,6 +294,51 @@ function es2023LibViolations(): Violation[] {
   return violations
 }
 
+/** Every banned-pattern hit in one file; `file` is repo-relative, which decides its exemptions. */
+export function findViolations(file: string, content: string): Violation[] {
+  const violations: Violation[] = []
+  const helperSource = file.startsWith(UTILS_SOURCE) || ALLOWLISTED_FILES.has(file)
+
+  const matches: Array<{
+    index: number
+    description: string
+    suggestion: string
+  }> = []
+
+  const prefilterHits = new Map<RegExp, boolean>()
+  for (const { pattern, description, suggestion, prefilter, replacesHelper } of BANNED_PATTERNS) {
+    if (helperSource && replacesHelper) continue
+    if (prefilter) {
+      let hit = prefilterHits.get(prefilter)
+      if (hit === undefined) {
+        hit = prefilter.test(content)
+        prefilterHits.set(prefilter, hit)
+      }
+      if (!hit) continue
+    }
+    pattern.lastIndex = 0
+    for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
+      matches.push({ index: match.index, description, suggestion })
+    }
+  }
+  if (matches.length === 0) return []
+
+  const lines = content.split('\n')
+  const lineStarts = buildLineStarts(content)
+  for (const match of matches) {
+    const line = lineAt(lineStarts, match.index)
+    if (hasAllow(lines, line)) continue
+    violations.push({
+      file,
+      line,
+      description: match.description,
+      suggestion: match.suggestion,
+      snippet: (lines[line - 1] ?? '').trim(),
+    })
+  }
+  return violations
+}
+
 async function main() {
   const allFiles: string[] = []
   for (const dir of SCAN_DIRS) {
@@ -288,45 +349,7 @@ async function main() {
 
   for (const file of allFiles) {
     const rel = path.relative(ROOT, file)
-    if (rel.startsWith(UTILS_SOURCE) || ALLOWLISTED_FILES.has(rel)) continue
-
-    const content = await readFile(file, 'utf8')
-    const matches: Array<{
-      index: number
-      description: string
-      suggestion: string
-    }> = []
-
-    const prefilterHits = new Map<RegExp, boolean>()
-    for (const { pattern, description, suggestion, prefilter } of BANNED_PATTERNS) {
-      if (prefilter) {
-        let hit = prefilterHits.get(prefilter)
-        if (hit === undefined) {
-          hit = prefilter.test(content)
-          prefilterHits.set(prefilter, hit)
-        }
-        if (!hit) continue
-      }
-      pattern.lastIndex = 0
-      for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
-        matches.push({ index: match.index, description, suggestion })
-      }
-    }
-    if (matches.length === 0) continue
-
-    const lines = content.split('\n')
-    const lineStarts = buildLineStarts(content)
-    for (const match of matches) {
-      const line = lineAt(lineStarts, match.index)
-      if (hasAllow(lines, line)) continue
-      violations.push({
-        file: rel,
-        line,
-        description: match.description,
-        suggestion: match.suggestion,
-        snippet: (lines[line - 1] ?? '').trim(),
-      })
-    }
+    violations.push(...findViolations(rel, await readFile(file, 'utf8')))
   }
 
   violations.push(...es2023LibViolations())
@@ -345,4 +368,4 @@ async function main() {
   process.exit(1)
 }
 
-main()
+if (import.meta.main) main()
