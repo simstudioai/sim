@@ -1,9 +1,13 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ForkChatRequest, ForkChatResponse } from '@/lib/mothership/generated/protocol'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
+
+const logger = createLogger('ForkWorker')
 
 /**
  * How long one attempt waits for the copy. The worker refuses a cut above 50,000 events
@@ -15,6 +19,9 @@ import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
  * caller's connection closes, so a timed-out attempt is never retried and never published.
  */
 const ATTEMPT_TIMEOUT_MS = 120_000
+
+/** Cleanup is a small archive-and-purge of one chat, never a copy. */
+const DISCARD_TIMEOUT_MS = 10_000
 
 /** Gateway failures: the request may never have reached a worker, so one more attempt is safe. */
 const RETRYABLE_STATUSES = new Set([502, 503, 504])
@@ -74,5 +81,43 @@ export async function copyWorkerConversation(request: ForkChatRequest): Promise<
     const receipt = ForkChatResponse.parse(outcome.body)
     if (receipt.chatId !== request.newChatId) throw new Error('The fork returned a different chat')
     return
+  }
+}
+
+/**
+ * Removes the worker's copy of a fork that will not be published, so the worker keeps no
+ * conversation Sim has no chat for. Best effort: a failure is logged, never thrown, since
+ * the caller is already reporting the fork's own failure.
+ *
+ * The worker rolls back a copy whose caller disconnected, so after a timed-out attempt
+ * this is normally a no-op. A worker that commits in the instant between its last
+ * disconnect check and its commit, or one deployed before that rollback existed, can
+ * commit after this call runs; that conversation then stays on the worker, unreachable
+ * from Sim.
+ */
+export async function discardWorkerConversation(
+  request: Pick<ForkChatRequest, 'newChatId' | 'userId'>
+): Promise<void> {
+  try {
+    const baseURL = await getMothershipBaseURL({ userId: request.userId })
+    const response = await fetchGo(`${baseURL}/api/tasks/cleanup`, {
+      method: 'POST',
+      headers: mothershipRequestHeaders(),
+      body: JSON.stringify({ chatIds: [request.newChatId] }),
+      signal: AbortSignal.timeout(DISCARD_TIMEOUT_MS),
+      spanName: 'sim → worker /api/tasks/cleanup',
+      operation: 'discard_fork',
+    })
+    await response.body?.cancel().catch(() => undefined)
+    if (!response.ok)
+      logger.warn('Worker refused to discard an unpublished fork', {
+        chatId: request.newChatId,
+        status: response.status,
+      })
+  } catch (error) {
+    logger.warn('Failed to discard an unpublished fork on the worker', {
+      chatId: request.newChatId,
+      error: getErrorMessage(error),
+    })
   }
 }

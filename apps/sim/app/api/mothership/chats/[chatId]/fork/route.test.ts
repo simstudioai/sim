@@ -342,6 +342,19 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
+  it('discards the worker copy when the fork cannot be published', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(new Error('connection lost'))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(500)
+    const [fork, discard] = mockFetchGo.mock.calls
+    expect(fork[0]).toBe('http://mothership.test/api/chats/fork')
+    expect(discard[0]).toBe('http://mothership.test/api/tasks/cleanup')
+    expect(JSON.parse(discard[1].body)).toEqual({
+      chatIds: [JSON.parse(fork[1].body).newChatId],
+    })
+    expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+  })
+
   it('copies pre-cut uploads and drops only post-cut ghosts', async () => {
     // The source chat owns two more uploads (apple pre-cut, banana post-cut)
     // beside the kept one, plus one shared workspace-file resource. The fork

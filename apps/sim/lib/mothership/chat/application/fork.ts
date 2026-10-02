@@ -19,7 +19,10 @@ import {
   planChatFileCopies,
 } from '@/lib/mothership/chat/fork-chat-files'
 import { planForkInlineImages } from '@/lib/mothership/chat/fork-inline-images'
-import { copyWorkerConversation } from '@/lib/mothership/chat/fork-worker'
+import {
+  copyWorkerConversation,
+  discardWorkerConversation,
+} from '@/lib/mothership/chat/fork-worker'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
@@ -88,6 +91,8 @@ export const forkChat = defineAuthorizedChatUseCase({
     const { chatId, upToMessageId } = input
     let preparedBlobs: ChatBlobCopyTask[] = []
     let published = false
+    const newId = generateId()
+    let workerCopyRequested = false
     try {
       const messages = await loadCopilotChatMessages(chatId)
       const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
@@ -111,7 +116,6 @@ export const forkChat = defineAuthorizedChatUseCase({
       /** The source chat's chat-owned file ids (no cut) — the "is this resource a ghost?" test set for the rewrite. */
       const chatOwnedFileIds = new Set(chatOwnedFiles.map((row) => row.id))
 
-      const newId = generateId()
       /** Strip a leading "Fork | " so titles don't stack prefixes when forking a forked chat. */
       const baseTitle = (parent.title ?? 'New chat').replace(/^Fork \| /, '')
       const title = `Fork | ${baseTitle}`
@@ -129,6 +133,7 @@ export const forkChat = defineAuthorizedChatUseCase({
       ).filter((resource) => resource.type !== 'file' || !failedIds.has(resource.id))
       const cutUser = [...forkedMessages].reverse().find((message) => message.role === 'user')
       if (!cutUser) throw new Error('The fork has no user message')
+      workerCopyRequested = true
       await copyWorkerConversation({
         sourceChatId: chatId,
         newChatId: newId,
@@ -198,6 +203,8 @@ export const forkChat = defineAuthorizedChatUseCase({
         ...(failed > 0 ? { failedFileCopies: failed } : {}),
       }
     } catch (error) {
+      if (!published && workerCopyRequested)
+        await discardWorkerConversation({ newChatId: newId, userId })
       if (!published) {
         await mapWithConcurrency(preparedBlobs, 4, async (task) => {
           try {
