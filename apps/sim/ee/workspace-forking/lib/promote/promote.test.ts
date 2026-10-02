@@ -1,3 +1,4 @@
+import { resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import {
   workflowsPersistenceUtilsMock,
@@ -5,6 +6,7 @@ import {
 } from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
 import { workspaceForkingMappingStoreMock } from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
+import { workspaceForkingRevisionMock } from '@sim/testing/mocks/workspace-forking-revision.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForkSyncBlocker } from '@/lib/api/contracts/workspace-fork'
 
@@ -49,7 +51,13 @@ vi.mock('@/lib/workflows/deployment-outbox', () => ({
   processWorkflowDeploymentOutboxEvent: vi.fn(),
 }))
 vi.mock('@/lib/workflows/orchestration/deploy', () => ({
-  performFullDeploy: vi.fn(async () => ({ success: true })),
+  finishPreparedWorkflowDeployment: vi.fn(async () => ({ success: true })),
+}))
+vi.mock('@/ee/workspace-forking/application/revision', () => workspaceForkingRevisionMock)
+vi.mock('@/ee/workspace-forking/lib/promote/prepare-deployments', () => ({
+  prepareForkSyncDeployments: vi.fn(
+    async () => new Map([['wf-tgt', { success: true, operation: { workflowId: 'wf-tgt' } }]])
+  ),
 }))
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
@@ -150,10 +158,11 @@ vi.mock('@/ee/workspace-forking/lib/socket', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { db } from '@sim/db'
-import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
+import { finishPreparedWorkflowDeployment } from '@/lib/workflows/orchestration/deploy'
 import { getBlock } from '@/blocks/registry'
 import { copyWorkflowStateIntoTarget } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import { reconcileForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
+import { prepareForkSyncDeployments } from '@/ee/workspace-forking/lib/promote/prepare-deployments'
 import { promoteFork } from '@/ee/workspace-forking/lib/promote/promote'
 import type { ForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
 
@@ -236,13 +245,12 @@ function emptyCopyResult() {
 }
 
 beforeEach(() => {
-  vi.mocked(db.transaction).mockImplementation(
-    async (cb: (tx: unknown) => unknown) => cb({}) as never
-  )
+  resetDbChainMock()
   mockGetUsersWithPermissions.mockResolvedValue([])
   mockLoadSourceDeployedStates.mockResolvedValue({
     deployedWorkflows: [],
     sourceStates: new Map(),
+    sourceVersionIds: new Map(),
   })
   mockComputePlan.mockResolvedValue(makePlan())
   mockBuildCopySelection.mockReturnValue({
@@ -558,6 +566,7 @@ describe('promoteFork trigger URLs', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(copyWorkflowStateIntoTarget).not.toHaveBeenCalled()
     expect(mockUpsertPromoteRun).not.toHaveBeenCalled()
-    expect(performFullDeploy).not.toHaveBeenCalled()
+    expect(prepareForkSyncDeployments).not.toHaveBeenCalled()
+    expect(finishPreparedWorkflowDeployment).not.toHaveBeenCalled()
   })
 })

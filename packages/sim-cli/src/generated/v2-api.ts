@@ -10488,6 +10488,26 @@ type PreviewWorkspacePullResponseRef0 = {
     sourceWorkflowId?: string
     targetWorkflowId?: string
     name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
   }>
   unresolvedBindings: Array<{
     kind: string
@@ -10618,6 +10638,26 @@ type PreviewWorkspacePushResponseRef0 = {
     sourceWorkflowId?: string
     targetWorkflowId?: string
     name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
   }>
   unresolvedBindings: Array<{
     kind: string

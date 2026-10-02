@@ -541,6 +541,18 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdBy',
     'createdAt',
   ],
+  workspaceForkWorkflowSync: [
+    'deploymentOperationId',
+    'childWorkspaceId',
+    'sourceWorkflowId',
+    'targetWorkflowId',
+    'sourceDeploymentVersionId',
+    'sequence',
+    'promoteRunId',
+    'activatedAt',
+    'rollbackOperationId',
+    'rolledBackAt',
+  ],
   backgroundWorkStatus: [
     'id',
     'workspaceId',

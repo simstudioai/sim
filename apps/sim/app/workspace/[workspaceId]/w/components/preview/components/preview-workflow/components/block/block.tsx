@@ -458,7 +458,7 @@ function WorkflowPreviewBlockInner({ id, data }: NodeProps<WorkflowPreviewBlockN
       )}
     >
       {/* Comparison label above the card */}
-      {diffStatus && <DiffStatusLabel status={diffStatus} count={changedFieldSet.size} />}
+      {diffStatus && <DiffStatusLabel status={diffStatus} />}
       {/* Selection ring overlay (takes priority over execution rings) */}
       {isPreviewSelected && (
         <div className='pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px] ring-[var(--text-secondary)]' />

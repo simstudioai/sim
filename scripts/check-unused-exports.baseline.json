@@ -4867,7 +4867,6 @@
   "apps/sim/lib/mcp/utils.ts#sanitizeForHttp",
   "apps/sim/lib/mcp/utils.ts#sanitizeHeaders",
   "apps/sim/lib/mcp/workflow-config.ts#MCP_FIELD_GROUPS",
-  "apps/sim/lib/mcp/workflow-mcp-sync.ts#generateSchemaFromBlocks",
   "apps/sim/lib/media/falai-audio.ts#DEFAULT_AUDIO_MODELS",
   "apps/sim/lib/media/falai-audio.ts#DEFAULT_CLONE_MODEL",
   "apps/sim/lib/media/falai-video.ts#DEFAULT_VIDEO_MODEL",

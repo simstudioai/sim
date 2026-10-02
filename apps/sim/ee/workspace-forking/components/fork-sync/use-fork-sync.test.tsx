@@ -143,6 +143,7 @@ function diffData(dependentReconfigs: ForkDependentReconfig[]) {
     sourceWorkspaceId: WORKSPACE_ID,
     targetWorkspaceId: OTHER_WORKSPACE_ID,
     workflows: [],
+    sourceVersions: [],
     dependentReconfigs,
     resourceUsages: [],
     copyableUnmapped: [],
