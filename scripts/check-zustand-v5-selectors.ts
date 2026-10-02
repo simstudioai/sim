@@ -372,7 +372,10 @@ function returnedExpressions(fn: SyntaxNode): unknown[] {
  * The parameter binding that holds every state field: `s` in `(s) => …`, or `rest` in
  * `({ a, ...rest }) => …`, which holds every field but the ones named (a deny-list).
  */
-function wholeStateBinding(param: unknown): { name: string; reason: string } | null {
+function wholeStateBinding(rawParam: unknown): { name: string; reason: string } | null {
+  // A default (`(state = {} as State) => …`) binds the same value.
+  const param =
+    isSyntaxNode(rawParam) && rawParam.type === 'AssignmentPattern' ? rawParam.left : rawParam
   if (!isSyntaxNode(param)) return null
   if (param.type === 'Identifier' && typeof param.name === 'string') {
     return { name: param.name, reason: 'persist partialize spreads the whole state' }

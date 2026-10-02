@@ -174,7 +174,7 @@ const BANNED_PATTERNS: Array<{
 ]
 
 /** Cheap gate: only files that contain a `.with(` call are parsed. */
-const WITH_CALL = /\.with\s*\(/
+const WITH_CALL = /\.with\s*(?:\?\.\s*)?\(/
 
 /** A Babel AST node, read structurally rather than through `@babel/types`. */
 interface SyntaxNode extends Record<string, unknown> {
@@ -228,6 +228,38 @@ function otelContextBindings(program: SyntaxNode): {
   return { contexts, namespaces }
 }
 
+/** Names bound by a pattern: `a`, `{ a, b: c }`, `[a, ...rest]`, `a = 1`. */
+function patternNames(pattern: unknown, names: string[]): void {
+  if (!isSyntaxNode(pattern)) return
+  if (pattern.type === 'Identifier' && typeof pattern.name === 'string') names.push(pattern.name)
+  else if (pattern.type === 'AssignmentPattern') patternNames(pattern.left, names)
+  else if (pattern.type === 'RestElement') patternNames(pattern.argument, names)
+  else if (pattern.type === 'ArrayPattern' && Array.isArray(pattern.elements)) {
+    for (const element of pattern.elements) patternNames(element, names)
+  } else if (pattern.type === 'ObjectPattern' && Array.isArray(pattern.properties)) {
+    for (const property of pattern.properties) {
+      patternNames(
+        isSyntaxNode(property) && property.type === 'ObjectProperty' ? property.value : property,
+        names
+      )
+    }
+  }
+}
+
+/** Every name a variable, parameter, catch clause, function, or class declares in the file. */
+function declaredNames(program: SyntaxNode): Set<string> {
+  const names: string[] = []
+  walkNodes(program, (node) => {
+    if (node.type === 'VariableDeclarator') patternNames(node.id, names)
+    else if (node.type === 'CatchClause') patternNames(node.param, names)
+    else if (/Function|ObjectMethod|ClassMethod/.test(node.type)) {
+      if (Array.isArray(node.params)) for (const param of node.params) patternNames(param, names)
+      if (node.type === 'FunctionDeclaration') patternNames(node.id, names)
+    } else if (node.type === 'ClassDeclaration') patternNames(node.id, names)
+  })
+  return new Set(names)
+}
+
 /** Whether `receiver` is OpenTelemetry's context object: `context`, an alias, or `api.context`. */
 function isOtelContext(
   receiver: unknown,
@@ -265,6 +297,11 @@ function findArrayWithCalls(file: string, content: string): number[] {
   if (!isSyntaxNode(program)) return []
 
   const bindings = otelContextBindings(program)
+  // A name the file also declares elsewhere may be shadowed at the call; exempt only unique bindings.
+  for (const name of declaredNames(program)) {
+    bindings.contexts.delete(name)
+    bindings.namespaces.delete(name)
+  }
   const offsets: number[] = []
   walkNodes(program, (node) => {
     if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return
