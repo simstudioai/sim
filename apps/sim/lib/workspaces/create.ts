@@ -89,9 +89,10 @@ export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParam
  * permission-group advisory lock — before inserting the workspace, owner
  * permission and optional starter workflow atomically.
  */
-export async function createWorkspaceInTransaction(
+export async function createWorkspaceWithProjectInTransaction(
   tx: DbTransaction,
   {
+    projectName,
     userId,
     observedOrganizationId,
     name,
@@ -100,8 +101,8 @@ export async function createWorkspaceInTransaction(
     workspaceMode,
     billedAccountUserId,
     governingPermissionGroupOrganizationId,
-  }: TransactionalCreateWorkspaceParams
-): Promise<CreatedWorkspace> {
+  }: TransactionalCreateWorkspaceParams & { projectName?: string }
+): Promise<{ projectId: string; workspace: CreatedWorkspace }> {
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
@@ -130,7 +131,8 @@ export async function createWorkspaceInTransaction(
     updatedAt: now,
   })
 
-  await createProjectForWorkspace(tx, {
+  const projectId = await createProjectForWorkspace(tx, {
+    projectName,
     workspaceId,
     name,
     organizationId: organizationId ?? null,
@@ -186,16 +188,27 @@ export async function createWorkspaceInTransaction(
   }
 
   return {
-    id: workspaceId,
-    name,
-    ownerId: userId,
-    organizationId,
-    workspaceMode,
-    billedAccountUserId: committedBilledAccountUserId,
-    allowPersonalApiKeys: true,
-    createdAt: now,
-    updatedAt: now,
+    projectId,
+    workspace: {
+      id: workspaceId,
+      name,
+      ownerId: userId,
+      organizationId,
+      workspaceMode,
+      billedAccountUserId: committedBilledAccountUserId,
+      allowPersonalApiKeys: true,
+      createdAt: now,
+      updatedAt: now,
+    },
   }
+}
+
+/** Preserves the workspace-only result for existing creation callers. */
+export async function createWorkspaceInTransaction(
+  tx: DbTransaction,
+  params: TransactionalCreateWorkspaceParams
+): Promise<CreatedWorkspace> {
+  return (await createWorkspaceWithProjectInTransaction(tx, params)).workspace
 }
 
 /** Creates a workspace through the canonical lock-and-insert transaction. */

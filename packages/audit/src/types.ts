@@ -218,6 +218,7 @@ export const AuditAction = {
   WORKFLOW_EXPORTED: 'workflow.exported',
 
   WORKSPACE_CREATED: 'workspace.created',
+  PROJECT_CREATED: 'project.created',
   PROJECT_UPDATED: 'project.updated',
   PROJECT_ARCHIVED: 'project.archived',
   WORKSPACE_UPDATED: 'workspace.updated',

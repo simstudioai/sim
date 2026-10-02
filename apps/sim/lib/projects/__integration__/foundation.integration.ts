@@ -11,6 +11,7 @@ import {
   user,
   userStats,
   workflow,
+  workflowBlocks,
   workspace,
   workspaceForkBlockMap,
   workspaceForkDependentValue,
@@ -21,14 +22,15 @@ import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import {
   archiveProject,
+  createProject,
   getProject,
   getProjectIssueAccess,
   getWorkspaceProject,
@@ -180,6 +182,172 @@ afterAll(async () => {
 })
 
 describe('Project foundation at the database and application boundary', () => {
+  check(
+    'Project creation commits its named first environment and starter workflow in the requested scope',
+    async () => {
+      for (const personal of [false, true]) {
+        const f = await fixture(true, 1)
+        const organizationId = personal ? null : f.organizationId
+        if (!f.organizationId) throw new Error('Missing organization fixture')
+        await db.insert(member).values({
+          id: generateId(),
+          organizationId: f.organizationId,
+          userId: f.teammateId,
+          role: 'admin',
+          createdAt: new Date(),
+        })
+        const result = await createProject.execute({
+          principal: f.teammate,
+          input: {
+            organizationId,
+            name: 'Customer support',
+            initialEnvironment: { name: 'Production' },
+          },
+          request,
+        })
+        environments.push(result.initialEnvironment.id)
+        const [created] = await db.select().from(project).where(eq(project.id, result.project.id))
+        expect(created).toMatchObject({
+          name: 'Customer support',
+          organizationId,
+          ownerId: f.teammateId,
+        })
+        const [env] = await db
+          .select()
+          .from(workspace)
+          .where(eq(workspace.id, result.initialEnvironment.id))
+        expect(env).toMatchObject({
+          name: 'Production',
+          organizationId,
+          ownerId: f.teammateId,
+          billedAccountUserId: personal ? f.teammateId : f.ownerId,
+        })
+        expect(
+          await db
+            .select({
+              projectId: projectWorkspace.projectId,
+              workspaceId: projectWorkspace.workspaceId,
+            })
+            .from(projectWorkspace)
+            .where(eq(projectWorkspace.projectId, created.id))
+        ).toEqual([{ projectId: created.id, workspaceId: env.id }])
+        const grants = await db.select().from(permissions).where(eq(permissions.entityId, env.id))
+        expect(
+          grants.map((grant) => ({ userId: grant.userId, permissionType: grant.permissionType }))
+        ).toEqual(
+          expect.arrayContaining([
+            { userId: f.teammateId, permissionType: 'admin' },
+            ...(personal ? [] : [{ userId: f.ownerId, permissionType: 'admin' }]),
+          ])
+        )
+        expect(grants).toHaveLength(personal ? 1 : 2)
+        const workflows = await db.select().from(workflow).where(eq(workflow.workspaceId, env.id))
+        expect(workflows).toHaveLength(1)
+        const blocks = await db
+          .select()
+          .from(workflowBlocks)
+          .where(eq(workflowBlocks.workflowId, workflows[0].id))
+        expect(blocks.length).toBeGreaterThan(0)
+      }
+    }
+  )
+
+  check(
+    'Project creation refuses workspace keys and foreign organizations without creating resources',
+    async () => {
+      const f = await fixture(true, 1)
+      const foreign = await fixture(true, 1)
+      const input = {
+        organizationId: foreign.organizationId,
+        name: 'Forbidden project',
+        initialEnvironment: { name: 'Production' },
+      }
+      await expect(
+        createProject.execute({ principal: f.owner, input, request })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+      await expect(
+        createProject.execute({
+          principal: createWorkspaceApiKeyPrincipal({ workspaceId: f.ids[0] }),
+          input: { ...input, organizationId: f.organizationId },
+          request,
+        })
+      ).rejects.toThrow('cannot perform operation')
+      expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(1)
+      expect(
+        await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))
+      ).toHaveLength(1)
+    }
+  )
+
+  check(
+    'Project creation cannot bypass the workspace-creation restriction through personal scope',
+    async () => {
+      const f = await fixture(true, 1)
+      if (!f.organizationId) throw new Error('Missing organization fixture')
+      await db.insert(permissionGroup).values({
+        id: generateId(),
+        organizationId: f.organizationId,
+        name: 'Creation disabled',
+        createdBy: f.ownerId,
+        isDefault: true,
+        config: { disableWorkspaceCreation: true },
+      })
+      for (const organizationId of [f.organizationId, null]) {
+        await expect(
+          createProject.execute({
+            principal: f.owner,
+            input: {
+              organizationId,
+              name: 'Forbidden project',
+              initialEnvironment: { name: 'Production' },
+            },
+            request,
+          })
+        ).rejects.toMatchObject({ detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' })
+      }
+      expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(1)
+      expect(
+        await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))
+      ).toHaveLength(1)
+    }
+  )
+
+  check(
+    'A starter-workflow failure rolls back the Project, environment and permissions together',
+    async () => {
+      const f = await fixture(false, 1)
+      const constraint = sql.identifier(`project_create_test_${generateId().replaceAll('-', '')}`)
+      const before = await db.select().from(permissions).where(eq(permissions.userId, f.ownerId))
+      await db.execute(
+        sql`ALTER TABLE ${workflow} ADD CONSTRAINT ${constraint} CHECK (${workflow.userId} <> ${f.ownerId}) NOT VALID`.inlineParams()
+      )
+      try {
+        await expect(
+          createProject.execute({
+            principal: f.owner,
+            input: {
+              organizationId: null,
+              name: 'Rollback project',
+              initialEnvironment: { name: 'Rollback environment' },
+            },
+            request,
+          })
+        ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '23514')
+        expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(
+          1
+        )
+        expect(
+          await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))
+        ).toHaveLength(1)
+        expect(
+          await db.select().from(permissions).where(eq(permissions.userId, f.ownerId))
+        ).toEqual(before)
+      } finally {
+        await db.execute(sql`ALTER TABLE ${workflow} DROP CONSTRAINT ${constraint}`)
+      }
+    }
+  )
+
   check('workspace creation and forks commit exactly one Project membership', async () => {
     const f = await fixture(false, 1)
     const source = await db.transaction((tx) =>

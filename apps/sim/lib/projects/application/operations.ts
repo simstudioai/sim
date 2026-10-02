@@ -1,5 +1,5 @@
 import type { ApplicationOperation } from '@/lib/core/application/operation'
-import { assertOperationCapability } from '@/lib/core/application/operation'
+import { assertOperationCapability, defineOperation } from '@/lib/core/application/operation'
 
 export interface ProjectOperation extends ApplicationOperation {
   readonly principalKinds: readonly ['session']
@@ -14,6 +14,11 @@ function defineProjectOperation<const O extends ProjectOperation>(operation: O):
 }
 
 export const projectOperations = {
+  create: defineOperation({
+    id: 'projects.create',
+    principalKinds: ['session'],
+    capability: 'workspace.create',
+  }),
   // permission-group-exempt: navigation exposes only Projects containing accessible environments.
   list: defineProjectOperation({
     id: 'projects.list',

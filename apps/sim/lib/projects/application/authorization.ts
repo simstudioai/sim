@@ -13,7 +13,7 @@ import { lockProject } from '@/lib/projects/membership'
 
 export function requireProjectPrincipal(
   principal: Principal,
-  operation: ProjectOperation
+  operation: Pick<ProjectOperation, 'id' | 'principalKinds'>
 ): asserts principal is SessionPrincipal {
   if (principal.kind !== 'session')
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { nonEmptyIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { createProjectInputSchema } from '@/lib/projects/create-input'
 
 export const projectEnvironmentSchema = z.object({
   id: nonEmptyIdSchema,
@@ -83,4 +84,18 @@ export const getWorkspaceProjectContract = defineRouteContract({
   path: '/api/projects/by-workspace/[workspaceId]',
   params: workspaceProjectParamsSchema,
   response: { mode: 'json', schema: getProjectResponseSchema },
+})
+
+export const createProjectBodySchema = createProjectInputSchema
+export type CreateProjectBody = z.input<typeof createProjectBodySchema>
+export const createProjectResponseSchema = z.object({
+  project: z.object({ id: nonEmptyIdSchema, name: z.string() }),
+  initialEnvironment: z.object({ id: nonEmptyIdSchema, name: z.string() }),
+})
+export type CreateProjectResponse = z.output<typeof createProjectResponseSchema>
+export const createProjectContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/projects',
+  body: createProjectBodySchema,
+  response: { mode: 'json', status: 201, schema: createProjectResponseSchema },
 })

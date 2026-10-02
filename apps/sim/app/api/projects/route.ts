@@ -1,11 +1,11 @@
-import { listProjectsContract } from '@/lib/api/contracts/projects'
+import { createProjectContract, listProjectsContract } from '@/lib/api/contracts/projects'
 import {
   defineInternalJsonRoute,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { listProjects, projectOperations } from '@/lib/projects/application'
+import { createProject, listProjects, projectOperations } from '@/lib/projects/application'
 
 export const GET = defineInternalJsonRoute({
   contract: listProjectsContract,
@@ -15,4 +15,14 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ query }) => query,
   useCase: listProjects,
+})
+
+export const POST = defineInternalJsonRoute({
+  contract: createProjectContract,
+  auth: internalSessionAuth,
+  operation: projectOperations.create,
+  rateLimit: internalRateLimits.user({ bucketName: 'projects.write' }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: ({ body }) => body,
+  useCase: createProject,
 })

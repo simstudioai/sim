@@ -1,3 +1,4 @@
+export { createProject } from '@/lib/projects/application/create-project'
 export { projectOperations } from '@/lib/projects/application/operations'
 export {
   archiveProject,

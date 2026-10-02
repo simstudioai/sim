@@ -32,12 +32,13 @@ export async function createProjectForWorkspace(
     organizationId: string | null
     ownerId: string
     archivedAt?: Date | null
+    projectName?: string
   }
 ): Promise<string> {
   const id = generateId()
   await tx.insert(project).values({
     id,
-    name: generatedProjectName(input.name),
+    name: input.projectName ?? generatedProjectName(input.name),
     organizationId: input.organizationId,
     ownerId: input.ownerId,
     archivedAt: input.archivedAt ?? null,
