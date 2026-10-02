@@ -316,6 +316,12 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(mockPublishStatusChanged).not.toHaveBeenCalled()
   })
 
+  it.each([404, 409, 413])('passes a worker %i refusal through', async (status) => {
+    mockFetchGo.mockResolvedValue(Response.json({ error: 'refused' }, { status }))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(status)
+  })
+
   it('surfaces failed blob copies and excludes their metadata from publication', async () => {
     mockExecuteChatFileBlobCopies.mockResolvedValue({
       copied: 1,
