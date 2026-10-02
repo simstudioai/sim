@@ -10,7 +10,7 @@ argument-hint: <service-name> [api-docs-url]
 
 For **Sim Search**, use the live provider workflow in [the federated Search developer guide](../../../apps/sim/lib/sim-search/live/README.md#adding-a-live-search-connector). Its browser-safe provider catalog owns provider IDs, API origins, credential aliases, and account modes; its typed runtime registry requires both search and read handlers. `ConnectorMeta` remains the owner of logos and setup fields. Member mode has no admin resource filters. Service mode requires independent live source verification; resource pickers use shared selectors with canonical manual-input pairs, and plain inputs are fine where no picker applies. Do not implement a Search source by adding a crawler, embeddings, or a scheduled ACL build.
 
-The ingestion instructions below apply to **ordinary knowledge-base connectors** and the explicit legacy Search backend (`SIM_SEARCH_LIVE=false`). If a provider supports both, implement and test both runtimes; adding `search: true` to metadata alone does not implement federated search. Preserve indexing documentation and behavior for those KB/legacy callers.
+The ingestion instructions below apply to **ordinary knowledge-base connectors**. Sim Search always uses the live backend, so setting `search: true` in metadata does not implement federated search; a provider that serves both needs the live handlers and this KB ingestion path.
 
 You are an expert at adding knowledge base connectors to Sim. A connector syncs documents from an external source (Confluence, Google Drive, Notion, etc.) into a knowledge base.
 
@@ -56,11 +56,7 @@ connectors/{service}/
 
 Connectors use a discriminated union for auth config (`ConnectorAuthConfig` in `connectors/types.ts`):
 
-```typescript
-type ConnectorAuthConfig =
-  | { mode: 'oauth'; provider: OAuthService; requiredScopes?: string[] }
-  | { mode: 'apiKey'; label?: string; placeholder?: string }
-```
+See `ConnectorAuthConfig` in `apps/sim/connectors/types.ts`: `oauth` takes `provider`, `requiredScopes`, and optional service-account/admin scopes; `apiKey` takes `label`, `placeholder`, and `optional`.
 
 ### OAuth mode
 For services with existing OAuth providers in `apps/sim/lib/oauth/types.ts`. The `provider` must match an `OAuthService`. The modal shows a credential picker and handles token refresh automatically.
@@ -107,7 +103,7 @@ Keep `meta.ts` free of any server/runtime import. Only the icon, the `ConnectorM
 
 ```typescript
 import { createLogger } from '@sim/logger'
-import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { {service}ConnectorMeta } from '@/connectors/{service}/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
@@ -218,7 +214,7 @@ The user sees a toggle button (ArrowLeftRight) to switch between the selector dr
 
 1. **Every selector field MUST have a canonical pair** — a corresponding `short-input` (or `dropdown`) field with the same `canonicalParamId` and `mode: 'advanced'`.
 2. **`required` must be set identically on both fields** in a pair. If the selector is required, the manual input must also be required.
-3. **`canonicalParamId` must match the key the connector expects in `sourceConfig`** (e.g. `baseId`, `channel`, `teamId`). The advanced field's `id` should typically match `canonicalParamId`.
+3. **`canonicalParamId` must match the key the connector expects in `sourceConfig`** (e.g. `baseId`, `channel`, `teamId`). The advanced field's `id` should typically match `canonicalParamId` (connector config fields differ from block subBlocks here; the block rule that `canonicalParamId` must not equal a subblock id does not apply).
 4. **`dependsOn` references the selector field's `id`**, not the `canonicalParamId`. The modal propagates dependency clearing across canonical siblings automatically — changing either field in a parent pair clears dependent children.
 
 ### Selector canonical pair example (Airtable base → table cascade)
@@ -350,7 +346,7 @@ Every document returned from `listDocuments`/`getDocument` must include:
   title: string               // Document title
   content: string             // Extracted plain text (or '' if contentDeferred)
   contentDeferred?: boolean   // true = content will be fetched via getDocument
-  mimeType: 'text/plain'     // Always text/plain (content is extracted)
+  mimeType: 'text/plain'     // extracted text; for a format the KB pipeline parses (PDF, Office), set `sourceFile` instead
   contentHash: string         // Metadata-based hash for change detection
   sourceUrl?: string          // Link back to original (stored on document record)
   metadata?: Record<string, unknown>  // Source-specific data (fed to mapTags)
@@ -376,7 +372,7 @@ This pattern is critical for reliability: the sync engine processes documents in
 
 ### Content Hash Strategy
 
-Use a **metadata-based** `contentHash` — never a content-based hash. The hash must be derivable from the list response metadata alone, so the sync engine can detect changes without downloading content.
+Deferred-content connectors (`contentDeferred: true`) must use a **metadata-based** `contentHash` derivable from the list response alone, so the sync engine can detect changes without downloading content. Inline-content connectors may hash the content they already hold (`computeContentHash`).
 
 Good metadata hash sources:
 - `modifiedTime` / `lastModifiedDateTime` — changes when file is edited
@@ -519,12 +515,13 @@ mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
 
 ## External API Calls — Use `fetchWithRetry`
 
-All external API calls must use `fetchWithRetry` from `@/lib/knowledge/documents/utils` instead of raw `fetch()`. This provides exponential backoff with retries on 429/502/503/504 errors. It returns a standard `Response` — all `.ok`, `.json()`, `.text()` checks work unchanged.
+All external API calls must use `fetchWithRetry` from `@/lib/knowledge/documents/secure-fetch.server` (SSRF-guarded) instead of raw `fetch()`; use `secureFetchWithRetry` for user-controlled hosts. This provides exponential backoff with retries on 429/502/503/504 errors. It returns a standard `Response` — all `.ok`, `.json()`, `.text()` checks work unchanged.
 
-For `validateConfig` (user-facing, called on save), pass `VALIDATE_RETRY_OPTIONS` to cap wait time at ~7s. Background operations (`listDocuments`, `getDocument`) use the built-in defaults (5 retries, ~31s max).
+For `validateConfig` (user-facing, called on save), pass `VALIDATE_RETRY_OPTIONS` to cap wait time at ~7s. Background operations (`listDocuments`, `getDocument`) use the built-in defaults (5 retries within a 150s budget).
 
 ```typescript
-import { VALIDATE_RETRY_OPTIONS, fetchWithRetry } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 
 // Background sync — use defaults
 const response = await fetchWithRetry(url, {
@@ -544,7 +541,7 @@ If `ExternalDocument.sourceUrl` is set, the sync engine stores it on the documen
 
 If `listDocuments` can ever return **less than the full source set** on a non-incremental sync — a `maxItems`/`maxDocuments`-style cap, or a transient per-item error that drops a still-existing document from the listing — it MUST set `syncContext.listingCapped = true` when that happens.
 
-The sync engine reconciles deletions by comparing the full listing against stored documents (`shouldReconcileDeletions` in `lib/knowledge/connectors/sync-engine.ts`, gated on `!syncContext?.listingCapped`). Anything not seen is tombstoned on that sync and hard-deleted when the next sync still does not see it — so a truncated listing without this flag eventually removes every real document beyond the cap.
+The engine reconciles deletions only when the listing is marked safe (`checkpoint.unsafe` in `lib/knowledge/connectors/listing-checkpoint.ts`): `syncContext.listingCapped`, `ExternalDocumentList.reconciliationSafe: false` (required for offset/unstable pagination), or a non-null `listingFailures` marks it unsafe. Anything absent from a safe listing is tombstoned on that sync and hard-deleted when the next sync still does not see it — so a truncated listing without this flag eventually removes every real document beyond the cap.
 
 ```typescript
 if (hitLimit && syncContext) {
@@ -564,14 +561,14 @@ The sync engine (`lib/knowledge/connectors/sync-engine.ts`) is connector-agnosti
 1. Calls `listDocuments` with pagination until `hasMore` is false
 2. Compares `contentHash` to detect new/changed/unchanged documents
 3. Stores `sourceUrl` and calls `mapTags` on insert/update automatically
-4. Handles soft-delete of removed documents
+4. Tombstones documents absent from a reconciliation-safe listing and hard-deletes them when the next safe listing still omits them
 5. Resolves access tokens automatically — OAuth tokens are refreshed, API keys are decrypted from the `encryptedApiKey` column
 
 You never need to modify the sync engine when adding a connector.
 
 ## Icon
 
-The `icon` field on `ConnectorConfig` is used throughout the UI — in the connector list, the add-connector modal, and as the document icon in the knowledge base table (replacing the generic file type icon for connector-sourced documents). The icon is read from `CONNECTOR_META_REGISTRY[connectorType].icon` (the client-safe registry) at runtime — no separate icon map to maintain.
+The `icon` field on `ConnectorConfig` is used throughout the UI — in the connector list, the add-connector modal, and as the document icon for connector-sourced documents in the knowledge base table. The icon is read from `CONNECTOR_META_REGISTRY[connectorType].icon` (the client-safe registry) at runtime — no separate icon map to maintain.
 
 If the service already has an icon in `apps/sim/components/icons.tsx` (from a tool integration), reuse it. Otherwise, ask the user to provide the SVG.
 
@@ -608,7 +605,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
 - **OAuth + contentDeferred**: `apps/sim/connectors/google-drive/google-drive.ts` — file download with metadata-based hash, `orderBy` for deterministic pagination
 - **OAuth + contentDeferred (blocks API)**: `apps/sim/connectors/notion/notion.ts` — complex block content extraction deferred to `getDocument`
 - **OAuth + contentDeferred (git)**: `apps/sim/connectors/github/github.ts` — blob SHA hash, tree listing
-- **OAuth + inline content**: `apps/sim/connectors/slack/slack.ts` — list API returns message content inline, metadata-derived `contentHash`
+- **OAuth + inline content**: `apps/sim/connectors/slack/slack.ts` — list API returns message content inline; `contentHash` hashes that content
 - **OAuth + contentDeferred + config fields**: `apps/sim/connectors/confluence/confluence.ts` — multiple config field types, `mapTags`, label fetching
 - **API key**: `apps/sim/connectors/fireflies/fireflies.ts` — GraphQL API with Bearer token auth
 
@@ -626,11 +623,8 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   - `selectorKey` exists in `apps/sim/lib/selectors/manifest.ts`
   - `dependsOn` references selector field IDs (not `canonicalParamId`)
   - Each projected dependency key is a `SelectorContextKey` allowed by the selector manifest
-  - Every remote key has one server attachment with credential provider binding and a reviewed
-    `fixed`, `credential-bound`, or `user-controlled` destination policy
-  - No connector selector adds a client provider module, browser token request, or selector-only
-    API route
-- [ ] `listDocuments` handles pagination with metadata-based content hashes
+  - Validate the selector key itself with the `validate-selector` skill
+- [ ] `listDocuments` handles pagination; deferred-content connectors use metadata-based content hashes
 - [ ] `syncContext.listingCapped = true` set whenever the listing is truncated (max-items cap or transient per-item error) — required to prevent the engine's deletion reconciliation from removing unseen documents
 - [ ] `contentDeferred: true` used if content requires per-doc API calls (file download, export, blocks fetch)
 - [ ] `contentHash` is metadata-based (not content-based) and identical between stub and `getDocument`

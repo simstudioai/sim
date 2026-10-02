@@ -83,7 +83,7 @@ The `'use client'` server boundary, the app/worker runtime env split, and featur
 ## Code Conventions
 
 - **Naming**: components PascalCase (`WorkflowList`); hooks `use*`; files kebab-case (`workflow-list.tsx`); constants SCREAMING_SNAKE_CASE; interfaces PascalCase with a suffix (`WorkflowListProps`); stores `stores/<feature>/store.ts`. A file never repeats its folder's name (`lib/logs/views.ts`, not `lib/logs/log-views.ts`; `utils/date.ts`, not `utils/date-utils.ts`); `check:file-names` enforces this.
-- **Imports**: absolute (`@/...`) only, never relative. A folder with 3+ exports gets an `index.ts` barrel; never re-export from a non-barrel file. `import type` for type-only imports. Order and lazy-loading through barrels: `.claude/rules/sim-imports.md`.
+- **Imports**: absolute (`@/...`) only, never relative (a barrel `index.ts` re-exports its own siblings relatively). A folder with 3+ exports gets an `index.ts` barrel; never re-export from a non-barrel file. `import type` for type-only imports. Order and lazy-loading through barrels: `.claude/rules/sim-imports.md`.
 - **TypeScript**: no `any` and no non-null `!` (use precise types or `unknown` with guards; `check:explicit-any` ratchets both); no export nothing imports (`check:unused-exports`); a props interface for every component; `as const` for constant objects/arrays; explicit ref types (`useRef<HTMLDivElement>(null)`).
 - **Unused bindings** fail lint (biome `noUnusedVariables`, `noUnusedFunctionParameters`): delete the dead variable, import, or parameter and update callers; write `catch {}` when the error is unused. Prefix `_` only for a parameter that must hold its position because a later one is used. `const { a, ...rest } = obj` to omit keys is allowed. The rules carry no autofix, so `bun run lint` will not rename anything for you.
 - **Components**: `'use client'` only for hooks or browser APIs. Structure order, extraction thresholds, and list-render rules: `.claude/rules/sim-components.md`. Render-performance idioms (lazy-init refs, hoisting, `Map` pre-indexing, `[...arr].sort()`, never `toSorted()`): `.claude/rules/sim-react-performance.md`. For effect/state/memo/callback anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
@@ -133,7 +133,7 @@ Remaining block/tool/trigger rules: `.claude/rules/sim-integrations.md`. Canvas 
 
 Table column types are registry entries in `apps/sim/lib/table/column-types/` — one file per type owning its label, icon, storage cast, coercion, validation, conversion compatibility, formatting, and editor. `Record<ColumnType, …>` on `registry.ts` and `registry.server.ts` is a compile-time completeness gate: adding a type to the union errors until both entries exist.
 
-Never add a `case 'sometype':` outside `column-types/` — a missing arm fails silently (a wrong `jsonbCast` breaks every filter on the column). If a consumer needs per-type knowledge, add a registry field. Use `/add-column-type` for the full procedure.
+Never add a `case 'sometype':` outside `column-types/`, except the one documented import-path switch (`coerceValue` in `lib/table/import.ts`), which every new type extends — a missing arm fails silently (a wrong `jsonbCast` breaks every filter on the column). If a consumer needs per-type knowledge, add a registry field. Use `/add-column-type` for the full procedure.
 
 ## How your work is checked
 

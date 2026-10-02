@@ -27,7 +27,7 @@ Because enrichments run on Sim's hosted keys by default, **every provider tool y
 - **`enrichments/run.ts`** — the server-only cascade runner. Calls `executeTool(provider.toolId, { ...params, _context: { workspaceId, userId } })`, accumulates hosted-key cost, returns the first non-empty mapped result. **You do not edit this** — it works for any registry entry.
 - **`enrichments/registry.ts`** — `ENRICHMENT_REGISTRY` / `ALL_ENRICHMENTS` / `getEnrichment`. Register new entries here.
 
-Outputs automatically become table columns; billing, the catalog/sidebar UI, the column meta-header icon, and per-row execution all work with no extra wiring.
+Outputs automatically become table columns; billing, the catalog/sidebar UI, and per-row execution work with no extra wiring.
 
 ## Step 1: Pick the data-source tool(s)
 
@@ -118,7 +118,7 @@ Rules:
 In `apps/sim/enrichments/registry.ts`, import and add the entry (catalog order is registration order):
 
 ```typescript
-import { myEnrichment } from '@/enrichments/{id}/{id}'
+import { myEnrichment } from '@/enrichments/{id}'
 
 export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
   // ...existing

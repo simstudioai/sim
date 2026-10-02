@@ -76,9 +76,9 @@ Choose the destination policy deliberately:
 - `user-controlled`: the user selects the destination. Hidden use-only authentication requires an
   explicit security policy; do not combine it with an arbitrary destination by default.
 
-Reuse or extract a server-only provider listing primitive. If an existing provider route has
-non-selector callers, keep the route as a thin caller of that primitive. If it is selector-only,
-move the logic and remove the obsolete route and contract. Never import a route handler or make an
+Reuse or extract a server-only provider listing primitive. A provider route exists only when it
+has a non-selector caller, and then it is a thin caller of that primitive; there are no
+selector-only routes or contracts. Never import a route handler or make an
 internal HTTP request from an attachment.
 
 The attachment must return normalized selector results only. It must never deliberately or

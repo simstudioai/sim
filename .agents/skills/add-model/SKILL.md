@@ -48,8 +48,10 @@ Use a precise WebFetch prompt: *"Extract for {model_id}: exact model id string, 
 | Capability | Honored by | Effect if set elsewhere |
 |---|---|---|
 | `temperature` | All providers (passed through if set) | Safe but inert on always-reasoning models that reject it |
-| `toolUsageControl` | All providers (provider-level, not per-model) | n/a — set on `ProviderDefinition`, not models |
-| `reasoningEffort` | `openai/core.ts`, `azure-openai`, `xai`, `deepseek`, `groq`, `zai`, `meta`, `litellm` (each `index.ts`) | Not read by anthropic/gemini (they use `thinking`) or by mistral, cerebras, openrouter, fireworks, vertex — re-grep before assuming |
+| `toolUsageControl` | All providers (provider-level default) | Override per model only when that model differs |
+| `forcedToolUse` | Defaults to `toolUsageControl` | Set only when the model cannot force tools |
+| `promptCaching` | Caller-placed cache breakpoints | Set only where the vendor charges for opt-in caching (absent for OpenAI/Gemini implicit caching) |
+| `reasoningEffort` | `openai/core.ts`, `azure-openai`, `xai`, `deepseek`, `groq`, `zai`, `kimi`, `cerebras`, `meta`, `litellm` (each `index.ts`) | Not read by anthropic/gemini (they use `thinking`) or by mistral, openrouter, fireworks, vertex — re-grep before assuming |
 | `verbosity` | `openai/core.ts`, `azure-openai/index.ts` only | Dead elsewhere |
 | `thinking` | `anthropic/core.ts`, `gemini/core.ts`; `deepseek`, `groq`, `zai`, `kimi` (each `index.ts`) read the resolved `thinkingLevel` | Dead elsewhere |
 | `thinking.streamed` | Docs generator + `getThinkingStreamVisibility` (`models.ts`); `anthropic/core.ts` uses `'summary'` to request `display: 'summarized'` on agent-events runs | **Mandatory on Anthropic-family thinking models** (`agent-stream-docs:check` fails without it); other families fall back to provider defaults |
