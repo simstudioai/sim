@@ -18,6 +18,7 @@ import { getWorkspaceKnowledgeBases } from '@/lib/knowledge/service'
  */
 const ids = createKnowledgeAclFixtureIds()
 const foreign = createKnowledgeAclFixtureIds()
+const manyBases = createKnowledgeAclFixtureIds()
 const offPageId = generateId()
 const emptyId = generateId()
 const archivedId = generateId()
@@ -106,6 +107,16 @@ beforeAll(async () => {
       SELECT ${baseId} || '-' || n, ${baseId}, 'bulk.txt', 'https://fixture.invalid/bulk',
         1, 'text/plain', ARRAY['ws'], 1 FROM generate_series(1, 10000) AS n`)
   }
+  await seedKnowledgeAclFixture(manyBases, { connectorType: 'google_drive' })
+  await db.execute(sql`INSERT INTO knowledge_base (id, workspace_id, user_id, name)
+    SELECT ${manyBases.knowledgeBaseId} || '-' || n, ${manyBases.workspaceId},
+      ${manyBases.aliceId}, 'Scale fixture ' || n FROM generate_series(1, 10000) AS n`)
+  await db.execute(sql`INSERT INTO document
+    (id, knowledge_base_id, filename, file_url, file_size, mime_type, acl, token_count)
+    VALUES (${generateId()}, ${manyBases.knowledgeBaseId}, 'first.txt',
+      'https://fixture.invalid/first', 1, 'text/plain', ARRAY['ws'], 13),
+      (${generateId()}, ${`${manyBases.knowledgeBaseId}-10000`}, 'last.txt',
+      'https://fixture.invalid/last', 1, 'text/plain', ARRAY['ws'], 17)`)
   await db.execute(sql`ANALYZE knowledge_base`)
   await db.execute(sql`ANALYZE document`)
 }, 60_000)
@@ -114,7 +125,7 @@ afterAll(async () => {
   const reportPath = process.env.KNOWLEDGE_BASE_LIST_REPORT_PATH
   if (reportPath) writeFileSync(reportPath, JSON.stringify(reports, null, 2))
   try {
-    for (const fixture of [ids, foreign]) {
+    for (const fixture of [ids, foreign, manyBases]) {
       await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
       await db.delete(organization).where(eq(organization.id, fixture.organizationId))
       await db.delete(user).where(inArray(user.id, [fixture.aliceId, fixture.bobId]))
@@ -190,5 +201,35 @@ describe('knowledge base list counts on real Postgres', () => {
       countsFor: access,
     })
     expect(archived.data.map(({ id }) => id)).toEqual([archivedId])
+  })
+
+  it('counts a large unpaged workspace within a fixed database round-trip budget', async () => {
+    let documentQueries = 0
+    const previousDebug = db.$client.options.debug
+    db.$client.options.debug = (_connection, query) => {
+      if (query.includes('"document"')) documentQueries++
+    }
+    try {
+      const all = await getWorkspaceKnowledgeBases(manyBases.workspaceId, 'active', {
+        countsFor: access,
+      })
+      expect(all.data).toHaveLength(10001)
+      expect(all.nextCursorKeys).toBeNull()
+      expect(all.data.find((kb) => kb.id === manyBases.knowledgeBaseId)).toMatchObject({
+        docCount: 1,
+        tokenCount: 13,
+      })
+      expect(all.data.find((kb) => kb.id === `${manyBases.knowledgeBaseId}-10000`)).toMatchObject({
+        docCount: 1,
+        tokenCount: 17,
+      })
+      expect(all.data.reduce((total, kb) => total + kb.docCount, 0)).toBe(2)
+      expect(all.data.reduce((total, kb) => total + kb.tokenCount, 0)).toBe(30)
+      reports.push({ unpagedBases: all.data.length, documentQueries })
+      expect(documentQueries).toBeGreaterThan(0)
+      expect(documentQueries).toBeLessThan(10)
+    } finally {
+      db.$client.options.debug = previousDebug
+    }
   })
 })

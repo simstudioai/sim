@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
-import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { filterUndefined } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
@@ -34,7 +33,7 @@ import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import { knowledgeAccessCondition, textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -53,7 +52,6 @@ import type {
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
-const KNOWLEDGE_BASE_COUNT_BATCH_SIZE = 100
 
 /**
  * Every caller-fixable knowledge-base failure is an {@link OrchestrationError},
@@ -203,17 +201,14 @@ async function readCountedKnowledgeBaseRows(
 > {
   const scope = 'get' in access ? await access.get() : access
   const rows = await readKnowledgeBaseRows(where, orderBy, limit)
-  const counts = new Map<string, { docCount: number; tokenCount: number }>()
-  for (const batch of chunkArray(rows, KNOWLEDGE_BASE_COUNT_BATCH_SIZE)) {
-    const totals = await countDocumentsByKnowledgeBase(
-      inArray(
-        document.knowledgeBaseId,
-        batch.map((kb) => kb.id)
-      ),
-      knowledgeAccessCondition(scope)
-    )
-    for (const total of totals) counts.set(total.knowledgeBaseId, total)
-  }
+  const totals =
+    rows.length > 0
+      ? await countDocumentsByKnowledgeBase(
+          sql`${document.knowledgeBaseId} = ANY(${textArrayLiteral(rows.map((kb) => kb.id))})`,
+          knowledgeAccessCondition(scope)
+        )
+      : []
+  const counts = new Map(totals.map((total) => [total.knowledgeBaseId, total]))
 
   /**
    * The counts above already include everything the reader's stored ACL admits. Only a
