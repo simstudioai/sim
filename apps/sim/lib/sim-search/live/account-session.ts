@@ -3,7 +3,7 @@ import type { ResourceOwner } from '@/lib/core/resource-scope'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import type { ResolvedLiveAccount } from '@/lib/sim-search/live/accounts'
-import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
+import { readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
 import { readFirefliesMcp, searchFirefliesMcp } from '@/lib/sim-search/live/fireflies-mcp'
 import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
 import { readGranolaMcp, searchGranolaMcp } from '@/lib/sim-search/live/granola-mcp'
@@ -39,6 +39,8 @@ export interface LiveAccountSession {
   policy: LiveSearchPolicy
   /** Service verification covered a bounded subset of the source's configured users. */
   servicePartial: boolean
+  /** Releases the operation-owned provider transport after all reads and checks settle. */
+  close(): Promise<void>
   search(input: NativeSearchInput): Promise<NativePage>
   /** True only when the document is inside the source boundary and the member may read it. */
   verify(document: Reference): Promise<boolean>
@@ -104,10 +106,9 @@ export async function openLiveAccountSession(
         'unavailable',
         'This provider does not support managed MCP Search.'
       )
-    return provider === 'coda'
-      ? createCodaMcpClient(owner, userId, account.id, signal, input.searches)
-      : createManagedSearchMcpClient(owner, userId, account.id, provider, signal, input.searches)
+    return createManagedSearchMcpClient(owner, userId, account.id, provider, signal, input.searches)
   }
+  const memberPolicy = livePolicyFor(input.policies, provider)
   const mcp = await openMcp()
   const searchMcp = (search: NativeSearchInput) => {
     if (!mcp) throw new NativeSearchError('unavailable', 'Managed MCP connection unavailable.')
@@ -176,9 +177,15 @@ export async function openLiveAccountSession(
       verify: (document: Reference) => verifyPolicy(document, document.accessMetadata),
     }
   }
-  const boundary = await sourceBoundary(livePolicyFor(input.policies, provider))
+  const boundary = await sourceBoundary(memberPolicy).catch(async (error: unknown) => {
+    await mcp?.close()
+    throw error
+  })
 
   return {
+    async close() {
+      await mcp?.close()
+    },
     policy: boundary.policy,
     servicePartial: boundary.partial,
     async search(search) {
