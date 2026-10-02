@@ -25,6 +25,9 @@ import { cn } from '../../lib/cn'
  *   when it sits *on* a `--surface-5` input, combobox trigger, or tag container.
  * - `gray` — a light surface over a slightly darker inset ring with muted
  *   `--text-secondary` text for low-emphasis status labels.
+ * - `workflow-inline` — an outlined slot embedded in workflow summary text.
+ *   Its inset ring preserves the text flow and dimensions when a placeholder
+ *   becomes a value. The surface and outline follow the workspace theme.
  * - `solid` — a filled inverse tag: a dark neutral surface (`--text-secondary`)
  *   with inverse text (`--text-inverse`), mirroring {@link Chip}'s `primary`
  *   inverse-surface convention one step softer than near-black. For eyebrow
@@ -70,6 +73,8 @@ const chipTagVariants = cva(
         field:
           'h-5 gap-[3px] px-1 bg-[var(--surface-6)] text-[var(--text-primary)] dark:bg-[var(--surface-3)]',
         gray: 'h-5 gap-[3px] px-1 border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-secondary)]',
+        'workflow-inline':
+          'h-5 gap-[3px] px-1 bg-[var(--surface-2)] text-[var(--text-primary)] shadow-[inset_0_0_0_1px_var(--border-1)]',
         solid: 'h-5 gap-[3px] px-1 bg-[var(--text-secondary)] text-[var(--text-inverse)]',
         workflow: 'h-5 gap-[3px] px-1',
         brand: 'h-5 gap-[3px] px-1',
