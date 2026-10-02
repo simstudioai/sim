@@ -10,7 +10,6 @@ import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/component
 import { ShareButton } from '@/app/(landing)/components/share-button'
 import { FeaturedModelCard, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
-  ALL_CATALOG_MODELS,
   buildModelCapabilityFacts,
   buildModelFaqs,
   formatPrice,
@@ -21,6 +20,7 @@ import {
   getPricingBounds,
   getProviderBySlug,
   getRelatedModels,
+  MODEL_PROVIDERS_WITH_MODELS,
 } from '@/app/(landing)/models/utils'
 
 const baseUrl = SITE_URL
@@ -32,10 +32,9 @@ const baseUrl = SITE_URL
 export const dynamicParams = false
 
 export async function generateStaticParams() {
-  return ALL_CATALOG_MODELS.map((model) => ({
-    provider: model.providerSlug,
-    model: model.slug,
-  }))
+  return MODEL_PROVIDERS_WITH_MODELS.flatMap((provider) =>
+    provider.models.map((model) => ({ provider: provider.slug, model: model.slug }))
+  )
 }
 
 export async function generateMetadata({

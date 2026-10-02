@@ -19,6 +19,7 @@ import {
   formatTokenCount,
   getProviderBySlug,
   MODEL_PROVIDERS_WITH_CATALOGS,
+  MODEL_PROVIDERS_WITH_MODELS,
   TOP_MODEL_PROVIDERS,
 } from '@/app/(landing)/models/utils'
 
@@ -31,7 +32,7 @@ const baseUrl = SITE_URL
 export const dynamicParams = false
 
 export async function generateStaticParams() {
-  return MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
+  return MODEL_PROVIDERS_WITH_MODELS.map((provider) => ({
     provider: provider.slug,
   }))
 }
