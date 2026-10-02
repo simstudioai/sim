@@ -1624,7 +1624,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
                                       disabled={!permissionsLoading && !canEdit}
                                     >
                                       {isImporting || isCreatingFolder ? (
-                                        <Loader className='h-[16px] w-[16px]' animate />
+                                        <Loader className='size-[16px]' animate />
                                       ) : (
                                         <MoreHorizontal className='size-[14px]' />
                                       )}
@@ -1667,7 +1667,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
                                   onClick={handleCreateWorkflow}
                                   disabled={isCreatingWorkflow || (!permissionsLoading && !canEdit)}
                                 >
-                                  <Plus className='h-[16px] w-[16px]' />
+                                  <Plus className='size-[16px]' />
                                 </Button>
                               </Tooltip.Trigger>
                               <Tooltip.Content>

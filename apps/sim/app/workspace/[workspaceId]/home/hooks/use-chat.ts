@@ -693,7 +693,8 @@ export function useChat(
   const [activeResourceId, setActiveResourceId] =
     options?.activeResourceState ?? internalActiveResourceState
   const onResourceEventRef = useRef(options?.onResourceEvent)
-  const revealedSimKeysRef = useRef<RevealedSimKeysByMessage>(new Map())
+  const revealedSimKeysRef = useRef<RevealedSimKeysByMessage | null>(null)
+  const revealedSimKeys = (revealedSimKeysRef.current ??= new Map())
   onResourceEventRef.current = options?.onResourceEvent
   const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
   apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
@@ -736,6 +737,10 @@ export function useChat(
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
   const resourcePersistenceQueueRef = useRef<ResourcePersistenceQueue | null>(null)
+  const pendingResourceReordersRef = useRef<Map<string, MothershipResource[]> | null>(null)
+  const pendingResourceReorders = (pendingResourceReordersRef.current ??= new Map())
+  const pendingResourceReorderFlushesRef = useRef<Map<string, Promise<void>> | null>(null)
+  const pendingResourceReorderFlushes = (pendingResourceReorderFlushesRef.current ??= new Map())
   const refreshResourceHistory = useCallback(
     async (chatId: string) => {
       /** Cancel pre-write reads without rolling back newer optimistic changes. */
@@ -745,7 +750,7 @@ export function useChat(
         const queue = resourcePersistenceQueueRef.current
         if (!current || !queue) return current
         const resources = queue.applyPendingUpdates(chatId, current.resources)
-        const pendingOrder = pendingResourceReordersRef.current.get(chatId)
+        const pendingOrder = pendingResourceReorders.get(chatId)
         return {
           ...current,
           resources: pendingOrder
@@ -777,8 +782,6 @@ export function useChat(
     })
   }
   const resourcePersistenceQueue = resourcePersistenceQueueRef.current
-  const pendingResourceReordersRef = useRef(new Map<string, MothershipResource[]>())
-  const pendingResourceReorderFlushesRef = useRef(new Map<string, Promise<void>>())
 
   // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`
   // migrates this bucket onto the real chatId on first send. Rotated on
@@ -1099,12 +1102,12 @@ export function useChat(
 
   const flushPendingResourceReorder = useCallback(
     (chatId: string): Promise<void> => {
-      const activeFlush = pendingResourceReorderFlushesRef.current.get(chatId)
+      const activeFlush = pendingResourceReorderFlushes.get(chatId)
       if (activeFlush) return activeFlush
 
       const flush = async () => {
         while (true) {
-          const pendingOrder = pendingResourceReordersRef.current.get(chatId)
+          const pendingOrder = pendingResourceReorders.get(chatId)
           if (!pendingOrder) return
           if (resourcePersistenceQueue.hasPendingIdentityChanges(chatId)) return
 
@@ -1115,7 +1118,7 @@ export function useChat(
           }
 
           if (pendingOrder.length === 0) {
-            pendingResourceReordersRef.current.delete(chatId)
+            pendingResourceReorders.delete(chatId)
             return
           }
           try {
@@ -1123,8 +1126,8 @@ export function useChat(
               body: { chatId, resources: pendingOrder },
             })
             await refreshResourceHistory(chatId)
-            if (pendingResourceReordersRef.current.get(chatId) === pendingOrder) {
-              pendingResourceReordersRef.current.delete(chatId)
+            if (pendingResourceReorders.get(chatId) === pendingOrder) {
+              pendingResourceReorders.delete(chatId)
             }
           } catch (error) {
             // 400 is the server rejecting the body's identity set — a tab was
@@ -1133,8 +1136,8 @@ export function useChat(
             // re-establish the order. Everything else (offline, 401, 5xx) is
             // transient and keeps the body for the next retry.
             const unsatisfiable = isApiClientError(error) && error.status === 400
-            if (unsatisfiable && pendingResourceReordersRef.current.get(chatId) === pendingOrder) {
-              pendingResourceReordersRef.current.delete(chatId)
+            if (unsatisfiable && pendingResourceReorders.get(chatId) === pendingOrder) {
+              pendingResourceReorders.delete(chatId)
             }
             logger.warn(
               unsatisfiable
@@ -1147,11 +1150,11 @@ export function useChat(
         }
       }
       const tracked = flush().finally(() => {
-        if (pendingResourceReorderFlushesRef.current.get(chatId) === tracked) {
-          pendingResourceReorderFlushesRef.current.delete(chatId)
+        if (pendingResourceReorderFlushes.get(chatId) === tracked) {
+          pendingResourceReorderFlushes.delete(chatId)
         }
       })
-      pendingResourceReorderFlushesRef.current.set(chatId, tracked)
+      pendingResourceReorderFlushes.set(chatId, tracked)
       return tracked
     },
     [refreshResourceHistory, resourcePersistenceQueue]
@@ -1296,7 +1299,7 @@ export function useChat(
         source.splice(ownerIndex + 1, 0, liveAssistant)
       }
     }
-    return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
+    return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeys))
   }, [chatHistory, pendingMessages, pendingTurn, liveContent, liveBlocks])
   const addResource = useCallback(
     (resourceUpdate: MothershipResourceUpdate): boolean => {
@@ -1488,7 +1491,7 @@ export function useChat(
         ...newOrder.filter((resource) => !isEphemeralResource(resource)),
         ...undisplayableResourcesRef.current,
       ]
-      pendingResourceReordersRef.current.set(persistChatId, persistableResources)
+      pendingResourceReorders.set(persistChatId, persistableResources)
       void flushPendingResourceReorder(persistChatId)
     },
     [flushPendingResourceReorder]
@@ -1948,7 +1951,7 @@ export function useChat(
     // A stored panel this client cannot open is kept out of the tab strip
     // rather than restored onto an error, but stays in the stored set so the
     // desktop app still gets it back.
-    const pendingOrder = pendingResourceReordersRef.current.get(chatHistory.id)
+    const pendingOrder = pendingResourceReorders.get(chatHistory.id)
     const projectedResources = pendingOrder
       ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
       : updatedResources
@@ -2209,7 +2212,7 @@ export function useChat(
         chatIdRef,
         selectedChatIdRef,
         streamIdRef,
-        revealedSimKeysRef,
+        revealedSimKeys,
         pendingUserMsgRef,
         activeTurnRef,
         resourcesRef,

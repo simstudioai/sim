@@ -139,7 +139,7 @@ export function EnterpriseHomeStage({
   return (
     <div
       className={cn(
-        'relative h-full w-full bg-[var(--bg)] transition-opacity duration-300 ease-out',
+        'relative size-full bg-[var(--bg)] transition-opacity duration-300 ease-out',
         fading ? 'opacity-0' : 'opacity-100'
       )}
     >

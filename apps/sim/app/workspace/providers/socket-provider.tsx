@@ -180,7 +180,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const socketRef = useRef<Socket | null>(null)
   const currentWorkflowIdRef = useRef<string | null>(null)
   const explicitWorkflowIdRef = useRef<string | null>(explicitWorkflowId)
-  const joinControllerRef = useRef(new SocketJoinController())
+  const joinControllerRef = useRef<SocketJoinController | null>(null)
+  const joinController = (joinControllerRef.current ??= new SocketJoinController())
   const joinRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const authRetryAttemptsRef = useRef(0)
   const authRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -338,7 +339,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         setIsRetryingWorkflowJoin(true)
         joinRetryTimeoutRef.current = setTimeout(() => {
           joinRetryTimeoutRef.current = null
-          executeJoinCommands(joinControllerRef.current.retryJoin(command.workflowId))
+          executeJoinCommands(joinController.retryJoin(command.workflowId))
         }, command.delayMs)
 
         logger.warn('Realtime unavailable while joining workflow, scheduling retry', {
@@ -484,7 +485,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             connected: socketInstance.connected,
             transport: socketInstance.io.engine?.transport?.name,
           })
-          executeJoinCommands(joinControllerRef.current.setConnected(true))
+          executeJoinCommands(joinController.setConnected(true))
         })
 
         socketInstance.on('disconnect', (reason) => {
@@ -492,7 +493,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setIsConnecting(false)
           setIsRetryingWorkflowJoin(false)
           setCurrentSocketId(null)
-          executeJoinCommands(joinControllerRef.current.setConnected(false))
+          executeJoinCommands(joinController.setConnected(false))
           clearJoinedWorkflowState(false)
 
           if (socketInstance.active) {
@@ -605,7 +606,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
-          const result = joinControllerRef.current.handleJoinSuccess(workflowId)
+          const result = joinController.handleJoinSuccess(workflowId)
 
           if (result.ignored) {
             logger.debug(`Ignoring stale join-workflow-success for ${workflowId}`)
@@ -623,7 +624,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('join-workflow-error', ({ workflowId, error, code, retryable }) => {
-          const result = joinControllerRef.current.handleJoinError({ workflowId, retryable })
+          const result = joinController.handleJoinError({ workflowId, retryable })
 
           if (result.ignored) {
             logger.debug('Ignoring stale join-workflow-error', {
@@ -668,7 +669,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('workflow-deleted', (data: WorkflowDeletedBroadcast) => {
           logger.warn(`Workflow ${data.workflowId} has been deleted`)
-          const result = joinControllerRef.current.handleWorkflowDeleted(data.workflowId)
+          const result = joinController.handleWorkflowDeleted(data.workflowId)
           if (result.shouldClearCurrent) {
             clearJoinedWorkflowState(true)
           }
@@ -678,7 +679,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('access-revoked', (data: AccessRevokedBroadcast) => {
           logger.warn(`Access to workflow ${data.workflowId} has been revoked`)
-          const result = joinControllerRef.current.handleAccessRevoked(data.workflowId)
+          const result = joinController.handleAccessRevoked(data.workflowId)
           if (result.shouldClearCurrent) {
             clearJoinedWorkflowState(true)
             // Surface the same blocked-join UX as a denied join: persistent
@@ -847,7 +848,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
             if (workflowId) {
               logger.info(`Session expired, rejoining workflow: ${workflowId}`)
-              executeJoinCommands(joinControllerRef.current.forceRejoinWorkflow(workflowId))
+              executeJoinCommands(joinController.forceRejoinWorkflow(workflowId))
             }
           }
         })
@@ -986,7 +987,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     const requestedWorkflowId = getRequestedWorkflowId()
 
     setBlockedJoinWorkflowId((prev) => (prev && prev !== requestedWorkflowId ? null : prev))
-    executeJoinCommands(joinControllerRef.current.requestWorkflow(requestedWorkflowId))
+    executeJoinCommands(joinController.requestWorkflow(requestedWorkflowId))
   }, [
     explicitWorkflowId,
     getRequestedWorkflowId,

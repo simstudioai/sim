@@ -57,7 +57,7 @@ interface UseSpeechToTextProps {
 interface UseSpeechToTextReturn {
   isListening: boolean
   isSupported: boolean
-  audioLevelsRef: RefObject<Float32Array>
+  audioLevelsRef: RefObject<Float32Array | null>
   toggleListening: () => void
   resetTranscript: () => void
 }
@@ -119,7 +119,8 @@ export function useSpeechToText({
   const streamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const processorRef = useRef<ScriptProcessorNode | null>(null)
-  const audioLevelsRef = useRef(new Float32Array(AUDIO_LEVEL_COUNT))
+  const audioLevelsRef = useRef<Float32Array | null>(null)
+  const audioLevels = (audioLevelsRef.current ??= new Float32Array(AUDIO_LEVEL_COUNT))
 
   const pcmBufferRef = useRef<Float32Array[]>([])
   const sendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -206,7 +207,7 @@ export function useSpeechToText({
     }
 
     pcmBufferRef.current = []
-    audioLevelsRef.current.fill(0)
+    audioLevels.fill(0)
     isFirstChunkRef.current = true
   }, [])
 
@@ -326,7 +327,7 @@ export function useSpeechToText({
 
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0)
-        updateAudioLevels(input, audioLevelsRef.current)
+        updateAudioLevels(input, audioLevels)
         pcmBufferRef.current.push(new Float32Array(input))
       }
 
@@ -395,7 +396,7 @@ export function useSpeechToText({
       streamRef.current = null
     }
 
-    audioLevelsRef.current.fill(0)
+    audioLevels.fill(0)
 
     const wsToClose = wsRef.current
     wsRef.current = null

@@ -167,7 +167,7 @@ export interface StreamLoopDeps {
   chatIdRef: MutableRefObject<string | undefined>
   selectedChatIdRef: MutableRefObject<string | undefined>
   streamIdRef: MutableRefObject<string | undefined>
-  revealedSimKeysRef: MutableRefObject<RevealedSimKeysByMessage>
+  revealedSimKeys: RevealedSimKeysByMessage
   pendingUserMsgRef: MutableRefObject<PersistedMessage | null>
   activeTurnRef: MutableRefObject<ActiveTurn | null>
   resourcesRef: MutableRefObject<MothershipResource[]>
@@ -264,7 +264,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     deps.streamingBlocksRef.current = modelBlocks
     deps.streamingContentRef.current = modelContent
     captureRevealedSimKeys(
-      deps.revealedSimKeysRef.current,
+      deps.revealedSimKeys,
       [deps.assistantId, state.streamRequestId],
       modelContent,
       modelBlocks

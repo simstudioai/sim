@@ -490,8 +490,10 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   const [heights, setHeights] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  const processedRemovalIdsRef = useRef(new Set<string>())
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>> | null>(null)
+  const timers = (timersRef.current ??= new Map())
+  const processedRemovalIdsRef = useRef<Set<string> | null>(null)
+  const processedRemovalIds = (processedRemovalIdsRef.current ??= new Set())
 
   /**
    * Clear the previous route's toasts when the route changes. Toasts flagged
@@ -552,7 +554,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }
 
   useEffect(() => {
-    const processed = processedRemovalIdsRef.current
+    const processed = processedRemovalIds
     if (removals.length === 0) {
       processed.clear()
       return
@@ -568,10 +570,10 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [removals])
 
   const dismissToast = useCallback((id: string) => {
-    const timer = timersRef.current.get(id)
+    const timer = timers.get(id)
     if (timer) {
       clearTimeout(timer)
-      timersRef.current.delete(id)
+      timers.delete(id)
     }
     dispatch({ type: 'dismiss', id })
     setHeights((prev) => {
@@ -583,8 +585,8 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [])
 
   const dismissAllToasts = useCallback(() => {
-    for (const timer of timersRef.current.values()) clearTimeout(timer)
-    timersRef.current.clear()
+    for (const timer of timers.values()) clearTimeout(timer)
+    timers.clear()
     dispatch({ type: 'dismiss-all' })
     setHeights({})
   }, [])
@@ -612,7 +614,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
    * every timer so a toast can't be cleared mid-read.
    */
   useEffect(() => {
-    const timers = timersRef.current
     if (toasts.length === 0 || expanded) {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
@@ -639,7 +640,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [toasts, expanded, dismissToast])
 
   useEffect(() => {
-    const timers = timersRef.current
     return () => {
       for (const timer of timers.values()) clearTimeout(timer)
     }

@@ -12,12 +12,12 @@ const WAVEFORM_EASING = 0.24
 
 interface MicButtonProps {
   isListening: boolean
-  audioLevelsRef: RefObject<Float32Array>
+  audioLevelsRef: RefObject<Float32Array | null>
   onToggle: () => void
 }
 
 interface VoiceWaveformProps {
-  audioLevelsRef: RefObject<Float32Array>
+  audioLevelsRef: RefObject<Float32Array | null>
   isListening: boolean
 }
 
