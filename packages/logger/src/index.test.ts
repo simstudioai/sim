@@ -193,19 +193,28 @@ describe('Logger', () => {
     const createEnabledLogger = () =>
       new Logger('Test', { enabled: true, colorize: false, logLevel: LogLevel.DEBUG })
 
-    /** Mirrors Drizzle's `DrizzleQueryError`: SQL plus bound values, wrapping the driver error. */
+    /**
+     * Mirrors Drizzle's `DrizzleQueryError`: SQL plus bound values in the message, and `query`,
+     * `params` and `cause` as own enumerable properties, wrapping the driver error.
+     */
     const queryError = (params: string) => {
       const cause = Object.assign(new Error('canceling statement due to statement timeout'), {
         name: 'PostgresError',
         code: '57014',
+        detail: `Key (email)=(${params}) already exists.`,
       })
-      const error = new Error(
-        `Failed query: select "id" from "user_table_rows" where "table_id" = $1 limit $2\nparams: ${params}`,
-        { cause }
-      )
+      const query = 'select "id" from "user_table_rows" where "table_id" = $1 limit $2'
+      const error = Object.assign(new Error(`Failed query: ${query}\nparams: ${params}`), {
+        query,
+        params: params.split(','),
+        cause,
+      })
       error.name = 'DrizzleQueryError'
       return error
     }
+
+    const consoleOutput = () =>
+      [...consoleLogSpy.mock.calls, ...consoleErrorSpy.mock.calls].flat().join(' ')
 
     test('names the deepest cause and its code on the line', () => {
       createEnabledLogger().error('Failed to query rows:', { error: queryError('tbl_1,52') })
@@ -233,19 +242,43 @@ describe('Logger', () => {
       expect(parsed.stack).toMatch(/\n\s+at /)
     })
 
-    test('keeps bound values out of an error logged under another key', () => {
-      createEnabledLogger().error('Insert failed', { dbError: queryError('alice@example.com') })
+    test.each([
+      ['under another key', (error: Error) => ({ dbError: error })],
+      ['nested inside metadata', (error: Error) => ({ details: { attempt: 2, error } })],
+    ])('keeps bound values out of an error logged %s', (_, arg) => {
+      createEnabledLogger().error('Insert failed', arg(queryError('alice@example.com')))
 
-      expect(consoleErrorSpy.mock.calls[0][0] as string).not.toContain('alice@example.com')
+      expect(consoleOutput()).not.toContain('alice@example.com')
     })
 
-    test('keeps bound values out of the exported log record', () => {
+    test.each([
+      ['an object field', (error: Error) => [{ error }]],
+      ['a bare argument', (error: Error) => [error]],
+      ['nested inside metadata', (error: Error) => [{ details: { error } }]],
+    ])('keeps bound values out of colorized output when passed as %s', (_, args) => {
+      new Logger('Test', { enabled: true, colorize: true, logLevel: LogLevel.DEBUG }).error(
+        'Failed to query rows:',
+        ...args(queryError('alice@example.com'))
+      )
+
+      const output = consoleOutput()
+      expect(output).toContain('params: [redacted]')
+      expect(output).not.toContain('alice@example.com')
+    })
+
+    test.each([
+      ['a bare argument', (error: Error) => [error]],
+      ['an object field', (error: Error) => [{ error }]],
+    ])('keeps bound values out of the exported log record when passed as %s', (_, args) => {
       const emit = vi.fn()
       const getLoggerSpy = vi
         .spyOn(logs, 'getLogger')
         .mockReturnValue({ emit, enabled: () => true })
       try {
-        createEnabledLogger().error('Failed to query rows:', queryError('alice@example.com'))
+        createEnabledLogger().error(
+          'Failed to query rows:',
+          ...args(queryError('alice@example.com'))
+        )
 
         const { attributes } = emit.mock.calls[0][0]
         expect(JSON.stringify(attributes)).not.toContain('alice@example.com')
@@ -255,6 +288,18 @@ describe('Logger', () => {
       } finally {
         getLoggerSpy.mockRestore()
       }
+    })
+
+    test('emits a line for a nested error that references itself', () => {
+      const error = Object.assign(new Error('self-referencing failure'), {
+        context: {} as Record<string, unknown>,
+      })
+      error.context.error = error
+
+      expect(() => createEnabledLogger().error('Failed', { details: { error } })).not.toThrow()
+      const parsed = JSON.parse(consoleErrorSpy.mock.calls[0][0] as string)
+      expect(parsed.details.error.message).toBe('self-referencing failure')
+      expect(parsed.details.error.context.error).toBe('[Circular]')
     })
 
     test('leaves an unwrapped error without cause fields', () => {

@@ -132,61 +132,14 @@ const getLogConfig = () => {
   }
 }
 
-/**
- * Renders an error as the plain object `JSON.stringify` cannot produce for it.
- *
- * `message`, `stack` and `name` are non-enumerable on `Error.prototype`, so a
- * plain stringify emits `{}`. Own enumerable properties are copied too — driver
- * and HTTP errors carry the useful part (`code`, `status`) there.
- */
-const errorToPlainObject = (error: Error, isDev: boolean): Record<string, unknown> => {
-  const errorObj: Record<string, unknown> = {
-    message: error.message,
-    stack: isDev ? error.stack : undefined,
-    name: error.name,
-  }
-  for (const key of Object.keys(error)) {
-    if (!(key in errorObj)) {
-      errorObj[key] = (error as unknown as Record<string, unknown>)[key]
-    }
-  }
-  return errorObj
-}
-
-/**
- * Format objects for logging
- *
- * Errors held under a key are unwrapped as well as bare ones — `{ error }` is
- * the common call shape, and it would otherwise print as `{"error":{}}`.
- */
-const formatObject = (obj: unknown, isDev: boolean): string => {
-  try {
-    if (obj instanceof Error) {
-      return JSON.stringify(errorToPlainObject(obj, isDev), null, isDev ? 2 : 0)
-    }
-    if (isRecordLike(obj)) {
-      let unwrapped: Record<string, unknown> | undefined
-      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-        if (!(value instanceof Error)) continue
-        unwrapped ??= { ...(obj as Record<string, unknown>) }
-        unwrapped[key] = errorToPlainObject(value, isDev)
-      }
-      if (unwrapped) {
-        return JSON.stringify(unwrapped, null, isDev ? 2 : 0)
-      }
-    }
-    return JSON.stringify(obj, null, isDev ? 2 : 0)
-  } catch {
-    return '[Circular or Non-Serializable Object]'
-  }
-}
-
 interface LoggedError {
   message: string
   stack?: string
   /** `"Name: message"` of the deepest `.cause` link, present only when the error wraps another. */
   cause?: string
   code?: string
+  /** Whether the message carried a bound-parameter tail, marking the error as a query wrapper. */
+  redacted: boolean
 }
 
 /**
@@ -212,7 +165,59 @@ const toLoggedError = (error: Error): LoggedError => {
     stack,
     ...(described.causeChain ? { cause: `${described.name}: ${described.message}` } : {}),
     ...(described.code ? { code: described.code } : {}),
+    redacted: message !== error.message,
   }
+}
+
+/**
+ * Renders an error as the plain object `JSON.stringify` cannot produce for it.
+ *
+ * `message`, `stack` and `name` are non-enumerable on `Error.prototype`, so a
+ * plain stringify emits `{}` — or, for an error with own enumerable properties,
+ * only those. Own properties are copied because driver and HTTP errors carry the
+ * useful part (`code`, `status`) there, except what `toLoggedError` replaces: a
+ * query wrapper's `params` holds the redacted values, and a summarized `cause`
+ * would carry the driver's `detail`.
+ */
+const toPlainError = (error: Error, includeStack: boolean): Record<string, unknown> => {
+  const logged = toLoggedError(error)
+  const plain: Record<string, unknown> = {
+    message: logged.message,
+    stack: includeStack ? logged.stack : undefined,
+    name: error.name,
+    ...(logged.cause ? { cause: logged.cause } : {}),
+    ...(logged.code ? { code: logged.code } : {}),
+  }
+  for (const key of Object.keys(error)) {
+    if (key in plain || (logged.redacted && key === 'params')) continue
+    plain[key] = (error as unknown as Record<string, unknown>)[key]
+  }
+  return plain
+}
+
+/** JSON replacer that serializes every `Error`, however deeply nested, as its plain form. */
+const errorReplacer =
+  (includeStack: boolean) =>
+  (_key: string, value: unknown): unknown =>
+    value instanceof Error ? toPlainError(value, includeStack) : value
+
+/** Format objects for logging. */
+const formatObject = (obj: unknown, isDev: boolean): string => {
+  try {
+    return JSON.stringify(obj, errorReplacer(isDev), isDev ? 2 : 0)
+  } catch {
+    return '[Circular or Non-Serializable Object]'
+  }
+}
+
+/** The error a line is about: the first bare `Error` argument, else the first `{ error }` field. */
+const primaryError = (args: unknown[]): Error | undefined => {
+  const bare = args.find((arg) => arg instanceof Error)
+  if (bare) return bare as Error
+  for (const arg of args) {
+    if (isRecordLike(arg) && arg.error instanceof Error) return arg.error
+  }
+  return undefined
 }
 
 /** Adds an error's cause fields to the entry without displacing caller-supplied values. */
@@ -262,9 +267,14 @@ const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<stri
   return entry
 }
 
-/** JSON replacer that tolerates cyclic references and BigInt values. */
+/**
+ * JSON replacer that tolerates cyclic references and BigInt values, and
+ * serializes errors as their plain form like `errorReplacer`.
+ */
 const tolerantReplacer = () => {
   const ancestors: object[] = []
+  /** What `JSON.stringify` descends into for each ancestor — an error's plain form, not the error. */
+  const holders: object[] = []
   return function (this: unknown, _key: string, value: unknown): unknown {
     if (typeof value === 'bigint') return value.toString()
     if (value === null || typeof value !== 'object') return value
@@ -275,10 +285,15 @@ const tolerantReplacer = () => {
      * appearance of a merely repeated reference `[Circular]` and discard real
      * data, since a payload that references one object twice has no cycle.
      */
-    while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) ancestors.pop()
+    while (holders.length > 0 && holders[holders.length - 1] !== this) {
+      holders.pop()
+      ancestors.pop()
+    }
     if (ancestors.includes(value)) return '[Circular]'
+    const serialized = value instanceof Error ? toPlainError(value, false) : value
     ancestors.push(value)
-    return value
+    holders.push(serialized)
+    return serialized
   }
 }
 
@@ -292,7 +307,7 @@ const tolerantReplacer = () => {
  */
 const serializeEntry = (base: Record<string, unknown>, args: unknown[]): string => {
   try {
-    return JSON.stringify(mergeArgs({ ...base }, args))
+    return JSON.stringify(mergeArgs({ ...base }, args), errorReplacer(false))
   } catch {}
 
   try {
@@ -628,9 +643,9 @@ function emitOtelLogRecord(
     for (const [key, value] of Object.entries(filterUndefined(metadata))) {
       attributes[key] = String(value)
     }
-    const firstError = args.find((arg) => arg instanceof Error) as Error | undefined
-    if (firstError) {
-      const logged = toLoggedError(firstError)
+    const error = primaryError(args)
+    if (error) {
+      const logged = toLoggedError(error)
       attributes['error.message'] = logged.message
       if (logged.stack) attributes['error.stack'] = logged.stack
       if (logged.cause) attributes['error.cause'] = logged.cause
@@ -638,7 +653,10 @@ function emitOtelLogRecord(
     const plainArgs = args.filter((arg) => !(arg instanceof Error))
     if (plainArgs.length > 0) {
       try {
-        attributes['log.args'] = JSON.stringify(plainArgs).slice(0, OTEL_LOG_ARG_MAX_CHARS)
+        attributes['log.args'] = JSON.stringify(plainArgs, errorReplacer(false)).slice(
+          0,
+          OTEL_LOG_ARG_MAX_CHARS
+        )
       } catch {
         attributes['log.args'] = String(plainArgs).slice(0, OTEL_LOG_ARG_MAX_CHARS)
       }
