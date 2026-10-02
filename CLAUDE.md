@@ -1,14 +1,12 @@
 # Sim Development Guidelines
 
-You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
-
 This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.claude/rules/*.md` (indexed in `apps/sim/AGENTS.md`): Claude loads each one by path, and any other agent reads the file a section points to before editing in that area. Skills live in `.agents/skills/`.
 
 ## Global Standards
 
 - **Package manager**: `bun` and `bunx`, never `npm` and `npx`.
 - **Logging**: `createLogger` from `@sim/logger`; `logger.info` / `logger.warn` / `logger.error`, never `console.log`. Inside `withRouteHandler` the logger already carries the request ID — no manual `withMetadata({ requestId })`.
-- **Comments**: TSDoc for documentation. An inline `//` only for a terse, non-obvious why, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, …). No `====` separators.
+- **Comments**: name things so the code explains itself. TSDoc documents exported APIs and non-obvious modules. An inline `//` is only for a terse, non-obvious *why*, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, `utils-lint-allow`, …). History belongs in the commit message. No `====` separators or commented-out code (`check:comment-hygiene` enforces this). The `/you-might-not-need-a-comment` skill applies this to a diff.
 - **ID generation**: `generateId()` (UUID v4, the default) or `generateShortId(size?)` (URL-safe, 21 chars by default) from `@sim/utils/id` — never `crypto.randomUUID()`, `nanoid`, or `uuid`. Both use `crypto.getRandomValues()`, so they also work in non-secure (HTTP) browsers.
 - **Common utilities**: use the shared helpers from `@sim/utils` instead of inline implementations (`check:utils` bans most of the inline forms below):
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
@@ -24,8 +22,7 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
   - `compareStrings(left, right)` from `@sim/utils/string` — code-unit ordering for hashes, fingerprints, and cross-process comparisons; never `localeCompare` there
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — never reimplement exponential backoff inline
 - **Deployment flags in the browser**: client code inside a workspace, organization, or standalone settings surface reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never `isHosted`/`isBillingEnabled`/... from `env-flags`. Those constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit, so a recovered tab would render Sim Cloud as self-hosted; the reader is seeded from the server-resolved workspace host context, organization layout, or standalone settings layout instead. Server code keeps reading `env-flags`.
-- **Type-checking**: `bun run type-check` (per workspace) or `bunx turbo run type-check` (all). Never remove the `@typescript/native` alias from the root `devDependencies`. Nothing imports it; it exists so a bare `tsc` resolves to the native TypeScript 7 compiler. `apps/sim` needs `@typescript/typescript6`, whose `@typescript/old` dependency (an alias of `typescript@6`) ships its own `tsc` bin, and bin winners are picked by lexical sort, so without the alias `tsc` silently becomes the ~10x slower JavaScript compiler. `bun run check:native-typecheck` enforces this, and also fails when a newly added dependency that sorts ahead of `@typescript/native` ships a `tsc` bin ([microsoft/typescript-go#4567](https://github.com/microsoft/typescript-go/issues/4567)).
-- **Checks**: `bun run lint` autofixes formatting; `bun run check:audits` runs every `check:*` audit CI enforces.
+- **Type-checking**: `bun run type-check` at the root checks every workspace (`bun run type-check` inside a workspace checks just that one). `apps/sim`'s tsconfig excludes `*.test.ts(x)`, so its tests are not type-checked. Never remove the `@typescript/native` alias from the root `devDependencies`: nothing imports it, but without it a bare `tsc` resolves to the ~10x slower TypeScript 6 compiler. `bun run check:native-typecheck` enforces this; its header explains the bin-resolution trap.
 
 ## Architecture
 
@@ -85,11 +82,11 @@ The `'use client'` server boundary, the app/worker runtime env split, and featur
 
 ## Code Conventions
 
-- **Naming**: components PascalCase (`WorkflowList`); hooks `use*`; files kebab-case (`workflow-list.tsx`); constants SCREAMING_SNAKE_CASE; interfaces PascalCase with a suffix (`WorkflowListProps`); stores `stores/<feature>/store.ts`. A file never repeats its folder's name (`lib/logs/views.ts`, not `lib/logs/log-views.ts`; `utils/date.ts`, not `utils/date-utils.ts`); `check:file-names` enforces this.
-- **Imports**: absolute (`@/...`) only, never relative. A folder with 3+ exports gets an `index.ts` barrel; never re-export from a non-barrel file. `import type` for type-only imports. Order and lazy-loading through barrels: `.claude/rules/sim-imports.md`.
+- **Naming**: components PascalCase (`WorkflowList`); hooks `use*`; files kebab-case (`workflow-list.tsx`); constants SCREAMING_SNAKE_CASE; interfaces PascalCase with a suffix (`WorkflowListProps`); stores `stores/<feature>/store.ts`. A file never repeats its folder's name (inside `logs/`, `views.ts` not `log-views.ts`; inside `utils/`, `date.ts` not `date-utils.ts`); `check:file-names` enforces this.
+- **Imports**: absolute (`@/...`) only, never relative (a barrel `index.ts` re-exports its own siblings relatively). A folder with 3+ exports gets an `index.ts` barrel; never re-export from a non-barrel file. `import type` for type-only imports. Order and lazy-loading through barrels: `.claude/rules/sim-imports.md`.
 - **TypeScript**: no `any` and no non-null `!` (use precise types or `unknown` with guards; `check:explicit-any` ratchets both); no export nothing imports (`check:unused-exports`); a props interface for every component; `as const` for constant objects/arrays; explicit ref types (`useRef<HTMLDivElement>(null)`).
 - **Unused bindings** fail lint (biome `noUnusedVariables`, `noUnusedFunctionParameters`): delete the dead variable, import, or parameter and update callers; write `catch {}` when the error is unused. Prefix `_` only for a parameter that must hold its position because a later one is used. `const { a, ...rest } = obj` to omit keys is allowed. The rules carry no autofix, so `bun run lint` will not rename anything for you.
-- **Components**: `'use client'` only for hooks or browser APIs. Structure order, extraction thresholds, and list-render rules: `.claude/rules/sim-components.md`. Render-performance idioms (lazy-init refs, hoisting, `Map` pre-indexing, `[...arr].sort()`, never `toSorted()`): `.claude/rules/sim-react-performance.md`. For effect/state/memo/callback anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
+- **Components**: `'use client'` only for hooks or browser APIs (`check:client-boundary` guards the server boundary). Structure order, extraction thresholds, and list-render rules: `.claude/rules/sim-components.md`. Render-performance idioms (lazy-init refs, hoisting, `Map` pre-indexing, `[...arr].sort()`, never `toSorted()`): `.claude/rules/sim-react-performance.md`. For effect/state/memo/callback anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
 - **State ownership**: React Query owns server data — never `useState` + `fetch`; shareable client view-state (tabs, filters, search, pagination, selected id) lives in the URL via `nuqs`; Zustand owns global client state; `useState` owns UI-only state. Hooks: `.claude/rules/sim-hooks.md`. Stores (`devtools`, `persist` only with an explicit `partialize` whitelist, workflow value invariants): `.claude/rules/sim-stores.md`. URL state: `.claude/rules/sim-url-state.md`.
 - **Utils**: inline a helper with one consumer; create `utils.ts` when 2+ files share it — in `lib/` (app-wide) or `feature/utils/` (feature-scoped). Check `lib/` before writing a new one.
 - **Lists and menus** mirror the order the user already reads elsewhere (toolbar, settings nav), encoded in one exported order constant (resource menus share `RESOURCE_MENU_ORDER`, a product order that does not mirror the sidebar); a separator marks only a change in what the action acts on (typically one, before the destructive action): `.claude/rules/sim-list-ordering.md`.
@@ -136,4 +133,20 @@ Remaining block/tool/trigger rules: `.claude/rules/sim-integrations.md`. Canvas 
 
 Table column types are registry entries in `apps/sim/lib/table/column-types/` — one file per type owning its label, icon, storage cast, coercion, validation, conversion compatibility, formatting, and editor. `Record<ColumnType, …>` on `registry.ts` and `registry.server.ts` is a compile-time completeness gate: adding a type to the union errors until both entries exist.
 
-Never add a `case 'sometype':` outside `column-types/` — a missing arm fails silently (a wrong `jsonbCast` breaks every filter on the column). If a consumer needs per-type knowledge, add a registry field. Use `/add-column-type` for the full procedure.
+Never add a `case 'sometype':` outside `column-types/`, except the one documented import-path switch (`coerceValue` in `lib/table/import.ts`), which every new type extends — a missing arm fails silently (a wrong `jsonbCast` breaks every filter on the column). If a consumer needs per-type knowledge, add a registry field. Use `/add-column-type` for the full procedure.
+
+## How your work is checked
+
+Before declaring a change done, run the local gate from the repo root; CI runs these and fails on any of them:
+
+```bash
+bun run lint            # biome format + lint, autofixes (CI runs lint:check)
+bun run type-check      # every workspace
+bun run check:audits    # every check:* audit plus the generated-artifact checks
+bun run test            # script tests, then every workspace's Vitest suite
+bun run docs-manifest:check
+git fetch origin staging  # the block-registry check diffs against it
+bun run apps/sim/scripts/check-block-registry.ts origin/staging
+```
+
+CI also runs `bun run check:migrations <base>` (it needs a base ref, so it is not in `check:audits`; run it with `origin/staging` when you touch `packages/db/migrations/**`), checks that `drizzle-kit generate` in `packages/db` produces no new migration, and runs a non-blocking `bun audit`. When an audit fails, its output and its script's header say what the rule protects; fix the code, never the check. Ratchet baselines (`scripts/*baseline.json`) only shrink: regenerate one with the update flag its failure output names (`--update` or `--update-baseline`) after removing violations, never to admit new debt. The one exception is `check:tool-registry-boundary`, whose module-count baseline is re-recorded when growth is deliberate (see its skill).

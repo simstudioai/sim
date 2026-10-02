@@ -35,7 +35,6 @@ export const {ServiceName}Block: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/{service}',
   category: 'tools',                    // 'tools' | 'blocks' | 'triggers'
   integrationType: IntegrationType.X,   // Primary category (see IntegrationType enum)
-  tags: ['oauth', 'api'],              // Cross-cutting tags (see IntegrationTag type)
   bgColor: '#HEXCOLOR',                 // Brand color
   icon: {ServiceName}Icon,
 
@@ -63,7 +62,7 @@ export const {ServiceName}Block: BlockConfig = {
   },
 
   inputs: {
-    // Optional: define expected inputs from other blocks
+    // Required: the params the block accepts, keyed by tool param / canonical id
   },
 
   outputs: {
@@ -74,7 +73,7 @@ export const {ServiceName}Block: BlockConfig = {
 
 ## SubBlock Types Reference
 
-**Critical:** Every subblock `id` must be unique within the block. Duplicate IDs cause conflicts even with different conditions.
+**Critical:** Give every subblock a unique `id`: duplicates collide silently (the last definition wins). `blocks.test.ts` fails a duplicate within one condition unless the copies are a basic/advanced mode-swap pair, one basic plus trigger-mode copies, or all carry `canonicalParamId`. The only sanctioned cross-condition reuse is the hosted-key `apiKey` pair (`add-hosted-key` skill), where both fields deliberately share one value.
 
 ### Text Inputs
 ```typescript
@@ -129,6 +128,7 @@ export const {ServiceName}Block: BlockConfig = {
   id: 'credential',
   title: 'Account',
   type: 'oauth-input',
+  canonicalParamId: 'oauthCredential',
   serviceId: '{service}',  // Must match OAuth provider service key
   requiredScopes: getScopesForService('{service}'),  // Import from @/lib/oauth/utils
   placeholder: 'Select account',
@@ -370,8 +370,6 @@ Declare the **canonical** id with `type: 'json'` — the subblock ids never reac
 ```typescript
 inputs: {
   file: { type: 'json', description: 'File to upload (UserFile or reference)' },
-  // Legacy field for backwards compatibility
-  fileContent: { type: 'string', description: 'Legacy: base64 encoded content' },
 }
 ```
 
@@ -500,6 +498,7 @@ Controls which UI view shows the field.
 - `'advanced'` - Only in advanced view
 - `'both'` - Both views (default if not specified)
 - `'trigger'` - Only in trigger configuration
+- `'trigger-advanced'` - The advanced side of a trigger field (a canonical pair member, or a standalone field under the block-level advanced toggle)
 
 ### canonicalParamId Pattern
 
@@ -616,7 +615,7 @@ tools: {
 - `items` property - This is only for tool outputs with array types
 
 Block outputs only support:
-- `type` - The data type ('string', 'number', 'boolean', 'json', 'array')
+- `type` - The data type ('string', 'number', 'boolean', 'json', 'array', 'file', 'file[]', 'any')
 - `description` - Human readable description
 - `condition` - Optional visibility condition
 - `hiddenFromDisplay` - Optional flag to hide from the output display
@@ -679,7 +678,7 @@ export const ServiceV2Block: BlockConfig = {
     access: ServiceBlock.tools?.access?.map(id => `${id}_v2`) || [],
     config: {
       tool: createVersionedToolSelector({
-        baseToolSelector: (params) => (ServiceBlock.tools?.config as any)?.tool(params),
+        baseToolSelector: (params) => ServiceBlock.tools.config?.tool(params) ?? 'service_default',
         suffix: '_v2',
         fallbackToolId: 'service_default_v2',
       }),
@@ -697,7 +696,7 @@ export const ServiceV2Block: BlockConfig = {
 Register the block in `apps/sim/blocks/registry-maps.ts` — add the import and an entry to each map alphabetically:
 
 ```typescript
-import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
+import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/{service}'
 
 export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   // ... existing blocks ...
@@ -726,10 +725,22 @@ export const ServiceBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/service',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
-  tags: ['oauth', 'api'],
   bgColor: '#FF6B6B',
   icon: ServiceIcon,
   authMode: AuthMode.OAuth,
+
+  // Sentence rules: apps/sim/blocks/AGENTS.md → "Canvas sentences"
+  canvasPresentation: {
+    defaultTitle: 'Create Resource',
+    sentences: {
+      byOperation: {
+        create: [{ text: 'Create resource', field: 'name', core: true }],
+        read: [{ text: 'Read resource', field: 'resourceId', core: true }],
+        update: [{ text: 'Update resource', field: 'resourceId', core: true }],
+        delete: [{ text: 'Delete resource', field: 'resourceId', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -748,6 +759,7 @@ export const ServiceBlock: BlockConfig = {
       id: 'credential',
       title: 'Service Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
       serviceId: 'service',
       requiredScopes: getScopesForService('service'),
       placeholder: 'Select account',
@@ -776,6 +788,13 @@ export const ServiceBlock: BlockConfig = {
     config: {
       tool: (params) => `service_${params.operation}`,
     },
+  },
+
+  inputs: {
+    operation: { type: 'string', description: 'Operation to perform' },
+    oauthCredential: { type: 'string', description: 'Service access token' },
+    resourceId: { type: 'string', description: 'Resource ID' },
+    name: { type: 'string', description: 'Resource name' },
   },
 
   outputs: {
@@ -937,30 +956,17 @@ tool IDs through `tools.access` and does not change any tool's shape.
 
 But if the same change also adds, edits **or removes** a tool, run `bun run tool-metadata:generate` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI reads those from the generated metadata, not the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
 
-A visible integration block does require the generated integration catalog and docs to be refreshed.
-After adding or changing one, run:
-
-```bash
-bun run scripts/generate-docs.ts
-bun run deployment-config:generate
-bun run integration-catalog:check
-bun run deployment-config:check
-bun run docs:check
-```
-
-The catalog check independently derives deployment metadata from the executable block registry and
-compares it with the committed `packages/deployment-config/src/integrations.json`. The deployment
-config check verifies the generated service-account facts against the canonical OAuth registry and
-catalog. `docs:check` re-renders every generated docs artifact in memory and fails on any committed
-file that differs — it runs in CI via `check:audits`, so commit the full generator output. If the
-generator also trues up pages an earlier PR left stale, commit that catch-up too; reverting it as
-"unrelated drift" makes `docs:check` fail. Review the generated diff and keep only intentional
-changes.
+A visible integration block does require the generated integration catalog and docs to be refreshed:
+`bun run tool-metadata:generate` (only when a tool changed), `bun run scripts/generate-docs.ts`,
+`bun run deployment-config:generate`, then `bun run check:audits`. Also run
+`bun run apps/sim/scripts/check-block-registry.ts origin/staging` (CI runs it outside `check:audits`). Commit the
+full generator output. For what each check verifies, see the `validate-integration` skill →
+Regenerate Derived Artifacts.
 
 ## Checklist Before Finishing
 
 - [ ] `integrationType` is set to the correct `IntegrationType` enum value
-- [ ] `tags` array includes all applicable `IntegrationTag` values
+- [ ] `{Service}BlockMeta.tags` lists every applicable `IntegrationTag` (tags live on the meta, not the block)
 - [ ] All subBlocks have `id`, `title` (except switch), and `type`
 - [ ] Conditions use correct syntax (field, value, not, and)
 - [ ] DependsOn set for fields that need other values
@@ -996,7 +1002,7 @@ Validate the block against every tool in `tools.access`:
 2. **For each tool, verify the block has correct:**
    - SubBlock inputs that cover all required tool params (with correct `condition` to show for that operation)
    - SubBlock input types that match the tool param types (e.g., dropdown for enums, short-input for strings)
-   - `tools.config.params` correctly maps subBlock IDs to tool param names (if they differ)
+   - Each subBlock (or its `canonicalParamId`) is named exactly after the tool param it fills. A required `user-only` param that is only renamed in `tools.config.params` fails `bun run apps/sim/scripts/check-block-registry.ts origin/staging`; remap only optional or `user-or-llm` params
    - Type coercions in `tools.config.params` for any params that need conversion (Number(), Boolean(), JSON.parse())
 3. **Verify block outputs** cover the key fields returned by all tools
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it

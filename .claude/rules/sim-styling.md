@@ -15,8 +15,8 @@ paths:
 2. **No duplicate dark classes** - Skip `dark:` when value matches light mode
 3. **Exact values over approximations** - `h-[26px]`, not `h-6`. But **type size is
    always a named token** (`text-sm`, `text-caption`) — never `text-[14px]`, which
-   sets font-size only and inherits a different line-height. See
-   `sim-settings-pages.md` for the scale.
+   sets font-size only and inherits a different line-height. The scale is under
+   "Text Scale" below.
 4. **Transitions** - `transition-colors` for interactive states
 
 ## Conditional Classes
@@ -48,7 +48,7 @@ setWidth: (width) => {
 
 ## Text Scale
 
-Custom font sizes (the `@theme` block in `apps/sim/app/_styles/globals.css`): `text-micro`=10px, `text-xs`=11px, `text-caption`=12px, `text-small`=13px, `text-base`=15px. `text-sm` is Tailwind default 14px. Field titles use `text-small` (13px); hints/errors use `text-caption` (12px).
+The `@theme` block in `apps/sim/app/_styles/globals.css`: `text-micro` 10px, `text-xs` 11px, `text-caption` 12px, `text-small` 13px, `text-sm` 14px (Tailwind default), `text-base` 15px, `text-md` 16px, `text-lg` 18px (Tailwind default). `text-xs` is 11px here, so a caption written as `text-xs` is a pixel short. Field titles use `text-small`; hints/errors use `text-caption`. A literal `text-[Npx]` is either a rename to the matching token or an unmigrated straggler.
 
 Icons default `size-[14px]`. Equal h/w → `size-*` (`size-[14px]`, `size-4`), never `h-N w-N` or `h-[Npx] w-[Npx]`.
 
@@ -70,7 +70,7 @@ A scroll region that can hide rows past an edge uses `useScrollEdges` with `scro
 
 Three steps, Tailwind's stock scale, nothing else: **`font-normal` (400)**, **`font-medium` (500)**, **`font-semibold` (600)**. 400 is the document default, so body text, chip labels, sidebar items, and headings carry **no weight class at all** — they inherit. Reach for a class only to step *up* from body.
 
-Never write an arbitrary weight (`font-[380]`, `font-[430]`, `font-[450]`, …), and never set `fontWeight` in an inline `style`. There was previously a CSS-variable weight scale (`--font-weight-base/medium/semibold`, remapping `font-medium` to 440/480) plus seven ad-hoc values clustered between 380 and 500; it was deleted because nothing read as hierarchical. Off-scale values are only acceptable where the design system genuinely cannot reach — react-email templates and the static `apps/sim/emails/broadcasts/*.html`, which email clients render without CSS variables.
+Never write an arbitrary weight (`font-[380]`, `font-[450]`, …) or a `--font-weight-*` variable, and never set `fontWeight` in an inline `style`: values clustered between the three steps do not read as hierarchy. Off-scale values are acceptable only where the design system cannot reach — react-email templates and the static `apps/sim/emails/broadcasts/*.html`, which email clients render without CSS variables.
 
 Headings inherit their weight. Tailwind preflight resets `h1`–`h6` to `font-weight: inherit`, so an `<h1>` is 400 unless you say otherwise — that is the intended look, not a bug to patch.
 
@@ -95,19 +95,19 @@ Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inse
 - **Errors** → `error` prop. Never `className={cn(err && 'border-[var(--text-error)]')}`.
 - **Leading icon** → `icon` prop (rendered 14px in `--text-icon`).
 - **Trailing buttons** (reveal/copy/fetch) → `endAdornment`.
-- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field.tsx:117`.
-- **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `app/workspace/[workspaceId]/skills/components/skill-modal/skill-modal.tsx:170`.
+- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field.tsx`.
+- **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `app/workspace/[workspaceId]/skills/components/skill-modal/skill-modal.tsx`.
 
 ### What className MAY carry
 
-Layout/sizing ONLY: `flex-1`, `w-full`, `w-[Npx]`, `min-w-0`, `max-w-*`, margins. `truncate` is allowed only for the explicit overflow exceptions above, never as a general layout class. Example: `<ChipInput icon={Search} className='min-w-0 flex-1' .../>` (`app/workspace/[workspaceId]/integrations/integrations.tsx:257`). NEVER re-specify canonical chrome — the component already applies it.
+Layout/sizing ONLY: `flex-1`, `w-full`, `w-[Npx]`, `min-w-0`, `max-w-*`, margins. `truncate` is allowed only for the explicit overflow exceptions above, never as a general layout class. Example: `<ChipInput icon={Search} className='min-w-0 flex-1' .../>` (`app/workspace/[workspaceId]/integrations/integrations.tsx`). NEVER re-specify canonical chrome — the component already applies it.
 
 ### Form / chip-modal layout rhythm
 
 - **Field row** = `ChipModalField`: label↔control `gap-[9px]`, field gutter `px-2` (`px-0` when `flush`). Title = `Label` at `text-small` (13px), muted, normal weight; hint/error at `text-caption` (12px).
 - **Modal body** (`ChipModalBody`): `gap-4` between fields, padding `px-2 pt-4 pb-4.5`.
 - **Header/footer**: horizontal gutter `px-4` (header `pt-3`; footer `px-4 pt-2 pb-2`, tinted bar).
-- **Every body field MUST be a `ChipModalField`** — NEVER hand-roll a field row (raw `<div>` + hand-rolled `<p>`/`<label>` title + bare `ChipInput`/`ChipTextarea`). WHY: body `px-2` + field `px-2` = effective `px-4`, exactly matching the `px-4` header/footer. A hand-rolled row skips the field gutter, sits at `px-2`, and is visibly misaligned (this bug shipped in the scheduled-tasks "Create new scheduled task" modal). Inline errors go through the `error` prop, not a hand-rolled `<p>`.
+- **Every body field MUST be a `ChipModalField`** — NEVER hand-roll a field row (raw `<div>` + hand-rolled `<p>`/`<label>` title + bare `ChipInput`/`ChipTextarea`). WHY: body `px-2` + field `px-2` = effective `px-4`, exactly matching the `px-4` header/footer. A hand-rolled row skips the field gutter, sits at `px-2`, and is visibly misaligned. Inline errors go through the `error` prop, not a hand-rolled `<p>`.
 - **Uncovered controls** (`ChipCombobox`, `ChipSelect`, `DatePicker`, `TimePicker`, `ButtonGroup`, arbitrary JSX) → `ChipModalField type='custom'` with a `title`. It still applies the `px-2` gutter and renders the canonical `Label`, so it stays aligned. Never drop such a control into a raw `<div>`, and never add a body-level wrapper `<div>` with a custom `gap-*` that fights `gap-4`.
 - **Page section rhythm** (integrations/skills/settings): muted `text-small` label + `mt-[9px] mb-3 h-px bg-[var(--border)]` divider, sections stacked `gap-7`. Reuse `SettingsSection` (`app/workspace/[workspaceId]/settings/components/settings-section/settings-section.tsx`) rather than re-deriving it.
 

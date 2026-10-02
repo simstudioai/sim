@@ -32,8 +32,7 @@ export function Component({ requiredProp, optionalProp = false }: ComponentProps
 
 When rendering or sorting a list of rows against a lookup collection (members, folders, tags), keep the per-row work O(1):
 
-- **Precompute a lookup `Map` once**, never `array.find(...)` per row. Build `const byId = useMemo(() => { const m = new Map<string, T>(); for (const x of items ?? []) m.set(x.id, x); return m }, [items])` and read `byId.get(id)` in the sort comparator, `.map(...)`, and cell builders. A `.find` inside a sort comparator is O(n²·log n) — the worst offender. Depend memos on the derived `Map`, not the raw array.
-- **Sort a copy with `[...array].sort(cmp)`**, never `toSorted` (`check:utils` bans it repo-wide) — see `sim-react-performance.md` → "Never mutate a shared array in place".
+- **Precompute a lookup `Map` once** (`useMemo` over the collection) and read `byId.get(id)` in the sort comparator, `.map(...)`, and cell builders. A `.find` inside a sort comparator is O(n²·log n). Depend downstream memos on the derived `Map`, not the raw array. Map-building and copy-then-sort rules: `sim-react-performance.md`.
 - **Partition in a single pass** — when splitting one collection into several (`fileIds`/`folderIds`), do one `for…of` pushing into each bucket and return `{ a, b }` from a single `useMemo`, not two memos that each `map→filter→map` the same source twice.
 
 ## react-doctor (`bunx react-doctor`) — apply the wins, skip the false positives

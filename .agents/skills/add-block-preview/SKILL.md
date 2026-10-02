@@ -53,7 +53,7 @@ To pull an already-GA block from discovery surfaces on hosted (incident, depreca
 - **Clone-not-remove:** gated blocks stay in `getAllBlocks()` output as clones with `hideFromToolbar: true` — `.find`-by-type consumers rely on this. Never filter them out.
 - **Keys are registry block types.** Never `custom_block_*` (parse drops them — custom blocks have their own enabled/disabled lifecycle).
 - **The shared hidden-predicate is `isHiddenUnder`** (`apps/sim/blocks/visibility/context.ts`). Never restate the preview/disabled rule inline at a new consumer.
-- **Process-global caches stay ungated.** `getStaticComponentFiles` (VFS) and `getExposedIntegrationTools` build the ungated universe; per-viewer filtering happens at stamp/consumer time. Never move gating into a shared builder.
+- **Process-global caches stay ungated.** Shared builders such as `getExposedIntegrationTools` (`lib/integrations/tool-catalog.ts`) build the ungated universe; per-viewer filtering happens at consumer time via `isHiddenUnder`. Never move gating into a shared builder.
 - Gating is **surface hiding, not secrecy** — the full config ships in the client JS bundle. Anything truly secret cannot be a registered block.
 
 ## Tests
