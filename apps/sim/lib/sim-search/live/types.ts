@@ -61,6 +61,8 @@ export interface NativeDocument {
 
 export interface NativePage {
   documents: NativeDocument[]
+  /** Provider folder references are navigation hints, not readable document identities. */
+  folders?: { id: string; name: string }[]
   /** Continues this exact query and account; implies more results exist. */
   nextCursor?: string
   /** More matches exist beyond this page but cannot be continued through it. */

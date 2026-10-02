@@ -36,19 +36,28 @@ const RESOURCE = 'https://mcp.lucid.app/mcp/readonly'
 const DOCUMENT = '00000000-0000-4000-8000-000000000001'
 const SECOND_DOCUMENT = '00000000-0000-4000-8000-000000000002'
 const TITLE = 'Synthetic topology'
-const editUrl = `https://lucid.app/lucidchart/${DOCUMENT}/edit`
 const actors = [0, 1].map(() => ({
   userId: generateId(),
   organizationId: generateId(),
   credentialId: `mcp-cg-${generateId()}`,
   token: generateId(),
+  provider: 'lucid' as 'lucid' | 'notion',
 }))
 actors.push({
   userId: generateId(),
   organizationId: actors[0].organizationId,
   credentialId: `mcp-cg-${generateId()}`,
   token: generateId(),
+  provider: 'lucid',
 })
+actors.push({
+  userId: generateId(),
+  organizationId: generateId(),
+  credentialId: `mcp-cg-${generateId()}`,
+  token: generateId(),
+  provider: 'notion',
+})
+const NOTION_RESOURCE = 'https://mcp.notion.com/mcp'
 const sessions = new Map<string, { transport: StreamableHTTPServerTransport; actor: number }>()
 const serverIds = new Map<string, string>()
 const protocols: Server[] = []
@@ -98,20 +107,32 @@ const providerServer = createServer(async (request, response) => {
         if (failDiscovery && params?.cursor) throw new Error('Synthetic discovery failure')
         return {
           ...(failDiscovery ? { nextCursor: 'second-page' } : {}),
-          tools: ['search', 'fetch', 'lucid_get_document_metadata', 'write_document'].map(
-            (name) => ({
-              name,
-              inputSchema: {
-                type: 'object' as const,
-                properties: {
-                  query: { type: 'string' },
-                  product: { type: 'array', items: { type: 'string' } },
-                  last_modified_after: { type: 'string' },
-                },
-                additionalProperties: name !== 'search',
+          tools: [
+            'search',
+            'fetch',
+            'lucid_get_document_metadata',
+            'lucid_list_folder_contents',
+            'notion-get-tool-access',
+            'notion-search',
+            'notion-list-private-pages',
+            'notion-list-shared-pages',
+            'notion-fetch',
+            'write_document',
+          ].map((name) => ({
+            name,
+            inputSchema: {
+              type: 'object' as const,
+              properties: {
+                query: { type: 'string' },
+                cursor: { type: 'string' },
+                limit: { type: 'number' },
+                sort: { type: 'string' },
+                product: { type: 'array', items: { type: 'string' } },
+                last_modified_after: { type: 'string' },
               },
-            })
-          ),
+              additionalProperties: name !== 'search',
+            },
+          })),
         }
       })
       protocol.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
@@ -119,11 +140,68 @@ const providerServer = createServer(async (request, response) => {
         await onTool?.(params.name, params.arguments ?? {})
         const documentId =
           params.arguments?.query === 'second topology' ||
-          params.arguments?.document_id === SECOND_DOCUMENT
+          params.arguments?.document_id === SECOND_DOCUMENT ||
+          params.arguments?.id === SECOND_DOCUMENT
             ? SECOND_DOCUMENT
             : DOCUMENT
         const documentTitle = documentId === SECOND_DOCUMENT ? 'Second topology' : TITLE
         const documentUrl = `https://lucid.app/lucidchart/${documentId}/edit`
+        if (params.name === 'notion-get-tool-access')
+          return payload({
+            current_tool_access: {
+              search: { status: 'available' },
+              list_private_pages: { status: 'available' },
+              list_shared_pages: { status: 'available' },
+            },
+          })
+        if (params.name === 'notion-search' || params.name.startsWith('notion-list-'))
+          return payload({
+            results: [
+              {
+                type: 'page',
+                title: TITLE,
+                url: `https://www.notion.so/${params.arguments?.cursor ? SECOND_DOCUMENT : DOCUMENT}`,
+              },
+            ],
+            ...(params.arguments?.cursor ? {} : { nextCursor: 'offset:1' }),
+          })
+        if (params.name === 'notion-fetch')
+          return payload({
+            id: params.arguments?.id,
+            text: 'Private page evidence',
+            page_last_edited_at: '2026-09-01T12:00:00Z',
+          })
+        if (params.name === 'lucid_list_folder_contents' && params.arguments?.folder_id === 42)
+          return payload({
+            items: [
+              {
+                id: SECOND_DOCUMENT,
+                type: 'document',
+                product: 'lucidchart',
+                name: 'Second topology',
+                isShortcut: false,
+              },
+            ],
+          })
+        if (params.name === 'lucid_list_folder_contents')
+          return payload(
+            params.arguments?.page_token
+              ? {
+                  items: [
+                    {
+                      id: DOCUMENT,
+                      type: 'document',
+                      product: 'lucidchart',
+                      name: TITLE,
+                      isShortcut: false,
+                    },
+                  ],
+                }
+              : {
+                  items: [{ id: 42, type: 'folder', name: 'Architecture', isShortcut: false }],
+                  nextPageToken: 'page-two',
+                }
+          )
         if (params.name === 'search')
           return payload({ results: [{ id: documentId, title: documentTitle, url: documentUrl }] })
         if (params.name === 'lucid_get_document_metadata')
@@ -137,9 +215,9 @@ const providerServer = createServer(async (request, response) => {
             lastModified: '2026-09-01T12:00:00Z',
           })
         const manifest = {
-          document_id: DOCUMENT,
-          title: TITLE,
-          edit_url: editUrl,
+          document_id: documentId,
+          title: documentTitle,
+          edit_url: documentUrl,
           metadata: { page_count: 1, page_region_counts: [1] },
         }
         if (params.arguments?.metadata_only) return payload(manifest)
@@ -158,7 +236,10 @@ const providerServer = createServer(async (request, response) => {
                 requestedChunks: [
                   {
                     chunkIndex: 0,
-                    data: { nodes: [{ label: `Private diagram ${actor}` }], edges: [] },
+                    data: {
+                      nodes: [{ label: `Private diagram ${actor}: ${documentTitle}` }],
+                      edges: [],
+                    },
                   },
                 ],
               },
@@ -192,12 +273,13 @@ beforeAll(async () => {
   origin = `http://127.0.0.1:${address.port}/mcp`
   const guarded = pinnedFetch.createGuardedMcpFetch
   vi.spyOn(pinnedFetch, 'createGuardedMcpFetch').mockImplementation((url) => {
-    if (url !== RESOURCE) throw new Error('Unexpected MCP fixture origin')
+    if (!url || ![RESOURCE, NOTION_RESOURCE].includes(url))
+      throw new Error('Unexpected MCP fixture origin')
     const transport = guarded(origin)
     openTransports.add(transport)
     return {
       fetch: (input, init) => {
-        if (new URL(input instanceof Request ? input.url : input).href !== RESOURCE)
+        if (new URL(input instanceof Request ? input.url : input).href !== url)
           throw new Error('Unexpected MCP fixture destination')
         return transport.fetch(origin, init)
       },
@@ -238,7 +320,10 @@ beforeAll(async () => {
             organizationId: actor.organizationId,
             credentialGroupId: group.id,
             userId: actor.userId,
-            validated: { input: { connectorId: 'lucid' }, url: RESOURCE },
+            validated: {
+              input: { connectorId: actor.provider },
+              url: actor.provider === 'notion' ? NOTION_RESOURCE : RESOURCE,
+            },
           },
           tx
         )
@@ -278,7 +363,11 @@ beforeAll(async () => {
     })
     await db
       .insert(organizationSearchIntegration)
-      .values({ organizationId: actor.organizationId, connectorType: 'lucid', approved: true })
+      .values({
+        organizationId: actor.organizationId,
+        connectorType: actor.provider,
+        approved: true,
+      })
       .onConflictDoNothing()
   }
 })
@@ -412,12 +501,217 @@ describe('managed Search operation sessions', () => {
         { queryIndex: 1, status: 'ok' },
       ])
       expect(events.slice(offset).filter((event) => event.method === 'initialize')).toHaveLength(1)
+      for (const result of found.results)
+        expect(JSON.stringify(await read(result.documentId))).toContain(result.documentName)
       expect(openTransports.size).toBe(0)
     } finally {
       clearTimeout(timer)
       bothEntered.resolve()
       onTool = undefined
     }
+  })
+  it('binds folder continuations to account, folder, page size and filters', async () => {
+    const browse = (
+      index = 0,
+      options: {
+        cursor?: string
+        project?: string
+        topK?: number
+        query?: string
+        startDate?: string
+        sortBy?: 'newest'
+      } = {}
+    ) => {
+      const actor = actors[index]
+      return searchLiveKnowledge.execute({
+        principal: createSessionPrincipal({ userId: actor.userId, sessionId: generateId() }),
+        input: {
+          organizationId: actor.organizationId,
+          query: '',
+          topK: options.topK ?? 10,
+          filters: {
+            source: 'lucid',
+            ...(options.startDate ? { startDate: options.startDate } : {}),
+            ...(options.sortBy ? { sortBy: options.sortBy } : {}),
+          },
+          nativeQueries: [
+            {
+              provider: 'lucid',
+              query: options.query ?? '',
+              ...(options.query ? {} : { browse: 'folder' as const }),
+              accountId: actor.credentialId,
+              ...(options.cursor ? { cursor: options.cursor } : {}),
+              ...(options.project ? { project: options.project } : {}),
+            },
+          ],
+        },
+      })
+    }
+    const first = await browse()
+    expect(first.live?.accounts[0].folders).toEqual([{ id: '42', name: 'Architecture' }])
+    const cursor = first.live?.accounts[0].nextCursor
+    expect(cursor).toBeTruthy()
+    expect((await browse(0, { cursor })).results).toHaveLength(1)
+    const actor = actors[0]
+    const parallel = await searchLiveKnowledge.execute({
+      principal: createSessionPrincipal({ userId: actor.userId, sessionId: generateId() }),
+      input: {
+        organizationId: actor.organizationId,
+        query: '',
+        topK: 10,
+        filters: { source: 'lucid' },
+        nativeQueries: [
+          { provider: 'lucid', query: '', browse: 'folder', accountId: actor.credentialId, cursor },
+          {
+            provider: 'lucid',
+            query: '',
+            browse: 'folder',
+            accountId: actor.credentialId,
+            project: '42',
+          },
+        ],
+      },
+    })
+    expect(parallel.results.map((result) => result.documentName).sort()).toEqual([
+      'Second topology',
+      TITLE,
+    ])
+
+    for (const options of [{ project: '42' }, { topK: 5 }, { startDate: '2026-09-01T00:00:00Z' }]) {
+      expect((await browse(0, options)).live?.accounts[0]?.status).not.toBe('unavailable')
+      const result = await browse(0, { ...options, cursor })
+      expect(result.results).toHaveLength(0)
+      expect(result.live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+    }
+    expect((await browse(2, { cursor })).live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+    expect((await browse(0, { cursor: `${cursor}tampered` })).live?.accounts[0]).toMatchObject({
+      status: 'unavailable',
+    })
+    const sorted = await browse(0, { sortBy: 'newest' })
+    expect(
+      (await browse(0, { sortBy: 'newest', cursor: sorted.live?.accounts[0].nextCursor })).results
+    ).toHaveLength(1)
+    expect(openTransports.size).toBe(0)
+  })
+  it.each([
+    { startDate: '2026-09-01T00:00:00Z' },
+    { sortBy: 'newest' },
+    { sortBy: 'oldest' },
+  ] as const)(
+    'rejects plain empty Lucid searches with %j before opening the provider',
+    async (filters) => {
+      const actor = actors[0]
+      const before = events.length
+      await expect(
+        searchLiveKnowledge.execute({
+          principal: createSessionPrincipal({ userId: actor.userId, sessionId: generateId() }),
+          input: {
+            organizationId: actor.organizationId,
+            query: '',
+            topK: 10,
+            filters: { source: 'lucid', ...filters },
+          },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(events.length).toBe(before)
+    }
+  )
+  it('combines Lucid folder browsing and typed title search while preserving each query outcome', async () => {
+    const actor = actors[0]
+    const found = await searchLiveKnowledge.execute({
+      principal: createSessionPrincipal({ userId: actor.userId, sessionId: generateId() }),
+      input: {
+        organizationId: actor.organizationId,
+        query: '',
+        topK: 10,
+        filters: { source: 'lucid' },
+        nativeQueries: [
+          { provider: 'lucid', query: '', browse: 'folder', accountId: actor.credentialId },
+          {
+            provider: 'lucid',
+            query: 'topology',
+            kind: 'lucidchart',
+            accountId: actor.credentialId,
+          },
+        ],
+      },
+    })
+    expect(found.results).toHaveLength(1)
+    expect(found.live?.accounts).toEqual([
+      expect.objectContaining({
+        queryIndex: 0,
+        folders: [{ id: '42', name: 'Architecture' }],
+        nextCursor: expect.any(String),
+      }),
+      expect.objectContaining({ queryIndex: 1, status: 'ok' }),
+    ])
+    expect(openTransports.size).toBe(0)
+  })
+  it.each(['newest', 'oldest'] as const)(
+    'continues a plain Notion topical search sorted %s',
+    async (sortBy) => {
+      const actor = actors[3]
+      const principal = createSessionPrincipal({ userId: actor.userId, sessionId: generateId() })
+      const input = {
+        organizationId: actor.organizationId,
+        query: 'topology',
+        topK: 10,
+        filters: { source: 'notion' as const, sortBy },
+      }
+      const first = await searchLiveKnowledge.execute({ principal, input })
+      expect(first.results, JSON.stringify(first.live)).toHaveLength(1)
+      const cursor = first.live?.accounts[0].nextCursor
+      expect(cursor).toBeTruthy()
+      const next = await searchLiveKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          nativeQueries: [
+            { provider: 'notion', query: input.query, accountId: actor.credentialId, cursor },
+          ],
+        },
+      })
+      expect(next.results, JSON.stringify(next.live)).toHaveLength(1)
+      expect(next.results[0].documentId).not.toBe(first.results[0].documentId)
+      expect(openTransports.size).toBe(0)
+    }
+  )
+  it('binds Notion continuation to its sidebar mode and preserves independent page reads', async () => {
+    const actor = actors[3]
+    const browse = (mode: 'private' | 'shared', cursor?: string) =>
+      searchLiveKnowledge.execute({
+        principal: createSessionPrincipal({ userId: actor.userId, sessionId: generateId() }),
+        input: {
+          organizationId: actor.organizationId,
+          query: '',
+          topK: 10,
+          filters: { source: 'notion' },
+          nativeQueries: [
+            {
+              provider: 'notion',
+              query: '',
+              browse: mode,
+              accountId: actor.credentialId,
+              ...(cursor ? { cursor } : {}),
+            },
+          ],
+        },
+      })
+    const first = await browse('private')
+    expect(first.results, JSON.stringify(first.live)).toHaveLength(1)
+    const cursor = first.live?.accounts[0].nextCursor
+    expect(cursor).toBeTruthy()
+    const next = await browse('private', cursor)
+    expect(next.results).toHaveLength(1)
+    expect(next.results[0].documentId).not.toBe(first.results[0].documentId)
+    expect(JSON.stringify(await read(next.results[0].documentId, 3))).toContain(
+      'Private page evidence'
+    )
+    expect((await browse('shared')).results).toHaveLength(1)
+    const changed = await browse('shared', cursor)
+    expect(changed.results).toHaveLength(0)
+    expect(changed.live?.accounts[0].status).toBe('unavailable')
+    expect(openTransports.size).toBe(0)
   })
   it('isolates simultaneous users and rejects another organization’s signed document reference', async () => {
     const results = await Promise.all([search(0), search(1)])
