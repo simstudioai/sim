@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { Command, Option } from 'commander'
 import { printLine } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
@@ -881,18 +882,24 @@ async function verifyProfile(
   let authenticated: boolean | null = null
   const metaOperation = V2_OPERATIONS.getMeta
   try {
-    const response = await client.request<GetMetaResponse>(metaOperation.path, {
+    const response = await client.request<unknown>(metaOperation.path, {
       method: metaOperation.method,
     })
-    keyType = response.data.keyType
-    authenticated = true
+    const reportedKeyType = toRecord(toRecord(response).data).keyType
+    if (
+      reportedKeyType === 'personal' ||
+      reportedKeyType === 'workspace' ||
+      reportedKeyType === 'oauth_access_token'
+    ) {
+      keyType = reportedKeyType
+      authenticated = true
+    }
   } catch (error) {
     if (!(error instanceof SimApiError)) throw error
-    const rejected = error.status === 401 || error.status === 403
-    if (rejected || !profile.workspaceId) {
+    if (error.status === 401 || error.status === 403) {
       return {
-        status: rejected ? 'rejected' : 'unreachable',
-        authenticated: rejected ? false : null,
+        status: 'rejected',
+        authenticated: false,
         workspace: null,
         keyType: null,
         detail: error.message,

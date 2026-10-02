@@ -639,7 +639,7 @@ describe('whoami command', () => {
   )
 
   it.each([0, 404, 429, 502])(
-    'does not claim authentication when metadata is unavailable with HTTP %s',
+    'preserves setup guidance without claiming authentication when metadata is unavailable with HTTP %s',
     async (status) => {
       mocks.profileFrom.mockReturnValue(configured({ workspaceId: null, output: 'json' }))
       mocks.request.mockRejectedValue(new SimApiError('Metadata unavailable', status))
@@ -648,8 +648,10 @@ describe('whoami command', () => {
 
       const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
       expect(result.authenticated).toBeNull()
-      expect(result.verification.status).toBe('unreachable')
-      expect(result.verification.detail).toBe('Metadata unavailable')
+      expect(result.verification.status).toBe('no-workspace')
+      expect(result.verification.detail).toContain(
+        'sim configure --profile default --set-workspace'
+      )
       expect(process.exitCode).toBe(2)
     }
   )
@@ -707,6 +709,41 @@ describe('whoami command', () => {
     expect(result.authenticated).toBe(true)
     expect(result.verification.status).toBe('verified')
     expect(process.exitCode).toBeUndefined()
+  })
+
+  it.each([
+    undefined,
+    null,
+    {},
+    { data: null },
+    { data: {} },
+    { data: { keyType: 'unsupported' } },
+  ])('falls back to workspace verification for malformed metadata %j', async (meta) => {
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
+    mocks.request.mockImplementation(async (path: string) =>
+      path === '/api/v2/meta' ? meta : { data: { id: 'ws_1', name: 'Workspace', memberCount: 1 } }
+    )
+
+    await whoami()
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBe(true)
+    expect(result.verification.status).toBe('verified')
+    expect(result.verification.keyType).toBeNull()
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('keeps authentication unknown when malformed metadata is the only possible check', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ workspaceId: null, output: 'json' }))
+    respond({ data: { keyType: 'unsupported' } })
+
+    await whoami()
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBeNull()
+    expect(result.verification.status).toBe('no-workspace')
+    expect(result.verification.keyType).toBeNull()
+    expect(process.exitCode).toBe(2)
   })
 
   it('reports a key revoked between the metadata and workspace reads as unauthenticated', async () => {
