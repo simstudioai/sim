@@ -72,9 +72,7 @@ For those, require all three:
 - skip oversize at listing (`stubOrSkipBySize` with the reported size) and again at fetch time (overflow -> `markSkipped`), since the listing size can be missing or under-reported
 - never drop/truncate silently — oversized files become content-less failed rows carrying `skippedReason`, so they stay visible in the KB UI instead of vanishing from the index
 
-Skip the pattern when the source already bounds the payload:
-- pure API/structured-data connectors (Jira, Linear, Notion, Confluence, Sentry, Slack, Zendesk, Gmail, ...) — paginated JSON/text; apply normal pagination + concurrency bounds instead of a per-file byte cap
-- native-document connectors capped by the platform (Google Docs ~50 MB, Google Sheets via `MAX_ROWS`, Evernote ~25 MB/note) — a 100 MB cap can never fire, and wrapping a `response.json()`/Thrift parse in `readBodyWithLimit` is cargo-culting
+Skip the *per-file `CONNECTOR_MAX_FILE_BYTES` + skipped-row* pattern when the source bounds the item count (paginated JSON: Jira, Linear, Sentry, Slack, Zendesk, Gmail, ...). Every response body is still read through `readBodyWithLimit` with a connector-specific budget (`MAX_DOCS_RESPONSE_BYTES` in google-docs, `MAX_CONTENT_BYTES` in google-sheets, a remaining-bytes budget in notion). Confluence attachments use the full file pattern.
 
 Litmus test: "Can a user make this one fetch arbitrarily large, with nothing upstream stopping it?" Yes -> use the pattern. No (platform hard-cap, or already paginated) -> a per-file byte cap adds noise, not safety. Borderline: a user-configured/self-hosted endpoint with no platform cap (e.g. Obsidian) — bound it only if the content is genuinely unbounded.
 

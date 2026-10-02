@@ -88,8 +88,8 @@ conditions freshly after every push.
    across all pages has `isResolved: true`, and every check has finished and passed, stop —
    report the outcome (see "Reporting" below) and skip the rest of this list.
 
-2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
-   usual pre-push checks, push, and go to step 8 to re-trigger review.
+2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run `/ship`
+   steps 4–6 on the merge result, push, and go to step 8 to re-trigger review.
 
 3. **If no review has run yet** (fresh PR, no bot comments): both run automatically on PR open —
    confirm via `gh pr checks <n>` (look for `Greptile Review` and `cubic · AI code reviewer`) and

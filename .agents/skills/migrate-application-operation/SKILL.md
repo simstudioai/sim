@@ -166,7 +166,7 @@ Do not create internal-, public-, or Copilot-specific versions of the same seman
 
 Choose principal kinds from actual behavior. Do not accept every principal merely because the use case is shared. Workspace API keys have a write ceiling and cannot satisfy admin operations. The operation definition must fail fast when its role, workspace-key policy, and principal kinds disagree.
 
-`capability` is required — name the permission-group capability that governs the operation, or `'none'` with a `// permission-group-exempt: <reason>` comment directly above it. `defineWorkspaceOperation` throws at definition time when it is absent. See `add-permission-group-item`.
+`capability` is required: a static, operation-declarable capability (not parameterized, not principal-wide), or `'none'` with a `// permission-group-exempt: <reason>` comment directly above it. If `principalKinds` includes `oauth_access_token`, `oauthScope` (`api:read` | `api:write` | `search:read`) is required. `defineWorkspaceOperation` throws at definition time on any violation. See `add-permission-group-item`.
 
 Route declarations, tool adapters, and use cases must use the same literal operation. Runtime operation selection is permitted only from a trusted, code-defined registry. Never accept an operation ID or permission tag from an HTTP body, model argument, or other untrusted input.
 
@@ -317,7 +317,7 @@ Stop and report a missing design rather than weakening identity, authorization, 
 
 ## Test each risk at one boundary
 
-Run the `test-audit` authoring gate before writing any test. Own each risk at exactly one boundary:
+Run the `test-audit` authoring gate before writing any test. Prefer one E2E/integration run over the real boundary; where a use-case unit test is justified, list its failure modes before writing code (CLAUDE.md → Testing). Own each risk at exactly one boundary:
 
 - Application use-case tests own authorization, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, audit derived from authoritative results, and infrastructure failures (storage, rate-limit, provider, or database errors raised by delegated services) propagating as 5xx-mapped errors — never converted to not-found or forbidden.
 - One `*.integration.ts` owns repository semantics: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
@@ -335,7 +335,7 @@ Run at minimum:
 bun run --cwd apps/sim test <focused test files>
 bunx biome check <changed source and test files>
 bunx turbo run type-check --filter=@sim/app --filter=@sim/auth
-bun run check:api-validation:strict
+bun run check:audits
 git diff --check
 ```
 

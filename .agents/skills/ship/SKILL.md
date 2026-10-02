@@ -45,6 +45,7 @@ When the user runs `/ship`:
   - Then run root `bun run test` from the repo root. It chains `test:scripts` (the `scripts/*.test.ts` suite CI runs) before every workspace suite; workspace-scoped runs skip it, which is how a `scripts/check-*.test.ts` failure has reached CI. A failing test aborts ship.
 5. **Run migration safety** — only if the diff touches `packages/db/migrations/**` or `packages/db/schema.ts`:
   - Run `/db-migrate` to review the migration for zero-downtime safety (expand/contract phasing, backward-compatibility with the deployed app version).
+  - `cd packages/db && bunx drizzle-kit generate` must leave `git status --porcelain packages/db/migrations` empty (CI's schema/migration sync step).
   - `bun run check:migrations origin/staging` must pass (staging is the PR base). Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
 6. **Run pre-ship checks** from the repo root before staging. This has two phases: first **regenerate** every committed artifact so generated files never drift into a CI failure (this is what catches things like `agent-stream-docs` going stale after a `models.ts` edit), then run the **full audit suite** CI's `Lint and Test` job enforces. Both phases parallelize — but only across commands that write **disjoint** outputs — and a bare `wait` swallows child exit codes, so both phases below explicitly collect each job's status and abort ship if any failed.
 
