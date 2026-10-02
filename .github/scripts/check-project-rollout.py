@@ -2,8 +2,8 @@
 """Read-only, fail-closed ECS retirement check for the Project contract migration.
 
 The expected digest is the operator's release-scoped acknowledgment that Project
-writers are enabled, relevant old worker jobs are drained, and backfill verification
-passed. AWS checks below independently verify ECS retirement, not those assertions.
+compatible writers are deployed and relevant old worker jobs are drained.
+AWS checks below independently verify ECS retirement, not worker drainage.
 """
 import argparse
 import json
@@ -24,7 +24,7 @@ def aws(region, *args):
 
 def verify(environment, region, digest):
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
-        raise RuntimeError('Set the environment-specific PROJECT_ENFORCEMENT_READY_IMAGE_DIGEST after reviewing rollout and backfill evidence')
+        raise RuntimeError('Set the environment-specific PROJECT_ENFORCEMENT_READY_IMAGE_DIGEST after reviewing compatible rollout and worker-drain evidence')
     pipeline = f'sim-{environment}-{region}-app-deployment'
     executions = aws(region, 'codepipeline', 'list-pipeline-executions', '--pipeline-name', pipeline).get('pipelineExecutionSummaries', [])
     if not executions or executions[0].get('status') != 'Succeeded':
@@ -65,7 +65,7 @@ def verify(environment, region, digest):
     if not latest or latest[0].get('pipelineExecutionId') != execution_id or latest[0].get('status') != 'Succeeded':
         raise RuntimeError('Application deployment changed during preflight')
     print(json.dumps({'ecsRetired': True, 'expectedImageDigest': digest, 'pipelineExecutionId': execution_id,
-                      'operatorAcknowledgedWritersWorkersAndBackfill': True}))
+                      'operatorAcknowledgedCompatibleWritersAndWorkers': True}))
 
 
 if __name__ == '__main__':

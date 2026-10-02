@@ -68,8 +68,8 @@ jobs:
           role-to-assume: ${{ inputs.environment == 'production' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ inputs.environment == 'production' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
 
-      # Set this release-scoped acknowledgment only after writers are enabled everywhere,
-      # relevant old Trigger.dev runs are drained, and the reviewed backfill verifies ready.
+      # Set this release-scoped acknowledgment only after compatible writers are deployed
+      # everywhere and relevant old Trigger.dev runs are drained. SQL performs the backfill.
       # The preflight independently checks ECS retirement; it does not inspect worker runs.
       - name: Require completed compatible rollout before Project enforcement
         if: steps.project-contract.outputs.required == 'true'

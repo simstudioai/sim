@@ -202,7 +202,7 @@ afterAll(async () => {
   if (restoreEnforcement) {
     const client = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
     try {
-      await client.unsafe(
+      for (const statement of (
         await readFile(
           new URL(
             '../../../../../packages/db/migrations/0394_project_membership_enforcement.sql',
@@ -210,7 +210,9 @@ afterAll(async () => {
           ),
           'utf8'
         )
-      )
+      ).split('--> statement-breakpoint')) {
+        await client.unsafe(statement)
+      }
     } finally {
       await client.end()
     }
@@ -223,7 +225,7 @@ describe('Project foundation at the database and application boundary', () => {
     async () => {
       const client = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
       try {
-        await client.unsafe(
+        for (const statement of (
           await readFile(
             new URL(
               '../../../../../packages/db/migrations/0394_project_membership_enforcement.sql',
@@ -231,7 +233,9 @@ describe('Project foundation at the database and application boundary', () => {
             ),
             'utf8'
           )
-        )
+        ).split('--> statement-breakpoint')) {
+          await client.unsafe(statement)
+        }
         const f = await fixture(true, 1)
         const organizationId = f.organizationId
         if (!organizationId) throw new Error('Missing organization fixture')
