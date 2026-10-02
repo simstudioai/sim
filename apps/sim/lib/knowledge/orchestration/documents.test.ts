@@ -4,7 +4,7 @@ import {
   knowledgeDocumentsServiceMock,
   knowledgeDocumentsServiceMockFns,
 } from '@sim/testing/mocks/knowledge-documents-service.mock'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,19 +20,15 @@ import {
   performUploadKnowledgeDocument,
 } from '@/lib/knowledge/orchestration/documents'
 
-const mockCreateDocumentRecords = knowledgeDocumentsServiceMockFns.mockCreateDocumentRecords
 const mockCreateSingleDocument = knowledgeDocumentsServiceMockFns.mockCreateSingleDocument
-const mockDeleteDocument = knowledgeDocumentsServiceMockFns.mockDeleteDocument
 const mockGetDocumentByUploadId = knowledgeDocumentsServiceMockFns.mockGetDocumentByUploadId
 const mockMarkDocumentAsFailedTimeout =
   knowledgeDocumentsServiceMockFns.mockMarkDocumentAsFailedTimeout
 const mockProcessDocumentAsync = knowledgeDocumentsServiceMockFns.mockProcessDocumentAsync
 const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue
 const mockRetryDocumentProcessing = knowledgeDocumentsServiceMockFns.mockRetryDocumentProcessing
-const mockUpdateDocument = knowledgeDocumentsServiceMockFns.mockUpdateDocument
 
 const mockRecordAudit = auditMockFns.mockRecordAudit
-const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 const KB = { id: 'kb-1', name: 'Docs', workspaceId: 'ws-1' }
 const FILE = {

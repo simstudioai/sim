@@ -168,7 +168,7 @@ function createFolderMutationHandlers<
       )
       return createOptimisticFolder(variables, tempId, previousFolders)
     },
-    applyOptimisticUpdate: (tempId, item) => {
+    applyOptimisticUpdate: (_tempId, item) => {
       queryClient.setQueryData<WorkflowFolder[]>(
         folderKeys.list(item.workspaceId, 'active', item.resourceType),
         (old) => [...(old ?? []), item]

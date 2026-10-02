@@ -1,7 +1,6 @@
 import { IncidentioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { IncidentioResponse } from '@/tools/incidentio/types'
 import { getTrigger } from '@/triggers'
 
 /** Identifiers a user can be looked up by, whichever one is filled. */
@@ -26,7 +25,7 @@ function toTriState(value: unknown): boolean | undefined {
   return undefined
 }
 
-export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
+export const IncidentioBlock: BlockConfig = {
   type: 'incidentio',
   name: 'incident.io',
   description: 'Manage incidents with incident.io',

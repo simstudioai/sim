@@ -740,16 +740,8 @@ export const bedrockProvider: ProviderConfig = {
         const toolResultContent: ContentBlock[] = []
 
         for (const executionResult of executionResults) {
-          const {
-            toolUseId,
-            toolName,
-            toolArgs,
-            toolParams,
-            result,
-            startTime,
-            endTime,
-            duration,
-          } = executionResult
+          const { toolUseId, toolName, toolParams, result, startTime, endTime, duration } =
+            executionResult
           const modelResult =
             'modelResult' in executionResult && executionResult.modelResult
               ? executionResult.modelResult

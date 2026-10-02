@@ -133,7 +133,6 @@ const report: Record<string, unknown> = {
   },
 }
 let capture = false
-let embeddingCalls = 0
 let readerCalls = 0
 let readerRevoked = false
 const previousDebug = db.$client.options.debug
@@ -533,7 +532,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
             )
             .length(1),
         }).parse(JSON.parse(String(init?.body)))
-        embeddingCalls++
         return Response.json({
           embeddings: [{ values: queryVector }],
           usageMetadata: { promptTokenCount: 4 },
@@ -548,7 +546,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
           model: z.literal('text-embedding-3-small'),
         })
         .parse(JSON.parse(String(init?.body)))
-      embeddingCalls += body.input.length
       const bytes = Buffer.alloc(dimensions * 4)
       const topic = Number(/^Topic (\d+) deployment$/.exec(body.input[0])?.[1] ?? 0)
       topicVector(topic).forEach((value, index) => bytes.writeFloatLE(value, index * 4))

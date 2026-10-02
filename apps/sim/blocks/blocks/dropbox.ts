@@ -4,7 +4,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { DropboxResponse } from '@/tools/dropbox/types'
 
 /*
  * Canonical basic/advanced pair for the upload source, shared by the card
@@ -516,7 +515,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     links: { type: 'json', description: 'List of shared links (url, name, path_lower, expires)' },
     isDeleted: { type: 'boolean', description: 'Whether the latest revision is deleted or moved' },
   },
-} satisfies BlockConfig<DropboxResponse>
+} satisfies BlockConfig
 
 export const DropboxV2Block: BlockConfig = {
   ...DropboxBlock,

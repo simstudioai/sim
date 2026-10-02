@@ -4,12 +4,6 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 
-interface ShopifyResponse {
-  success: boolean
-  error?: string
-  output: Record<string, unknown>
-}
-
 const LIST_OPERATIONS = [
   'shopify_list_products',
   'shopify_list_orders',
@@ -19,7 +13,7 @@ const LIST_OPERATIONS = [
   'shopify_list_collections',
 ] as const
 
-export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
+export const ShopifyBlock: BlockConfig = {
   type: 'shopify',
   name: 'Shopify',
   description: 'Manage products, orders, customers, and inventory in your Shopify store',

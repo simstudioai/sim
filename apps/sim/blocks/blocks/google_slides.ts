@@ -4,7 +4,6 @@ import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
 const PRESENTATION_FIELD = ['presentationId', 'manualPresentationId'] as const
 const SOURCE_PRESENTATION_FIELD = [
@@ -14,7 +13,7 @@ const SOURCE_PRESENTATION_FIELD = [
 const NEW_PRESENTATION_FOLDER_FIELD = ['folderSelector', 'folderId'] as const
 const COPY_FOLDER_FIELD = ['copyFolderSelector', 'manualCopyFolderId'] as const
 
-export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
+export const GoogleSlidesBlock: BlockConfig = {
   type: 'google_slides',
   name: 'Google Slides (Legacy)',
   description: 'Read, write, and create presentations',
@@ -3560,7 +3559,7 @@ const googleSlidesV2Inputs = GoogleSlidesBlock.inputs
     }
   : {}
 
-export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
+export const GoogleSlidesV2Block: BlockConfig = {
   ...GoogleSlidesBlock,
   sunset: undefined,
   type: 'google_slides_v2',

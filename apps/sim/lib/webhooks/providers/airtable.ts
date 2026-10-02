@@ -55,7 +55,6 @@ async function fetchAndProcessAirtablePayloads(
   // Logging handles all error logging
   let currentCursor: number | null = null
   let mightHaveMore = true
-  let payloadsFetched = 0
   let apiCallCount = 0
   // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
@@ -193,7 +192,6 @@ async function fetchAndProcessAirtablePayloads(
       const fullUrl = `${apiUrl}?${queryParams.toString()}`
 
       try {
-        const fetchStartTime = Date.now()
         const response = await fetch(fullUrl, {
           method: 'GET',
           headers: {
@@ -225,12 +223,10 @@ async function fetchAndProcessAirtablePayloads(
         const receivedPayloads = responseBody.payloads || []
 
         if (receivedPayloads.length > 0) {
-          payloadsFetched += receivedPayloads.length
           // Keep the raw payloads for later exposure to the workflow
           for (const p of receivedPayloads) {
             allPayloads.push(p)
           }
-          let changeCount = 0
           for (const payload of receivedPayloads) {
             if (payload.changedTablesById) {
               for (const [tableId, tableChangesUntyped] of Object.entries(
@@ -239,9 +235,6 @@ async function fetchAndProcessAirtablePayloads(
                 const tableChanges = tableChangesUntyped as AirtableTableChanges
 
                 if (tableChanges.createdRecordsById) {
-                  const createdCount = Object.keys(tableChanges.createdRecordsById).length
-                  changeCount += createdCount
-
                   for (const [recordId, recordData] of Object.entries(
                     tableChanges.createdRecordsById
                   )) {
@@ -267,9 +260,6 @@ async function fetchAndProcessAirtablePayloads(
 
                 // Handle updated records
                 if (tableChanges.changedRecordsById) {
-                  const updatedCount = Object.keys(tableChanges.changedRecordsById).length
-                  changeCount += updatedCount
-
                   for (const [recordId, recordData] of Object.entries(
                     tableChanges.changedRecordsById
                   )) {
@@ -440,7 +430,6 @@ async function fetchAndProcessAirtablePayloads(
 export const airtableHandler: WebhookProviderHandler = {
   async createSubscription({
     webhook: webhookRecord,
-    workflow,
     userId,
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
@@ -560,7 +549,6 @@ export const airtableHandler: WebhookProviderHandler = {
 
   async deleteSubscription({
     webhook: webhookRecord,
-    workflow,
     requestId,
     strict,
   }: DeleteSubscriptionContext): Promise<void> {

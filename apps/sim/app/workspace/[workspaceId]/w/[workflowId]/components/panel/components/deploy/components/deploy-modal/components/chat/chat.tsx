@@ -51,9 +51,6 @@ const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
 
 interface ChatDeployProps {
   workflowId: string
-  deploymentInfo: {
-    apiKey: string
-  } | null
   existingChat: ExistingChat | null
   isLoadingChat: boolean
   onRefetchChat: () => Promise<void>
@@ -94,7 +91,6 @@ const initialFormData: ChatFormData = {
 
 export function ChatDeploy({
   workflowId,
-  deploymentInfo,
   existingChat,
   isLoadingChat,
   onRefetchChat,

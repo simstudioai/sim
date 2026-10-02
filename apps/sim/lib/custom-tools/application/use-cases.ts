@@ -107,7 +107,7 @@ export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
   resolveContext: ({ input }: { input: ListAvailableCustomToolsInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
-  async execute({ principal, input, context }) {
+  async execute({ principal, context }) {
     const tools = await listCustomTools({
       userId: requireCustomToolUserId(principal),
       workspaceId: context.workspaceId,

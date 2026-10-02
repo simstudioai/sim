@@ -1,7 +1,6 @@
 import { AhrefsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { AhrefsResponse } from '@/tools/ahrefs/types'
 
 const COUNTRY_OPTIONS = [
   { label: 'United States', id: 'us' },
@@ -88,7 +87,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   generationType: 'timestamp' as const,
 }
 
-export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
+export const AhrefsBlock: BlockConfig = {
   type: 'ahrefs',
   name: 'Ahrefs',
   description: 'SEO analysis with Ahrefs',

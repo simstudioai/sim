@@ -25,7 +25,7 @@ export const readCopilotWorkflowRunOptions = defineAuthorizedWorkflowUseCase({
   async execute({ context }) {
     const state = await loadDraftWorkflow(context.workflowId)
     const merged = mergeSubblockStateWithValues(state.blocks)
-    const options = resolveTriggerRunOptions(merged, state.edges)
+    const options = resolveTriggerRunOptions(merged)
     return {
       options: options.map((option) => toPublicRunOption(option)),
     }

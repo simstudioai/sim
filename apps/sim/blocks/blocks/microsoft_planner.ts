@@ -2,7 +2,6 @@ import { MicrosoftPlannerIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { MicrosoftPlannerResponse } from '@/tools/microsoft_planner/types'
 
 interface MicrosoftPlannerBlockParams {
   oauthCredential: string
@@ -37,7 +36,7 @@ interface MicrosoftPlannerBlockParams {
 const PLAN_FIELD = ['planSelector', 'planId'] as const
 const READ_TASK_FIELD = ['taskSelector', 'manualReadTaskId'] as const
 
-export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
+export const MicrosoftPlannerBlock: BlockConfig = {
   type: 'microsoft_planner',
   name: 'Microsoft Planner',
   description: 'Manage tasks, plans, and buckets in Microsoft Planner',

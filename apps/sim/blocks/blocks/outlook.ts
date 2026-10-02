@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { OutlookResponse } from '@/tools/outlook/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -16,7 +15,7 @@ const MOVE_DESTINATION_FIELD = ['destinationFolder', 'manualDestinationFolder'] 
 const COPY_DESTINATION_FIELD = ['copyDestinationFolder', 'manualCopyDestinationFolder'] as const
 const CALENDAR_FIELD = ['calendarSelector', 'manualCalendarId'] as const
 
-export const OutlookBlock: BlockConfig<OutlookResponse> = {
+export const OutlookBlock: BlockConfig = {
   type: 'outlook',
   name: 'Outlook',
   description: 'Send, read, search, reply, organize, and manage Outlook email and calendar',

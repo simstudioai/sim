@@ -14,10 +14,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
 } from '@sim/testing/mocks/execution-preprocessing.mock'
-import {
-  largeValueMetadataMock,
-  largeValueMetadataMockFns,
-} from '@sim/testing/mocks/large-value-metadata.mock'
+import { largeValueMetadataMock } from '@sim/testing/mocks/large-value-metadata.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
@@ -74,7 +71,6 @@ import type { PausePoint, SerializedSnapshot } from '@/executor/types'
 
 const { mockPreprocessExecution } = executionPreprocessingMockFns
 const { mockReleaseExecutionSlot } = billingUsageReservationMockFns
-const { mockReplaceLargeValueReferenceKeysWithClient } = largeValueMetadataMockFns
 
 const humanInTheLoopLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'HumanInTheLoopManager'

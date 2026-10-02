@@ -4391,7 +4391,7 @@ async function generateBlockDoc(blockPath: string) {
       const oauthCredential = oauthServiceId
         ? { serviceId: oauthServiceId, environmentBound: isEnvironmentBoundCredential(fileContent) }
         : undefined
-      const markdown = await generateMarkdownForBlock(blockConfig, displayType, oauthCredential)
+      const markdown = await generateMarkdownForBlock(blockConfig, oauthCredential)
 
       let finalContent = markdown
       if (Object.keys(manualSections).length > 0) {
@@ -4414,7 +4414,6 @@ async function generateBlockDoc(blockPath: string) {
 
 async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
-  displayType?: string,
   oauthCredential?: OAuthCredentialSource
 ): Promise<string> {
   const {
@@ -4427,52 +4426,6 @@ async function generateMarkdownForBlock(
     tools = { access: [] },
     userSettableParamIds = null,
   } = blockConfig
-
-  let outputsSection = ''
-
-  if (outputs && Object.keys(outputs).length > 0) {
-    outputsSection = '## Outputs\n\n'
-
-    outputsSection += '| Output | Type | Description |\n'
-    outputsSection += '| ------ | ---- | ----------- |\n'
-
-    for (const outputKey in outputs) {
-      const output = outputs[outputKey]
-
-      const escapedDescription = output.description
-        ? escapeMdxCell(output.description)
-        : `Output from ${outputKey}`
-
-      if (typeof output.type === 'string') {
-        outputsSection += `| \`${outputKey}\` | ${output.type} | ${escapedDescription} |\n`
-      } else if (output.type && typeof output.type === 'object') {
-        outputsSection += `| \`${outputKey}\` | object | ${escapedDescription} |\n`
-
-        for (const propName in output.type) {
-          const propType = output.type[propName]
-          const commentMatch =
-            propName && output.type[propName]._comment
-              ? output.type[propName]._comment
-              : `${propName} of the ${outputKey}`
-
-          outputsSection += `| ↳ \`${propName}\` | ${propType} | ${commentMatch} |\n`
-        }
-      } else if (output.properties) {
-        outputsSection += `| \`${outputKey}\` | object | ${escapedDescription} |\n`
-
-        for (const propName in output.properties) {
-          const prop = output.properties[propName]
-          const escapedPropertyDescription = prop.description
-            ? escapeMdxCell(prop.description)
-            : `The ${propName} of the ${outputKey}`
-
-          outputsSection += `| ↳ \`${propName}\` | ${prop.type} | ${escapedPropertyDescription} |\n`
-        }
-      }
-    }
-  } else {
-    outputsSection = 'This block does not produce any outputs.'
-  }
 
   let toolsSection = ''
   if (tools.access?.length) {
@@ -4928,54 +4881,6 @@ export function escapeMdxCell(text: string): string {
       ? escapedCharacter.slice(1)
       : escapedCharacter
   )
-}
-
-/**
- * Resolve a module-level `const varName = { ... }` declaration.
- * Handles nested spreads of other const variables (but not property-access values).
- * Used to expand variable spreads inside builder function return bodies.
- */
-function resolveConstVariable(
-  varName: string,
-  primaryContent: string,
-  utilsContent: string,
-  depth = 0
-): Record<string, any> {
-  if (depth > 8) return {}
-
-  const varRegex = new RegExp(`(?<![.\\w])const\\s+${varName}\\s*(?::[^=]+)?=\\s*\\{`)
-
-  for (const content of [primaryContent, utilsContent]) {
-    const varMatch = varRegex.exec(content)
-    if (!varMatch) continue
-
-    const openBrace = content.indexOf('{', varMatch.index + varMatch[0].length - 1)
-    if (openBrace === -1) continue
-
-    const closeBrace = findMatchingClose(content, openBrace)
-    if (closeBrace === -1) continue
-
-    const varBody = content.substring(openBrace + 1, closeBrace - 1).trim()
-    const result: Record<string, any> = {}
-
-    // Resolve nested variable spreads within this const (no parens = variable reference)
-    const nestedSpreadRegex = /\.\.\.\s*([a-zA-Z_]\w*)\b(?!\s*\()/g
-    let nestedMatch: RegExpExecArray | null
-    while ((nestedMatch = nestedSpreadRegex.exec(varBody)) !== null) {
-      const nested = resolveConstVariable(nestedMatch[1], primaryContent, utilsContent, depth + 1)
-      Object.assign(result, nested)
-    }
-
-    // Parse any inline `field: { type, description }` definitions
-    // (strip spread lines first; property-access values like `foo: bar.baz` are skipped by parser)
-    const bodyWithoutVarSpreads = varBody.replace(/\.\.\.\s*\w+\b(?!\s*\()\s*,?\s*/g, '')
-    const inlineOutputs = parseToolOutputsField(bodyWithoutVarSpreads)
-    Object.assign(result, inlineOutputs)
-
-    return result
-  }
-
-  return {}
 }
 
 /** Keys a `TriggerOutput` reserves for itself; everything else is a nested property. */

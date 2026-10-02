@@ -480,8 +480,6 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
   { message: 'Filter must not be empty' }
 )
 
-const filterSchema = domainObjectSchema<Filter>()
-
 // v2 predicate grammar
 
 /**

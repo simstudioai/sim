@@ -94,13 +94,6 @@ const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 
-const HTTP_PRINCIPAL_KINDS = [
-  'session',
-  'personal_api_key',
-  'oauth_access_token',
-  'workspace_api_key',
-] as const
-
 const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = [
   'session',
   'personal_api_key',

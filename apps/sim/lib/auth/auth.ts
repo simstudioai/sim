@@ -883,7 +883,7 @@ export const auth = betterAuth({
       ...additionalFields,
       id,
     }),
-    sendResetPassword: async ({ user, url, token }, request) => {
+    sendResetPassword: async ({ user, url }) => {
       const username = user.name || ''
 
       const html = await renderPasswordResetEmail(username, url)
@@ -1250,7 +1250,7 @@ export const auth = betterAuth({
             )
           }
 
-          const html = await renderOTPEmail(data.otp, data.email, data.type)
+          const html = await renderOTPEmail(data.otp, data.type)
 
           const result = await sendEmail({
             to: data.email,

@@ -37,7 +37,7 @@ export const kalshiGetExchangeAnnouncementsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_exchange_announcements')
+      handleKalshiError(data, 'get_exchange_announcements')
     }
 
     return {
@@ -98,7 +98,7 @@ export const kalshiGetExchangeAnnouncementsV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_exchange_announcements_v2')
+      handleKalshiError(data, 'get_exchange_announcements_v2')
     }
 
     const announcements = (data.announcements || []).map((a: Record<string, unknown>) => ({

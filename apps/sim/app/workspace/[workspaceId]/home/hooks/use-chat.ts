@@ -692,7 +692,6 @@ export function useChat(
    */
   const [activeResourceId, setActiveResourceId] =
     options?.activeResourceState ?? internalActiveResourceState
-  const [genericResourceData, setGenericResourceData] = useState<GenericResourceData | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   const revealedSimKeysRef = useRef<RevealedSimKeysByMessage>(new Map())
   onResourceEventRef.current = options?.onResourceEvent
@@ -4971,7 +4970,7 @@ export function useChat(
     editingQueuedId,
     dispatchingHeadId,
     previewSession,
-    genericResourceData,
+    genericResourceData: null,
     getCurrentRequestId,
   }
 }

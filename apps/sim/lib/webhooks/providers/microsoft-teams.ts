@@ -122,17 +122,14 @@ async function fetchWithDNSPinning(
  */
 async function formatTeamsGraphNotification(
   body: Record<string, unknown>,
-  foundWebhook: Record<string, unknown>,
-  foundWorkflow: { id: string; userId: string }
+  foundWebhook: Record<string, unknown>
 ): Promise<unknown> {
   const notification = (body.value as unknown[])?.[0] as Record<string, unknown> | undefined
   if (!notification) {
     logger.warn('Received empty Teams notification body')
     return null
   }
-  const changeType = (notification.changeType as string) || 'created'
   const resource = (notification.resource as string) || ''
-  const subscriptionId = (notification.subscriptionId as string) || ''
 
   let chatId: string | null = null
   let messageId: string | null = null
@@ -593,10 +590,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
   async createSubscription({
     webhook,
-    workflow,
-    userId,
     requestId,
-    request,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const config = getProviderConfig(webhook)
 
@@ -736,7 +730,6 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
   async deleteSubscription({
     webhook,
-    workflow,
     requestId,
     strict,
   }: DeleteSubscriptionContext): Promise<void> {
@@ -778,7 +771,8 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
           `[${requestId}] Successfully deleted Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`
         )
       } else {
-        const errorBody = await res.text()
+        // Drain the unread body so the connection is released.
+        await res.text()
         logger.warn(
           `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`
         )
@@ -793,22 +787,16 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     }
   },
 
-  async formatInput({
-    body,
-    webhook,
-    workflow,
-    requestId,
-  }: FormatInputContext): Promise<FormatInputResult> {
+  async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const value = b?.value as unknown[] | undefined
 
     if (value && Array.isArray(value) && value.length > 0) {
-      const result = await formatTeamsGraphNotification(b, webhook, workflow)
+      const result = await formatTeamsGraphNotification(b, webhook)
       return { input: result }
     }
 
     const messageText = (b?.text as string) || ''
-    const messageId = (b?.id as string) || ''
     const timestamp = (b?.timestamp as string) || (b?.localTimestamp as string) || ''
     const from = (b?.from || {}) as Record<string, unknown>
     const conversation = (b?.conversation || {}) as Record<string, unknown>

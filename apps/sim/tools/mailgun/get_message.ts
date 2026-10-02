@@ -44,7 +44,7 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
     }),
   },
 
-  transformResponse: async (response, params): Promise<GetMessageResult> => {
+  transformResponse: async (response): Promise<GetMessageResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to get message')

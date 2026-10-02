@@ -411,7 +411,7 @@ describe('Nested parallel expansion + edge resolution', () => {
       const p3Config = dag.parallelConfigs.get(p3Id)!
       const leafId = p3Config.nodes![0]
 
-      const p3Result = expander.expandParallel(dag, p3Id, 2)
+      expander.expandParallel(dag, p3Id, 2)
 
       // Each expansion creates branch nodes — verify they're unique
       const branch0 = buildBranchNodeId(leafId, 0)

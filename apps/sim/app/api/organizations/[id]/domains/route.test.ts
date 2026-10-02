@@ -1,7 +1,7 @@
 import { member, ssoDomain } from '@sim/db/schema'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createRouteContext } from '@sim/testing/helpers/http'
-import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import {
   billingSubscriptionMock,
@@ -21,7 +21,6 @@ import { GET, POST } from '@/app/api/organizations/[id]/domains/route'
 
 const mockGetSession = authMockFns.mockGetSession
 const mockIsEnterprise = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
-const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const ORG_ID = 'org-1'
 const routeContext = createRouteContext({ id: ORG_ID })

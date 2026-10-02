@@ -423,12 +423,7 @@ export function useWorkflowExecution() {
     }))
   )
   const hasHydrated = useTerminalConsoleStore((s) => s._hasHydrated)
-  const { getVariablesByWorkflowId, variables } = useVariablesStore(
-    useShallow((s) => ({
-      getVariablesByWorkflowId: s.getVariablesByWorkflowId,
-      variables: s.variables,
-    }))
-  )
+  const getVariablesByWorkflowId = useVariablesStore((s) => s.getVariablesByWorkflowId)
   const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } = useExecutionStore(
     useShallow((state) => {
       const exec = activeWorkflowId
@@ -1720,18 +1715,6 @@ export function useWorkflowExecution() {
       finishOwnedExecution(activeWorkflowId, options?.persistenceExecution)
       setIsDebugging(activeWorkflowId, false)
       setActiveBlocks(activeWorkflowId, new Set())
-    }
-
-    let notificationMessage = WORKFLOW_EXECUTION_FAILURE_MESSAGE
-    const requestError =
-      isRecordLike(error) && isRecordLike(error.request) ? error.request : undefined
-    if (requestError && sanitizeMessage(requestError.url)) {
-      notificationMessage += `: Request to ${(requestError.url as string).trim()} failed`
-      if (isRecordLike(error) && typeof error.status === 'number') {
-        notificationMessage += ` (Status: ${error.status})`
-      }
-    } else if (sanitizeMessage(errorResult.error)) {
-      notificationMessage += `: ${errorResult.error}`
     }
 
     return errorResult

@@ -1,8 +1,7 @@
 import { IcypeasIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { IcypeasResponse } from '@/tools/icypeas/types'
 
-export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
+export const IcypeasBlock: BlockConfig = {
   type: 'icypeas',
   name: 'Icypeas',
   description: 'Find and verify professional email addresses',

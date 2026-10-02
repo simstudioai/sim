@@ -28,26 +28,6 @@ const fetchMock = vi.fn()
 const CALLBACK_URL = 'https://app.example.com/api/webhooks/trigger/bitbucket-path'
 const CANDIDATE_DESCRIPTION = 'Sim workflow trigger (bitbucket_push) [sim:webhook-1]'
 
-const BASE_OUTPUT_KEYS = [
-  'actor',
-  'attemptNumber',
-  'eventType',
-  'hookUuid',
-  'payload',
-  'repository',
-  'requestUuid',
-]
-
-const PULL_REQUEST_OUTPUT_KEYS = [
-  ...BASE_OUTPUT_KEYS,
-  'destinationBranch',
-  'pullRequest',
-  'pullRequestId',
-  'pullRequestState',
-  'pullRequestTitle',
-  'sourceBranch',
-].sort()
-
 function requestWithHeaders(headers: Record<string, string>): NextRequest {
   return new NextRequest('http://localhost/test', { headers })
 }
@@ -259,14 +239,6 @@ describe('Bitbucket webhook provider', () => {
         )
       }
     )
-
-    const pullRequest = {
-      id: 42,
-      title: 'Add Bitbucket triggers',
-      state: 'OPEN',
-      source: { branch: { name: 'feature' } },
-      destination: { branch: { name: 'staging' } },
-    }
   })
 
   describe('createSubscription', () => {

@@ -862,10 +862,7 @@ export function Editor() {
 
                 {/* Connections Content - Always visible */}
                 <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
-                  <ConnectionBlocks
-                    connections={incomingConnections}
-                    currentBlockId={currentBlock.id}
-                  />
+                  <ConnectionBlocks connections={incomingConnections} />
                 </div>
               </div>
             )}

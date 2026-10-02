@@ -1,12 +1,11 @@
 import { PosthogIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { PostHogResponse } from '@/tools/posthog/types'
 
 /** Cohort membership definition, whichever of the three forms the user filled. */
 const COHORT_DEFINITION_FIELD = ['filters', 'query', 'groups'] as const
 
-export const PostHogBlock: BlockConfig<PostHogResponse> = {
+export const PostHogBlock: BlockConfig = {
   type: 'posthog',
   name: 'PostHog',
   description: 'Product analytics and feature management',

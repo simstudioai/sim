@@ -471,7 +471,7 @@ export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: DeleteMcpServerInput }) =>
     resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
-  async execute({ principal, input, context }) {
+  async execute({ principal, context }) {
     if (context.server.managedConnectorId) {
       throw new OrchestrationError(
         'conflict',

@@ -390,38 +390,6 @@ export type SubmitCopilotFeedbackResult = ContractJsonResponse<typeof submitCopi
 
 const successFlagSchema = z.object({ success: z.literal(true) })
 
-const copilotChatGetChatSchema = z
-  .object({
-    id: z.string(),
-    title: z.string().nullable(),
-    model: z.string().nullable(),
-    messages: z.array(z.unknown()),
-    messageCount: z.number(),
-    config: z.unknown().nullable(),
-    activeStreamId: z.string().nullable().optional(),
-    resources: z.array(z.unknown()).optional(),
-    createdAt: z.string().nullable(),
-    updatedAt: z.string().nullable(),
-    streamSnapshot: z
-      .object({
-        events: z.array(z.unknown()),
-        previewSessions: z.array(z.unknown()),
-        status: z.string(),
-      })
-      .optional(),
-  })
-  .passthrough()
-
-const copilotChatGetListItemSchema = z
-  .object({
-    id: z.string(),
-    title: z.string().nullable(),
-    model: z.string().nullable(),
-    createdAt: z.string().nullable(),
-    updatedAt: z.string().nullable(),
-  })
-  .passthrough()
-
 export const validateCopilotApiKeyContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/api-keys/validate',

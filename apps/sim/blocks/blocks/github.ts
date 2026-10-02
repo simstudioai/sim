@@ -3,7 +3,6 @@ import { GithubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
-import type { GitHubResponse } from '@/tools/github/types'
 import { getTrigger } from '@/triggers'
 
 /** Reviewers can be named individually or by team slug; either identifies the request. */
@@ -47,7 +46,7 @@ const GITHUB_PARAM_ALIASES: ReadonlyArray<{
   { from: 'gist_public', to: 'public', operations: ['github_create_gist'], toBoolean: true },
 ]
 
-export const GitHubBlock: BlockConfig<GitHubResponse> = {
+export const GitHubBlock: BlockConfig = {
   type: 'github',
   name: 'GitHub (Legacy)',
   description: 'Interact with GitHub or trigger workflows from GitHub events',
@@ -2435,7 +2434,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
 }
 
-export const GitHubV2Block: BlockConfig<GitHubResponse> = {
+export const GitHubV2Block: BlockConfig = {
   ...GitHubBlock,
   sunset: undefined,
   type: 'github_v2',

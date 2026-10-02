@@ -320,8 +320,6 @@ const SidebarNavItem = memo(function SidebarNavItem({
 /** Event name for sidebar scroll operations - centralized for consistency */
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
 
-const HIDDEN_STYLE = { display: 'none' } as const
-
 /**
  * Opts a control out of the desktop shell's window-drag region. The header row is
  * draggable chrome, so anything clickable inside it has to say so or the click is
@@ -401,7 +399,6 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
   ])
 
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
-  const isOnWorkflowPage = !!workflowId
 
   const isMac = isMacPlatform()
   const showCollapsedTooltips = isCollapsed

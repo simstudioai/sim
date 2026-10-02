@@ -129,7 +129,6 @@ async function resolveStoredFileReference(
 export async function processExecutionFile(
   fileInput: unknown,
   executionContext: { workspaceId: string; workflowId: string; executionId: string },
-  requestId: string,
   userId?: string,
   storedFileScope: StoredFileReferenceScope = 'execution'
 ): Promise<UserFile | null> {
@@ -262,13 +261,7 @@ export async function processExecutionFiles(
 
   for (const file of files) {
     try {
-      const userFile = await processExecutionFile(
-        file,
-        fullContext,
-        requestId,
-        userId,
-        storedFileScope
-      )
+      const userFile = await processExecutionFile(file, fullContext, userId, storedFileScope)
 
       if (userFile) {
         uploadedFiles.push(userFile)

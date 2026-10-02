@@ -1,9 +1,8 @@
 import { GongIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { GongResponse } from '@/tools/gong/types'
 import { getTrigger } from '@/triggers'
 
-export const GongBlock: BlockConfig<GongResponse> = {
+export const GongBlock: BlockConfig = {
   type: 'gong',
   name: 'Gong',
   description: 'Revenue intelligence and conversation analytics',

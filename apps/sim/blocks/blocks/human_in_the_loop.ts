@@ -1,8 +1,7 @@
 import { HumanInTheLoopIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { ResponseBlockOutput } from '@/tools/response/types'
 
-export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
+export const HumanInTheLoopBlock: BlockConfig = {
   type: 'human_in_the_loop',
   name: 'Human',
   hideFromToolbar: true,
@@ -117,7 +116,7 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
  * Everything else — sub-blocks, outputs, pause/resume, the resume page — is identical,
  * so it is inherited rather than restated.
  */
-export const HumanInTheLoopV2Block: BlockConfig<ResponseBlockOutput> = {
+export const HumanInTheLoopV2Block: BlockConfig = {
   ...HumanInTheLoopBlock,
   type: 'human_in_the_loop_v2',
   hideFromToolbar: false,

@@ -1,7 +1,6 @@
 import { CalComIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
 const EVENT_TYPE_FIELD = ['eventTypeSelector', 'eventTypeId'] as const
@@ -10,7 +9,7 @@ const EVENT_TYPE_PARAM_FIELD = ['eventTypeParamSelector', 'eventTypeIdParam'] as
 const EVENT_TYPE_SCHEDULE_FIELD = ['eventTypeScheduleSelector', 'eventTypeScheduleId'] as const
 const SCHEDULE_FIELD = ['scheduleSelector', 'scheduleId'] as const
 
-export const CalComBlock: BlockConfig<ToolResponse> = {
+export const CalComBlock: BlockConfig = {
   type: 'calcom',
   name: 'Cal.com',
   description: 'Manage Cal.com bookings, event types, schedules, and availability',

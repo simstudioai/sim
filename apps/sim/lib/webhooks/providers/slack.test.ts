@@ -472,11 +472,6 @@ describe('shouldSkipSlackTriggerEvent - interactions', () => {
     user: { id: 'U1' },
     actions: [{ action_id: 'approve_btn', value: 'v' }],
   }
-  const viewSubmission = {
-    type: 'view_submission',
-    user: { id: 'U1' },
-    view: { callback_id: 'create_ticket' },
-  }
 
   it('drops an interaction when the configured eventType is a different event', () => {
     expect(interactionFires({ eventType: 'message' }, blockActions)).toBe(false)

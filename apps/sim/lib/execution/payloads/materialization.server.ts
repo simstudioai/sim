@@ -343,7 +343,7 @@ export async function assertUserFileContentAccess(
     context === 'knowledge-base' && options.principal
       ? createKnowledgeAccessProvider(options.principal, { workspaceId: options.workspaceId })
       : undefined
-  const hasAccess = await verifyFileAccess(file.key, options.userId, undefined, context, false, {
+  const hasAccess = await verifyFileAccess(file.key, options.userId, undefined, context, {
     knowledgeAccess,
   })
   if (!hasAccess) {

@@ -142,7 +142,7 @@ describe('verifyKBFileWriteAccess (binding-only delete authorization)', () => {
 
 describe('public-context access (profile-pictures / og-images / workspace-logos)', () => {
   function write(cloudKey: string, context: 'profile-pictures' | 'og-images' | 'workspace-logos') {
-    return verifyFileAccess(cloudKey, USER_ID, undefined, context, false, { requireWrite: true })
+    return verifyFileAccess(cloudKey, USER_ID, undefined, context, { requireWrite: true })
   }
 
   it('allows organization logo reads and denies generic deletes even for the uploader', async () => {
@@ -152,10 +152,10 @@ describe('public-context access (profile-pictures / og-images / workspace-logos)
       true
     )
     await expect(
-      verifyFileAccess(key, USER_ID, undefined, 'organization-logos', false, { requireWrite: true })
+      verifyFileAccess(key, USER_ID, undefined, 'organization-logos', { requireWrite: true })
     ).resolves.toBe(false)
     await expect(
-      verifyFileAccess(key, USER_ID, undefined, 'general', false, { requireWrite: true })
+      verifyFileAccess(key, USER_ID, undefined, 'general', { requireWrite: true })
     ).resolves.toBe(false)
     expect(mockGetFileMetadata).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
@@ -203,7 +203,7 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
   })
 
   function read(cloudKey: string, context: 'workspace' | 'mothership') {
-    return verifyFileAccess(cloudKey, USER_ID, undefined, context, false)
+    return verifyFileAccess(cloudKey, USER_ID, undefined, context)
   }
 
   interface BoundRow {
@@ -315,7 +315,7 @@ describe('organization connector cache access', () => {
     'denies the uploader a raw download even with a forged %s context',
     async (context) => {
       await expect(
-        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, context, false, { knowledgeAccess: 'user' })
+        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, context, { knowledgeAccess: 'user' })
       ).resolves.toBe(false)
       expect(mockGetFileMetadata).not.toHaveBeenCalled()
       expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
@@ -325,7 +325,7 @@ describe('organization connector cache access', () => {
   it('denies system reads after the cache loses its active document reference', async () => {
     dbChainMockFns.limit.mockResolvedValue([])
     await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', {
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
       })
     ).resolves.toBe(false)
@@ -338,7 +338,7 @@ describe('organization connector cache access', () => {
       deletedAt: null,
     })
     await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', {
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
       })
     ).resolves.toBe(false)
@@ -347,7 +347,7 @@ describe('organization connector cache access', () => {
 
   it('does not let a raw download endpoint delete organization caches', async () => {
     await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'general', false, {
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'general', {
         requireWrite: true,
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
       })
@@ -378,7 +378,7 @@ describe('KB file live source authorization', () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
       queueTableRows(schemaMock.document, allowed ? [{ id: 'doc-1' }] : [])
       await expect(
-        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', {
           knowledgeAccess: access,
         })
       ).resolves.toBe(allowed)
@@ -415,7 +415,7 @@ describe('KB file live source authorization', () => {
     mockGetUserEntityPermissions.mockResolvedValue(null)
     const get = vi.fn()
     await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', {
         knowledgeAccess: { get, getForConnectors: vi.fn(), getForDocuments: vi.fn() },
       })
     ).resolves.toBe(false)

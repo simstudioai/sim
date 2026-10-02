@@ -94,7 +94,6 @@ interface UseFileAttachmentsProps {
   organizationId?: string
   requestMode?: ChatRequestMode
   disabled?: boolean
-  isLoading?: boolean
   initialAttachments?: FileAttachmentForApi[]
 }
 
@@ -106,7 +105,7 @@ interface UseFileAttachmentsProps {
  * @returns File attachment state and operations
  */
 export function useFileAttachments(props: UseFileAttachmentsProps) {
-  const { userId, workspaceId, organizationId, requestMode, disabled, isLoading } = props
+  const { userId, workspaceId, organizationId, requestMode, disabled } = props
   const imagesOnly = Boolean(organizationId) && requestMode !== 'agent' && requestMode !== 'plan'
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() =>

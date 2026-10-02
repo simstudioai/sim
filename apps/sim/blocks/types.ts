@@ -596,7 +596,7 @@ export type CanvasSentenceClause =
 /** An ordered set of clauses forming one card summary sentence. */
 export type CanvasSentence = readonly CanvasSentenceClause[]
 
-export interface BlockConfig<T extends ToolResponse = ToolResponse> {
+export interface BlockConfig {
   type: string
   name: string
   description: string

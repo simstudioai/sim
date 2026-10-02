@@ -1,7 +1,6 @@
 import { DagsterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { DagsterResponse } from '@/tools/dagster/types'
 
 /** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
 function toFiniteNumber(value: unknown): number | undefined {
@@ -10,7 +9,7 @@ function toFiniteNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-export const DagsterBlock: BlockConfig<DagsterResponse> = {
+export const DagsterBlock: BlockConfig = {
   type: 'dagster',
   name: 'Dagster',
   description: 'Orchestrate data pipelines and manage job runs with Dagster',

@@ -473,7 +473,7 @@ export function buildKalshiAuthHeaders(
   }
 }
 
-export function handleKalshiError(data: any, status: number, operation: string): never {
+export function handleKalshiError(data: any, operation: string): never {
   const errorMessage =
     data.error?.message || data.error || data.message || data.detail || 'Unknown error'
   throw new Error(`Kalshi ${operation} failed: ${errorMessage}`)

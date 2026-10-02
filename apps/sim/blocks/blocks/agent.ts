@@ -29,7 +29,6 @@ import {
   isAutoModel,
   supportsTemperature,
 } from '@/providers/models'
-import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
 
@@ -44,25 +43,6 @@ const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 const EVALUATION_MODELS = getEvaluationModels()
 const MODELS_WITHOUT_CHAT_CONTROLS = [...MODELS_WITH_DEEP_RESEARCH, ...EVALUATION_MODELS]
-
-interface AgentResponse extends ToolResponse {
-  output: {
-    content: string
-    model: string
-    tokens?: {
-      prompt?: number
-      completion?: number
-      total?: number
-    }
-    toolCalls?: {
-      list: Array<{
-        name: string
-        arguments: Record<string, any>
-      }>
-      count: number
-    }
-  }
-}
 
 // Helper function to get the tool ID from a block type
 const getToolIdFromBlock = (blockType: string): string | undefined => {
@@ -79,7 +59,7 @@ const getToolIdFromBlock = (blockType: string): string | undefined => {
   }
 }
 
-export const AgentBlock: BlockConfig<AgentResponse> = {
+export const AgentBlock: BlockConfig = {
   type: 'agent',
   name: 'Agent',
   description: 'Build an agent',

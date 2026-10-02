@@ -83,8 +83,6 @@ import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
 
-const WORKSPACE_ACCESS: ConnectorAccessSelection = { accessMode: 'workspace' }
-
 interface AddConnectorModalProps {
   scope?: ResourceScope
   open: boolean

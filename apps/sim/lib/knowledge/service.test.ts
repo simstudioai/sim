@@ -23,8 +23,6 @@ import {
 } from '@/lib/knowledge/service'
 
 const mockApplyStorageUsageDeltasInTx = billingStorageMockFns.mockApplyStorageUsageDeltasInTx
-const mockMaybeNotifyStorageLimitForBillingContext =
-  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
 const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 /**

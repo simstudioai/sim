@@ -810,10 +810,7 @@ export async function updateColumnType(
       }
       const columnKey = getColumnId(column)
 
-      // Options the column will carry after the change — a `select` value is only
-      // compatible if it resolves against this set.
       const isSelectType = data.newType === 'select'
-      const targetOptions = data.options ?? column.options ?? []
       const targetMultiple = data.multiple ?? column.multiple
       // Leaving `select` behind: stored cells hold option ids, which mean nothing
       // once the column is text/number/etc. Check compatibility against the option

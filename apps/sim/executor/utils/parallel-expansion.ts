@@ -139,7 +139,7 @@ export class ParallelExpander {
       branchIndexOffset
     )
 
-    this.wireSentinelEdges(dag, parallelId, entryNodes, terminalNodes, branchCount)
+    this.wireSentinelEdges(dag, parallelId, entryNodes, terminalNodes)
 
     logger.info('Parallel expanded', {
       parallelId,
@@ -601,8 +601,7 @@ export class ParallelExpander {
     dag: DAG,
     parallelId: string,
     entryNodes: string[],
-    terminalNodes: string[],
-    branchCount: number
+    terminalNodes: string[]
   ): void {
     const sentinelStartId = buildParallelSentinelStartId(parallelId)
     const sentinelEndId = buildParallelSentinelEndId(parallelId)

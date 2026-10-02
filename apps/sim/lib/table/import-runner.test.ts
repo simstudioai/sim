@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
-import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import {
   tableJobsServiceMock,
   tableJobsServiceMockFns,
@@ -42,7 +42,6 @@ const mockUpdateJobProgress = tableJobsServiceMockFns.mockUpdateJobProgressInWor
 const mockMarkJobReady = tableJobsServiceMockFns.mockMarkJobReadyInWorkspace
 const mockMarkJobFailed = tableJobsServiceMockFns.mockMarkJobFailedInWorkspace
 const mockRecordImportRejections = tableJobsServiceMockFns.mockRecordImportRejections
-const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
 const mockDeleteFile = storageServiceMockFns.mockDeleteFile
 const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
 const mockHeadObject = storageServiceMockFns.mockHeadObject

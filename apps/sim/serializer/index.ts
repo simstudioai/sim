@@ -173,10 +173,6 @@ export class Serializer {
     const safeLoops = Object.keys(canonicalLoops).length > 0 ? canonicalLoops : loops || {}
     const safeParallels =
       Object.keys(canonicalParallels).length > 0 ? canonicalParallels : parallels || {}
-    if (validateRequired) {
-      this.validateSubflowsBeforeExecution(blocks, safeLoops, safeParallels)
-    }
-
     // A custom block whose definition was deleted (or is out of scope) no longer
     // resolves via `getBlock`. Treat it as a removed block — drop it and any edges
     // touching it — so the rest of the workflow still serializes and runs, instead
@@ -210,18 +206,6 @@ export class Serializer {
       loops: safeLoops,
       parallels: safeParallels,
     }
-  }
-
-  /**
-   * Validate loop and parallel subflows for required inputs when running in "each/collection" modes
-   */
-  private validateSubflowsBeforeExecution(
-    blocks: Record<string, BlockState>,
-    loops: Record<string, Loop>,
-    parallels: Record<string, Parallel>
-  ): void {
-    // Note: Empty collections in forEach loops and parallel collection mode are handled gracefully
-    // at runtime - the loop/parallel will simply be skipped. No build-time validation needed.
   }
 
   private serializeBlock(

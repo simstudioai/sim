@@ -1,7 +1,6 @@
 import { DatadogIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DatadogResponse } from '@/tools/datadog/types'
 
 /**
  * Normalizes a `switch` sub-block value. Switches serialize their state as the
@@ -32,7 +31,7 @@ function datadogNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-export const DatadogBlock: BlockConfig<DatadogResponse> = {
+export const DatadogBlock: BlockConfig = {
   type: 'datadog',
   name: 'Datadog',
   description: 'Monitor infrastructure, applications, and logs with Datadog',

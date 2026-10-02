@@ -1,7 +1,6 @@
 import { AzureDataExplorerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { AzureDataExplorerTableResponse } from '@/tools/azure_data_explorer/types'
 
 /** Every operation except the cluster-level database listing runs in a database. */
 const DATABASE_SCOPED_OPERATIONS = [
@@ -108,7 +107,7 @@ function toBoolean(value: unknown): true | undefined {
   return value === true || value === 'true' ? true : undefined
 }
 
-export const AzureDataExplorerBlock: BlockConfig<AzureDataExplorerTableResponse> = {
+export const AzureDataExplorerBlock: BlockConfig = {
   type: 'azure_data_explorer',
   name: 'Azure Data Explorer',
   description: 'Query and manage Azure Data Explorer (Kusto) clusters with KQL',

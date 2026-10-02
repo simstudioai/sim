@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -16,7 +15,7 @@ const SPREADSHEET_FIELD = ['spreadsheetId', 'manualSpreadsheetId'] as const
 /** Canonical basic/advanced pair for the sheet tab, on the v2 block only. */
 const SHEET_FIELD = ['sheetName', 'manualSheetName'] as const
 
-export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
+export const GoogleSheetsBlock: BlockConfig = {
   type: 'google_sheets',
   name: 'Google Sheets (Legacy)',
   description: 'Read, write, and update data',
@@ -320,7 +319,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   },
 }
 
-export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
+export const GoogleSheetsV2Block: BlockConfig = {
   type: 'google_sheets_v2',
   name: 'Google Sheets',
   description: 'Read, write, and update data with sheet selection',
