@@ -6,7 +6,7 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
 
 - **Package manager**: `bun` and `bunx`, never `npm` and `npx`.
 - **Logging**: `createLogger` from `@sim/logger`; `logger.info` / `logger.warn` / `logger.error`, never `console.log`. Inside `withRouteHandler` the logger already carries the request ID — no manual `withMetadata({ requestId })`.
-- **Comments**: name things so the code explains itself. TSDoc documents exported APIs and non-obvious modules. An inline `//` is only for a terse, non-obvious *why*, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, `utils-lint-allow`, …). A comment never narrates what the next line does, restates a name or type, or records change history ("moved from X", "previously", "now uses Y") — history belongs in the commit message. No `====` separators. The `/you-might-not-need-a-comment` skill applies this to a diff.
+- **Comments**: name things so the code explains itself. TSDoc documents exported APIs and non-obvious modules. An inline `//` is only for a terse, non-obvious *why*, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, `utils-lint-allow`, …). History belongs in the commit message. No `====` separators or commented-out code (`check:comment-hygiene` enforces this). The `/you-might-not-need-a-comment` skill applies this to a diff.
 - **ID generation**: `generateId()` (UUID v4, the default) or `generateShortId(size?)` (URL-safe, 21 chars by default) from `@sim/utils/id` — never `crypto.randomUUID()`, `nanoid`, or `uuid`. Both use `crypto.getRandomValues()`, so they also work in non-secure (HTTP) browsers.
 - **Common utilities**: use the shared helpers from `@sim/utils` instead of inline implementations (`check:utils` bans most of the inline forms below):
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
@@ -86,7 +86,7 @@ The `'use client'` server boundary, the app/worker runtime env split, and featur
 - **Imports**: absolute (`@/...`) only, never relative (a barrel `index.ts` re-exports its own siblings relatively). A folder with 3+ exports gets an `index.ts` barrel; never re-export from a non-barrel file. `import type` for type-only imports. Order and lazy-loading through barrels: `.claude/rules/sim-imports.md`.
 - **TypeScript**: no `any` and no non-null `!` (use precise types or `unknown` with guards; `check:explicit-any` ratchets both); no export nothing imports (`check:unused-exports`); a props interface for every component; `as const` for constant objects/arrays; explicit ref types (`useRef<HTMLDivElement>(null)`).
 - **Unused bindings** fail lint (biome `noUnusedVariables`, `noUnusedFunctionParameters`): delete the dead variable, import, or parameter and update callers; write `catch {}` when the error is unused. Prefix `_` only for a parameter that must hold its position because a later one is used. `const { a, ...rest } = obj` to omit keys is allowed. The rules carry no autofix, so `bun run lint` will not rename anything for you.
-- **Components**: `'use client'` only for hooks or browser APIs. Structure order, extraction thresholds, and list-render rules: `.claude/rules/sim-components.md`. Render-performance idioms (lazy-init refs, hoisting, `Map` pre-indexing, `[...arr].sort()`, never `toSorted()`): `.claude/rules/sim-react-performance.md`. For effect/state/memo/callback anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
+- **Components**: `'use client'` only for hooks or browser APIs (`check:client-boundary` guards the server boundary). Structure order, extraction thresholds, and list-render rules: `.claude/rules/sim-components.md`. Render-performance idioms (lazy-init refs, hoisting, `Map` pre-indexing, `[...arr].sort()`, never `toSorted()`): `.claude/rules/sim-react-performance.md`. For effect/state/memo/callback anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
 - **State ownership**: React Query owns server data — never `useState` + `fetch`; shareable client view-state (tabs, filters, search, pagination, selected id) lives in the URL via `nuqs`; Zustand owns global client state; `useState` owns UI-only state. Hooks: `.claude/rules/sim-hooks.md`. Stores (`devtools`, `persist` only with an explicit `partialize` whitelist, workflow value invariants): `.claude/rules/sim-stores.md`. URL state: `.claude/rules/sim-url-state.md`.
 - **Utils**: inline a helper with one consumer; create `utils.ts` when 2+ files share it — in `lib/` (app-wide) or `feature/utils/` (feature-scoped). Check `lib/` before writing a new one.
 - **Lists and menus** mirror the order the user already reads elsewhere (toolbar, settings nav), encoded in one exported order constant (resource menus share `RESOURCE_MENU_ORDER`, a product order that does not mirror the sidebar); a separator marks only a change in what the action acts on (typically one, before the destructive action): `.claude/rules/sim-list-ordering.md`.
@@ -149,28 +149,3 @@ bun run apps/sim/scripts/check-block-registry.ts origin/staging
 ```
 
 CI also runs `bun run check:migrations <base>` (it needs a base ref, so it is not in `check:audits`; run it with `origin/staging` when you touch `packages/db/migrations/**`), checks that `drizzle-kit generate` in `packages/db` produces no new migration, and runs a non-blocking `bun audit`. When an audit fails, its output and its script's header say what the rule protects; fix the code, never the check. Ratchet baselines (`scripts/*baseline.json`) only shrink: regenerate one with the update flag its failure output names (`--update` or `--update-baseline`) after removing violations, never to admit new debt. The one exception is `check:tool-registry-boundary`, whose module-count baseline is re-recorded when growth is deliberate (see its skill).
-
-| Written rule | Enforced by |
-| --- | --- |
-| Formatting, lint, no `nanoid`/`uuid` imports, no unused variables or parameters | `bun run lint` (biome) |
-| `@sim/utils` over inline idioms (`Math.random`, `crypto.randomUUID`, `JSON` clone, `instanceof Error` message, `setTimeout` sleep) | `check:utils` |
-| `apps → packages` only; realtime import bans | `check:boundaries`, `check:realtime-prune` |
-| Route contracts, no `zod` in routes or clients, `requestJson`, boundary annotations | `check:api-validation:strict`, `check:api-contract-routes`, `check:route-verbs` |
-| Application authorization funnel stays light; principal and capability policy | `check:application-graph`, `check:principal-kind-parity`, `check:capability-subject`, `check:actorless-executor-operations`, `check:permission-group-enforcement` |
-| `'use client'` server boundary | `check:client-boundary` |
-| React Query keys, `staleTime`, `signal` | `check:react-query` |
-| Zustand v5 selector stability | `check:zustand-v5` |
-| Tool registry out of client and prefetch graphs | `check:tool-registry-boundary` |
-| Outbound HTTP through the egress guard; tool request boundary | `check:egress-boundary`, `check:tool-request-boundary` |
-| Imports resolve under Turbopack; no `@/triggers` → `@/blocks` cycle | `check:import-specifiers`, `check:trigger-block-cycle` |
-| Canvas sentences, BYOK wiring, fork-dependent subblocks, reachable tool params | `check:canvas-sentences`, `check:byok-providers`, `check:fork-dependent-coverage`, `check:tool-param-reachability` |
-| Central mocks, colocated tests, script tests collected | `check:test-patterns`, `check:script-tests` |
-| Zero-downtime migrations | `check:migrations <base>` |
-| Unused files, exports, types, dependencies (exports and types ratcheted) | `check:unused-exports` (knip) |
-| No `any` or non-null `!` (ratcheted), no suppressions of either | `check:explicit-any` |
-| kebab-case file names; no file repeating its folder's name | `check:file-names` |
-| No banner separators or commented-out code | `check:comment-hygiene` |
-| Skills and rules projections in sync; guidance references resolve | `check:skills`, `check:guidance-refs` |
-| Generated artifacts fresh (tool metadata, deployment config, docs, catalog, agent stream docs; CLI/MCP/OpenAPI surfaces) | the five `*:check` entries in `check:audits`; `check:cli-api`, `check:mcp-operations`, `check:openapi` |
-
-Rules not in this table (logging, the rest of comment style and naming, imports, styling, state ownership, caching) are enforced by review only; follow them as written.
