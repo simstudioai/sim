@@ -308,6 +308,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   workday: 'Workday',
   workflow_input: 'Workflow',
   x: 'X',
+  youcom: 'You.com',
   youtube: 'YouTube',
   zendesk: 'Zendesk',
   zep: 'Zep',

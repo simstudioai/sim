@@ -27725,6 +27725,57 @@
       "tags": ["marketing", "messaging"]
     },
     {
+      "type": "youcom",
+      "slug": "you-com",
+      "name": "You.com",
+      "description": "Search, read, and research the web with You.com",
+      "longDescription": "Integrate You.com into the workflow. Search the web and news with query-relevant highlights or full page content, fetch page contents, get cited answers, run deep or financial research, search images, and check API credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "YouComIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/youcom",
+      "operations": [
+        {
+          "name": "Search",
+          "description": ""
+        },
+        {
+          "name": "Get Contents",
+          "description": ""
+        },
+        {
+          "name": "Answer",
+          "description": ""
+        },
+        {
+          "name": "Research",
+          "description": ""
+        },
+        {
+          "name": "Get Research Task",
+          "description": ""
+        },
+        {
+          "name": "Finance Research",
+          "description": ""
+        },
+        {
+          "name": "Search Images",
+          "description": ""
+        },
+        {
+          "name": "Get Account Balance",
+          "description": ""
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "llm", "agentic"]
+    },
+    {
       "type": "youtube",
       "slug": "youtube",
       "name": "YouTube",

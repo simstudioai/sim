@@ -356,6 +356,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/wordpress.mdx',
   'integrations/workday.mdx',
   'integrations/x.mdx',
+  'integrations/youcom.mdx',
   'integrations/youtube.mdx',
   'integrations/zendesk.mdx',
   'integrations/zep.mdx',
