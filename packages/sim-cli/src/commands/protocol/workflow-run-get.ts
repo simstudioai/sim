@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
@@ -39,7 +40,7 @@ interface WorkflowBlock {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return isRecordLike(value)
 }
 
 /**

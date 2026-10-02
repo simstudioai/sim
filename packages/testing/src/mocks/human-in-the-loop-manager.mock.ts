@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { vi } from 'vitest'
 
 /**
@@ -16,7 +17,7 @@ class MockResumeAdmissionError extends Error {
 }
 
 function isMockRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return isRecordLike(value)
 }
 
 function isPausedOutputForContext(output: unknown, contextId: string): boolean {
