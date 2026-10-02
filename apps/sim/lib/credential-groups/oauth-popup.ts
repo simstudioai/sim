@@ -1,5 +1,6 @@
 import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
 import {
   CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES,
@@ -28,6 +29,8 @@ export async function connectCredentialGroupInPopup(
   return new Promise((resolve, reject) => {
     const controller = new AbortController()
     const channel = new BroadcastChannel(credentialGroupOAuthCompletionChannel(completionId))
+    const mcpChannel = new BroadcastChannel('mcp-oauth')
+    let mcpState: string | undefined
     let settled = false
     const finish = (error?: Error) => {
       if (settled) return
@@ -35,6 +38,7 @@ export async function connectCredentialGroupInPopup(
       controller.abort()
       clearTimeout(timer)
       channel.close()
+      mcpChannel.close()
       signal.removeEventListener('abort', abort)
       toast.dismiss(notice)
       if (error) reject(error)
@@ -59,6 +63,19 @@ export async function connectCredentialGroupInPopup(
       else if (isCredentialGroupOAuthFailure(data))
         finish(new Error(CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES[data]))
     }
+    /** Invalid state has no stored completion ID; only accept a failure for this attempt's nonce. */
+    mcpChannel.onmessage = ({ data }: MessageEvent<unknown>) => {
+      if (
+        mcpState &&
+        isRecordLike(data) &&
+        data.type === 'mcp-oauth' &&
+        data.state === mcpState &&
+        data.ok === false &&
+        data.reason === 'invalid_state'
+      ) {
+        finish(new Error(CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES.expired))
+      }
+    }
     signal.addEventListener('abort', abort, { once: true })
     if (signal.aborted) {
       abort()
@@ -71,6 +88,10 @@ export async function connectCredentialGroupInPopup(
           abort()
           return
         }
+        const state = result.authorizationUrl
+          ? new URL(result.authorizationUrl).searchParams.get('state')
+          : null
+        if (state?.startsWith('mcp_cg_')) mcpState = state
         popup.location.replace(result.authorizationUrl ?? result.invitationLink)
       })
       .catch((error) => {
