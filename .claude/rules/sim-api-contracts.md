@@ -5,7 +5,6 @@ paths:
   - "apps/sim/lib/api/**"
   - "apps/sim/lib/**/application/**"
   - "apps/sim/hooks/queries/**"
-  - "apps/sim/hooks/selectors/**"
 ---
 
 # API Contracts and Routes
@@ -19,7 +18,7 @@ Boundary HTTP request and response shapes for all routes under `apps/sim/app/api
 
 ## Enforcement
 
-`bun run check:api-validation` enforces boundary policy and prints ratchet metrics (route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports, and related counters). `bun run check:api-validation:strict` is the CI gate: it additionally fails on annotations with empty reasons. Both must pass on PRs.
+`bun run check:api-validation:strict` is the gate (it runs in `check:audits`): it enforces boundary policy, prints ratchet metrics (route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports), and fails on annotations with empty reasons. `check:api-validation` is the same audit without the strict reason check.
 
 Whole-file allowlists for routes that legitimately import Zod for non-boundary reasons go through `INDIRECT_ZOD_ROUTES` in `scripts/check-api-validation-contracts.ts`, not per-line annotations.
 
@@ -27,7 +26,7 @@ Whole-file allowlists for routes that legitimately import Zod for non-boundary r
 
 A small number of legitimate exceptions are tolerated when annotated. The audit recognizes four forms:
 
-- `// boundary-raw-fetch: <reason>` — directly above a raw `fetch(` inside `apps/sim/hooks/queries/**`, `apps/sim/hooks/selectors/**`, or any other source under `apps/sim/**` (outside an API route handler) that targets a same-origin `/api/...` URL. Only for streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests.
+- `// boundary-raw-fetch: <reason>` — directly above a raw `fetch(` inside `apps/sim/hooks/queries/**` or any other source under `apps/sim/**` (outside an API route handler) that targets a same-origin `/api/...` URL. Only for streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests.
 - `// double-cast-allowed: <reason>` — directly above an `as unknown as X` cast outside test files.
 - `// boundary-raw-json: <reason>` — directly above a raw `await request.json()` / `await req.json()` read (or the multi-line `await request.clone().json()` shim variant) in a route handler. Only when the body is a JSON-RPC envelope, a tolerant `.catch(() => ({}))` parse, or otherwise cannot go through `parseRequest`.
 - `// untyped-response: <reason>` — directly above a `schema: z.unknown()` / `schema: z.object({}).passthrough()` / `schema: z.record(z.string(), z.unknown())` response declaration (or a simple alias to one of those) in a contract file. Only when the response body is genuinely opaque (user-supplied data, third-party passthrough).

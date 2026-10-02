@@ -18,6 +18,8 @@
  *   `.agents/skills/<name>/SKILL.md`.
  * - `import`: an `@/…` or `@sim/…` specifier (in a code span, or a fenced `import`/`from` line)
  *   that does not resolve to a file, directory, or package export.
+ * - a rule's frontmatter `paths:` glob that matches no file, which silently stops the rule from
+ *   loading for the code it was written for.
  *
  * Placeholders are skipped rather than allow-listed: anything containing `<…>`, `{…}`, `*`, or
  * an ellipsis is a pattern, not a reference. A reference in `~/…`, a URL, or another repo is out
@@ -189,6 +191,33 @@ const CHECK_TOKEN = /^(check:[\w:-]+|[\w-]+:check)$/
 const PATH_TOKEN = /^\.{0,2}\/?[\w@.()[\]-]+(?:\/[\w@.()[\]-]*)+$/
 const BARE_DOC = /^[\w.-]+\.md$/
 
+/**
+ * The `paths:` globs in a rule's frontmatter. A glob that matches nothing silently stops the rule
+ * from loading for the files it was written for.
+ */
+function frontmatterPaths(lines: string[]): Array<{ line: number; glob: string }> {
+  if (lines[0] !== '---') return []
+  const globs: Array<{ line: number; glob: string }> = []
+  let inPaths = false
+  for (let index = 1; index < lines.length && lines[index] !== '---'; index++) {
+    const text = lines[index]
+    if (/^paths:\s*$/.test(text)) {
+      inPaths = true
+      continue
+    }
+    const item = text.match(/^\s+-\s+["']?([^"']+)["']?\s*$/)
+    if (inPaths && item) globs.push({ line: index + 1, glob: item[1] })
+    else if (!/^\s/.test(text)) inPaths = false
+  }
+  return globs
+}
+
+function globMatchesAnything(pattern: string): boolean {
+  const glob = new Bun.Glob(pattern)
+  for (const _ of glob.scanSync({ cwd: ROOT, onlyFiles: true })) return true
+  return false
+}
+
 /** Drops sentence punctuation and an unbalanced closing paren from a path found in running text. */
 function trimProse(ref: string): string {
   let trimmed = ref.replace(/[.,:;]+$/, '')
@@ -232,8 +261,12 @@ function auditDocument(
     if (!pathResolves(raw, docDir)) report(line, 'path', raw)
   }
 
-  let inFence = false
   const lines = readFileSync(file, 'utf8').split('\n')
+  for (const { line, glob } of frontmatterPaths(lines)) {
+    if (!globMatchesAnything(glob)) report(line, 'path', glob)
+  }
+
+  let inFence = false
   lines.forEach((text, index) => {
     const line = index + 1
     if (/^\s*(```|~~~)/.test(text)) {
