@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { GoogleSlidesIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
@@ -3552,9 +3553,7 @@ const googleSlidesV2SubBlocks = (GoogleSlidesBlock.subBlocks || []).flatMap((sub
 
 const googleSlidesV2Inputs = GoogleSlidesBlock.inputs
   ? {
-      ...Object.fromEntries(
-        Object.entries(GoogleSlidesBlock.inputs).filter(([key]) => key !== 'imageSource')
-      ),
+      ...omit(GoogleSlidesBlock.inputs, ['imageSource']),
       imageFile: { type: 'json', description: 'Image source (file or URL)' },
     }
   : {}

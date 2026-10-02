@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
@@ -38,10 +39,6 @@ interface WorkflowBlock {
   name: string
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /**
  * The workflow's blocks, read from its draft graph.
  *
@@ -55,11 +52,12 @@ async function loadWorkflowBlocks(client: SimClient, workflowId: string): Promis
   const raw = await client.request<unknown>(resolvePath(operation.path, { workflowId }), {
     method: operation.method,
   })
-  const state = isRecord(raw) && isRecord(raw.data) ? raw.data : raw
-  const blocks = isRecord(state) && isRecord(state.blocks) ? Object.entries(state.blocks) : []
+  const state = isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : raw
+  const blocks =
+    isRecordLike(state) && isRecordLike(state.blocks) ? Object.entries(state.blocks) : []
   return blocks.map(([key, block]) => ({
-    id: isRecord(block) && typeof block.id === 'string' ? block.id : key,
-    name: isRecord(block) && typeof block.name === 'string' ? block.name : '',
+    id: isRecordLike(block) && typeof block.id === 'string' ? block.id : key,
+    name: isRecordLike(block) && typeof block.name === 'string' ? block.name : '',
   }))
 }
 
@@ -147,7 +145,7 @@ function resolveSelection(
  * matches it.
  */
 function keyByTyped(payload: unknown, typedBy: ReadonlyMap<string, string>): unknown {
-  if (!isRecord(payload) || !isRecord(payload.blockOutputs)) return payload
+  if (!isRecordLike(payload) || !isRecordLike(payload.blockOutputs)) return payload
   const blockOutputs: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(payload.blockOutputs)) {
     blockOutputs[typedBy.get(key) ?? key] = value

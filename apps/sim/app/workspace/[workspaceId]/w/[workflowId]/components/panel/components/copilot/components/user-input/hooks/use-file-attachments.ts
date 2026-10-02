@@ -125,7 +125,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   const isDragging = dragCounter > 0
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>(attachedFiles)
-  const uploadControllersRef = useRef(new Map<string, AbortController>())
+  const uploadControllersRef = useRef<Map<string, AbortController> | null>(null)
+  const uploadControllers = (uploadControllersRef.current ??= new Map())
 
   const updateAttachedFiles = useCallback((update: (files: AttachedFile[]) => AttachedFile[]) => {
     const next = update(attachedFilesRef.current)
@@ -138,8 +139,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    */
   useEffect(() => {
     return () => {
-      for (const controller of uploadControllersRef.current.values()) controller.abort()
-      uploadControllersRef.current.clear()
+      for (const controller of uploadControllers.values()) controller.abort()
+      uploadControllers.clear()
       attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     }
   }, [])
@@ -227,7 +228,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       })
       const controllers = placeholders.map(() => new AbortController())
       placeholders.forEach((placeholder, index) => {
-        uploadControllersRef.current.set(placeholder.id, controllers[index])
+        uploadControllers.set(placeholder.id, controllers[index])
       })
 
       updateAttachedFiles((current) => [...current, ...placeholders])
@@ -273,7 +274,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
           revokePreviewUrl(placeholder.previewUrl)
           updateAttachedFiles((current) => current.filter((file) => file.id !== placeholder.id))
         } finally {
-          uploadControllersRef.current.delete(placeholder.id)
+          uploadControllers.delete(placeholder.id)
         }
       })
     },
@@ -313,8 +314,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    */
   const removeFile = useCallback(
     (fileId: string) => {
-      uploadControllersRef.current.get(fileId)?.abort()
-      uploadControllersRef.current.delete(fileId)
+      uploadControllers.get(fileId)?.abort()
+      uploadControllers.delete(fileId)
       const file = attachedFilesRef.current.find((f) => f.id === fileId)
       revokePreviewUrl(file?.previewUrl)
       updateAttachedFiles((current) => current.filter((file) => file.id !== fileId))
@@ -381,8 +382,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    * Clears all attached files and cleanup preview URLs
    */
   const clearAttachedFiles = useCallback(() => {
-    for (const controller of uploadControllersRef.current.values()) controller.abort()
-    uploadControllersRef.current.clear()
+    for (const controller of uploadControllers.values()) controller.abort()
+    uploadControllers.clear()
     attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     updateAttachedFiles(() => [])
   }, [updateAttachedFiles])
@@ -394,8 +395,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    */
   const restoreAttachedFiles = useCallback(
     (files: AttachedFile[]) => {
-      for (const controller of uploadControllersRef.current.values()) controller.abort()
-      uploadControllersRef.current.clear()
+      for (const controller of uploadControllers.values()) controller.abort()
+      uploadControllers.clear()
       attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
       updateAttachedFiles(() => files)
     },

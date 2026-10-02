@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { airtableConnectorMeta } from '@/connectors/airtable/meta'
@@ -98,7 +99,7 @@ function renderTitle(value: unknown): string | null {
   if (value == null) return null
   const rendered = typeof value === 'object' ? formatCellValue(value).trim() : String(value).trim()
   if (!rendered) return null
-  return rendered.length > MAX_TITLE_LENGTH ? `${rendered.slice(0, MAX_TITLE_LENGTH)}…` : rendered
+  return truncate(rendered, MAX_TITLE_LENGTH, '…')
 }
 
 /**

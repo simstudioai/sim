@@ -34,7 +34,7 @@ beforeEach(() => {
   mocks.speech.mockReturnValue({
     isListening: false,
     isSupported: true,
-    audioLevelsRef: { current: new Float32Array(5) },
+    audioLevels: new Float32Array(5),
     toggleListening: vi.fn(),
     resetTranscript: vi.fn(),
   })

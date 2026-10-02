@@ -167,7 +167,7 @@ export interface StreamLoopDeps {
   chatIdRef: MutableRefObject<string | undefined>
   selectedChatIdRef: MutableRefObject<string | undefined>
   streamIdRef: MutableRefObject<string | undefined>
-  revealedSimKeysRef: MutableRefObject<RevealedSimKeysByMessage>
+  revealedSimKeys: RevealedSimKeysByMessage
   pendingUserMsgRef: MutableRefObject<PersistedMessage | null>
   activeTurnRef: MutableRefObject<ActiveTurn | null>
   resourcesRef: MutableRefObject<MothershipResource[]>
@@ -182,10 +182,11 @@ export interface StreamLoopDeps {
   previewSessionsRef: MutableRefObject<Record<string, FilePreviewSession>>
   latestPreviewTargetToolCallIdRef: MutableRefObject<string | null>
   activePreviewSessionIdRef: MutableRefObject<string | null>
-  completedPreviewResourceHandoffRef: MutableRefObject<
-    Map<string, { sessionId: string; suppressActivation: boolean }>
-  >
-  previewActivationOwnerRef: MutableRefObject<Map<string, string | null>>
+  completedPreviewResourceHandoffRef: MutableRefObject<Map<
+    string,
+    { sessionId: string; suppressActivation: boolean }
+  > | null>
+  previewActivationOwnerRef: MutableRefObject<Map<string, string | null> | null>
 }
 
 export interface StreamLoopOps {
@@ -264,7 +265,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     deps.streamingBlocksRef.current = modelBlocks
     deps.streamingContentRef.current = modelContent
     captureRevealedSimKeys(
-      deps.revealedSimKeysRef.current,
+      deps.revealedSimKeys,
       [deps.assistantId, state.streamRequestId],
       modelContent,
       modelBlocks

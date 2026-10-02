@@ -747,7 +747,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <div className='px-6 pt-10 pb-4'>
               <div className='mb-2 flex items-center gap-2.5'>
                 <span className='relative flex size-2' aria-hidden='true'>
-                  <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75' />
+                  <span className='absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75' />
                   <span className='relative inline-flex size-2 rounded-full bg-emerald-500' />
                 </span>
                 <h2
