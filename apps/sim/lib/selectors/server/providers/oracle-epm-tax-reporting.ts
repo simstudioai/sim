@@ -28,16 +28,23 @@ type Destination = { instanceUrl: string; accessToken: string }
 
 async function prepare(args: ExecuteServerSelectorArgs): Promise<Destination> {
   const credential = args.credential
-  const access = credential?.access
-  if (!credential || access?.credentialType !== 'service_account' || !access.resolvedCredentialId) {
-    throw new SelectorConnectionUnavailableError()
-  }
-  const account = await resolveOAuthAccountId(access.resolvedCredentialId)
-  if (
-    account?.credentialType !== 'service_account' ||
-    account.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
-  ) {
-    throw new SelectorConnectionUnavailableError()
+  const credentialId = credential?.organization
+    ? credential.suppliedId
+    : credential?.access?.resolvedCredentialId
+  if (!credential || !credentialId) throw new SelectorConnectionUnavailableError()
+  if (credential.organization) {
+    if (credential.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID)
+      throw new SelectorConnectionUnavailableError()
+  } else {
+    if (credential.access?.credentialType !== 'service_account')
+      throw new SelectorConnectionUnavailableError()
+    const account = await resolveOAuthAccountId(credentialId)
+    if (
+      account?.credentialType !== 'service_account' ||
+      account.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
+    ) {
+      throw new SelectorConnectionUnavailableError()
+    }
   }
   const token = await resolveSelectorCredentialBundle({
     credential,
