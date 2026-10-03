@@ -16,10 +16,11 @@
  *   `scripts/check-unused-exports.baseline.json`. A new entry fails; so does a baseline entry that
  *   no longer occurs, so the baseline only shrinks. Regenerate with `--update`.
  *
- * Public package surface is not baselined: knip treats every workspace's `exports`/`main`/`bin`
- * targets as entry files and, with `includeEntryExports: false` (set explicitly in knip.jsonc),
- * never reports their exports. Exports used only by tests count as used because knip's Vitest
- * plugin makes test files entries.
+ * Entry exports are reported (`includeEntryExports: true` in knip.jsonc): a private package's
+ * `exports` map serves only this monorepo, so an entry export nothing imports is dead. The apps,
+ * the published packages, db, and the root turn it off there, since their entries are public or
+ * standalone. Exports used only by tests count as used because knip's Vitest plugin makes test
+ * files entries.
  *
  * Knip is slow, so `run-audits.ts` runs this script and skips `check:dead-code`, which stays
  * available as the human-readable report.
@@ -165,8 +166,10 @@ if (added.length) {
   }
   for (const kind of kinds) console.error(`  ${kind}: ${HOW_TO_FIX[kind]}`)
   console.error(
-    '  If it is deliberate public API of a package, expose it through that package.json `exports` ' +
-      'map (or add an `ignore` rule in knip.jsonc with a comment saying why). Never add it to the baseline.'
+    '  If it is deliberate public API of a published package, expose it through that package.json ' +
+      '`exports` map (or add an `ignore` rule in knip.jsonc with a comment saying why). A private ' +
+      "package's entry exports are checked too: delete them once nothing imports them. Never add " +
+      'it to the baseline.'
   )
 }
 

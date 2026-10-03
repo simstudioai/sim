@@ -1132,5 +1132,4 @@ export {
   DESKTOP_TITLE_BAR_ATTRIBUTE,
   type DesktopTitleBarMode,
   observeDesktopTitleBar,
-  supportsDesktopTitleBar,
 } from './title-bar'
