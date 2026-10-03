@@ -1,4 +1,3 @@
-import { truncate } from '@sim/utils/string'
 import { normalizeEloquaInstanceUrl } from '@/lib/oauth/eloqua'
 import type {
   EloquaApplicationResource,
@@ -14,7 +13,7 @@ export const ELOQUA_OAUTH_CONFIG = {
   authoritativeParams: ['instanceUrl'],
 } as const satisfies OAuthConfig
 
-export const ELOQUA_MAX_INLINE_IMPORT_BYTES = 10 * 1024 * 1024
+const ELOQUA_MAX_INLINE_IMPORT_BYTES = 10 * 1024 * 1024
 
 export const ELOQUA_AUTH_PARAMS: ToolConfig['params'] = {
   accessToken: {
@@ -123,7 +122,7 @@ const ELOQUA_APPLICATION_COMMON_PROPERTIES: Record<string, ToolOutputProperty> =
   depth: stringField('Response detail depth'),
 }
 
-export const ELOQUA_APPLICATION_RESOURCE_PROPERTIES: Record<
+const ELOQUA_APPLICATION_RESOURCE_PROPERTIES: Record<
   EloquaApplicationResource,
   Record<string, ToolOutputProperty>
 > = {
@@ -675,9 +674,4 @@ export async function eloquaJsonObject(response: Response, label: string) {
     throw new Error(`Invalid ${label} response: expected a JSON object`)
   }
   return requireEloquaObject(value, `${label} response`)
-}
-
-export function boundedProviderMessage(value: unknown): string | undefined {
-  if (typeof value !== 'string' || !value.trim()) return undefined
-  return truncate(value.trim(), 2_000)
 }

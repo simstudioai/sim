@@ -7,7 +7,6 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { EloquaResponse } from '@/tools/eloqua/types'
 
 const APPLICATION_LIST_OPERATIONS = [
   'list_contacts',
@@ -169,7 +168,7 @@ function bulkPageParams(
   }
 }
 
-export const EloquaBlock: BlockConfig<EloquaResponse> = {
+export const EloquaBlock: BlockConfig = {
   type: 'eloqua',
   name: 'Oracle Eloqua',
   description: 'Manage Eloqua contacts, accounts, marketing assets, and Bulk API syncs',

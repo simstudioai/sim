@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   ELOQUA_IDENTITY_URL,
   ELOQUA_OAUTH_TOKEN_URL,
@@ -13,8 +13,6 @@ import {
 } from '@/lib/oauth/eloqua'
 
 describe('Eloqua OAuth and instance discovery', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it('exchanges a code with a Basic-authenticated JSON request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({

@@ -1,26 +1,27 @@
 /**
  * @vitest-environment node
  */
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockGetCredential, mockResolveSelectorCredentialBundle } = vi.hoisted(() => ({
-  mockFetch: vi.fn(),
-  mockGetCredential: vi.fn(),
-  mockResolveSelectorCredentialBundle: vi.fn(),
-}))
+const mockFetch = vi.hoisted(() => vi.fn())
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getCredential: mockGetCredential,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
-vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
-  resolveSelectorCredentialBundle: mockResolveSelectorCredentialBundle,
-}))
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { eloquaSelectorAttachments } from '@/lib/selectors/server/providers/eloqua'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockGetCredential = authOAuthUtilsMockFns.mockGetCredential
+const mockResolveSelectorCredentialBundle =
+  selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
 
 function args(
   request: ExecuteServerSelectorArgs['request'],
@@ -55,7 +56,9 @@ function args(
 
 describe('Oracle Eloqua server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mockFetch.mockReset()
+    mockGetCredential.mockReset()
+    mockResolveSelectorCredentialBundle.mockReset()
     vi.stubGlobal('fetch', mockFetch)
     mockGetCredential.mockResolvedValue({
       providerId: 'eloqua',
@@ -65,8 +68,6 @@ describe('Oracle Eloqua server selector adapter', () => {
       accessToken: 'server-only-token',
     })
   })
-
-  afterAll(() => vi.unstubAllGlobals())
 
   it('binds the credential pod, escapes prefix search, and paginates on demand', async () => {
     mockFetch
