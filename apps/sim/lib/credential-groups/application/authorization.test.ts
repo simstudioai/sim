@@ -1,47 +1,44 @@
-/**
- * @vitest-environment node
- */
-
 import type { DelegatedPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 
-const mocks = vi.hoisted(() => ({
-  loadEnrollmentAccess: vi.fn(),
-  loadBinding: vi.fn(),
-  requirePolicy: vi.fn(),
-}))
-
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
-  loadManagedCredentialGroupBinding: mocks.loadBinding,
-  isManagedCredentialGroupBindingLive: (binding: {
-    managedOauthStatus: string
-    enrollmentStatus: string
-    groupStatus: string
-    optionStatus: string | null
-  }) =>
-    binding.managedOauthStatus === 'active' &&
-    ['in_progress', 'completed'].includes(binding.enrollmentStatus) &&
-    binding.groupStatus === 'active' &&
-    binding.optionStatus === 'active',
-}))
-
-vi.mock('@/lib/resource-policies/repository', () => ({
-  requireResourcePolicy: mocks.requirePolicy,
-}))
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
 import {
   requireCredentialGroupCredentialAccess,
   requireCredentialGroupWorkflowActor,
 } from '@/lib/credential-groups/application/authorization'
 
+const mocks = {
+  loadEnrollmentAccess:
+    credentialGroupsCredentialsMockFns.mockLoadCredentialGroupEnrollmentAccessForSubject,
+  loadBinding: credentialGroupsCredentialsMockFns.mockLoadManagedCredentialGroupBinding,
+  requirePolicy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  isAvailable: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
+
 const context = {
   workspaceId: 'workspace-1',
-  workspaceOrganizationId: null,
+  workspaceOrganizationId: 'org-1',
+  organizationId: 'org-1',
   allowPersonalApiKeys: true,
   credentialId: 'credential-1',
+  credentialType: 'oauth:gmail' as const,
   credentialGroupId: 'group-1',
   credentialGroupEnrollmentId: 'enrollment-1',
 }
@@ -58,17 +55,15 @@ const liveBinding = {
   optionStatus: 'active',
 }
 
-function storedPolicy(allowedWorkflowIds: string[] = []) {
+function storedPolicy(workspaceIds: string[] = ['workspace-1']) {
   return {
     id: 'policy-1',
-    workspaceId: 'workspace-1',
+    organizationId: 'org-1',
     revision: 1,
-    document: compileCredentialGroupWorkflowAccessPolicy({
-      credentialGroupId: 'group-1',
-      allowedWorkflowIds,
-    }),
-    createdAt: new Date('2026-08-20T00:00:00.000Z'),
-    updatedAt: new Date('2026-08-20T00:00:00.000Z'),
+    document: buildOrganizationAccountAccessPolicy(
+      'group-1',
+      workspaceIds.map((workspaceId) => ({ workspaceId, access: { mode: 'all' as const } }))
+    ),
   }
 }
 
@@ -131,7 +126,7 @@ function requireAccess(principal: DelegatedPrincipal, accessContext = context): 
 
 describe('requireCredentialGroupCredentialAccess', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mocks.isAvailable.mockResolvedValue(true)
     mocks.requirePolicy.mockResolvedValue(storedPolicy())
     mocks.loadEnrollmentAccess.mockResolvedValue({
       enrollmentId: 'enrollment-1',
@@ -172,8 +167,8 @@ describe('requireCredentialGroupCredentialAccess', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
 
-  it('denies a Chat turn whose user holds no live enrollment, even for an allowlisted workflow', async () => {
-    mocks.requirePolicy.mockResolvedValue(storedPolicy(['workflow-1']))
+  it('denies a Chat turn whose user holds no live enrollment, even in an allowlisted workspace', async () => {
+    mocks.requirePolicy.mockResolvedValue(storedPolicy())
     mocks.loadEnrollmentAccess.mockResolvedValue(null)
 
     await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
@@ -187,32 +182,20 @@ describe('requireCredentialGroupCredentialAccess', () => {
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
   })
 
-  it('allows an external actor to use only their own enrollment', async () => {
-    const principal = executorPrincipal()
-
-    await expect(requireAccess(principal)).resolves.toBeUndefined()
-    expect(mocks.requirePolicy).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      resourceType: 'credential_group',
-      resourceId: 'group-1',
-      codec: expect.objectContaining({ resourceType: 'credential_group' }),
-    })
-    expect(mocks.loadEnrollmentAccess).toHaveBeenCalledWith('group-1', {
-      kind: 'external_user',
-      provider: 'slack',
-      tenantId: 'T123',
-      subjectId: 'U123',
-    })
-
+  it('allows an external actor to use any live contributed credential in an allowed workspace', async () => {
     await expect(
-      requireAccess(principal, {
+      requireAccess(executorPrincipal(), {
         ...context,
-        credentialGroupEnrollmentId: 'enrollment-2',
+        credentialGroupEnrollmentId: 'someone-else',
       })
-    ).rejects.toMatchObject({ code: 'forbidden' })
+    ).resolves.toBeUndefined()
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+    expect(mocks.requirePolicy).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', resourceId: 'group-1' })
+    )
   })
 
-  it('allows a Sim actor to use their own enrollment', async () => {
+  it('allows a Sim actor without a personal enrollment', async () => {
     const principal = executorPrincipal()
     principal.subjectUserId = 'user-1'
     principal.delegationContext!.principal = {
@@ -220,34 +203,12 @@ describe('requireCredentialGroupCredentialAccess', () => {
       userId: 'user-1',
       sessionId: 'session-1',
     }
-
-    await expect(requireAccess(principal)).resolves.toBeUndefined()
-    expect(mocks.loadEnrollmentAccess).toHaveBeenCalledWith('group-1', {
-      kind: 'sim_user',
-      userId: 'user-1',
-    })
-  })
-
-  it('allows an actorless deployed workflow only when its current workflow is allowlisted', async () => {
-    const principal = executorPrincipal()
-    principal.delegationContext!.principal = {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: 'workspace-1',
-      workflowId: 'root-workflow',
-    }
-    mocks.requirePolicy.mockResolvedValue(storedPolicy(['workflow-1']))
-
+    mocks.loadEnrollmentAccess.mockResolvedValue(null)
     await expect(requireAccess(principal)).resolves.toBeUndefined()
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
-
-    principal.delegationContext!.currentWorkflow = { workflowId: 'workflow-1', mode: 'draft' }
-    await expect(requireAccess(principal)).rejects.toMatchObject({
-      code: 'forbidden',
-    })
   })
 
-  it('uses the current child workflow rather than the root workflow grant', async () => {
+  it('allows an actorless deployed workflow without a per-workflow allowlist', async () => {
     const principal = executorPrincipal()
     principal.delegationContext!.principal = {
       kind: 'system',
@@ -255,16 +216,84 @@ describe('requireCredentialGroupCredentialAccess', () => {
       workspaceId: 'workspace-1',
       workflowId: 'root-workflow',
     }
+    await expect(requireAccess(principal)).resolves.toBeUndefined()
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+    mocks.requirePolicy.mockResolvedValue(storedPolicy([]))
+    await expect(requireAccess(principal)).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('denies a child workflow in a different or non-allowlisted workspace', async () => {
+    const principal = executorPrincipal()
     principal.delegationContext!.currentWorkflow = {
       workflowId: 'child-workflow',
       mode: 'deployment',
       deploymentVersionId: 'child-version',
     }
-    mocks.requirePolicy.mockResolvedValue(storedPolicy(['root-workflow']))
+    await expect(
+      requireAccess(principal, { ...context, workspaceId: 'child-workspace' })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(
+      requireAccess(principal, { ...context, workspaceOrganizationId: 'other-org' })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
 
-    await expect(requireAccess(principal)).rejects.toMatchObject({
-      code: 'forbidden',
+  it('rejects workspace-owned legacy workflow credentials with a reconnect instruction', async () => {
+    await expect(
+      requireAccess(executorPrincipal(), { ...context, organizationId: undefined })
+    ).rejects.toThrow('Reconnect this account')
+  })
+
+  it.each([executorPrincipal, copilotPrincipal])(
+    'rechecks the canonical integration even when the workspace still has other grants',
+    async (makePrincipal) => {
+      await expect(requireAccess(makePrincipal())).resolves.toBeUndefined()
+      mocks.requirePolicy.mockResolvedValue({
+        document: buildOrganizationAccountAccessPolicy('group-1', [
+          {
+            workspaceId: 'workspace-1',
+            access: { mode: 'selected', credentialTypes: ['oauth:google-calendar'] },
+          },
+        ]),
+      })
+      await expect(requireAccess(makePrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+      expect(mocks.requirePolicy).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it('rechecks the org feature flag before credential use', async () => {
+    mocks.isAvailable.mockResolvedValue(false)
+    await expect(requireAccess(executorPrincipal())).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('requires a live connector grant to execute a managed MCP credential', async () => {
+    mocks.loadBinding.mockResolvedValue(null)
+    const managedContext = { ...context, credentialType: 'mcp:fireflies' as const }
+    const principal = executorPrincipal()
+    const requireManagedAccess = () =>
+      requireCredentialGroupCredentialAccess(
+        principal,
+        managedContext,
+        credentialOperations.useManagedMcp.resourcePolicy
+      )
+
+    await expect(requireManagedAccess()).resolves.toBeUndefined()
+
+    mocks.requirePolicy.mockResolvedValue(storedPolicy([]))
+    await expect(requireManagedAccess()).rejects.toMatchObject({ code: 'forbidden' })
+
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        {
+          workspaceId: context.workspaceId,
+          access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
+        },
+      ]),
     })
+    await expect(requireManagedAccess()).rejects.toMatchObject({ code: 'forbidden' })
+
+    mocks.requirePolicy.mockResolvedValue(storedPolicy())
+    mocks.isAvailable.mockResolvedValue(false)
+    await expect(requireManagedAccess()).rejects.toMatchObject({ code: 'not_found' })
   })
 
   it('rejects inconsistent Sim and external subject assertions before loading policy', async () => {

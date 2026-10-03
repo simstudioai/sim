@@ -33,7 +33,7 @@ import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -61,6 +61,7 @@ import {
   getDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
+  resolveFallbackModelsLabel,
   resolveFilterFieldLabel,
   resolveFolderPathLabel,
   resolveSandboxLabel,
@@ -158,6 +159,7 @@ const SUBBLOCK_META_ICONS_BY_TYPE: Record<string, MetaIcon> = {
   'messages-input': MessageSquareText,
   'tool-input': Wrench,
   'skill-input': Sparkles,
+  'model-fallback-list': ArrowLeftRight,
   'oauth-input': Key,
   switch: ToggleLeft,
   'file-upload': Paperclip,
@@ -496,8 +498,10 @@ const SubBlockRow = memo(function SubBlockRow({
     if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
       return null
     }
-    return mcpToolNamesById.get(rawValue) ?? null
-  }, [subBlock?.type, rawValue, mcpToolNamesById])
+    return subBlock.canonicalParamId === 'tool'
+      ? rawValue
+      : (mcpToolNamesById.get(rawValue) ?? null)
+  }, [subBlock?.type, subBlock?.canonicalParamId, rawValue, mcpToolNamesById])
 
   const { data: tables = [] } = useTablesList(workspaceId || '')
   const tableDisplayName = useMemo(() => {
@@ -572,6 +576,11 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, workspaceSkills]
   )
 
+  const fallbackModelsDisplayValue = useMemo(
+    () => resolveFallbackModelsLabel(subBlock, rawValue),
+    [subBlock, rawValue]
+  )
+
   /**
    * Hydrates the Function block's sandbox id to its name. Deliberately scoped to
    * the sandbox row: this row is memoized per subblock, and the shared list query
@@ -603,6 +612,7 @@ const SubBlockRow = memo(function SubBlockRow({
     filterDisplayValue ||
     toolsDisplayValue ||
     skillsDisplayValue ||
+    fallbackModelsDisplayValue ||
     sandboxDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
@@ -640,6 +650,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const contentRef = useRef<HTMLDivElement>(null)
 
   const params = useParams()
+  const { chatEnabled } = useDeploymentShape()
   const workspaceId = params.workspaceId as string
 
   const {
@@ -1185,7 +1196,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       <>
         {chipBlocks.map((subBlock, index) => (
           <Fragment key={`statement-${subBlock.id}`}>
-            {index > 0 && <span className='flex-shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
+            {index > 0 && <span className='shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
             <SubBlockRow
               title={getCanvasRowTitle(subBlock)}
               value={getDisplayValue(subBlockState[subBlock.id]?.value)}
@@ -1287,7 +1298,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }}
       sunsetStatus={sunset?.status}
       sunsetTooltip={sunset?.tooltip}
-      canFixSunset={canEditWorkflow && isChatEnabled}
+      canFixSunset={canEditWorkflow && chatEnabled}
       onFixSunset={onFixSunset}
       shouldShowScheduleBadge={shouldShowScheduleBadge}
       scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}

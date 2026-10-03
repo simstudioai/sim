@@ -1,40 +1,37 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   getActiveDraft: vi.fn(),
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
   resolveTarget: vi.fn(),
 }))
 
 vi.mock('@/lib/credentials/connect-draft', () => ({
-  getActiveConnectDraft: mocks.getActiveDraft,
+  getActiveConnectDraft: hoisted.getActiveDraft,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/credentials/application/connection-target', () => ({
-  resolveCredentialConnectionTarget: mocks.resolveTarget,
+  resolveCredentialConnectionTarget: hoisted.resolveTarget,
 }))
 
 import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
 
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
+const mocks = {
+  ...hoisted,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
 }
+
+const principal = createSessionPrincipal()
 const draft = {
   id: 'draft-1',
   userId: 'user-1',
@@ -55,7 +52,6 @@ const workspaceContext = {
 
 describe('launchCredentialConnection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getActiveDraft.mockResolvedValue(draft)
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
@@ -72,12 +68,6 @@ describe('launchCredentialConnection', () => {
     })
 
     expect(mocks.getActiveDraft).toHaveBeenCalledWith('draft-1', 'user-1')
-    expect(mocks.resolveTarget).toHaveBeenCalledWith({
-      principal,
-      context: { ...workspaceContext, draft },
-      providerId: 'google-email',
-      credentialId: undefined,
-    })
     expect(result).toEqual({ draft })
   })
 

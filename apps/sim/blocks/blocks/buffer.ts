@@ -2,11 +2,10 @@ import { BufferIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { BufferPostResponse } from '@/tools/buffer/types'
 
 const POST_EDIT_OPS = ['create_post', 'edit_post']
 
-export const BufferBlock: BlockConfig<BufferPostResponse> = {
+export const BufferBlock: BlockConfig = {
   type: 'buffer',
   name: 'Buffer',
   description: 'Schedule and publish social media posts across connected channels',

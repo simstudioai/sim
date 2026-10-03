@@ -1,72 +1,62 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { type NextRequest, NextResponse } from 'next/server'
-import { createSandboxContract } from '@/lib/api/contracts/sandboxes'
-import { parseRequest } from '@/lib/api/server'
-import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createSandboxContract, listSandboxesContract } from '@/lib/api/contracts/sandboxes'
 import {
-  createWorkspaceSandbox,
-  currentSandboxStrategy,
-  listWorkspaceSandboxes,
-} from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { sandboxOperations } from '@/lib/sandboxes/application/operations'
 import {
-  authorizeSandboxMutation,
-  authorizeSandboxRead,
-  sandboxMutationErrorResponse,
-} from '@/app/api/workspaces/[id]/sandboxes/authorize'
+  createWorkspaceSandboxUseCase,
+  listWorkspaceSandboxesUseCase,
+} from '@/lib/sandboxes/application/use-cases'
+import { internalSandboxErrorPolicy } from '@/app/api/workspaces/[id]/sandboxes/error-policy'
 
 const logger = createLogger('WorkspaceSandboxesAPI')
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const workspaceId = (await context.params).id
+/**
+ * The list is not plan-gated: a workspace that dropped below the Max tier must
+ * still see what it built, and `entitled` drives whether the editor renders or
+ * an upgrade prompt does. Name order is what the settings page has always
+ * shown.
+ */
+export const GET = defineInternalJsonRoute({
+  contract: listSandboxesContract,
+  auth: internalSessionAuth,
+  operation: sandboxOperations.list,
+  rateLimit: internalRateLimits.none({
+    reason: 'A small per-workspace read the legacy route never limited',
+  }),
+  errorPolicy: internalSandboxErrorPolicy,
+  mapInput: ({ params }) => ({
+    workspaceId: params.id,
+    sortBy: 'name' as const,
+    sortOrder: 'asc' as const,
+  }),
+  useCase: listWorkspaceSandboxesUseCase,
+  present: ({ sandboxes, strategy, entitled }) => ({ sandboxes, strategy, entitled }),
+})
 
-    const viewer = await authorizeSandboxRead(request, workspaceId)
-    if (!viewer.ok) return viewer.response
-
-    // The list itself is not plan-gated: a workspace that downgraded must still
-    // see (and keep executing) what it already built. `entitled` drives whether
-    // the editor renders or an upgrade prompt does.
-    const [sandboxes, entitled] = await Promise.all([
-      listWorkspaceSandboxes(workspaceId),
-      hasWorkspaceSandboxAccess(workspaceId),
-    ])
-
-    return NextResponse.json({
-      sandboxes,
-      strategy: currentSandboxStrategy(),
-      entitled,
+export const POST = defineInternalJsonRoute({
+  contract: createSandboxContract,
+  auth: internalSessionAuth,
+  operation: sandboxOperations.create,
+  rateLimit: internalRateLimits.none({
+    reason: 'Build admission is the per-workspace budget the use case enforces',
+  }),
+  errorPolicy: internalSandboxErrorPolicy,
+  mapInput: ({ params, body }) => ({
+    workspaceId: params.id,
+    ...body,
+    source: 'settings' as const,
+  }),
+  useCase: createWorkspaceSandboxUseCase,
+  onSuccess: ({ input, result }) => {
+    logger.info('Created workspace sandbox', {
+      workspaceId: input.workspaceId,
+      sandboxId: result.sandbox.id,
+      language: result.sandbox.language,
     })
-  }
-)
-
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const workspaceId = (await context.params).id
-
-    const authorized = await authorizeSandboxMutation(workspaceId)
-    if (!authorized.ok) return authorized.response
-
-    const parsed = await parseRequest(createSandboxContract, request, context)
-    if (!parsed.success) return parsed.response
-    try {
-      const sandbox = await createWorkspaceSandbox(
-        workspaceId,
-        authorized.actor.userId,
-        parsed.data.body
-      )
-      logger.info('Created workspace sandbox', {
-        workspaceId,
-        sandboxId: sandbox.id,
-        language: sandbox.language,
-      })
-      return NextResponse.json({ sandbox })
-    } catch (error) {
-      const response = sandboxMutationErrorResponse(error)
-      if (response) return response
-      logger.error('Failed to insert sandbox', { workspaceId, error: getErrorMessage(error) })
-      throw error
-    }
-  }
-)
+  },
+  present: ({ sandbox }) => ({ sandbox }),
+})

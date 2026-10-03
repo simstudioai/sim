@@ -228,7 +228,7 @@ export const HTTP = {
 } as const
 
 export const AGENT = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   get DEFAULT_FUNCTION_TIMEOUT() {
     return getMaxExecutionTimeout()
   },
@@ -242,22 +242,14 @@ export const MCP = {
   TOOL_PREFIX: 'mcp-',
 } as const
 
-export const MEMORY = {
-  DEFAULT_SLIDING_WINDOW_SIZE: 10,
-  DEFAULT_SLIDING_WINDOW_TOKENS: 4000,
-  CONTEXT_WINDOW_UTILIZATION: 0.9,
-  MAX_CONVERSATION_ID_LENGTH: 255,
-  MAX_MESSAGE_CONTENT_BYTES: 100 * 1024,
-} as const
-
 export const ROUTER = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,
@@ -294,12 +286,6 @@ export function buildResumeUiUrl(
 }
 
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
-
-interface ConditionConfig {
-  id: string
-  label?: string
-  condition: string
-}
 
 export function isTriggerBlockType(blockType: string | undefined): boolean {
   return blockType !== undefined && (TRIGGER_BLOCK_TYPES as readonly string[]).includes(blockType)
@@ -435,17 +421,12 @@ export function parseReferencePath(reference: string): string[] {
 
 export const PATTERNS = {
   UUID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
-  UUID_V4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   UUID_PREFIX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   ENV_VAR_NAME: /^[A-Za-z_][A-Za-z0-9_]*$/,
 } as const
 
 export function isUuid(value: string): boolean {
   return PATTERNS.UUID.test(value)
-}
-
-export function isUuidV4(value: string): boolean {
-  return PATTERNS.UUID_V4.test(value)
 }
 
 export function startsWithUuid(value: string): boolean {
@@ -475,10 +456,6 @@ export function stripCustomToolPrefix(name: string): string {
   return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
     ? name.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
     : name
-}
-
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**

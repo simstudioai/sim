@@ -1,4 +1,12 @@
-/** Reads every canonical folder path from current, legacy, or serialized picker values. */
+/**
+ * Reads every canonical folder path from current, legacy, or serialized picker
+ * values, or from a typed comma-separated list.
+ *
+ * A comma is a safe separator because a canonical path never contains one:
+ * `encodeFolderPathSegment` percent-encodes it as `%2C`. A list is what the
+ * advanced half of a folder-scope pair holds, where several folders have to be
+ * spelled in one text field.
+ */
 export function readFolderPaths(value: unknown): string[] {
   if (typeof value === 'string') {
     const trimmed = value.trim()
@@ -10,7 +18,7 @@ export function readFolderPaths(value: unknown): string[] {
         return [trimmed]
       }
     }
-    return [trimmed]
+    return readFolderPaths(trimmed.split(','))
   }
   if (Array.isArray(value)) {
     return [

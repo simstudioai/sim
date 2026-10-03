@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { notionCreatePageTool, notionCreatePageV2Tool } from '@/tools/notion/create_page'
 import { notionReadTool, notionReadV2Tool } from '@/tools/notion/read'

@@ -109,13 +109,13 @@ export function UpgradePlanCard({
         {credits && (
           <div className='flex flex-col gap-1.5'>
             <div className='flex items-center gap-1.5'>
-              <Credit className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <Credit className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-body)] text-sm'>{credits}</span>
               <Info>1 workflow run = 1 credit. Inference usage consumes credits separately.</Info>
             </div>
             {refresh && (
               <div className='flex items-center gap-1.5'>
-                <RefreshCw className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <RefreshCw className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                 <span className='text-[var(--text-body)] text-sm'>{refresh}</span>
               </div>
             )}
@@ -127,7 +127,7 @@ export function UpgradePlanCard({
         <ul className='flex flex-col gap-2'>
           {features.map((feature) => (
             <li key={feature} className='flex items-center gap-2'>
-              <Check className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+              <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-body)] text-sm'>{feature}</span>
             </li>
           ))}

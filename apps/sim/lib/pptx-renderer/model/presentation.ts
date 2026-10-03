@@ -94,26 +94,26 @@ function findRelsByType(rels: Map<string, RelEntry>, typeSubstring: string): [st
  * 3. Parses each component and assembles the final structure
  */
 export function buildPresentation(files: PptxFiles): PresentationData {
-  // --- Parse presentation root ---
+  // Parse presentation root
   const presRoot = parseXml(files.presentation)
   const presRels = parseRels(files.presentationRels)
 
-  // --- Slide size ---
+  // Slide size
   const sldSz = presRoot.child('sldSz')
   const width = emuToPx(sldSz.numAttr('cx') ?? 9144000) // default 10 inches
   const height = emuToPx(sldSz.numAttr('cy') ?? 6858000) // default 7.5 inches
 
-  // --- WPS detection ---
+  // WPS detection
   const isWps = detectWps(files.presentation)
 
-  // --- Parse themes ---
+  // Parse themes
   const themes = new Map<string, ThemeData>()
   for (const [themePath, themeXml] of files.themes) {
     const themeRoot = parseXml(themeXml)
     themes.set(themePath, parseTheme(themeRoot))
   }
 
-  // --- Parse slide masters and build master→theme mapping ---
+  // Parse slide masters and build master→theme mapping
   const masters = new Map<string, MasterData>()
   const masterToTheme = new Map<string, string>()
 
@@ -136,7 +136,7 @@ export function buildPresentation(files: PptxFiles): PresentationData {
     masters.set(masterPath, masterData)
   }
 
-  // --- Parse slide layouts and build layout→master mapping ---
+  // Parse slide layouts and build layout→master mapping
   const layouts = new Map<string, LayoutData>()
   const layoutToMaster = new Map<string, string>()
 
@@ -159,7 +159,7 @@ export function buildPresentation(files: PptxFiles): PresentationData {
     layouts.set(layoutPath, layoutData)
   }
 
-  // --- Parse charts ---
+  // Parse charts
   const charts = new Map<string, SafeXmlNode>()
   for (const [chartPath, chartXml] of files.charts) {
     const chartRoot = parseXml(chartXml)
@@ -168,7 +168,7 @@ export function buildPresentation(files: PptxFiles): PresentationData {
     }
   }
 
-  // --- Determine slide ordering ---
+  // Determine slide ordering
   // The sldIdLst contains sldId elements with r:id attributes that reference
   // presentation.xml.rels. We need to handle the fact that the attr might be
   // stored as 'r:id' in the original XML but SafeXmlNode.attr() uses localName.
@@ -209,7 +209,7 @@ export function buildPresentation(files: PptxFiles): PresentationData {
     }
   }
 
-  // --- Parse slides ---
+  // Parse slides
   const slides: SlideData[] = []
   const slideToLayout = new Map<number, string>()
 
@@ -237,7 +237,7 @@ export function buildPresentation(files: PptxFiles): PresentationData {
     slides.push(slideData)
   }
 
-  // --- Table styles ---
+  // Table styles
   let tableStyles: SafeXmlNode | undefined
   if (files.tableStyles) {
     const tsRoot = parseXml(files.tableStyles)
@@ -262,7 +262,7 @@ export function buildPresentation(files: PptxFiles): PresentationData {
     isWps,
   }
 
-  // --- Resolve placeholder position inheritance ---
+  // Resolve placeholder position inheritance
   resolvePlaceholderInheritance(result)
 
   return result

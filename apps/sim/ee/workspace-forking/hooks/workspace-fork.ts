@@ -1,8 +1,15 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type ForkWorkspaceBody,
   forkWorkspaceContract,
+  type GetForkLineageResponse,
   getForkDiffContract,
   getForkLineageContract,
   getForkMappingContract,
@@ -14,9 +21,11 @@ import {
   type UnlinkForkBody,
   type UpdateForkExcludedWorkflowsBody,
   type UpdateForkMappingBody,
+  type UpdateForkSyncDefaultBody,
   unlinkForkContract,
   updateForkExcludedWorkflowsContract,
   updateForkMappingContract,
+  updateForkSyncDefaultContract,
 } from '@/lib/api/contracts/workspace-fork'
 import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work'
@@ -57,13 +66,20 @@ export function useForkResources(workspaceId?: string, enabled = true) {
   })
 }
 
-export function useForkLineage(workspaceId?: string, enabled = true) {
-  return useQuery({
+export function forkLineageQueryOptions(workspaceId: string) {
+  return queryOptions({
     queryKey: forkKeys.lineage(workspaceId),
     queryFn: ({ signal }) =>
-      requestJson(getForkLineageContract, { params: { id: workspaceId as string }, signal }),
-    enabled: Boolean(workspaceId) && enabled,
+      requestJson(getForkLineageContract, { params: { id: workspaceId }, signal }),
     staleTime: WORKSPACE_FORK_LINEAGE_STALE_TIME,
+    retryOnMount: true,
+  })
+}
+
+export function useForkLineage(workspaceId?: string, enabled = true) {
+  return useQuery({
+    ...forkLineageQueryOptions(workspaceId ?? ''),
+    enabled: Boolean(workspaceId) && enabled,
     placeholderData: keepPreviousData,
   })
 }
@@ -213,11 +229,12 @@ export function useRollbackFork() {
 }
 
 /**
- * Toggle "Exclude from sync" for a batch of workflows (one request per folder or
- * row click in the Excluded workflows tree). Optimistically flips the flag in the
+ * Toggle fork-sync participation for a batch of workflows (one request per folder or
+ * row click in the Synced workflows tree). Optimistically flips the flag in the
  * workspace's cached workflow list so the tree responds instantly, then reconciles.
+ * Callers pass the stored `forkSyncExcluded` value; the tree owns the inversion.
  */
-export function useUpdateForkExcludedWorkflows() {
+export function useUpdateForkSyncedWorkflows() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (vars: { workspaceId: string; body: UpdateForkExcludedWorkflowsBody }) =>
@@ -248,6 +265,49 @@ export function useUpdateForkExcludedWorkflows() {
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: forkKeys.resources(vars.workspaceId) })
       return invalidateWorkflowLists(queryClient, vars.workspaceId)
+    },
+  })
+}
+
+/**
+ * Set whether newly created workflows sync to forks, for the whole fork lineage.
+ *
+ * The write reaches every ancestor and descendant, so the optimistic patch is
+ * deliberately scoped to THIS workspace's cached lineage - it is the only member whose
+ * value we can honestly claim to know before the server answers. Sibling members refresh
+ * from the invalidation below (or on their next load), rather than being optimistically
+ * rewritten from a page that cannot see them.
+ */
+export function useUpdateForkSyncDefault() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { workspaceId: string; body: UpdateForkSyncDefaultBody }) =>
+      requestJson(updateForkSyncDefaultContract, {
+        params: { id: vars.workspaceId },
+        body: vars.body,
+      }),
+    onMutate: async (vars) => {
+      const lineageKey = forkKeys.lineage(vars.workspaceId)
+      await queryClient.cancelQueries({ queryKey: lineageKey })
+      const snapshot = queryClient.getQueryData<GetForkLineageResponse>(lineageKey)
+      if (snapshot) {
+        queryClient.setQueryData<GetForkLineageResponse>(lineageKey, {
+          ...snapshot,
+          forkSyncNewWorkflowsExcluded: vars.body.excludeNewWorkflows,
+        })
+      }
+      return { snapshot }
+    },
+    onError: (_error, vars, context) => {
+      if (context?.snapshot) {
+        queryClient.setQueryData(forkKeys.lineage(vars.workspaceId), context.snapshot)
+      }
+    },
+    onSettled: () => {
+      // Every lineage member's value moved, so refresh all cached lineages, not just this one,
+      // and every sync preview: each one fingerprints the workspace rows this just rewrote.
+      queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
     },
   })
 }

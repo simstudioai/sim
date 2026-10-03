@@ -14,6 +14,7 @@
     "applyWorkflowVariables",
     "listWorkflowVersionsV2",
     "getWorkflowVersionV2",
+    "compareWorkflowVersionsV2",
     "updateWorkflowVersionV2",
     "activateWorkflowVersion",
     "revertWorkflowVersion",

@@ -157,7 +157,7 @@ export function normalizeNetSuiteSuiteTalkOrigin(rawUrl: string): string | undef
 }
 
 /** Canonical Oracle-assigned Fusion Applications origin used by product REST APIs. */
-export const ORACLE_FUSION_APPLICATION_ORIGIN_REGEX =
+const ORACLE_FUSION_APPLICATION_ORIGIN_REGEX =
   /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.oraclecloud\.com$/
 const ORACLE_FUSION_APPLICATION_INPUT_REGEX =
   /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.oraclecloud\.com\/?$/i

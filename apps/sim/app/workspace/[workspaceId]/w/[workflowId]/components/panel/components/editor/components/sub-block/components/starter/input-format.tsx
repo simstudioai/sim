@@ -24,6 +24,7 @@ import {
   isFileFieldType,
   parseInputFormatFiles,
 } from '@/lib/workflows/input-format'
+import type { InputFormatFieldState } from '@/lib/workflows/input-format-schema'
 import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
@@ -39,14 +40,8 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 
-interface Field {
-  id: string
-  name: string
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
-  value?: string
-  description?: string
-  collapsed?: boolean
-}
+type Field = Pick<InputFormatFieldState, 'id' | 'name'> &
+  Partial<Omit<InputFormatFieldState, 'id' | 'name'>>
 
 interface FieldFormatProps {
   blockId: string
@@ -171,7 +166,7 @@ export function FieldFormat({
         <Tooltip.Trigger asChild>
           <button
             type='button'
-            className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+            className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
             onClick={() =>
               setFileFieldModes((prev) => ({
                 ...prev,
@@ -183,7 +178,7 @@ export function FieldFormat({
           >
             <ArrowLeftRight
               className={cn(
-                '!h-[12px] !w-[12px]',
+                'h-[12px]! w-[12px]!',
                 mode === 'json' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
               )}
             />
@@ -319,7 +314,6 @@ export function FieldFormat({
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       nameFieldKey,
-      fieldValue,
       (newValue) => updateField(field.id, 'name', newValue)
     )
 
@@ -466,7 +460,6 @@ export function FieldFormat({
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       field.id,
-      fieldValue,
       (newValue) => updateField(field.id, 'value', newValue)
     )
 

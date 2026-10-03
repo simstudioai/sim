@@ -1,15 +1,14 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/env', () => ({ env: {} }))
-
-import integrationsJson from '@sim/deployment-config/integrations.json'
 import {
   OAUTH_CLIENT_CAPABILITIES,
   resolveOAuthClientCapabilityId,
-} from '@/lib/core/config/env-capabilities'
+} from '@sim/deployment-config/env-capabilities'
+import integrationsJson from '@sim/deployment-config/integrations.json'
+import {
+  CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS,
+  SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID,
+} from '@sim/deployment-config/service-account-metadata'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   getIntegrationTypesForOAuthServiceId,
   type IntegrationAvailability,
@@ -18,12 +17,20 @@ import {
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import {
+  getOAuthServiceAvailability,
   isIntegrationDeploymentAvailable,
   isIntegrationDeploymentAvailableForVisibility,
 } from '@/lib/integrations/availability.server'
-import { SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID } from '@/lib/integrations/service-account-metadata'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
+
+setEnv({
+  X_CLIENT_ID: undefined,
+  X_CLIENT_SECRET: undefined,
+  GITHUB_APP_CLIENT_ID: undefined,
+  GITHUB_APP_CLIENT_SECRET: undefined,
+})
+afterAll(resetEnvMock)
 
 const integrations = integrationsJson.integrations as readonly Integration[]
 
@@ -37,6 +44,12 @@ function availabilityFor(
 }
 
 describe('integration availability', () => {
+  it('does not infer GitHub repository OAuth readiness from its API-key workflow block', () => {
+    expect(availabilityFor('github_v2')).toMatchObject({ state: 'ready', oauthAvailable: false })
+    expect(
+      getOAuthServiceAvailability([{ providerId: 'github-repositories', authType: 'oauth' }])
+    ).toEqual([{ providerId: 'github-repositories', available: false }])
+  })
   it('marks a configured OAuth integration ready', () => {
     expect(
       availabilityFor('slack_v2', {
@@ -79,6 +92,17 @@ describe('integration availability', () => {
       oauthAvailable: false,
       setupCommand: 'npx sim-setup add integration x',
     })
+  })
+
+  it('keeps credential-configured OAuth integrations independent of deployment secrets', () => {
+    expect(availabilityFor('quickbooks')).toMatchObject({
+      state: 'ready',
+      oauthAvailable: true,
+      serviceAccountAvailable: false,
+      missingFields: [],
+    })
+    expect(availabilityFor('quickbooks').setupCommand).toBeUndefined()
+    expect(resolveOAuthClientCapabilityId('quickbooks')).toBeNull()
   })
 
   it('keeps custom bots available when the Slack OAuth client is partial', () => {
@@ -176,12 +200,16 @@ describe('integration availability', () => {
       ),
     ]
     const expectedServiceAccountIds: Record<string, string> = {}
+    const expectedCredentialConfiguredServiceIds: string[] = []
 
     for (const oauthServiceId of oauthServiceIds) {
       const canonical = getServiceConfigByServiceId(oauthServiceId)
       if (!canonical) throw new Error(`Missing canonical OAuth service ${oauthServiceId}`)
       const projected = SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[oauthServiceId]
       expect(projected?.providerId, oauthServiceId).toBe(canonical.serviceAccountProviderId)
+      if (canonical.clientConfiguration) {
+        expectedCredentialConfiguredServiceIds.push(oauthServiceId)
+      }
       if (canonical.serviceAccountProviderId) {
         expectedServiceAccountIds[oauthServiceId] = canonical.serviceAccountProviderId
       }
@@ -194,6 +222,9 @@ describe('integration availability', () => {
         )
       )
     ).toEqual(expectedServiceAccountIds)
+    expect([...CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS].sort()).toEqual(
+      expectedCredentialConfiguredServiceIds.sort()
+    )
     expect(SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID.slack.deploymentRequirement).toBeUndefined()
     expect(SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID.trello.deploymentRequirement).toBe(
       'oauth-client'

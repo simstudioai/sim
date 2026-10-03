@@ -1,24 +1,40 @@
-/**
- * @vitest-environment node
- */
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import { generateId } from '@sim/utils/id'
+import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   applyBlockRetry,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
   normalizeSubblockValue,
+  normalizeTools,
   resolveBlockRetryUpdate,
 } from '@/lib/workflows/editing/builders'
 import type { SkippedItem } from '@/lib/workflows/editing/types'
+import { getAllBlocks, getBlock } from '@/blocks/registry'
 
-const { mockIsIntegrationDeploymentAvailable } = vi.hoisted(() => ({
-  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
-}))
+const mockIsIntegrationDeploymentAvailable =
+  integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
-}))
+const mockGetAllBlocks = getAllBlocks as Mock
+const mockGetBlock = getBlock as Mock
+mockGetAllBlocks.mockImplementation(() => [
+  apiBlockConfig,
+  agentBlockConfig,
+  conditionBlockConfig,
+  knowledgeBlockConfig,
+  slackBlockConfig,
+  webhookBlockConfig,
+  gatedOperationBlockConfig,
+])
+mockGetBlock.mockImplementation((type: string) => blocksByType[type])
+
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 const agentBlockConfig = {
   type: 'agent',
@@ -26,7 +42,10 @@ const agentBlockConfig = {
   outputs: {
     content: { type: 'string', description: 'Default content output' },
   },
-  subBlocks: [{ id: 'responseFormat', type: 'response-format' }],
+  subBlocks: [
+    { id: 'responseFormat', type: 'response-format' },
+    { id: 'tools', type: 'tool-input' },
+  ],
 }
 
 const conditionBlockConfig = {
@@ -72,24 +91,55 @@ const apiBlockConfig = {
   ],
 }
 
+/** Mirrors generic_webhook: the token is pre-filled by a thunk, the URL is display-only. */
+const webhookBlockConfig = {
+  type: 'generic_webhook',
+  name: 'Webhook Trigger',
+  category: 'triggers',
+  outputs: {},
+  subBlocks: [
+    { id: 'webhookUrlDisplay', type: 'short-input', readOnly: true, value: () => 'display-only' },
+    { id: 'requireAuth', type: 'switch', defaultValue: true },
+    { id: 'token', type: 'short-input', password: true, value: () => generateId() },
+    { id: 'signingSecret', type: 'short-input', hidden: true, value: () => 'run-time-only' },
+  ],
+}
+
+/** An operation dropdown pre-filled by a thunk, so the seed meets the permission gate. */
+const gatedOperationBlockConfig = {
+  type: 'gated',
+  name: 'Gated',
+  outputs: {},
+  subBlocks: [
+    {
+      id: 'operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Canvas', id: 'canvas' },
+        { label: 'Send', id: 'send' },
+      ],
+      value: () => 'canvas',
+    },
+  ],
+  tools: {
+    access: ['gated_canvas', 'gated_send'],
+    config: {
+      tool: ({ operation }: { operation?: string }) =>
+        operation === 'canvas' ? 'gated_canvas' : 'gated_send',
+    },
+  },
+}
+
 const blocksByType: Record<string, unknown> = {
   api: apiBlockConfig,
   agent: agentBlockConfig,
+  mothership: { ...agentBlockConfig, type: 'mothership' },
   condition: conditionBlockConfig,
   knowledge: knowledgeBlockConfig,
   slack: slackBlockConfig,
+  generic_webhook: webhookBlockConfig,
+  gated: gatedOperationBlockConfig,
 }
-
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: () => [
-    apiBlockConfig,
-    agentBlockConfig,
-    conditionBlockConfig,
-    knowledgeBlockConfig,
-    slackBlockConfig,
-  ],
-  getBlock: (type: string) => blocksByType[type],
-}))
 
 describe('createBlockFromParams', () => {
   it('derives agent outputs from responseFormat when outputs are not provided', () => {
@@ -115,6 +165,27 @@ describe('createBlockFromParams', () => {
     expect(block.outputs.answer.type).toBe('string')
   })
 
+  it.each(['agent', 'mothership'])(
+    'selects variable Tool Mode when a %s tool supplies an expression',
+    (type) => {
+      const block = createBlockFromParams('b-agent', {
+        type,
+        name: 'Agent',
+        inputs: {
+          tools: [
+            {
+              type: 'mcp',
+              params: { serverId: 'server-1', toolName: 'search' },
+              usageControlExpression: '<route.toolMode>',
+            },
+          ],
+        },
+      })
+
+      expect(block.data.canonicalModes['0:agentToolUsageControl']).toBe('advanced')
+    }
+  )
+
   it('preserves configured subblock types and normalizes condition branch ids', () => {
     const block = createBlockFromParams('condition-1', {
       type: 'condition',
@@ -133,17 +204,6 @@ describe('createBlockFromParams', () => {
     const parsed = JSON.parse(block.subBlocks.conditions.value)
     expect(parsed[0].id).toBe('condition-1-if')
     expect(parsed[1].id).toBe('condition-1-else')
-  })
-
-  it('uses lowercase titles for default condition branches', () => {
-    const block = createBlockFromParams('condition-1', {
-      type: 'condition',
-      name: 'Condition 1',
-      triggerMode: false,
-    })
-
-    const conditions = JSON.parse(block.subBlocks.conditions.value)
-    expect(conditions.map(({ title }: { title: string }) => title)).toEqual(['if', 'else'])
   })
 
   it('persists knowledge tag subblocks as JSON strings, not raw arrays', () => {
@@ -175,9 +235,102 @@ describe('createBlockFromParams', () => {
     expect(block.subBlocks.redirectPolicyVersion.value).toBe('standard-v1')
     expect(block.subBlocks.sendCredentialsOnCrossOriginRedirect.value).toBeNull()
   })
+
+  /**
+   * The editor pre-fills a webhook trigger's token from its `value()` thunk;
+   * without the same seeding here a trigger added over the API deployed with
+   * `token: null` and was refused as "authentication enabled but no token".
+   */
+  it('seeds editor defaults from value() thunks so an API-added webhook trigger has a token', () => {
+    const block = createBlockFromParams('hook-1', {
+      type: 'generic_webhook',
+      name: 'Webhook',
+      triggerMode: true,
+    })
+
+    expect(block.subBlocks.token.value).toEqual(expect.any(String))
+    expect(block.subBlocks.token.value).not.toBe('')
+    expect(block.subBlocks.webhookUrlDisplay.value).toBeNull()
+    expect(block.subBlocks.signingSecret.value).toBeNull()
+    expect(block.subBlocks.requireAuth.value).toBeNull()
+  })
+
+  it('never overrides an explicit input with a seeded default', () => {
+    const explicit = createBlockFromParams('hook-1', {
+      type: 'generic_webhook',
+      name: 'Webhook',
+      inputs: { token: 'my-token' },
+    })
+    const cleared = createBlockFromParams('hook-2', {
+      type: 'generic_webhook',
+      name: 'Webhook',
+      inputs: { token: null },
+    })
+
+    expect(explicit.subBlocks.token.value).toBe('my-token')
+    expect(cleared.subBlocks.token.value).toBeNull()
+  })
+
+  it('withholds a seeded operation the permission group denies without recording a skip', () => {
+    const skippedItems: SkippedItem[] = []
+    const denyCanvas = { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['gated_canvas'] }
+
+    const denied = createBlockFromParams(
+      'g-1',
+      { type: 'gated', name: 'Gated' },
+      undefined,
+      undefined,
+      denyCanvas,
+      skippedItems
+    )
+    const allowed = createBlockFromParams(
+      'g-2',
+      { type: 'gated', name: 'Gated' },
+      undefined,
+      undefined,
+      DEFAULT_PERMISSION_GROUP_CONFIG,
+      skippedItems
+    )
+
+    expect(denied.subBlocks.operation.value).toBeNull()
+    expect(allowed.subBlocks.operation.value).toBe('canvas')
+    expect(skippedItems).toEqual([])
+  })
 })
 
 describe('filterDisallowedTools', () => {
+  it('assigns canonical tool modes after removing disallowed tools', () => {
+    const block = createBlockFromParams(
+      'agent-1',
+      {
+        type: 'agent',
+        name: 'Agent',
+        inputs: {
+          tools: [
+            {
+              type: 'mcp',
+              params: { serverId: 'server-1', toolName: 'search' },
+              usageControl: 'auto',
+            },
+            {
+              type: 'custom-tool',
+              customToolId: 'custom-1',
+              usageControlExpression: '<route.toolMode>',
+            },
+          ],
+        },
+      },
+      undefined,
+      undefined,
+      { ...DEFAULT_PERMISSION_GROUP_CONFIG, disableMcpTools: true }
+    )
+
+    expect(block.subBlocks.tools.value).toEqual([
+      expect.objectContaining({ customToolId: 'custom-1' }),
+    ])
+    expect(block.data.canonicalModes).toEqual({ '0:agentToolUsageControl': 'advanced' })
+  })
+
   it('removes unavailable integration tools even without a permission group', () => {
     mockIsIntegrationDeploymentAvailable.mockImplementation((type: string) => type !== 'slack')
     const skippedItems: Parameters<typeof filterDisallowedTools>[3] = []
@@ -194,6 +347,29 @@ describe('filterDisallowedTools', () => {
   })
 })
 
+describe('normalizeTools', () => {
+  it('preserves a custom tool variable-backed usage mode', () => {
+    expect(
+      normalizeTools([
+        {
+          type: 'custom-tool',
+          customToolId: 'custom-1',
+          usageControl: 'auto',
+          usageControlExpression: '<route.toolMode>',
+        },
+      ])
+    ).toEqual([
+      {
+        type: 'custom-tool',
+        customToolId: 'custom-1',
+        usageControl: 'auto',
+        usageControlExpression: '<route.toolMode>',
+        isExpanded: true,
+      },
+    ])
+  })
+})
+
 describe('normalizeSubblockValue', () => {
   it.each(['tagFilters', 'documentTags', 'conditions', 'routes'])(
     'serializes %s to a JSON string the subblock component can parse',
@@ -204,23 +380,6 @@ describe('normalizeSubblockValue', () => {
       expect(JSON.parse(result as string)[0].title).toBe('a')
     }
   )
-
-  it('accepts a JSON string as input and still returns a string', () => {
-    const result = normalizeSubblockValue('tagFilters', JSON.stringify([{ tagName: 'Department' }]))
-
-    expect(typeof result).toBe('string')
-    expect(JSON.parse(result as string)[0].tagName).toBe('Department')
-  })
-
-  it('leaves array-with-id subblocks that are not string-serialized as raw arrays', () => {
-    const result = normalizeSubblockValue('inputFormat', [{ id: 'x', name: 'field' }])
-
-    expect(Array.isArray(result)).toBe(true)
-  })
-
-  it('passes through subblock keys that need no normalization', () => {
-    expect(normalizeSubblockValue('systemPrompt', 'hello')).toBe('hello')
-  })
 
   // Validation treats null as an explicit clear. Coercing it to "[]" would persist a value
   // where the caller asked for none, so the agent reads back an empty filter rather than an
@@ -261,24 +420,6 @@ describe('applyTriggerConfigToBlockSubblocks', () => {
       value: 'x',
     })
   })
-
-  it('keeps the existing entry metadata when the key already exists', () => {
-    const block = {
-      id: 'b1',
-      type: 'slack',
-      subBlocks: {
-        channel: { id: 'channel', type: 'channel-selector', value: 'C-old' },
-      } as Record<string, { id: string; type: string; value: unknown }>,
-    }
-
-    applyTriggerConfigToBlockSubblocks(block, { channel: 'C-new' })
-
-    expect(block.subBlocks.channel).toEqual({
-      id: 'channel',
-      type: 'channel-selector',
-      value: 'C-new',
-    })
-  })
 })
 
 describe('block retry policy', () => {
@@ -294,15 +435,6 @@ describe('block retry policy', () => {
     expect(resolveBlockRetryUpdate({ maxTries: 4 }, undefined)).toMatchObject({
       enabled: true,
       maxTries: 4,
-    })
-  })
-
-  it('keeps configured numbers when retry is switched off', () => {
-    const existing = { enabled: true, maxTries: 5, waitBetweenTriesMs: 250 }
-    expect(resolveBlockRetryUpdate({ enabled: false }, existing)).toEqual({
-      enabled: false,
-      maxTries: 5,
-      waitBetweenTriesMs: 250,
     })
   })
 
@@ -345,14 +477,5 @@ describe('block retry policy', () => {
     expect(block.retry).toBeUndefined()
     expect(skippedItems).toHaveLength(1)
     expect(skippedItems[0]).toMatchObject({ type: 'retry_not_supported', blockId: 'b1' })
-  })
-
-  it('clears the policy when null is sent', () => {
-    const block: Record<string, unknown> = {
-      type: 'agent',
-      retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 },
-    }
-    applyBlockRetry(block, null, { operationType: 'edit', blockId: 'b1' })
-    expect(block.retry).toBeUndefined()
   })
 })

@@ -8,7 +8,7 @@ import ResumeExecutionPage from '@/app/(interfaces)/resume/[workflowId]/[executi
 
 export const metadata: Metadata = {
   title: 'Resume Execution',
-  robots: { index: false },
+  robots: { index: false, follow: false },
 }
 
 export const runtime = 'nodejs'

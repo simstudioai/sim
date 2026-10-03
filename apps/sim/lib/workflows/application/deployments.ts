@@ -1,13 +1,14 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution, toPrincipalActor } from '@sim/auth/principal'
+import { resolvePrincipalAttribution, toPrincipalActor } from '@sim/auth/principal'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { listLiveWorkflowMcpToolsForWorkflow } from '@/lib/mcp/queries'
 import { notifyWorkflowReverted } from '@/lib/realtime/notify'
+import { listDeployedWebhookUrls } from '@/lib/webhooks/deployed-urls'
 import { requireWorkflowExecutionUserId } from '@/lib/workflows/application/authorization'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   getWorkflowDeploymentSummary,
@@ -66,19 +67,6 @@ export interface UpdateWorkflowVersionInput {
   description?: string | null
 }
 
-function resolveWorkflowContext<I extends { workflowId: string; assertedWorkspaceId?: string }>({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: I
-}) {
-  return resolveActiveWorkflowApplicationContext({
-    workflowId: input.workflowId,
-    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-  })
-}
-
 function throwDeploymentFailure(
   result: { error?: string; errorCode?: OrchestrationErrorCode },
   fallback: string
@@ -102,7 +90,7 @@ async function requireMutableWorkflow(workflowId: string): Promise<void> {
 
 export const deployWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.deploy,
-  resolveContext: resolveWorkflowContext<DeployWorkflowInput>,
+  resolveContext: resolvePrincipalWorkflowContext<DeployWorkflowInput>,
   async execute({ principal, input, context }) {
     await requireMutableWorkflow(context.workflowId)
     const attribution = resolvePrincipalAttribution(principal, {
@@ -130,7 +118,7 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
 
 export const undeployWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.undeploy,
-  resolveContext: resolveWorkflowContext<UndeployWorkflowInput>,
+  resolveContext: resolvePrincipalWorkflowContext<UndeployWorkflowInput>,
   async execute({ principal, input, context }) {
     if (!context.workflow.isDeployed) {
       throw new OrchestrationError('validation', 'Workflow is not deployed')
@@ -139,6 +127,12 @@ export const undeployWorkflow = defineAuthorizedWorkflowUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    /**
+     * Read before the undeploy, which archives every live registration of this
+     * workflow: the caller sees which tools went inactive on which servers,
+     * rather than finding them gone from the server's tool list.
+     */
+    const archivedMcpTools = await listLiveWorkflowMcpToolsForWorkflow(context.workflowId)
     const result = await performFullUndeploy({
       workflowId: context.workflowId,
       userId: attribution.attributedUserId,
@@ -152,8 +146,10 @@ export const undeployWorkflow = defineAuthorizedWorkflowUseCase({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       workflowName: context.workflow.name,
+      archivedMcpTools,
     }
   },
+
   projectAudit: ({ result }) => ({
     action: AuditAction.WORKFLOW_UNDEPLOYED,
     resourceType: AuditResourceType.WORKFLOW,
@@ -165,7 +161,7 @@ export const undeployWorkflow = defineAuthorizedWorkflowUseCase({
 
 export const activateWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.activateVersion,
-  resolveContext: resolveWorkflowContext<ActivateWorkflowVersionInput>,
+  resolveContext: resolvePrincipalWorkflowContext<ActivateWorkflowVersionInput>,
   async execute({ principal, input, context }) {
     if (input.transition === 'rollback' && !context.workflow.isDeployed) {
       throw new OrchestrationError('validation', 'Workflow is not deployed')
@@ -216,7 +212,7 @@ export const activateWorkflowVersion = defineAuthorizedWorkflowUseCase({
 
 export const readWorkflowDeploymentStatus = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.read,
-  resolveContext: resolveWorkflowContext<ReadWorkflowDeploymentStatusInput>,
+  resolveContext: resolvePrincipalWorkflowContext<ReadWorkflowDeploymentStatusInput>,
   async execute({ context }) {
     const deploymentSummary = await getWorkflowDeploymentSummary(context.workflowId)
     const isDeployed = deploymentSummary.activeDeployment !== null
@@ -225,11 +221,13 @@ export const readWorkflowDeploymentStatus = defineAuthorizedWorkflowUseCase({
       isDeployed && attemptStatus !== 'preparing' && attemptStatus !== 'activating'
         ? await checkNeedsRedeployment(context.workflowId)
         : false
+    const webhooks = isDeployed ? await listDeployedWebhookUrls(context.workflowId) : []
     return {
       workflow: context.workflow,
       workspaceId: context.workspaceId,
       isDeployed,
       needsRedeployment,
+      webhooks,
       ...deploymentSummary,
     }
   },
@@ -237,7 +235,7 @@ export const readWorkflowDeploymentStatus = defineAuthorizedWorkflowUseCase({
 
 export const revertWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.revertVersion,
-  resolveContext: resolveWorkflowContext<RevertWorkflowVersionInput>,
+  resolveContext: resolvePrincipalWorkflowContext<RevertWorkflowVersionInput>,
   async execute({ principal, input, context }) {
     const userId = requireWorkflowExecutionUserId(principal)
     await requireMutableWorkflow(context.workflowId)
@@ -276,7 +274,7 @@ export const revertWorkflowVersion = defineAuthorizedWorkflowUseCase({
 
 export const updateWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.updateVersion,
-  resolveContext: resolveWorkflowContext<UpdateWorkflowVersionInput>,
+  resolveContext: resolvePrincipalWorkflowContext<UpdateWorkflowVersionInput>,
   async execute({ input, context }) {
     const updated = await updateDeploymentVersionMetadata({
       workflowId: context.workflowId,

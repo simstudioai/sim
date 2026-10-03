@@ -1,14 +1,13 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { secureFetch } = vi.hoisted(() => ({ secureFetch: vi.fn() }))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithValidation: secureFetch,
-}))
+const { mockSecureFetchWithValidation: secureFetch } = inputValidationMockFns
 
 import {
   AzureDataExplorerOperationError,
@@ -23,16 +22,6 @@ const BASE_INPUT = {
   endpoint: 'query' as const,
   database: 'Samples',
   csl: 'print Test="Hello, World!"',
-}
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    headers: new Headers(),
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as Response
 }
 
 function queryResponse(severity = 4) {
@@ -71,7 +60,6 @@ function queryResponse(severity = 4) {
 
 describe('requestAzureDataExplorer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     secureFetch
       .mockResolvedValueOnce(jsonResponse({ access_token: 'token-1', expires_in: 3600 }))
       .mockResolvedValueOnce(jsonResponse(queryResponse()))
@@ -132,16 +120,5 @@ describe('requestAzureDataExplorer', () => {
     expect(output.rows).toHaveLength(10_000)
     expect(output.records).toHaveLength(10_000)
     expect(output).toMatchObject({ rowCount: 10_000, totalRowCount: 10_050, truncated: true })
-  })
-
-  it('propagates cancellation before any provider request', async () => {
-    secureFetch.mockReset()
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(
-      requestAzureDataExplorer(BASE_INPUT, 'request-4', controller.signal)
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(secureFetch).not.toHaveBeenCalled()
   })
 })

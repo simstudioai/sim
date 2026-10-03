@@ -1,8 +1,8 @@
-import type { dataDrainRuns, dataDrains } from '@sim/db/schema'
+import type { dataDrainRuns } from '@sim/db/schema'
 import { type DataDrain, type DataDrainRun, dataDrainSchema } from '@/lib/api/contracts/data-drains'
 import { getDestination } from '@/lib/data-drains/destinations/registry'
 
-type DataDrainRow = typeof dataDrains.$inferSelect
+type DataDrainRow = import('@/lib/data-drains/application/use-cases').DataDrainRecord
 type DataDrainRunRow = typeof dataDrainRuns.$inferSelect
 
 /**

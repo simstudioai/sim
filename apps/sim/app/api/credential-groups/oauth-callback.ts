@@ -1,19 +1,41 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
+import { sha256Hex } from '@sim/security/hash'
+import { describeError, getErrorMessage } from '@sim/utils/errors'
+import { type NextRequest, NextResponse } from 'next/server'
 import type { CredentialGroupOAuthCallbackQuery } from '@/lib/api/contracts/credential-groups'
-import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
+import { internalSessionAuth } from '@/lib/api/server/routes'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { credentialGroupOAuthAttemptPrincipal } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
+import type { CredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import { consumeCredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import {
   CredentialGroupInvitationUnavailableError,
   CredentialGroupOAuthError,
+  CredentialGroupProviderConfigurationError,
 } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
-import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
+import { completeGitHubSetupReaderOAuth } from '@/lib/knowledge/application/github-setup'
+import { githubSetupContinueUrl } from '@/lib/knowledge/github-setup-urls'
+import {
+  createCredentialGroupCompletionRedirect,
+  createCredentialGroupEnrollmentRedirect,
+} from '@/app/api/credential-groups/enrollment-redirect'
 
 const logger = createLogger('CredentialGroupOAuthCallbackAPI')
+const DIAGNOSTIC_ERROR_TYPES = new Set([
+  'Error',
+  'TypeError',
+  'ReferenceError',
+  'SyntaxError',
+  'RangeError',
+  'ZodError',
+  'PostgresError',
+  'DrizzleQueryError',
+  'InternalUnauthenticatedError',
+  'ManagedOAuthCredentialError',
+])
 
 interface HandleCredentialGroupOAuthCallbackParams {
   request: NextRequest
@@ -34,64 +56,148 @@ export async function handleCredentialGroupOAuthCallback({
   try {
     attempt = await consumeCredentialGroupOAuthAttempt(state)
   } catch (error) {
+    if (error instanceof CredentialGroupOAuthStateVersionError) {
+      return createCredentialGroupCompletionRedirect('expired')
+    }
     logger.error('Failed to consume credential group OAuth state', {
       error: getErrorMessage(error),
     })
-    return NextResponse.json(
-      { error: 'Authorization state is unavailable. Please try again.' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } }
-    )
+    return createCredentialGroupCompletionRedirect('unavailable')
   }
   if (!attempt || attempt.provider !== provider) {
-    if (limited) return limited
-    return NextResponse.json(
-      { error: 'Authorization state is invalid or expired.' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
-    )
+    return createCredentialGroupCompletionRedirect(limited ? 'rate_limited' : 'expired')
   }
-  if (limited) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
-      oauth: 'rate_limited',
+  const focus: Record<string, string> = attempt.returnTo
+    ? { optionId: attempt.optionId, returnTo: attempt.returnTo }
+    : {}
+  const setupRedirect = (oauth?: CredentialGroupOAuthFailure) =>
+    new NextResponse(null, {
+      status: 303,
+      headers: {
+        Location: githubSetupContinueUrl(
+          { organizationId: attempt.organizationId!, setupId: attempt.completionId! },
+          oauth
+        ),
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer',
+      },
     })
+  const installationSetup =
+    attempt.returnTo === 'github-installation' && attempt.organizationId && attempt.completionId
+  const returnOrganizationId =
+    attempt.returnTo === 'integrations' ? attempt.organizationId : undefined
+  const failureRedirect = (oauth: CredentialGroupOAuthFailure) =>
+    installationSetup
+      ? setupRedirect(oauth)
+      : attempt.completionRedirect
+        ? createCredentialGroupCompletionRedirect(oauth, attempt.completionId, returnOrganizationId)
+        : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { ...focus, oauth })
+  if (limited) {
+    return failureRedirect('rate_limited')
   }
   if (providerError) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'denied' })
+    return failureRedirect('denied')
   }
   if (!code) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'failed' })
+    return failureRedirect('failed')
   }
 
-  const principal = await authenticateCredentialGroupEnrollment(attempt.invitationToken)
-  if (!principal) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
-      oauth: 'unavailable',
-    })
-  }
-
+  let stage = 'session_authentication'
   try {
+    if (installationSetup) {
+      const principal = await internalSessionAuth.authenticate()
+      stage = 'setup_completion'
+      await completeGitHubSetupReaderOAuth.execute({ principal, input: { attempt, code }, request })
+      return setupRedirect()
+    }
+    stage = 'enrollment_authentication'
+    const principal = await credentialGroupOAuthAttemptPrincipal(attempt)
+    stage = 'enrollment_completion'
     await completePublicCredentialGroupOAuth.execute({
       principal,
       input: { attempt, code },
       request,
     })
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
-      connected: attempt.optionId,
-    })
+    return attempt.completionRedirect
+      ? createCredentialGroupCompletionRedirect(
+          undefined,
+          attempt.completionId,
+          returnOrganizationId
+        )
+      : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+          ...focus,
+          connected: attempt.optionId,
+        })
   } catch (error) {
-    logger.error('Managed OAuth authorization failed', {
-      provider,
-      error: getErrorMessage(error),
-    })
-    const status =
+    const identityFailure =
+      error instanceof CredentialGroupOAuthError ? error.identityFailure : undefined
+    let status: CredentialGroupOAuthFailure =
       error instanceof CredentialGroupInvitationUnavailableError
         ? 'unavailable'
         : error instanceof CredentialGroupOAuthError && error.statusCode === 403
-          ? error.message.startsWith('Sign in with')
-            ? 'account_mismatch'
-            : 'permissions_required'
+          ? 'permissions_required'
           : error instanceof CredentialGroupOAuthError && error.statusCode === 409
             ? 'configuration_changed'
             : 'failed'
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: status })
+    if (identityFailure) {
+      switch (identityFailure.reason) {
+        case 'email_unverified':
+          status = provider === 'github-repositories' ? 'github_email_unverified' : 'failed'
+          break
+        case 'email_access_denied':
+          status =
+            provider === 'github-repositories'
+              ? 'github_email_access_denied'
+              : 'permissions_required'
+          break
+        case 'rate_limited':
+          status = 'rate_limited'
+          break
+        case 'provider_unavailable':
+        case 'invalid_response':
+          status = 'provider_unavailable'
+          break
+      }
+    }
+    const applicationError = asOrchestrationError(error)
+    const errorClass =
+      error instanceof CredentialGroupInvitationUnavailableError
+        ? 'invitation_unavailable'
+        : error instanceof CredentialGroupOAuthError
+          ? 'credential_group_oauth'
+          : error instanceof CredentialGroupProviderConfigurationError
+            ? 'provider_configuration'
+            : applicationError
+              ? 'application'
+              : 'unexpected'
+    const unexpectedError = errorClass === 'unexpected' ? describeError(error) : undefined
+    logger.error('Managed OAuth authorization failed', {
+      provider,
+      failure: status,
+      errorClass,
+      /** Provider errors and SQL parameters may contain credentials; retain only bounded diagnostics. */
+      ...(unexpectedError && {
+        stage,
+        errorType: DIAGNOSTIC_ERROR_TYPES.has(unexpectedError.name)
+          ? unexpectedError.name
+          : 'UnknownError',
+        fingerprint: sha256Hex(unexpectedError.message).slice(0, 12),
+        ...(unexpectedError.code && /^[0-9A-Z]{5}$/.test(unexpectedError.code)
+          ? { databaseCode: unexpectedError.code }
+          : {}),
+      }),
+      ...(error instanceof CredentialGroupOAuthError && { statusCode: error.statusCode }),
+      ...(error instanceof CredentialGroupProviderConfigurationError && { statusCode: 503 }),
+      ...(applicationError && {
+        applicationCode: applicationError.code,
+        statusCode: statusForOrchestrationError(applicationError.code),
+      }),
+      ...(identityFailure && {
+        identityReason: identityFailure.reason,
+        identityStage: identityFailure.stage,
+        providerStatus: identityFailure.httpStatus,
+      }),
+    })
+    return failureRedirect(status)
   }
 }

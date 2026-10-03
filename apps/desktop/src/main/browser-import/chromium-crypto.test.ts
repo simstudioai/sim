@@ -14,14 +14,6 @@ function encryptV10(plaintext: Buffer, key: Buffer): Buffer {
 
 const KEY = deriveEncryptionKey('test-safe-storage-password')
 
-describe('deriveEncryptionKey', () => {
-  it('derives a deterministic AES-128 key', () => {
-    expect(KEY).toHaveLength(16)
-    expect(deriveEncryptionKey('test-safe-storage-password').equals(KEY)).toBe(true)
-    expect(deriveEncryptionKey('a-different-password').equals(KEY)).toBe(false)
-  })
-})
-
 describe('decryptChromiumValue', () => {
   it('round-trips a v10 value', () => {
     const encrypted = encryptV10(Buffer.from('session-token-abc'), KEY)

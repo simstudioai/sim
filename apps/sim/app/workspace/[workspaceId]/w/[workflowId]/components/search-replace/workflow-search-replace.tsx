@@ -563,13 +563,11 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     >
       <div
         role='presentation'
-        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
         <div className='flex min-w-0 items-center'>
-          <span className='truncate text-[13px] text-[var(--text-primary)]'>
-            Search and replace
-          </span>
+          <span className='truncate text-[var(--text-primary)] text-small'>Search and replace</span>
         </div>
         <div
           role='presentation'
@@ -577,7 +575,12 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           onMouseDown={(event) => event.stopPropagation()}
         >
           <span className='text-[var(--text-muted)] text-xs'>{matchCountLabel}</span>
-          <Button variant='ghost' className='size-[26px] p-0' onClick={close}>
+          <Button
+            aria-label='Close search'
+            variant='ghost'
+            className='size-[26px] p-0'
+            onClick={close}
+          >
             <X className='size-[14px]' />
           </Button>
         </div>
@@ -609,6 +612,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           onChange={(event) => setQuery(event.target.value)}
         />
         <Button
+          aria-label='Previous match'
           variant='ghost'
           className='size-8 p-0'
           disabled={hydratedMatches.length === 0}
@@ -617,6 +621,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
         </Button>
         <Button
+          aria-label='Next match'
           variant='ghost'
           className='size-8 p-0'
           disabled={hydratedMatches.length === 0}

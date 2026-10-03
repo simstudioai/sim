@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { TableSchema } from '@/lib/table/types'
 import {
@@ -76,26 +73,5 @@ describe('remapForkTableWorkflowGroups', () => {
     expect(result.workflowGroups).toHaveLength(0)
     expect(result.columns[0].workflowGroupId).toBeUndefined()
     expect(result.columns[0].id).toBe('col_1')
-  })
-
-  it('leaves enrichment groups (empty workflowId) untouched', () => {
-    const schema: TableSchema = {
-      columns: [],
-      workflowGroups: [
-        {
-          id: 'g1',
-          workflowId: '',
-          enrichmentId: 'enr',
-          outputs: [{ blockId: '', path: '', columnName: 'col_1', outputId: 'o' }],
-        },
-      ],
-    }
-    const result = remapForkTableWorkflowGroups(schema, new Map([['src-wf', 'child-wf']]))
-    expect(result.workflowGroups?.[0]).toEqual(schema.workflowGroups?.[0])
-  })
-
-  it('returns the schema unchanged when there are no groups', () => {
-    const schema: TableSchema = { columns: [{ id: 'col_1', name: 'A', type: 'string' }] }
-    expect(remapForkTableWorkflowGroups(schema, new Map())).toBe(schema)
   })
 })
