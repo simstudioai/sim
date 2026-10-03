@@ -1,3 +1,4 @@
+import { toRecordOrNull } from '@sim/utils/object'
 import type {
   BitbucketBranch,
   BitbucketComment,
@@ -96,14 +97,8 @@ export const BITBUCKET_PAGINATION_PARAMS = {
 
 type JsonRecord = Record<string, unknown>
 
-function asRecord(value: unknown): JsonRecord | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as JsonRecord)
-    : null
-}
-
 function readRecord(record: JsonRecord | null, key: string): JsonRecord | null {
-  return asRecord(record?.[key])
+  return toRecordOrNull(record?.[key])
 }
 
 function readString(record: JsonRecord | null, key: string): string | null {
@@ -130,7 +125,7 @@ function readRequiredString(record: JsonRecord, key: string, context: string): s
 }
 
 function requireResourceRecord(value: unknown, context: string): JsonRecord {
-  const record = asRecord(value)
+  const record = toRecordOrNull(value)
   if (!record) throw new Error(`Bitbucket ${context} must be an object`)
   readRequiredString(record, 'type', context)
   return record
@@ -417,7 +412,7 @@ export async function assertBitbucketResponseOk(response: Response): Promise<voi
   let message = errorBody
   try {
     const parsed: unknown = JSON.parse(errorBody)
-    const error = readRecord(asRecord(parsed), 'error')
+    const error = readRecord(toRecordOrNull(parsed), 'error')
     const summary = readString(error, 'message')
     const detail = readString(error, 'detail')
     message =
@@ -512,7 +507,7 @@ export function bitbucketApiUrl(
 
 export async function bitbucketJson(response: Response): Promise<JsonRecord> {
   const data: unknown = await response.json()
-  const record = asRecord(data)
+  const record = toRecordOrNull(data)
   if (!record) throw new Error('Bitbucket returned a non-object JSON response')
   return record
 }
@@ -687,7 +682,7 @@ export function normalizeBitbucketFileMetadata(value: unknown): BitbucketFileMet
 }
 
 function normalizePullRequestEndpoint(value: unknown): BitbucketPullRequestEndpoint | null {
-  const data = asRecord(value)
+  const data = toRecordOrNull(value)
   if (!data) return null
   return {
     branchName: readString(readRecord(data, 'branch'), 'name'),
@@ -867,7 +862,7 @@ function normalizePipelineCommands(
   const commands = readOptionalArray(data, key, 'pipeline step')
   return (
     commands?.map((command, index) => {
-      const commandData = asRecord(command)
+      const commandData = toRecordOrNull(command)
       if (!commandData) {
         throw new Error(`Bitbucket pipeline step.${key}[${index}] must be an object`)
       }

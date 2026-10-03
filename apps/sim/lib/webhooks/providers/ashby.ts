@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -104,7 +104,7 @@ async function readAshbyManagementResponse(
       maxBytes: MAX_ASHBY_WEBHOOK_RESPONSE_BYTES,
       label,
     })
-    return isRecordLike(body) ? body : {}
+    return toRecord(body)
   } catch (error) {
     if (isPayloadSizeLimitError(error)) throw error
     return {}

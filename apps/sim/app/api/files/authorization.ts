@@ -2,22 +2,23 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
-  resolveUserKnowledgeAccessScope,
+  createUserKnowledgeAccessProvider,
   WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
-import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
+import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
+import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { isUuid } from '@/executor/constants'
 
 const logger = createLogger('FileAuthorization')
 
@@ -27,12 +28,6 @@ export class FileAccessDeniedError extends Error {
     super('File not found')
     this.name = 'FileAccessDeniedError'
   }
-}
-
-interface AuthorizationResult {
-  granted: boolean
-  reason: string
-  workspaceId?: string
 }
 
 type WorkspacePermission = 'read' | 'write' | 'admin'
@@ -112,33 +107,11 @@ async function lookupWorkspaceFileByKey(
 }
 
 /**
- * Extract workspace ID from workspace file key pattern
- * Pattern: {workspaceId}/{timestamp}-{random}-{filename}
- */
-function extractWorkspaceIdFromKey(key: string): string | null {
-  const inferredContext = inferContextFromKey(key)
-  if (inferredContext !== 'workspace') {
-    return null
-  }
-
-  // Use the proper parsing utility from workspace context module
-  const parts = key.split('/')
-  const workspaceId = parts[0]
-
-  if (workspaceId && isUuid(workspaceId)) {
-    return workspaceId
-  }
-
-  return null
-}
-
-/**
  * Verify file access based on file path patterns and metadata
  * @param cloudKey The file key/path (e.g., "workspace_id/workflow_id/execution_id/filename" or "kb/filename")
  * @param userId The authenticated user ID
  * @param customConfig Optional custom storage configuration
  * @param context Optional explicit storage context
- * @param isLocal Optional flag indicating if this is local storage
  * @returns Promise<boolean> True if user has access, false otherwise
  */
 export async function verifyFileAccess(
@@ -146,13 +119,22 @@ export async function verifyFileAccess(
   userId: string,
   customConfig?: StorageConfig,
   context?: StorageContext | 'general',
-  isLocal?: boolean,
   options?: { requireWrite?: boolean; knowledgeAccess?: KnowledgeFileAccess }
 ): Promise<boolean> {
+  /** Organization images require the Principal-aware Assistant application resolver. */
+  if (cloudKey.startsWith('assistant/') || cloudKey.startsWith('chat-images/')) return false
   const requireWrite = options?.requireWrite ?? false
   try {
+    const keyContext = inferContextFromKey(cloudKey)
+    /** Organization logos are changed only through the organization-authorized upload lifecycle. */
+    if (keyContext === 'organization-logos') return !requireWrite
+    if (keyContext === 'knowledge-base') {
+      return requireWrite
+        ? verifyKBFileWriteAccess(cloudKey, userId)
+        : verifyKBFileAccess(cloudKey, userId, options?.knowledgeAccess)
+    }
     if (context === 'general') {
-      return await verifyRegularFileAccess(cloudKey, userId, customConfig, isLocal, requireWrite)
+      return await verifyRegularFileAccess(cloudKey, userId, customConfig, requireWrite)
     }
 
     // Infer context from key if not explicitly provided
@@ -173,12 +155,12 @@ export async function verifyFileAccess(
 
     // 1. Workspace / mothership files: Check database first (most reliable for both local and cloud)
     if (isWorkspaceScopedContext(inferredContext)) {
-      return await verifyWorkspaceFileAccess(cloudKey, userId, customConfig, isLocal, requireWrite)
+      return await verifyWorkspaceFileAccess(cloudKey, userId, customConfig, requireWrite)
     }
 
     // 2. Execution files: workspace_id/workflow_id/execution_id/filename
     if (inferredContext === 'execution') {
-      return await verifyExecutionFileAccess(cloudKey, userId, customConfig, requireWrite)
+      return await verifyExecutionFileAccess(cloudKey, userId, requireWrite)
     }
 
     // 3. Copilot files: Check database first, then metadata, then path pattern (legacy)
@@ -188,7 +170,9 @@ export async function verifyFileAccess(
 
     // 4. KB files: kb/filename
     if (inferredContext === 'knowledge-base') {
-      return await verifyKBFileAccess(cloudKey, userId, customConfig, options?.knowledgeAccess)
+      return requireWrite
+        ? verifyKBFileWriteAccess(cloudKey, userId)
+        : verifyKBFileAccess(cloudKey, userId, options?.knowledgeAccess)
     }
 
     // 5. Chat files: chat/filename
@@ -198,12 +182,24 @@ export async function verifyFileAccess(
 
     // 6. Regular uploads: UUID-filename or timestamp-filename
     // Check metadata for userId/workspaceId, or database for workspace files
-    return await verifyRegularFileAccess(cloudKey, userId, customConfig, isLocal, requireWrite)
+    return await verifyRegularFileAccess(cloudKey, userId, customConfig, requireWrite)
   } catch (error) {
     logger.error('Error verifying file access:', { cloudKey, userId, error })
     // Deny access on error to be safe
     return false
   }
+}
+
+/**
+ * A retained file version keeps the storage metadata of the write that created it, so a metadata
+ * fallback would authorize a replaced or archived file's old bytes by key. Versions are served only
+ * through the version routes, which authorize against their file, so key-addressed access refuses
+ * them before any metadata fallback.
+ */
+async function isRetainedVersionKey(cloudKey: string, userId: string): Promise<boolean> {
+  if ((await findWorkspaceFileVersionKeys([cloudKey])).size === 0) return false
+  logger.warn('File access denied for a retained version key', { userId, cloudKey })
+  return true
 }
 
 /**
@@ -214,7 +210,6 @@ async function verifyWorkspaceFileAccess(
   cloudKey: string,
   userId: string,
   customConfig?: StorageConfig,
-  isLocal?: boolean,
   requireWrite = false
 ): Promise<boolean> {
   try {
@@ -255,6 +250,8 @@ async function verifyWorkspaceFileAccess(
       })
       return false
     }
+
+    if (await isRetainedVersionKey(cloudKey, userId)) return false
 
     // Priority 2: Check metadata (works for both local and cloud files)
     const config: StorageConfig = customConfig || {}
@@ -310,7 +307,7 @@ async function verifyPublicAssetWriteAccess(
   try {
     if (context === 'workspace-logos') {
       const binding = await getFileMetadataByKey(cloudKey, 'workspace-logos')
-      if (!binding?.workspaceId) {
+      if (!binding?.workspaceId || binding.organizationId || binding.deletedAt) {
         logger.warn('workspace-logos delete denied: no ownership binding', { userId, cloudKey })
         return false
       }
@@ -369,7 +366,6 @@ async function verifyPublicAssetWriteAccess(
 async function verifyExecutionFileAccess(
   cloudKey: string,
   userId: string,
-  customConfig?: StorageConfig,
   requireWrite = false
 ): Promise<boolean> {
   const parts = cloudKey.split('/')
@@ -484,58 +480,55 @@ async function verifyCopilotFileAccess(
 }
 
 /**
- * Whether an active KB document (non-archived/excluded/deleted, in a
- * non-deleted KB) in the owning workspace references exactly `cloudKey`, matched
- * on the document's persisted canonical `storageKey`. This is an exact, indexed
- * lookup — no URL parsing or wildcard matching at read time. It is a lifecycle
- * signal only: it reflects whether the file is still part of a live KB, not who
- * owns it (ownership comes from the binding).
+ * Checks whether a readable, active document references the exact storage key
+ * within the binding's canonical scope. Live source proof uses only candidate
+ * IDs; document existence is checked with the complete access predicate.
  */
-/** A reader once resolved: a person's or the workspace's tokens, or the system reading its own rows. */
-type ResolvedKnowledgeFileAccess = KnowledgeAccessScope | SystemAccessScope
-
 async function hasActiveKbDocumentForKey(
   cloudKey: string,
-  workspaceId: string,
-  access: ResolvedKnowledgeFileAccess
+  scope: ResourceScope,
+  access: KnowledgeReadAccess
 ): Promise<boolean> {
-  const rows = await db
-    .select({ id: document.id })
-    .from(document)
-    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-    .where(
-      and(
-        eq(knowledgeBase.workspaceId, workspaceId),
-        eq(document.storageKey, cloudKey),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        isNull(knowledgeBase.deletedAt),
-        knowledgeAccessCondition(access)
-      )
-    )
-    .limit(1)
-
-  return rows.length > 0
+  const conditions = [
+    resourceScopeCondition(knowledgeBase, scope),
+    eq(document.storageKey, cloudKey),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNull(document.deletedAt),
+    isNull(knowledgeBase.deletedAt),
+    !('get' in access) && access.kind === 'system'
+      ? undefined
+      : or(isNull(document.connectorId), isNotNull(document.contentHash)),
+  ]
+  for await (const accessCondition of knowledgeReadAccessBatches(access, conditions)) {
+    const rows = await db
+      .select({ id: document.id })
+      .from(document)
+      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+      .where(and(...conditions, accessCondition))
+      .limit(1)
+    if (rows.length > 0) return true
+  }
+  return false
 }
 
 /**
  * How a KB file read identifies the reader for document access. `'user'` is
- * for a session-authenticated person; a resolved scope is for a caller that
- * already holds one (an execution with a principal). The system scope is for
+ * for a session-authenticated person; an access provider carries the principal
+ * behind an execution and resolves current source permissions. The system scope is for
  * a background job reading a connector-owned row it is processing, which in
  * members mode is hidden until the sync materializes its readers. Anything
  * else — an internal token, a tool running with the workflow owner's id —
  * reads as the workspace, never as the person whose id it happens to carry.
  */
-export type KnowledgeFileAccess = 'user' | ResolvedKnowledgeFileAccess
+export type KnowledgeFileAccess = 'user' | KnowledgeReadAccess
 
 async function resolveKnowledgeFileAccess(
   knowledgeAccess: KnowledgeFileAccess | undefined,
   userId: string,
   workspaceId: string
-): Promise<ResolvedKnowledgeFileAccess> {
-  if (knowledgeAccess === 'user') return resolveUserKnowledgeAccessScope(userId, workspaceId)
+): Promise<KnowledgeReadAccess> {
+  if (knowledgeAccess === 'user') return createUserKnowledgeAccessProvider(userId, { workspaceId })
   return knowledgeAccess ?? WORKSPACE_ACCESS_SCOPE
 }
 
@@ -546,9 +539,8 @@ async function resolveKnowledgeFileAccess(
  *   1. Ownership — the trusted `workspace_files` binding (exact key) names the
  *      owning workspace; the caller must have permission on it. Ownership is
  *      never inferred from an attacker-authorable `document.fileUrl`.
- *   2. Liveness — an active document must still reference the exact key, so the
- *      retained bytes of an archived document or soft-deleted KB are not
- *      downloadable (the liveness document is not an authorization signal).
+ *   2. Readability — an active document must reference the exact key and satisfy
+ *      the caller's complete document and live source access predicates.
  *
  * A missing binding denies (the ownership backfill populates bindings for
  * pre-existing objects before this path is deployed).
@@ -556,7 +548,6 @@ async function resolveKnowledgeFileAccess(
 async function verifyKBFileAccess(
   cloudKey: string,
   userId: string,
-  customConfig?: StorageConfig,
   knowledgeAccess?: KnowledgeFileAccess
 ): Promise<boolean> {
   try {
@@ -571,6 +562,20 @@ async function verifyKBFileAccess(
     if (binding.deletedAt) {
       logger.warn('KB file access denied for deleted file binding', { userId, cloudKey })
       return false
+    }
+    if (binding.organizationId) {
+      if (
+        binding.workspaceId ||
+        typeof knowledgeAccess !== 'object' ||
+        'get' in knowledgeAccess ||
+        knowledgeAccess.kind !== 'system'
+      )
+        return false
+      return hasActiveKbDocumentForKey(
+        cloudKey,
+        { kind: 'organization', organizationId: binding.organizationId },
+        knowledgeAccess
+      )
     }
     if (!binding.workspaceId) {
       logger.warn('KB file binding missing workspace owner', { userId, cloudKey })
@@ -588,11 +593,17 @@ async function verifyKBFileAccess(
     }
 
     const access = await resolveKnowledgeFileAccess(knowledgeAccess, userId, binding.workspaceId)
-    if (!(await hasActiveKbDocumentForKey(cloudKey, binding.workspaceId, access))) {
+    if (
+      !(await hasActiveKbDocumentForKey(
+        cloudKey,
+        { kind: 'workspace', workspaceId: binding.workspaceId },
+        access
+      ))
+    ) {
       logger.warn('KB file access denied: no readable document references the file', {
         userId,
         cloudKey,
-        accessScopeKind: access.kind,
+        accessScopeKind: 'get' in access ? 'reader' : access.kind,
       })
       return false
     }
@@ -619,7 +630,7 @@ async function verifyKBFileAccess(
 export async function verifyKBFileWriteAccess(cloudKey: string, userId: string): Promise<boolean> {
   try {
     const binding = await getFileMetadataByKey(cloudKey, 'knowledge-base')
-    if (!binding?.workspaceId) {
+    if (!binding?.workspaceId || binding.organizationId || binding.deletedAt) {
       logger.warn('KB file delete denied: no ownership binding', { userId, cloudKey })
       return false
     }
@@ -687,7 +698,6 @@ async function verifyRegularFileAccess(
   cloudKey: string,
   userId: string,
   customConfig?: StorageConfig,
-  isLocal?: boolean,
   requireWrite = false
 ): Promise<boolean> {
   try {
@@ -715,6 +725,8 @@ async function verifyRegularFileAccess(
       })
       return false
     }
+
+    if (await isRetainedVersionKey(cloudKey, userId)) return false
 
     // Priority 2: Check metadata (works for both local and cloud files)
     const config: StorageConfig = customConfig || {}

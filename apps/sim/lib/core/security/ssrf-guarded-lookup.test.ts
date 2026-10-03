@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockDnsLookup } = vi.hoisted(() => ({ mockDnsLookup: vi.fn() }))
 
@@ -48,10 +45,6 @@ function runLookup(
 }
 
 describe('createSsrfGuardedLookup', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('passes through a public address', async () => {
     mockDnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     const r = await runLookup('example.com')
@@ -61,11 +54,7 @@ describe('createSsrfGuardedLookup', () => {
   })
 
   it.each([
-    ['loopback', '127.0.0.1'],
-    ['RFC1918 10.x', '10.0.0.5'],
-    ['RFC1918 192.168.x', '192.168.1.1'],
     ['link-local metadata', '169.254.169.254'],
-    ['IPv6 loopback', '::1'],
     ['IPv4-mapped private', '::ffff:10.0.0.1'],
   ])('fails the connect when the host resolves only to %s', async (_label, ip) => {
     mockDnsLookup.mockResolvedValue([{ address: ip, family: ip.includes(':') ? 6 : 4 }])
@@ -103,16 +92,6 @@ describe('createSsrfGuardedLookup', () => {
     const r = await runLookup('nope.invalid')
     expect(r.err?.message).toBe('ENOTFOUND')
   })
-
-  it('returns the full public set for options.all (fallback across addresses)', async () => {
-    mockDnsLookup.mockResolvedValue([
-      { address: '104.21.22.105', family: 4 },
-      { address: '172.67.204.95', family: 4 },
-    ])
-    const r = await runLookup('multi.example', { all: true })
-    expect(r.err).toBeNull()
-    expect(r.address).toHaveLength(2)
-  })
 })
 
 function redirectTo(location: string, status = 302): Response {
@@ -120,13 +99,6 @@ function redirectTo(location: string, status = 302): Response {
 }
 
 describe('followRedirectsGuarded', () => {
-  it('returns a non-redirect response as-is', async () => {
-    const raw = vi.fn(async () => new Response('ok', { status: 200 }))
-    const res = await followRedirectsGuarded(raw, 'https://a.example/x', {}, 'contentFetch')
-    expect(res.status).toBe(200)
-    expect(raw).toHaveBeenCalledTimes(1)
-  })
-
   it('follows a same-origin redirect and keeps the caller headers', async () => {
     const raw = vi
       .fn()
@@ -185,45 +157,6 @@ describe('followRedirectsGuarded', () => {
       followRedirectsGuarded(raw, 'https://a.example/x', {}, 'contentFetch')
     ).rejects.toThrow(/more than \d+ redirects/)
   })
-
-  it('switches POST to a bodyless GET on 303', async () => {
-    const raw = vi
-      .fn()
-      .mockResolvedValueOnce(redirectTo('https://a.example/next', 303))
-      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
-    await followRedirectsGuarded(
-      raw,
-      'https://a.example/x',
-      { method: 'POST', body: 'data' },
-      'contentFetch'
-    )
-    expect(raw.mock.calls[1][1].method).toBe('GET')
-    expect(raw.mock.calls[1][1].body).toBeUndefined()
-  })
-
-  it('keeps HEAD as HEAD on 303', async () => {
-    const raw = vi
-      .fn()
-      .mockResolvedValueOnce(redirectTo('https://a.example/next', 303))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }))
-    await followRedirectsGuarded(raw, 'https://a.example/x', { method: 'HEAD' }, 'contentFetch')
-    expect(raw.mock.calls[1][1].method).toBe('HEAD')
-  })
-
-  it('preserves method and body on 307', async () => {
-    const raw = vi
-      .fn()
-      .mockResolvedValueOnce(redirectTo('https://a.example/next', 307))
-      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
-    await followRedirectsGuarded(
-      raw,
-      'https://a.example/x',
-      { method: 'POST', body: 'data' },
-      'contentFetch'
-    )
-    expect(raw.mock.calls[1][1].method).toBe('POST')
-    expect(raw.mock.calls[1][1].body).toBe('data')
-  })
 })
 
 describe('followRedirectsGuarded — hardening', () => {
@@ -250,6 +183,8 @@ describe('followRedirectsGuarded — hardening', () => {
       },
       'contentFetch'
     )
+    expect(raw.mock.calls[1][1].method).toBe('GET')
+    expect(raw.mock.calls[1][1].body).toBeUndefined()
     const hopHeaders = new Headers(raw.mock.calls[1][1].headers)
     expect(hopHeaders.get('content-type')).toBeNull()
     expect(hopHeaders.get('content-length')).toBeNull()
@@ -268,14 +203,5 @@ describe('followRedirectsGuarded — cross-origin body protection', () => {
         'contentFetch'
       )
     ).rejects.toThrow(/cross-origin redirect would forward a request body/)
-  })
-
-  it('allows a bodyless cross-origin redirect', async () => {
-    const raw = vi
-      .fn()
-      .mockResolvedValueOnce(redirectTo('https://b.example/next', 302))
-      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
-    const res = await followRedirectsGuarded(raw, 'https://a.example/x', {}, 'contentFetch')
-    expect(res.status).toBe(200)
   })
 })

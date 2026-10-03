@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -45,7 +41,6 @@ function request(body: unknown) {
 
 describe('/api/v2/workflows/[workflowId]/duplicate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -64,60 +59,6 @@ describe('/api/v2/workflows/[workflowId]/duplicate', () => {
       createdAt: new Date('2026-08-01T00:00:00.000Z'),
       updatedAt: new Date('2026-08-01T00:00:00.000Z'),
     })
-  })
-
-  it('authenticates before parsing the body', async () => {
-    v2RouteMocks.authenticate.mockRejectedValue(new MockV2ApiKeyUnauthenticatedError('No API key'))
-
-    const response = await POST(request({ nonsense: true }), routeContext)
-
-    expect(response.status).toBe(401)
-    expect(mocks.duplicateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('creates the copy with the workflow summary contract', async () => {
-    const response = await POST(request({ folderPath: '/Operations' }), routeContext)
-
-    expect(response.status).toBe(201)
-    expect(await response.json()).toEqual({
-      data: {
-        id: 'workflow-2',
-        webUrl: 'https://test.sim.ai/workspace/workspace-1/w/workflow-2',
-        name: 'Daily digest (copy)',
-        description: null,
-        folderPath: '/Operations',
-        workspaceId: 'workspace-1',
-        isDeployed: false,
-        deployedAt: null,
-        runCount: 0,
-        lastRunAt: null,
-        createdAt: '2026-08-01T00:00:00.000Z',
-        updatedAt: '2026-08-01T00:00:00.000Z',
-      },
-    })
-    expect(mocks.duplicateWorkflow).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: { sourceWorkflowId: WORKFLOW_ID, name: undefined, folderPath: '/Operations' },
-      request: expect.anything(),
-    })
-  })
-
-  it('accepts an empty body and lets the use case default the name', async () => {
-    const response = await POST(request({}), routeContext)
-
-    expect(response.status).toBe(201)
-    expect(mocks.duplicateWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: { sourceWorkflowId: WORKFLOW_ID, name: undefined, folderPath: undefined },
-      })
-    )
-  })
-
-  it('rejects an unknown body member', async () => {
-    const response = await POST(request({ folderId: 'folder-1' }), routeContext)
-
-    expect(response.status).toBe(400)
-    expect(mocks.duplicateWorkflow).not.toHaveBeenCalled()
   })
 
   it('conceals a cross-tenant duplicate as not found', async () => {

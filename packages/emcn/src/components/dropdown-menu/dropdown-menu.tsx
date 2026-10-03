@@ -22,9 +22,11 @@
 
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+import { RowActions, rowActionsGroupClass } from '@sim/emcn'
+import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronRight, Circle, Search } from '../../icons'
 import { cn } from '../../lib/cn'
-import { chipContentGap, chipFieldSurfaceClass } from '../chip/chip-chrome'
+import { chipContentGap, chipFieldSurfaceClass, chipGeometryClass } from '../chip/chip-chrome'
 import { InsideModalContext } from '../modal/modal'
 import { OverflowText, type OverflowTextProps } from '../overflow-text/overflow-text'
 
@@ -169,7 +171,7 @@ const MENU_MAX_HEIGHT_CLASS = 'max-h-[min(420px,var(--radix-popper-available-hei
  * and gave the menu a wider gutter than its own 8px row padding; two consumers had
  * already overridden it back down to 4px by hand.
  */
-const CONTENT_BASE_CLASSES = `z-[var(--z-popover)] ${MENU_MAX_HEIGHT_CLASS} min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1 text-[var(--text-body)] shadow-sm`
+const CONTENT_BASE_CLASSES = `z-[var(--z-popover)] ${MENU_MAX_HEIGHT_CLASS} min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1 text-[var(--text-body)] shadow-xs`
 
 /**
  * Menu root. Inside a `ModalContent` (Radix modal dialog) the menu is forced
@@ -210,10 +212,26 @@ const DropdownMenuSubTrigger = React.forwardRef<
     inset?: boolean
     asChild?: boolean
   }
->(({ className, inset, children, asChild, ...props }, ref) => {
+>(({ className, inset, children, asChild, onPointerLeave, ...props }, ref) => {
+  const handlePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+    onPointerLeave?.(event)
+    if (event.defaultPrevented) return
+    const submenuId = event.currentTarget.getAttribute('aria-controls')
+    const submenu = submenuId && event.currentTarget.ownerDocument.getElementById(submenuId)
+    /** Direct portal entry must not depend on Radix's last in-parent pointer direction. */
+    if (event.relatedTarget instanceof Node && submenu && submenu.contains(event.relatedTarget)) {
+      event.preventDefault()
+    }
+  }
   if (asChild) {
     return (
-      <DropdownMenuPrimitive.SubTrigger ref={ref} asChild className={className} {...props}>
+      <DropdownMenuPrimitive.SubTrigger
+        ref={ref}
+        asChild
+        className={className}
+        {...props}
+        onPointerLeave={handlePointerLeave}
+      >
         {children}
       </DropdownMenuPrimitive.SubTrigger>
     )
@@ -221,11 +239,12 @@ const DropdownMenuSubTrigger = React.forwardRef<
   return (
     <DropdownMenuPrimitive.SubTrigger
       ref={ref}
+      onPointerLeave={handlePointerLeave}
       className={cn(
         /* An open submenu keeps its trigger on the selected surface — including while
            the pointer is on it, so walking into the submenu doesn't drop the trigger
            back to the hover fill. */
-        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[state=open]:bg-[var(--surface-active)] data-[state=open]:focus:bg-[var(--surface-active)] ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
+        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[state=open]:bg-[var(--surface-active)] data-[state=open]:focus:bg-[var(--surface-active)] ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
         inset && 'pl-7',
         className
       )}
@@ -298,66 +317,136 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
  * is how the `@`-mention list drifted to its own gap, radius, height and text size.
  * Compose this instead of restating the literals.
  */
-export const dropdownMenuRowClass = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
+export const dropdownMenuRowClass = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
+
+/** Large rows match the sidebar's chip geometry without changing menu behavior. */
+export const dropdownMenuItemVariants = cva(dropdownMenuRowClass, {
+  variants: {
+    size: { default: '', lg: chipGeometryClass },
+  },
+  defaultVariants: { size: 'default' },
+})
 
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
-    inset?: boolean
-    /**
-     * Renders the row as selected — the current route, the checked value, the row
-     * whose own menu is open. Selected is a state the row *holds*, so it keeps
-     * `--surface-active` through hover rather than dimming to the hover fill.
-     *
-     * Not for a pointer/keyboard cursor: that is the row highlight, which the row
-     * already paints on its own. A menu that marks its cursor row `active` puts two
-     * selections on screen.
-     */
-    active?: boolean
-    /**
-     * Optional inline action rendered on the right edge of the item — e.g. a
-     * "more" icon button. Reveals on hover/focus of the row, and the row stays
-     * highlighted while the cursor is over the action.
-     */
-    action?: React.ReactNode
-  }
->(({ className, inset, active, action, asChild, children, ...props }, ref) => {
-  const content = asChild ? children : withOverflowLabel(children)
-  const stateClasses = active ? MENU_ROW_SELECTED_CLASS : MENU_ROW_HIGHLIGHT_CLASS
-  if (action) {
-    return (
-      <div className='group/dropdownitem relative'>
-        <DropdownMenuPrimitive.Item
-          ref={ref}
-          className={cn(
-            dropdownMenuRowClass,
-            stateClasses,
-            'pr-[28px]',
-            inset && 'pl-7',
-            className
-          )}
-          asChild={asChild}
-          {...props}
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> &
+    VariantProps<typeof dropdownMenuItemVariants> & {
+      inset?: boolean
+      /**
+       * Renders the row as selected — the current route, the checked value, the row
+       * whose own menu is open. Selected is a state the row *holds*, so it keeps
+       * `--surface-active` through hover rather than dimming to the hover fill.
+       *
+       * Not for a pointer/keyboard cursor: that is the row highlight, which the row
+       * already paints on its own. A menu that marks its cursor row `active` puts two
+       * selections on screen.
+       */
+      active?: boolean
+      /**
+       * Optional inline action rendered on the right edge of the item — e.g. a
+       * "more" icon button. Reveals on hover/focus of the row, and the row stays
+       * highlighted while the cursor is over the action. ArrowRight moves from
+       * the row to its action; ArrowLeft returns to the row.
+       */
+      action?: React.ReactNode
+      /** Keeps the action visible while its portaled menu is open. */
+      actionOpen?: boolean
+      /** Idle indicator sharing the action slot on hover-capable devices. */
+      actionIndicator?: React.ReactNode
+    }
+>(
+  (
+    {
+      className,
+      size,
+      inset,
+      active,
+      action,
+      actionOpen,
+      actionIndicator,
+      asChild,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const actionRef = React.useRef<HTMLDivElement>(null)
+    const content = asChild ? children : withOverflowLabel(children)
+    const stateClasses = active ? MENU_ROW_SELECTED_CLASS : MENU_ROW_HIGHLIGHT_CLASS
+    if (action) {
+      return (
+        <div
+          className={cn('group/dropdownitem relative', rowActionsGroupClass)}
+          onKeyDown={(event) => {
+            if (
+              event.defaultPrevented ||
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.shiftKey
+            )
+              return
+            const row = event.currentTarget.firstElementChild
+            const actionButton =
+              actionRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')
+            if (event.key === 'ArrowRight' && event.target === row && actionButton) {
+              event.preventDefault()
+              event.stopPropagation()
+              actionButton.focus()
+            } else if (
+              event.key === 'ArrowLeft' &&
+              row instanceof HTMLElement &&
+              event.target instanceof Node &&
+              actionRef.current?.contains(event.target)
+            ) {
+              event.preventDefault()
+              event.stopPropagation()
+              row.focus()
+            }
+          }}
         >
-          {content}
-        </DropdownMenuPrimitive.Item>
-        <div className='-translate-y-1/2 absolute top-1/2 right-1 flex items-center opacity-0 transition-opacity group-focus-within/dropdownitem:opacity-100 group-hover/dropdownitem:opacity-100'>
-          {action}
+          <DropdownMenuPrimitive.Item
+            ref={ref}
+            className={cn(
+              dropdownMenuItemVariants({ size }),
+              stateClasses,
+              actionIndicator || actionOpen
+                ? 'pr-[28px]'
+                : '[@media(hover:hover)]:group-focus-within/dropdownitem:pr-[28px] [@media(hover:hover)]:group-hover/dropdownitem:pr-[28px]',
+              actionIndicator
+                ? '[@media(any-pointer:coarse)]:pr-[52px] [@media(hover:none)]:pr-[52px]'
+                : '[@media(any-pointer:coarse)]:pr-[28px] [@media(hover:none)]:pr-[28px]',
+              inset && 'pl-7',
+              className
+            )}
+            asChild={asChild}
+            {...props}
+          >
+            {content}
+          </DropdownMenuPrimitive.Item>
+          <RowActions
+            indicator={actionIndicator}
+            open={actionOpen}
+            actionRef={actionRef}
+            className='-translate-y-1/2 absolute top-1/2 right-1'
+          >
+            {action}
+          </RowActions>
         </div>
-      </div>
+      )
+    }
+    return (
+      <DropdownMenuPrimitive.Item
+        ref={ref}
+        className={cn(dropdownMenuItemVariants({ size }), stateClasses, inset && 'pl-7', className)}
+        asChild={asChild}
+        {...props}
+      >
+        {content}
+      </DropdownMenuPrimitive.Item>
     )
   }
-  return (
-    <DropdownMenuPrimitive.Item
-      ref={ref}
-      className={cn(dropdownMenuRowClass, stateClasses, inset && 'pl-7', className)}
-      asChild={asChild}
-      {...props}
-    >
-      {content}
-    </DropdownMenuPrimitive.Item>
-  )
-})
+)
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
 
 /**
@@ -382,7 +471,7 @@ const DropdownMenuItemAction = React.forwardRef<
       onPointerDown?.(e)
     }}
     className={cn(
-      'flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm outline-none [&_svg]:pointer-events-none [&_svg]:size-[16px] [&_svg]:text-[var(--text-icon)]',
+      'flex size-[18px] shrink-0 items-center justify-center rounded-sm outline-hidden [&_svg]:pointer-events-none [&_svg]:size-[16px] [&_svg]:text-[var(--text-icon)]',
       className
     )}
     {...props}
@@ -397,7 +486,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     checked={checked}
@@ -420,7 +509,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     {...props}
@@ -522,7 +611,7 @@ const DropdownMenuSearchInput = React.forwardRef<
           onKeyDown?.(e)
         }}
         className={cn(
-          'h-full w-full bg-transparent text-[var(--text-body)] text-small outline-none placeholder:text-[var(--text-muted)] focus:outline-none',
+          'size-full bg-transparent text-[var(--text-body)] text-small outline-hidden placeholder:text-[var(--text-muted)] focus:outline-hidden',
           className
         )}
         {...props}

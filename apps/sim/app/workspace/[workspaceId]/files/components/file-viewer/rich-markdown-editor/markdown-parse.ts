@@ -1,10 +1,11 @@
 import { Editor, type JSONContent } from '@tiptap/core'
-import { createMarkdownContentExtensions } from './extensions'
+import type { Token } from 'marked'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
   splitFrontmatter,
-} from './markdown-fidelity'
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 /**
  * A single reused editor for chunked markdown parse/serialize, created lazily so importing this
@@ -14,11 +15,19 @@ import {
  * `setContent`. Both are safe because all access is synchronous and single-threaded — each call fully
  * completes before the next — so no call ever observes another's partial state. One bounded instance
  * for the session, not a per-call allocation.
+ *
+ * It is never mounted: a mounted view renders every document into the DOM and its mutation observer
+ * schedules flush timers nothing can cancel, which fire after a jsdom test environment is torn down.
+ * TipTap installs extension plugins only when it mounts, so they are installed here the same way, keeping
+ * normalization such as the trailing paragraph identical to the live editor.
  */
 let parser: Editor | null = null
 
 function parserEditor(): Editor {
-  if (!parser) parser = new Editor({ extensions: createMarkdownContentExtensions() })
+  if (!parser) {
+    parser = new Editor({ element: null, extensions: createMarkdownContentExtensions() })
+    parser.view.updateState(parser.state.reconfigure({ plugins: parser.extensionManager.plugins }))
+  }
   return parser
 }
 
@@ -28,19 +37,41 @@ function markdownManager() {
   return manager
 }
 
+/** Count only resolved references, never label-like text inside opaque HTML, code or link titles. */
+export function hasUnusedMarkdownReference(content: string): boolean {
+  const marked = markdownManager().instance
+  const lexer = new marked.Lexer(marked.defaults)
+  const tokens = lexer.lex(splitFrontmatter(content).body)
+  const unused = new Set(Object.keys(tokens.links))
+  if (!unused.size) return false
+  const rules = marked.Lexer.rules.inline.gfm
+  const countReference = (token: Token) => {
+    if (token.type !== 'link' && token.type !== 'image') return
+    const match = rules.reflink.exec(token.raw) ?? rules.nolink.exec(token.raw)
+    if (match?.[0] !== token.raw) return
+    const label = (match[2] || match[1]).replace(/\s+/g, ' ').toLowerCase()
+    unused.delete(label)
+  }
+  marked.walkTokens(tokens, (token) => {
+    /** Ordered-list paragraphs are tokenized before later definitions; resolve them in full context. */
+    if (token.type === 'paragraph') marked.walkTokens(lexer.inlineTokens(token.raw), countReference)
+    else countReference(token)
+  })
+  return unused.size > 0
+}
+
 /**
  * Constructs whose meaning spans blank-line boundaries, so the document can't be split into blocks
- * without changing how they parse — these documents parse whole (correct, if slower; they're
- * uncommon and almost always round-trip-unsafe and read-only anyway):
+ * without changing how they parse — these documents parse whole:
  * - A link/image *reference definition* (`[id]: url`) or footnote definition can sit far from its
  *   `[text][id]` / `[^id]` use; splitting them apart would drop the reference. The editor never
  *   *emits* reference-style links, so this only matters on the first open of such a file.
  * - A block-level HTML element (`<div>…</div>`, `<table>…`) or HTML comment can wrap blank lines; the
  *   splitter would shatter it (matched here by a line that opens an HTML tag/comment, not inline
- *   `<https://…>` autolinks).
+ *   `<https://…>` autolinks). The structural empty `<p></p>` element is atomic and remains chunkable.
  */
 const NON_CHUNKABLE =
-  /^[ ]{0,3}(?:\[(?:\^[^\]]+|[^\]^][^\]]*)\]:\s|<(?:!--|\/?[a-zA-Z][a-zA-Z0-9-]*[\s/>]))/m
+  /^[ ]{0,3}(?:\[(?:\^[^\]]+|[^\]^][^\]]*)\]:\s|<(?!p>[ \t]*<\/p>[ \t]*$)(?:!--|\/?[a-zA-Z][a-zA-Z0-9-]*[\s/>]))/m
 
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/
@@ -200,13 +231,10 @@ export function splitMarkdownBlocks(body: string): string[] {
  * the editor renders the spacing that is actually in the file — on the very first paint, with no reflow
  * once a collaborative doc settles.
  *
- * The whole-document path CANNOT do that. It hands blank runs to `@tiptap/markdown`, whose handling is
- * not self-consistent (see {@link emptyBlockCount}), so a blank line there survives after a paragraph but
- * is swallowed after a heading, an ordered list, or a table. Preserving it on only some of those would
- * make parse stop inverting serialize for the same document — the file would never reach a fixpoint and
- * would open read-only. So that path keeps NO empty paragraphs: consistently zero is a fixpoint, and a
- * document whose spacing cannot be represented is better rendered the way every other markdown renderer
- * shows it than rendered one way and saved another.
+ * The whole-document path retains the current Markdown parser's empty paragraphs too. Structural
+ * list boundaries and nested empty paragraphs serialize as standard `<p></p>` elements, so they do
+ * not depend on whether the lexer interprets a blank run as spacing within a list. Both paths apply
+ * the same document budget and discard trailing typing placeholders.
  */
 export function parseMarkdownToDoc(body: string): JSONContent {
   const manager = markdownManager()
@@ -214,7 +242,9 @@ export function parseMarkdownToDoc(body: string): JSONContent {
   // the chunker and parser do — a classic `\r`-only body would otherwise slip past the reference-def /
   // block-HTML guard and be chunked, shattering a construct that must parse whole.
   const normalized = body.replace(/\r\n?/g, '\n')
-  if (NON_CHUNKABLE.test(normalized)) return boundEmptyParagraphs(manager.parse(normalized), 0)
+  if (NON_CHUNKABLE.test(normalized)) {
+    return boundEmptyParagraphs(manager.parse(normalized), MAX_EMPTY_PARAGRAPHS_PER_DOC)
+  }
   try {
     const content: JSONContent[] = []
     for (const block of splitMarkdownBlocks(normalized)) {
@@ -229,7 +259,7 @@ export function parseMarkdownToDoc(body: string): JSONContent {
     }
     return boundEmptyParagraphs({ type: 'doc', content }, MAX_EMPTY_PARAGRAPHS_PER_DOC)
   } catch {
-    return boundEmptyParagraphs(manager.parse(normalized), 0)
+    return boundEmptyParagraphs(manager.parse(normalized), MAX_EMPTY_PARAGRAPHS_PER_DOC)
   }
 }
 
@@ -240,7 +270,7 @@ function isEmptyParagraph(node: JSONContent): boolean {
 
 /**
  * Bound the top-level empty paragraphs of a parsed doc to `budget` in total, and drop trailing ones
- * entirely. `budget` is 0 for the whole-document path, which cannot represent them at all.
+ * entirely. The same budget applies to chunked and whole-document parsing.
  *
  * The per-gap ceiling in {@link emptyBlockCount} bounds one run; this bounds the DOCUMENT. Without it the
  * ceiling buys nothing against the shape a real artifact takes — an export that puts a moderate blank run
@@ -322,10 +352,11 @@ export function serializeMarkdownBody(body: string): string {
  * editor applies — output identical to `editor.getMarkdown()`. The server-side collab-doc converter
  * uses this to project a Yjs doc back to markdown through the exact client engine (parity by
  * construction), so it must stay the single serialize path (do not inline `getMarkdown` elsewhere).
+ * Nothing listens to the scratchpad, so it emits no update, which would only defer core bookkeeping.
  */
 export function serializeDocToMarkdown(doc: JSONContent): string {
   const editor = parserEditor()
-  editor.commands.setContent(doc, { contentType: 'json' })
+  editor.commands.setContent(doc, { contentType: 'json', emitUpdate: false })
   return editor.getMarkdown()
 }
 

@@ -1,18 +1,9 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 type Condition =
-  | { kind: 'and'; conditions: Condition[] }
-  | { kind: 'eq'; column: string; value: unknown }
-  | { kind: 'lte'; column: string; value: unknown }
-
-vi.mock('drizzle-orm', () => ({
-  and: (...conditions: Condition[]) => ({ kind: 'and', conditions }),
-  eq: (column: string, value: unknown) => ({ kind: 'eq', column, value }),
-  lte: (column: string, value: unknown) => ({ kind: 'lte', column, value }),
-}))
+  | { type: 'and'; conditions: Condition[] }
+  | { type: 'eq'; left: string; right: unknown }
+  | { type: 'lte'; left: string; right: unknown }
 
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import {
@@ -28,8 +19,8 @@ interface ClaimRow {
 }
 
 function conditionValue(condition: Condition, column: string): unknown {
-  if (condition.kind === 'eq' && condition.column === column) return condition.value
-  if (condition.kind !== 'and') return undefined
+  if (condition.type === 'eq' && condition.left === column) return condition.right
+  if (condition.type !== 'and') return undefined
   for (const nested of condition.conditions) {
     const value = conditionValue(nested, column)
     if (value !== undefined) return value

@@ -1,19 +1,15 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 
-const { mockBindInternalExecutorDelegation } = vi.hoisted(() => ({
-  mockBindInternalExecutorDelegation: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindInternalExecutorDelegation,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+
+const { mockBindInternalExecutorDelegation } = authInternalDelegationMockFns
 
 function executionContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {
@@ -26,7 +22,6 @@ function executionContext(overrides: Partial<ExecutionContext> = {}): ExecutionC
 
 describe('createExecutorPrincipalFromExecutionContext', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBindInternalExecutorDelegation.mockImplementation(async (claims, options) => ({
       kind: 'delegated',
       serviceId: 'executor',
@@ -79,6 +74,37 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
         resourceScope: { tableId: 'table-1' },
       }
     )
+  })
+
+  it.each(['sim:mcp-servers', 'sim:managed-mcp-credentials'])(
+    'binds MCP policy provenance from the trusted execution context for %s',
+    async (audience) => {
+      const principal = await createExecutorPrincipalFromExecutionContext({
+        context: executionContext({
+          mcpBlockId: 'saved-block',
+          executorDelegationOrigin: { subjectUserId: 'user-origin', workflowId: 'workflow-origin' },
+        }),
+        audience,
+        resourceScope: { mcpServerId: 'server-1' },
+      })
+      expect(principal.resourceScope).toEqual({
+        mcpBlockId: 'saved-block',
+        mcpServerId: 'server-1',
+      })
+    }
+  )
+
+  it('keeps credential lookup unscoped when its block has MCP provenance metadata', async () => {
+    const principal = await createExecutorPrincipalFromExecutionContext({
+      context: executionContext({
+        mcpBlockId: 'credential-block',
+        executorDelegationOrigin: { subjectUserId: 'user-origin', workflowId: 'workflow-origin' },
+      }),
+      audience: 'sim:credential-groups',
+    })
+    expect(principal.resourceScope).toBeUndefined()
+    expect(principal.subjectUserId).toBe('user-origin')
+    expect(principal.delegationContext?.workflowId).toBe('workflow-origin')
   })
 
   it('uses an explicit trusted execution deadline as the delegation expiry', async () => {

@@ -15,9 +15,13 @@ import { useBlockVisibility } from '@/hooks/queries/block-visibility'
  * a kill switch to an already-public block. Identical refetches are absorbed by
  * the deep-equal guard inside `hydrateBlockVisibility`.
  */
-export function BlockVisibilityLoader() {
+export function BlockVisibilityLoader({
+  workspaceId: scopedWorkspaceId,
+}: {
+  workspaceId?: string
+} = {}) {
   const params = useParams()
-  const workspaceId = params?.workspaceId as string | undefined
+  const workspaceId = scopedWorkspaceId ?? (params?.workspaceId as string | undefined)
   const { data } = useBlockVisibility(workspaceId)
 
   useEffect(() => {

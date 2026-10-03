@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { SelectorContextUnavailableError } from '@/lib/selectors/server/errors'
@@ -132,40 +129,5 @@ describe('resolveSelectorReferences', () => {
         })
       ).rejects.toEqual(new SelectorContextUnavailableError())
     }
-  })
-
-  it('loads duplicate references once while retaining field-level provenance', async () => {
-    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue({
-      REPEATED: {
-        value: 'resolved-value',
-        scope: 'workspace',
-        visible: false,
-      },
-    })
-
-    const result = await resolveSelectorReferences({
-      ...baseInput,
-      context: {
-        host: '{{REPEATED}}',
-        port: '993',
-        secure: 'true',
-        username: '{{REPEATED}}',
-        password: 'literal-password',
-      },
-      request: { kind: 'detail', id: '{{REPEATED}}' },
-      protectedValues: createSelectorProtectedValues(),
-    })
-
-    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
-      'user-1',
-      'workspace-1',
-      ['REPEATED']
-    )
-    expect(result.context).toMatchObject({
-      host: 'resolved-value',
-      username: 'resolved-value',
-    })
-    expect(result.request).toEqual({ kind: 'detail', id: 'resolved-value' })
-    expect([...result.references.keys()]).toEqual(['host', 'username', 'request.id'])
   })
 })

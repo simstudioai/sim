@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Badge, Button, ChipModalTabs, cn, X } from '@sim/emcn'
+import { Badge, Button, ChipModalTabs, cn, DetailsPanel, X } from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
 import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
 import {
@@ -98,7 +98,7 @@ interface DetailRowProps {
 function DetailRow({ label, children }: DetailRowProps) {
   return (
     <div className='flex h-10 items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>{label}</span>
+      <span className='shrink-0 text-[var(--text-tertiary)] text-caption'>{label}</span>
       <span className='min-w-0 truncate text-right text-[var(--text-secondary)] text-caption tabular-nums'>
         {children}
       </span>
@@ -251,7 +251,7 @@ function EnrichmentDetailsContent({
                 >
                   <div className='flex min-w-0 items-center gap-1.5 px-2 pt-1.5'>
                     <div
-                      className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                      className='flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm'
                       style={{ background: bgColor }}
                     >
                       {ProviderIcon && (
@@ -263,16 +263,16 @@ function EnrichmentDetailsContent({
                     <span className='min-w-0 flex-1 truncate text-[var(--text-secondary)] text-caption'>
                       {outcome.label}
                     </span>
-                    <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+                    <span className='shrink-0 text-[var(--text-tertiary)] text-caption'>
                       {PROVIDER_STATUS_LABEL[outcome.status]}
                     </span>
                     {outcome.cost > 0 && (
-                      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-xs tabular-nums'>
+                      <span className='shrink-0 text-[var(--text-tertiary)] text-xs tabular-nums'>
                         {formatCost(outcome.cost)}
                       </span>
                     )}
                     {ran && (
-                      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
+                      <span className='shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
                         {formatDuration(outcome.durationMs, { precision: 2 }) || '—'}
                       </span>
                     )}
@@ -340,45 +340,31 @@ export function EnrichmentDetails({
   }, [isOpen, onClose])
 
   return (
-    <>
-      {isOpen && (
-        <div
-          className='absolute top-0 bottom-0 z-[var(--z-dropdown)] w-[8px] cursor-ew-resize'
-          style={{ right: `calc(${effectiveWidth} - 4px)` }}
-          onMouseDown={handleMouseDown}
-          role='separator'
-          aria-label='Resize enrichment details panel'
-          aria-orientation='vertical'
-        />
-      )}
-
-      <div
-        className={cn(
-          'absolute top-0 right-0 bottom-0 z-[var(--z-dropdown)] overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        )}
-        style={{ width: effectiveWidth }}
-        aria-label='Enrichment details sidebar'
-      >
-        {rowId && groupId && (
-          <div className='flex h-full flex-col px-3.5 pt-3'>
-            <div className='flex items-center justify-between'>
-              <h2 className='text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
-              <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
-                <X className='size-[14px]' />
-              </Button>
-            </div>
-
-            <EnrichmentDetailsContent
-              tableId={tableId}
-              rowId={rowId}
-              groupId={groupId}
-              groupName={groupName}
-              isOpen={isOpen}
-            />
+    <DetailsPanel
+      open={isOpen}
+      width={effectiveWidth}
+      onResizeStart={handleMouseDown}
+      resizeLabel='Resize enrichment details panel'
+      aria-label='Enrichment details sidebar'
+    >
+      {rowId && groupId && (
+        <div className='flex h-full flex-col px-3.5 pt-3'>
+          <div className='flex items-center justify-between'>
+            <h2 className='text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
+            <Button variant='ghost' iconPadding='sm' onClick={onClose} aria-label='Close'>
+              <X className='size-[14px]' />
+            </Button>
           </div>
-        )}
-      </div>
-    </>
+
+          <EnrichmentDetailsContent
+            tableId={tableId}
+            rowId={rowId}
+            groupId={groupId}
+            groupName={groupName}
+            isOpen={isOpen}
+          />
+        </div>
+      )}
+    </DetailsPanel>
   )
 }

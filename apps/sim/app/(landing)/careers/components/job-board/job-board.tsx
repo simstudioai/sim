@@ -54,17 +54,23 @@ export function JobBoard({ postings }: JobBoardProps) {
   return (
     <div className='flex flex-col gap-10'>
       <div className='flex flex-wrap items-center gap-3'>
+        <span id='career-team-filter-description' className='sr-only'>
+          Filter roles by team
+        </span>
         <ChipSelect
           options={teamOptions}
           value={team}
           onChange={(value) => setFilters({ team: value })}
-          aria-label='Filter roles by team'
+          aria-describedby='career-team-filter-description'
         />
+        <span id='career-location-filter-description' className='sr-only'>
+          Filter roles by location
+        </span>
         <ChipSelect
           options={locationOptions}
           value={location}
           onChange={(value) => setFilters({ location: value })}
-          aria-label='Filter roles by location'
+          aria-describedby='career-location-filter-description'
         />
       </div>
 

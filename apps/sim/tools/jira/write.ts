@@ -29,7 +29,7 @@ export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteRespons
     domain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {

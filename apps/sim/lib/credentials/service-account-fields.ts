@@ -6,10 +6,14 @@ import {
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
+export const ATLASSIAN_PRODUCTS = ['jira', 'confluence'] as const
+export type AtlassianProduct = (typeof ATLASSIAN_PRODUCTS)[number]
+
 /** Every secret field a service-account credential create/reconnect can carry. */
 export type ServiceAccountFieldId =
   | 'apiToken'
   | 'domain'
+  | 'atlassianProduct'
   | 'serviceAccountJson'
   | 'signingSecret'
   | 'botToken'

@@ -107,7 +107,7 @@ export const deleteAccountAssignmentTool: InternalToolConfig<
     },
     requestId: {
       type: 'string',
-      description: 'Request ID to use with Check Assignment Status',
+      description: 'Request ID to use with Check Assignment Deletion Status',
     },
     accountId: { type: 'string', description: 'Target AWS account ID', optional: true },
     permissionSetArn: { type: 'string', description: 'Permission set ARN', optional: true },

@@ -107,7 +107,7 @@ export function SolutionsCard({ card, headingId, tabletSpan = false }: Solutions
               wide && 'sm:max-lg:mt-0 sm:max-lg:w-auto sm:max-lg:min-w-0'
             )}
           >
-            <div className='h-full w-full'>{card.visual}</div>
+            <div className='size-full'>{card.visual}</div>
           </div>
         </div>
       </article>

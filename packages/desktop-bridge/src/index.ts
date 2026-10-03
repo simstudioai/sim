@@ -1,3 +1,13 @@
+import type { DesktopLocalFileRequest, DesktopLocalFileResponse } from './local-files'
+
+export type {
+  DesktopLocalFileEntry,
+  DesktopLocalFileManifest,
+  DesktopLocalFileRead,
+  DesktopLocalFileRequest,
+  DesktopLocalFileResponse,
+} from './local-files'
+
 import type {
   BrowserDataKind,
   BrowserFindRequest,
@@ -51,8 +61,18 @@ export function isPendingDesktopScopeId(scopeId: string): boolean {
  * environment stay consistent between the two.
  */
 export interface SimDesktopTerminalApi {
-  /** Open the first terminal, or adopt the ones already running. */
-  start(options: TerminalStartOptions, scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Materializes a chat's saved shells without opening one for a chat that
+   * had none. Optional for compatibility with installed shells that only
+   * restored when the terminal panel started.
+   */
+  restoreScope?(scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Opens the first terminal, or adopts the chat's saved shells. Only shells
+   * without {@link restoreScope} still expose it; newer ones restore on
+   * activation and open shells one at a time.
+   */
+  start?(options: TerminalStartOptions, scopeId: string): Promise<ScopedTerminalTabsState>
   /**
    * Execute one terminal operation. Resolves with the outcome; never rejects
    * for tool-level failures (those ride `ok: false`).
@@ -78,7 +98,15 @@ export interface SimDesktopTerminalApi {
   resize(terminalId: string, cols: number, rows: number, scopeId: string): void
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
-  switchTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  /**
+   * Show a terminal. `claim: false` mirrors a resource-strip selection without
+   * recording the shell as the user's own; older shells treat every switch as a claim.
+   */
+  switchTerminal(
+    terminalId: string,
+    scopeId: string,
+    options?: { claim?: boolean }
+  ): Promise<ScopedTerminalTabsState>
   /** Move a terminal to its final position. Optional for older installed shells. */
   reorderTerminal?(
     terminalId: string,
@@ -140,8 +168,8 @@ export interface SimDesktopBrowserAgentApi {
   /** New shells can atomically force-hide a native page before renderer effects paint. */
   readonly supportsAtomicPanelOcclusion?: true
   /**
-   * Confirms that this renderer can present and answer site-origin prompts.
-   * Optional for compatibility with installed shells that predate site consent.
+   * Confirms that this renderer can present and answer legacy site-origin prompts.
+   * Only installed shells with the retired per-task navigation gate expose this.
    */
   registerSitePermissionPromptSupport?(): void
   /**
@@ -177,12 +205,11 @@ export interface SimDesktopBrowserAgentApi {
   disposeScope(scopeId: string): Promise<boolean>
   /** Closes a soft-deleted chat's live pages while retaining its restart descriptor. */
   suspendScope(scopeId: string): Promise<boolean>
-  /** Pin or unpin a live browser tab. */
-  setTabPinned(tabId: string, pinned: boolean, scopeId: string): void
-  /** Opens the native tab actions menu without covering the embedded page. */
-  showTabContextMenu(tabId: string, scopeId: string): void
-  /** Move a live tab to a final list index. */
-  reorderTab(tabId: string, targetIndex: number, scopeId: string): void
+  /**
+   * Move a live tab to a final list index, mirroring the resource strip.
+   * Optional for compatibility with installed shells that predate strip-owned order.
+   */
+  reorderTab?(tabId: string, targetIndex: number, scopeId: string): void
   /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
@@ -297,7 +324,7 @@ export interface BrowserDownloadsState {
 }
 
 /** Renderer navigation requested by the native browser toolbar menu. */
-export type BrowserToolbarCommand = 'browser-settings' | 'import'
+export type BrowserToolbarCommand = 'browser-settings' | 'import' | 'passwords'
 
 /** Selected text and live page identity handed from the native browser to Sim. */
 export interface BrowserAddToChatPayload {
@@ -641,6 +668,10 @@ export type LocalFilesystemResponse =
 /** Outcome of an OAuth connect handoff, pushed when the browser flow finishes. */
 export interface DesktopOAuthConnectResult {
   ok: boolean
+  /** Source request correlated by the shell, never taken from the browser callback. */
+  sourceRequestId?: string
+  /** A GitHub setup selection; consumers verify current access before using it. */
+  credentialId?: string
   /** OAuth error slug forwarded from the provider callback, when the flow failed. */
   error?: string
   /**
@@ -1059,6 +1090,11 @@ export interface SimDesktopApi {
    * browser could not be opened.
    */
   beginOAuthConnect(providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean>
+  /** Starts an opaque source request in the browser without moving the desktop page. */
+  prepareSourceConnect?(): Promise<string | null>
+  beginSourceConnect?(requestId: string): Promise<boolean>
+  /** Cancels only the matching pending source handoff. */
+  cancelSourceConnect?(requestId: string): Promise<boolean>
   /**
    * Subscribe to connect-handoff completions (the app is refocused just
    * before this fires). Returns an unsubscribe function.
@@ -1071,6 +1107,8 @@ export interface SimDesktopApi {
    */
   server?: SimDesktopServerApi
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
+  /** Optional so older installed shells do not advertise the new native tools. */
+  localFiles?(request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse>
   /** Subscribe to commands initiated by the native application menu. */
   onCommand(callback: (command: DesktopCommand) => void): () => void
   windowState: SimDesktopWindowStateApi
@@ -1088,3 +1126,11 @@ export interface SimDesktopApi {
   /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
+export { MAX_DESKTOP_IMPORT_FILE_BYTES } from './local-files'
+export {
+  applyDesktopTitleBarMode,
+  DESKTOP_TITLE_BAR_ATTRIBUTE,
+  type DesktopTitleBarMode,
+  observeDesktopTitleBar,
+  supportsDesktopTitleBar,
+} from './title-bar'

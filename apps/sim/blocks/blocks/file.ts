@@ -15,7 +15,6 @@ import {
   normalizeFileInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
 
@@ -95,7 +94,7 @@ const SHARE_FILE_FIELD = ['shareFile', 'shareFileId'] as const
 /* Text and file are mutually exclusive sources, so the clause names whichever
    one the card actually carries. */
 const WRITE_CONTENT_FIELD = ['content', 'writeFile', 'writeFileId'] as const
-const FOLDER_SCOPE_FIELD = ['folderSelection'] as const
+const FOLDER_SCOPE_FIELD = ['folderSelection', 'manualFolderSelection'] as const
 const FOLDER_PATH_FIELD = ['folderPath', 'manualFolderPath'] as const
 const WRITE_FOLDER_FIELD = ['writeFolderPath', 'manualWriteFolderPath'] as const
 const CREATE_PARENT_FIELD = ['createParentPath', 'manualCreateParentPath'] as const
@@ -111,14 +110,25 @@ const FILE_EDIT_MODES: ReadonlySet<string> = new Set([
 /**
  * The folder that narrows a picker's options, and how deep it reaches.
  *
- * The multi-folder picker stays in the main form while its recursion switch is
- * an advanced refinement. Neither is a canonical pair: they are one scope and
- * one optional behavior, not alternate representations of the same value.
+ * The multi-folder picker is the basic half of a pair whose advanced half takes
+ * typed paths, and the picker resolves whichever half is active, so only the
+ * basic id is named here. The recursion switch is not a member of that pair:
+ * it is one optional behavior, not another representation of the scope.
  */
 const FOLDER_SCOPE = {
   fieldId: 'folderSelection',
   recursiveFieldId: 'folderIncludeSubfolders',
 } as const
+
+/** The operations a folder scopes; the scope pair and its recursion switch share this condition. */
+const FOLDER_SCOPE_OPERATIONS = [
+  'file_read',
+  'file_get_content',
+  'file_compress',
+  'file_append',
+  'file_search',
+  'file_edit',
+] as const
 
 /**
  * An untouched text subblock arrives as '', not undefined, and '' is not a
@@ -149,9 +159,14 @@ function toFileIdList(value: string | string[] | null | undefined): string[] {
   return Array.isArray(value) ? value : [value]
 }
 
-/** Only the fields {@link fileFamilyInput} reads, so a shape change fails here rather than at run time. */
+/**
+ * Only the fields {@link fileFamilyInput} reads, so a shape change fails here rather than at run time.
+ *
+ * The scope arrives under its canonical id: the serializer deletes both halves
+ * of the pair and republishes whichever one is active as `folderScopeRef`.
+ */
 interface FileFamilyParams {
-  folderSelection?: unknown
+  folderScopeRef?: unknown
   folderIncludeSubfolders?: unknown
   _context?: { workspaceId?: string }
 }
@@ -178,7 +193,7 @@ function fileFamilyInput(
   const normalized = pickerValue ? normalizeFileInput(pickerValue) : null
   if (normalized && normalized.length > 0) return { fileInput: normalized, workspaceId }
 
-  const folderPaths = folderScopePaths(params.folderSelection)
+  const folderPaths = folderScopePaths(params.folderScopeRef)
   if (!folderPaths) {
     throw new Error(`File or folder is required for ${label}`)
   }
@@ -198,7 +213,7 @@ function fileFamilyInput(
  * a picked file resolving to a different one.
  */
 function namedFileTarget(
-  params: FileFamilyParams & { folderSelection?: unknown; folderIncludeSubfolders?: unknown },
+  params: FileFamilyParams,
   pickerValue: unknown,
   label: string
 ): {
@@ -240,7 +255,7 @@ function namedFileTarget(
    */
   if (resolvedById) return { fileName }
 
-  const scopes = readFolderPaths(params.folderSelection)
+  const scopes = readFolderPaths(params.folderScopeRef)
   /*
    * `folderScopePaths` drops the root, because for a whole-folder read the root
    * and no folder mean the same thing. For a NAMED target they never do:
@@ -280,7 +295,7 @@ function folderScopePaths(value: unknown): string[] | undefined {
   return paths.length > 0 ? paths : undefined
 }
 
-export const FileBlock: BlockConfig<FileParserOutput> = {
+export const FileBlock: BlockConfig = {
   type: 'file',
   name: 'File (Legacy)',
   description: 'Read and parse multiple files',
@@ -405,7 +420,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   },
 }
 
-export const FileV2Block: BlockConfig<FileParserOutput> = {
+export const FileV2Block: BlockConfig = {
   ...FileBlock,
   type: 'file_v2',
   name: 'File (Legacy)',
@@ -502,7 +517,7 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
   },
 }
 
-export const FileV3Block: BlockConfig<FileParserV3Output> = {
+export const FileV3Block: BlockConfig = {
   type: 'file_v3',
   name: 'File',
   description: 'Read and write workspace files',
@@ -814,7 +829,7 @@ const parseReadFileIds = (input: unknown): string | string[] | null => {
   return null
 }
 
-export const FileV4Block: BlockConfig<FileParserV3Output> = {
+export const FileV4Block: BlockConfig = {
   ...FileV3Block,
   type: 'file_v4',
   name: 'File (Legacy)',
@@ -1089,7 +1104,7 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
   },
 }
 
-export const FileV5Block: BlockConfig<FileParserV3Output> = {
+export const FileV5Block: BlockConfig = {
   ...FileV4Block,
   sunset: undefined,
   type: 'file_v5',
@@ -1108,6 +1123,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Search reads the query as a line-oriented regular expression: quantifiers, character classes, \\d \\w \\s, alternation, groups, "^" and "$" anchors, and \\b word boundaries. Lookaround, backreferences and patterns spanning a line break are not supported, and a pattern needs at least 3 consecutive literal characters that every match will contain. Set Match to "Exact match" to search for the query text verbatim instead.
   - Match is a builder setting, not an agent one: the agent writes the query, and Match decides how every query from that block is read.
   - Search is eventually consistent. Check "complete" and "indexStatus" when pending, failed, skipped, or partially indexed files matter to the task.
+  - Read, Get Content, Search, Append, Apply Edit, and Compress share a Folder scope. Pick folders, or switch the field to advanced and type canonical percent-encoded paths, comma-separated for several, including a reference from an earlier block such as /memory/<start.userId>.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
   - Use Write to create a new workspace file and Append to add content to an existing one. Write adds a numeric suffix when the name is taken; turn on "Overwrite Existing File" to replace the contents of the file at that exact path (folder and name) instead — a same-named file in another folder is left alone.
   - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "files" output.
@@ -1202,22 +1218,24 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       title: 'Folder',
       type: 'folder-selector' as SubBlockType,
       resourceType: 'file',
-      mode: 'both',
+      canonicalParamId: 'folderScopeRef',
+      mode: 'basic',
       multiSelect: true,
       placeholder: 'Anywhere in the workspace',
       description:
         'Narrows the file options below. Read, get content, and compress also take the whole folder when no file is picked, and search is confined to it.',
-      condition: {
-        field: 'operation',
-        value: [
-          'file_read',
-          'file_get_content',
-          'file_compress',
-          'file_append',
-          'file_search',
-          'file_edit',
-        ],
-      },
+      condition: { field: 'operation', value: [...FOLDER_SCOPE_OPERATIONS] },
+    },
+    {
+      id: 'manualFolderSelection',
+      title: 'Folder Paths',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'folderScopeRef',
+      mode: 'advanced',
+      placeholder: '/Reports/Q3%20Results, /Archive',
+      description:
+        'Canonical percent-encoded folder paths, comma-separated for several, or a reference from an earlier block. Scopes the operation exactly as the picker does.',
+      condition: { field: 'operation', value: [...FOLDER_SCOPE_OPERATIONS] },
     },
     {
       id: 'folderIncludeSubfolders',
@@ -1227,17 +1245,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       value: () => 'true',
       description:
         'Whether the folder above reaches into nested folders. On by default; turn it off to take only its direct contents, which is also how a name shared with a file deeper in the tree is disambiguated.',
-      condition: {
-        field: 'operation',
-        value: [
-          'file_read',
-          'file_get_content',
-          'file_compress',
-          'file_append',
-          'file_search',
-          'file_edit',
-        ],
-      },
+      condition: { field: 'operation', value: [...FOLDER_SCOPE_OPERATIONS] },
     },
     {
       id: 'readFile',
@@ -1936,7 +1944,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
            * has its query, so an unset folder means the whole workspace and
            * never an incomplete configuration.
            */
-          const folderPaths = folderScopePaths(params.folderSelection)
+          const folderPaths = folderScopePaths(params.folderScopeRef)
           return {
             query: params.query,
             mode: params.mode === 'exact' ? 'exact' : 'regex',
@@ -1951,22 +1959,18 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         if (operation === 'file_write') {
           // Writing stores one file, so the single form.
           const fileInput = normalizeFileInput(params.writeFileInput, { single: true })
-          // The contract counts any defined `content` as "text was provided", and
-          // an untouched Content box serializes as an empty string — so sending it
-          // unconditionally would make every file write collide with its own empty
-          // text box. The selected file is what disambiguates: with one present,
-          // an empty Content box means "not used" and is dropped, while a
-          // non-empty one is still forwarded so the contract can report that both
-          // were filled. With no file, `content` always goes through, which keeps
-          // writing a deliberately empty text file possible.
-          const contentText = typeof params.content === 'string' ? params.content : undefined
-          const omitContent = Boolean(fileInput) && !contentText
+          /**
+           * Explicitly clear unused Content because the executor merges these params
+           * over the original inputs. Preserve empty text when no file is selected.
+           */
+          const omitContent =
+            Boolean(fileInput) && (params.content == null || params.content === '')
           return {
             fileName: params.fileName,
             folderPath: optionalText(params.writeFolderRef),
-            ...(omitContent ? {} : { content: params.content }),
+            content: omitContent ? undefined : params.content,
             ...(fileInput ? { fileInput } : {}),
-            contentType: params.contentType,
+            contentType: params.contentType ?? undefined,
             overwrite: params.overwrite === true || params.overwrite === 'true',
             workspaceId: params._context?.workspaceId,
           }
@@ -2316,10 +2320,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       type: 'boolean',
       description: 'Whether the folder scope reaches into nested folders; on by default',
     },
-    folderSelection: {
-      type: 'array',
+    folderScopeRef: {
+      type: 'string',
       description:
-        'Folders the operation is scoped to, including everything nested inside them, expanded at run time when no file is picked (read, get content, compress, search, append, edit, insert)',
+        'Folders the operation is scoped to (read, get content, compress, search, append, edit): canonical percent-encoded paths, comma-separated for several. Includes everything nested inside them, and is expanded at run time when no file is picked',
     },
     folderLimit: {
       type: 'number',
@@ -2343,7 +2347,16 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     lineCount: {
       type: 'number',
-      description: 'Lines in the file after the change (edit, insert)',
+      description: 'Lines in the file after the change (edit)',
+    },
+    version: {
+      type: 'number',
+      description: 'Version number of the content a write recorded (write, append, edit)',
+    },
+    revision: {
+      type: 'string',
+      description:
+        'Opaque token for the content a write recorded, accepted as expectedRevision by the write and edit tools to make a later write conditional (write, append, edit)',
     },
     results: {
       type: 'array',

@@ -16,7 +16,6 @@ import { deploymentKeys } from '@/hooks/queries/deployments'
 const logger = createLogger('ScheduleQueries')
 
 export const SCHEDULE_LIST_STALE_TIME = 30 * 1000
-export const SCHEDULE_DETAIL_STALE_TIME = 30 * 1000
 export const SCHEDULE_BLOCK_STALE_TIME = 30 * 1000
 
 export const scheduleKeys = {

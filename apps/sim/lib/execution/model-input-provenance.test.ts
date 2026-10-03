@@ -1,16 +1,5 @@
-/**
- * @vitest-environment node
- */
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it, vi } from 'vitest'
-
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
-
 import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import {
   createModelInputProvenanceRequestMetadata,
@@ -32,6 +21,8 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockLogger = getMockLogger('ModelInputProvenance')
 
 const ENTRY = {
   name: 'TOKEN',

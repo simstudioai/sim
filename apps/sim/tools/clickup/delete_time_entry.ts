@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   CLICKUP_API_BASE_URL,
   CLICKUP_TIME_ENTRY_OUTPUT_PROPERTIES,
@@ -65,9 +65,7 @@ export const clickupDeleteTimeEntryTool: ToolConfig<
     const payload = isRecordLike(data) ? data.data : null
     const entry = Array.isArray(payload)
       ? (payload.find((item) => isRecordLike(item)) ?? null)
-      : isRecordLike(payload)
-        ? payload
-        : null
+      : toRecordOrNull(payload)
 
     return {
       success: true,

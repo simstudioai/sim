@@ -36,7 +36,7 @@ export const GET = withRouteHandler(
   withMcpAuth<RouteParams>(
     'read',
     'deploy.mcp'
-  )(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  )(async (_request: NextRequest, { workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
 
