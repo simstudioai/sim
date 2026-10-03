@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  createWindchillSession,
+  WindchillProviderError,
+  windchillMutationRequest,
+} from '@/lib/internal/windchill/client'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -9,11 +14,6 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { encodeWindchillOid, normalizeServiceRoot } from '@/tools/windchill/utils'
-import {
-  createWindchillSession,
-  WindchillProviderError,
-  windchillMutationRequest,
-} from '@/lib/internal/windchill/client'
 
 const logger = createLogger('WebhookProvider:Windchill')
 
