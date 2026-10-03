@@ -1,11 +1,30 @@
 import { v2ExecuteToolContract } from '@/lib/api/contracts/v2/catalog'
-import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { executeToolForCaller } from '@/lib/tool-execution/application/execute-tool'
+import {
+  defineV2JsonRoute,
+  type V2ErrorPolicy,
+  v2ApiKeyAuth,
+  v2RateLimits,
+} from '@/lib/api/server/routes'
+import {
+  executeToolForCaller,
+  ToolUsageLimitExceededError,
+} from '@/lib/tool-execution/application/execute-tool'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
 import { catalogErrorPolicy } from '@/app/api/v2/lib/catalog'
+import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** {@link catalogErrorPolicy} plus the `402` a hosted-key call over its usage limit raises. */
+const executeToolErrorPolicy = {
+  render(error) {
+    if (error instanceof ToolUsageLimitExceededError) {
+      return v2Error('USAGE_LIMIT_EXCEEDED', error.message)
+    }
+    return catalogErrorPolicy.render(error)
+  },
+} satisfies V2ErrorPolicy
 
 /**
  * POST /api/v2/tools/{toolId}/execute — Run one built-in tool.
@@ -20,7 +39,7 @@ export const POST = defineV2JsonRoute({
   operation: toolExecutionOperations.execute,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: catalogErrorPolicy,
+  errorPolicy: executeToolErrorPolicy,
   mapInput: ({ params, body }) => ({
     workspaceId: body.workspaceId,
     toolId: params.toolId,
