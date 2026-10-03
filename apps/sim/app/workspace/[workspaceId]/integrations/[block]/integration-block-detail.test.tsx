@@ -1,9 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
+
+import { act } from 'react'
 import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
-import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Integration } from '@/lib/integrations/types'

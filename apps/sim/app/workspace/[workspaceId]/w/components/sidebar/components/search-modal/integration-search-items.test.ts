@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { buildIntegrationSearchItems } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/integration-search-items'
 
