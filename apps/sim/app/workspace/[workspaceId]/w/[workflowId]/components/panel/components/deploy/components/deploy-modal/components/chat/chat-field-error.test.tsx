@@ -1,7 +1,7 @@
 import type { ComponentProps, PropsWithChildren } from 'react'
 import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
-import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { JSDOM } from 'jsdom'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
