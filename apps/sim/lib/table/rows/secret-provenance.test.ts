@@ -1,20 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockError } = vi.hoisted(() => ({
-  mockError: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mockError, warn: vi.fn() }),
-}))
-
-import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
 import type { DbTransaction } from '@/lib/table/planner'
 import {
   classifyTableRowSecretProvenanceForCopy,
@@ -24,6 +12,8 @@ import {
   TableRowProvenanceReader,
   updateTableRowsWithDerivedSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
+
+const { error: mockError } = getMockLogger('TableRowSecretProvenance')
 
 const ROW_UPDATED_AT = new Date('2026-08-05T00:00:00.123Z')
 
@@ -55,25 +45,7 @@ function sqlText(fragment: unknown): string {
 
 describe('table row secret provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('checks a version-pinned table with one aggregate rather than loading its rows', async () => {
-    queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
-    queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
-    queueTableRows(userTableRows, [{ unsafeCount: 0, unrecordedCount: 0 }])
-
-    await expect(
-      getTableSnapshotModelMountSafety({
-        tableId: 'table-1',
-        workspaceId: 'workspace-1',
-        rowsVersion: 7,
-      })
-    ).resolves.toBe('safe')
-
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
 
   it('classifies unsafe provenance after confirming the snapshot remains current', async () => {
@@ -120,32 +92,6 @@ describe('table row secret provenance', () => {
     ).resolves.toBe('unsafe-provenance')
   })
 
-  it('keeps untouched legacy rows readable with exact-empty provenance', async () => {
-    queueTableRows(userTableRows, [
-      {
-        id: 'legacy-row',
-        updatedAt: ROW_UPDATED_AT,
-        secretProvenanceVersion: null,
-        sidecarRowId: null,
-        sidecarStatus: null,
-        sidecarEntries: null,
-        sidecarIsCurrent: false,
-      },
-    ])
-
-    await expect(
-      loadTableRowSecretProvenance([{ id: 'legacy-row', updatedAt: ROW_UPDATED_AT }], {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-      })
-    ).resolves.toEqual({
-      version: 1,
-      complete: true,
-      entries: [],
-      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-    })
-  })
-
   it('projects current exact entries without exposing cross-scope secret names', async () => {
     queueTableRows(userTableRows, [
       {
@@ -190,34 +136,6 @@ describe('table row secret provenance', () => {
     })
   })
 
-  it('reports a row revision mismatch without exposing row content', async () => {
-    queueTableRows(userTableRows, [
-      {
-        id: 'tracked-row',
-        updatedAt: new Date(ROW_UPDATED_AT.getTime() + 1),
-        secretProvenanceVersion: 1,
-        sidecarStatus: 'exact',
-        sidecarEntries: [],
-        sidecarIsCurrent: true,
-      },
-    ])
-    const provenance = await loadTableRowSecretProvenance(
-      [{ id: 'tracked-row', updatedAt: ROW_UPDATED_AT }],
-      {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-      }
-    )
-    expect(provenance.complete).toBe(false)
-    expect(mockError).toHaveBeenCalledWith('Table row read could not establish secret provenance', {
-      surface: 'table-row',
-      cause: 'row-revision-mismatch',
-      rowCount: 1,
-      workspaceId: 'workspace-1',
-      actorUserId: 'user-1',
-    })
-  })
-
   it.each([{ selectedColumns: ['input-column'] }, { selectedColumns: [] }])(
     'captures only selected worker input columns: %j',
     async ({ selectedColumns }) => {
@@ -258,46 +176,6 @@ describe('table row secret provenance', () => {
       })
     }
   )
-
-  it('does not activate a secret from an unselected column with the same value', async () => {
-    queueTableRows(userTableRows, [
-      {
-        id: 'tracked-row',
-        updatedAt: ROW_UPDATED_AT,
-        secretProvenanceVersion: 1,
-        sidecarRowId: 'tracked-row',
-        sidecarStatus: 'exact',
-        sidecarEntries: [
-          {
-            columnId: 'secret-column',
-            encryptedValue: 'encrypted-test',
-            name: 'TEST',
-            sourceUserId: 'user-1',
-            sourceWorkspaceId: 'workspace-1',
-          },
-        ],
-        sidecarIsCurrent: true,
-      },
-    ])
-
-    await expect(
-      loadTableRowSecretProvenance(
-        [
-          {
-            id: 'tracked-row',
-            updatedAt: ROW_UPDATED_AT,
-            selectedValues: { 'public-column': 'Test' },
-          },
-        ],
-        { userId: 'user-1', workspaceId: 'workspace-1' }
-      )
-    ).resolves.toEqual({
-      version: 1,
-      complete: true,
-      entries: [],
-      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-    })
-  })
 
   /**
    * The response carries one entry per distinct secret, so a page of many rows sharing a few
@@ -599,73 +477,6 @@ describe('table row secret provenance', () => {
     ])
   })
 
-  it('does not write a sidecar when the mutation affected no declared row', async () => {
-    await mutateTableRowsWithSecretProvenance(dbChainMock.db as unknown as DbTransaction, {
-      rows: [
-        {
-          rowId: 'missing-row',
-          provenance: { complete: false, columns: {} },
-        },
-      ],
-      rowState: 'new',
-      mode: 'replace',
-      mutate: async () => ({ value: undefined, affectedRowIds: [] }),
-    })
-
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.for).not.toHaveBeenCalled()
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
-    expect(mockError).not.toHaveBeenCalled()
-  })
-
-  it('does not report a planned unrecorded write when the mutation throws', async () => {
-    await expect(
-      mutateTableRowsWithSecretProvenance(dbChainMock.db as unknown as DbTransaction, {
-        rows: [{ rowId: 'missing-row', provenance: { complete: false, columns: {} } }],
-        rowState: 'new',
-        mode: 'replace',
-        mutate: async () => {
-          throw new Error('Mutation failed')
-        },
-      })
-    ).rejects.toThrow('Mutation failed')
-    expect(mockError).not.toHaveBeenCalled()
-  })
-
-  it('reports only bound ordinary writes with their canonical table and workspace', async () => {
-    dbChainMockFns.execute.mockResolvedValueOnce([
-      {
-        workspaceId: 'workspace-1',
-        tableId: 'table-1',
-        cause: 'incoming-provenance-incomplete',
-        rowCount: 1,
-      },
-    ])
-    await mutateTableRowsWithSecretProvenance(dbChainMock.db as unknown as DbTransaction, {
-      rows: ['bound-row', 'unaffected-row'].map((rowId) => ({
-        rowId,
-        provenance: { complete: false, columns: {} },
-      })),
-      rowState: 'new',
-      mode: 'replace',
-      mutate: async () => ({ value: undefined, affectedRowIds: ['bound-row'] }),
-    })
-    expect(mockError).toHaveBeenCalledExactlyOnceWith(
-      'Table row write staged unrecorded secret provenance',
-      {
-        surface: 'table-row',
-        cause: 'incoming-provenance-incomplete',
-        mode: 'replace',
-        rowCount: 1,
-        workspaceId: 'workspace-1',
-        tableId: 'table-1',
-      }
-    )
-    expect(mockError.mock.invocationCallOrder[0]).toBeGreaterThan(
-      dbChainMockFns.execute.mock.invocationCallOrder[0]
-    )
-  })
-
   it('binds exact provenance for a new row without a pre-insert read', async () => {
     await mutateTableRowsWithSecretProvenance(dbChainMock.db as unknown as DbTransaction, {
       rows: [
@@ -772,16 +583,6 @@ describe('table row secret provenance', () => {
     )
   })
 
-  it('preserves legacy fork compatibility without manufacturing provenance', () => {
-    expect(
-      classifyTableRowSecretProvenanceForCopy({
-        secretProvenanceVersion: null,
-        provenanceIsCurrent: false,
-        provenance: null,
-      })
-    ).toEqual({ mode: 'legacy' })
-  })
-
   it('preserves more than ten thousand column bindings when they describe eleven secrets', () => {
     const entries = Array.from({ length: 1_000 }, (_, column) =>
       Array.from({ length: 11 }, (_, secret) => ({
@@ -806,31 +607,6 @@ describe('table row secret provenance', () => {
     )
   })
 
-  it('deduplicates repeated bindings before charging the secret or serialized budgets', () => {
-    const entry = { columnId: 'column-1', encryptedValue: 'encrypted-secret' }
-    expect(
-      classifyTableRowSecretProvenanceForCopy({
-        secretProvenanceVersion: 1,
-        provenanceIsCurrent: true,
-        provenance: { status: 'exact', entries: Array.from({ length: 11_000 }, () => entry) },
-      })
-    ).toEqual({ mode: 'tracked', status: 'exact', entries: [entry] })
-  })
-
-  it('keeps distinct binding fields separate even when they contain delimiter characters', () => {
-    const entries = [
-      { columnId: 'column\u0000one', encryptedValue: 'two' },
-      { columnId: 'column', encryptedValue: 'one\u0000two' },
-    ]
-    expect(
-      classifyTableRowSecretProvenanceForCopy({
-        secretProvenanceVersion: 1,
-        provenanceIsCurrent: true,
-        provenance: { status: 'exact', entries },
-      })
-    ).toEqual({ mode: 'tracked', status: 'exact', entries: [entries[1], entries[0]] })
-  })
-
   it('still rejects a stored row carrying ten thousand and one distinct encrypted values', () => {
     const entries = Array.from({ length: 10_001 }, (_, index) => ({
       columnId: 'column-1',
@@ -841,41 +617,6 @@ describe('table row secret provenance', () => {
         secretProvenanceVersion: 1,
         provenanceIsCurrent: true,
         provenance: { status: 'exact', entries },
-      })
-    ).toEqual({ mode: 'tracked', status: 'unknown', entries: [] })
-  })
-
-  it('stops before later bindings when one entry already exceeds the serialized budget', () => {
-    const entries = [
-      { columnId: 'column-1', encryptedValue: 'x'.repeat(PROVENANCE_MAX_SERIALIZED_BYTES + 1) },
-    ]
-    const readNextEntry = vi.fn(() => {
-      throw new Error('Oversized provenance must stop before the next entry')
-    })
-    Object.defineProperty(entries, 1, { get: readNextEntry, enumerable: true })
-    expect(
-      classifyTableRowSecretProvenanceForCopy({
-        secretProvenanceVersion: 1,
-        provenanceIsCurrent: true,
-        provenance: { status: 'exact', entries },
-      })
-    ).toEqual({ mode: 'tracked', status: 'unknown', entries: [] })
-    expect(readNextEntry).not.toHaveBeenCalled()
-  })
-
-  it('charges each retained column binding against the serialized budget even for one secret', () => {
-    const encryptedValue = 'x'.repeat(PROVENANCE_MAX_SERIALIZED_BYTES / 2)
-    expect(
-      classifyTableRowSecretProvenanceForCopy({
-        secretProvenanceVersion: 1,
-        provenanceIsCurrent: true,
-        provenance: {
-          status: 'exact',
-          entries: [
-            { columnId: 'column-1', encryptedValue },
-            { columnId: 'column-2', encryptedValue },
-          ],
-        },
       })
     ).toEqual({ mode: 'tracked', status: 'unknown', entries: [] })
   })

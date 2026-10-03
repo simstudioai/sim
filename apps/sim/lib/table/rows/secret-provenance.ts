@@ -6,6 +6,7 @@ import {
   userTableRows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
 import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
@@ -127,7 +128,7 @@ function serializedBytes(value: unknown): number {
 }
 
 function isStoredEntry(value: unknown): value is StoredTableRowSecretProvenanceEntry {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (!isRecordLike(value)) return false
   const record = value as Record<string, unknown>
   if (
     Reflect.ownKeys(record).some((key) => typeof key !== 'string' || !STORED_ENTRY_KEYS.has(key))

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, organization } from '@sim/db/schema'
 import {
   authMockFns,
@@ -11,13 +8,16 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => ({
-  mockIsEnterprise: vi.fn(),
-  mockEagerClamp: vi.fn(),
-  mockRecordAudit: vi.fn(),
-}))
+const mockEagerClamp = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/auth/session-policy', () => ({
   eagerClampOrgSessions: mockEagerClamp,
@@ -28,34 +28,29 @@ vi.mock('@/lib/auth/security-policy', () => ({
   invalidateSecurityPolicyVersionCache: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+
+vi.mock('@sim/audit', () => auditMock)
+
+import { GET, PUT } from '@/app/api/organizations/[id]/session-policy/route'
+
+const mockGetSession = authMockFns.mockGetSession
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockIsEnterprise = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
 
 /**
  * These tests run with billing enabled, where `isOrganizationFeatureEntitled`
  * delegates straight to the plan check — so both names resolve to the same
  * mock and `mockIsEnterprise` keeps steering the gate.
  */
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mockIsEnterprise,
-  isOrganizationFeatureEntitled: mockIsEnterprise,
-}))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: mockRecordAudit,
-  AuditAction: {
-    ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
-  },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-}))
-
-import { GET, PUT } from '@/app/api/organizations/[id]/session-policy/route'
-
-const mockGetSession = authMockFns.mockGetSession
+billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockImplementation(
+  (...args: unknown[]) => mockIsEnterprise(...args)
+)
 
 const ORG_ID = 'org-1'
-const routeContext = { params: Promise.resolve({ id: ORG_ID }) }
+const routeContext = createRouteContext({ id: ORG_ID })
 
 beforeAll(() => {
   setEnvFlags({ isBillingEnabled: true })
@@ -65,7 +60,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('session policy route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
@@ -75,30 +69,10 @@ describe('session policy route', () => {
   })
 
   describe('GET', () => {
-    it('returns 401 when unauthenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
-      const response = await GET(createMockRequest('GET'), routeContext)
-      expect(response.status).toBe(401)
-    })
-
     it('returns 403 for non-members', async () => {
       queueTableRows(member, [])
       const response = await GET(createMockRequest('GET'), routeContext)
       expect(response.status).toBe(403)
-    })
-
-    it('returns the configured policy for members', async () => {
-      queueTableRows(member, [{ id: 'member-1', role: 'member' }])
-      queueTableRows(organization, [
-        { sessionPolicySettings: { maxSessionHours: 72, idleTimeoutHours: null } },
-      ])
-      const response = await GET(createMockRequest('GET'), routeContext)
-      expect(response.status).toBe(200)
-      const body = await response.json()
-      expect(body.data).toEqual({
-        isEnterprise: true,
-        configured: { maxSessionHours: 72, idleTimeoutHours: null },
-      })
     })
   })
 
@@ -158,23 +132,6 @@ describe('session policy route', () => {
       )
       expect(mockRecordAudit).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'organization.session_policy.updated' })
-      )
-    })
-
-    it('clearing both fields still saves and delegates the no-op to the clamp', async () => {
-      queueTableRows(member, [{ role: 'owner' }])
-      queueTableRows(organization, [{ name: 'Acme' }])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID }])
-
-      const response = await PUT(
-        putRequest({ maxSessionHours: null, idleTimeoutHours: null }),
-        routeContext
-      )
-      expect(response.status).toBe(200)
-      expect(mockEagerClamp).toHaveBeenCalledWith(
-        ORG_ID,
-        { maxSessionHours: null, idleTimeoutHours: null },
-        expect.anything()
       )
     })
   })

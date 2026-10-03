@@ -4,7 +4,6 @@ import { SftpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { SftpUploadResult } from '@/tools/sftp/types'
 
 export const SftpBlock = {
   type: 'sftp',
@@ -335,7 +334,7 @@ export const SftpBlock = {
     message: { type: 'string', description: 'Operation status message' },
     error: { type: 'string', description: 'Error message if operation failed' },
   },
-} satisfies BlockConfig<SftpUploadResult>
+} satisfies BlockConfig
 
 const selectSftpV2Tool = createVersionedToolSelector({
   baseToolSelector: SftpBlock.tools.config.tool,

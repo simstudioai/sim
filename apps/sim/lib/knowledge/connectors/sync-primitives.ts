@@ -836,6 +836,14 @@ export async function runChangeFeedPass(input: ChangeFeedPassInput): Promise<Cha
   return result
 }
 
+/**
+ * Documents a listing that started at `startedAt` has not yet stamped seen: the absence test for
+ * EOF reconciliation, and the guard that keeps a stamp from rewriting an already-current row.
+ */
+export function staleSeen(startedAt: Date) {
+  return or(isNull(document.sourceSeenAt), lt(document.sourceSeenAt, startedAt))
+}
+
 interface OwnedDocument {
   id: string
   externalId: string | null

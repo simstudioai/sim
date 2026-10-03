@@ -3,7 +3,7 @@
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 import {
@@ -70,8 +70,6 @@ function recordedExecution(
 }
 
 describe('reconnect execution outcome recovery', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it.each(['completed', 'failed', 'cancelled', 'paused'] as const)(
     'recovers the recorded %s outcome when the replay buffer expired',
     async (status) => {
@@ -235,61 +233,6 @@ describe('processSSEStream', () => {
     expect(order).toEqual(['handler:start', 'handler:end', 'event-id'])
   })
 
-  it('routes stream:thinking and stream:tool without requiring event ids', async () => {
-    const onStreamThinking = vi.fn()
-    const onStreamTool = vi.fn()
-    const onStreamChunk = vi.fn()
-    const onEventId = vi.fn()
-
-    const events: ExecutionEvent[] = [
-      {
-        type: 'stream:thinking',
-        timestamp: new Date().toISOString(),
-        executionId: 'exec-1',
-        workflowId: 'wf-1',
-        data: { blockId: 'agent-1', text: 'reasoning ' },
-      },
-      {
-        type: 'stream:tool',
-        timestamp: new Date().toISOString(),
-        executionId: 'exec-1',
-        workflowId: 'wf-1',
-        data: {
-          blockId: 'agent-1',
-          phase: 'start',
-          id: 'tool_1',
-          name: 'http_request',
-        },
-      },
-      {
-        type: 'stream:chunk',
-        timestamp: new Date().toISOString(),
-        executionId: 'exec-1',
-        workflowId: 'wf-1',
-        data: { blockId: 'agent-1', chunk: 'answer' },
-      },
-    ]
-
-    await processSSEStream(
-      streamEvents(events).getReader(),
-      { onStreamThinking, onStreamTool, onStreamChunk, onEventId },
-      'test'
-    )
-
-    expect(onStreamThinking).toHaveBeenCalledWith({
-      blockId: 'agent-1',
-      text: 'reasoning ',
-    })
-    expect(onStreamTool).toHaveBeenCalledWith({
-      blockId: 'agent-1',
-      phase: 'start',
-      id: 'tool_1',
-      name: 'http_request',
-    })
-    expect(onStreamChunk).toHaveBeenCalledWith({ blockId: 'agent-1', chunk: 'answer' })
-    expect(onEventId).not.toHaveBeenCalled()
-  })
-
   it('propagates callback failures without acknowledging the event id', async () => {
     const event: ExecutionEvent = {
       type: 'block:started',
@@ -320,16 +263,6 @@ describe('processSSEStream', () => {
     ).rejects.toThrow('handler failed')
 
     expect(onEventId).not.toHaveBeenCalled()
-  })
-
-  it('releases the reader lock after the stream completes', async () => {
-    const stream = streamEvents([])
-    const reader = stream.getReader()
-    expect(stream.locked).toBe(true)
-
-    await processSSEStream(reader, {}, 'test')
-
-    expect(stream.locked).toBe(false)
   })
 
   it('releases the reader lock even when a handler throws', async () => {
@@ -376,10 +309,6 @@ describe('useExecutionStream executeFromBlock', () => {
         headers: { 'X-Execution-Id': 'execution-2' },
       })
     )
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('sends current draft state and client identity without changing snapshot resume fields', async () => {

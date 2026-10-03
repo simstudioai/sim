@@ -156,6 +156,8 @@ type CollapsedSidebarMenuProps = {
 interface CollapsedChatFlyoutItemProps {
   chat: { id: string; href: string; name: string; isActive?: boolean; isUnread?: boolean }
   isCurrentRoute: boolean
+  isSelected?: boolean
+  onSelectChat?: (chatId: string, shiftKey: boolean) => void
   isMenuOpen?: boolean
   isEditing?: boolean
   editValue?: string
@@ -284,6 +286,8 @@ export function CollapsedSidebarMenu({
 export function CollapsedChatFlyoutItem({
   chat,
   isCurrentRoute,
+  isSelected = false,
+  onSelectChat,
   isMenuOpen = false,
   isEditing = false,
   editValue,
@@ -330,7 +334,7 @@ export function CollapsedChatFlyoutItem({
   return (
     <DropdownMenuItem
       asChild
-      active={isCurrentRoute || isMenuOpen}
+      active={isCurrentRoute || isSelected || isMenuOpen}
       actionOpen={isMenuOpen}
       action={
         showActions ? (
@@ -348,6 +352,7 @@ export function CollapsedChatFlyoutItem({
         chatId={chat.id}
         href={chat.href}
         isCurrentRoute={isCurrentRoute}
+        onSelectChat={onSelectChat}
         onContextMenu={
           chat.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, chat.id) : undefined
         }

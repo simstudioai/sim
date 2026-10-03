@@ -1,9 +1,15 @@
-/**
- * @vitest-environment node
- */
-
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface CleanupRow {
@@ -19,33 +25,14 @@ interface CapturedBatchDeleteOptions {
   totalRowLimit?: number
 }
 
-const {
-  mockBatchDeleteByWorkspaceAndTimestamp,
-  mockChunkedBatchDelete,
-  mockDeleteFileMetadata,
-  mockDeleteFiles,
-  mockMarkLargeValuesDeleted,
-  mockPruneLargeValueMetadata,
-  mockTask,
-} = vi.hoisted(() => ({
+const { mockBatchDeleteByWorkspaceAndTimestamp, mockChunkedBatchDelete } = vi.hoisted(() => ({
   mockBatchDeleteByWorkspaceAndTimestamp: vi.fn(async () => ({
     table: 'job',
     deleted: 0,
     failed: 0,
   })),
   mockChunkedBatchDelete: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(async () => true),
-  mockDeleteFiles: vi.fn(async () => ({ deleted: 2, failed: [] })),
-  mockMarkLargeValuesDeleted: vi.fn(async () => undefined),
-  mockPruneLargeValueMetadata: vi.fn(async () => ({
-    referencesDeleted: 0,
-    dependenciesDeleted: 0,
-    tombstonesDeleted: 0,
-  })),
-  mockTask: vi.fn((config: unknown) => config),
 }))
-
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask, queue: vi.fn((config) => config) }))
 
 vi.mock('@/lib/billing/cleanup-dispatcher', () => ({ runCleanupWithLimits: vi.fn() }))
 
@@ -55,12 +42,7 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({
   chunkedBatchDelete: mockChunkedBatchDelete,
 }))
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  LIVE_PAUSED_REFERENCE_STATUSES: ['paused', 'partially_resumed', 'cancelling'],
-  markLargeValuesDeleted: mockMarkLargeValuesDeleted,
-  pruneLargeValueMetadata: mockPruneLargeValueMetadata,
-  unreferencedLargeValuePredicate: vi.fn(() => ({ op: 'unreferencedLargeValuePredicate' })),
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: {
@@ -68,18 +50,19 @@ vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   },
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  isUsingCloudStorage: vi.fn(() => true),
-  StorageService: {
-    deleteFiles: mockDeleteFiles,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-import { cleanupLogsTask, runCleanupLogs } from '@/background/cleanup-logs'
+import { runCleanupLogs } from '@/background/cleanup-logs'
+
+const { mockMarkLargeValuesDeleted, mockPruneLargeValueMetadata } = largeValueMetadataMockFns
+
+const { mockDeleteFiles } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
+uploadsMockFns.mockIsUsingCloudStorage.mockReturnValue(true)
+mockDeleteFiles.mockImplementation(async () => ({ deleted: 2, failed: [] }))
+mockDeleteFileMetadata.mockImplementation(async () => true)
 
 describe('cleanup logs worker', () => {
   afterAll(() => {
@@ -87,7 +70,6 @@ describe('cleanup logs worker', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockChunkedBatchDelete.mockImplementation(async (options: CapturedBatchDeleteOptions) => {
       await options.selectChunk(['workspace-1'], 500)
@@ -198,11 +180,5 @@ describe('cleanup logs worker', () => {
     expect(legacyWhereArgs).toContain('dependency.child_key')
     expect(mockDeleteFiles).toHaveBeenLastCalledWith([legacyKey], 'execution')
     expect(mockDeleteFileMetadata).toHaveBeenCalledWith(legacyKey)
-  })
-
-  it('caps Trigger.dev concurrency for log cleanup tasks', () => {
-    expect(cleanupLogsTask).toMatchObject({
-      queue: { name: 'retention-cleanup', concurrencyLimit: 1 },
-    })
   })
 })

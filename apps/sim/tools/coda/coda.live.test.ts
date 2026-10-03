@@ -11,9 +11,7 @@
  * API guide doc, whose button it pushes) and deletes them at the end. Sharing with an email
  * address runs only when `CODA_LIVE_SHARE_EMAIL` is set; notifications are suppressed.
  *
- *   CODA_LIVE=1 CODA_API_TOKEN=... ../../node_modules/.bin/vitest run tools/coda/coda.live.test.ts
- *
- * @vitest-environment node
+ *   CODA_LIVE=1 CODA_API_TOKEN=... ../../node_modules/.bin/vitest run --mode live tools/coda/coda.live.test.ts
  */
 import { sleep } from '@sim/utils/helpers'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -213,7 +211,7 @@ const state: {
   copyDocId?: string
 } = { rowIds: [] }
 
-describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
+describe.skipIf(!LIVE)('coda live end-to-end', { concurrent: false }, () => {
   beforeAll(() => {
     vi.unstubAllGlobals()
     expect(vi.isMockFunction(globalThis.fetch)).toBe(false)

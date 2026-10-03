@@ -1,17 +1,26 @@
 import { document, knowledgeConnector } from '@sim/db/schema'
-import { eq, gte, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+
+/** The date window a filter asks for, on the document row; nothing when none is asked. */
+export function searchDateFilterCondition(filters?: WorkspaceSearchFilters): SQL | undefined {
+  if (!filters?.modifiedAfter && !filters?.modifiedBefore) return undefined
+  return and(
+    filters.modifiedAfter
+      ? gte(document.sourceModifiedAt, new Date(filters.modifiedAfter))
+      : undefined,
+    filters.modifiedBefore
+      ? lte(document.sourceModifiedAt, new Date(filters.modifiedBefore))
+      : undefined
+  )
+}
 
 /** Filters the document in every retrieval leg, alongside its current ACL. */
 export function workspaceSearchFilterConditions(filters?: WorkspaceSearchFilters): SQL[] {
   const conditions: SQL[] = []
   if (filters?.documentIds) conditions.push(inArray(document.id, filters.documentIds))
-  if (filters?.modifiedAfter) {
-    conditions.push(gte(document.sourceModifiedAt, new Date(filters.modifiedAfter)))
-  }
-  if (filters?.modifiedBefore) {
-    conditions.push(lte(document.sourceModifiedAt, new Date(filters.modifiedBefore)))
-  }
+  const dateCondition = searchDateFilterCondition(filters)
+  if (dateCondition) conditions.push(dateCondition)
   if (filters?.source === 'upload') conditions.push(isNull(document.connectorId))
   else if (filters?.source) {
     conditions.push(

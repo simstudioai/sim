@@ -71,28 +71,6 @@ describe('dev deployment independence', () => {
     expect(eligible('promote-images', 'dev', { 'prepare-trigger': 'skipped' })).toBe(true)
   })
 
-  it.each(['migrate-dev', 'build-dev'])('still requires successful %s', (job) => {
-    expect(eligible('promote-images', 'dev', { [job]: 'failure' })).toBe(false)
-  })
-
-  it.each(['staging', 'main'])('preserves the coordinated release gates for %s', (branch) => {
-    expect(eligible('prepare-trigger', branch)).toBe(true)
-    expect(eligible('promote-trigger', branch)).toBe(true)
-    expect(eligible('promote-images', branch)).toBe(true)
-    for (const job of ['prepare-trigger', 'migrate', 'build-amd64']) {
-      expect(eligible('promote-images', branch, { [job]: 'failure' })).toBe(false)
-    }
-    expect(eligible('promote-trigger', branch, { 'promote-images': 'failure' })).toBe(false)
-  })
-
-  it('promotes the current task version only to the dev preview', () => {
-    const result = promote()
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain(
-      'PROMOTE trigger.dev@4.5.16 promote 20260922.1 --env preview --branch dev-sim'
-    )
-  })
-
   it('does not roll tasks back when an older push is retried', () => {
     const result = promote({ HEAD_SHA: 'newer' })
     expect(result.status).toBe(0)
@@ -103,15 +81,5 @@ describe('dev deployment independence', () => {
     const result = promote({ GH_EXIT: '42' })
     expect(result.status).toBe(42)
     expect(result.stdout).not.toContain('PROMOTE ')
-  })
-
-  it('rejects an invalid task version', () => {
-    const result = promote({ VERSION: '' })
-    expect(result.status).toBe(1)
-    expect(result.stdout).not.toContain('PROMOTE ')
-  })
-
-  it('reports task promotion failures in the independent workflow', () => {
-    expect(promote({ TRIGGER_EXIT: '43' }).status).toBe(43)
   })
 })

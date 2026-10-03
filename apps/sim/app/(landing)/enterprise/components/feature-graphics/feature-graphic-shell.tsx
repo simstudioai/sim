@@ -32,7 +32,7 @@ export function FeatureGraphicShell({ children, variant = 'tile' }: FeatureGraph
   return (
     <div
       className={cn(
-        'relative h-full w-full overflow-hidden',
+        'relative size-full overflow-hidden',
         !portrait &&
           'mx-auto min-h-[260px] max-w-[420px] sm:max-lg:[@container(min-width:500px)]:max-w-none'
       )}

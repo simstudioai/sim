@@ -1,22 +1,16 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { triggerAvailabilityMock } from '@sim/testing/mocks/trigger-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getKnowledgeDocument: vi.fn(),
-  processDocumentsWithQueue: vi.fn(),
-  processDocumentAsync: vi.fn(),
   reclaimStaleDocumentProcessingClaim: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  getKnowledgeDocument: mocks.getKnowledgeDocument,
-  processDocumentsWithQueue: mocks.processDocumentsWithQueue,
-  processDocumentAsync: mocks.processDocumentAsync,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => false }))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 
 vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
   reclaimStaleDocumentProcessingClaim: mocks.reclaimStaleDocumentProcessingClaim,
@@ -24,10 +18,13 @@ vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
-import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
+
+const mockGetKnowledgeDocument = knowledgeDocumentsServiceMockFns.mockGetKnowledgeDocument
+const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue
+const mockProcessDocumentAsync = knowledgeDocumentsServiceMockFns.mockProcessDocumentAsync
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -79,9 +76,8 @@ function handler() {
 
 describe('knowledge document processing outbox handler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.getKnowledgeDocument.mockResolvedValue(DOCUMENT)
-    mocks.processDocumentsWithQueue.mockResolvedValue({
+    mockGetKnowledgeDocument.mockResolvedValue(DOCUMENT)
+    mockProcessDocumentsWithQueue.mockResolvedValue({
       requested: 1,
       accepted: 1,
       failed: 0,
@@ -109,50 +105,12 @@ describe('knowledge document processing outbox handler', () => {
         mimeType: DOCUMENT.mimeType,
       },
     }
-    mocks.processDocumentAsync.mockRejectedValueOnce(new Error('Synthetic connection loss'))
+    mockProcessDocumentAsync.mockRejectedValueOnce(new Error('Synthetic connection loss'))
     await expect(recover(payload, createContext())).rejects.toThrow('Synthetic connection loss')
-    expect(mocks.processDocumentAsync.mock.calls[0][6].chargedAtDispatch).toBe(true)
-    mocks.processDocumentAsync.mockResolvedValueOnce(undefined)
+    expect(mockProcessDocumentAsync.mock.calls[0][6].chargedAtDispatch).toBe(true)
+    mockProcessDocumentAsync.mockResolvedValueOnce(undefined)
     await recover(payload, { ...createContext(), attempts: 1 })
-    expect(mocks.processDocumentAsync.mock.calls[1][6].chargedAtDispatch).toBe(false)
-  })
-
-  it('gives initial in-process indexing the same lease-bound window as a continuation', async () => {
-    const context = { ...createContext(), deadlineAt: Date.now() + 550_000 }
-    await handler()(PAYLOAD, context)
-    expect(handler().timeoutMs).toBe(550_000)
-    expect(mocks.processDocumentsWithQueue.mock.calls[0][7]).toEqual({
-      signal: context.signal,
-      deadlineAt: context.deadlineAt,
-    })
-  })
-
-  it('dispatches the authoritative document with the stable outbox event id', async () => {
-    await handler()(PAYLOAD, createContext('outbox-event-stable'))
-
-    expect(mocks.getKnowledgeDocument).toHaveBeenCalledWith(
-      'knowledge-base-1',
-      'document-1',
-      SYSTEM_ACCESS_SCOPE
-    )
-    expect(mocks.processDocumentsWithQueue).toHaveBeenCalledWith(
-      [
-        {
-          documentId: 'document-1',
-          filename: 'guide.pdf',
-          fileUrl: '/api/files/serve/kb%2Fguide.pdf?context=knowledge-base',
-          fileSize: 128,
-          mimeType: 'application/pdf',
-        },
-      ],
-      'knowledge-base-1',
-      { recipe: 'default', lang: 'en' },
-      'outbox-event-stable',
-      BILLING_ATTRIBUTION,
-      'interactive',
-      undefined,
-      { signal: expect.any(AbortSignal), deadlineAt: undefined }
-    )
+    expect(mockProcessDocumentAsync.mock.calls[1][6].chargedAtDispatch).toBe(false)
   })
 
   it.each([
@@ -160,16 +118,16 @@ describe('knowledge document processing outbox handler', () => {
     { ...DOCUMENT, processingStatus: 'completed' },
     { ...DOCUMENT, processingStatus: 'failed', processingOutcome: 'skipped' },
   ])('completes without redispatch when the document is absent or terminal', async (document) => {
-    mocks.getKnowledgeDocument.mockResolvedValueOnce(document)
+    mockGetKnowledgeDocument.mockResolvedValueOnce(document)
 
     await handler()(PAYLOAD, createContext())
 
-    expect(mocks.processDocumentsWithQueue).not.toHaveBeenCalled()
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
   })
 
   it('keeps the event retryable while an earlier processing attempt is active', async () => {
     const processingStartedAt = new Date()
-    mocks.getKnowledgeDocument.mockResolvedValueOnce({
+    mockGetKnowledgeDocument.mockResolvedValueOnce({
       ...DOCUMENT,
       processingStatus: 'processing',
       processingStartedAt,
@@ -184,12 +142,12 @@ describe('knowledge document processing outbox handler', () => {
       documentId: 'document-1',
       processingStartedAt,
     })
-    expect(mocks.processDocumentsWithQueue).not.toHaveBeenCalled()
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
   })
 
   it('reclaims and redispatches an abandoned processing attempt', async () => {
     const processingStartedAt = new Date('2026-08-11T11:00:00.000Z')
-    mocks.getKnowledgeDocument.mockResolvedValueOnce({
+    mockGetKnowledgeDocument.mockResolvedValueOnce({
       ...DOCUMENT,
       processingStatus: 'processing',
       processingStartedAt,
@@ -203,7 +161,7 @@ describe('knowledge document processing outbox handler', () => {
       documentId: 'document-1',
       processingStartedAt,
     })
-    expect(mocks.processDocumentsWithQueue).toHaveBeenCalledWith(
+    expect(mockProcessDocumentsWithQueue).toHaveBeenCalledWith(
       [
         {
           documentId: 'document-1',
@@ -225,13 +183,13 @@ describe('knowledge document processing outbox handler', () => {
 
   it('propagates dispatch failures so the outbox schedules a retry', async () => {
     const failure = new Error('queue unavailable')
-    mocks.processDocumentsWithQueue.mockRejectedValueOnce(failure)
+    mockProcessDocumentsWithQueue.mockRejectedValueOnce(failure)
 
     await expect(handler()(PAYLOAD, createContext())).rejects.toBe(failure)
   })
 
   it('keeps the event retryable when dispatch returns a zero-acceptance failure', async () => {
-    mocks.processDocumentsWithQueue.mockResolvedValueOnce({
+    mockProcessDocumentsWithQueue.mockResolvedValueOnce({
       requested: 1,
       accepted: 0,
       failed: 1,
@@ -248,6 +206,6 @@ describe('knowledge document processing outbox handler', () => {
       handler()({ ...PAYLOAD, processingOptions: { unsupported: true } }, createContext())
     ).rejects.toThrow('unsupported processing options')
 
-    expect(mocks.getKnowledgeDocument).not.toHaveBeenCalled()
+    expect(mockGetKnowledgeDocument).not.toHaveBeenCalled()
   })
 })

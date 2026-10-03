@@ -3,7 +3,11 @@ import type { NativeDocument, NativeSearchInput } from '@/lib/sim-search/live/ty
 
 /** The generic date range uses the source's useful timeline; update filters stay independent. */
 export function sourceDate(document: NativeDocument, provider: string): string | undefined {
-  const value = provider === 'google_calendar' ? document.eventStartAt : document.modifiedAt
+  const value = ['google_calendar', 'google_meet', 'zoom', 'fireflies', 'granola'].includes(
+    provider
+  )
+    ? document.eventStartAt
+    : document.modifiedAt
   return value && Number.isFinite(Date.parse(value)) ? value : undefined
 }
 
@@ -11,7 +15,7 @@ export function sourceDateType(
   provider: string,
   document: NativeDocument
 ): 'event_start' | 'message' | 'modified' {
-  return provider === 'google_calendar'
+  return ['google_calendar', 'google_meet', 'zoom', 'fireflies', 'granola'].includes(provider)
     ? 'event_start'
     : provider === 'gmail' || (provider === 'slack' && document.kind !== 'file')
       ? 'message'
@@ -28,6 +32,19 @@ export function hasDateBounds(filters?: WorkspaceSearchFilters): boolean {
 export function dateSortDirection(filters?: WorkspaceSearchFilters): 'asc' | 'desc' | undefined {
   if (!filters?.sortBy || filters.sortBy === 'relevance') return undefined
   return filters.sortBy === 'oldest' ? 'asc' : 'desc'
+}
+
+/**
+ * A newest- or oldest-first listing without terms or dates lists items up to now, the default
+ * Slack's conversations.history applies to an omitted `latest`. Providers need a bound to list
+ * without search terms, so the implied one is made explicit and checked like any other.
+ */
+export function withImpliedListingBound(
+  filters: WorkspaceSearchFilters | undefined,
+  now: Date
+): WorkspaceSearchFilters | undefined {
+  if (!dateSortDirection(filters) || hasDateBounds(filters)) return filters
+  return { ...filters, endDate: now.toISOString() }
 }
 
 /** Native bounds may be widened for provider precision; returned metadata is checked exactly. */

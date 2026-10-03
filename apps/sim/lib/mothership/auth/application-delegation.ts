@@ -1,8 +1,12 @@
 import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
+import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 
-/** Keeps delegated authority valid for the full bounded Copilot orchestration lifetime. */
-export const COPILOT_APPLICATION_DELEGATION_TTL_MS = ORCHESTRATION_TIMEOUT_MS
+/**
+ * Delegated authority is minted per operation and must outlive the longest single
+ * tool call it authorizes, never the whole run, so it reuses the long-running tool
+ * watchdog's cap rather than a lifetime of its own.
+ */
+export const COPILOT_APPLICATION_DELEGATION_TTL_MS = TOOL_WATCHDOG_LONG_RUNNING_MS
 
 export interface CopilotExecutionContext {
   requestMode?: string

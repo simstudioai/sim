@@ -23,11 +23,13 @@ export function createCredentialGroupEnrollmentRedirect(
 
 export function createCredentialGroupCompletionRedirect(
   oauth?: CredentialGroupOAuthFailure,
-  completionId?: string
+  completionId?: string,
+  organizationId?: string
 ): NextResponse {
   const query = new URLSearchParams()
   if (oauth) query.set('oauth', oauth)
   if (completionId) query.set('completionId', completionId)
+  if (organizationId) query.set('organizationId', organizationId)
   return new NextResponse(null, {
     status: 303,
     headers: {

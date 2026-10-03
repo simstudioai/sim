@@ -1,7 +1,8 @@
-import type {
-  OAuthAccessTokenPrincipal,
-  PersonalApiKeyPrincipal,
-  WorkspaceApiKeyPrincipal,
+import {
+  ANONYMOUS_USER_ID,
+  type OAuthAccessTokenPrincipal,
+  type PersonalApiKeyPrincipal,
+  type WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { apiKey, user } from '@sim/db/schema'
@@ -10,7 +11,6 @@ import { eq } from 'drizzle-orm'
 import type { V2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-headers'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { updateApiKeyLastUsed } from '@/lib/api-key/service'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import {
   InvalidOAuthAccessTokenError,
   type OAuthAccessTokenOptions,

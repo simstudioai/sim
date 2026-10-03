@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useContext, useEffect, useState } from 'react'
 import {
   chipVariants,
   cn,
@@ -11,10 +11,21 @@ import {
 import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn/icons'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
+import { DIFF_EMBED_LANGUAGE } from '@/lib/diff/embed-language'
+import { MarkdownStreamingContext } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-streaming-context'
 import { looksLikeMermaid, MermaidDiagram } from '../mermaid-diagram'
 import { MarkdownCodeBlock } from './code-block-schema'
 import { detectLanguage } from './detect-language'
 import { useEditorEditable } from './use-editor-editable'
+
+/** Kept out of every rich-markdown surface's graph until a document actually holds a dashboard. */
+const DashboardEmbed = lazy(() =>
+  import('@/components/dashboards/dashboard-embed').then((m) => ({ default: m.DashboardEmbed }))
+)
+const DiffEmbed = lazy(() =>
+  import('@/components/diff/diff-embed').then((m) => ({ default: m.DiffEmbed }))
+)
 
 const PLAIN = 'plain'
 const MERMAID = 'mermaid'
@@ -51,7 +62,8 @@ const CONTROL_CLASS =
  * whenever the cursor is outside it (and always in read-only), and as editable source while the
  * cursor is inside, re-rendering on blur (the Linear/GitHub model). The source `<pre>` stays mounted
  * (hidden behind the diagram) so ProseMirror keeps managing its contentDOM, and the node remains an
- * ordinary code block, so markdown round-trips unchanged.
+ * ordinary code block, so markdown round-trips unchanged. A ```dashboard fence renders live
+ * dashboard panels the same way.
  */
 function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const [wrap, setWrap] = useState(false)
@@ -60,16 +72,20 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
   const [peekSource, setPeekSource] = useState(false)
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const editable = useEditorEditable(editor)
+  const isStreaming = useContext(MarkdownStreamingContext)
 
   const explicitLanguage = node.attrs.language as string | null
   const text = node.textContent
   const isMermaid = explicitLanguage === MERMAID || (!explicitLanguage && looksLikeMermaid(text))
+  const isDashboard = explicitLanguage === DASHBOARD_EMBED_LANGUAGE
+  const isDiff = explicitLanguage === DIFF_EMBED_LANGUAGE
+  const isRendered = isMermaid || isDashboard || isDiff
 
   // Editable Mermaid shows source while the caret is focused inside the block and re-renders the
   // diagram on blur (the Linear/GitHub model). The Show source / Show diagram control drives this by
   // focusing into / blurring the block; read-only uses {@link peekSource} since there is no caret.
   useEffect(() => {
-    if (!isMermaid || !editable) {
+    if (!isRendered || !editable) {
       setEditingInline(false)
       return
     }
@@ -92,13 +108,13 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
       editor.off('focus', sync)
       editor.off('blur', sync)
     }
-  }, [editor, getPos, isMermaid, editable])
+  }, [editor, getPos, isRendered, editable])
 
   const showSource = editable ? editingInline : peekSource
-  const showDiagram = isMermaid && text.trim().length > 0 && !showSource
+  const showRendered = isRendered && text.trim().length > 0 && !showSource
 
-  // Skip language detection on the mermaid path — the picker/label never render there.
-  const language = explicitLanguage ?? (isMermaid ? null : detectLanguage(text)) ?? PLAIN
+  // Skip language detection on rendered blocks — the picker/label never render there.
+  const language = explicitLanguage ?? (isRendered ? null : detectLanguage(text)) ?? PLAIN
   const label =
     LANGUAGE_OPTIONS.find((option) => option.value === language)?.label ??
     explicitLanguage ??
@@ -133,10 +149,18 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
         )}
         contentEditable={false}
       >
-        {isMermaid && (
+        {isRendered && (
           <button
             type='button'
-            aria-label={showSource ? 'Show diagram' : 'Show source'}
+            aria-label={
+              showSource
+                ? isDashboard
+                  ? 'Show dashboard'
+                  : isDiff
+                    ? 'Show diff'
+                    : 'Show diagram'
+                : 'Show source'
+            }
             onMouseDown={(event) => event.preventDefault()}
             onClick={toggleSource}
             className={CONTROL_CLASS}
@@ -144,7 +168,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
             {showSource ? <Eye /> : <Code />}
           </button>
         )}
-        {!isMermaid &&
+        {!isRendered &&
           (editable ? (
             // Editable: a language picker. Read-only: a static label — selecting a language calls
             // updateAttributes, which would mutate a doc that must not change.
@@ -180,7 +204,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
               {label}
             </span>
           ))}
-        {!isMermaid && editable && (
+        {!isRendered && editable && (
           <button
             type='button'
             aria-label='Toggle line wrap'
@@ -205,22 +229,34 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
           {copied ? <Check /> : <Duplicate />}
         </button>
       </div>
-      <pre className={cn('code-editor-theme pr-20', showDiagram && 'hidden')} data-wrap={wrap}>
+      <pre className={cn('code-editor-theme pr-20', showRendered && 'hidden')} data-wrap={wrap}>
         <NodeViewContent<'code'> as='code' />
       </pre>
-      {showDiagram && (
-        // Clicking the diagram selects the whole node (same selection ring as an image/code block)
-        // instead of dropping a caret inside — preventDefault stops ProseMirror placing the caret,
-        // which would otherwise flip to source. Editing is an explicit Show source / blur action.
+      {showRendered && (
+        // Select the whole node instead of placing a caret, which would flip the block to source.
         <div
           contentEditable={false}
+          className={cn(isDashboard && 'dashboard-embed', isDiff && 'diff-embed')}
           onMouseDown={(event) => {
+            const target = event.target
+            if (!(target instanceof Element) || !event.currentTarget.contains(target)) return
+            if (target.closest('button, input')) return
             event.preventDefault()
             const pos = typeof getPos === 'function' ? getPos() : null
             if (typeof pos === 'number') editor.commands.setNodeSelection(pos)
           }}
         >
-          <MermaidDiagram definition={text} className='mermaid-diagram-frame' />
+          {isDashboard ? (
+            <Suspense fallback={null}>
+              <DashboardEmbed source={text} isStreaming={isStreaming} />
+            </Suspense>
+          ) : isDiff ? (
+            <Suspense fallback={null}>
+              <DiffEmbed source={text} isStreaming={isStreaming} />
+            </Suspense>
+          ) : (
+            <MermaidDiagram definition={text} className='mermaid-diagram-frame' />
+          )}
         </div>
       )}
     </NodeViewWrapper>

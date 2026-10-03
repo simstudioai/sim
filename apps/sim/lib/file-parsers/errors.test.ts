@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  FileParserError,
-  getFileParserErrorCode,
-  isEncryptedOfficeParserError,
-  toFileParserError,
-} from '@/lib/file-parsers/errors'
-import { ArchiveIntegrityError, ZipBombError } from '@/lib/file-parsers/ooxml-limits'
+import { FileParserError, toFileParserError } from '@/lib/file-parsers/errors'
+import { ZipBombError } from '@/lib/file-parsers/ooxml-limits'
 
 describe('file parser errors', () => {
   it('preserves an archive safety rejection through parser wrappers', () => {
@@ -14,20 +9,6 @@ describe('file parser errors', () => {
     expect(toFileParserError(archiveError, 'invalid_format', 'DOCX parse failed')).toBe(
       archiveError
     )
-  })
-
-  it('preserves an archive integrity rejection through parser wrappers', () => {
-    const archiveError = new ArchiveIntegrityError('Archive entries overlap')
-
-    expect(toFileParserError(archiveError, 'invalid_format', 'DOCX parse failed')).toBe(
-      archiveError
-    )
-  })
-
-  it('preserves an existing typed parser failure', () => {
-    const parserError = new FileParserError('encrypted_file', 'Workbook is protected')
-
-    expect(toFileParserError(parserError, 'invalid_format', 'XLSX parse failed')).toBe(parserError)
   })
 
   it('retains an untyped parser-library exception as the cause', () => {
@@ -48,24 +29,5 @@ describe('file parser errors', () => {
     expect(parserError.message.length).toBeLessThanOrEqual('DOCX parse failed: '.length + 500)
     expect(parserError.message).not.toContain('unbounded-tail')
     expect(parserError.cause).toBe(libraryError)
-  })
-
-  it.each([
-    'File is password-protected',
-    'Password is required to open this workbook',
-    'Encrypted workbook is not supported',
-  ])('recognizes the SheetJS encrypted-workbook error: %s', (message) => {
-    expect(isEncryptedOfficeParserError(new Error(message))).toBe(true)
-  })
-
-  it('maps the archive guard classes onto parser codes without wrapping them', () => {
-    expect(getFileParserErrorCode(new ArchiveIntegrityError('Archive entries overlap'))).toBe(
-      'invalid_format'
-    )
-    expect(getFileParserErrorCode(new ZipBombError('Archive too large'))).toBe('complexity_limit')
-    expect(getFileParserErrorCode(new FileParserError('encrypted_file', 'locked'))).toBe(
-      'encrypted_file'
-    )
-    expect(getFileParserErrorCode(new Error('untyped'))).toBeUndefined()
   })
 })

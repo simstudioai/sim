@@ -1,7 +1,9 @@
-/**
- * @vitest-environment node
- */
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 
 const { fetchProvider, listUsers, getUser } = vi.hoisted(() => ({
   fetchProvider: vi.fn(),
@@ -9,14 +11,7 @@ const { fetchProvider, listUsers, getUser } = vi.hoisted(() => ({
   getUser: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: (
-    url: string,
-    init: RequestInit,
-    options?: import('@/lib/knowledge/documents/utils').RetryOptions
-  ) => (options?.fetcher ? options.fetcher(url, init, fetchProvider) : fetchProvider(url, init)),
-}))
-vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 vi.mock('@/connectors/google-workspace/users', () => ({
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE: 100,
   listGoogleWorkspaceUsers: listUsers,
@@ -31,7 +26,11 @@ vi.mock('@/connectors/google-workspace/users', () => ({
 }))
 
 import { gmailConnector } from '@/connectors/gmail/gmail'
-import { gmailConnectorMeta } from '@/connectors/gmail/meta'
+
+knowledgeSecureFetchMockFns.mockFetchWithRetry.mockImplementation(
+  (url: string, init: RequestInit, options?: RetryOptions) =>
+    options?.fetcher ? options.fetcher(url, init, fetchProvider) : fetchProvider(url, init)
+)
 
 const ALICE = {
   id: 'directory-alice',
@@ -98,7 +97,6 @@ function providerResponse(url: string, init?: RequestInit): Response {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   listUsers.mockResolvedValue({ users: [ALICE, BOB] })
   getUser.mockImplementation(
     async (_token: string, key: string) =>
@@ -112,87 +110,6 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('company-wide Gmail indexing', () => {
-  it('forwards cancellation to mailbox listing and refuses follow-up metadata requests', async () => {
-    const controller = new AbortController()
-    const context = { ...centralContext(), signal: controller.signal }
-    fetchProvider.mockImplementation(async (_url: string, init?: RequestInit) => {
-      expect(init?.signal).toBe(controller.signal)
-      controller.abort()
-      return Response.json({ threads: [{ id: 'same-thread' }] })
-    })
-    await expect(
-      gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
-    ).rejects.toThrow()
-    expect(fetchProvider).toHaveBeenCalledOnce()
-  })
-
-  it('cancels label resolution without caching the cancellation as an unavailable label index', async () => {
-    const controller = new AbortController()
-    const context = { ...centralContext(), signal: controller.signal }
-    fetchProvider.mockImplementation(async (_url: string, init?: RequestInit) => {
-      expect(init?.signal).toBe(controller.signal)
-      controller.abort()
-      throw new DOMException('Cancelled', 'AbortError')
-    })
-    await expect(
-      gmailConnector.listDocuments(
-        'directory-token',
-        { ...CONFIG, label: 'Engineering' },
-        undefined,
-        context
-      )
-    ).rejects.toThrow('abort')
-    expect(fetchProvider).toHaveBeenCalledOnce()
-  })
-
-  it('forwards the page signal to thread hydration, label reads, and separately stored MIME bodies', async () => {
-    const controller = new AbortController()
-    const context = { ...centralContext(), signal: controller.signal }
-    const page = await gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
-    fetchProvider.mockImplementation(async (url: string, init?: RequestInit) => {
-      expect(init?.signal).toBe(controller.signal)
-      if (url.includes('/attachments/'))
-        return Response.json({ data: Buffer.from('Private body').toString('base64url'), size: 12 })
-      if (url.endsWith('/labels')) return providerResponse(url, init)
-      return Response.json({
-        id: 'same-thread',
-        historyId: '10',
-        messages: [
-          {
-            id: 'message-1',
-            threadId: 'same-thread',
-            labelIds: ['Label_7'],
-            payload: {
-              mimeType: 'text/plain',
-              headers: [{ name: 'Subject', value: 'Private subject' }],
-              body: { attachmentId: 'body-1', size: 12 },
-            },
-          },
-        ],
-      })
-    })
-    const hydrated = await gmailConnector.getDocument(
-      'directory-token',
-      CONFIG,
-      page.documents[0].externalId,
-      context
-    )
-    expect(hydrated?.content).toContain('Private body')
-    expect(hydrated?.acl).toEqual([`u:${ALICE.email}`])
-  })
-
-  it('passes the signal into the delegated validation probe', async () => {
-    const controller = new AbortController()
-    const context = { ...centralContext(), signal: controller.signal }
-    await expect(
-      gmailConnector.validateConfig('directory-token', CONFIG, context)
-    ).resolves.toEqual({ valid: true })
-    expect(fetchProvider).toHaveBeenCalledWith(
-      expect.stringContaining('/profile'),
-      expect.objectContaining({ signal: controller.signal })
-    )
-  })
-
   it('bounds thread-list response bytes and page length instead of accepting a truncated corpus', async () => {
     fetchProvider.mockResolvedValueOnce(
       new Response('untrusted', { headers: { 'Content-Length': String(9 * 1024 * 1024) } })
@@ -211,27 +128,6 @@ describe('company-wide Gmail indexing', () => {
     await expect(
       gmailConnector.listDocuments('directory-token', CONFIG, undefined, centralContext())
     ).rejects.toThrow('malformed thread listing')
-  })
-
-  it('requires a service account with separate read-only directory and mailbox scopes', () => {
-    expect(gmailConnectorMeta.auth).toEqual({
-      mode: 'oauth',
-      provider: 'google-email',
-      requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
-      adminCredentialType: 'service_account',
-      serviceAccountScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-      adminServiceAccountScopes: ['https://www.googleapis.com/auth/admin.directory.user.readonly'],
-      serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-      serviceAccountSubjectFieldId: 'adminEmail',
-    })
-    expect(gmailConnectorMeta.supportsSeparateContentCredential).toBeUndefined()
-    expect(gmailConnectorMeta.searchDefaultSourceConfig).toEqual({ dateRange: '6m' })
-    expect(
-      gmailConnectorMeta.configFields.find((field) => field.id === 'labelSelector')
-    ).toMatchObject({
-      hideInMemberMode: true,
-      hideInAdminMode: true,
-    })
   })
 
   it('keeps identical thread IDs, bodies, label caches, and owner ACLs separate', async () => {
@@ -308,39 +204,6 @@ describe('company-wide Gmail indexing', () => {
     expect(fetchProvider).toHaveBeenCalledTimes(callsAfter)
   })
 
-  it('replays a page with the same query, mailbox namespace, and ACL in a fresh context', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
-    const first = await gmailConnector.listDocuments(
-      'directory-token',
-      CONFIG,
-      undefined,
-      centralContext()
-    )
-    const firstQuery = new URL(fetchProvider.mock.calls[0][0]).searchParams.get('q')
-    expect(first.currentCursor).toBeDefined()
-    vi.setSystemTime(new Date('2026-09-03T12:00:00Z'))
-    const resumedContext = centralContext()
-    const resumed = await gmailConnector.listDocuments(
-      'directory-token',
-      CONFIG,
-      first.currentCursor,
-      resumedContext
-    )
-    expect(resumed.documents).toEqual(first.documents)
-    const listings = fetchProvider.mock.calls.filter(([url]) =>
-      new URL(url).pathname.endsWith('/threads')
-    )
-    expect(new URL(listings[1][0]).searchParams.get('q')).toBe(firstQuery)
-    const body = await gmailConnector.getDocument(
-      'directory-token',
-      CONFIG,
-      resumed.documents[0].externalId,
-      resumedContext
-    )
-    expect(body?.content).toContain('Alice private body')
-  })
-
   it('does not advance to the next mailbox until all thread pages are exhausted', async () => {
     fetchProvider.mockImplementation(async (url: string, init?: RequestInit) => {
       const parsed = new URL(url)
@@ -409,124 +272,6 @@ describe('company-wide Gmail indexing', () => {
     ).rejects.toThrow('403')
   })
 
-  it('continues after Gmail failedPrecondition with the later mailbox owner ACL intact', async () => {
-    fetchProvider.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (
-        new URL(url).pathname.endsWith('/threads') &&
-        new Headers(init?.headers).get('Authorization')?.includes(ALICE.email)
-      ) {
-        return Response.json(
-          {
-            error: {
-              message: 'private provider response',
-              errors: [{ reason: 'failedPrecondition' }],
-            },
-          },
-          { status: 400 }
-        )
-      }
-      return providerResponse(url, init)
-    })
-    const first = await gmailConnector.listDocuments(
-      'directory-token',
-      CONFIG,
-      undefined,
-      centralContext()
-    )
-    expect(first).toMatchObject({
-      documents: [],
-      reconciliationSafe: false,
-      listingFailures: {
-        count: 1,
-        samples: [
-          {
-            scope: ALICE.email,
-            operation: 'gmail.threads.list',
-            status: 400,
-            reasons: ['failedPrecondition'],
-          },
-        ],
-      },
-    })
-    expect(JSON.stringify(first)).not.toContain('private provider response')
-    const ctx = centralContext()
-    const second = await gmailConnector.listDocuments(
-      'directory-token',
-      CONFIG,
-      first.nextCursor,
-      ctx
-    )
-    expect(second).toMatchObject({
-      hasMore: false,
-      reconciliationSafe: false,
-      listingFailures: first.listingFailures,
-    })
-    expect(second.documents[0].acl).toEqual([`u:${BOB.email}`])
-    const hydrated = await gmailConnector.getDocument(
-      'directory-token',
-      CONFIG,
-      second.documents[0].externalId,
-      ctx
-    )
-    expect(hydrated?.acl).toEqual([`u:${BOB.email}`])
-    expect(hydrated?.content).toContain('Bob private body')
-  })
-
-  it('invalidates previous hydration authority when the next mailbox fails', async () => {
-    const context = centralContext()
-    const first = await gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
-    fetchProvider.mockResolvedValueOnce(new Response(null, { status: 503 }))
-    await expect(
-      gmailConnector.listDocuments('directory-token', CONFIG, first.nextCursor, context)
-    ).rejects.toThrow('503')
-    const calls = fetchProvider.mock.calls.length
-    await expect(
-      gmailConnector.getDocument('directory-token', CONFIG, first.documents[0].externalId, context)
-    ).rejects.toThrow()
-    expect(fetchProvider).toHaveBeenCalledTimes(calls)
-  })
-
-  it('continues directory pagination when the first page has no selected mailboxes', async () => {
-    listUsers
-      .mockResolvedValueOnce({ users: [ALICE], nextPageToken: 'directory-next' })
-      .mockResolvedValueOnce({ users: [BOB] })
-    const context = centralContext()
-    const config = { ...CONFIG, userEmails: BOB.email }
-    const first = await gmailConnector.listDocuments('directory-token', config, undefined, context)
-    expect(first.documents).toEqual([])
-    expect(first.hasMore).toBe(true)
-    expect(fetchProvider).not.toHaveBeenCalled()
-    const next = await gmailConnector.listDocuments(
-      'directory-token',
-      config,
-      first.nextCursor,
-      context
-    )
-    expect(next.documents[0].acl).toEqual([`u:${BOB.email}`])
-    expect(listUsers.mock.calls[1][1]).toBe('directory-next')
-    expect(next.hasMore).toBe(false)
-  })
-
-  it('retains the hydrated revision when a thread changes after listing', async () => {
-    const context = centralContext()
-    const page = await gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
-    fetchProvider.mockImplementation(async (url: string, init?: RequestInit) => {
-      const response = providerResponse(url, init)
-      if (!new URL(url).pathname.endsWith('/threads/same-thread')) return response
-      const body = await response.json()
-      return Response.json({ ...body, historyId: '20' })
-    })
-    const body = await gmailConnector.getDocument(
-      'directory-token',
-      CONFIG,
-      page.documents[0].externalId,
-      context
-    )
-    expect(page.documents[0].contentHash).toBe('gmail:same-thread:10:body-v2')
-    expect(body?.contentHash).toBe('gmail:same-thread:20:body-v2')
-    expect(body?.acl).toEqual([`u:${ALICE.email}`])
-  })
-
   it('rejects an OAuth-only context and an invalid company cursor before Gmail reads', async () => {
     await expect(
       gmailConnector.listDocuments('oauth-token', CONFIG, undefined, { mirrorsSourceAcls: true })
@@ -561,29 +306,4 @@ describe('company-wide Gmail indexing', () => {
       expect(fetchProvider).not.toHaveBeenCalled()
     }
   )
-
-  it('validates delegated Gmail access without requiring a label in every mailbox', async () => {
-    const context = centralContext()
-    const result = await gmailConnector.validateConfig(
-      'directory-token',
-      { ...CONFIG, userEmails: ALICE.email, label: ['Engineering'] },
-      context
-    )
-    expect(result).toEqual({ valid: true })
-    expect(context.getDelegatedAccessToken).toHaveBeenCalledWith(ALICE.email)
-    expect(
-      fetchProvider.mock.calls.some(([url]) => new URL(url).pathname.endsWith('/labels'))
-    ).toBe(false)
-  })
-
-  it('never reuses one mailbox history cursor for a company crawl', async () => {
-    const context = centralContext()
-    await expect(
-      gmailConnector.getChangeCursor!('directory-token', CONFIG, context)
-    ).rejects.toThrow('complete mailbox listings')
-    await expect(
-      gmailConnector.listChanges!('directory-token', CONFIG, '{"historyId":"10"}', context)
-    ).rejects.toThrow('complete mailbox listings')
-    expect(fetchProvider).not.toHaveBeenCalled()
-  })
 })

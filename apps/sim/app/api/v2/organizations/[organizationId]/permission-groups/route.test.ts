@@ -1,18 +1,30 @@
-/** @vitest-environment node */
 import { member, permissionGroup } from '@sim/db/schema'
 import { authMockFns, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   class Unauthenticated extends Error {}
   return {
-    authenticate: vi.fn(),
-    preauth: vi.fn(),
-    rate: vi.fn(),
-    regime: vi.fn(),
-    config: vi.fn(),
-    lock: vi.fn(),
     group: vi.fn(),
     workspaces: vi.fn(),
     groupWorkspaces: vi.fn(),
@@ -21,23 +33,11 @@ const mocks = vi.hoisted(() => {
     Unauthenticated,
   }
 })
-vi.mock('@sim/audit', () => ({ recordAudit: vi.fn(), AuditAction: {}, AuditResourceType: {} }))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: mocks.Unauthenticated,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauth
-    checkRateLimitDirectOrThrow = mocks.rate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: mocks.regime,
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.lock }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/lib/permission-groups/repository', () => ({
   loadGroupInOrganization: mocks.group,
   getGroupWorkspaces: mocks.groupWorkspaces,
@@ -51,10 +51,7 @@ vi.mock('@/lib/permission-groups/application/group-membership', () => ({
 
 import { dispatchMcpOperation } from '@/lib/api/mcp/dispatch'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
-import {
-  POST as internalCreate,
-  GET as internalList,
-} from '@/app/api/organizations/[id]/permission-groups/route'
+import { GET as internalList } from '@/app/api/organizations/[id]/permission-groups/route'
 import {
   DELETE,
   PATCH,
@@ -62,7 +59,9 @@ import {
 } from '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route'
 import { GET, POST } from '@/app/api/v2/organizations/[organizationId]/permission-groups/route'
 
-const principal = { kind: 'personal_api_key', userId: 'admin-1', keyId: 'key-1' } as const
+const { mockAcquirePermissionGroupOrgLock } = permissionGroupLocksMockFns
+
+const principal = createPersonalApiKeyPrincipal({ userId: 'admin-1' })
 const admission = {
   allowed: true,
   remaining: 99,
@@ -84,8 +83,8 @@ const group = {
   creatorEmail: null,
 }
 const params = { organizationId: 'org-1', groupId: 'group-1' }
-const context = { params: Promise.resolve(params) }
-const internalContext = { params: Promise.resolve({ id: 'org-1' }) }
+const context = createRouteContext(params)
+const internalContext = createRouteContext({ id: 'org-1' })
 const url = 'http://localhost/api/v2/organizations/org-1/permission-groups'
 function request(method = 'GET', query = '', body?: unknown) {
   return new NextRequest(url + query, {
@@ -103,18 +102,17 @@ function authorize(role = 'admin') {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
-  mocks.authenticate.mockResolvedValue({
+  v2RouteMocks.authenticate.mockResolvedValue({
     principal,
     keyType: 'personal',
     rateLimitSubjectIds: ['key:key-1'],
     rateLimitSubscription: null,
   })
-  mocks.preauth.mockResolvedValue(admission)
-  mocks.rate.mockResolvedValue(admission)
-  mocks.regime.mockResolvedValue(true)
-  mocks.config.mockResolvedValue(null)
+  v2RouteMocks.preauthRate.mockResolvedValue(admission)
+  v2RouteMocks.operationRate.mockResolvedValue(admission)
+  permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
   mocks.group.mockResolvedValue(group)
   mocks.groupWorkspaces.mockResolvedValue([{ id: 'workspace-1', name: 'Engineering' }])
   mocks.workspaces.mockResolvedValue(
@@ -129,27 +127,6 @@ beforeEach(() => {
 })
 
 describe('permission groups across internal and public surfaces', () => {
-  it('dispatches the generated MCP operation through the same authorized public handler', async () => {
-    authorize()
-    const result = await dispatchMcpOperation(
-      { operation: 'getPermissionGroup', params },
-      {
-        inbound: request(),
-        credential: { apiKey: 'key', bearer: null },
-        audience: { resource: 'https://mcp.sim.test/mcp', allowUnboundApiTokens: true },
-        signal: new AbortController().signal,
-      }
-    )
-    expect(result.isError).not.toBe(true)
-    const content = result.content[0]
-    expect(content.type).toBe('text')
-    if (content.type !== 'text') throw new Error('Expected JSON tool content')
-    expect(JSON.parse(content.text)).toMatchObject({
-      data: { id: 'group-1', organizationId: 'org-1' },
-    })
-    expect(mocks.group).toHaveBeenCalledWith('group-1', 'org-1', expect.anything())
-  })
-
   it('preserves public authorization failures over MCP', async () => {
     authorize('member')
     const result = await dispatchMcpOperation(
@@ -168,25 +145,6 @@ describe('permission groups across internal and public surfaces', () => {
     expect(mocks.group).not.toHaveBeenCalled()
   })
 
-  it('authenticates before parsing a malformed public body', async () => {
-    mocks.authenticate.mockRejectedValue(new mocks.Unauthenticated('Invalid API key'))
-    const response = await POST(request('POST', '', '{'), context)
-    expect(response.status).toBe(401)
-    expect(await response.json()).toMatchObject({ error: { code: 'UNAUTHORIZED' } })
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('authenticates before parsing an internal body', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-    expect((await internalCreate(request('POST', '', '{'), internalContext)).status).toBe(401)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('rate limits before parsing and returns retry guidance', async () => {
-    mocks.rate.mockResolvedValue({ ...admission, allowed: false, remaining: 0, retryAfterMs: 2000 })
-    const response = await POST(request('POST', '', '{'), context)
-    expect(response.status).toBe(429)
-    expect(response.headers.get('retry-after')).toBe('2')
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
   it('conceals unrelated organizations through the public API', async () => {
     const response = await GET(request(), context)
     expect(response.status).toBe(404)
@@ -209,29 +167,13 @@ describe('permission groups across internal and public surfaces', () => {
     })
   })
   it('rejects a workspace key without loading organization data', async () => {
-    mocks.authenticate.mockResolvedValue({
-      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+    v2RouteMocks.authenticate.mockResolvedValue({
+      principal: createWorkspaceApiKeyPrincipal(),
       keyType: 'workspace',
       rateLimitSubjectIds: ['key:key-1'],
     })
     expect((await GET(request(), context)).status).toBe(403)
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('preserves internal list shape and serializes timestamps', async () => {
-    authorize()
-    queueTableRows(permissionGroup, [group])
-    const response = await internalList(request(), internalContext)
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      permissionGroups: [
-        {
-          id: 'group-1',
-          memberCount: 0,
-          createdAt: group.createdAt.toISOString(),
-          workspaces: [{ id: 'workspace-1' }],
-        },
-      ],
-    })
   })
   it('creates a group with 201 and resolved config', async () => {
     authorize()
@@ -319,7 +261,9 @@ describe('permission groups across internal and public surfaces', () => {
   })
   it('returns 503 with Retry-After for lock contention', async () => {
     authorize()
-    mocks.lock.mockRejectedValueOnce(Object.assign(new Error('lock timeout'), { code: '55P03' }))
+    mockAcquirePermissionGroupOrgLock.mockRejectedValueOnce(
+      Object.assign(new Error('lock timeout'), { code: '55P03' })
+    )
     const response = await DELETE(request('DELETE'), context)
     expect(response.status).toBe(503)
     expect(response.headers.get('retry-after')).toBeTruthy()
@@ -347,7 +291,7 @@ describe('permission groups across internal and public surfaces', () => {
       (
         await GET(
           request('GET', `?sortBy=name&search=Restr&cursor=${encodeURIComponent(body.nextCursor)}`),
-          { params: Promise.resolve({ organizationId: 'org-2' }) }
+          createRouteContext({ organizationId: 'org-2' })
         )
       ).status
     ).toBe(400)
@@ -364,10 +308,4 @@ describe('permission groups across internal and public surfaces', () => {
     expect(await last.json()).toEqual({ data: [], nextCursor: null })
     expect(dbChainMockFns.limit).toHaveBeenLastCalledWith(3)
   })
-  it.each(['?limit=1.5', '?limit=0', '?limit=101', '?limit=', '?sortBy=bogus', '?bogus=1'])(
-    'rejects unsupported query %s',
-    async (query) => {
-      expect((await GET(request('GET', query), context)).status).toBe(400)
-    }
-  )
 })

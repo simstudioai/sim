@@ -1,4 +1,7 @@
-/** @vitest-environment node */
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
 import type { UserFile } from '@/executor/types'
@@ -19,12 +22,12 @@ import { convertToGeminiFormat } from '@/providers/google/utils'
 import { buildResponsesInputFromMessages } from '@/providers/openai/utils'
 import type { Message, ProviderRequest } from '@/providers/types'
 
-vi.mock('@/providers/conversation-history', () => ({
-  getConversationRequestContext: () => ({
-    agentConversation: {},
-    agentMemoryContext: { historyTokens: 0 },
-  }),
-}))
+providersConversationHistoryMockFns.mockGetConversationRequestContext.mockReturnValue({
+  agentConversation: {},
+  agentMemoryContext: { historyTokens: 0 },
+})
+
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 
 const protocols: {
   protocol: ConversationProtocol

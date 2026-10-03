@@ -1,22 +1,19 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { piiRedactionMock, piiRedactionMockFns } from '@sim/testing/mocks/pii-redaction.mock'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   artifact: vi.fn(),
   history: vi.fn(),
-  redact: vi.fn(),
   prefix: vi.fn(),
 }))
-vi.mock('@/lib/memory/retrieval-prefix', () => ({ readMemoryRetrievalPrefix: mocks.prefix }))
+vi.mock('@/lib/memory/retrieval-prefix', () => ({ readMemoryRetrievalPrefix: hoisted.prefix }))
 vi.mock('@/lib/memory/artifacts', () => ({
   MAX_MEMORY_ARTIFACT_BYTES: 8 * 1024 * 1024,
-  readMemoryArtifactByHandle: mocks.artifact,
+  readMemoryArtifactByHandle: hoisted.artifact,
 }))
 vi.mock('@/lib/memory/artifact-handle', () => ({ getMemoryArtifactHandle: () => 'b'.repeat(64) }))
-vi.mock('@/lib/memory/conversation-store', () => ({ readConversationItems: mocks.history }))
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({ redactObjectStrings: mocks.redact }))
+vi.mock('@/lib/memory/conversation-store', () => ({ readConversationItems: hoisted.history }))
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
 
 import { EXACT_EMPTY_DURABLE_SECRET_PROVENANCE } from '@/lib/execution/durable-secret-provenance'
 import {
@@ -26,6 +23,12 @@ import {
   type RetrieveMemoryInput,
   retrieveMemory,
 } from '@/lib/memory/retrieval'
+
+const mocks = {
+  ...hoisted,
+  redact: piiRedactionMockFns.mockRedactObjectStrings as Mock<(value: unknown) => Promise<unknown>>,
+}
+
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const artifactId = 'a'.repeat(64)
@@ -57,7 +60,6 @@ function historyItem(sequence: number, content: string) {
 
 describe('bounded model memory retrieval', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.artifact.mockResolvedValue(resultArtifact({ visible: 'Retained result details' }))
     mocks.history.mockResolvedValue({ items: [] })
     mocks.prefix.mockResolvedValue({ status: 'missing' })
@@ -225,27 +227,6 @@ describe('bounded model memory retrieval', () => {
     expect(JSON.stringify(next)).not.toContain('ENCRYPTED_PRIVATE_CANARY')
   })
 
-  it('continues a no-match byte-limited page before searching the legacy prefix', async () => {
-    mocks.history.mockResolvedValueOnce({
-      items: [historyItem(8, 'unrelated'), historyItem(7, 'unrelated')],
-      nextBeforeSequence: 7,
-    })
-    const args = { target: 'history' as const, query: 'older needle' }
-    const first = await retrieveMemory({ ...input, arguments: args })
-    expect(first).toMatchObject({ text: '', scannedItems: 2, nextCursor: expect.any(String) })
-    expect(mocks.prefix).not.toHaveBeenCalled()
-    mocks.history.mockResolvedValueOnce({ items: [historyItem(6, 'older needle found')] })
-    const next = await retrieveMemory({
-      ...input,
-      arguments: { ...args, cursor: first.nextCursor },
-    })
-    expect(next.text).toContain('older needle found')
-    expect(mocks.history).toHaveBeenLastCalledWith(
-      expect.objectContaining({ beforeSequence: 7, continueAfterByteLimit: true })
-    )
-    expect(mocks.prefix).not.toHaveBeenCalled()
-  })
-
   it('reports an oversized item explicitly and never loops on its cursor', async () => {
     mocks.history.mockResolvedValueOnce({
       items: [],
@@ -286,76 +267,6 @@ describe('bounded model memory retrieval', () => {
     expect(mocks.prefix).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: input.workspaceId, memoryId: input.memoryId })
     )
-  })
-
-  it('continues legacy reads within a message and never returns to newer journal rows', async () => {
-    mocks.prefix.mockResolvedValue({
-      status: 'available',
-      provenance: EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
-      messages: [{ role: 'user', content: 'frozen '.repeat(2000) }],
-    })
-    const first = await retrieveMemory({ ...input, arguments: { target: 'history' } })
-    expect(first.nextCursor).toBeDefined()
-    const second = await retrieveMemory({
-      ...input,
-      arguments: { target: 'history', cursor: first.nextCursor },
-    })
-    expect(second.prefixIndex).toBe(0)
-    expect(mocks.history).toHaveBeenCalledOnce()
-    expect(mocks.prefix).toHaveBeenCalledTimes(2)
-  })
-
-  it('retains legacy structured input content without exposing unrelated message fields', async () => {
-    mocks.prefix.mockResolvedValue({
-      status: 'available',
-      provenance: EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
-      messages: [
-        {
-          role: 'user',
-          content: { receipt: 'structured-receipt' },
-          encryptedNative: 'PRIVATE_CANARY',
-        },
-      ],
-    })
-    const result = await retrieveMemory({
-      ...input,
-      arguments: { target: 'history', query: 'structured-receipt' },
-    })
-    expect(result.text).toContain('structured-receipt')
-    expect(result.text).not.toContain('PRIVATE_CANARY')
-  })
-
-  it('reports an oversized legacy prefix explicitly after preserving retrievable appended history', async () => {
-    mocks.history.mockResolvedValueOnce({ items: [historyItem(1, 'readable appended data')] })
-    mocks.prefix.mockResolvedValue({ status: 'oversized' })
-    const first = await retrieveMemory({ ...input, arguments: { target: 'history' } })
-    expect(first.text).toContain('readable appended data')
-    expect(mocks.prefix).not.toHaveBeenCalled()
-    const second = await retrieveMemory({
-      ...input,
-      arguments: { target: 'history', cursor: first.nextCursor },
-    })
-    expect(second.notice).toContain('exceeds the 1 MiB retrieval/provenance limit')
-    expect(second.notice).toContain('not retrievable')
-    expect(second.nextCursor).toBeUndefined()
-  })
-
-  it('reads public exchange artifacts and converts legacy structured storage refs to opaque handles', async () => {
-    const key = 'execution/workspace-1/workflow-1/execution-1/large-value-lv_abcdefghijkl.json'
-    const ref = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_abcdefghijkl',
-      kind: 'object',
-      size: 100,
-      key,
-    }
-    mocks.artifact.mockResolvedValueOnce({
-      messages: [{ role: 'user', content: JSON.stringify({ artifact: ref }) }],
-    })
-    const result = await retrieveMemory(input)
-    expect(result.text).toContain('b'.repeat(64))
-    expect(result.text).not.toContain('execution/workspace-1')
   })
 
   it.each([

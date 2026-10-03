@@ -16,6 +16,7 @@ export const MICROSOFT_PROVIDERS = new Set([
   'microsoft-dataverse',
   'microsoft-excel',
   'microsoft-planner',
+  'microsoft-powerbi',
   'microsoft-teams',
   'microsoft-word',
   'outlook',

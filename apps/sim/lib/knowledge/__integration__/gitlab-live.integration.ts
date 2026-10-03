@@ -20,9 +20,7 @@ import {
   knowledgeConnector,
   knowledgeConnectorPermissionGrant,
   knowledgeConnectorPermissionSnapshot,
-  member,
   organization,
-  organizationSearchIntegration,
   permissions,
   session,
   user,
@@ -77,16 +75,12 @@ import type {
   UpdateConnectorBody,
 } from '@/lib/api/contracts/knowledge/connectors'
 import { decryptApiKey, encryptApiKey } from '@/lib/api-key/crypto'
-import {
-  resolveBillingAttribution,
-  resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { updateKnowledgeConnectorAccess } from '@/lib/knowledge/application/connector-access'
 import { updateKnowledgeConnector } from '@/lib/knowledge/application/connectors'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
-import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import * as storage from '@/lib/uploads/core/storage-service'
@@ -94,7 +88,6 @@ import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { PATCH as updateConnectorRoute } from '@/app/api/knowledge/[id]/connectors/[connectorId]/route'
 import { POST as createConnectorRoute } from '@/app/api/knowledge/[id]/connectors/route'
 import { gitlabConnector } from '@/connectors/gitlab/gitlab'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 interface GitLabPerson {
   id: number
@@ -692,336 +685,297 @@ describe.skipIf(!fixtureFile)('live self-hosted GitLab ingestion and permission 
     throw new Error('Disposable connector sync did not finish within one minute')
   }
 
-  it.each([false, true])(
-    'enforces non-admin CSV permissions through authenticated API, indexing and every read surface (Search=%s)',
-    async (isSearchIndex) => {
-      await api(`/projects/${projectId}`, 'PUT', { visibility: 'private' })
-      await api(`/projects/${projectId}/issues/${issueIid}`, 'PUT', { confidential: false })
-      const owner = isSearchIndex
-        ? { organizationId: ids.organizationId }
-        : { workspaceId: ids.workspaceId }
-      if (isSearchIndex) {
-        await db.insert(member).values(
-          Object.values(people).map((person) => ({
-            id: generateId(),
-            userId: person.simId,
-            organizationId: ids.organizationId,
-            role: person.simId === ids.aliceId ? 'owner' : 'member',
-            createdAt: new Date(),
-          }))
-        )
-        await db
-          .insert(organizationSearchIntegration)
-          .values({ organizationId: ids.organizationId, connectorType: 'gitlab', approved: true })
+  it('enforces non-admin CSV permissions through authenticated API, indexing and every knowledge-base read surface', async () => {
+    await api(`/projects/${projectId}`, 'PUT', { visibility: 'private' })
+    await api(`/projects/${projectId}/issues/${issueIid}`, 'PUT', { confidential: false })
+    const owner = { workspaceId: ids.workspaceId }
+    const attribution = await resolveBillingAttribution({
+      actorUserId: ids.aliceId,
+      workspaceId: ids.workspaceId,
+    })
+    const knowledgeBaseId = generateId()
+    await db.insert(knowledgeBase).values({
+      id: knowledgeBaseId,
+      userId: ids.aliceId,
+      ...owner,
+      name: 'CSV live fixture KB',
+      chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 20 },
+    })
+    const mapping = {
+      filename: 'users.csv',
+      content: `user_id,email\n${people.reporter.id},${people.reporter.email}\n${people.guest.id},${people.guest.email}\n`,
+    }
+    const projectPermissions = (userId: number) => ({
+      filename: 'permissions.csv',
+      content: `project_path,user_id\n${config.project},${userId}\nunrelated/project,${people.guest.id}\n${config.project},999999999\n`,
+    })
+    if (!auditorToken) await waitForProjectAccess(people.reporter, 200)
+    const indexingToken = auditorToken ?? people.reporter.token
+    const createBody: CreateConnectorBody = {
+      connectorType: 'gitlab',
+      accessMode: 'admin',
+      apiKey: indexingToken,
+      sourceConfig: { ...config, contentTypes: 'issues' },
+      syncIntervalMinutes: 60,
+      permissionConfig: {
+        provider: 'gitlab',
+        mode: 'csv',
+        userMapping: mapping,
+        projectPermissions: projectPermissions(people.reporter.id),
+      },
+    }
+    const denied = await connectorRequest(knowledgeBaseId, createBody, undefined, readerCookie)
+    expect(denied.status).toBe(403)
+    const unsupported = await connectorRequest(knowledgeBaseId, {
+      ...createBody,
+      accessMode: 'workspace',
+    })
+    expect(unsupported.status).toBe(400)
+    const inaccessibleProject = await connectorRequest(knowledgeBaseId, {
+      ...createBody,
+      sourceConfig: { ...createBody.sourceConfig, project: 'missing-fixture-project' },
+    })
+    expect(inaccessibleProject.status).toBe(400)
+    const createdResponse = await connectorRequest(knowledgeBaseId, createBody)
+    const created = await createdResponse.json()
+    expect(createdResponse.status, JSON.stringify(created)).toBe(201)
+    let connector = created.data as ConnectorData
+    expect(connector.permissionConfig).toMatchObject({
+      provider: 'gitlab',
+      mode: 'csv',
+      revision: 1,
+      userMapping: { rowCount: 2 },
+    })
+    expect(JSON.stringify(created)).not.toContain(indexingToken)
+    expect(JSON.stringify(created)).not.toContain(people.reporter.email)
+    expect(connector.sourceConfig).not.toHaveProperty('permissionConfig')
+    const storedConnector = await waitForSync(connector.id)
+    expect(storedConnector.encryptedApiKey).not.toBe(indexingToken)
+    expect(
+      (await decryptApiKey(storedConnector.encryptedApiKey!)).decrypted === indexingToken
+    ).toBe(true)
+    const docs = await db.select().from(document).where(eq(document.connectorId, connector.id))
+    const ordinary = docs.find((doc) => doc.externalId === `issue:${issueIid}`)!
+    expect(ordinary.processingStatus).toBe('completed')
+    const excluded = docs.find((doc) => doc.externalId === `issue:${confidentialIid}`)
+    if (excluded) {
+      expect(excluded.acl).toEqual([])
+      expect(excluded.storageKey).toBeNull()
+    }
+    const searchFor = async (person: GitLabPerson) =>
+      (
+        await searchKnowledge.execute({
+          principal: principal(person),
+          input: {
+            ...owner,
+            knowledgeBaseIds: [knowledgeBaseId],
+            query: 'Orion',
+            topK: 100,
+          },
+        })
+      ).results.map((row) => row.documentId)
+    const assertReads = async (person: GitLabPerson, allowed: boolean) => {
+      expect((await searchFor(person)).includes(ordinary.id)).toBe(allowed)
+      const operations: Array<() => Promise<unknown>> = [
+        () =>
+          readKnowledgeDocument.execute({
+            principal: principal(person),
+            input: { knowledgeBaseId, documentId: ordinary.id },
+          }),
+        () =>
+          listKnowledgeChunks.execute({
+            principal: principal(person),
+            input: { knowledgeBaseId, documentId: ordinary.id, limit: 10, offset: 0 },
+          }),
+      ]
+      const download = () =>
+        downloadFileFromUrl(ordinary.fileUrl!, { userId: person.simId, knowledgeAccess: 'user' })
+      operations.push(download)
+      for (const operation of operations) {
+        if (allowed) await expect(operation()).resolves.toBeDefined()
+        else await expect(operation()).rejects.toBeDefined()
       }
-      const attribution = isSearchIndex
-        ? await resolveOrganizationBillingAttribution({
-            actorUserId: ids.aliceId,
-            organizationId: ids.organizationId,
-          })
-        : await resolveBillingAttribution({
-            actorUserId: ids.aliceId,
-            workspaceId: ids.workspaceId,
-          })
-      const knowledgeBaseId = generateId()
-      await db.insert(knowledgeBase).values({
-        id: knowledgeBaseId,
-        userId: ids.aliceId,
-        ...owner,
-        name: `CSV live fixture ${isSearchIndex ? 'Search' : 'KB'}`,
-        isSearchIndex,
-        chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 20 },
-      })
-      const mapping = {
-        filename: 'users.csv',
-        content: `user_id,email\n${people.reporter.id},${people.reporter.email}\n${people.guest.id},${people.guest.email}\n`,
-      }
-      const projectPermissions = (userId: number) => ({
-        filename: 'permissions.csv',
-        content: `project_path,user_id\n${config.project},${userId}\nunrelated/project,${people.guest.id}\n${config.project},999999999\n`,
-      })
-      if (!auditorToken) await waitForProjectAccess(people.reporter, 200)
-      const indexingToken = auditorToken ?? people.reporter.token
-      const createBody: CreateConnectorBody = {
-        connectorType: 'gitlab',
-        accessMode: 'admin',
-        apiKey: indexingToken,
-        sourceConfig: { ...config, contentTypes: 'issues' },
-        syncIntervalMinutes: 60,
+    }
+    await assertReads(people.reporter, true)
+    await assertReads(people.guest, false)
+    await assertReads(people.outsider, false)
+    const vectors = await db
+      .select({ content: embedding.content })
+      .from(embedding)
+      .where(eq(embedding.documentId, ordinary.id))
+    expect(vectors.map((row) => row.content).join('\n')).not.toContain(
+      'INTERNAL_FIXTURE_NOTE_MUST_NOT_BE_INDEXED'
+    )
+    const before = fixture.embeddingCalls
+    const tooLarge = await connectorRequest(
+      knowledgeBaseId,
+      {
         permissionConfig: {
           provider: 'gitlab',
           mode: 'csv',
-          userMapping: mapping,
+          expectedRevision: 1,
+          userMapping: { filename: 'large.csv', content: 'x'.repeat(4 * 1024 * 1024 + 1) },
+        },
+      },
+      connector.id
+    )
+    expect(tooLarge.status).toBe(400)
+    const overRequestLimit = await connectorRequest(
+      knowledgeBaseId,
+      {
+        sourceConfig: { description: 'x'.repeat(10 * 1024 * 1024) },
+      },
+      connector.id
+    )
+    expect(overRequestLimit.status).toBe(413)
+    const invalid = await connectorRequest(
+      knowledgeBaseId,
+      {
+        permissionConfig: {
+          provider: 'gitlab',
+          mode: 'csv',
+          expectedRevision: 1,
+          userMapping: { filename: 'bad.csv', content: '1,not-an-email' },
+        },
+      },
+      connector.id
+    )
+    expect(invalid.status).toBe(400)
+    await assertReads(people.reporter, true)
+    const replace = await connectorRequest(
+      knowledgeBaseId,
+      {
+        permissionConfig: {
+          provider: 'gitlab',
+          mode: 'csv',
+          expectedRevision: 1,
+          projectPermissions: projectPermissions(people.guest.id),
+        },
+      },
+      connector.id
+    )
+    expect(replace.status).toBe(200)
+    connector = (await replace.json()).data
+    expect(connector.permissionConfig?.revision).toBe(2)
+    await assertReads(people.reporter, false)
+    await assertReads(people.guest, true)
+    expect(fixture.embeddingCalls).toBe(before)
+    const stale = await connectorRequest(
+      knowledgeBaseId,
+      {
+        permissionConfig: {
+          provider: 'gitlab',
+          mode: 'csv',
+          expectedRevision: 1,
           projectPermissions: projectPermissions(people.reporter.id),
         },
-      }
-      const denied = await connectorRequest(knowledgeBaseId, createBody, undefined, readerCookie)
-      expect(denied.status).toBe(403)
-      const unsupported = await connectorRequest(knowledgeBaseId, {
-        ...createBody,
-        accessMode: 'workspace',
-      })
-      expect(unsupported.status).toBe(400)
-      const inaccessibleProject = await connectorRequest(knowledgeBaseId, {
-        ...createBody,
-        sourceConfig: { ...createBody.sourceConfig, project: 'missing-fixture-project' },
-      })
-      expect(inaccessibleProject.status).toBe(400)
-      const createdResponse = await connectorRequest(knowledgeBaseId, createBody)
-      const created = await createdResponse.json()
-      expect(createdResponse.status, JSON.stringify(created)).toBe(201)
-      let connector = created.data as ConnectorData
-      expect(connector.permissionConfig).toMatchObject({
-        provider: 'gitlab',
-        mode: 'csv',
-        revision: 1,
-        userMapping: { rowCount: 2 },
-      })
-      expect(JSON.stringify(created)).not.toContain(indexingToken)
-      expect(JSON.stringify(created)).not.toContain(people.reporter.email)
-      expect(connector.sourceConfig).not.toHaveProperty('permissionConfig')
-      const storedConnector = await waitForSync(connector.id)
-      expect(storedConnector.encryptedApiKey).not.toBe(indexingToken)
-      expect(
-        (await decryptApiKey(storedConnector.encryptedApiKey!)).decrypted === indexingToken
-      ).toBe(true)
-      const docs = await db.select().from(document).where(eq(document.connectorId, connector.id))
-      const ordinary = docs.find((doc) => doc.externalId === `issue:${issueIid}`)!
-      expect(ordinary.processingStatus).toBe('completed')
-      const excluded = docs.find((doc) => doc.externalId === `issue:${confidentialIid}`)
-      if (excluded) {
-        expect(excluded.acl).toEqual([])
-        expect(excluded.storageKey).toBeNull()
-      }
-      const searchFor = async (person: GitLabPerson) =>
-        (
-          await searchKnowledge.execute({
-            principal: principal(person),
-            input: {
-              ...owner,
-              knowledgeBaseIds: [knowledgeBaseId],
-              query: 'Orion',
-              topK: 100,
+      },
+      connector.id
+    )
+    expect(stale.status).toBe(409)
+    const concurrent = await Promise.all(
+      [people.reporter, people.guest].map((person) =>
+        connectorRequest(
+          knowledgeBaseId,
+          {
+            permissionConfig: {
+              provider: 'gitlab',
+              mode: 'csv',
+              expectedRevision: 2,
+              projectPermissions: projectPermissions(person.id),
             },
-          })
-        ).results.map((row) => row.documentId)
-      const assertReads = async (person: GitLabPerson, allowed: boolean) => {
-        expect((await searchFor(person)).includes(ordinary.id)).toBe(allowed)
-        const operations: Array<() => Promise<unknown>> = [
-          () =>
-            readKnowledgeDocument.execute({
-              principal: principal(person),
-              input: { knowledgeBaseId, documentId: ordinary.id },
-            }),
-          () =>
-            listKnowledgeChunks.execute({
-              principal: principal(person),
-              input: { knowledgeBaseId, documentId: ordinary.id, limit: 10, offset: 0 },
-            }),
-        ]
-        const download = () =>
-          downloadFileFromUrl(ordinary.fileUrl!, { userId: person.simId, knowledgeAccess: 'user' })
-        if (isSearchIndex) {
-          await expect(download()).rejects.toThrow('Access denied')
-          operations.push(() =>
-            readSearchDocument.execute({
-              principal: principal(person),
-              input: {
-                documentId: ordinary.id,
-                assertedOrganizationId: ids.organizationId,
-                limit: 3,
-                resultSecretRegistry: new ResolvedSecretTraceRegistry(),
-              },
-            })
-          )
-        } else operations.push(download)
-        for (const operation of operations) {
-          if (allowed) await expect(operation()).resolves.toBeDefined()
-          else await expect(operation()).rejects.toBeDefined()
-        }
-      }
-      await assertReads(people.reporter, true)
-      await assertReads(people.guest, false)
-      await assertReads(people.outsider, false)
-      const vectors = await db
-        .select({ content: embedding.content })
-        .from(embedding)
-        .where(eq(embedding.documentId, ordinary.id))
-      expect(vectors.map((row) => row.content).join('\n')).not.toContain(
-        'INTERNAL_FIXTURE_NOTE_MUST_NOT_BE_INDEXED'
-      )
-      const before = fixture.embeddingCalls
-      const tooLarge = await connectorRequest(
-        knowledgeBaseId,
-        {
-          permissionConfig: {
-            provider: 'gitlab',
-            mode: 'csv',
-            expectedRevision: 1,
-            userMapping: { filename: 'large.csv', content: 'x'.repeat(4 * 1024 * 1024 + 1) },
           },
-        },
-        connector.id
-      )
-      expect(tooLarge.status).toBe(400)
-      const overRequestLimit = await connectorRequest(
-        knowledgeBaseId,
-        {
-          sourceConfig: { description: 'x'.repeat(10 * 1024 * 1024) },
-        },
-        connector.id
-      )
-      expect(overRequestLimit.status).toBe(413)
-      const invalid = await connectorRequest(
-        knowledgeBaseId,
-        {
-          permissionConfig: {
-            provider: 'gitlab',
-            mode: 'csv',
-            expectedRevision: 1,
-            userMapping: { filename: 'bad.csv', content: '1,not-an-email' },
-          },
-        },
-        connector.id
-      )
-      expect(invalid.status).toBe(400)
-      await assertReads(people.reporter, true)
-      const replace = await connectorRequest(
-        knowledgeBaseId,
-        {
-          permissionConfig: {
-            provider: 'gitlab',
-            mode: 'csv',
-            expectedRevision: 1,
-            projectPermissions: projectPermissions(people.guest.id),
-          },
-        },
-        connector.id
-      )
-      expect(replace.status).toBe(200)
-      connector = (await replace.json()).data
-      expect(connector.permissionConfig?.revision).toBe(2)
-      await assertReads(people.reporter, false)
-      await assertReads(people.guest, true)
-      expect(fixture.embeddingCalls).toBe(before)
-      const stale = await connectorRequest(
-        knowledgeBaseId,
-        {
-          permissionConfig: {
-            provider: 'gitlab',
-            mode: 'csv',
-            expectedRevision: 1,
-            projectPermissions: projectPermissions(people.reporter.id),
-          },
-        },
-        connector.id
-      )
-      expect(stale.status).toBe(409)
-      const concurrent = await Promise.all(
-        [people.reporter, people.guest].map((person) =>
-          connectorRequest(
-            knowledgeBaseId,
-            {
-              permissionConfig: {
-                provider: 'gitlab',
-                mode: 'csv',
-                expectedRevision: 2,
-                projectPermissions: projectPermissions(person.id),
-              },
-            },
-            connector.id
-          )
+          connector.id
         )
       )
-      expect(concurrent.map((result) => result.status).sort()).toEqual([200, 409])
-      const grants = await db
-        .select()
-        .from(knowledgeConnectorPermissionGrant)
-        .where(eq(knowledgeConnectorPermissionGrant.connectorId, connector.id))
-      expect(grants).toHaveLength(1)
-      let winner =
-        grants[0].subjectToken === `u:${people.reporter.email}` ? people.reporter : people.guest
-      await assertReads(winner, true)
-      expect(fixture.embeddingCalls).toBe(before)
-      await db.update(user).set({ emailVerified: false }).where(eq(user.id, winner.simId))
-      await assertReads(winner, false)
-      await db.update(user).set({ emailVerified: true }).where(eq(user.id, winner.simId))
-      const removedMember = winner
-      const newlyMappedMember = winner === people.reporter ? people.guest : people.reporter
-      const remapped = await connectorRequest(
-        knowledgeBaseId,
-        {
-          permissionConfig: {
-            provider: 'gitlab',
-            mode: 'csv',
-            expectedRevision: 3,
-            userMapping: {
-              filename: 'replacement-users.csv',
-              content: `${winner.id},${newlyMappedMember.email}`,
-            },
+    )
+    expect(concurrent.map((result) => result.status).sort()).toEqual([200, 409])
+    const grants = await db
+      .select()
+      .from(knowledgeConnectorPermissionGrant)
+      .where(eq(knowledgeConnectorPermissionGrant.connectorId, connector.id))
+    expect(grants).toHaveLength(1)
+    let winner =
+      grants[0].subjectToken === `u:${people.reporter.email}` ? people.reporter : people.guest
+    await assertReads(winner, true)
+    expect(fixture.embeddingCalls).toBe(before)
+    await db.update(user).set({ emailVerified: false }).where(eq(user.id, winner.simId))
+    await assertReads(winner, false)
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, winner.simId))
+    const removedMember = winner
+    const newlyMappedMember = winner === people.reporter ? people.guest : people.reporter
+    const remapped = await connectorRequest(
+      knowledgeBaseId,
+      {
+        permissionConfig: {
+          provider: 'gitlab',
+          mode: 'csv',
+          expectedRevision: 3,
+          userMapping: {
+            filename: 'replacement-users.csv',
+            content: `${winner.id},${newlyMappedMember.email}`,
           },
         },
-        connector.id
-      )
-      expect(remapped.status).toBe(200)
-      await assertReads(removedMember, false)
-      winner = newlyMappedMember
-      await assertReads(winner, true)
-      expect(fixture.embeddingCalls).toBe(before)
-      const crossOwner = await connectorRequest(
-        ids.knowledgeBaseId,
-        {
-          permissionConfig: {
-            provider: 'gitlab',
-            mode: 'csv',
-            expectedRevision: 3,
-            projectPermissions: projectPermissions(people.reporter.id),
-          },
+      },
+      connector.id
+    )
+    expect(remapped.status).toBe(200)
+    await assertReads(removedMember, false)
+    winner = newlyMappedMember
+    await assertReads(winner, true)
+    expect(fixture.embeddingCalls).toBe(before)
+    const crossOwner = await connectorRequest(
+      ids.knowledgeBaseId,
+      {
+        permissionConfig: {
+          provider: 'gitlab',
+          mode: 'csv',
+          expectedRevision: 3,
+          projectPermissions: projectPermissions(people.reporter.id),
         },
-        connector.id
-      )
-      expect(crossOwner.status).toBe(404)
-      await api(`/projects/${projectId}/issues/${issueIid}`, 'PUT', { confidential: true })
-      const syncResult = await executeSync(connector.id, {
-        billingAttribution: attribution,
-        fullSync: true,
-      })
-      expect(syncResult.docsFailed).toBe(0)
-      await assertReads(winner, false)
-      const [removed] = await db.select().from(document).where(eq(document.id, ordinary.id))
-      expect(removed.storageKey).toBeNull()
-      expect(removed.acl).toEqual([])
-      expect(
-        await db.select().from(embedding).where(eq(embedding.documentId, ordinary.id))
-      ).toEqual([])
-      const [snapshot] = await db
-        .select()
-        .from(knowledgeConnectorPermissionSnapshot)
-        .where(eq(knowledgeConnectorPermissionSnapshot.connectorId, connector.id))
-      expect(snapshot.revision).toBe(4)
-      await connectorRequest(knowledgeBaseId, { status: 'paused' }, connector.id)
-      const switched = await connectorRequest(
-        knowledgeBaseId,
-        {
-          apiKey: adminToken,
-          permissionConfig: { provider: 'gitlab', mode: 'administrator', expectedRevision: 4 },
-        },
-        connector.id
-      )
-      expect(switched.status).toBe(200)
-      expect((await switched.json()).data.accessRewritePending).toBe(true)
-      await assertReads(winner, false)
-      await connectorRequest(knowledgeBaseId, { status: 'active' }, connector.id)
-      await executeSync(connector.id, {
-        billingAttribution: attribution,
-        fullSync: true,
-      })
-      const [restored] = await db
-        .select()
-        .from(knowledgeConnector)
-        .where(eq(knowledgeConnector.id, connector.id))
-      expect(restored.accessRewritePending).toBe(false)
-    },
-    180000
-  )
+      },
+      connector.id
+    )
+    expect(crossOwner.status).toBe(404)
+    await api(`/projects/${projectId}/issues/${issueIid}`, 'PUT', { confidential: true })
+    const syncResult = await executeSync(connector.id, {
+      billingAttribution: attribution,
+      fullSync: true,
+    })
+    expect(syncResult.docsFailed).toBe(0)
+    await assertReads(winner, false)
+    const [removed] = await db.select().from(document).where(eq(document.id, ordinary.id))
+    expect(removed.storageKey).toBeNull()
+    expect(removed.acl).toEqual([])
+    expect(await db.select().from(embedding).where(eq(embedding.documentId, ordinary.id))).toEqual(
+      []
+    )
+    const [snapshot] = await db
+      .select()
+      .from(knowledgeConnectorPermissionSnapshot)
+      .where(eq(knowledgeConnectorPermissionSnapshot.connectorId, connector.id))
+    expect(snapshot.revision).toBe(4)
+    await connectorRequest(knowledgeBaseId, { status: 'paused' }, connector.id)
+    const switched = await connectorRequest(
+      knowledgeBaseId,
+      {
+        apiKey: adminToken,
+        permissionConfig: { provider: 'gitlab', mode: 'administrator', expectedRevision: 4 },
+      },
+      connector.id
+    )
+    expect(switched.status).toBe(200)
+    expect((await switched.json()).data.accessRewritePending).toBe(true)
+    await assertReads(winner, false)
+    await connectorRequest(knowledgeBaseId, { status: 'active' }, connector.id)
+    await executeSync(connector.id, {
+      billingAttribution: attribution,
+      fullSync: true,
+    })
+    const [restored] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connector.id))
+    expect(restored.accessRewritePending).toBe(false)
+  }, 180000)
 })

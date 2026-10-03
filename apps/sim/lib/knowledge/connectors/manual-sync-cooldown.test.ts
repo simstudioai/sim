@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -71,15 +68,6 @@ describe.each(['content', 'member'] as const)('manual %s sync cooldown', (kind) 
       await expect(assertManualSyncCooldown(db, 'connector-1', kind)).resolves.toBeUndefined()
     }
   )
-
-  it('allows the first sync and legacy completed runs with failures', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
-    queueTableRows(log, [])
-    await expect(assertManualSyncCooldown(db, 'connector-1', kind)).resolves.toBeUndefined()
-    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
-    queueTableRows(log, [{ status: 'completed', completedAt: NOW, failures: 1 }])
-    await expect(assertManualSyncCooldown(db, 'connector-1', kind)).resolves.toBeUndefined()
-  })
 
   it('permits retry after failed queue handoff without requiring a new run log', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [

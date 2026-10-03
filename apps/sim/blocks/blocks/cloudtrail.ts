@@ -1,22 +1,6 @@
 import { CloudTrailIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  CloudTrailCancelQueryResponse,
-  CloudTrailDescribeQueryResponse,
-  CloudTrailDescribeTrailsResponse,
-  CloudTrailGetEventDataStoreResponse,
-  CloudTrailGetEventSelectorsResponse,
-  CloudTrailGetInsightSelectorsResponse,
-  CloudTrailGetQueryResultsResponse,
-  CloudTrailGetTrailResponse,
-  CloudTrailGetTrailStatusResponse,
-  CloudTrailListEventDataStoresResponse,
-  CloudTrailListTagsResponse,
-  CloudTrailListTrailsResponse,
-  CloudTrailLookupEventsResponse,
-  CloudTrailStartQueryResponse,
-} from '@/tools/cloudtrail/types'
 
 /** Operations that accept an opaque AWS pagination token. */
 const PAGINATED_OPERATIONS = [
@@ -41,22 +25,7 @@ function parseBoundedInt(value: unknown): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
-export const CloudTrailBlock: BlockConfig<
-  | CloudTrailLookupEventsResponse
-  | CloudTrailDescribeTrailsResponse
-  | CloudTrailGetTrailResponse
-  | CloudTrailGetTrailStatusResponse
-  | CloudTrailListTrailsResponse
-  | CloudTrailGetEventSelectorsResponse
-  | CloudTrailGetInsightSelectorsResponse
-  | CloudTrailStartQueryResponse
-  | CloudTrailDescribeQueryResponse
-  | CloudTrailGetQueryResultsResponse
-  | CloudTrailCancelQueryResponse
-  | CloudTrailListEventDataStoresResponse
-  | CloudTrailGetEventDataStoreResponse
-  | CloudTrailListTagsResponse
-> = {
+export const CloudTrailBlock: BlockConfig = {
   type: 'cloudtrail',
   name: 'CloudTrail',
   description: 'Audit who did what in AWS with CloudTrail event history and Lake queries',

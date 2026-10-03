@@ -977,4 +977,32 @@ Get a single conditional access policy by ID, including the conditions it matche
 |   ↳ `grantControls` | json | Controls enforced when the policy applies, or null when none are configured |
 |   ↳ `sessionControls` | json | Session controls enforced when the policy applies, or null when none are set |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects an Azure AD account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-ad` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `User.ReadWrite.All` | Read and write all user profiles |
+| `Group.ReadWrite.All` | Read and write all groups |
+| `GroupMember.ReadWrite.All` | Read and write all group memberships |
+| `LicenseAssignment.Read.All` | Read license assignments and subscribed SKUs |
+| `LicenseAssignment.ReadWrite.All` | Assign and remove user licenses |
+| `UserAuthenticationMethod.ReadWrite.All` | Read and reset authentication methods and passwords for all users |
+| `AuditLog.Read.All` | Read sign-in and directory audit logs |
+| `Application.Read.All` | Read all applications and service principals |
+| `AppRoleAssignment.ReadWrite.All` | Manage app role assignments and permission grants for any app |
+| `RoleManagement.ReadWrite.Directory` | Read and manage directory role assignments |
+| `Device.Read.All` | Read all devices |
+| `Policy.Read.All` | Read conditional access and other policies |
+| `offline_access` | Access account when not using the application |
+
 

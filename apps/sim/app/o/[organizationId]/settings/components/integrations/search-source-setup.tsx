@@ -16,7 +16,6 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -67,7 +66,6 @@ export function SearchSourceSetup({
   mirroredAccessAvailable,
 }: SearchSourceSetupProps) {
   const { data: session } = useSession()
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const {
     integrationAvailability,
     oauthServiceAvailability,
@@ -135,7 +133,7 @@ export function SearchSourceSetup({
   }
   const failedQuery = index.isError ? index : null
   const initialMode = (type: string) =>
-    type === 'github' || (!liveSearch && (setup['source-access'] === 'members' || type === 'slack'))
+    type === 'github' || type === 'slack' || setup['source-access'] === 'members'
       ? ('members' as const)
       : ('admin' as const)
 
@@ -199,10 +197,7 @@ export function SearchSourceSetup({
   ) {
     if (selectedType && session?.user?.id) {
       const accessMode = initialMode(selectedType)
-      const setupMode =
-        liveSearch || !(selectedMeta?.mirrorsSourceAcls && selectedMeta.auth.mode === 'oauth')
-          ? accessMode
-          : 'choose'
+      const setupMode = accessMode
       return (
         <AddConnectorModal
           key={`${session.user.id}:${knowledgeBaseId}:${selectedType}:${setupMode}:${accessMode}`}
@@ -216,7 +211,7 @@ export function SearchSourceSetup({
           initialConnectorType={selectedType}
           initialAccessMode={accessMode}
           lockConnectorType
-          lockedAccessMode={setupMode === 'choose' ? undefined : setupMode}
+          lockedAccessMode={setupMode}
           setupDraftKey={`${session.user.id}:${resourceScopeKey(scope)}:${knowledgeBaseId}:${selectedType}:${setupMode}`}
           onConnectorTypeChange={(type) =>
             void setSelectedType(type !== null ? searchSetupParam.parser.parse(type) : null)
@@ -224,7 +219,7 @@ export function SearchSourceSetup({
           onCreated={async (type, connector) => {
             await setSelectedType(null)
             const destination = organizationRoutes(scope.organizationId).searchSource(connector.id)
-            if (liveSearch && accessMode === 'admin' && type !== 'gitlab') {
+            if (accessMode === 'admin' && type !== 'gitlab') {
               updateSearchIntegration.mutate(
                 {
                   organizationId: scope.organizationId,
@@ -310,12 +305,12 @@ export function SearchSourceSetup({
           </ChipModalField>
         ) : isIntegrationAvailabilityLoading ? (
           <ChipModalField type='custom' title='Sources'>
-            <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+            <SettingsEmptyState variant='inline'>Loading sources</SettingsEmptyState>
           </ChipModalField>
         ) : managedSource ? (
           <ChipModalField type='custom' title='Source'>
             <SettingsEmptyState variant='inline'>
-              {index.isPending ? 'Loading source…' : 'This source is no longer available.'}
+              {index.isPending ? 'Loading source' : 'This source is no longer available.'}
             </SettingsEmptyState>
           </ChipModalField>
         ) : selectedType ? (
@@ -340,7 +335,7 @@ export function SearchSourceSetup({
                 variant='inline'
               />
             ) : (
-              <SettingsEmptyState variant='inline'>Loading source setup…</SettingsEmptyState>
+              <SettingsEmptyState variant='inline'>Loading source setup</SettingsEmptyState>
             )}
           </ChipModalField>
         ) : (
@@ -348,7 +343,7 @@ export function SearchSourceSetup({
             <ChipModalField type='custom' title='Find a source' submitOnEnter={false}>
               <ChipInput
                 icon={Search}
-                placeholder='Find a source…'
+                placeholder='Find a source'
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -366,11 +361,7 @@ export function SearchSourceSetup({
                       isIntegrationAvailabilityReady,
                     }
                   )
-                  const available =
-                    type === 'github' ||
-                    (!liveSearch && (setup['source-access'] === 'members' || type === 'slack'))
-                      ? members
-                      : central
+                  const available = initialMode(type) === 'members' ? members : central
                   return (
                     <SettingsResourceRow
                       key={type}

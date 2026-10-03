@@ -18,6 +18,7 @@ import {
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -35,16 +36,13 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  checkForForcedToolUsageOpenAI,
   isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import {
-  checkForForcedToolUsage,
-  createReadableStreamFromXAIStream,
-  createResponseFormatPayload,
-} from '@/providers/xai/utils'
+import { createResponseFormatPayload } from '@/providers/xai/utils'
 
 const logger = createLogger('XAIProvider')
 
@@ -166,9 +164,10 @@ export const xAIProvider: ProviderConfig = {
         isStreaming: true,
         streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
-          createReadableStreamFromXAIStream(
-            streamResponse,
-            (content, usage) => {
+          createOpenAICompatibleAgentEventStream(streamResponse, {
+            providerName: 'xAI',
+            request,
+            onComplete: ({ content, usage }) => {
               output.content = content
               output.tokens = {
                 input: usage.prompt_tokens,
@@ -187,8 +186,7 @@ export const xAIProvider: ProviderConfig = {
                 total: costResult.total,
               }
             },
-            request
-          ),
+          }),
       })
 
       return streamingResult
@@ -257,9 +255,10 @@ export const xAIProvider: ProviderConfig = {
         },
       ]
       if (originalToolChoice) {
-        const result = checkForForcedToolUsage(
+        const result = checkForForcedToolUsageOpenAI(
           currentResponse,
           originalToolChoice,
+          'xAI',
           forcedTools,
           usedForcedTools
         )
@@ -521,9 +520,10 @@ export const xAIProvider: ProviderConfig = {
             )
           }
           if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
-            const result = checkForForcedToolUsage(
+            const result = checkForForcedToolUsageOpenAI(
               currentResponse,
               nextPayload.tool_choice,
+              'xAI',
               forcedTools,
               usedForcedTools
             )

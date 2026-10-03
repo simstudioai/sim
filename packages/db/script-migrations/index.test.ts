@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Sql } from 'postgres'
 import { describe, expect, it, vi } from 'vitest'
 import { runScriptMigrations, scriptMigrations } from './index'

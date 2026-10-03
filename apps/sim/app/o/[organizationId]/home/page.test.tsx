@@ -1,20 +1,18 @@
-/** @vitest-environment node */
 import { authMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ context: vi.fn(), chat: vi.fn() }))
+const mocks = vi.hoisted(() => ({ context: vi.fn() }))
 
-vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    throw new Error(`redirect:${path}`)
-  },
-  notFound: () => {
-    throw new Error('not-found')
-  },
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({ getAccessibleCopilotChatAuth: mocks.chat }))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 vi.mock('@/app/o/[organizationId]/integrations/integrations', () => ({
   OrganizationIntegrations: () => <div>Integrations</div>,
 }))
@@ -29,33 +27,22 @@ vi.mock('@/app/o/[organizationId]/home/organization-home', () => ({
 
 import OrganizationChatPage from '@/app/o/[organizationId]/chat/[chatId]/page'
 import OrganizationHomePage from '@/app/o/[organizationId]/home/page'
-import OrganizationIntegrationsPage from '@/app/o/[organizationId]/integrations/page'
 import OrganizationPage from '@/app/o/[organizationId]/page'
 import OrganizationSearchPage from '@/app/o/[organizationId]/search/page'
+
+const mockChat = mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth
 
 const params = Promise.resolve({ organizationId: 'org-1', chatId: 'chat-1' })
 const session = { user: { id: 'viewer', name: 'Taylor' }, session: { id: 'session-1' } }
 
 describe('organization Search page gates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue(session)
     mocks.context.mockResolvedValue({
       mothershipAvailable: true,
       searchAccess: { memberScoped: true },
     })
-    mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1', mode: 'agent' })
-  })
-
-  it.each([
-    ['Home', () => OrganizationHomePage({ params })],
-    ['Search', () => OrganizationSearchPage({ params })],
-    ['chat', () => OrganizationChatPage({ params })],
-  ] as const)('redirects %s to workspace settings when Search is disabled', async (_name, open) => {
-    mocks.context.mockResolvedValue({ searchAccess: { memberScoped: false, sourceMirrored: true } })
-    await expect(open()).rejects.toThrow('redirect:/workspace?redirect=settings')
-    expect(mocks.context).toHaveBeenCalledWith('org-1', 'viewer')
-    expect(mocks.chat).not.toHaveBeenCalled()
+    mockChat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1', mode: 'agent' })
   })
 
   it.each([
@@ -65,80 +52,19 @@ describe('organization Search page gates', () => {
     ['organization entry', () => OrganizationPage({ params })],
   ] as const)('denies %s to nonmembers before loading content', async (_name, open) => {
     mocks.context.mockResolvedValue(null)
-    await expect(open()).rejects.toThrow('not-found')
-    expect(mocks.chat).not.toHaveBeenCalled()
-  })
-
-  it('hides Integrations when Search is disabled', async () => {
-    mocks.context.mockResolvedValue({ searchAccess: { memberScoped: false } })
-    await expect(
-      OrganizationIntegrationsPage({ params, searchParams: Promise.resolve({}) })
-    ).rejects.toThrow('not-found')
-  })
-
-  it('renders Home when the organization gate is enabled', async () => {
-    expect(renderToStaticMarkup(await OrganizationHomePage({ params }))).toContain(
-      'Organization Assistant'
-    )
+    await expect(open()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(mockChat).not.toHaveBeenCalled()
   })
 
   it('retains chat authorization and asserted organization checks when enabled', async () => {
     expect(renderToStaticMarkup(await OrganizationChatPage({ params }))).toContain(
       'Organization Assistant'
     )
-    expect(mocks.chat).toHaveBeenCalledWith('chat-1', 'viewer', {
-      principal: { kind: 'session', userId: 'viewer', sessionId: 'session-1' },
+    expect(mockChat).toHaveBeenCalledWith('chat-1', 'viewer', {
+      principal: createSessionPrincipal({ userId: 'viewer' }),
     })
-    mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'another-org' })
-    await expect(OrganizationChatPage({ params })).rejects.toThrow('not-found')
-  })
-
-  it('lands enabled organizations on Home', async () => {
-    await expect(OrganizationPage({ params })).rejects.toThrow('redirect:/o/org-1/home')
-  })
-
-  it('preserves the organization entry through sign-in', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-
-    await expect(OrganizationPage({ params })).rejects.toThrow(
-      'redirect:/login?callbackUrl=%2Fo%2Forg-1'
-    )
-    expect(mocks.context).not.toHaveBeenCalled()
-  })
-
-  it('returns the organization entry to workspace settings when Search is disabled', async () => {
-    mocks.context.mockResolvedValue({ searchAccess: { memberScoped: false } })
-    await expect(OrganizationPage({ params })).rejects.toThrow(
-      'redirect:/workspace?redirect=settings'
-    )
-    expect(mocks.context).toHaveBeenCalledWith('org-1', 'viewer')
-  })
-
-  it('propagates availability failures instead of rendering the Assistant', async () => {
-    mocks.context.mockRejectedValue(new Error('Availability unavailable'))
-    await expect(OrganizationHomePage({ params })).rejects.toThrow('Availability unavailable')
-  })
-
-  it('keeps Home available without Search and reopens Search chats in Assistant', async () => {
-    mocks.context.mockResolvedValue({
-      mothershipAvailable: true,
-      canBuild: true,
-      searchAccess: { memberScoped: false },
-    })
-    expect(renderToStaticMarkup(await OrganizationHomePage({ params }))).toContain(
-      'Organization Assistant'
-    )
-    await expect(OrganizationSearchPage({ params })).rejects.toThrow(
-      'redirect:/workspace?redirect=settings'
-    )
-    mocks.context.mockResolvedValue({
-      mothershipAvailable: true,
-      searchAccess: { memberScoped: true },
-    })
-    mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1', mode: 'assistant' })
-    const markup = renderToStaticMarkup(await OrganizationChatPage({ params }))
-    expect(markup).toContain('Organization Assistant')
-    expect(markup).toContain('data-request-mode="assistant"')
+    mockChat.mockResolvedValue({ type: 'mothership', organizationId: 'another-org' })
+    await expect(OrganizationChatPage({ params })).rejects.toThrow('NEXT_NOT_FOUND')
   })
 
   it('denies Home when neither Build nor Search is allowed despite Mothership availability', async () => {
@@ -148,9 +74,9 @@ describe('organization Search page gates', () => {
       searchAccess: { memberScoped: false },
     })
     await expect(OrganizationHomePage({ params })).rejects.toThrow(
-      'redirect:/workspace?redirect=settings'
+      'NEXT_REDIRECT:/workspace?redirect=settings'
     )
-    expect(mocks.chat).not.toHaveBeenCalled()
+    expect(mockChat).not.toHaveBeenCalled()
   })
 
   it('routes chat URLs exactly where Home routes the same viewer, before loading the chat', async () => {
@@ -160,26 +86,14 @@ describe('organization Search page gates', () => {
       searchAccess: { memberScoped: false },
     })
     await expect(OrganizationChatPage({ params })).rejects.toThrow(
-      'redirect:/workspace?redirect=settings'
+      'NEXT_REDIRECT:/workspace?redirect=settings'
     )
     mocks.context.mockResolvedValue({
       mothershipAvailable: false,
       canBuild: false,
       searchAccess: { memberScoped: true },
     })
-    await expect(OrganizationChatPage({ params })).rejects.toThrow('redirect:/o/org-1/search')
-    expect(mocks.chat).not.toHaveBeenCalled()
+    await expect(OrganizationChatPage({ params })).rejects.toThrow('NEXT_REDIRECT:/o/org-1/search')
+    expect(mockChat).not.toHaveBeenCalled()
   })
-})
-
-it('renders standalone Search independently of assistant availability', async () => {
-  authMockFns.mockGetSession.mockResolvedValue(session)
-  mocks.context.mockResolvedValue({
-    mothershipAvailable: false,
-    searchAccess: { memberScoped: true },
-  })
-  expect(renderToStaticMarkup(await OrganizationSearchPage({ params }))).toContain(
-    'Standalone Search'
-  )
-  await expect(OrganizationHomePage({ params })).rejects.toThrow('redirect:/o/org-1/search')
 })

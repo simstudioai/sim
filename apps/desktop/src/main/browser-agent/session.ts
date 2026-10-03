@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { existsSync } from 'node:fs'
-import { statfs } from 'node:fs/promises'
+import { rename, rm, statfs, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   BrowserDataKind,
@@ -23,7 +23,9 @@ import type {
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { sleep } from '@sim/utils/helpers'
+import { generateId, generateShortId } from '@sim/utils/id'
+import { backoffWithJitter } from '@sim/utils/retry'
 import type {
   BrowserWindow,
   BrowserWindowConstructorOptions,
@@ -60,6 +62,7 @@ import {
   migratePanelScope,
   panelUpdateAllowed,
   panelWindow,
+  setAgentView,
 } from '@/main/browser-agent/panel'
 import {
   agentAppOrigin,
@@ -69,6 +72,10 @@ import {
   registerAgentWebContents,
 } from '@/main/browser-agent/registry'
 import { handleBrowserRequest } from '@/main/browser-agent/request-policy'
+import {
+  keepSessionCookiesAcrossRestarts,
+  withSessionCookieLifetime,
+} from '@/main/browser-agent/session-cookies'
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
@@ -112,6 +119,8 @@ export interface AgentTab {
   lastRealUserGestureAt?: number
   /** The tab whose page opened this one; agent work returns there when this tab closes. */
   openerTabId?: string
+  /** A user action asked for this page to take focus once it is on screen. */
+  pendingUserFocus?: boolean
 }
 
 interface PendingMediaPermission {
@@ -140,6 +149,10 @@ export interface BrowserDownloadSettings {
   getFreeDiskBytes?: (directory: string) => number | Promise<number>
   /** Overrides asynchronous destination collision checks. */
   pathExists?: (path: string) => boolean | Promise<boolean>
+  /** Overrides the move of a completed staging file to its final name. */
+  moveFile?: (from: string, to: string) => Promise<void>
+  /** Overrides the exclusive creation of a download's destination placeholder. */
+  claimFile?: (path: string) => Promise<void>
 }
 
 export interface AgentSessionEvents {
@@ -200,7 +213,13 @@ const FOREGROUND_TAB_RESTORE_TIMEOUT_MS = 20_000
 const MEDIA_PERMISSION_GESTURE_WINDOW_MS = 10_000
 const MEDIA_PERMISSION_PROMPT_TIMEOUT_MS = 30_000
 
-export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab' | 'find'
+export type BrowserShortcut =
+  | 'focus-omnibox'
+  | 'new-tab'
+  | 'close-tab'
+  | 'find'
+  | 'reload'
+  | 'hard-reload'
 
 type BrowserShortcutInput = Pick<
   Input,
@@ -209,25 +228,32 @@ type BrowserShortcutInput = Pick<
 
 /**
  * Resolves browser-level shortcuts using Command on macOS and Control
- * elsewhere. Modified/composing/repeated keystrokes stay with the page.
+ * elsewhere. Alt, composing, and repeated keystrokes stay with the page.
+ *
+ * Reload resolves here, from the page's own keystroke, rather than through the
+ * application menu: the menu can only guess which surface owns focus, and a
+ * wrong guess reloads all of Sim instead of the page.
  */
 export function browserShortcutForInput(
   input: BrowserShortcutInput,
   platform: NodeJS.Platform = process.platform
 ): BrowserShortcut | null {
-  if (
-    input.type !== 'keyDown' ||
-    input.isAutoRepeat ||
-    input.isComposing ||
-    input.shift ||
-    input.alt
-  ) {
+  if (input.type !== 'keyDown' || input.isAutoRepeat || input.isComposing || input.alt) {
     return null
   }
   const primaryModifier = platform === 'darwin' ? input.meta : input.control
-  if (!primaryModifier) return null
+  const otherModifier = platform === 'darwin' ? input.control : input.meta
 
-  switch (input.key.toLowerCase()) {
+  if (input.key === 'F5' && !otherModifier) {
+    if (input.shift || input.control) return 'hard-reload'
+    return input.meta ? null : 'reload'
+  }
+  if (!primaryModifier || otherModifier) return null
+
+  const key = input.key.toLowerCase()
+  if (key === 'r') return input.shift ? 'hard-reload' : 'reload'
+  if (input.shift) return null
+  switch (key) {
     case 'l':
       return 'focus-omnibox'
     case 't':
@@ -255,6 +281,12 @@ interface BrowserScopeState {
   lastPersistedSnapshot: string | null
   focusedBrowserTabId: string | null
   focusedBrowserClearTimer: ReturnType<typeof setTimeout> | null
+  /**
+   * Renderer-drawn browser chrome (omnibox, toolbar, a New Tab or error page)
+   * owns the user's interaction. Those surfaces hide the native page, so this
+   * is the only evidence the Browser is the shortcut target while they show.
+   */
+  browserChromeFocused: boolean
   automationActive: boolean
   automationNeedsAttention: boolean
   /**
@@ -282,6 +314,7 @@ function createBrowserScopeState(): BrowserScopeState {
     lastPersistedSnapshot: null,
     focusedBrowserTabId: null,
     focusedBrowserClearTimer: null,
+    browserChromeFocused: false,
     automationActive: false,
     automationNeedsAttention: false,
     findingTabId: null,
@@ -423,7 +456,29 @@ interface ActiveBrowserDownload {
   item: DownloadItem
   diskCheckInFlight: boolean
   lastDiskCheckAt: number
+  /**
+   * Electron's download delegate opens a native Save dialog unless a path is
+   * set before `will-download` returns, so bytes land in this randomly named
+   * dot-file (hidden on POSIX) and move to the asynchronously allocated
+   * `savePath` on completion.
+   */
+  stagingPath: string
+  /** The reserved final destination, once allocation has chosen one. */
   savePath?: string
+  /**
+   * The empty file claiming `savePath` on disk while bytes stage, as Firefox does, so another
+   * program choosing a name sees it taken; the completed file replaces it.
+   */
+  placeholderPath?: string
+  /**
+   * Set while the placeholder write is in flight. The name stays reserved in process until it
+   * settles, so teardown cannot hand the name to a newer download that the write then beats.
+   */
+  claimingDestination?: boolean
+  /** Settles with the final destination, or null when allocation failed. */
+  destination: Promise<string | null>
+  /** Set once Electron reports the item done, so a late disk check never resumes or cancels it. */
+  finished: boolean
   scopeId: string
   terminal: boolean
   limitReason?: string
@@ -635,12 +690,22 @@ function publishActiveBrowserDownload(active: ActiveBrowserDownload): void {
   publishBrowserDownloads(liveScopeId)
 }
 
+/** A disk probe that resolves after its download finished or stopped must not cancel it. */
+function isDiskCheckStale(active: ActiveBrowserDownload): boolean {
+  return (
+    active.terminal ||
+    active.finished ||
+    Boolean(active.limitReason) ||
+    !activeBrowserDownloads.has(active)
+  )
+}
+
 function checkBrowserDownloadDiskSpace(
   active: ActiveBrowserDownload,
   check: 'admission' | 'progress',
   now = Date.now()
 ): void {
-  if (active.terminal || active.limitReason || active.diskCheckInFlight) return
+  if (active.terminal || active.finished || active.limitReason || active.diskCheckInFlight) return
   if (
     check === 'progress' &&
     now - active.lastDiskCheckAt < BROWSER_DOWNLOAD_DISK_CHECK_INTERVAL_MS
@@ -652,9 +717,7 @@ function checkBrowserDownloadDiskSpace(
   active.diskCheckInFlight = true
   void browserDownloadFreeDiskBytes(active.directory)
     .then((freeDiskBytes) => {
-      if (active.terminal || active.limitReason || !activeBrowserDownloads.has(active)) {
-        return
-      }
+      if (isDiskCheckStale(active)) return
       const requiredFreeDiskBytes =
         MIN_BROWSER_DOWNLOAD_FREE_DISK_BYTES +
         activeDownloadReservations(check === 'admission' ? active : undefined)
@@ -671,7 +734,7 @@ function checkBrowserDownloadDiskSpace(
       if (check === 'admission' && active.download.state === 'progressing') active.item.resume()
     })
     .catch((error) => {
-      if (active.terminal || active.limitReason || !activeBrowserDownloads.has(active)) return
+      if (isDiskCheckStale(active)) return
       logger.warn('Could not complete an agent browser download disk-space check', {
         error: getErrorMessage(error),
       })
@@ -687,7 +750,9 @@ function releaseActiveBrowserDownload(active: ActiveBrowserDownload): void {
   if (active.terminal) return
   active.terminal = true
   activeBrowserDownloads.delete(active)
-  releaseActiveBrowserDownloadPath(active)
+  if (!active.claimingDestination) releaseActiveBrowserDownloadPath(active)
+  // Once Electron reports the item done, the move owns the placeholder until it settles.
+  if (!active.finished) removeBrowserDownloadPlaceholder(active)
 }
 
 function releaseActiveBrowserDownloadPath(
@@ -696,6 +761,112 @@ function releaseActiveBrowserDownloadPath(
 ): void {
   if (savePath && activeDownloadPaths.get(savePath) === active) {
     activeDownloadPaths.delete(savePath)
+  }
+}
+
+function removeBrowserDownloadFile(active: ActiveBrowserDownload, path: string): void {
+  void rm(path, { force: true }).catch((error) => {
+    logger.warn('Could not remove a staged agent browser download', {
+      error: getErrorMessage(error),
+      filename: active.download.filename,
+    })
+  })
+}
+
+/**
+ * Removes the destination placeholder at most once: after that the name is free, and a later
+ * download may already have claimed it.
+ */
+function removeBrowserDownloadPlaceholder(active: ActiveBrowserDownload): void {
+  const { placeholderPath } = active
+  if (!placeholderPath) return
+  active.placeholderPath = undefined
+  removeBrowserDownloadFile(active, placeholderPath)
+}
+
+/** Removes a failed download's staging file and its destination placeholder. */
+function discardStagedBrowserDownload(active: ActiveBrowserDownload): void {
+  removeBrowserDownloadFile(active, active.stagingPath)
+  removeBrowserDownloadPlaceholder(active)
+}
+
+function createEmptyFileExclusively(path: string): Promise<void> {
+  return writeFile(path, '', { flag: 'wx' })
+}
+
+/** Claims the allocated destination with an empty file; throws if anything already holds it. */
+async function claimBrowserDownloadDestination(
+  active: ActiveBrowserDownload,
+  savePath: string
+): Promise<void> {
+  await (browserDownloadSettings?.claimFile ?? createEmptyFileExclusively)(savePath)
+  active.placeholderPath = savePath
+}
+
+/**
+ * Errors a just-written file raises while antivirus or indexing briefly holds it open (Windows);
+ * Chromium retries its own final download rename on these too.
+ */
+const TRANSIENT_MOVE_ERROR_CODES = new Set(['EACCES', 'EBUSY', 'EPERM'])
+const STAGED_DOWNLOAD_MOVE_ATTEMPTS = 5
+
+/** Moves a completed staging file to its final name; resolves to that name. */
+async function moveStagedBrowserDownload(active: ActiveBrowserDownload): Promise<string> {
+  const destination = await active.destination
+  if (!destination || active.limitReason || active.terminal) {
+    throw new Error(
+      active.limitReason ?? 'Stopped: the download destination could not be prepared safely'
+    )
+  }
+  const moveFile = browserDownloadSettings?.moveFile ?? rename
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await moveFile(active.stagingPath, destination)
+      // The name now holds the finished file, which no cleanup may remove as a placeholder.
+      active.placeholderPath = undefined
+      return destination
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (
+        attempt < STAGED_DOWNLOAD_MOVE_ATTEMPTS &&
+        code !== undefined &&
+        TRANSIENT_MOVE_ERROR_CODES.has(code)
+      ) {
+        await sleep(backoffWithJitter(attempt, null, { baseMs: 100, maxMs: 1_000 }))
+        continue
+      }
+      logger.warn('Could not move a finished agent browser download to its destination', {
+        error: getErrorMessage(error),
+        filename: active.download.filename,
+      })
+      throw new Error('Stopped: the finished download could not be moved to its destination')
+    }
+  }
+}
+
+function finishBrowserDownload(active: ActiveBrowserDownload): void {
+  const { download } = active
+  const liveScopeId = resolveBrowserScopeId(active.scopeId)
+  if (
+    suspendedBrowserScopes.has(liveScopeId) ||
+    !browserScopeStates.has(liveScopeId) ||
+    !browserDownloadsByScope.get(liveScopeId)?.includes(download)
+  ) {
+    return
+  }
+  trimBrowserDownloads(liveScopeId)
+  publishBrowserDownloads(liveScopeId)
+  withBrowserScope(liveScopeId, persistBrowserSession)
+  if (download.state === 'completed') {
+    logger.info('Agent browser download completed', { filename: download.filename })
+    if (process.platform === 'darwin' && download.savePath) {
+      app.dock?.downloadFinished(download.savePath)
+    }
+  } else if (download.state === 'interrupted') {
+    logger.warn('Agent browser download interrupted', {
+      filename: download.filename,
+      reason: download.interruptionReason,
+    })
   }
 }
 
@@ -889,6 +1060,10 @@ export function initSession(
       const scopeId = getActiveBrowserScopeId()
       if (!scopeId) return
       withBrowserScope(scopeId, restoreBrowserSession)
+    },
+    onViewShown: (view) => {
+      const scopeId = browserScopeIdForView(view)
+      if (scopeId) withBrowserScope(scopeId, () => applyPendingUserFocus(view))
     },
     onViewDetached: (view) => {
       if (!view) return
@@ -1182,17 +1357,19 @@ export async function listAgentCookieSignals(): Promise<BrowserCookieSignal[]> {
  * here and is counted rather than being quietly relaxed.
  *
  * Failures are per-cookie: one rejected cookie must not cost the user the
- * rest. Nothing about a cookie is logged.
+ * rest. Nothing about a cookie is logged. Session cookies get the bounded
+ * lifetime from {@link withSessionCookieLifetime} so they survive a restart.
  */
 export async function importAgentCookies(
   cookies: CookiesSetDetails[]
 ): Promise<{ imported: number; failed: number }> {
   const jar = electronSession.fromPartition(AGENT_PARTITION).cookies
+  const nowSeconds = Date.now() / 1000
   let imported = 0
   let failed = 0
   for (const cookie of cookies) {
     try {
-      await jar.set(cookie)
+      await jar.set(withSessionCookieLifetime(cookie, nowSeconds))
       imported += 1
     } catch {
       failed += 1
@@ -1449,6 +1626,7 @@ const browserPermissions: BrowserPermissionHandlers = {
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
+  keepSessionCookiesAcrossRestarts(ses)
   ses.setPermissionRequestHandler(browserPermissions.request)
   ses.setPermissionCheckHandler(browserPermissions.check)
   ses.webRequest.onBeforeRequest((details, callback) => {
@@ -1489,26 +1667,41 @@ function configureBrowserDownloads(ses: Session): void {
 
     const download = createTrackedBrowserDownload(item, 'progressing')
     const { filename } = download
-    try {
-      item.pause()
-    } catch (error) {
-      const reason = 'Stopped: the download could not be paused for a disk-space safety check'
+    const failDownloadSetup = (reason: string, message: string, error: unknown) => {
       download.interruptionReason = reason
       download.state = 'interrupted'
       try {
         item.cancel()
       } catch (cancelError) {
-        logger.warn('Could not cancel an agent browser download after pause failed', {
+        logger.warn('Could not cancel an agent browser download after setup failed', {
           error: getErrorMessage(cancelError),
           filename,
         })
       }
       recordBrowserDownload(scopeId, download)
       withBrowserScope(scopeId, persistBrowserSession)
-      logger.warn('Agent browser download could not be paused for admission', {
-        error: getErrorMessage(error),
-        filename,
-      })
+      logger.warn(message, { error: getErrorMessage(error), filename })
+    }
+    // Paused before the staging path is set, so a failure here leaves no file behind.
+    try {
+      item.pause()
+    } catch (error) {
+      failDownloadSetup(
+        'Stopped: the download could not be paused for a disk-space safety check',
+        'Agent browser download could not be paused for admission',
+        error
+      )
+      return
+    }
+    const stagingPath = join(directory, `.sim-download-${generateShortId()}`)
+    try {
+      item.setSavePath(stagingPath)
+    } catch (error) {
+      failDownloadSetup(
+        'Stopped: the download destination could not be prepared safely',
+        'Could not set the staging destination for an agent browser download',
+        error
+      )
       return
     }
     const active: ActiveBrowserDownload = {
@@ -1517,6 +1710,10 @@ function configureBrowserDownloads(ses: Session): void {
       item,
       diskCheckInFlight: false,
       lastDiskCheckAt: 0,
+      stagingPath,
+      /** Replaced below by the allocation, whose callbacks need this record to exist first. */
+      destination: Promise.resolve(null),
+      finished: false,
       scopeId,
       terminal: false,
     }
@@ -1547,56 +1744,64 @@ function configureBrowserDownloads(ses: Session): void {
       publishBrowserDownloads(liveScopeId)
     })
     item.once('done', (_doneEvent, state) => {
-      releaseActiveBrowserDownload(active)
-      const liveScopeId = resolveBrowserScopeId(scopeId)
-      if (
-        suspendedBrowserScopes.has(liveScopeId) ||
-        !browserScopeStates.has(liveScopeId) ||
-        !browserDownloadsByScope.get(liveScopeId)?.includes(download)
-      ) {
+      active.finished = true
+      updateDownloadProgress(download, item)
+      if (state !== 'completed' || active.limitReason || active.terminal) {
+        releaseActiveBrowserDownload(active)
+        discardStagedBrowserDownload(active)
+        download.savePath = active.savePath
+        download.state = active.limitReason ? 'interrupted' : state
+        finishBrowserDownload(active)
         return
       }
-      updateDownloadProgress(download, item)
-      download.state = active.limitReason ? 'interrupted' : state
-      trimBrowserDownloads(liveScopeId)
-      publishBrowserDownloads(liveScopeId)
-      withBrowserScope(liveScopeId, persistBrowserSession)
-      if (download.state === 'completed') {
-        logger.info('Agent browser download completed', { filename })
-        if (process.platform === 'darwin' && active.savePath) {
-          app.dock?.downloadFinished(active.savePath)
-        }
-      } else if (download.state === 'interrupted') {
-        logger.warn('Agent browser download interrupted', {
-          filename,
-          reason: download.interruptionReason,
+      void moveStagedBrowserDownload(active)
+        .then(
+          (savePath) => {
+            download.savePath = savePath
+            download.state = 'completed'
+          },
+          (error: unknown) => {
+            discardStagedBrowserDownload(active)
+            download.savePath = active.savePath
+            download.interruptionReason = getErrorMessage(error)
+            download.state = 'interrupted'
+          }
+        )
+        .finally(() => {
+          releaseActiveBrowserDownload(active)
+          finishBrowserDownload(active)
         })
-      }
     })
     let allocationExpired = false
+    const allocationLive = () =>
+      !allocationExpired &&
+      !active.terminal &&
+      !active.limitReason &&
+      activeBrowserDownloads.has(active)
     const allocation = uniqueDownloadPath(directory, filename, {
-      isActive: () =>
-        !allocationExpired &&
-        !active.terminal &&
-        !active.limitReason &&
-        activeBrowserDownloads.has(active),
+      isActive: allocationLive,
       pathExists: browserDownloadSettings?.pathExists,
       reservePath: (candidate) => {
-        if (
-          allocationExpired ||
-          active.terminal ||
-          active.limitReason ||
-          !activeBrowserDownloads.has(active) ||
-          activeDownloadPaths.has(candidate)
-        ) {
-          return false
-        }
+        if (!allocationLive() || activeDownloadPaths.has(candidate)) return false
         activeDownloadPaths.set(candidate, active)
         active.savePath = candidate
         return true
       },
+    }).then(async (savePath) => {
+      if (!savePath || !allocationLive()) return savePath
+      active.claimingDestination = true
+      try {
+        await claimBrowserDownloadDestination(active, savePath)
+      } finally {
+        active.claimingDestination = false
+        if (!allocationLive()) {
+          removeBrowserDownloadPlaceholder(active)
+          releaseActiveBrowserDownloadPath(active, savePath)
+        }
+      }
+      return savePath
     })
-    void withBrowserDownloadTimeout(
+    active.destination = withBrowserDownloadTimeout(
       allocation,
       BROWSER_DOWNLOAD_PATH_ALLOCATION_TIMEOUT_MS,
       'Browser download path allocation timed out',
@@ -1607,7 +1812,7 @@ function configureBrowserDownloads(ses: Session): void {
       .then((savePath) => {
         if (active.terminal || !activeBrowserDownloads.has(active)) {
           releaseActiveBrowserDownloadPath(active, savePath ?? undefined)
-          return
+          return null
         }
         if (!savePath) {
           cancelBrowserDownloadForLimit(
@@ -1615,30 +1820,13 @@ function configureBrowserDownloads(ses: Session): void {
             'Stopped: a safe non-conflicting download filename could not be allocated'
           )
           publishActiveBrowserDownload(active)
-          return
-        }
-        download.savePath = savePath
-        try {
-          item.setSavePath(savePath)
-        } catch (error) {
-          releaseActiveBrowserDownloadPath(active, savePath)
-          active.savePath = undefined
-          download.savePath = undefined
-          logger.warn('Could not set the destination for an agent browser download', {
-            error: getErrorMessage(error),
-            filename,
-          })
-          cancelBrowserDownloadForLimit(
-            active,
-            'Stopped: the download destination could not be prepared safely'
-          )
-          publishActiveBrowserDownload(active)
-          return
+          return null
         }
         checkBrowserDownloadDiskSpace(active, 'admission')
+        return savePath
       })
       .catch((error) => {
-        if (active.terminal || !activeBrowserDownloads.has(active)) return
+        if (active.terminal || !activeBrowserDownloads.has(active)) return null
         logger.warn('Could not allocate an agent browser download destination', {
           error: getErrorMessage(error),
           filename,
@@ -1648,8 +1836,32 @@ function configureBrowserDownloads(ses: Session): void {
           'Stopped: the download destination could not be prepared safely'
         )
         publishActiveBrowserDownload(active)
+        return null
       })
   })
+}
+
+/**
+ * Hands keyboard focus to a page the user just navigated or opened, the way
+ * Chrome focuses the content after an omnibox Enter. Tab views never focus
+ * themselves on navigation, so this is the only path that moves focus into a
+ * page. A view that is not on screen yet takes focus when it is first shown.
+ */
+export function focusPageForUser(contents: WebContents): void {
+  const tab = tabForContents(contents)
+  if (!tab) return
+  tab.pendingUserFocus = true
+  applyPendingUserFocus(tab.view)
+}
+
+function applyPendingUserFocus(view: WebContentsView): void {
+  const tab = activeTab()
+  if (!tab?.pendingUserFocus || tab.view !== view || view.webContents.isDestroyed()) return
+  // A renderer modal can hide the view while the panel keeps its bounds.
+  if (!view.getVisible() || !isPanelVisible()) return
+  if (getBrowserScopeId() !== getActiveBrowserScopeId()) return
+  tab.pendingUserFocus = false
+  view.webContents.focus()
 }
 
 function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
@@ -1667,7 +1879,18 @@ function tabForContents(contents: WebContents): AgentTab | null {
 function publishPageIssue(tab: AgentTab, focusRecovery = false): void {
   events?.onTabsChanged()
   if (tab.id !== currentScope.activeTabId) return
-  if (focusRecovery && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
+  // Recovery moves focus to the renderer's issue page only when the failed page
+  // held it; the user typing in chat keeps their caret.
+  const pageHadFocus =
+    !currentScope.browserChromeFocused &&
+    (currentScope.focusedBrowserTabId === tab.id ||
+      (!tab.view.webContents.isDestroyed() && tab.view.webContents.isFocused()))
+  if (
+    focusRecovery &&
+    pageHadFocus &&
+    getBrowserScopeId() === getActiveBrowserScopeId() &&
+    isPanelVisible()
+  ) {
     const win = panelWindow()
     if (win && !win.isDestroyed()) win.webContents.focus()
   }
@@ -1787,6 +2010,22 @@ export function reloadPage(contents: WebContents): void {
     return
   }
   contents.reload()
+}
+
+/**
+ * Reloads past the HTTP cache, the browser's Shift-reload. A failed or hung
+ * page takes the plain reload's recovery instead: a load error retries the
+ * URL that failed, which need not be the committed page, and a hung renderer
+ * must be restarted, since reloading it in place waits on the hung page.
+ */
+function hardReloadPage(contents: WebContents): void {
+  const issue = tabForContents(contents)?.pageIssue
+  if (issue?.kind === 'load-error' || issue?.kind === 'unresponsive') {
+    reloadPage(contents)
+    return
+  }
+  prepareExplicitNavigation(contents)
+  contents.reloadIgnoringCache()
 }
 
 /** Hands one page selection to the exact app window and chat hosting its tab. */
@@ -1924,10 +2163,10 @@ function adoptPopupTab(
   opener: WebContents,
   url: string,
   popup: PopupWindowOptions,
-  agentOwned: boolean
+  { agentOwned, background }: { agentOwned: boolean; background: boolean }
 ): WebContents {
   const openerTabId = tabForContents(opener)?.id
-  const tab = agentOwned ? addAutomationTab(url, popup) : addTab(url, popup)
+  const tab = openLinkTab(url, { agentOwned, background }, popup)
   tab.openerTabId = openerTabId
   const contents = tab.view.webContents
   // A background-tab disposition defers creation, so Chromium supplies no contents to adopt.
@@ -1936,15 +2175,37 @@ function adoptPopupTab(
 }
 
 /**
+ * Creates the tab a link opens. The user's Cmd/middle-click keeps their page
+ * in front, as in Chrome; a foreground tab the user opened takes focus.
+ */
+function openLinkTab(
+  url: string,
+  { agentOwned, background }: { agentOwned: boolean; background: boolean },
+  popup?: PopupWindowOptions
+): AgentTab {
+  if (agentOwned) return addAutomationTab(url, popup)
+  if (background) {
+    restoreBrowserSession()
+    return addTabInternal({ activate: false, url, popup })
+  }
+  const tab = addTab(url, popup)
+  focusPageForUser(tab.view.webContents)
+  return tab
+}
+
+/**
  * Opens a link from a page in another tab of this browser. Shared by the
  * window.open interception and the page's right-click menu — both have to stay
  * inside the browser resource rather than spawn a native window, and both are
  * reached from an untrusted page, so the scheme is checked here once.
  */
-function openTabWithUrl(url: string, { agentOwned }: { agentOwned: boolean }): void {
+function openTabWithUrl(
+  url: string,
+  { agentOwned, background = false }: { agentOwned: boolean; background?: boolean }
+): void {
   if (!/^https?:\/\//i.test(url)) return
   try {
-    const tab = agentOwned ? addAutomationTab(url) : addTab(url)
+    const tab = openLinkTab(url, { agentOwned, background })
     void tab.view.webContents.loadURL(url).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
@@ -2000,8 +2261,12 @@ function createFreshTabView(appSession: BrowserAppSession | undefined): WebConte
       preload: join(__dirname, 'browser-preload.cjs'),
       // Throttled by default: a hidden tab should idle. The one exception is
       // the active tab while a tool waits on it, applied explicitly by
-      // applyActiveTabThrottling — never blanket across every tab.
+      // applyAutomationTabPolicy — never blanket across every tab.
       backgroundThrottling: true,
+      // Electron focuses a page on every main-frame commit, even a hidden
+      // agent tab, which steals the caret from chat. Focus follows explicit
+      // user actions instead (see focusPageForUser).
+      focusOnNavigation: false,
       spellcheck: false,
       // The default every origin this tab visits starts at; a per-origin zoom
       // the user sets from the page menu still wins and still persists.
@@ -2046,7 +2311,8 @@ function initializeTabView(
   registerAgentNavigation(contents, routeNavigation)
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
-    openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false })),
+    openTab: (url) =>
+      withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false, background: true })),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
   })
 
@@ -2058,7 +2324,38 @@ function initializeTabView(
         currentScope.focusedBrowserClearTimer = null
       }
       const tab = tabs.find((entry) => entry.view.webContents === contents)
-      currentScope.focusedBrowserTabId = tab?.id ?? currentScope.activeTabId
+      // A tab the user cannot see never keeps keyboard focus. Chromium focuses
+      // a page opened without an opener (a target=_blank link) while creating
+      // it, before the tab is even listed. Hand focus back to the visible page
+      // the user was in, or else to Sim, once that focus call has returned, or
+      // Chromium finishes it over the top.
+      if (!tab || tab.id !== currentScope.activeTabId) {
+        const active = activeTab()
+        const returnTo =
+          active &&
+          !currentScope.browserChromeFocused &&
+          currentScope.focusedBrowserTabId === active.id
+            ? active
+            : null
+        setImmediate(
+          bindToBrowserScope(scopeId, () => {
+            const current = tabs.find((entry) => entry.view.webContents === contents)
+            const win = panelWindow()
+            if (current?.id === currentScope.activeTabId || !win || win.isDestroyed()) return
+            if (contents.isDestroyed() || !contents.isFocused()) return
+            if (
+              returnTo?.id === currentScope.activeTabId &&
+              !returnTo.view.webContents.isDestroyed()
+            ) {
+              returnTo.view.webContents.focus()
+            } else {
+              win.webContents.focus()
+            }
+          })
+        )
+        return
+      }
+      currentScope.focusedBrowserTabId = tab.id
     })
   )
   contents.on(
@@ -2107,16 +2404,20 @@ function initializeTabView(
   contents.setWindowOpenHandler((details) =>
     withBrowserScope(scopeId, () => {
       const agentOwned = agentOwnsPopupFrom(contents)
+      const background = details.disposition === 'background-tab'
       if (!canAdoptPopup(contents, details.url)) {
-        openTabWithUrl(details.url, { agentOwned })
+        openTabWithUrl(details.url, { agentOwned, background })
         return { action: 'deny' }
       }
       return {
         action: 'allow',
         outlivesOpener: true,
+        // A popup's contents are created by Chromium from these preferences, not
+        // from createFreshTabView, so they must opt out of navigation focus here.
+        overrideBrowserWindowOptions: { webPreferences: { focusOnNavigation: false } },
         createWindow: (options) =>
           withBrowserScope(scopeId, () =>
-            adoptPopupTab(contents, details.url, options, agentOwned)
+            adoptPopupTab(contents, details.url, options, { agentOwned, background })
           ),
       }
     })
@@ -2202,6 +2503,14 @@ function initializeTabView(
       if (shortcut === 'new-tab') {
         addTab()
         focusRendererOmnibox('clear')
+        return
+      }
+      if (shortcut === 'reload') {
+        reloadPage(contents)
+        return
+      }
+      if (shortcut === 'hard-reload') {
+        hardReloadPage(contents)
         return
       }
 
@@ -2321,7 +2630,7 @@ export function hasSession(): boolean {
 export function setAutomationActive(active: boolean): void {
   if (currentScope.automationActive === active) return
   currentScope.automationActive = active
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   events?.onTabsChanged()
 }
 
@@ -2332,25 +2641,26 @@ export function setAutomationNeedsAttention(needsAttention: boolean): void {
 }
 
 /**
- * Unthrottles the active tab while automation is active, and throttles every
- * other tab. Call after anything that changes which tab is active, so the
- * exemption follows the active tab rather than being stranded on the old one.
- */
-/**
  * Re-applies the tab throttling policy after a caller temporarily suspended it
  * (the panel's reveal pulse). Exempts the automation-active tab exactly as the
  * internal policy does.
  */
 export function reassertTabThrottling(): void {
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
 }
 
-function applyActiveTabThrottling(): void {
+/**
+ * Unthrottles the automation tab while automation is active, throttles every other tab, and
+ * keeps the automation tab composited while no panel shows it. Call after anything that changes
+ * which tab the agent drives, so neither follows a stale tab.
+ */
+function applyAutomationTabPolicy(): void {
   for (const tab of tabs) {
     if (tab.view.webContents.isDestroyed()) continue
     const exempt = currentScope.automationActive && tab.id === currentScope.automationTabId
     tab.view.webContents.setBackgroundThrottling(!exempt)
   }
+  setAgentView(getBrowserScopeId(), automationTab()?.view ?? null)
 }
 
 /** A closed target must not transfer its activity marker to a replacement tab. */
@@ -2488,7 +2798,7 @@ function addTabInternal({
       revokeTabMediaPermissions(previousActiveTab, false)
     }
     currentScope.activeTabId = tab.id
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     if (!currentScope.restoring) layout()
     if (transferBrowserFocus) currentScope.focusedBrowserTabId = tab.id
     if (notify && !currentScope.restoring) events?.onActiveTabChanged(tab.view.webContents)
@@ -2768,7 +3078,7 @@ export function tabForNavigation(
     detachIfAttached(tab.view)
     tab.view = view
     contents.close()
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     layout()
     events?.onActiveTabChanged(view.webContents)
     return view.webContents
@@ -2903,13 +3213,13 @@ export function restoreBrowserSession(): void {
     state.lastPersistedSnapshot = previousState.lastPersistedSnapshot
     if (previousDownloads) browserDownloadsByScope.set(scopeId, previousDownloads)
     else browserDownloadsByScope.delete(scopeId)
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     throw error
   } finally {
     state.restoring = false
   }
 
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   const restoredActive = restoredLoads.find(({ tab }) => tab.id === state.activeTabId)
   if (restoredActive) {
     pendingForegroundTabRestores.push(
@@ -2944,7 +3254,7 @@ export function addAutomationTab(url?: string, popup?: PopupWindowOptions): Agen
   restoreBrowserSession()
   const tab = addTabInternal({ activate: false, notify: false, url, popup })
   currentScope.automationTabId = tab.id
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   persistBrowserSession()
   events?.onTabsChanged()
   return tab
@@ -2958,7 +3268,7 @@ export function ensureAutomationTab(): AgentTab {
   tab = activeTab()
   if (tab) {
     currentScope.automationTabId = tab.id
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     events?.onTabsChanged()
     return tab
   }
@@ -3013,13 +3323,14 @@ export function switchTab(tabId: string, { claim = true }: { claim?: boolean } =
   const previousActiveTab = activeTab()
   if (previousActiveTab && previousActiveTab.id !== tab.id) {
     revokeTabMediaPermissions(previousActiveTab, false)
+    previousActiveTab.pendingUserFocus = false
   }
   currentScope.activeTabId = tab.id
   if (claim) currentScope.visibleTabUserSelected = true
   promotePendingTabRestore(tab)
   // Visible selection does not move the automation exemption; the user may
   // inspect another page while a tool continues in its background tab.
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   layout()
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = tab.id
   persistBrowserSession()
@@ -3034,7 +3345,7 @@ export function switchAutomationTab(tabId: string): AgentTab {
   const tab = tabs.find((entry) => entry.id === tabId)
   if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
   currentScope.automationTabId = tab.id
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   events?.onTabsChanged()
   return tab
 }
@@ -3116,7 +3427,7 @@ function removeTab(
     const opener = tabs.find((entry) => entry.id === tab.openerTabId)
     currentScope.automationTabId =
       opener?.id ?? (adoptNeighborForAgent ? ((tabs[index] ?? tabs[index - 1])?.id ?? null) : null)
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
   }
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
   persistBrowserSession()
@@ -3138,9 +3449,9 @@ export function closeAutomationTab(tabId: string): void {
 
 /** The live page whose browser surface owns a menu accelerator. */
 function focusedTabForShortcut(ownerWindow?: BrowserWindow | null): AgentTab | null {
-  if (!isPanelVisible() || !panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) {
-    return null
-  }
+  if (!panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) return null
+  if (currentScope.browserChromeFocused) return activeTab()
+  if (!isPanelVisible()) return null
   return (
     tabs.find(
       (tab) =>
@@ -3216,8 +3527,13 @@ export function handleFocusedShortcut(
       reloadPage(shortcutTab.view.webContents)
       return true
     case 'hard-reload':
-      prepareExplicitNavigation(shortcutTab.view.webContents)
-      shortcutTab.view.webContents.reloadIgnoringCache()
+      hardReloadPage(shortcutTab.view.webContents)
+      return true
+    case 'back':
+      goBack(shortcutTab.view.webContents)
+      return true
+    case 'forward':
+      goForward(shortcutTab.view.webContents)
       return true
   }
 
@@ -3240,9 +3556,22 @@ export function setPanelFocused(
   withBrowserScope(scopeId, () => {
     if (!panelUpdateAllowed(ownerWindow, getBrowserScopeId())) return
     if (!focused) {
+      currentScope.browserChromeFocused = false
+      for (const tab of tabs) tab.pendingUserFocus = false
+      // The renderer reports losing focus when the user clicks into the native
+      // page too; that page's own focus claim must survive the report.
+      const claimed = tabs.find((tab) => tab.id === currentScope.focusedBrowserTabId)
+      if (
+        claimed &&
+        !claimed.view.webContents.isDestroyed() &&
+        claimed.view.webContents.isFocused()
+      ) {
+        return
+      }
       clearFocusedBrowserTab()
       return
     }
+    currentScope.browserChromeFocused = true
     if (currentScope.focusedBrowserClearTimer !== null) {
       clearTimeout(currentScope.focusedBrowserClearTimer)
       currentScope.focusedBrowserClearTimer = null

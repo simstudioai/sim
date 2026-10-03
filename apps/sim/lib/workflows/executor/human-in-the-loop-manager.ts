@@ -38,6 +38,7 @@ import {
   terminalExecutionLogFields,
 } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
@@ -88,6 +89,19 @@ const execDb = dbFor('exec')
 const logger = createLogger('HumanInTheLoopManager')
 const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
+/**
+ * Statuses of a finished execution's log, the same set the attempt-failure
+ * `CASE` preserves; a resume can never claim a log in one of them.
+ */
+const TERMINAL_EXECUTION_LOG_STATUSES = [
+  'cancelled',
+  'failed',
+  'completed',
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
+
+function isTerminalExecutionLogStatus(status: string): boolean {
+  return (TERMINAL_EXECUTION_LOG_STATUSES as readonly string[]).includes(status)
+}
 const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const AUTOMATIC_RESUME_INTERVENTION_PREFIX = 'Automatic resume requires manual intervention: '
 const PAUSED_CANCELLATION_QUEUE_FAILURE_REASON = 'Paused execution cancellation requested'
@@ -133,6 +147,14 @@ class ResumeAdmissionError extends Error {
     this.name = 'ResumeAdmissionError'
   }
 }
+
+/**
+ * What a failed resume attempt left its paused execution as, read from the
+ * transaction that settled the attempt: the pause stayed resumable, the
+ * resumed run failed the execution, or the run completed before a later step
+ * of the attempt threw.
+ */
+export type FailedResumeOutcome = 'pause_retained' | 'execution_failed' | 'execution_completed'
 
 /** Matches the paused execution mode to the deployment recorded on its durable root log. */
 export function requireResumeDeploymentVersion(
@@ -419,6 +441,13 @@ interface StartResumeExecutionArgs {
   sendEvent?: (event: ExecutionEvent) => void
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete?: (blockId: string, data: BlockCompletionCallbackData) => Promise<void>
+  /**
+   * Called once a failed attempt is settled, so a caller mirroring the run's
+   * state (a table cell) follows the execution. Not called when the attempt
+   * changed neither (the execution had already finished or was cancelled). A
+   * throw is logged and never replaces the attempt's error.
+   */
+  onAttemptFailed?: (outcome: FailedResumeOutcome, error: unknown) => Promise<void>
   abortSignal?: AbortSignal
 }
 
@@ -864,6 +893,7 @@ export class PauseResumeManager {
       sendEvent,
       onStream,
       onBlockComplete,
+      onAttemptFailed,
       abortSignal,
     } = args
 
@@ -895,18 +925,29 @@ export class PauseResumeManager {
       })
 
       if (result.status === 'paused') {
+        /**
+         * A pause that cannot be saved fails the execution. Fail the log with the
+         * reason, then throw so the attempt settles as failed below. The thrown
+         * message stays stable; the underlying error rides on `cause`.
+         */
         const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
-        if (!result.snapshotSeed) {
-          logger.error('Missing snapshot seed for paused resume execution', {
-            resumeExecutionId,
-          })
+        const failPause = async (reason: string, cause?: unknown): Promise<never> => {
+          logger.error(
+            reason,
+            cause === undefined
+              ? { resumeExecutionId }
+              : projectResolvedSecretDiagnosticError(cause, undefined, { resumeExecutionId })
+          )
           await LoggingSession.markExecutionAsFailed(
             effectiveExecutionId,
-            'Missing snapshot seed for paused execution',
+            cause === undefined ? reason : `${reason}: ${toError(cause).message}`,
             undefined,
             pausedExecution.workflowId
           )
-          await releaseExecutionSlot(resumeEntryId)
+          throw new Error(reason, { cause })
+        }
+        if (!result.snapshotSeed) {
+          await failPause('Missing snapshot seed for paused execution')
         } else {
           try {
             await PauseResumeManager.persistPauseResult({
@@ -918,19 +959,7 @@ export class PauseResumeManager {
               executorUserId: result.metadata?.userId,
             })
           } catch (pauseError) {
-            logger.error(
-              'Failed to persist pause result for resumed execution',
-              projectResolvedSecretDiagnosticError(pauseError, undefined, {
-                resumeExecutionId,
-              })
-            )
-            await LoggingSession.markExecutionAsFailed(
-              effectiveExecutionId,
-              `Failed to persist pause state: ${toError(pauseError).message}`,
-              undefined,
-              pausedExecution.workflowId
-            )
-            await releaseExecutionSlot(resumeEntryId)
+            await failPause('Failed to persist pause state', pauseError)
           }
         }
       } else {
@@ -986,8 +1015,9 @@ export class PauseResumeManager {
     } catch (error) {
       const message = toError(error).message
       await releaseExecutionSlot(resumeEntryId)
+      let outcome: FailedResumeOutcome | undefined
       if (error instanceof ResumeAdmissionError) {
-        await PauseResumeManager.markResumeAttemptFailed({
+        const pauseResumable = await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
           parentExecutionId: pausedExecution.executionId,
@@ -996,21 +1026,31 @@ export class PauseResumeManager {
           preserveForRetry: true,
           retryable: error.retryable,
         })
+        if (pauseResumable) outcome = 'pause_retained'
       } else if (message === RUN_BUFFER_UNAVAILABLE_ERROR) {
-        await PauseResumeManager.markResumeAttemptFailed({
+        const pauseResumable = await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
           parentExecutionId: pausedExecution.executionId,
           contextId,
           failureReason: message,
         })
+        if (pauseResumable) outcome = 'pause_retained'
       } else {
-        await PauseResumeManager.markResumeFailed({
+        outcome = await PauseResumeManager.markResumeFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
           parentExecutionId: pausedExecution.executionId,
           contextId,
           failureReason: message,
+        })
+      }
+      if (outcome && onAttemptFailed) {
+        await onAttemptFailed(outcome, error).catch((hookError: unknown) => {
+          logger.error(
+            'Failed to report a failed resume attempt',
+            projectResolvedSecretDiagnosticError(hookError, undefined, { resumeExecutionId })
+          )
         })
       }
       logger.error(
@@ -1878,7 +1918,7 @@ export class PauseResumeManager {
         timeoutController.isTimedOut() &&
         timeoutController.timeoutMs
       ) {
-        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+        const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
         logger.info('Resume execution timed out', {
           resumeExecutionId,
           timeoutMs: timeoutController.timeoutMs,
@@ -2192,10 +2232,10 @@ export class PauseResumeManager {
     parentExecutionId: string
     contextId: string
     failureReason: string
-  }): Promise<void> {
+  }): Promise<'execution_failed' | 'execution_completed' | undefined> {
     const now = new Date()
 
-    await execDb.transaction(async (tx) => {
+    return execDb.transaction(async (tx) => {
       const executionLog = await tx
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
@@ -2224,7 +2264,7 @@ export class PauseResumeManager {
             .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
             .where(eq(pausedExecutions.id, args.pausedExecutionId))
         }
-        return
+        return undefined
       }
 
       await tx
@@ -2235,17 +2275,24 @@ export class PauseResumeManager {
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
 
-      if (pausedExecution?.status === 'cancelling') return
+      if (pausedExecution?.status === 'cancelling') return undefined
 
-      await tx
-        .update(workflowExecutionLogs)
-        .set(terminalExecutionLogFields('failed', now))
-        .where(
-          and(
-            eq(workflowExecutionLogs.executionId, args.parentExecutionId),
-            sql`${workflowExecutionLogs.status} != 'cancelled'`
+      /** The run completed before a later step of the attempt threw; its outcome stands. */
+      if (executionLog?.status === 'completed') return 'execution_completed'
+
+      if (executionLog?.status !== 'failed') {
+        await tx
+          .update(workflowExecutionLogs)
+          .set(terminalExecutionLogFields('failed', now))
+          .where(
+            and(
+              eq(workflowExecutionLogs.executionId, args.parentExecutionId),
+              sql`${workflowExecutionLogs.status} != 'cancelled'`
+            )
           )
-        )
+      }
+
+      return 'execution_failed'
     })
   }
 
@@ -2257,10 +2304,10 @@ export class PauseResumeManager {
     failureReason: string
     preserveForRetry?: boolean
     retryable?: boolean
-  }): Promise<void> {
+  }): Promise<boolean> {
     const now = new Date()
 
-    await execDb.transaction(async (tx) => {
+    return execDb.transaction(async (tx) => {
       const executionLog = await tx
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
@@ -2317,7 +2364,7 @@ export class PauseResumeManager {
             .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
             .where(eq(pausedExecutions.id, args.pausedExecutionId))
         }
-        return
+        return false
       }
 
       await tx
@@ -2348,7 +2395,7 @@ export class PauseResumeManager {
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
 
-      if (pausedExecution?.status === 'cancelling') return
+      if (pausedExecution?.status === 'cancelling') return false
 
       await tx
         .update(workflowExecutionLogs)
@@ -2369,6 +2416,13 @@ export class PauseResumeManager {
             )`
           )
         )
+
+      return (
+        pausedExecution !== undefined &&
+        isResumablePausedStatus(pausedExecution.status) &&
+        executionLog !== undefined &&
+        !isTerminalExecutionLogStatus(executionLog.status)
+      )
     })
   }
 

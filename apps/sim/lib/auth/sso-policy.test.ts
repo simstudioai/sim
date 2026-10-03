@@ -1,18 +1,16 @@
-/**
- * @vitest-environment node
- */
 import { organization } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEntitled, mockHasProvider } = vi.hoisted(() => ({
-  mockIsEntitled: vi.fn(),
+const { mockHasProvider } = vi.hoisted(() => ({
   mockHasProvider: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mockIsEntitled,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/auth/sso/verified-provider', () => ({
   hasSignInCapableSsoProvider: mockHasProvider,
@@ -26,6 +24,8 @@ import {
   satisfiesSsoRequirement,
 } from '@/lib/auth/sso-policy'
 
+const mockIsEntitled = billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled
+
 const ORG_ID = 'org-1'
 
 beforeAll(() => {
@@ -35,7 +35,6 @@ beforeAll(() => {
 afterAll(resetEnvFlagsMock)
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   invalidateSsoPolicyCache(ORG_ID)
   invalidateSsoPolicyCache('org-owned')

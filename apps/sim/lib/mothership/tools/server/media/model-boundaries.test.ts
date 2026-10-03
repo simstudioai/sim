@@ -1,6 +1,11 @@
-/**
- * @vitest-environment node
- */
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
@@ -8,19 +13,17 @@ const {
   mockGenerateContent,
   mockGenerateFalAudio,
   mockGenerateFalVideo,
-  mockIsOpaqueWorkspaceFileEgressSafe,
-  mockResolveWorkspaceFileReference,
   mockReadWorkspaceFileContent,
   mockWriteWorkspaceFileByPath,
 } = vi.hoisted(() => ({
   mockGenerateContent: vi.fn(),
   mockGenerateFalAudio: vi.fn(),
   mockGenerateFalVideo: vi.fn(),
-  mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
   mockReadWorkspaceFileContent: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
 }))
+const { mockIsOpaqueWorkspaceFileEgressSafe } = workspaceFileSecretProvenanceMockFns
+const { mockResolveWorkspaceFileReference } = workspaceFileReferenceMockFns
 
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class GoogleGenAI {
@@ -33,17 +36,17 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 }))
 vi.mock('@/lib/media/falai-audio', () => ({ generateFalAudio: mockGenerateFalAudio }))
 vi.mock('@/lib/media/falai-video', () => ({ generateFalVideo: mockGenerateFalVideo }))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
   readWorkspaceFileContent: { execute: mockReadWorkspaceFileContent },
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isOpaqueWorkspaceFileEgressSafe: mockIsOpaqueWorkspaceFileEgressSafe,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
@@ -83,7 +86,6 @@ function contextWithSecrets(
 
 describe('Mothership media model boundaries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
     mockResolveWorkspaceFileReference.mockResolvedValue(file)
     mockReadWorkspaceFileContent.mockResolvedValue({ file, content: Buffer.from('opaque-media') })

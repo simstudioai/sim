@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import metadata from '@/tools/generated/tool-metadata'

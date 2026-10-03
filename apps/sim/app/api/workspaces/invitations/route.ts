@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listInvitationsForWorkspaces } from '@/lib/invitations/core'
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkspaceInvitationsAPI')
 
-export const GET = withRouteHandler(async (req: NextRequest) => {
+export const GET = withRouteHandler(async () => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

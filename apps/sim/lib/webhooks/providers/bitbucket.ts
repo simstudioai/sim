@@ -6,9 +6,8 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
-  getCredentialOwner,
+  getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
@@ -95,10 +94,7 @@ async function resolveBitbucketAccessToken(
     )
   }
 
-  const owner = await getCredentialOwner(credentialId, requestId)
-  const accessToken = owner
-    ? await refreshAccessTokenIfNeeded(owner.accountId, owner.userId, requestId)
-    : null
+  const accessToken = await getCredentialAccessToken(credentialId, requestId)
 
   if (!accessToken) {
     throw new Error(

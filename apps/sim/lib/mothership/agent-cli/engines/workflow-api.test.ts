@@ -1,10 +1,10 @@
-/** @vitest-environment node */
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { v2ExecuteWorkflowBodySchema } from '@/lib/api/contracts/v2/workflows'
 import { workflowApiCommand } from '@/lib/mothership/agent-cli/engines/workflow-api'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://self-hosted.example' }))
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://self-hosted.example')
 
 function fixture(
   options: { public?: boolean; deployed?: boolean; changed?: boolean; api?: boolean } = {}

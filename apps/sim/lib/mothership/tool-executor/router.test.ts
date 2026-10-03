@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 
 /**
@@ -46,7 +42,7 @@ vi.mock('@/lib/mothership/tools/handlers/workflow/queries', stubHandlerModule)
 /** Server-router tools are appended to the map from their own registry, which this test does not cover. */
 vi.mock('@/lib/mothership/tools/server/router', () => ({ getRegisteredServerToolNames: () => [] }))
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ cancel: vi.fn() }))
 vi.mock('@/lib/mothership/tools/handlers/workflow/mutations', () => ({
@@ -68,7 +64,6 @@ import {
 } from '@/lib/mothership/tool-executor/router'
 
 describe('workflow-run cancellation tool routing', () => {
-  beforeEach(() => vi.clearAllMocks())
   it('routes cancellation through Sim with write permission and explicit approval', () => {
     expect(getToolEntry('cancel_workflow_run')).toMatchObject({
       requiredPermission: 'write',

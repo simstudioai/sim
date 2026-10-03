@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import {
   Button,
   Chip,
@@ -24,7 +25,6 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
@@ -51,10 +51,13 @@ import {
   useUserProfile,
 } from '@/hooks/queries/user-profile'
 
-const AuthorizedApps = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps').then(
-    (module) => module.AuthorizedApps
-  )
+/** `loading` gives the view its own boundary; the section page has none to suspend into. */
+const AuthorizedApps = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps'
+    ).then((module) => module.AuthorizedApps),
+  { loading: () => null }
 )
 
 const logger = createLogger('General')
@@ -332,7 +335,7 @@ export function General() {
                           width={36}
                           height={36}
                           unoptimized
-                          className={`h-full w-full object-cover transition-opacity duration-300 ${
+                          className={`size-full object-cover transition-opacity duration-300 ${
                             isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
                           }`}
                         />
@@ -382,7 +385,7 @@ export function General() {
                           onChange={(e) => setName(e.target.value)}
                           onKeyDown={handleKeyDown}
                           onBlur={handleInputBlur}
-                          className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 text-base outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
+                          className='absolute top-0 left-0 size-full border-0 bg-transparent p-0 text-base outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
                           maxLength={100}
                           disabled={updateProfile.isPending}
                           autoComplete='off'

@@ -4,6 +4,9 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 
+/** Recorded on every run the current code admits; older values mark runs from earlier protocols. */
+export const SIM_TOOL_EXECUTION_VERSION = 2
+
 export const ASYNC_TOOL_STATUS = MothershipStreamV1AsyncToolRecordStatus
 
 export const EXECUTABLE_TOOL_PERMISSION_DECISIONS = [

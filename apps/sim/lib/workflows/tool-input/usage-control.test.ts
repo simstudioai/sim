@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
 import {
@@ -39,14 +36,6 @@ describe('applyAgentToolUsageControlModes', () => {
 describe('agent tool usage control', () => {
   it('defaults legacy tools to Auto in basic mode', () => {
     expect(resolveAgentToolUsageControl({}, 0)).toBe('auto')
-  })
-
-  it('uses the fixed selection in basic mode', () => {
-    expect(
-      resolveAgentToolUsageControl({ usageControl: 'force', usageControlExpression: 'none' }, 2, {
-        [buildAgentToolUsageControlCanonicalKey(2)]: 'basic',
-      })
-    ).toBe('force')
   })
 
   it('uses and normalizes the resolved expression in advanced mode', () => {

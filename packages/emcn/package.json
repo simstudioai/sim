@@ -9,7 +9,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.2",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -85,11 +85,11 @@
     "class-variance-authority": "^0.7.1",
     "framer-motion": "^12.5.0",
     "input-otp": "^1.4.2",
-    "next": "16.3.4",
+    "next": "16.3.6",
     "prismjs": "^1.30.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

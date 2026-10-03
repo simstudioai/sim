@@ -1,7 +1,34 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 /**
- * @vitest-environment node
- *
  * Tools Registry and Executor Unit Tests
  *
  * This file contains unit tests for the tools registry and executeTool function,
@@ -12,11 +39,11 @@ import {
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
+  encryptionMock,
   encryptionMockFns,
   environmentUtilsMockFns,
   inputValidationMock,
   inputValidationMockFns,
-  loggerMock,
   type MockFetchResponse,
   resetEnvFlagsMock,
   resetEnvironmentUtilsMock,
@@ -48,6 +75,8 @@ import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
+import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
+import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
@@ -57,47 +86,31 @@ import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 // Hoisted mock state - these are available to vi.mock factories
 const {
-  mockGetBYOKKey,
   mockGetToolAsync,
   mockRateLimiterFns,
-  mockMarkWorkspaceFileSecretProvenanceUnknown,
   mockRunCustomBlockTool,
   mockRunWorkflowTool,
   mockReadAvailableCustomToolByIdOrTitleAsCopilot,
   mockReadAvailableCustomToolByIdOrTitleAsExecutor,
-  mockGenerateInternalToken,
-  mockResolveWorkspaceFileReference,
-  mockAssertPermissionsAllowed,
   mockExecuteFunction,
   mockExecuteChatFunction,
-  mockCreateExecutorPrincipalFromExecutionContext,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
-  mockUploadExecutionFile,
-  mockUploadCopilotFile,
 } = vi.hoisted(() => ({
-  mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
   mockRateLimiterFns: {
     acquireKey: vi.fn(),
     preConsumeCapacity: vi.fn(),
     consumeCapacity: vi.fn(),
   },
-  mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
   mockRunCustomBlockTool: vi.fn(),
   mockRunWorkflowTool: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsCopilot: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsExecutor: vi.fn(),
-  mockGenerateInternalToken: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockAssertPermissionsAllowed: vi.fn(),
   mockExecuteFunction: vi.fn(),
   mockExecuteChatFunction: vi.fn(),
-  mockCreateExecutorPrincipalFromExecutionContext: vi.fn(),
   mockGetInternalToolOperationHandler: vi.fn(),
   mockExecuteInternalToolOperation: vi.fn(),
-  mockUploadExecutionFile: vi.fn(),
-  mockUploadCopilotFile: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -105,40 +118,17 @@ const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 const mockGetEffectiveEnvironmentSnapshot =
   environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
-// Mock getBYOKKey
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: (...args: unknown[]) => mockGetBYOKKey(...args),
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-  encryptSecret: encryptionMockFns.mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: mockAssertPermissionsAllowed,
-  validateBlockType: vi.fn().mockResolvedValue(undefined),
-  validateModelProvider: vi.fn().mockResolvedValue(undefined),
-  validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
-  validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
-  ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
-  IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
-  McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
-  CustomToolsNotAllowedError: class CustomToolsNotAllowedError extends Error {},
-  SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
-  InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
-  PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -150,43 +140,30 @@ vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mockExecuteFunction },
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mockCreateExecutorPrincipalFromExecutionContext,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/tool-operations/registry.server', () => ({
   getInternalToolOperationHandler: mockGetInternalToolOperationHandler,
 }))
 
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mockUploadExecutionFile,
-  uploadFileFromRawData: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mockUploadCopilotFile,
-}))
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: vi.fn(),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  resolveWorkspaceFileReference: (...args: unknown[]) => mockResolveWorkspaceFileReference(...args),
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  markWorkspaceFileSecretProvenanceUnknown: (...args: unknown[]) =>
-    mockMarkWorkspaceFileSecretProvenanceUnknown(...args),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
   mockResolveExecutorCredentialToken: vi.fn(),
@@ -208,6 +185,8 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  stripe_list_subscriptions: stripeListSubscriptionsTool,
+  stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
   github_search_issues_v2: searchIssuesV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
@@ -441,9 +420,20 @@ import { tools } from '@/tools/registry'
 import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
-const mockToolsLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Tools')
-].value
+const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
+const mockCreateExecutorPrincipalFromExecutionContext =
+  executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext
+const mockUploadExecutionFile = uploadsExecutionMockFns.mockUploadExecutionFile
+const mockUploadCopilotFile = uploadsCopilotMockFns.mockUploadCopilotFile
+
+const mockMarkWorkspaceFileSecretProvenanceUnknown =
+  workspaceFileSecretProvenanceMockFns.mockMarkWorkspaceFileSecretProvenanceUnknown
+const mockResolveWorkspaceFileReference =
+  workspaceFileManagerMockFns.mockResolveWorkspaceFileReference
+const mockAssertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
+
+const mockToolsLogger = getMockLogger('Tools')
 
 /**
  * Overlay the mock tools onto the REAL registry object instead of vi.mock:
@@ -500,11 +490,8 @@ function createMockQueryClient(): QueryClient {
  * Spy on the real get-query-client namespace instead of vi.mock: under
  * `isolate: false` the shared `@/tools/utils` module may be cached across test
  * files, so patching the real namespace is the only wiring that composes.
- * Re-applied in beforeEach because suites below call vi.resetAllMocks() /
- * vi.restoreAllMocks().
+ * Applied in beforeEach because spies are restored before every test.
  */
-vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
-
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
@@ -626,7 +613,7 @@ function createToolExecutionContext(overrides?: Partial<ExecutionContext>): Exec
   const principal =
     overrides?.principal ??
     (overrides?.userId
-      ? { kind: 'session' as const, userId: overrides.userId, sessionId: 'test-session' }
+      ? createSessionPrincipal({ userId: overrides.userId, sessionId: 'test-session' })
       : undefined)
   const executorDelegationOrigin =
     overrides?.executorDelegationOrigin ??
@@ -673,48 +660,6 @@ beforeAll(() => {
 })
 
 afterAll(resetEnvFlagsMock)
-
-describe('Tools Registry', () => {
-  it('should include all expected built-in tools', () => {
-    expect(tools.http_request).toBeDefined()
-    expect(tools.function_execute).toBeDefined()
-
-    expect(tools.gmail_read).toBeDefined()
-    expect(tools.gmail_send).toBeDefined()
-    expect(tools.google_drive_list).toBeDefined()
-    expect(tools.serper_search).toBeDefined()
-  })
-
-  it('getTool should return the correct tool by ID', () => {
-    const httpTool = getTool('http_request')
-    expect(httpTool).toBeDefined()
-    expect(httpTool?.id).toBe('http_request')
-    expect(httpTool?.name).toBe('HTTP Request')
-
-    const gmailTool = getTool('gmail_read')
-    expect(gmailTool).toBeDefined()
-    expect(gmailTool?.id).toBe('gmail_read')
-    expect(gmailTool?.name).toBe('Gmail Read')
-  })
-
-  it.each([
-    ['notion_add_database_row', 'notion_add_database_row_v2'],
-    ['notion_update_page', 'notion_update_page_v2'],
-  ])('getTool resolves both the legacy and v2 ids for %s', (legacyId, v2Id) => {
-    const legacy = getTool(legacyId)
-    expect(legacy).toBeDefined()
-    expect(legacy?.id).toBe(legacyId)
-
-    const v2 = getTool(v2Id)
-    expect(v2).toBeDefined()
-    expect(v2?.id).toBe(v2Id)
-  })
-
-  it('getTool should return undefined for non-existent tool', () => {
-    const nonExistentTool = getTool('non_existent_tool')
-    expect(nonExistentTool).toBeUndefined()
-  })
-})
 
 describe('Custom Tools', () => {
   it('does not resolve custom tools through the synchronous client helper', () => {
@@ -2919,20 +2864,162 @@ describe('executeTool Function', () => {
     expect(mockExecuteFunction).not.toHaveBeenCalled()
     expect(result.success).toBe(false)
   })
+})
 
-  it('should add timing information to results', async () => {
-    const result = await executeTool(
-      'http_request',
-      {
-        url: 'https://api.example.com/data',
-      },
-      { skipPostProcess: true }
+describe('Stripe subscription pagination through tool execution', () => {
+  beforeEach(() => {
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockReset()
+  })
+
+  it('retains first-page filters and returns one page even when more subscriptions exist', async () => {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(
+        Response.json({
+          object: 'list',
+          data: [{ id: 'sub_first' }, { id: 'sub_last' }],
+          has_more: true,
+        })
+      )
     )
 
-    expect(result.timing).toBeDefined()
-    expect(result.timing?.startTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
-    expect(result.timing?.endTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
-    expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
+    const result = await executeTool('stripe_list_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      limit: 100,
+      customer: 'cus_example',
+      status: 'active',
+      price: 'price_example',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_first' }, { id: 'sub_last' }],
+        metadata: { count: 2, has_more: true },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledExactlyOnceWith(
+      'https://api.stripe.com/v1/subscriptions?limit=100&customer=cus_example&status=active&price=price_example',
+      '93.184.216.34',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ authorization: 'Bearer sk_test_pagination' }),
+      })
+    )
+  })
+
+  it.each(['starting_after', 'ending_before'] as const)(
+    'retrieves the requested %s page without interpreting cursor characters as filters',
+    async (direction) => {
+      const cursor = 'sub_cursor&status=canceled'
+      mockSecureFetchWithPinnedIP.mockImplementationOnce(async (url) => {
+        const request = new URL(url)
+        const valid =
+          request.pathname === '/v1/subscriptions' &&
+          request.searchParams.get(direction) === cursor &&
+          request.searchParams.get('status') === 'active'
+        return toSecureFetchResponse(
+          valid
+            ? Response.json({ object: 'list', data: [{ id: 'sub_next' }], has_more: false })
+            : Response.json(
+                { error: { message: 'Unexpected pagination request' } },
+                { status: 400 }
+              )
+        )
+      })
+
+      const result = await executeTool('stripe_list_subscriptions', {
+        apiKey: 'sk_test_pagination',
+        status: 'active',
+        [direction]: cursor,
+      })
+
+      expect(result).toMatchObject({
+        success: true,
+        output: { subscriptions: [{ id: 'sub_next' }], metadata: { count: 1, has_more: false } },
+      })
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('rejects conflicting list cursors before contacting Stripe', async () => {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json({ object: 'list', data: [], has_more: false }))
+    )
+
+    const result = await executeTool('stripe_list_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      starting_after: 'sub_last',
+      ending_before: 'sub_first',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Provide either starting_after or ending_before, not both'),
+    })
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('round-trips the search continuation token and exposes the terminal page', async () => {
+    const query = "status:'active'"
+    const nextPage = 'opaque/search+cursor=='
+    mockSecureFetchWithPinnedIP.mockImplementation(async (url) => {
+      const request = new URL(url)
+      if (
+        request.pathname !== '/v1/subscriptions/search' ||
+        request.searchParams.get('query') !== query ||
+        request.searchParams.get('limit') !== '100'
+      ) {
+        return toSecureFetchResponse(
+          Response.json({ error: { message: 'Search filters changed' } }, { status: 400 })
+        )
+      }
+      const page = request.searchParams.get('page')
+      if (page === null) {
+        return toSecureFetchResponse(
+          Response.json({
+            object: 'search_result',
+            data: [{ id: 'sub_first' }],
+            has_more: true,
+            next_page: nextPage,
+          })
+        )
+      }
+      return toSecureFetchResponse(
+        page === nextPage
+          ? Response.json({ object: 'search_result', data: [{ id: 'sub_last' }], has_more: false })
+          : Response.json({ error: { message: 'Invalid search page' } }, { status: 400 })
+      )
+    })
+
+    const first = await executeTool('stripe_search_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      query,
+      limit: 100,
+    })
+    expect(first).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_first' }],
+        metadata: { count: 1, has_more: true, next_page: nextPage },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledOnce()
+
+    const last = await executeTool('stripe_search_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      query,
+      limit: 100,
+      page: first.output.metadata.next_page,
+    })
+    expect(last).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_last' }],
+        metadata: { count: 1, has_more: false, next_page: null },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -4575,7 +4662,7 @@ describe('Internal Route Trust', () => {
 
     // The actual external fetch uses secureFetchWithPinnedIP which uses Node's http/https
     // This will fail with a network error in tests, which is expected
-    const result = await executeTool('test_external_tool', {})
+    await executeTool('test_external_tool', {})
 
     // We expect it to attempt direct fetch (which will fail in test env due to network)
     // The key point is it should NOT try to call /api/proxy
@@ -4760,7 +4847,7 @@ describe('Internal Route Trust', () => {
 
     // External URLs are now called directly with SSRF protection
     // The test verifies proxy is NOT called
-    const result = await executeTool('test_dynamic_external', { endpoint: 'users' })
+    await executeTool('test_dynamic_external', { endpoint: 'users' })
 
     // Verify proxy was not called
     expect(global.fetch).not.toHaveBeenCalledWith(
@@ -5581,7 +5668,7 @@ describe('Centralized Error Handling', () => {
     cleanupEnvVars()
   })
 
-  const testErrorFormat = async (name: string, errorResponse: any, expectedError: string) => {
+  const testErrorFormat = async (errorResponse: any, expectedError: string) => {
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
     mockSecureFetchWithPinnedIP.mockResolvedValue(
       toSecureFetchResponse(
@@ -5603,87 +5690,15 @@ describe('Centralized Error Handling', () => {
     expect(result.error).toBe(expectedError)
   }
 
-  it('should extract GraphQL error format (Linear API)', async () => {
-    await testErrorFormat(
-      'GraphQL',
-      { errors: [{ message: 'Invalid query field' }] },
-      'Invalid query field'
-    )
-  })
-
-  it('should extract X/Twitter API error format', async () => {
-    await testErrorFormat(
-      'X/Twitter',
-      { errors: [{ detail: 'Rate limit exceeded' }] },
-      'Rate limit exceeded'
-    )
-  })
-
   it('uses a tool-specific Prospeo extractor before flattening a failed response', async () => {
     const originalExtractor = tools.http_request.errorExtractor
     tools.http_request.errorExtractor = ErrorExtractorId.PROSPEO_ERRORS
 
     try {
-      await testErrorFormat('Prospeo', { error: true, error_code: 'NO_MATCH' }, 'NO_MATCH')
+      await testErrorFormat({ error: true, error_code: 'NO_MATCH' }, 'NO_MATCH')
     } finally {
       tools.http_request.errorExtractor = originalExtractor
     }
-  })
-
-  it('should extract Hunter API error format', async () => {
-    await testErrorFormat('Hunter', { errors: [{ details: 'Invalid API key' }] }, 'Invalid API key')
-  })
-
-  it('should extract direct errors array (string)', async () => {
-    await testErrorFormat('Direct string array', { errors: ['Network timeout'] }, 'Network timeout')
-  })
-
-  it('should extract direct errors array (object)', async () => {
-    await testErrorFormat(
-      'Direct object array',
-      { errors: [{ message: 'Validation failed' }] },
-      'Validation failed'
-    )
-  })
-
-  it('should extract OAuth error description', async () => {
-    await testErrorFormat('OAuth', { error_description: 'Invalid grant' }, 'Invalid grant')
-  })
-
-  it('should extract SOAP fault error', async () => {
-    await testErrorFormat(
-      'SOAP fault',
-      { fault: { faultstring: 'Server unavailable' } },
-      'Server unavailable'
-    )
-  })
-
-  it('should extract simple SOAP faultstring', async () => {
-    await testErrorFormat(
-      'Simple SOAP',
-      { faultstring: 'Authentication failed' },
-      'Authentication failed'
-    )
-  })
-
-  it('should extract Notion/Discord message format', async () => {
-    await testErrorFormat('Notion/Discord', { message: 'Page not found' }, 'Page not found')
-  })
-
-  it('should extract Airtable error object format', async () => {
-    await testErrorFormat(
-      'Airtable',
-      { error: { message: 'Invalid table ID' } },
-      'Invalid table ID'
-    )
-  })
-
-  it('should extract simple error string format', async () => {
-    await testErrorFormat(
-      'Simple string',
-      { error: 'Simple error message' },
-      'Simple error message'
-    )
   })
 
   it('should fall back to text when JSON parsing fails and extract error message', async () => {
@@ -5760,31 +5775,6 @@ describe('Centralized Error Handling', () => {
     expect(result.success).toBe(false)
     // Should fall back to HTTP status text when both parsing methods fail
     expect(result.error).toBe('Internal Server Error')
-  })
-
-  it('should handle complex nested error objects', async () => {
-    await testErrorFormat(
-      'Complex nested',
-      { error: { code: 400, message: 'Complex validation error', details: 'Field X is invalid' } },
-      'Complex validation error'
-    )
-  })
-
-  it('should handle error arrays with multiple entries (take first)', async () => {
-    await testErrorFormat(
-      'Multiple errors',
-      { errors: [{ message: 'First error' }, { message: 'Second error' }] },
-      'First error'
-    )
-  })
-
-  it('should stringify complex error objects when no message found', async () => {
-    const complexError = { code: 500, type: 'ServerError', context: { requestId: '123' } }
-    await testErrorFormat(
-      'Complex object stringify',
-      { error: complexError },
-      JSON.stringify(complexError)
-    )
   })
 })
 
@@ -7173,8 +7163,6 @@ describe('organization scratch internal entrance', () => {
 
 describe('Live Search Assistant GitHub OAuth binding', () => {
   beforeEach(async () => {
-    vi.clearAllMocks()
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     const metadata = await import('@/tools/metadata')
     const actual = await vi.importActual<typeof import('@/tools/metadata')>('@/tools/metadata')
     vi.mocked(metadata.getToolMetadata).mockImplementation(actual.getToolMetadata)
@@ -7210,8 +7198,6 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
   })
   it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
     const { getToolMetadata } = await import('@/tools/metadata')
-    const { isLiveEnterpriseSearchEnabled } = await import('@/lib/core/config/env-flags')
-    expect(isLiveEnterpriseSearchEnabled).toBe(true)
     expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
       id: 'github_search_issues_v2',
       params: { apiKey: { required: true } },

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Copilot's `@log` mention context, projected for the chatting user.
  *
  * `logs.cost` and `logs.trace_spans` are PROJECTIONS, not gates, and Copilot is
@@ -85,7 +83,6 @@ async function mentionSummary(userId?: string) {
 
 describe('@log mention context projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetPermissionGroupScopeMock()
   })
 

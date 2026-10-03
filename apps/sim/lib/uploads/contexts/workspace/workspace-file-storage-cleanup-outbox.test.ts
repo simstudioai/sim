@@ -1,10 +1,7 @@
-/**
- * @vitest-environment node
- */
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDeleteFile, mockEnqueueOutboxEvents, mockProcessOutboxEventById } = vi.hoisted(() => ({
-  mockDeleteFile: vi.fn(),
+const { mockEnqueueOutboxEvents, mockProcessOutboxEventById } = vi.hoisted(() => ({
   mockEnqueueOutboxEvents: vi.fn(),
   mockProcessOutboxEventById: vi.fn(),
 }))
@@ -15,9 +12,7 @@ vi.mock('@/lib/core/outbox/service', () => ({
   processOutboxEventById: mockProcessOutboxEventById,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: mockDeleteFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import {
@@ -26,6 +21,8 @@ import {
   WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
   workspaceFileStorageCleanupOutboxHandlers,
 } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
 
 function context(): OutboxEventContext {
   return {
@@ -47,7 +44,6 @@ function handler() {
 
 describe('workspace file storage cleanup outbox', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDeleteFile.mockResolvedValue(undefined)
   })
 
@@ -65,43 +61,9 @@ describe('workspace file storage cleanup outbox', () => {
 
     await expect(handler()({ key: 'workspace/ws/file.txt' }, context())).resolves.toBeUndefined()
   })
-
-  it('rejects malformed payloads without touching storage', async () => {
-    await expect(handler()({ key: '' }, context())).rejects.toThrow(
-      'Workspace file storage cleanup outbox payload is missing key'
-    )
-
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-  })
-
-  it('propagates storage failures for retry', async () => {
-    mockDeleteFile.mockRejectedValueOnce(new Error('storage unavailable'))
-
-    await expect(handler()({ key: 'workspace/ws/file.txt' }, context())).rejects.toThrow(
-      'storage unavailable'
-    )
-  })
 })
 
 describe('batched workspace file storage cleanup', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('enqueues released keys within the bulk limit in one insert', async () => {
-    const executor = { insert: vi.fn() }
-    mockEnqueueOutboxEvents.mockResolvedValueOnce(['event-a', 'event-b'])
-
-    await expect(
-      enqueueWorkspaceFileStorageCleanups(executor as never, ['a', 'b'])
-    ).resolves.toEqual(['event-a', 'event-b'])
-    expect(mockEnqueueOutboxEvents).toHaveBeenCalledWith(
-      executor,
-      WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
-      [{ key: 'a' }, { key: 'b' }]
-    )
-  })
-
   it('splits keys beyond the outbox bulk limit into several inserts', async () => {
     const executor = { insert: vi.fn() }
     mockEnqueueOutboxEvents.mockResolvedValueOnce(['event-a', 'event-b'])

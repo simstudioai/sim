@@ -41,7 +41,7 @@ import {
   extractParallelIdFromSentinel,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedWorkflow } from '@/serializer/types'
@@ -383,6 +383,15 @@ export class DAGExecutor {
       snapshotState?.deactivatedEdges,
       snapshotState?.nodesWithActivatedEdge
     )
+    /**
+     * Run-from-block re-executes its dirty set from scratch, so the source execution's edge state
+     * for those nodes must not carry over: a stale activation runs an unselected branch, and a
+     * stale deactivation releases a join before its live input completes.
+     */
+    const dirtySet = context.runFromBlockContext?.dirtySet
+    if (dirtySet) {
+      edgeManager.clearDeactivatedEdgesForNodes(dirtySet)
+    }
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
       state,
@@ -588,10 +597,10 @@ export class DAGExecutor {
       const isRegularBlock = this.workflow.blocks.some((b) => b.id === startBlockId)
 
       if (isRegularBlock) {
-        this.initializeStarterBlock(context, state, startBlockId)
+        this.initializeStarterBlock(state, startBlockId)
       }
     } else {
-      this.initializeStarterBlock(context, state, triggerBlockId)
+      this.initializeStarterBlock(state, triggerBlockId)
     }
 
     return { context, state }
@@ -631,11 +640,7 @@ export class DAGExecutor {
     return parentMap
   }
 
-  private initializeStarterBlock(
-    context: ExecutionContext,
-    state: ExecutionState,
-    triggerBlockId?: string
-  ): void {
+  private initializeStarterBlock(state: ExecutionState, triggerBlockId?: string): void {
     let startResolution: ReturnType<typeof resolveExecutorStartBlock> | null = null
 
     if (triggerBlockId) {

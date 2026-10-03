@@ -38,7 +38,7 @@ import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -98,7 +98,7 @@ export async function getInvitationById(
  * use the protected state.
  */
 export async function lockInvitationForMutation(
-  tx: DbOrTx,
+  tx: DbTransaction,
   invitationId: string,
   options?: {
     lockCurrentGrantWorkspaces?: boolean
@@ -921,7 +921,7 @@ async function acceptLockedInvitation(
   input: AcceptInvitationInput,
   inv: InvitationWithGrants,
   lockPlan: InvitationAcceptanceLockPlan,
-  tx: DbOrTx,
+  tx: DbTransaction,
   effects: InvitationAcceptancePostCommitEffects
 ): Promise<AcceptInvitationResult> {
   let membershipAlreadyExists = false

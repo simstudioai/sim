@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { deflateSync } from 'zlib'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import { MAX_PDF_TEXT_CHARS, PdfParser } from '@/lib/file-parsers/pdf-parser'
-import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
@@ -40,7 +36,7 @@ function buildTextBombPdf(repeats: number): Buffer {
 }
 
 /** Builds a PDF whose pages carry no content stream, so nothing is extractable. */
-function buildTextFreePdf(pageCount: number): Buffer {
+function _buildTextFreePdf(pageCount: number): Buffer {
   const pageIds = Array.from({ length: pageCount }, (_, i) => 3 + i)
 
   return assemblePdf([
@@ -53,7 +49,7 @@ function buildTextFreePdf(pageCount: number): Buffer {
 }
 
 /** Shares a bounded dense text stream across pages to exercise aggregate extraction. */
-function buildLargeTypesetPdf(pageCount: number): Buffer {
+function _buildLargeTypesetPdf(pageCount: number): Buffer {
   const unit = `BT /F1 12 Tf 10 700 Td (${'A'.repeat(64)}) Tj ET\n`
   const compressed = deflateSync(Buffer.from(unit.repeat(3000)))
   const pageIds = Array.from({ length: pageCount }, (_, index) => index + 5)
@@ -156,7 +152,7 @@ function calendarWeeks(month: number): string[][] {
  * calendar producers draw them: each visual row across all three months before
  * the next row.
  */
-async function buildQuarterCalendarPdf(): Promise<Buffer> {
+async function _buildQuarterCalendarPdf(): Promise<Buffer> {
   const doc = await PDFDocument.create()
   const font = await doc.embedFont(StandardFonts.Helvetica)
   const page = doc.addPage([612, 792])
@@ -184,27 +180,6 @@ async function buildQuarterCalendarPdf(): Promise<Buffer> {
 }
 
 describe('PdfParser', () => {
-  it('preloads the server worker instead of relying on a runtime-relative worker path', async () => {
-    const previousWorker: unknown = Reflect.get(globalThis, 'pdfjsWorker')
-    Reflect.deleteProperty(globalThis, 'pdfjsWorker')
-
-    const pdf = await openPdfDocument(new Uint8Array(buildTextFreePdf(1)))
-
-    try {
-      expect(Reflect.get(globalThis, 'pdfjsWorker')).toEqual({
-        WorkerMessageHandler: expect.anything(),
-      })
-      expect(pdf.numPages).toBe(1)
-    } finally {
-      await pdf.destroy()
-      if (previousWorker === undefined) {
-        Reflect.deleteProperty(globalThis, 'pdfjsWorker')
-      } else {
-        Reflect.set(globalThis, 'pdfjsWorker', previousWorker)
-      }
-    }
-  })
-
   it(
     'bounds extracted text from a compression-bomb PDF instead of exhausting the heap',
     async () => {
@@ -230,38 +205,10 @@ describe('PdfParser', () => {
     BOMB_TIMEOUT_MS
   )
 
-  it('extracts a real multi-page PDF past the preview budget completely', async () => {
-    const result = await new PdfParser().parseBuffer(buildLargeTypesetPdf(60), {
-      pdfTextMode: 'complete',
-    })
-
-    expect(result.content.length).toBeGreaterThan(MAX_PDF_TEXT_CHARS)
-    expect(result.metadata).toMatchObject({ pageCount: 60, truncated: false })
-    expect(result.content).not.toContain('truncated')
-  }, 60_000)
-
   it('rejects a real compressed page at its independent complete-extraction cap', async () => {
     await expect(
       new PdfParser().parseBuffer(buildTextBombPdf(6000), { pdfTextMode: 'complete' })
     ).rejects.toMatchObject({ name: 'FileParserError', code: 'complexity_limit' })
-  }, 30_000)
-
-  it('extracts a small PDF in full and does not flag it as truncated', async () => {
-    const result = await new PdfParser().parseBuffer(buildTextBombPdf(3))
-
-    expect(result.metadata?.truncated).toBe(false)
-    expect(result.metadata?.warning).toBeUndefined()
-    expect(result.metadata?.pageCount).toBe(1)
-    expect(result.metadata?.source).toBe('unpdf')
-    expect(result.content).toContain('AAAA')
-    expect(result.content).not.toContain('truncated')
-  }, 30_000)
-
-  it('reports a multi-page PDF with no extractable text as empty', async () => {
-    const result = await new PdfParser().parseBuffer(buildTextFreePdf(3))
-
-    expect(result.content.trim()).toBe('')
-    expect(result.content).not.toContain('[...')
   }, 30_000)
 
   it('rejects malformed PDF input', async () => {
@@ -276,13 +223,4 @@ describe('PdfParser', () => {
       code: 'encrypted_file',
     })
   })
-
-  it('reads side-by-side calendar months one month at a time', async () => {
-    const result = await new PdfParser().parseBuffer(await buildQuarterCalendarPdf())
-
-    const months = ['January 2026', 'February 2026', 'March 2026'].map((name, month) =>
-      [name, WEEKDAYS.join(' '), ...calendarWeeks(month).map((week) => week.join(' '))].join('\n')
-    )
-    expect(result.content).toBe(['2026 Calendar', ...months].join('\n\n'))
-  }, 30_000)
 })

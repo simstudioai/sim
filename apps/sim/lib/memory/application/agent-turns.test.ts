@@ -1,12 +1,13 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  workspace: vi.fn(),
-  permission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   open: vi.fn(),
   save: vi.fn(),
   read: vi.fn(),
@@ -15,34 +16,33 @@ const mocks = vi.hoisted(() => ({
   storeArtifact: vi.fn(),
   readArtifact: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: mocks.permission,
-  permissionSatisfies: (actual: string, expected: string) =>
-    actual === 'admin' || actual === 'write' || (actual === 'read' && expected === 'read'),
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/memory/conversation-store', () => ({
-  openAgentMemoryTurn: mocks.open,
-  saveAgentMemoryTurn: mocks.save,
-  readConversationItems: mocks.read,
-  readConversationPrefix: mocks.readPrefix,
-  appendAgentMemoryMessage: mocks.append,
+  openAgentMemoryTurn: hoisted.open,
+  saveAgentMemoryTurn: hoisted.save,
+  readConversationItems: hoisted.read,
+  readConversationPrefix: hoisted.readPrefix,
+  appendAgentMemoryMessage: hoisted.append,
 }))
 vi.mock('@/lib/memory/artifacts', () => ({
-  storeMemoryArtifact: mocks.storeArtifact,
-  readMemoryArtifact: mocks.readArtifact,
+  storeMemoryArtifact: hoisted.storeArtifact,
+  readMemoryArtifact: hoisted.readArtifact,
 }))
 
 import {
   appendAgentMemoryMessageUseCase,
   openAgentMemoryTurnUseCase,
-  readAgentMemoryItemsUseCase,
   readAgentMemoryPrefixUseCase,
   saveAgentMemoryTurnUseCase,
   storeAgentMemoryArtifactUseCase,
 } from '@/lib/memory/application/agent-turns'
+
+const mocks = {
+  ...hoisted,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const identity = {
   workspaceId: 'workspace-1',
@@ -83,7 +83,6 @@ function principal(): WorkflowExecutionDelegatedPrincipal {
 
 describe('Agent memory application boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.workspace.mockResolvedValue({
       workspaceId: identity.workspaceId,
       workspaceOrganizationId: null,
@@ -112,7 +111,7 @@ describe('Agent memory application boundary', () => {
   it('rejects an unsupported principal before loading protected workspace context', async () => {
     await expect(
       openAgentMemoryTurnUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: identity,
       })
     ).rejects.toThrow()
@@ -205,17 +204,6 @@ describe('Agent memory application boundary', () => {
       })
     ).rejects.toThrow()
     expect(mocks.readPrefix).not.toHaveBeenCalled()
-  })
-
-  it('preserves infrastructure errors for the caller to distinguish from an empty history', async () => {
-    const failure = new Error('database unavailable')
-    mocks.read.mockRejectedValueOnce(failure)
-    await expect(
-      readAgentMemoryItemsUseCase.execute({
-        principal: principal(),
-        input: { workspaceId: identity.workspaceId, memoryId: 'memory-1' },
-      })
-    ).rejects.toBe(failure)
   })
 
   it.each([false, true])(

@@ -9,7 +9,7 @@ paths:
 
 ## Structure
 
-For server data, use a React Query hook from `hooks/queries/` — do NOT `useState` + `fetch` here (see `.claude/rules/sim-queries.md`). This pattern is for UI/orchestration hooks that hold UI-only state and wrap callbacks.
+Server data comes from a React Query hook in `hooks/queries/` (see `.claude/rules/sim-queries.md`). This pattern is for UI/orchestration hooks that hold UI-only state and wrap callbacks, in the same order as components (refs → state → `useCallback` → `useEffect`).
 
 ```typescript
 interface UseFeatureProps {
@@ -25,17 +25,17 @@ export function useFeature({ id, onSelect }: UseFeatureProps) {
   // 2. UI-only state (never server data)
   const [isOpen, setIsOpen] = useState(false)
 
-  // 3. Sync refs
-  useEffect(() => {
-    idRef.current = id
-    onSelectRef.current = onSelect
-  }, [id, onSelect])
-
-  // 4. Operations (useCallback with empty deps when using refs)
+  // 3. Operations (useCallback with empty deps when using refs)
   const select = useCallback((item: Item) => {
     onSelectRef.current?.(item)
     setIsOpen(false)
   }, [])
+
+  // 4. Sync refs
+  useEffect(() => {
+    idRef.current = id
+    onSelectRef.current = onSelect
+  }, [id, onSelect])
 
   return { isOpen, setIsOpen, select }
 }

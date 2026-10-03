@@ -8,7 +8,11 @@
 import { isBrowserToolName } from '@sim/browser-protocol'
 import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
-import { normalizeMessage, withBlockTiming } from '@/lib/mothership/chat/persisted-message'
+import {
+  isUnsettledToolState,
+  normalizeMessage,
+  withBlockTiming,
+} from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -18,7 +22,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
-import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 import { isZeroStreamCursor } from './stream-protocol'
@@ -142,18 +146,18 @@ export function buildAssistantSnapshotMessage(params: {
 }
 
 export function markMessageStopped(message: PersistedMessage): PersistedMessage {
-  const hasExecutingTool = message.contentBlocks?.some(
-    (block) => block.toolCall?.state === 'executing'
+  const hasUnsettledTool = message.contentBlocks?.some((block) =>
+    isUnsettledToolState(block.toolCall?.state)
   )
   const hasOpenBlock = message.contentBlocks?.some((block) => block.endedAt === undefined)
-  if (!hasExecutingTool && !hasOpenBlock) {
+  if (!hasUnsettledTool && !hasOpenBlock) {
     return message
   }
 
   const stopTs = Date.now()
   const nextBlocks = (message.contentBlocks ?? []).map((block) => {
     const stamped = block.endedAt === undefined ? { ...block, endedAt: stopTs } : block
-    if (stamped.toolCall?.state !== 'executing') {
+    if (!stamped.toolCall || !isUnsettledToolState(stamped.toolCall.state)) {
       return stamped
     }
     return {

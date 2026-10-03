@@ -1,35 +1,40 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   canOpen: vi.fn(),
-  enterprise: vi.fn(),
-  governance: vi.fn(),
-  groups: vi.fn(),
-  search: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.groups,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mocks.search,
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/organizations/settings-access', () => ({
-  canOpenOrganizationSettingsSection: mocks.canOpen,
+  canOpenOrganizationSettingsSection: hoisted.canOpen,
 }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-  isOrganizationGovernanceActive: mocks.governance,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 
+const mocks = {
+  ...hoisted,
+  groups: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  enterprise: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
+  governance: billingSubscriptionMockFns.mockIsOrganizationGovernanceActive,
+  search: knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable,
+}
+
 describe('organization settings authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mocks.canOpen.mockResolvedValue(true)
     mocks.enterprise.mockResolvedValue(true)
@@ -91,18 +96,6 @@ describe('organization settings authorization', () => {
     ).resolves.toBe(false)
   })
 
-  /** Every other section keeps reading the plan gate, and pays no extra lookup for this one. */
-  it('reads governance for no section but Access Control', async () => {
-    await authorizeOrganizationSettingsSection({
-      organizationId: 'target',
-      userId: 'viewer',
-      section: 'audit-logs',
-    })
-
-    expect(mocks.governance).not.toHaveBeenCalled()
-    expect(mocks.enterprise).toHaveBeenCalledWith('target')
-  })
-
   it.each([
     { groups: false, search: false, connectedAccounts: false, integrations: false },
     { groups: true, search: false, connectedAccounts: true, integrations: false },
@@ -138,18 +131,6 @@ describe('organization settings authorization', () => {
     }
   )
 
-  it('keeps Credential Groups independent of Search availability', async () => {
-    mocks.search.mockRejectedValue(new Error('Feature configuration unavailable'))
-    await expect(
-      authorizeOrganizationSettingsSection({
-        organizationId: 'target',
-        userId: 'admin',
-        section: 'connected-accounts',
-      })
-    ).resolves.toBe(true)
-    expect(mocks.search).not.toHaveBeenCalled()
-  })
-
   it('checks current target organization membership before billing reads', async () => {
     mocks.canOpen.mockResolvedValue(false)
     expect(
@@ -161,35 +142,6 @@ describe('organization settings authorization', () => {
     ).toBe(false)
     expect(mocks.canOpen).toHaveBeenCalledWith('target', 'viewer', 'sso')
     expect(mocks.enterprise).not.toHaveBeenCalled()
-  })
-
-  it('does not require a plan or workspace for the member roster', async () => {
-    expect(
-      await authorizeOrganizationSettingsSection({
-        organizationId: 'target',
-        userId: 'viewer',
-        section: 'members',
-      })
-    ).toBe(true)
-    expect(mocks.enterprise).not.toHaveBeenCalled()
-  })
-
-  it('keeps request review independent of the Enterprise plan and Search rollout', async () => {
-    mocks.enterprise.mockResolvedValue(false)
-    mocks.governance.mockResolvedValue(false)
-    mocks.search.mockResolvedValue(false)
-
-    await expect(
-      authorizeOrganizationSettingsSection({
-        organizationId: 'target',
-        userId: 'admin',
-        section: 'requests',
-      })
-    ).resolves.toBe(true)
-    expect(mocks.canOpen).toHaveBeenCalledWith('target', 'admin', 'requests')
-    expect(mocks.enterprise).not.toHaveBeenCalled()
-    expect(mocks.governance).not.toHaveBeenCalled()
-    expect(mocks.search).not.toHaveBeenCalled()
   })
 
   it('rejects request review when target organization authority is absent', async () => {

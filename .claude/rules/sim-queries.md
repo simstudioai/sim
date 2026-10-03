@@ -57,7 +57,7 @@ The `'use client'` hook module then imports these back for its hooks. **Never** 
 
 ```typescript
 import { requestJson } from '@/lib/api/client/request'
-import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
+import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/<domain>'
 
 export const ENTITY_LIST_STALE_TIME = 60 * 1000
 
@@ -140,7 +140,6 @@ const handler = useCallback(() => {
 // ✓ Good — omit from deps, mutate is stable
 const handler = useCallback(() => {
   createEntity.mutate(data)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [data])
 ```
 
@@ -162,8 +161,7 @@ Keep prefetch imports light. A page prefetch's imports land in that route's serv
 
 ## Boundary Types
 
-- Hooks import named type aliases from `@/lib/api/contracts/**` (e.g., `import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'`). Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code.
-- Raw `fetch` is allowed only for documented exceptions — multipart uploads, binary downloads, streaming responses, signed-URL flows, OAuth redirects, external origins. Each such raw `fetch(` inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**` — and any same-origin `/api/...` fetch elsewhere under `apps/sim/**` outside an API route handler — must be preceded by a `// boundary-raw-fetch: <reason>` annotation (reason non-empty; up to three preceding comment lines tolerated). Enforced by `scripts/check-api-validation-contracts.ts` (`bun run check:api-validation` / `:strict`).
+Hooks import named type aliases from `@/lib/api/contracts/**` and never import `zod`. The raw-`fetch` exceptions and the `// boundary-raw-fetch: <reason>` annotation are in `.claude/rules/sim-api-contracts.md`.
 
 ## Naming
 

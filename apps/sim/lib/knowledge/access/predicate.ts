@@ -7,12 +7,10 @@ import {
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
-  knowledgeProjectionDirty,
   member,
   user,
 } from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
-import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
 import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import { confluenceReaderGroupCondition } from '@/lib/knowledge/access/group-membership'
@@ -194,7 +192,7 @@ export function knowledgeMetadataCandidateAccessCondition(
 }
 
 /** Every requirement clause must reach the caller, which preserves source permission intersections. */
-function aclRequirementsSatisfied(tokens: SQL): SQL {
+export function aclRequirementsSatisfied(tokens: SQL): SQL {
   return sql`NOT EXISTS (
       SELECT 1 FROM jsonb_array_elements(${document.aclRequirements}) AS required_clause(tokens)
       WHERE NOT (required_clause.tokens ?| ${tokens})
@@ -202,226 +200,8 @@ function aclRequirementsSatisfied(tokens: SQL): SQL {
 }
 
 /** The live source proofs this request carries, as the connector-scoped clause both shapes apply. */
-export function liveSourceAccessCondition(scope: KnowledgeAccessScope): SQL {
+function liveSourceAccessCondition(scope: KnowledgeAccessScope): SQL {
   return sql`(${githubInstallationAccessCondition(scope)} AND ${confluenceSiteAccessCondition(scope)})`
-}
-
-/**
- * The connectors a search may read from, resolved once per query: their ids grouped by the shape
- * their documents' ACLs take, and separately those whose reader access is proven live per request.
- */
-/**
- * The caller's active member identities on the connectors a search reads, by what makes their
- * observations current: `confirmed` members drained their change feed inside the freshness window,
- * so every observation they hold stands; `observed` members are trusted only where the observation
- * itself is recent.
- */
-/** One of the caller's member identities and the connector it belongs to. */
-export interface KnowledgeMemberObserver {
-  id: string
-  connectorId: string
-}
-
-export interface KnowledgeMemberObservers {
-  confirmed: readonly KnowledgeMemberObserver[]
-  observed: readonly KnowledgeMemberObserver[]
-}
-
-/** What a search resolves once about its sources and the caller's standing in them. */
-export interface SearchAccessPlan {
-  connectors: KnowledgeConnectorEligibility
-  observers: KnowledgeMemberObservers
-  /** Connectors the caller is an active member of, whose documents they read broadly. */
-  memberSources: readonly string[]
-  /** Each eligible connector's type, so a search may be confined to one kind of source. */
-  connectorTypes: ReadonlyMap<string, string>
-  /** Whether documents without a source — uploads — are in scope. */
-  uploads: boolean
-}
-
-/**
- * The plan confined to one kind of source: the connectors of that type keep their eligibility and
- * the rest lose it, so every predicate built from the plan — on the row and on the document — and
- * every source the legs walk or rank are that kind alone. `upload` keeps only source-less documents.
- */
-export function restrictSearchAccessPlan(plan: SearchAccessPlan, source: string): SearchAccessPlan {
-  const keep = (id: string) => source !== 'upload' && plan.connectorTypes.get(id) === source
-  const kept = (ids: readonly string[]) => ids.filter(keep)
-  return {
-    connectors: {
-      workspace: kept(plan.connectors.workspace),
-      admin: kept(plan.connectors.admin),
-      members: kept(plan.connectors.members),
-      liveProofRequired: kept(plan.connectors.liveProofRequired),
-    },
-    observers: {
-      confirmed: plan.observers.confirmed.filter((observer) => keep(observer.connectorId)),
-      observed: plan.observers.observed.filter((observer) => keep(observer.connectorId)),
-    },
-    memberSources: kept(plan.memberSources),
-    connectorTypes: plan.connectorTypes,
-    uploads: source === 'upload',
-  }
-}
-
-export interface KnowledgeConnectorEligibility {
-  /** Documents carry the workspace ACL. */
-  workspace: readonly string[]
-  /** Documents carry mirrored source permissions verified as a whole. */
-  admin: readonly string[]
-  /** Documents carry the subject tokens of the members who observe them. */
-  members: readonly string[]
-  /** Of the above, those that additionally require this request's live source proof. */
-  liveProofRequired: readonly string[]
-}
-
-/**
- * The candidate predicate with connector state resolved ahead of the query instead of per row.
- *
- * Deletion, archival, a pending access rewrite, the organization's integration approval and the
- * access mode are facts about a connector, not a document, so checking them once per query leaves
- * each candidate an id comparison plus its own columns.
- *
- * `liveSourceAccess` is the caller's live source proof, and defaults to admitting everything:
- * candidate ranking defers that proof until after ranking, exactly as
- * {@link knowledgeMetadataCandidateAccessCondition} does, and only a reader that already holds the
- * grants — content hydration — passes it. The connectors it would gate are listed separately so
- * that clause is applied to those alone.
- *
- * Either way it narrows exactly as the predicate it stands in for: the eligible ids are the
- * connectors that predicate's `EXISTS` would admit, and every document-level clause is carried
- * over unchanged.
- */
-export function knowledgeCandidateAccessConditionForConnectors(
-  scope: KnowledgeAccessScope | SystemAccessScope,
-  plan: SearchAccessPlan,
-  liveSourceAccess: SQL = sql`true`
-): SQL {
-  const eligibility = plan.connectors
-  if (scope.kind === 'system') return documentConnectorIsActive()
-  if (scope.tokens.length === 0) return sql`false`
-  const tokens = textArrayLiteral(scope.tokens)
-  const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
-  const liveProof = new Set(eligibility.liveProofRequired)
-  const inConnectors = (ids: readonly string[]): SQL =>
-    ids.length === 0
-      ? sql`false`
-      : sql`${document.connectorId} = ANY(${textArrayLiteral([...ids])})`
-  const mirrored = (ids: readonly string[], current: SQL): SQL => {
-    const direct = ids.filter((id) => !liveProof.has(id))
-    const gated = ids.filter((id) => liveProof.has(id))
-    const currentAndMirrored = sql`${document.acl} <> ARRAY['ws']::text[] AND ${current}`
-    return sql`(
-      (${inConnectors(direct)} AND ${currentAndMirrored})
-      OR (${inConnectors(gated)} AND ${currentAndMirrored} AND EXISTS (
-        SELECT 1 FROM ${knowledgeConnector}
-        WHERE ${knowledgeConnector.id} = ${document.connectorId}
-          AND ${liveSourceAccess}
-      ))
-    )`
-  }
-  const workspaceOwned = plan.uploads
-    ? sql`(${document.connectorId} IS NULL OR ${inConnectors(eligibility.workspace)})`
-    : inConnectors(eligibility.workspace)
-  return sql`(
-    ${aclOverlap(tokens)}
-    AND ${aclRequirementsSatisfied(tokens)}
-    AND (
-      (${workspaceOwned} AND ${document.acl} = ARRAY['ws']::text[])
-      OR ${mirrored(eligibility.admin, sql`${document.aclVerifiedAt} > ${cutoff}`)}
-      OR ${mirrored(eligibility.members, resolvedObservationCondition(plan.observers, cutoff))}
-    )
-  )`
-}
-
-/**
- * Whether a projection row belongs to a document marked for the knowledge projector: its source,
- * ACL, or chunks changed and its rows may not show it yet. A probe of the marks' primary key: the
- * planner may instead hash the whole set once per statement, which is as cheap while the marks are
- * few, and an `IN` would risk re-reading them per row once they outgrow the hash.
- */
-export function projectionPending(documentId: AnyPgColumn | SQL): SQL {
-  return sql`(EXISTS (SELECT 1 FROM ${knowledgeProjectionDirty} WHERE ${knowledgeProjectionDirty.documentId} = ${documentId}))`
-}
-
-/**
- * Whether a projection row is decided on its document rather than on its own columns: its
- * document is marked for the projector, or, while the source and ACL fill runs, the row has not
- * been filled.
- */
-export function projectionDecidedOnDocument(
-  projection: { acl: AnyPgColumn | SQL; documentId: AnyPgColumn | SQL },
-  filled: boolean
-): SQL {
-  const pending = projectionPending(projection.documentId)
-  return filled ? pending : sql`(${projection.acl} IS NULL OR ${pending})`
-}
-
-/**
- * The candidate predicate on a ranking projection's own row, for a scope whose connectors were
- * resolved: `connectorId` and `acl` are mirrored there from the document, so a walk or a keyword
- * window decides readability on the row it scores instead of joining `document` per candidate.
- *
- * It admits a superset of the document predicate, never a subset: a mirrored ACL names the members
- * who observe a document, so overlap with the caller's tokens is the per-row test without the
- * observation's freshness, and requirement clauses live on the document. Both are refused there,
- * under the full predicate, before content is returned — this predicate only decides what is worth
- * ranking.
- *
- * A row whose columns may be behind its document is decided on the document instead, under
- * {@link knowledgeCandidateAccessConditionForConnectors} — the join per candidate that every row
- * paid before the columns existed: a row the source and ACL fill has not reached (`acl IS NULL`),
- * and every row of a document marked for the knowledge projector. A revoked grant still on such a
- * row never admits it, and a new grant not yet on it never hides it from a statement that reaches
- * the row. A source-scoped walk or slice reaches rows by the source on the row, though, so a
- * document that moved to another source joins that source's ranking once the projector has
- * rewritten its rows; until then it can be missing there, never shown where it is not readable.
- * The projector and the fill run in the background, so search never waits on either.
- */
-export function projectionCandidateAccessCondition(
-  projection: {
-    connectorId: AnyPgColumn | SQL
-    acl: AnyPgColumn | SQL
-    documentId: AnyPgColumn | SQL
-  },
-  scope: KnowledgeAccessScope | SystemAccessScope,
-  plan: SearchAccessPlan,
-  options: {
-    /**
-     * Whether every row of the projection carries its mirrored source and ACL. While the fill
-     * is under way, a row it has not reached is decided on its document; once it is complete only
-     * a marked document's rows are.
-     */
-    filled?: boolean
-  } = {}
-): SQL {
-  if (scope.kind === 'system') return sql`true`
-  if (scope.tokens.length === 0) return sql`false`
-  const tokens = textArrayLiteral(scope.tokens)
-  const inSources = (ids: readonly string[]): SQL =>
-    ids.length === 0
-      ? sql`false`
-      : sql`${projection.connectorId} = ANY(${textArrayLiteral([...ids])})`
-  const mirrored = [
-    ...plan.connectors.workspace,
-    ...plan.connectors.admin,
-    ...plan.connectors.members,
-  ]
-  const owned = plan.uploads
-    ? sql`(${projection.connectorId} IS NULL OR ${inSources(mirrored)})`
-    : inSources(mirrored)
-  const onRow = sql`(${projection.acl} && ${tokens} AND ${owned})`
-  /**
-   * A scalar subquery rather than `EXISTS`: the planner may turn an `EXISTS` into one hash of every
-   * readable document, a sequential scan of `document` for a statement that only needs a few rows
-   * decided. A scalar subquery is only ever a primary-key probe per row that needs it.
-   */
-  const onDocument = sql`(SELECT ${document.id} FROM ${document}
-    WHERE ${document.id} = ${projection.documentId}
-      AND ${knowledgeCandidateAccessConditionForConnectors(scope, plan)}
-    LIMIT 1) IS NOT NULL`
-  return sql`((${projectionDecidedOnDocument(projection, options.filled ?? false)} AND ${onDocument})
-    OR (${onRow} AND NOT ${projectionPending(projection.documentId)}))`
 }
 
 /**
@@ -431,36 +211,6 @@ export function projectionCandidateAccessCondition(
  * inside the access predicate's `OR`, PostgreSQL instead hashes every observation in the table
  * once per statement, a fixed cost paid by every query that carries the predicate.
  */
-/**
- * The same membership, resolved ahead of the query: each candidate costs one lookup on the
- * observation key instead of a join to the member behind it. Equivalent by construction — the ids
- * are the members that join would have matched, and each one's freshness rule is carried over.
- */
-function resolvedObservationCondition(observers: KnowledgeMemberObservers, cutoff: SQL): SQL {
-  if (observers.confirmed.length === 0 && observers.observed.length === 0) return sql`false`
-  /**
-   * An observation vouches for a document only from a member of the document's own connector: a
-   * document that changed hands keeps its old observations, which must not carry it.
-   */
-  const byMember = (members: readonly KnowledgeMemberObserver[]): SQL =>
-    sql`(${knowledgeDocumentObservation.memberId}, ${document.connectorId}) IN (${sql.join(
-      members.map((member) => sql`(${member.id}, ${member.connectorId})`),
-      sql`, `
-    )})`
-  const current =
-    observers.confirmed.length === 0
-      ? sql`${byMember(observers.observed)} AND ${knowledgeDocumentObservation.lastSeenAt} > ${cutoff}`
-      : observers.observed.length === 0
-        ? byMember(observers.confirmed)
-        : sql`(${byMember(observers.confirmed)}
-            OR (${byMember(observers.observed)} AND ${knowledgeDocumentObservation.lastSeenAt} > ${cutoff}))`
-  return sql`EXISTS (
-    SELECT 1 FROM ${knowledgeDocumentObservation}
-    WHERE ${knowledgeDocumentObservation.documentId} = ${document.id}
-      AND ${current}
-  )`
-}
-
 function memberObservationCondition(tokens: SQL, cutoff: SQL): SQL {
   return sql`EXISTS (
     SELECT 1 FROM ${knowledgeDocumentObservation}
@@ -474,6 +224,21 @@ function memberObservationCondition(tokens: SQL, cutoff: SQL): SQL {
   )`
 }
 
+/** Source-derived grants count only while their evidence is younger than the freshness window. */
+export function sourceAclFreshnessCutoff(): SQL {
+  return sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
+}
+
+/** A document readable by the whole workspace: the ACL is exactly the workspace token. */
+export function documentHasWorkspaceAcl(): SQL {
+  return sql`${document.acl} = ARRAY['ws']::text[]`
+}
+
+/** A document carrying mirrored source permissions rather than the workspace token. */
+export function documentHasMirroredAcl(): SQL {
+  return sql`${document.acl} <> ARRAY['ws']::text[]`
+}
+
 function storedKnowledgeAccessCondition(
   scope: KnowledgeAccessScope | SystemAccessScope,
   liveSourceAccess: SQL
@@ -481,12 +246,12 @@ function storedKnowledgeAccessCondition(
   if (scope.kind === 'system') return documentConnectorIsActive()
   if (scope.tokens.length === 0) return sql`false`
   const tokens = textArrayLiteral(scope.tokens)
-  const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
+  const cutoff = sourceAclFreshnessCutoff()
   return sql`(
     ${aclOverlap(tokens)}
     AND ${aclRequirementsSatisfied(tokens)}
     AND (
-      (${document.connectorId} IS NULL AND ${document.acl} = ARRAY['ws']::text[])
+      (${document.connectorId} IS NULL AND ${documentHasWorkspaceAcl()})
       OR EXISTS (
         SELECT 1 FROM ${knowledgeConnector}
         WHERE ${knowledgeConnector.id} = ${document.connectorId}
@@ -496,8 +261,8 @@ function storedKnowledgeAccessCondition(
           AND ${searchIntegrationAccessCondition()}
           AND ${liveSourceAccess}
           AND (
-            (${knowledgeConnector.accessMode} = 'workspace' AND ${document.acl} = ARRAY['ws']::text[])
-            OR (${document.acl} <> ARRAY['ws']::text[] AND (
+            (${knowledgeConnector.accessMode} = 'workspace' AND ${documentHasWorkspaceAcl()})
+            OR (${documentHasMirroredAcl()} AND (
             (${knowledgeConnector.accessMode} = 'admin' AND ${document.aclVerifiedAt} > ${cutoff})
             OR (${knowledgeConnector.accessMode} = 'members' AND ${memberObservationCondition(tokens, cutoff)})
             ))
@@ -508,21 +273,10 @@ function storedKnowledgeAccessCondition(
 }
 
 /**
- * The token half of the stored access predicate: the documents a caller's tokens reach before
- * any source, freshness, or requirement check narrows them. It is a necessary condition of
- * {@link knowledgeAccessCondition}, never a substitute for it.
- *
- * Paired with `deleted_at IS NULL` it matches `doc_acl_gin_idx` exactly, so a query can enumerate
- * a member's reachable documents from that index alone. PostgreSQL cannot estimate array-overlap
- * selectivity, so left to itself it intersects this highly selective bitmap with base-wide ones.
+ * The token half of the stored access predicate: one spelling of the overlap, so the indexed
+ * search probe's reach and the full predicate cannot drift.
  */
-export function knowledgeAclOverlapCondition(scope: KnowledgeAccessScope): SQL {
-  if (scope.tokens.length === 0) return sql`false`
-  return aclOverlap(textArrayLiteral(scope.tokens))
-}
-
-/** One spelling of the token overlap, so the probe's reach and the full predicate cannot drift. */
-function aclOverlap(tokens: SQL): SQL {
+export function aclOverlap(tokens: SQL): SQL {
   return sql`${document.acl} && ${tokens}`
 }
 

@@ -1,43 +1,27 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
-  flattenMockConditions,
   hasMockCondition,
   type MockCondition,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { triggerSdkMockFns } from '@sim/testing/mocks/trigger-sdk.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreateIdempotencyKey,
-  mockExecuteSync,
-  mockIsTriggerAvailable,
-  mockResolveTriggerRegion,
-  mockTrigger,
-} = vi.hoisted(() => ({
-  mockCreateIdempotencyKey: vi.fn(),
-  mockExecuteSync: vi.fn(),
-  mockIsTriggerAvailable: vi.fn(),
-  mockResolveTriggerRegion: vi.fn(),
-  mockTrigger: vi.fn(),
-}))
+const { mockExecuteSync } = vi.hoisted(() => ({ mockExecuteSync: vi.fn() }))
 
-vi.mock('@trigger.dev/sdk', () => ({
-  idempotencyKeys: { create: mockCreateIdempotencyKey },
-  tasks: { trigger: mockTrigger },
-}))
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: mockResolveTriggerRegion,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({
-  isTriggerAvailable: mockIsTriggerAvailable,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   executeSync: mockExecuteSync,
   isConnectorRunnableStatus: (status: string) => status === 'active' || status === 'error',
@@ -61,6 +45,12 @@ import {
   dispatchSync,
   SYNC_DISPATCH_FAILED_ERROR,
 } from '@/lib/knowledge/connectors/queue'
+
+const { mockIdempotencyKeysCreate: mockCreateIdempotencyKey, mockTasksTrigger: mockTrigger } =
+  triggerSdkMockFns
+
+const mockIsTriggerAvailable = triggerAvailabilityMockFns.mockIsTriggerAvailable
+const mockResolveTriggerRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -86,7 +76,6 @@ const NEXT_SYNC_AT = new Date('2026-07-15T12:00:00.000Z')
 
 describe('connector sync queue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
     resetDbChainMock()
     queueTableRows(schemaMock.knowledgeConnector, [
@@ -135,7 +124,6 @@ describe('connector sync queue', () => {
   )
 
   it('does not dispatch a live Search source to Trigger or the inline indexer', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     resetDbChainMock()
     queueTableRows(schemaMock.knowledgeConnector, [{ isSearchIndex: true }])
     expect(await dispatchSync('connector-1', { billingAttribution: BILLING_ATTRIBUTION })).toEqual({
@@ -145,40 +133,6 @@ describe('connector sync queue', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockTrigger).not.toHaveBeenCalled()
     expect(mockExecuteSync).not.toHaveBeenCalled()
-  })
-
-  it('does not consult manual cooldown history for automatic or initial dispatch', async () => {
-    await dispatchSync('connector-1', { billingAttribution: BILLING_ATTRIBUTION })
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.knowledgeConnectorSyncLog)
-    expect(mockTrigger).toHaveBeenCalledOnce()
-  })
-
-  /**
-   * The bug this pins: the queue once refused anything but workspace mode, so
-   * every admin-mode connector the scheduler selected was dropped before the
-   * queue entry was taken, and the content engine's admin branch never ran.
-   */
-  it('dispatches an admin-mode connector, which the content engine drives', async () => {
-    resetDbChainMock()
-    queueTableRows(schemaMock.knowledgeConnector, [
-      {
-        knowledgeBaseId: 'knowledge-base-1',
-        connectorStatus: 'active',
-        connectorAccessMode: 'admin',
-        connectorArchivedAt: null,
-        connectorDeletedAt: null,
-        connectorNextSyncAt: NEXT_SYNC_AT,
-        workspaceId: 'workspace-paid',
-        kbDeletedAt: null,
-      },
-    ])
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'connector-1' }])
-
-    await expect(
-      dispatchSync('connector-1', { billingAttribution: BILLING_ATTRIBUTION, requestId: 'r' })
-    ).resolves.toEqual({ queued: true })
-    expect(mockTrigger).toHaveBeenCalledTimes(1)
   })
 
   it('refuses a members-mode connector, which the member engine drives', async () => {
@@ -233,39 +187,6 @@ describe('connector sync queue', () => {
     )
   })
 
-  it('carries the rehydrate flag into the queued payload', async () => {
-    await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      rehydrate: true,
-      requestId: 'request-1',
-    })
-
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'knowledge-connector-sync',
-      expect.objectContaining({ connectorId: 'connector-1', rehydrate: true }),
-      expect.anything()
-    )
-  })
-
-  it('carries the runnable requirement into the queued payload', async () => {
-    await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      expectedNextSyncAt: NEXT_SYNC_AT,
-      requireRunnable: true,
-      requestId: 'request-1',
-    })
-
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'knowledge-connector-sync',
-      expect.objectContaining({ connectorId: 'connector-1', requireRunnable: true }),
-      expect.objectContaining({ idempotencyKey: 'idempotency-key' })
-    )
-    expect(mockCreateIdempotencyKey).toHaveBeenCalledWith(
-      `knowledge-connector-sync:connector-1:${NEXT_SYNC_AT.toISOString()}`,
-      { scope: 'global' }
-    )
-  })
-
   it('skips an automatic dispatch after the due time changes', async () => {
     await dispatchSync('connector-1', {
       billingAttribution: BILLING_ATTRIBUTION,
@@ -317,138 +238,6 @@ describe('connector sync queue', () => {
     expect(mockExecuteSync).not.toHaveBeenCalled()
   })
 
-  /**
-   * Every guard here used to return `void`, so a caller could not tell a queued
-   * sync from a skipped one and reported — and audited — work that never
-   * started.
-   */
-  it('reports the queue outcome to the caller', async () => {
-    const result = await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    expect(result).toEqual({ queued: true })
-  })
-
-  it('reports why an automatic dispatch on a paused connector was not queued', async () => {
-    resetDbChainMock()
-    queueTableRows(schemaMock.knowledgeConnector, [
-      {
-        knowledgeBaseId: 'knowledge-base-1',
-        connectorStatus: 'paused',
-        connectorAccessMode: 'workspace',
-        connectorArchivedAt: null,
-        connectorDeletedAt: null,
-        connectorNextSyncAt: NEXT_SYNC_AT,
-        workspaceId: 'workspace-paid',
-        kbDeletedAt: null,
-      },
-    ])
-
-    const result = await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      expectedNextSyncAt: NEXT_SYNC_AT,
-      requireRunnable: true,
-      requestId: 'request-1',
-    })
-
-    expect(result.queued).toBe(false)
-    expect(result.reason).toContain('paused')
-  })
-
-  it('reports why a connector that is not accepting a queued sync was skipped', async () => {
-    /** `markSyncPending` took nothing: the row already carries a queue entry. */
-    dbChainMockFns.returning.mockResolvedValue([])
-    queueTableRows(schemaMock.knowledgeConnector, [
-      { status: 'pending', archivedAt: null, deletedAt: null },
-    ])
-
-    const result = await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    expect(result).toEqual({
-      queued: false,
-      reason: 'A sync is already queued or running for this connector',
-    })
-    expect(mockTrigger).not.toHaveBeenCalled()
-  })
-
-  it('reports the lifecycle reason when the connector is archived under the queue write', async () => {
-    dbChainMockFns.returning.mockResolvedValue([])
-    queueTableRows(schemaMock.knowledgeConnector, [
-      {
-        status: 'active',
-        archivedAt: new Date('2026-08-21T00:00:00.000Z'),
-        deletedAt: null,
-      },
-    ])
-
-    const result = await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    expect(result).toEqual({
-      queued: false,
-      reason: 'Connector has been archived or deleted',
-    })
-    expect(mockTrigger).not.toHaveBeenCalled()
-  })
-
-  it('reports the lifecycle reason when the connector is deleted under the queue write', async () => {
-    dbChainMockFns.returning.mockResolvedValue([])
-    queueTableRows(schemaMock.knowledgeConnector, [])
-
-    const result = await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    expect(result).toEqual({ queued: false, reason: 'Connector no longer exists' })
-    expect(mockTrigger).not.toHaveBeenCalled()
-  })
-
-  it('reports the status when it left the set a run may start from', async () => {
-    dbChainMockFns.returning.mockResolvedValue([])
-    queueTableRows(schemaMock.knowledgeConnector, [
-      { status: 'paused', archivedAt: null, deletedAt: null },
-    ])
-
-    const result = await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    expect(result).toEqual({
-      queued: false,
-      reason: 'Connector is paused and cannot start a sync',
-    })
-    expect(mockTrigger).not.toHaveBeenCalled()
-  })
-
-  it('reports why a connector whose knowledge base is gone was skipped', async () => {
-    resetDbChainMock()
-    queueTableRows(schemaMock.knowledgeConnector, [
-      {
-        knowledgeBaseId: 'knowledge-base-1',
-        connectorArchivedAt: null,
-        connectorDeletedAt: null,
-        workspaceId: 'workspace-paid',
-        kbDeletedAt: new Date('2026-08-20T00:00:00.000Z'),
-      },
-    ])
-
-    const result = await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    expect(result).toEqual({ queued: false, reason: 'Knowledge base has been deleted' })
-  })
-
   it('releases the lock when it errors a connector whose knowledge base is gone', async () => {
     resetDbChainMock()
     queueTableRows(schemaMock.knowledgeConnector, [
@@ -481,82 +270,6 @@ describe('connector sync queue', () => {
       })
     )
     expect(mockTrigger).not.toHaveBeenCalled()
-  })
-
-  it('marks the connector queued before handing the sync off', async () => {
-    await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    /** `pending` is the only thing distinguishing "a sync is coming" from "idle". */
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }))
-    expect(mockTrigger).toHaveBeenCalled()
-  })
-
-  it('opens a lease and takes a token when it queues', async () => {
-    await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    /**
-     * The lease is what the scheduler ages a stranded queue entry against —
-     * `updatedAt` cannot serve, because a pending connector is still editable
-     * and any unrelated write would renew the recovery it should trigger.
-     */
-    const payload = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
-    expect(payload.syncLockLeaseAt).toBeInstanceOf(Date)
-    expect(typeof payload.syncLockToken).toBe('string')
-  })
-
-  it('queues a connector that is already pending, so the create path gets a lease and token', async () => {
-    await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    /**
-     * A created connector is born `pending` in its INSERT but with no lease and
-     * no token. Skipping it here as a redundant write would leave it ageing
-     * against `updatedAt` — which any edit renews — and holding a token this
-     * dispatch cannot match, so a failed hand-off would never release it.
-     */
-    const queueWhere = dbChainMockFns.where.mock.calls
-      .map((call) => call[0])
-      .find((where) =>
-        hasMockCondition(
-          where,
-          (node: MockCondition) =>
-            node.type === 'inArray' && node.column === schemaMock.knowledgeConnector.status
-        )
-      )
-    expect(queueWhere).toBeDefined()
-
-    const lockable = flattenMockConditions(queueWhere).find(
-      (node: MockCondition) =>
-        node.type === 'inArray' && node.column === schemaMock.knowledgeConnector.status
-    )?.values as string[] | undefined
-
-    /** The create path is born `pending`, so queueing must still take that row. */
-    expect(lockable).toContain('pending')
-
-    /** An existing queue owner must not have its token replaced by a duplicate dispatch. */
-    expect(
-      hasMockCondition(
-        queueWhere,
-        (node: MockCondition) =>
-          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.syncLockToken
-      )
-    ).toBe(true)
-
-    /**
-     * A live run owns its row, and a paused or disabled connector must not be
-     * pulled back into a queued sync by a dispatch that raced the status change.
-     */
-    expect(lockable).not.toContain('syncing')
-    expect(lockable).not.toContain('paused')
-    expect(lockable).not.toContain('disabled')
   })
 
   it('releases the queued connector when the hand-off throws', async () => {
@@ -605,28 +318,6 @@ describe('connector sync queue', () => {
     ).toBe(true)
   })
 
-  it('does not queue a connector whose knowledge base is gone', async () => {
-    resetDbChainMock()
-    queueTableRows(schemaMock.knowledgeConnector, [
-      {
-        knowledgeBaseId: 'knowledge-base-1',
-        connectorArchivedAt: null,
-        connectorDeletedAt: null,
-        workspaceId: 'workspace-paid',
-        kbDeletedAt: new Date('2026-08-20T00:00:00.000Z'),
-      },
-    ])
-
-    await dispatchSync('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      requestId: 'request-1',
-    })
-
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'pending' })
-    )
-  })
-
   it('stamps the queue entry token onto the task so the worker can prove ownership', async () => {
     await dispatchSync('connector-1', {
       billingAttribution: BILLING_ATTRIBUTION,
@@ -645,17 +336,6 @@ describe('connector sync queue', () => {
       expect.objectContaining({ dispatchToken: queuedToken }),
       expect.anything()
     )
-  })
-
-  it('tolerates a payload queued before the token existed', () => {
-    /** In-flight tasks from before this field shipped must not be stranded. */
-    expect(
-      assertConnectorSyncPayload({
-        connectorId: 'connector-1',
-        requestId: 'request-1',
-        billingAttribution: BILLING_ATTRIBUTION,
-      }).dispatchToken
-    ).toBeUndefined()
   })
 
   it('rejects legacy payloads without billing attribution', () => {

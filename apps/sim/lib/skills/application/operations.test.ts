@@ -1,20 +1,16 @@
-/**
- * @vitest-environment node
- */
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-}))
-
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -90,11 +86,7 @@ describe('skill operation registry', () => {
    */
   it('cannot resolve an acting subject for a workspace key', () => {
     expect(() =>
-      requirePrincipalSubjectUserId({
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key-1',
-      })
+      requirePrincipalSubjectUserId(createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }))
     ).toThrow(/does not represent a human subject/)
   })
 
@@ -127,7 +119,7 @@ describe('skill operation registry', () => {
   })
 })
 
-const sessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const sessionPrincipal = createSessionPrincipal()
 const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -140,8 +132,7 @@ const context = {
  */
 describe('skill operations under a group that blocks skills', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolvePermission.mockResolvedValue('admin')
+    resolvePermission.mockResolvedValue('admin')
   })
 
   it('refuses authoring and editor grants, not only loading', async () => {

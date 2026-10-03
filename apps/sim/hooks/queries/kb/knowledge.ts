@@ -58,7 +58,6 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/searc
 import type { NativeSearchQuery } from '@/lib/api/contracts/mothership-assistant-tools'
 import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -98,10 +97,11 @@ export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export async function fetchKnowledgeBases(
   workspaceId?: string,
   scope: KnowledgeQueryScope = 'active',
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeCounts = false
 ): Promise<KnowledgeBaseData[]> {
   const result = await requestJson(listKnowledgeBasesContract, {
-    query: { workspaceId, scope },
+    query: { workspaceId, scope, includeCounts },
     signal,
   })
 
@@ -238,12 +238,17 @@ export function useKnowledgeBasesQuery(
   options?: {
     enabled?: boolean
     scope?: KnowledgeQueryScope
+    /** Adds each base's `docCount` and `tokenCount`, for the one surface that renders them. */
+    includeCounts?: boolean
   }
 ) {
   const scope = options?.scope ?? 'active'
+  const includeCounts = options?.includeCounts ?? false
   return useQuery({
-    queryKey: knowledgeKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal),
+    queryKey: includeCounts
+      ? knowledgeKeys.countedList(workspaceId, scope)
+      : knowledgeKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal, includeCounts),
     enabled: options?.enabled ?? true,
     staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
   })
@@ -590,9 +595,9 @@ export function useDeleteDocument() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
-      /** The knowledge-base list rows carry `docCount`, so removing a document changes them too. */
+      /** The counted list rows carry `docCount`, so removing a document changes them too. */
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.lists(),
+        queryKey: knowledgeKeys.countedLists(),
       })
     },
   })
@@ -632,10 +637,10 @@ export function useBulkDocumentOperation() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
-      /** Only a bulk delete changes the `docCount` the knowledge-base list rows render. */
+      /** Only a bulk delete changes the `docCount` the counted list rows render. */
       if (operation === 'delete') {
         queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.lists(),
+          queryKey: knowledgeKeys.countedLists(),
         })
       }
     },
@@ -1208,15 +1213,9 @@ async function searchWorkspaceKnowledge(
 interface WorkspaceKnowledgeSearchOptions {
   nativeQueries?: NativeSearchQuery[]
   reuseFreshResult?: boolean
-  /**
-   * Keeps the previous result painted when only the result limit changes. Set it when the
-   * surface owns the limit (Show more widens the same search); leave it off when the limit is
-   * part of what was asked for, so a new limit is a new search that never shows the old one.
-   */
-  retainAcrossLimits?: boolean
 }
 
-/** Searches the canonical index under the signed-in person's ACLs. */
+/** Searches connected providers with the signed-in person's access. */
 export function useWorkspaceKnowledgeSearch(
   owner: string | ResourceScope | undefined,
   query: string,
@@ -1224,10 +1223,7 @@ export function useWorkspaceKnowledgeSearch(
   topK = 20,
   options?: WorkspaceKnowledgeSearchOptions
 ) {
-  const { features } = useDeploymentShape()
-  const live = features.liveEnterpriseSearch === true
   const { data: session } = useSession()
-  const queryClient = useQueryClient()
   const userId = session?.user?.id
   const trimmed = query.trim()
   const scope =
@@ -1241,7 +1237,7 @@ export function useWorkspaceKnowledgeSearch(
   return useQuery({
     queryKey: [
       ...knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId, options?.nativeQueries),
-      live ? 'live' : 'indexed',
+      'live',
     ],
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
@@ -1250,7 +1246,7 @@ export function useWorkspaceKnowledgeSearch(
           query: trimmed,
           filters,
           topK,
-          ...(live && options?.nativeQueries ? { nativeQueries: options.nativeQueries } : {}),
+          ...(options?.nativeQueries ? { nativeQueries: options.nativeQueries } : {}),
         },
         signal
       ),
@@ -1263,21 +1259,7 @@ export function useWorkspaceKnowledgeSearch(
           filters?.modifiedAfter ||
           filters?.modifiedBefore
       ),
-    staleTime: live
-      ? options?.reuseFreshResult
-        ? 60_000
-        : 0
-      : WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
+    staleTime: options?.reuseFreshResult ? WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME : 0,
     retry: false,
-    placeholderData: (previous, previousQuery) => {
-      if (live || !userId || previousQuery?.state.status !== 'success') return undefined
-      if (previousQuery.state.isInvalidated) return undefined
-      const prefix = knowledgeKeys.searchQuery(scopeKey, trimmed, userId)
-      if (!prefix.every((part, index) => previousQuery.queryKey[index] === part)) return undefined
-      /** `search()` appends filters, then the limit, after the reader/query prefix. */
-      const previousTopK = previousQuery.queryKey[prefix.length + 1]
-      if (!options?.retainAcrossLimits && previousTopK !== topK) return undefined
-      return queryClient.getQueryData(previousQuery.queryKey) === previous ? previous : undefined
-    },
   })
 }

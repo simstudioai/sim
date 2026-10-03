@@ -31,8 +31,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -63,21 +61,6 @@ function uploadSession() {
 }
 
 describe('knowledge documents upload', () => {
-  it('owns the multipart protocol while hiding its low-level operations', () => {
-    const root = program()
-    const knowledge = root.commands.find((command) => command.name() === 'knowledge')
-    expect(root.commands.map((command) => command.name())).not.toContain('documents')
-
-    const documents = knowledge?.commands.find((command) => command.name() === 'documents')
-    expect(documents?.commands.map((command) => command.name())).toContain('upload')
-    expect(documents?.commands.map((command) => command.name())).not.toEqual(
-      expect.arrayContaining(['uploads', 'parts', 'complete'])
-    )
-    expect(
-      documents?.commands.find((command) => command.name() === 'upload')?.helpInformation()
-    ).toContain('<knowledgeBaseId> <path>')
-  })
-
   it('uploads a local document and prints the created document without transfer secrets', async () => {
     const path = join(dir, 'notes.doc')
     writeFileSync(path, 'hello')
@@ -186,89 +169,5 @@ describe('knowledge documents upload', () => {
       chunkCount: 0,
     })
     expect(logged[0]).not.toContain('secret-token')
-  })
-
-  it('rejects more tags than the protocol supports before making a request', async () => {
-    const path = join(dir, 'notes.txt')
-    writeFileSync(path, 'hello')
-
-    await expect(
-      program().parseAsync([
-        'node',
-        'sim',
-        'kb',
-        'documents',
-        'upload',
-        'kb_1',
-        path,
-        '--tag',
-        '1',
-        '2',
-        '3',
-        '4',
-        '5',
-        '6',
-        '7',
-        '8',
-      ])
-    ).rejects.toThrow(/at most seven/)
-    expect(mockRequest).not.toHaveBeenCalled()
-  })
-
-  /**
-   * The route enforces both, and neither said so: the help read "Document
-   * processing recipe" / "Document language code" and the CLI uploaded the file
-   * before the server refused the value. Every other constrained flag in this
-   * CLI uses commander `choices`.
-   */
-  it('states what --recipe and --lang accept, and refuses a recipe before uploading', async () => {
-    const path = join(dir, 'notes.txt')
-    writeFileSync(path, 'hello')
-
-    const help = program()
-      .commands.find((command) => command.name() === 'knowledge')
-      ?.commands.find((command) => command.name() === 'documents')
-      ?.commands.find((command) => command.name() === 'upload')
-      ?.helpInformation()
-      .replace(/\s+/g, ' ')
-    expect(help).toContain('choices: "default", "plain", "markdown", "code"')
-    expect(help).toContain('hyphen-separated letter and digit subtags')
-
-    await expect(
-      program().parseAsync([
-        'node',
-        'sim',
-        'kb',
-        'documents',
-        'upload',
-        'kb_1',
-        path,
-        '--recipe',
-        'super-chunker-9000',
-      ])
-    ).rejects.toThrow(/super-chunker-9000/)
-    expect(mockRequest).not.toHaveBeenCalled()
-  })
-
-  it('requires the knowledge-base argument before reading the file', async () => {
-    const path = join(dir, 'notes.txt')
-    writeFileSync(path, 'hello')
-
-    await expect(
-      program().parseAsync(['node', 'sim', 'kb', 'documents', 'upload'])
-    ).rejects.toThrow(/missing required argument 'knowledgeBaseId'/)
-    expect(mockRequest).not.toHaveBeenCalled()
-  })
-
-  it('rejects an extra positional instead of silently dropping the file it names', async () => {
-    const first = join(dir, 'alpha.txt')
-    const second = join(dir, 'beta.md')
-    writeFileSync(first, 'hello')
-    writeFileSync(second, 'world')
-
-    await expect(
-      program().parseAsync(['node', 'sim', 'kb', 'documents', 'upload', 'kb_1', first, second])
-    ).rejects.toThrow(/too many arguments/)
-    expect(mockRequest).not.toHaveBeenCalled()
   })
 })

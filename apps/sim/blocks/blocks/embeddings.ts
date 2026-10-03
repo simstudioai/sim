@@ -18,7 +18,6 @@ import {
 import type { EmbeddingTaskType } from '@/lib/embeddings/types'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { EmbeddingsResponse } from '@/tools/embeddings/types'
 
 export const EMBEDDING_BLOCK_PROVIDERS = [
   ...EMBEDDING_CATALOG_PROVIDERS,
@@ -159,7 +158,7 @@ const CAPABILITY_SUB_BLOCKS: SubBlockConfig[] = Object.entries(EMBEDDING_MODELS)
   }
 )
 
-export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
+export const EmbeddingsBlock: BlockConfig = {
   type: 'embeddings',
   name: 'Embeddings',
   description: 'Generate embeddings',

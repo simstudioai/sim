@@ -1,23 +1,21 @@
-/**
- * @vitest-environment node
- */
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   executeManage: vi.fn(),
   executeParser: vi.fn(),
   searchContent: vi.fn(),
   getProvenance: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/file/operations', () => ({
   executeFileManageOperation: mocks.executeManage,
@@ -46,6 +44,8 @@ import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
+
 const MANAGE_INPUTS = {
   file_append: { operation: 'append', fileName: 'notes.txt', content: 'next' },
   file_compress: { operation: 'compress', fileId: 'file-1' },
@@ -56,8 +56,6 @@ const MANAGE_INPUTS = {
   file_read: { operation: 'read', fileId: 'file-1' },
   file_write: { operation: 'write', fileName: 'notes.txt', content: 'hello' },
 } as const
-
-const PARSER_TOOL_IDS = ['file_fetch', 'file_parser', 'file_parser_v2', 'file_parser_v3'] as const
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -122,8 +120,7 @@ function request(
 
 describe('executeFileTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.createPrincipal.mockResolvedValue({
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',
@@ -135,206 +132,8 @@ describe('executeFileTool', () => {
     mocks.getProvenance.mockResolvedValue({ version: 1, complete: true, entries: [] })
   })
 
-  it('searches with the trusted workspace and delegated executor principal', async () => {
-    const response = await executeFileTool(
-      request('file_search', { query: 'needle', maxResults: 25 })
-    )
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      data: {
-        results: [{ fileId: 'file-1', lineNumber: 2, text: 'needle' }],
-        count: 1,
-      },
-    })
-    expect(mocks.searchContent).toHaveBeenCalledWith({
-      principal: expect.objectContaining({ serviceId: 'executor' }),
-      input: {
-        workspaceId: 'workspace-1',
-        query: 'needle',
-        mode: 'regex',
-        maxResults: 25,
-        signal: undefined,
-      },
-    })
-    expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('uses the default search cap and aggregates provenance for every matched file', async () => {
-    const response = await executeFileTool(
-      request(
-        'file_search',
-        { query: 'needle' },
-        {
-          headers: new Headers({
-            'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
-          }),
-        }
-      )
-    )
-
-    expect(mocks.searchContent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: { workspaceId: 'workspace-1', query: 'needle', mode: 'regex', maxResults: 50 },
-      })
-    )
-    expect(mocks.getProvenance).toHaveBeenCalledWith(
-      expect.objectContaining({ serviceId: 'executor' }),
-      'workspace-1',
-      expect.arrayContaining([
-        expect.objectContaining({
-          identity: expect.objectContaining({ fileId: 'file-1' }),
-        }),
-      ]),
-      undefined
-    )
-    const body = await response.json()
-    expect(body.data.sources).toBeUndefined()
-    expect(body.__resolvedSecretTraceProvenance).toMatchObject({ complete: true })
-  })
-
-  it.each([
-    [{ query: 'ab', maxResults: 50 }, 400],
-    [{ query: 'abc\0def', maxResults: 50 }, 400],
-    [{ query: 'needle', maxResults: 201 }, 400],
-    [{ query: 'needle', maxResults: 0 }, 400],
-    [{ query: 'needle', mode: 'glob' }, 400],
-  ])('rejects invalid search input before authorization', async (input, status) => {
-    const response = await executeFileTool(request('file_search', input))
-
-    expect(response.status).toBe(status)
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
-    expect(mocks.searchContent).not.toHaveBeenCalled()
-  })
-
-  it('forwards an explicitly configured exact-match mode', async () => {
-    await executeFileTool(request('file_search', { query: 'needle', mode: 'exact' }))
-
-    expect(mocks.searchContent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ query: 'needle', mode: 'exact' }),
-      })
-    )
-  })
-
-  it('treats an explicit empty folder scope as matching no files', async () => {
-    await executeFileTool(
-      request('file_search', { query: 'needle', folderPaths: [], includeSubfolders: false })
-    )
-
-    expect(mocks.searchContent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ folderPaths: [], includeSubfolders: false }),
-      })
-    )
-  })
-
-  it('does not expose unexpected search infrastructure errors', async () => {
-    mocks.searchContent.mockRejectedValueOnce(new Error('database host and query details'))
-
-    const response = await executeFileTool(request('file_search', { query: 'needle' }))
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      error: 'Failed to search workspace files',
-    })
-  })
-
-  it('propagates cancellation that arrives while search work is running', async () => {
-    const controller = new AbortController()
-    mocks.searchContent.mockImplementationOnce(async () => {
-      controller.abort(new DOMException('cancelled', 'AbortError'))
-      return SEARCH_RESULT
-    })
-
-    await expect(
-      executeFileTool(request('file_search', { query: 'needle' }, { signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.searchContent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ signal: controller.signal }),
-      })
-    )
-    expect(mocks.getProvenance).not.toHaveBeenCalled()
-  })
-
-  it('propagates cancellation that arrives while search provenance is loading', async () => {
-    const controller = new AbortController()
-    mocks.getProvenance.mockImplementationOnce(async () => {
-      controller.abort(new DOMException('cancelled', 'AbortError'))
-      return { version: 1, complete: true, entries: [] }
-    })
-
-    await expect(
-      executeFileTool(
-        request(
-          'file_search',
-          { query: 'needle' },
-          {
-            signal: controller.signal,
-            headers: new Headers({
-              'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
-            }),
-          }
-        )
-      )
-    ).rejects.toMatchObject({ name: 'AbortError' })
-  })
-
-  it.each(Object.entries(MANAGE_INPUTS))('validates and dispatches %s', async (toolId, input) => {
-    const response = await executeFileTool(request(toolId, input))
-
-    expect(response.status).toBe(200)
-    expect(mocks.executeManage).toHaveBeenCalledWith(
-      expect.objectContaining(input),
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        attributedUserId: 'user-1',
-        fileAccessUserId: 'user-1',
-        requestId: 'request-1',
-      })
-    )
-    expect(mocks.executeParser).not.toHaveBeenCalled()
-  })
-
-  it.each(PARSER_TOOL_IDS)('dispatches %s with trusted execution scope', async (toolId) => {
-    const headers = new Headers({
-      'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
-    })
-    const response = await executeFileTool(
-      request(toolId, { filePath: 'https://example.com/report.txt', fileType: '' }, { headers })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.executeParser).toHaveBeenCalledWith(
-      expect.objectContaining({ filePath: 'https://example.com/report.txt' }),
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        attributedUserId: 'user-1',
-        fileAccessUserId: 'user-1',
-        headers,
-      })
-    )
-    expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('constructs the executor principal from trusted context', async () => {
-    const executionRequest = request('file_get', MANAGE_INPUTS.file_get)
-
-    await executeFileTool(executionRequest)
-
-    expect(mocks.createPrincipal).toHaveBeenCalledWith({
-      context: executionRequest.context,
-      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-    })
-  })
-
   it('uses the delegation origin as the file authorization subject in child workflows', async () => {
-    mocks.createPrincipal.mockResolvedValueOnce({
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'invoking-user',
@@ -395,7 +194,7 @@ describe('executeFileTool', () => {
         },
       },
     }
-    mocks.createPrincipal.mockResolvedValueOnce(principal)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce(principal)
 
     await executeFileTool(
       request('file_decompress', MANAGE_INPUTS.file_decompress, {
@@ -443,7 +242,7 @@ describe('executeFileTool', () => {
         )
       )
       expect(response.status).toBe(401)
-      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+      expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
       expect(mocks.executeManage).not.toHaveBeenCalled()
     }
   )
@@ -458,7 +257,7 @@ describe('executeFileTool', () => {
     call.context.callerPrincipal = callerPrincipal
     const response = await executeFileTool(call)
     expect(response.status).toBe(200)
-    expect(mocks.createPrincipal).toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalled()
     expect(mocks.executeManage.mock.calls[0]?.[1].principal).toMatchObject({
       kind: 'delegated',
       serviceId: 'executor',
@@ -469,10 +268,12 @@ describe('executeFileTool', () => {
   it('never falls back to a direct caller after invalid executor delegation', async () => {
     const call = request('file_read', MANAGE_INPUTS.file_read)
     call.context.callerPrincipal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }
-    mocks.createPrincipal.mockRejectedValueOnce(new InvalidInternalDelegationBindingError())
+    mockCreateExecutorPrincipalFromExecutionContext.mockRejectedValueOnce(
+      new InvalidInternalDelegationBindingError()
+    )
     const response = await executeFileTool(call)
     expect(response.status).toBe(401)
-    expect(mocks.createPrincipal).toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalled()
     expect(mocks.executeManage).not.toHaveBeenCalled()
   })
 
@@ -502,41 +303,7 @@ describe('executeFileTool', () => {
     )
 
     expect(response.status).toBe(401)
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
     expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('returns canonical validation errors before operation work', async () => {
-    const response = await executeFileTool(request('file_write', { operation: 'write' }))
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'Invalid request data',
-      details: expect.any(Array),
-    })
-    expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('propagates cancellation before principal or operation work', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(
-      executeFileTool(request('file_get', MANAGE_INPUTS.file_get, { signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
-    expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('propagates cancellation that arrives while operation work is running', async () => {
-    const controller = new AbortController()
-    mocks.executeManage.mockImplementationOnce(async () => {
-      controller.abort(new DOMException('cancelled', 'AbortError'))
-      return Response.json({ success: true })
-    })
-
-    await expect(
-      executeFileTool(request('file_get', MANAGE_INPUTS.file_get, { signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

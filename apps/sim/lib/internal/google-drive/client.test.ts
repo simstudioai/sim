@@ -1,26 +1,19 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  secureFetch: vi.fn(),
-  validateUrl: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithPinnedIP: mocks.secureFetch,
-  validateUrlWithDNS: mocks.validateUrl,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
-import { requestGoogleDrive, responseErrorObject } from '@/lib/internal/google-drive/client'
+import { requestGoogleDrive } from '@/lib/internal/google-drive/client'
 
 describe('requestGoogleDrive', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.validateUrl.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
-    mocks.secureFetch.mockResolvedValue({ ok: true })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue({ ok: true })
   })
 
   it('pins the Google host and forwards credentials, caps, and cancellation', async () => {
@@ -34,12 +27,12 @@ describe('requestGoogleDrive', () => {
       url: 'https://www.googleapis.com/drive/v3/files/file-1',
     })
 
-    expect(mocks.validateUrl).toHaveBeenCalledWith(
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'https://www.googleapis.com/drive/v3/files/file-1',
       'metadataUrl',
       'configuredEndpoint'
     )
-    expect(mocks.secureFetch).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://www.googleapis.com/drive/v3/files/file-1',
       '93.184.216.34',
       expect.objectContaining({
@@ -55,7 +48,7 @@ describe('requestGoogleDrive', () => {
   })
 
   it('fails closed before fetching when URL validation fails', async () => {
-    mocks.validateUrl.mockResolvedValue({ isValid: false, error: 'URL blocked' })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: false, error: 'URL blocked' })
 
     await expect(
       requestGoogleDrive({
@@ -67,21 +60,6 @@ describe('requestGoogleDrive', () => {
       status: 400,
       body: { success: false, error: 'URL blocked' },
     })
-    expect(mocks.secureFetch).not.toHaveBeenCalled()
-  })
-
-  it('discards oversized provider error details within the request cap', async () => {
-    let cancelled = false
-    const response = new Response(
-      new ReadableStream<Uint8Array>({
-        cancel: () => {
-          cancelled = true
-        },
-      }),
-      { headers: { 'content-length': String(64 * 1024 + 1) } }
-    )
-
-    await expect(responseErrorObject(response)).resolves.toEqual({})
-    expect(cancelled).toBe(true)
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 })

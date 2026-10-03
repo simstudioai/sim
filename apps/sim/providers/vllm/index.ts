@@ -22,6 +22,8 @@ import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -39,12 +41,12 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  checkForForcedToolUsageOpenAI,
   isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import { checkForForcedToolUsage, createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
 import { useProvidersStore } from '@/stores/providers'
 
 const logger = createLogger('VLLMProvider')
@@ -199,14 +201,7 @@ export const vllmProvider: ProviderConfig = {
     if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
     if (request.responseFormat) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
-      }
+      payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
 
       logger.info('Added JSON schema response format to vLLM request')
     }
@@ -262,9 +257,10 @@ export const vllmProvider: ProviderConfig = {
           initialCost: { input: 0, output: 0, total: 0 },
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromVLLMStream(
-              streamResponse,
-              (content, usage) => {
+            createOpenAICompatibleAgentEventStream(streamResponse, {
+              providerName: 'vLLM',
+              request,
+              onComplete: ({ content, usage }) => {
                 let cleanContent = content
                 if (cleanContent && request.responseFormat) {
                   cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
@@ -290,8 +286,7 @@ export const vllmProvider: ProviderConfig = {
 
                 finalizeTiming()
               },
-              request
-            ),
+            }),
         })
 
         return streamingResult
@@ -349,9 +344,10 @@ export const vllmProvider: ProviderConfig = {
       ]
 
       if (originalToolChoice) {
-        const forcedResult = checkForForcedToolUsage(
+        const forcedResult = checkForForcedToolUsageOpenAI(
           currentResponse,
           originalToolChoice,
+          'vLLM',
           forcedTools,
           usedForcedTools
         )
@@ -582,9 +578,10 @@ export const vllmProvider: ProviderConfig = {
         }
 
         if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
-          const forcedResult = checkForForcedToolUsage(
+          const forcedResult = checkForForcedToolUsageOpenAI(
             currentResponse,
             nextPayload.tool_choice,
+            'vLLM',
             forcedTools,
             usedForcedTools
           )

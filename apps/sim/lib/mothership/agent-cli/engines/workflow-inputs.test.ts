@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { workflowInputsCommand } from '@/lib/mothership/agent-cli/engines/workflow-inputs'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 
@@ -16,8 +15,6 @@ const runtime: AgentCliRuntime = {
 }
 
 describe('workflow input discovery', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('returns every authorized draft entrypoint without changing its schema', async () => {
     const options = [
       { triggerBlockId: 'start', inputKind: 'fields', inputSchema: { type: 'object' } },

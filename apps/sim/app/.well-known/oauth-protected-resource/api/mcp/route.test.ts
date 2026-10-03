@@ -1,13 +1,16 @@
-/** @vitest-environment node */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { resetEnvFlagsMock, resetUrlsMock, setEnvFlags, urlsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterAll, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
-
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { GET } from '@/app/.well-known/oauth-protected-resource/api/mcp/route'
 
-afterAll(resetEnvFlagsMock)
+beforeEach(() => {
+  urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+})
+
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetUrlsMock()
+})
 
 describe('Sim MCP protected-resource metadata', () => {
   it('names the Sim MCP server as a Sim API resource', async () => {

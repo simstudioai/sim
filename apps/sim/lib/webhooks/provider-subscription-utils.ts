@@ -1,20 +1,21 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
 
 const logger = createLogger('WebhookProviderSubscriptions')
 
 /** Safely read a webhook row's provider config as a plain object. */
 export function getProviderConfig(webhook: Record<string, unknown>): Record<string, unknown> {
-  return (webhook.providerConfig as Record<string, unknown>) || {}
+  return toRecord(webhook.providerConfig)
 }
 
 /** Build the public callback URL providers should deliver webhook events to. */
 export function getNotificationUrl(webhook: Record<string, unknown>): string {
-  return `${getBaseUrl()}/api/webhooks/trigger/${webhook.path}`
+  return buildWebhookTriggerUrl(String(webhook.path))
 }
 
 /**
@@ -45,4 +46,18 @@ export async function getCredentialOwner(
   }
 
   return { userId: credentialRecord.userId, accountId: resolved.accountId }
+}
+
+/**
+ * Resolve an OAuth-backed credential to a fresh access token for its owner.
+ *
+ * Returns null when the credential's owner cannot be resolved or no token is
+ * available, leaving the caller to decide whether that is fatal.
+ */
+export async function getCredentialAccessToken(
+  credentialId: string,
+  requestId: string
+): Promise<string | null> {
+  const owner = await getCredentialOwner(credentialId, requestId)
+  return owner ? refreshAccessTokenIfNeeded(owner.accountId, owner.userId, requestId) : null
 }

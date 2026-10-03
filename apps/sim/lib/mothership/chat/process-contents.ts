@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { EnvCapabilityConfigurationError } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
@@ -7,9 +8,10 @@ import {
 import { escapeRegExp } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import {
@@ -21,10 +23,25 @@ import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
-import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createCopilotChatPrincipal,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { createCopilotChatTablePrincipal } from '@/lib/mothership/auth/table-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/mothership/block-visibility'
+import { readWorkspaceContext } from '@/lib/mothership/chat/application/workspace-context'
+import { WORKSPACE_TARGET_AUDIENCE } from '@/lib/mothership/chat/application/workspace-target'
+import {
+  MAX_CHAT_CONTEXT_LABEL_LENGTH,
+  MAX_CHAT_CONTEXTS,
+  MAX_CHAT_MESSAGE_LENGTH,
+} from '@/lib/mothership/chat/context-limits'
+import {
+  isWorkspaceOwnedContext,
+  type WorkspaceOwnedContext,
+} from '@/lib/mothership/chat/context-ownership'
 import { createChatFolderResolver } from '@/lib/mothership/chat/folder-context'
 import {
   MAX_TABLE_SELECTION_COLUMNS,
@@ -66,6 +83,7 @@ type AgentContextType =
   | 'table'
   | 'table_selection'
   | 'file'
+  | 'dashboard'
   | 'file_selection'
   | 'workflow_block'
   | 'docs'
@@ -76,6 +94,7 @@ type AgentContextType =
   | 'mcp'
   | 'browser_tab'
   | 'terminal_tab'
+  | 'workspace'
 
 interface AgentContext {
   type: AgentContextType
@@ -129,223 +148,281 @@ export async function processContextsServer(
   organizationId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
-  const folderResolver = currentWorkspaceId
-    ? createChatFolderResolver(userId, currentWorkspaceId, chatId)
-    : undefined
-  const resolveContext = async (ctx: ChatContext) => {
-    try {
-      if (ctx.kind === 'skill' && ctx.skillId) {
-        // Global code-owned templates do not require an arbitrary workspace.
-        const builtin = organizationId ? getBuiltinSkillById(ctx.skillId) : undefined
-        if (builtin)
-          return {
-            type: 'skill' as const,
-            tag: ctx.label ? `@${ctx.label}` : '@',
-            content: builtin.content,
-          }
+  if (contexts.length > MAX_CHAT_CONTEXTS) {
+    throw new Error(`Context count exceeds the maximum of ${MAX_CHAT_CONTEXTS}`)
+  }
+  if ((userMessage?.length ?? 0) > MAX_CHAT_MESSAGE_LENGTH) {
+    throw new Error(`Message exceeds the maximum of ${MAX_CHAT_MESSAGE_LENGTH} characters`)
+  }
+  if (contexts.some((context) => context.label.length > MAX_CHAT_CONTEXT_LABEL_LENGTH)) {
+    throw new Error(
+      `Context label exceeds the maximum of ${MAX_CHAT_CONTEXT_LABEL_LENGTH} characters`
+    )
+  }
+  const docsMessage = userMessage?.trim() ?? ''
+  const docsQueries = new Map<string, string>()
 
-        const target = organizationId
-          ? await resolveInvocationWorkspace({ userId, organizationId, chatId }, ctx.workspaceId)
-          : { workspaceId: currentWorkspaceId }
-        if (!target.workspaceId) return null
-        const skill = await processSkillFromDb(
-          ctx.skillId,
-          target.workspaceId,
-          ctx.label ? `@${ctx.label}` : '@',
-          userId,
-          chatId
-        )
-        return skill && organizationId
-          ? { ...skill, content: `Workspace ${target.workspaceId}:\n${skill.content}` }
-          : skill
+  /**
+   * An organization chat has no workspace of its own, so each workspace-owned
+   * context names its owner and that workspace is authorized for this chat once,
+   * however many contexts share it. A workspace chat reads everything in its own.
+   */
+  const ownerTargets = new Map<string, Promise<string>>()
+  const resolveOwner = async (ctx: WorkspaceOwnedContext): Promise<string | undefined> => {
+    if (!organizationId) return currentWorkspaceId
+    const requested = ctx.workspaceId
+    if (!requested) return undefined
+    let target = ownerTargets.get(requested)
+    if (!target) {
+      target = resolveInvocationWorkspace({ userId, organizationId, chatId }, requested).then(
+        (resolved) => resolved.workspaceId
+      )
+      ownerTargets.set(requested, target)
+    }
+    return target
+  }
+  const folderResolvers = new Map<string, ReturnType<typeof createChatFolderResolver>>()
+  const folderResolverFor = (workspaceId: string) => {
+    let resolver = folderResolvers.get(workspaceId)
+    if (!resolver) {
+      resolver = createChatFolderResolver(userId, workspaceId, chatId)
+      folderResolvers.set(workspaceId, resolver)
+    }
+    return resolver
+  }
+
+  const resolveContextInWorkspace = async (
+    ctx: ChatContext,
+    workspaceId: string | undefined
+  ): Promise<AgentContext | null> => {
+    if (ctx.kind === 'skill' && ctx.skillId) {
+      if (!workspaceId) return null
+      return await processSkillFromDb(
+        ctx.skillId,
+        workspaceId,
+        ctx.label ? `@${ctx.label}` : '@',
+        userId,
+        chatId
+      )
+    }
+    if (ctx.kind === 'mcp' && ctx.serverId && workspaceId) {
+      /** The authorized request catalog owns discovery; context identifies the selected service. */
+      return {
+        type: 'mcp',
+        tag: ctx.label ? `/${ctx.label}` : '/',
+        content: JSON.stringify({ serverId: ctx.serverId, service: `mcp:${ctx.serverId}` }),
       }
-      if (ctx.kind === 'mcp' && ctx.serverId && currentWorkspaceId) {
-        /** The authorized request catalog owns discovery; context identifies the selected service. */
-        return {
-          type: 'mcp',
-          tag: ctx.label ? `/${ctx.label}` : '/',
-          content: JSON.stringify({ serverId: ctx.serverId, service: `mcp:${ctx.serverId}` }),
+    }
+    if (ctx.kind === 'past_chat' && ctx.chatId) {
+      return await processPastChatFromDb(
+        ctx.chatId,
+        userId,
+        ctx.label ? `@${ctx.label}` : '@',
+        workspaceId
+      )
+    }
+    if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
+      return await processWorkflowFromDb(
+        ctx.workflowId,
+        userId,
+        ctx.label ? `@${ctx.label}` : '@',
+        ctx.kind,
+        workspaceId,
+        chatId
+      )
+    }
+    if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
+      return await processKnowledgeFromDb(
+        ctx.knowledgeId,
+        userId,
+        ctx.label ? `@${ctx.label}` : '@',
+        workspaceId,
+        chatId
+      )
+    }
+    if (
+      (ctx.kind === 'integration' && ctx.blockType) ||
+      (ctx.kind === 'blocks' && ctx.blockIds?.length > 0)
+    ) {
+      return await processBlockMetadata(
+        ctx.kind === 'integration' ? ctx.blockType : ctx.blockIds[0],
+        ctx.label ? `@${ctx.label}` : '@',
+        userId,
+        workspaceId
+      )
+    }
+    if (ctx.kind === 'logs' && ctx.executionId) {
+      return await processExecutionLogFromDb(
+        ctx.executionId,
+        userId,
+        ctx.label ? `@${ctx.label}` : '@',
+        workspaceId
+      )
+    }
+    /** Desktop context carries a reference and optional selection; v1 has no desktop control tools. */
+    if (ctx.kind === 'browser_tab' && ctx.tabId) {
+      const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). You cannot read or drive browser tabs here: work from the tab's title and any URL or content the user shares rather than assuming what it shows.`
+      return {
+        type: 'browser_tab',
+        tag: ctx.label ? `@${ctx.label}` : '@',
+        content: ctx.selection ? `${pointer}\n\n${formatBrowserSelection(ctx.selection)}` : pointer,
+      }
+    }
+    if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
+      const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). You cannot read or drive terminals here: ask the user to paste the relevant output rather than assuming what is in it.`
+      return {
+        type: 'terminal_tab',
+        tag: ctx.label ? `@${ctx.label}` : '@',
+        content: ctx.selection
+          ? `${pointer}\n\n${formatTerminalSelection(ctx.selection)}`
+          : pointer,
+      }
+    }
+    if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
+      return await processWorkflowBlockFromDb(
+        ctx.workflowId,
+        userId,
+        ctx.blockId,
+        ctx.label,
+        workspaceId,
+        chatId
+      )
+    }
+    if (ctx.kind === 'table' && ctx.tableId && workspaceId) {
+      const result = await resolveTableResource(
+        ctx.tableId,
+        workspaceId,
+        userId,
+        chatId,
+        ctx.viewId,
+        ctx.currentView
+      )
+      if (!result) return null
+      return {
+        type: 'table',
+        tag: ctx.label ? `@${ctx.label}` : '@',
+        content: result.content,
+        path: result.path,
+      }
+    }
+    if (ctx.kind === 'dashboard' && ctx.dashboardId && workspaceId) {
+      const result = await resolveDashboardResource(ctx.dashboardId, workspaceId, userId, chatId)
+      return { ...result, type: 'dashboard', tag: ctx.label ? `@${ctx.label}` : '@' }
+    }
+    if (ctx.kind === 'file' && ctx.fileId && workspaceId) {
+      const result = await resolveFileResource(ctx.fileId, workspaceId, userId, chatId)
+      if (!result) return null
+      return {
+        type: 'file',
+        tag: ctx.label ? `@${ctx.label}` : '@',
+        content: result.content,
+        path: result.path,
+      }
+    }
+    if (ctx.kind === 'file_selection' && ctx.fileId && workspaceId) {
+      return await resolveFileSelectionResource(
+        ctx.fileId,
+        workspaceId,
+        ctx.text ?? '',
+        ctx.label,
+        ctx.startLine,
+        ctx.endLine,
+        userId,
+        chatId
+      )
+    }
+    if (
+      ctx.kind === 'table_selection' &&
+      ctx.tableId &&
+      Array.isArray(ctx.rowIds) &&
+      ctx.rowIds.length > 0 &&
+      workspaceId
+    ) {
+      return await resolveTableSelectionResource(
+        ctx.tableId,
+        workspaceId,
+        ctx.rowIds,
+        ctx.columnIds,
+        ctx.label,
+        userId,
+        chatId
+      )
+    }
+    if ((ctx.kind === 'folder' || ctx.kind === 'filefolder') && workspaceId) {
+      const folderId = ctx.kind === 'folder' ? ctx.folderId : ctx.fileFolderId
+      const path = await folderResolverFor(workspaceId).folderPointer(
+        folderId,
+        ctx.kind === 'filefolder'
+      )
+      return {
+        type: ctx.kind,
+        tag: ctx.label ? `@${ctx.label}` : '@',
+        content: path
+          ? folderReferenceContent(path)
+          : 'The attached folder could not be resolved in this workspace. Do not guess its contents or substitute a similarly named folder.',
+      }
+    }
+    if (ctx.kind === 'docs') {
+      try {
+        const { searchDocsServerTool } = await import(
+          '@/lib/mothership/tools/server/docs/search-docs'
+        )
+        const rawQuery = docsMessage || ctx.label || 'Sim documentation'
+        let sanitizedQuery = docsQueries.get(rawQuery)
+        if (sanitizedQuery === undefined) {
+          sanitizedQuery = sanitizeMessageForDocs(rawQuery, contexts)
+          docsQueries.set(rawQuery, sanitizedQuery)
         }
-      }
-      if (ctx.kind === 'past_chat' && ctx.chatId) {
-        return await processPastChatFromDb(
-          ctx.chatId,
-          userId,
-          ctx.label ? `@${ctx.label}` : '@',
-          currentWorkspaceId
-        )
-      }
-      if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
-        return await processWorkflowFromDb(
-          ctx.workflowId,
-          userId,
-          ctx.label ? `@${ctx.label}` : '@',
-          ctx.kind,
-          currentWorkspaceId,
-          chatId
-        )
-      }
-      if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
-        return await processKnowledgeFromDb(
-          ctx.knowledgeId,
-          userId,
-          ctx.label ? `@${ctx.label}` : '@',
-          currentWorkspaceId,
-          chatId
-        )
-      }
-      if (
-        (ctx.kind === 'integration' && ctx.blockType) ||
-        (ctx.kind === 'blocks' && ctx.blockIds?.length > 0)
-      ) {
-        return await processBlockMetadata(
-          ctx.kind === 'integration' ? ctx.blockType : ctx.blockIds[0],
-          ctx.label ? `@${ctx.label}` : '@',
-          userId,
-          currentWorkspaceId
-        )
-      }
-      if (ctx.kind === 'logs' && ctx.executionId) {
-        return await processExecutionLogFromDb(
-          ctx.executionId,
-          userId,
-          ctx.label ? `@${ctx.label}` : '@',
-          currentWorkspaceId
-        )
-      }
-      /** Desktop context carries a reference and optional selection; v1 has no desktop control tools. */
-      if (ctx.kind === 'browser_tab' && ctx.tabId) {
-        const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). You cannot read or drive browser tabs here: work from the tab's title and any URL or content the user shares rather than assuming what it shows.`
-        return {
-          type: 'browser_tab',
-          tag: ctx.label ? `@${ctx.label}` : '@',
-          content: ctx.selection
-            ? `${pointer}\n\n${formatBrowserSelection(ctx.selection)}`
-            : pointer,
-        }
-      }
-      if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
-        const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). You cannot read or drive terminals here: ask the user to paste the relevant output rather than assuming what is in it.`
-        return {
-          type: 'terminal_tab',
-          tag: ctx.label ? `@${ctx.label}` : '@',
-          content: ctx.selection
-            ? `${pointer}\n\n${formatTerminalSelection(ctx.selection)}`
-            : pointer,
-        }
-      }
-      if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
-        return await processWorkflowBlockFromDb(
-          ctx.workflowId,
-          userId,
-          ctx.blockId,
-          ctx.label,
-          currentWorkspaceId,
-          chatId
-        )
-      }
-      if (ctx.kind === 'table' && ctx.tableId && currentWorkspaceId) {
-        const result = await resolveTableResource(
-          ctx.tableId,
-          currentWorkspaceId,
-          userId,
-          chatId,
-          ctx.viewId,
-          ctx.currentView
-        )
-        if (!result) return null
-        return {
-          type: 'table',
-          tag: ctx.label ? `@${ctx.label}` : '@',
-          content: result.content,
-          path: result.path,
-        }
-      }
-      if (ctx.kind === 'file' && ctx.fileId && currentWorkspaceId) {
-        const result = await resolveFileResource(ctx.fileId, currentWorkspaceId, userId, chatId)
-        if (!result) return null
-        return {
-          type: 'file',
-          tag: ctx.label ? `@${ctx.label}` : '@',
-          content: result.content,
-          path: result.path,
-        }
-      }
-      if (ctx.kind === 'file_selection' && ctx.fileId && currentWorkspaceId) {
-        return await resolveFileSelectionResource(
-          ctx.fileId,
-          currentWorkspaceId,
-          ctx.text ?? '',
-          ctx.label,
-          ctx.startLine,
-          ctx.endLine,
-          userId,
-          chatId
-        )
-      }
-      if (
-        ctx.kind === 'table_selection' &&
-        ctx.tableId &&
-        Array.isArray(ctx.rowIds) &&
-        ctx.rowIds.length > 0 &&
-        currentWorkspaceId
-      ) {
-        return await resolveTableSelectionResource(
-          ctx.tableId,
-          currentWorkspaceId,
-          ctx.rowIds,
-          ctx.columnIds,
-          ctx.label,
-          userId,
-          chatId
-        )
-      }
-      if ((ctx.kind === 'folder' || ctx.kind === 'filefolder') && folderResolver) {
-        const folderId = ctx.kind === 'folder' ? ctx.folderId : ctx.fileFolderId
-        const path = await folderResolver.folderPointer(folderId, ctx.kind === 'filefolder')
-        return {
-          type: ctx.kind,
-          tag: ctx.label ? `@${ctx.label}` : '@',
-          content: path
-            ? folderReferenceContent(path)
-            : 'The attached folder could not be resolved in this workspace. Do not guess its contents or substitute a similarly named folder.',
-        }
-      }
-      if (ctx.kind === 'docs') {
-        try {
-          const { searchDocsServerTool } = await import(
-            '@/lib/mothership/tools/server/docs/search-docs'
-          )
-          const rawQuery = (userMessage || '').trim() || ctx.label || 'Sim documentation'
-          const query =
-            sanitizeMessageForDocs(rawQuery, contexts) || ctx.label || 'Sim documentation'
-          const res = await searchDocsServerTool.execute(
-            { query },
-            {
-              userId,
-              workspaceId: currentWorkspaceId,
-              chatId,
-              resolvedSecretTraceRegistry,
-            }
-          )
-          const content = JSON.stringify({
-            results: res?.results || [],
-            ...(res?.note ? { note: res.note } : {}),
-          })
-          return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
-        } catch (e) {
-          logger.error('Failed to process docs context', e)
-          return {
-            type: 'docs',
-            tag: ctx.label ? `@${ctx.label}` : '@',
-            content: JSON.stringify({
-              results: [],
-              note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry `docs search` later.',
-            }),
+        const query = sanitizedQuery || ctx.label || 'Sim documentation'
+        const res = await searchDocsServerTool.execute(
+          { query },
+          {
+            userId,
+            workspaceId: workspaceId,
+            chatId,
+            resolvedSecretTraceRegistry,
           }
+        )
+        const content = JSON.stringify({
+          results: res?.results || [],
+          ...(res?.note ? { note: res.note } : {}),
+        })
+        return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
+      } catch (e) {
+        logger.error('Failed to process docs context', e)
+        return {
+          type: 'docs',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: JSON.stringify({
+            results: [],
+            note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry `docs search` later.',
+          }),
         }
       }
-      return null
+    }
+    return null
+  }
+
+  const resolveContext = async (ctx: ChatContext): Promise<AgentContext | null> => {
+    try {
+      // Global code-owned templates do not require an arbitrary workspace.
+      const builtin =
+        ctx.kind === 'skill' && organizationId ? getBuiltinSkillById(ctx.skillId) : undefined
+      if (builtin)
+        return { type: 'skill', tag: ctx.label ? `@${ctx.label}` : '@', content: builtin.content }
+      if (ctx.kind === 'workspace') {
+        return organizationId && chatId
+          ? await describeWorkspace(ctx.workspaceId, ctx.label, userId, organizationId, chatId)
+          : null
+      }
+
+      const workspaceId = isWorkspaceOwnedContext(ctx)
+        ? await resolveOwner(ctx)
+        : currentWorkspaceId
+      const resolved = await resolveContextInWorkspace(ctx, workspaceId)
+      return resolved && organizationId && workspaceId
+        ? { ...resolved, content: `Workspace ${workspaceId}:\n${resolved.content}` }
+        : resolved
     } catch (error) {
       logger.error('Failed processing context (server)', { ctx, error })
       return null
@@ -364,6 +441,35 @@ export async function processContextsServer(
     kinds: Array.from(filtered.reduce((s, r) => s.add(r.type), new Set<string>())),
   })
   return filtered
+}
+
+/**
+ * Describes a workspace the user tagged in an organization chat through the same
+ * authorized discovery the agent itself uses, so a tag reveals nothing discovery
+ * would not: a workspace outside the organization or the user's access resolves
+ * to nothing.
+ */
+async function describeWorkspace(
+  workspaceId: string,
+  label: string,
+  userId: string,
+  organizationId: string,
+  chatId: string
+): Promise<AgentContext | null> {
+  const { workspaces } = await readWorkspaceContext.execute({
+    principal: createTrustedOrganizationCopilotPrincipal(
+      { userId, organizationId, chatId, delegationId: `context:${chatId}` },
+      { audience: WORKSPACE_TARGET_AUDIENCE, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS }
+    ),
+    input: { workspaceId },
+  })
+  const [workspace] = workspaces
+  if (!workspace) return null
+  return {
+    type: 'workspace',
+    tag: label ? `@${label}` : '@',
+    content: `The user is working in this workspace. Use its id as the target of workspace operations unless they name another.\n${JSON.stringify(workspace)}`,
+  }
 }
 
 function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | undefined): string {
@@ -393,22 +499,20 @@ function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | un
 
   let result = rawMessage
 
-  // 1) Remove all non-block mentions entirely
-  for (const label of nonBlockLabels) {
-    const pattern = new RegExp(`(^|\\s)@${escapeRegExp(label)}(?!\\S)`, 'g')
+  if (nonBlockLabels.size > 0) {
+    const labels = [...nonBlockLabels].map(escapeRegExp).join('|')
+    const pattern = new RegExp(`(^|\\s)@(?:${labels})(?!\\S)`, 'g')
     result = result.replace(pattern, ' ')
   }
 
-  // 2) For block mentions, strip the '@' but keep the block name
-  for (const label of blockLabels) {
-    const pattern = new RegExp(`@${escapeRegExp(label)}(?!\\S)`, 'g')
-    result = result.replace(pattern, label)
+  if (blockLabels.size > 0) {
+    const labels = [...blockLabels].map(escapeRegExp).join('|')
+    const pattern = new RegExp(`@(${labels})(?!\\S)`, 'g')
+    result = result.replace(pattern, (_match, label: string) => label)
   }
 
-  // 3) Remove any remaining @mentions (unknown or not in contexts)
   result = result.replace(/(^|\s)@([^\s]+)/g, ' ')
 
-  // Normalize whitespace
   result = result.replace(/\s{2,}/g, ' ').trim()
   return result
 }
@@ -808,6 +912,9 @@ export async function resolveActiveResourceContext(
           currentView
         )
       }
+      case 'dashboard': {
+        return await resolveDashboardResource(resourceId, workspaceId, userId, chatId)
+      }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
       }
@@ -869,7 +976,7 @@ async function resolveTableResource(
         input: { tableId, workspaceId, viewId: selectedViewId },
       })
     : undefined
-  const { table } = await readTableUseCase.execute({
+  await readTableUseCase.execute({
     principal,
     input: { tableId, workspaceId },
   })
@@ -897,6 +1004,26 @@ async function resolveTableResource(
             }
           : {}),
     }),
+  }
+}
+
+async function resolveDashboardResource(
+  dashboardId: string,
+  workspaceId: string,
+  userId: string,
+  chatId?: string
+): Promise<AgentContext> {
+  const principal = createCopilotChatPrincipal({ userId, workspaceId, chatId }, 'sim:workspaces')
+  const { dashboard } = await readWorkspaceDashboard.execute({
+    principal,
+    input: { workspaceId },
+  })
+  if (dashboard?.id !== dashboardId)
+    throw new OrchestrationError('not_found', 'Dashboard not found')
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: JSON.stringify({ type: 'dashboard', dashboardId, workspaceId, name: dashboard.name }),
   }
 }
 

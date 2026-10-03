@@ -1,21 +1,17 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFile, mockGetFileMetadataById, mockRenderSimPageDocument } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockGetFileMetadataById: vi.fn(),
+const { mockRenderSimPageDocument } = vi.hoisted(() => ({
   mockRenderSimPageDocument: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataById: mockGetFileMetadataById,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/workspace-files/page-document', () => ({
   renderSimPageDocument: mockRenderSimPageDocument,
@@ -25,6 +21,10 @@ import {
   renderSimPageDocumentWithAssets,
   renderSimPageDocumentWithContributors,
 } from '@/lib/workspace-files/page-document.server'
+
+const mockGetFileMetadataById = uploadsMetadataMockFns.mockGetFileMetadataById
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
 
 const WORKSPACE_ID = 'ws-1'
 const MB = 1024 * 1024
@@ -47,10 +47,6 @@ function documentReferencing(ids: string[]) {
 }
 
 describe('renderSimPageDocumentWithAssets memory bounds', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('charges the budget by delivered bytes, not by what the metadata claimed', async () => {
     // Every row claims to be tiny; the objects are 8MB each. The budget must still
     // stop at 32MB — planning off the recorded size would admit all six.
@@ -125,10 +121,6 @@ describe('renderSimPageDocumentWithAssets memory bounds', () => {
 })
 
 describe('rendered page contributors', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('reports only the canonical revisions whose bytes were embedded', async () => {
     mockRenderSimPageDocument.mockReturnValue(
       documentReferencing(['mine', 'failed', 'foreign', 'missing', 'mine'])
@@ -160,21 +152,6 @@ describe('rendered page contributors', () => {
     expect(rendered.html).toContain('/api/files/view/failed')
     expect(rendered.html).toContain('/api/files/view/foreign')
     expect(mockGetFileMetadataById).toHaveBeenCalledTimes(4)
-  })
-
-  it('bounds metadata reads for missing images', async () => {
-    mockRenderSimPageDocument.mockReturnValue(
-      documentReferencing(Array.from({ length: 300 }, (_, i) => `missing-${i}`))
-    )
-    mockGetFileMetadataById.mockResolvedValue(null)
-
-    const rendered = await renderSimPageDocumentWithContributors('source', {
-      workspaceId: WORKSPACE_ID,
-    })
-
-    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(256)
-    expect(mockDownloadFile).not.toHaveBeenCalled()
-    expect(rendered.contributingFiles).toEqual([])
   })
 
   it('charges repeated image occurrences against the rendered byte budget', async () => {

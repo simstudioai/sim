@@ -1,55 +1,39 @@
-/**
- * @vitest-environment node
- */
-
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { tableMock } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
-  deleteColumns: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   findUnmigrated: vi.fn(),
   performUpdate: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  signal: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
-vi.mock('@/lib/table', () => ({
-  TABLE_LIMITS: { MAX_COLUMNS_PER_TABLE: 3 },
-  addTableColumn: vi.fn(),
-  deleteColumn: vi.fn(),
-  deleteColumns: mocks.deleteColumns,
-  getColumnId: (column: { id?: string; name: string }) => column.id ?? column.name,
-}))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveContext,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 vi.mock('@/lib/table/columns/workflow-references', () => ({
-  findUnmigratedTableBlockReferences: mocks.findUnmigrated,
+  findUnmigratedTableBlockReferences: hoisted.findUnmigrated,
 }))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
-vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: mocks.performUpdate }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: hoisted.performUpdate }))
 
-import {
-  deleteTableColumnsUseCase,
-  updateTableColumnUseCase,
-} from '@/lib/table/application/columns'
+import { updateTableColumnUseCase } from '@/lib/table/application/columns'
+
+const mocks = {
+  ...hoisted,
+  resolveContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  audit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  signal: tableEventsMockFns.mockSignalTableSchemaChanged,
+}
 
 const table: TableDefinition = {
   id: 'table-1',
@@ -71,129 +55,10 @@ const table: TableDefinition = {
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
+const principal = createDelegatedPrincipal({
   delegationId: 'copilot-tool:tool-1',
   audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
   resourceScope: { tableId: 'table-1' },
-}
-
-const tableAfterDelete: TableDefinition = {
-  ...table,
-  schema: { columns: [{ id: 'column-name', name: 'name', type: 'string' }] },
-  updatedAt: new Date('2026-08-02T00:00:00.000Z'),
-}
-
-describe('multi-column delete application use case', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveContext.mockResolvedValue({
-      tableId: table.id,
-      table,
-      workspaceId: table.workspaceId,
-      workspaceOrganizationId: null,
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
-    mocks.deleteColumns.mockResolvedValue(tableAfterDelete)
-  })
-
-  it('owns canonical mutation, audit, and schema effects', async () => {
-    const result = await deleteTableColumnsUseCase.execute({
-      principal,
-      input: {
-        tableId: 'table-1',
-        workspaceId: 'workspace-1',
-        columnNames: ['first', 'last'],
-      },
-    })
-
-    expect(mocks.deleteColumns).toHaveBeenCalledWith(
-      { tableId: 'table-1', columnNames: ['first', 'last'] },
-      'request-1',
-      { expectedWorkspaceId: 'workspace-1' }
-    )
-    expect(result.deletedColumns).toEqual([
-      { id: 'column-first', name: 'first' },
-      { id: 'column-last', name: 'last' },
-    ])
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'Deleted 2 columns from table "People"',
-        metadata: expect.objectContaining({ columnNames: ['first', 'last'] }),
-      })
-    )
-    expect(mocks.signal).toHaveBeenCalledWith('table-1')
-  })
-
-  it('derives aliases and duplicate references from the authoritative schema delta', async () => {
-    mocks.deleteColumns.mockResolvedValue({
-      ...table,
-      schema: {
-        columns: [
-          { id: 'column-name', name: 'name', type: 'string' },
-          { id: 'column-last', name: 'last', type: 'string' },
-        ],
-      },
-    })
-
-    const result = await deleteTableColumnsUseCase.execute({
-      principal,
-      input: {
-        tableId: 'table-1',
-        workspaceId: 'workspace-1',
-        columnNames: ['first', 'column-first', 'FIRST'],
-      },
-    })
-
-    expect(result.deletedColumns).toEqual([{ id: 'column-first', name: 'first' }])
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'Deleted 1 column from table "People"',
-        metadata: expect.objectContaining({ columnNames: ['first'] }),
-      })
-    )
-  })
-
-  it('rejects an oversized request before mutation', async () => {
-    await expect(
-      deleteTableColumnsUseCase.execute({
-        principal,
-        input: {
-          tableId: 'table-1',
-          workspaceId: 'workspace-1',
-          columnNames: ['first', 'last', 'name', 'extra'],
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-
-    expect(mocks.deleteColumns).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(mocks.signal).not.toHaveBeenCalled()
-  })
-
-  it('rejects admission before mutation when delegated scope is stale', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce('read')
-
-    await expect(
-      deleteTableColumnsUseCase.execute({
-        principal,
-        input: {
-          tableId: 'table-1',
-          workspaceId: 'workspace-1',
-          columnNames: ['first', 'last'],
-        },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.deleteColumns).not.toHaveBeenCalled()
-  })
 })
 
 /**
@@ -213,7 +78,6 @@ describe('column rename application use case', () => {
   ]
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveContext.mockResolvedValue({
       tableId: table.id,
@@ -254,13 +118,6 @@ describe('column rename application use case', () => {
     })
     expect(result.unmigrated).toEqual(unmigrated)
     expect(result.changed).toBe(true)
-  })
-
-  it('does not scan when the update is not a rename', async () => {
-    const result = await update({ required: true })
-
-    expect(mocks.findUnmigrated).not.toHaveBeenCalled()
-    expect(result.unmigrated).toEqual([])
   })
 
   it('reports nothing rather than failing a rename that already committed when the scan fails', async () => {

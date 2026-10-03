@@ -1,5 +1,5 @@
 import { CONSENT_BACKEND_URL } from '../../consent/constants'
-import { env, getEnv } from '../config/env'
+import { env, envBoolean, getEnv } from '../config/env'
 import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
 
 /**
@@ -44,7 +44,35 @@ function getHostnameFromUrl(url: string | undefined): string[] {
   }
 }
 
-export interface CSPDirectives {
+const IPV4_HOSTNAME = /^\d{1,3}(\.\d{1,3}){3}$/
+
+/**
+ * Origins the browser PUTs presigned uploads to for a custom `S3_ENDPOINT`. The
+ * endpoint origin itself is always allowed: the S3 SDK falls back to path-style
+ * for IP hosts and bucket names that aren't DNS-safe even without
+ * `S3_FORCE_PATH_STYLE`. Virtual-hosted addressing also needs the bucket
+ * subdomains, which a `*.` source matches (never the bare host). Ports are kept
+ * because a host-source without one only matches the scheme's default port.
+ */
+function getS3EndpointSources(
+  endpoint: string | undefined,
+  forcePathStyle: string | undefined
+): string[] {
+  if (!endpoint) return []
+  let url: URL
+  try {
+    url = new URL(endpoint)
+  } catch {
+    return []
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return []
+  const origin = `${url.protocol}//${url.host}`
+  const isIpHost = IPV4_HOSTNAME.test(url.hostname) || url.hostname.startsWith('[')
+  if (envBoolean(forcePathStyle) || isIpHost) return [origin]
+  return [origin, `${url.protocol}//*.${url.host}`]
+}
+
+interface CSPDirectives {
   'default-src'?: string[]
   'script-src'?: string[]
   'style-src'?: string[]
@@ -86,6 +114,8 @@ const STATIC_SCRIPT_SRC = [
         // X (Twitter) conversion pixel (landing pages) — the base code injects
         // uwt.js as a <script> tag from static.ads-twitter.com
         'https://static.ads-twitter.com',
+        // Freebuff Ads conversion tag — freebuff-tag.js
+        'https://freebuff.com',
       ]
     : []),
 ] as const
@@ -132,6 +162,8 @@ const STATIC_CONNECT_SRC = [
         // via fetch/sendBeacon. The t.co image-pixel fallback is already
         // covered by the `https:` wildcard in img-src.
         'https://analytics.twitter.com',
+        // Freebuff Ads conversion tag — beacons to /api/advertisers/conversions/client
+        'https://freebuff.com',
       ]
     : []),
 ] as const
@@ -176,7 +208,7 @@ const STATIC_FRAME_SRC = [
 ] as const
 
 // Build-time CSP directives (for next.config.ts)
-export const buildTimeCSPDirectives: CSPDirectives = {
+const buildTimeCSPDirectives: CSPDirectives = {
   'default-src': ["'self'"],
   'script-src': [...STATIC_SCRIPT_SRC],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
@@ -199,6 +231,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
+    ...getS3EndpointSources(env.S3_ENDPOINT, env.S3_FORCE_PATH_STYLE),
   ],
 
   'frame-src': [...STATIC_FRAME_SRC],
@@ -247,6 +280,10 @@ export function generateRuntimeCSP(): string {
   const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
   const privacyDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_PRIVACY_URL'))
   const termsDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_TERMS_URL'))
+  const s3EndpointSources = getS3EndpointSources(
+    getEnv('S3_ENDPOINT'),
+    getEnv('S3_FORCE_PATH_STYLE')
+  )
 
   const runtimeDirectives: CSPDirectives = {
     ...buildTimeCSPDirectives,
@@ -262,6 +299,7 @@ export function generateRuntimeCSP(): string {
       ...brandLogoDomains,
       ...privacyDomains,
       ...termsDomains,
+      ...s3EndpointSources,
     ],
   }
 
@@ -298,27 +336,4 @@ export function getChatEmbedCSPPolicy(): string {
     ],
     'frame-ancestors': ['*'],
   })
-}
-
-/**
- * Add a source to a specific directive (modifies build-time directives)
- */
-export function addCSPSource(directive: keyof CSPDirectives, source: string): void {
-  if (!buildTimeCSPDirectives[directive]) {
-    buildTimeCSPDirectives[directive] = []
-  }
-  if (!buildTimeCSPDirectives[directive]!.includes(source)) {
-    buildTimeCSPDirectives[directive]!.push(source)
-  }
-}
-
-/**
- * Remove a source from a specific directive (modifies build-time directives)
- */
-export function removeCSPSource(directive: keyof CSPDirectives, source: string): void {
-  if (buildTimeCSPDirectives[directive]) {
-    buildTimeCSPDirectives[directive] = buildTimeCSPDirectives[directive]!.filter(
-      (s: string) => s !== source
-    )
-  }
 }

@@ -1,3 +1,4 @@
+import { OCR_CAPABILITY, requireCapability } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
@@ -17,7 +18,6 @@ import {
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env } from '@/lib/core/config/env'
-import { OCR_CAPABILITY, requireCapability } from '@/lib/core/config/env-capabilities'
 import {
   recordProviderCooldown,
   waitForProviderAdmission,

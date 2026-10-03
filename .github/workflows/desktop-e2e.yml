@@ -10,6 +10,27 @@ on:
       - '.github/workflows/desktop-e2e.yml'
       - '.github/workflows/desktop-release.yml'
       - 'apps/desktop/**'
+      - 'apps/sim/app/_shell/desktop-update-*.tsx'
+      - 'apps/sim/app/workspace/**/home/hooks/use-mothership-resize.ts'
+      - 'apps/sim/app/workspace/**/home/hooks/use-resource-panel.ts'
+      - 'apps/sim/app/workspace/**/home/components/chat-panel-layout.tsx'
+      - 'apps/sim/stores/chat-panel/**'
+      - 'apps/sim/stores/constants.ts'
+      - 'apps/sim/lib/browser-agent/transport.ts'
+      - 'apps/sim/lib/core/utils/separator-keys.ts'
+      - 'apps/sim/scripts/fixtures/chat-panel.tsx'
+      - 'apps/sim/app/layout.tsx'
+      - 'apps/sim/hooks/use-desktop-update-state.ts'
+      - 'apps/sim/lib/desktop/**'
+      - 'apps/sim/app/desktop/connect/**'
+      - 'apps/sim/app/credential-groups/**'
+      - 'apps/sim/hooks/queries/slack-search.ts'
+      - 'apps/sim/hooks/queries/personal-search-integrations.ts'
+      - 'apps/sim/hooks/use-search-integration-connection.ts'
+      - 'apps/sim/hooks/use-github-installation-setup.ts'
+      - 'apps/sim/lib/api/contracts/desktop-source-connect.ts'
+      - 'apps/sim/scripts/fixtures/desktop-source-connect.tsx'
+      - 'apps/sim/app/workspace/**/browser-session/**'
       - 'apps/sim/app/_styles/**'
       - 'apps/sim/lib/postcss/**'
       - 'apps/sim/postcss.config.mjs'
@@ -47,7 +68,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.2
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -55,6 +76,10 @@ jobs:
       - name: Bundle main and preload
         working-directory: apps/desktop
         run: bun run build
+
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
@@ -80,7 +105,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.2
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -92,6 +117,10 @@ jobs:
       - name: Bundle main and preload
         working-directory: apps/desktop
         run: bun run build
+
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
@@ -116,7 +145,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.2
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4

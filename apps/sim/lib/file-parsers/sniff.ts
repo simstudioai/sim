@@ -2,7 +2,16 @@ import { FileParserError } from '@/lib/file-parsers/errors'
 import { isEncryptedOoxmlContainer } from '@/lib/file-parsers/ooxml-encryption'
 import type { FileParseOptions } from '@/lib/file-parsers/types'
 import { decodeTextBuffer, detectBomlessUtf16 } from '@/lib/file-parsers/utils'
-import { isZipShaped } from '@/lib/file-parsers/zip-guard'
+import {
+  CENTRAL_DIRECTORY_HEADER_MIN_SIZE,
+  CENTRAL_DIRECTORY_HEADER_SIGNATURE,
+  COMPRESSION_METHOD_STORED,
+  EOCD_MIN_SIZE,
+  findEocdOffset,
+  isZipShaped,
+  LOCAL_FILE_HEADER_MIN_SIZE,
+  locateCentralDirectory,
+} from '@/lib/file-parsers/zip-guard'
 
 /**
  * What the bytes of a buffer look like, independent of the caller-supplied
@@ -34,18 +43,6 @@ const OLE2_SIGNATURE = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0x
 /** An RTF file is a group opening with the `rtf` control word; nothing may precede it. */
 const RTF_SIGNATURE = Buffer.from('{\\rtf', 'latin1')
 
-const EOCD_SIGNATURE = 0x06054b50
-const EOCD_MIN_SIZE = 22
-const MAX_EOCD_COMMENT_SIZE = 0xffff
-const ZIP64_EOCD_LOCATOR_SIGNATURE = 0x07064b50
-const ZIP64_EOCD_LOCATOR_SIZE = 20
-const ZIP64_EOCD_SIGNATURE = 0x06064b50
-const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
-const CENTRAL_DIRECTORY_HEADER_MIN_SIZE = 46
-const LOCAL_FILE_HEADER_MIN_SIZE = 30
-const COMPRESSION_METHOD_STORED = 0
-const UINT16_SENTINEL = 0xffff
-const UINT32_SENTINEL = 0xffffffff
 /** Enough to reach the first `word/`, `xl/` or `ppt/` part in any real package. */
 const MAX_INSPECTED_ENTRIES = 256
 const MAX_MIMETYPE_BYTES = 128
@@ -63,37 +60,6 @@ interface ZipEntry {
   localHeaderOffset: number
 }
 
-/** Same EOCD anchoring as the zip guard: only a record whose comment ends the buffer counts. */
-function findEocdOffset(buffer: Buffer): number {
-  const minStart = Math.max(0, buffer.length - EOCD_MIN_SIZE - MAX_EOCD_COMMENT_SIZE)
-  for (let offset = buffer.length - EOCD_MIN_SIZE; offset >= minStart; offset--) {
-    if (buffer.readUInt32LE(offset) !== EOCD_SIGNATURE) continue
-    const commentLength = buffer.readUInt16LE(offset + 20)
-    if (offset + EOCD_MIN_SIZE + commentLength === buffer.length) return offset
-  }
-  return -1
-}
-
-function locateCentralDirectory(buffer: Buffer, eocdOffset: number): number | null {
-  const entryCount = buffer.readUInt16LE(eocdOffset + 10)
-  const directoryOffset = buffer.readUInt32LE(eocdOffset + 16)
-  if (entryCount !== UINT16_SENTINEL && directoryOffset !== UINT32_SENTINEL) {
-    return directoryOffset
-  }
-
-  const locatorOffset = eocdOffset - ZIP64_EOCD_LOCATOR_SIZE
-  if (locatorOffset < 0 || buffer.readUInt32LE(locatorOffset) !== ZIP64_EOCD_LOCATOR_SIGNATURE) {
-    return null
-  }
-  const zip64Eocd = buffer.readBigUInt64LE(locatorOffset + 8)
-  if (zip64Eocd > BigInt(buffer.length - 56)) return null
-  const zip64EocdOffset = Number(zip64Eocd)
-  if (buffer.readUInt32LE(zip64EocdOffset) !== ZIP64_EOCD_SIGNATURE) return null
-  const zip64DirectoryOffset = buffer.readBigUInt64LE(zip64EocdOffset + 48)
-  if (zip64DirectoryOffset > BigInt(buffer.length)) return null
-  return Number(zip64DirectoryOffset)
-}
-
 /**
  * Reads central-directory entry names without decompressing anything. Returns
  * `null` for a buffer whose directory cannot be located. Bounded to the first
@@ -104,8 +70,8 @@ function readZipEntries(buffer: Buffer): ZipEntry[] | null {
   if (buffer.length < EOCD_MIN_SIZE) return null
   const eocdOffset = findEocdOffset(buffer)
   if (eocdOffset < 0) return null
-  const directoryOffset = locateCentralDirectory(buffer, eocdOffset)
-  if (directoryOffset === null) return null
+  const directoryOffset = locateCentralDirectory(buffer, eocdOffset)?.offset
+  if (directoryOffset === undefined) return null
 
   const entries: ZipEntry[] = []
   let cursor = directoryOffset

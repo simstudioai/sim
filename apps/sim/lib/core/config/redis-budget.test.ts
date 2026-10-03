@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 

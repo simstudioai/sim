@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
 

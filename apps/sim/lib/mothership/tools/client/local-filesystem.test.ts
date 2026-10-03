@@ -26,7 +26,6 @@ describe('executeLocalFilesystemTool', () => {
   const localFilesystem = vi.fn()
 
   beforeEach(() => {
-    vi.clearAllMocks()
     Object.defineProperty(window, 'simDesktop', {
       configurable: true,
       value: { localFilesystem },

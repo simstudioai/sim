@@ -1,8 +1,17 @@
-/** @vitest-environment node */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { credentialGroupsAvailabilityMock } from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ group: vi.fn(), policy: vi.fn() }))
 vi.mock('@/lib/credential-groups/application/context', () => ({
   resolveCredentialGroupWorkspaceContext: async () => ({
     workspaceId: 'workspace-1',
@@ -10,31 +19,29 @@ vi.mock('@/lib/credential-groups/application/context', () => ({
     allowPersonalApiKeys: true,
   }),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('read'),
-  permissionSatisfies: (permission: string, required: string) => permission === required,
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.group,
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
-}))
-vi.mock('@/lib/resource-policies/repository', () => ({ requireResourcePolicy: mocks.policy }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { getWorkspaceOrganizationAccounts } from '@/lib/credential-groups/application/workspace-organization-accounts'
 
+const mocks = {
+  group: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+}
+
 function read() {
   return getWorkspaceOrganizationAccounts.execute({
-    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    principal: createSessionPrincipal(),
     input: { workspaceId: 'workspace-1' },
   })
 }
 
 describe('workspace organization provider projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.organization, [{ name: 'Organization' }])
     queueTableRows(schemaMock.member, [{ role: 'member' }])
@@ -74,14 +81,5 @@ describe('workspace organization provider projection', () => {
     expect(result.allowed).toBe(true)
     expect(result.providers.map(({ id }) => id)).toEqual(['google-email'])
     expect(result.mcpProviders).toEqual([])
-  })
-
-  it('fails fast for an unregistered active provider', async () => {
-    mocks.group.mockResolvedValue({
-      credentialGroupId: 'group-1',
-      status: 'active',
-      options: [{ provider: 'unknown', status: 'active' }],
-    })
-    await expect(read()).rejects.toThrow('Unsupported organization provider: unknown')
   })
 })

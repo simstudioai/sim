@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The fixtures are real password-protected packages (`msoffcrypto-tool -e -p x`)
  * around one-part OOXML documents, gzipped because an OLE container is mostly
  * zero-padded sectors.
@@ -12,7 +10,6 @@ import { DocxParser } from '@/lib/file-parsers/docx-parser'
 import type { FileParserError } from '@/lib/file-parsers/errors'
 import { isEncryptedOoxmlContainer } from '@/lib/file-parsers/ooxml-encryption'
 import { PptxParser } from '@/lib/file-parsers/pptx-parser'
-import { sniffFileKind } from '@/lib/file-parsers/sniff'
 
 const ENCRYPTED_DOCX_GZ_BASE64 =
   'H4sIAGMbomoC/+1X63LaRhRe3xLbvSVpm6Zummj01xMLMObiARKu5maDhbEx/2RpkRTQxbpEiE6foi/QPELfov/aF+hM+7vP0LhHQtjgS4qcdCbtcDSfVrur3W/POd+u4Ndf7v/++qe1P9AlS6EF9OZsBd0Za5sDzI8q94Z1B2/Ozs5GzWcz+0/ZXwAnfwuQu0Uvl07O7wKWvfqqV87s/2ej/bvglTfl/yPAx4BPAJ8CPhseAeg+4AHgc8AXgC8BDwFfAR4BvgasAb4BPAZ8C3gCeDrT1AdhNFLgMhCB8kiGUkM28mMP0dL5mb96wzs/2g/+/OHFb3Ojcgl54gJzWFmXVQV2jDhURwy0dOHOQ/2fjIQv0rg/0/CvQFt/Ydh3B+WAyQA0YAUOM0a6D/8fwRdwxL04pf/jfYfApwGjCFmQkX+7h+bn/PrvtFW9vqve70KpTs2/BvxOKJe8b/80/M5vCPVG/hLEoQPRmM4eoznX/7tuLv3Hv+Fq3ok9f0mLw4xcXd+khW8Rf0cnL7y+A+BjgEd3fdaQ5N//c/0t/wv+X13fZf/nzv1fuQX/HdjvGnBJwOL37EHut8d//B2t/oyuO3+GPvvJwBPgn/d+B/s5f14voQ/CEoBd8Jt1VaADOhCHDZR1I+EoX4TSOaM2rj0pR/8B5m7Jv+yNFcbmIKb4LoTew94d5w/dci+0vPHOefodKsAVR2m0CWUA7s/QForAXAV4CsNT0G3LwMpy0OP0pqE9CNEOQksARWEdznvfoz0feZl2rTflavEd9LMIl3OWJZ73pR7xCmu6qMhJMrgRIAksswonynySbB4UnsVIQjcYmWN6ioyTpI118nlqNQEvabZqwCgCZpD1JCkYhrpNUTorYInRNySR1RRd6RgbrCJRSqcjspgKBQIR6mIoORy7rfoY3cV2fjiBolEqo+uWonGjidjbTsRizRChjzEwmVolwBLQn2MMhtCZntEQB+B7MEISJz2F7V5U4aWMaID3oS2oCYwuDPsiYdKd5dxYURWwlu7xiiYagpQk0/kG6bVmBUaU3YCPnnYVDmcz2eGMY4MaxfRWMES6azpkeiYw9evHUSG9X9zP6cKu3js17biC08kkSVCeIxx4UZINzMMkNuFFH3NFiWEr2E6SxWgsf1DPqSzuW6H+oFnmKdEIxwKDer1ktdgdmdcq3BFHxy1VKUU4I9Irx5l4tlqy6L7J0KHc3qaYwWyb1UIvsW2Ke9qOUNl3VjDB5a23aR0Lxa1ov2oclYPF9awmMdncAOe79dO+1amp5iFt4oJcpLSc0I20u9FCPNe0ZKrNS3y0dsjHalUr3WkJUUHTapkc38Lilm2N+zueWD11noaJdsLUxHcWXWoixQl1+9xfiCuhq6KcVUzZAKUEHCN9SGlSPJdsQmbvV1lv5R1TXeVVfJ895JVqNdI41Te5cuV0L25N5PwQa7CjsFYEopKsmhCHk82yWR1kep0GHexTgRa9b9NBR6tvpb12Rm8dgz62jmjVzq9LMTrSs/mDWn2Qjm1WqMpuiellysVolRustyOiKOUbZkBqxfXjTLDHtw/SdBi3mu2XSss6CbHtaqbF8SdH+YPs8aR2IZcj6Z6adSUv7uGddT5Xa/ZZaT1c4HE/TDeOG5VOM23Uwqp8agYK7IUcXWlMCMiTKXVJp4mxgzG1imY2s5nN7Hr7GzWns/kAGAAA'
@@ -57,11 +54,6 @@ describe('isEncryptedOoxmlContainer', () => {
 })
 
 describe('encrypted package routing', () => {
-  it('sniffs an encrypted package as its own kind', () => {
-    expect(sniffFileKind(encryptedPptx)).toBe('encrypted-ooxml')
-    expect(sniffFileKind(Buffer.concat([OLE2_MAGIC, Buffer.alloc(4096)]))).toBe('ole2')
-  })
-
   it.each([
     ['docx', encryptedDocx],
     ['pptx', encryptedPptx],

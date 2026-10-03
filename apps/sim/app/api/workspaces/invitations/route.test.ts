@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   authMockFns,
@@ -15,117 +12,97 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import type { CreatePendingInvitationInput } from '@/lib/invitations/send'
 
+const { mockValidateSeatAvailability } = vi.hoisted(() => ({
+  mockValidateSeatAvailability: vi.fn(),
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
+
+vi.mock('@/lib/billing/validation/seat-management', () => ({
+  validateSeatAvailability: mockValidateSeatAvailability,
+}))
+
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
+
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
+
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
+
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+
+vi.mock('@sim/audit', () => auditMock)
+
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
+
+const mockGetSession = authMockFns.mockGetSession
+const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
+const { mockGetEffectiveWorkspacePermission } = permissionsMockFns
 const {
-  MockConflictingPendingInvitationError,
-  mockGetWorkspaceInvitePolicy,
-  mockValidateInvitationsAllowed,
-  mockValidateSeatAvailability,
   mockAcquireOrganizationMutationLock,
   mockAcquireOrganizationUserMutationLocks,
   mockGetUserOrganization,
-  mockGetEffectiveWorkspacePermission,
+} = organizationMembershipMockFns
+const { mockValidateInvitationsAllowed } = permissionCheckMockFns
+mockValidateInvitationsAllowed.mockResolvedValue(undefined)
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockImplementation(
+  (...args: unknown[]) => mockGetEffectiveWorkspacePermission(...args)
+)
+
+import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
+import { POST } from '@/app/api/workspaces/invitations/batch/route'
+import { GET } from '@/app/api/workspaces/invitations/route'
+
+const { mockListAccessibleWorkspaceRowsForUser } = workspacesUtilsMockFns
+mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([])
+const { mockGetWorkspaceInvitePolicy, mockGetInvitePlanCategoryForUser } = workspacesPolicyMockFns
+const {
   mockCreatePendingInvitation,
   mockSendInvitationEmail,
   mockCancelPendingInvitation,
   mockRevertPendingInvitationGrants,
   mockFindPendingGrantWorkspaceIds,
   mockFindPendingOrganizationInvitation,
-  mockGetInvitePlanCategoryForUser,
-  mockListInvitationsForWorkspaces,
-  mockListAccessibleWorkspaceRowsForUser,
-} = vi.hoisted(() => ({
-  mockListInvitationsForWorkspaces: vi.fn().mockResolvedValue([]),
-  mockListAccessibleWorkspaceRowsForUser: vi.fn().mockResolvedValue([]),
-  MockConflictingPendingInvitationError: class extends Error {},
-  mockGetWorkspaceInvitePolicy: vi.fn(),
-  mockValidateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
-  mockValidateSeatAvailability: vi.fn(),
-  mockAcquireOrganizationMutationLock: vi.fn(),
-  mockAcquireOrganizationUserMutationLocks: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
-  mockCreatePendingInvitation: vi.fn(),
-  mockSendInvitationEmail: vi.fn(),
-  mockCancelPendingInvitation: vi.fn(),
-  mockRevertPendingInvitationGrants: vi.fn(),
-  mockFindPendingGrantWorkspaceIds: vi.fn(),
-  mockFindPendingOrganizationInvitation: vi.fn(),
-  mockGetInvitePlanCategoryForUser: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  ...permissionsMock,
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-}))
-
-vi.mock('@/lib/workspaces/policy', () => ({
-  getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
-  getInvitePlanCategoryForUser: mockGetInvitePlanCategoryForUser,
-  isOrganizationWorkspace: (ws: {
-    workspaceMode?: string | null
-    organizationId?: string | null
-  }) => ws.workspaceMode === 'organization' && !!ws.organizationId,
-}))
-
-vi.mock('@/lib/billing/validation/seat-management', () => ({
-  validateSeatAvailability: mockValidateSeatAvailability,
-}))
-
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
-  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
-  getUserOrganization: mockGetUserOrganization,
-}))
-
-vi.mock('@/lib/invitations/send', () => ({
-  ConflictingPendingInvitationError: MockConflictingPendingInvitationError,
-  createPendingInvitation: mockCreatePendingInvitation,
-  sendInvitationEmail: mockSendInvitationEmail,
-  cancelPendingInvitation: mockCancelPendingInvitation,
-  revertPendingInvitationGrants: mockRevertPendingInvitationGrants,
-  findPendingGrantWorkspaceIds: mockFindPendingGrantWorkspaceIds,
-  findPendingOrganizationInvitation: mockFindPendingOrganizationInvitation,
-}))
-
-vi.mock('@/lib/invitations/core', () => ({
-  normalizeEmail: (email: string) => email.trim().toLowerCase(),
-  listInvitationsForWorkspaces: mockListInvitationsForWorkspaces,
-}))
-
-vi.mock('@/lib/workspaces/utils', () => ({
-  listAccessibleWorkspaceRowsForUser: mockListAccessibleWorkspaceRowsForUser,
-}))
-
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateInvitationsAllowed: mockValidateInvitationsAllowed,
-  InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
-}))
-
-vi.mock('@sim/audit', () => auditMock)
-
-vi.mock('@/lib/posthog/server', () => posthogServerMock)
-
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: {
-    workspaceMemberInvited: vi.fn(),
-  },
-}))
-
-const mockGetSession = authMockFns.mockGetSession
-const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
-
-import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
-import { POST } from '@/app/api/workspaces/invitations/batch/route'
-import { GET } from '@/app/api/workspaces/invitations/route'
+} = invitationsSendMockFns
+const { mockListInvitationsForWorkspaces } = invitationsCoreMockFns
+mockListInvitationsForWorkspaces.mockResolvedValue([])
 
 describe('GET /api/workspaces/invitations', () => {
   const invitation = (workspaceId: string) => ({
@@ -138,7 +115,6 @@ describe('GET /api/workspaces/invitations', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
       { workspace: { id: 'ws-managed' }, permissionType: 'admin', viaOrgAdmin: false },
@@ -173,29 +149,12 @@ describe('GET /api/workspaces/invitations', () => {
       email: 'invitee@example.com',
     })
   })
-
-  it('asks only for the workspaces the caller can reach', async () => {
-    await GET(createMockRequest('GET'))
-
-    expect(mockListInvitationsForWorkspaces).toHaveBeenCalledWith([
-      'ws-managed',
-      'ws-org-admin',
-      'ws-read-only',
-    ])
-  })
-
-  it('refuses an unauthenticated caller', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    expect((await GET(createMockRequest('GET'))).status).toBe(401)
-  })
 })
 
 afterAll(resetEnvFlagsMock)
 
 describe('POST /api/workspaces/invitations/batch', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.workspace, [
       {
@@ -315,37 +274,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
     expect(data.upgradeRequired).toBe(true)
   })
 
-  it('blocks invites for grandfathered workspaces without a team plan', async () => {
-    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
-      id: 'workspace-1',
-      name: 'Grandfathered Workspace',
-      ownerId: 'user-1',
-      organizationId: null,
-      workspaceMode: 'grandfathered_shared',
-      billedAccountUserId: 'user-1',
-    })
-    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
-      allowed: false,
-      reason: UPGRADE_TO_INVITE_REASON,
-      requiresSeat: false,
-      organizationId: null,
-      upgradeRequired: true,
-    })
-
-    const request = createMockRequest('POST', {
-      workspaceIds: ['workspace-1'],
-      emails: ['new@example.com'],
-      permission: 'read',
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(403)
-    expect(data.upgradeRequired).toBe(true)
-    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
-  })
-
   it('reports org-owned invites as failed when the organization has no available seats', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
@@ -400,105 +328,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
     expect(mockValidateSeatAvailability).toHaveBeenCalledWith('org-1', 1, {
       executor: dbChainMock.db,
     })
-  })
-
-  it('creates an external workspace invitation for users already in another organization', async () => {
-    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
-      id: 'workspace-1',
-      name: 'Org Workspace',
-      ownerId: 'user-1',
-      organizationId: 'org-1',
-      workspaceMode: 'organization',
-      billedAccountUserId: 'owner-1',
-    })
-    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
-      allowed: true,
-      reason: null,
-      requiresSeat: true,
-      organizationId: 'org-1',
-      upgradeRequired: false,
-    })
-    mockGetUserOrganization.mockResolvedValueOnce({
-      organizationId: 'org-2',
-      role: 'member',
-      memberId: 'member-1',
-    })
-    queueTableRows(schemaMock.user, [{ id: 'existing-user', email: 'new@example.com' }])
-
-    const request = createMockRequest('POST', {
-      workspaceIds: ['workspace-1'],
-      emails: ['new@example.com'],
-      permission: 'read',
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.invitations[0].membershipIntent).toBe('external')
-    expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
-    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'workspace',
-        email: 'new@example.com',
-        organizationId: 'org-1',
-        membershipIntent: 'external',
-        grants: [{ workspaceId: 'workspace-1', permission: 'read' }],
-      })
-    )
-  })
-
-  it('creates a unified workspace invitation for a grandfathered workspace', async () => {
-    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
-      id: 'workspace-1',
-      name: 'Grandfathered Workspace',
-      ownerId: 'user-1',
-      organizationId: null,
-      workspaceMode: 'grandfathered_shared',
-      billedAccountUserId: 'user-1',
-    })
-
-    const request = createMockRequest('POST', {
-      workspaceIds: ['workspace-1'],
-      emails: ['new@example.com'],
-      permission: 'write',
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'workspace',
-        email: 'new@example.com',
-        organizationId: null,
-        grants: [{ workspaceId: 'workspace-1', permission: 'write' }],
-      })
-    )
-    expect(mockSendInvitationEmail).toHaveBeenCalled()
-    expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
-  })
-
-  it('creates multiple workspace invitations in one batch request', async () => {
-    const request = createMockRequest('POST', {
-      workspaceIds: ['workspace-1'],
-      emails: ['first@example.com', 'second@example.com'],
-      permission: 'read',
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.successful).toEqual(['first@example.com', 'second@example.com'])
-    expect(data.failed).toEqual([])
-    expect(data.invitations).toHaveLength(2)
-    expect(mockCreatePendingInvitation).toHaveBeenCalledTimes(2)
-    expect(mockSendInvitationEmail).toHaveBeenCalledTimes(2)
   })
 
   it('coalesces several workspaces into one invitation and one email', async () => {

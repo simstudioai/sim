@@ -1,12 +1,6 @@
-/**
- * @vitest-environment node
- */
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const redisMock = vi.hoisted(() => ({ client: null as unknown }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redisMock.client }))
-
 import { type UsageSegment, usageHourKey } from '@/lib/billing/core/usage-analytics'
 import { readThroughSegments } from '@/lib/billing/core/usage-segment-cache'
 
@@ -58,16 +52,15 @@ describe('readThroughSegments', () => {
     }, {})
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    redisMock.client = null
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
     namespace = `test-${generateShortId()}`
   })
 
   it('reads the ledger when a stored entry does not parse, rather than failing', async () => {
-    redisMock.client = {
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({
       mget: async (...keys: string[]) => keys.map(() => '{not json'),
       pipeline: () => ({ set: () => undefined, exec: async () => [] }),
-    }
+    })
     const entries = await read([day('2026-01-05')])
     expect(fetchRange).toHaveBeenCalledTimes(1)
     expect(totalByDay(entries)).toEqual({ '2026-01-05': 24 })

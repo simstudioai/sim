@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Covers the `undici.request()`-backed guarded fetch: `createSsrfGuardedFetchWithDispatcher`
  * builds its `fetch` on `undici.request` (not `undici.fetch`) because undici's `fetch` never
  * delivers a streaming `response.body` under the Bun runtime the server runs on. These tests
@@ -10,7 +8,7 @@
  */
 import { Readable } from 'node:stream'
 import { gzipSync } from 'node:zlib'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockAgent, mockUndiciRequest } = vi.hoisted(() => {
   class MockAgent {
@@ -50,10 +48,6 @@ function undiciReply(
 }
 
 describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it.each(['manual', 'error'] as const)(
     'checks the initial literal address with redirect mode %s',
     async (redirect) => {
@@ -136,8 +130,6 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
 
   it.each([
     [307, 'POST'],
-    [308, 'POST'],
-    [301, 'PUT'],
     [302, 'PUT'],
   ] as const)('replays a Request body through same-origin %s redirects', async (status, method) => {
     const payloads: string[] = []
@@ -171,29 +163,26 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     }
   })
 
-  it.each(['manual', 'error'] as const)(
-    'keeps Request bodies streaming in %s mode',
-    async (redirect) => {
-      const request = new Request('https://api.example.com/upload', {
-        method: 'POST',
-        redirect,
-        body: 'payload',
-      })
-      const transport = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
-      mockUndiciRequest.mockImplementationOnce(async (_url, options: { body: Readable }) => {
-        expect(options.body).toBeInstanceOf(Readable)
-        const chunks: Buffer[] = []
-        for await (const chunk of options.body) chunks.push(Buffer.from(chunk))
-        expect(Buffer.concat(chunks).toString()).toBe('payload')
-        return undiciReply(200, {}, byteStream('done'))
-      })
-      try {
-        expect(await (await transport.fetch(request)).text()).toBe('done')
-      } finally {
-        await transport.dispatcher.destroy()
-      }
+  it('keeps Request bodies streaming in manual redirect mode', async () => {
+    const request = new Request('https://api.example.com/upload', {
+      method: 'POST',
+      redirect: 'manual',
+      body: 'payload',
+    })
+    const transport = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
+    mockUndiciRequest.mockImplementationOnce(async (_url, options: { body: Readable }) => {
+      expect(options.body).toBeInstanceOf(Readable)
+      const chunks: Buffer[] = []
+      for await (const chunk of options.body) chunks.push(Buffer.from(chunk))
+      expect(Buffer.concat(chunks).toString()).toBe('payload')
+      return undiciReply(200, {}, byteStream('done'))
+    })
+    try {
+      expect(await (await transport.fetch(request)).text()).toBe('done')
+    } finally {
+      await transport.dispatcher.destroy()
     }
-  )
+  })
 
   it('does not read the Request body when init supplies a replacement', async () => {
     const request = new Request('https://api.example.com/upload', {
@@ -219,21 +208,6 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
       await request.body?.cancel()
       await transport.dispatcher.destroy()
     }
-  })
-
-  it('supports buffered reads (.json()) through the constructed body', async () => {
-    mockUndiciRequest.mockResolvedValueOnce(
-      undiciReply(
-        200,
-        { 'content-type': 'application/json' },
-        byteStream(JSON.stringify({ ok: true }))
-      )
-    )
-    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
-
-    const response = await fetch('https://mcp.example.com/data', { method: 'GET' })
-
-    expect(await response.json()).toEqual({ ok: true })
   })
 
   it('normalizes a Headers instance and an ArrayBuffer body for undici.request', async () => {

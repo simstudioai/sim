@@ -55,14 +55,6 @@ export function useGeneralSettings() {
 }
 
 /**
- * Prefetch general settings into a QueryClient cache.
- * Use on hover to warm data before navigation.
- */
-export function prefetchGeneralSettings(queryClient: QueryClient) {
-  queryClient.prefetchQuery(generalSettingsQuery)
-}
-
-/**
  * Convenience selector hooks for individual settings.
  * These provide a simple API for components that only need a single setting value.
  */

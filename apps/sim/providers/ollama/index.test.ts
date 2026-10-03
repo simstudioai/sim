@@ -1,78 +1,21 @@
-/**
- * @vitest-environment node
- */
+import { MockOpenAIAPIError, openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type StreamUsage = { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 
-const { mockCreate, mockExecuteTool, streamOnComplete, MockAPIError } = vi.hoisted(() => {
-  class MockAPIError extends Error {
-    status?: number
-    code?: string | null
-    type?: string
-    constructor(message: string, opts: { status?: number; code?: string; type?: string } = {}) {
-      super(message)
-      this.name = 'APIError'
-      this.status = opts.status
-      this.code = opts.code
-      this.type = opts.type
-    }
-  }
-  return {
-    mockCreate: vi.fn(),
-    mockExecuteTool: vi.fn(),
-    streamOnComplete: {
-      current: undefined as undefined | ((content: string, usage: StreamUsage) => void),
-    },
-    MockAPIError,
-  }
-})
+vi.mock('openai', () => openaiMock)
 
-vi.mock('openai', () => {
-  const OpenAI = vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  )
-  ;(OpenAI as unknown as { APIError: typeof MockAPIError }).APIError = MockAPIError
-  return { default: OpenAI }
-})
+vi.mock('@/providers', () => providersMock)
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: (messages: unknown) => messages,
-}))
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
-vi.mock('@/providers/ollama/utils', () => ({
-  createReadableStreamFromOllamaStream: (
-    _stream: unknown,
-    onComplete: (content: string, usage: StreamUsage) => void
-  ) => {
-    streamOnComplete.current = onComplete
-    return new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.close()
-      },
-    })
-  },
-}))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: () => ({ input: 0, output: 0, total: 0, pricing: null }),
-  generateSchemaInstructions: () => 'SCHEMA_INSTRUCTIONS',
-  prepareToolExecution: (_tool: unknown, args: Record<string, unknown>) => ({
-    toolParams: args,
-    executionParams: args,
-  }),
-  sumToolCosts: () => 0,
-}))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/providers/utils', () => providersUtilsMock)
+vi.mock('@/tools', () => toolsMock)
 vi.mock('@/stores/providers', () => ({
   useProvidersStore: { getState: () => ({ setProviderModels: vi.fn() }) },
 }))
@@ -80,6 +23,16 @@ vi.mock('@/stores/providers', () => ({
 import { ollamaProvider } from '@/providers/ollama'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockCalculateCost.mockReturnValue({
+  input: 0,
+  output: 0,
+  total: 0,
+  pricing: null,
+})
 
 interface StreamingResult {
   stream: string | ReadableStream<AgentStreamEvent>
@@ -143,8 +96,6 @@ const baseRequest: ProviderRequest = {
 
 describe('ollamaProvider.executeRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    streamOnComplete.current = undefined
     mockCreate.mockResolvedValue(completion({ content: 'hello' }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })
@@ -381,16 +332,29 @@ describe('ollamaProvider.executeRequest', () => {
 
   it('surfaces an OpenAI APIError message through ProviderError', async () => {
     mockCreate.mockRejectedValue(
-      new MockAPIError('model not found', {
-        status: 404,
-        code: 'not_found',
-        type: 'invalid_request_error',
-      })
+      new MockOpenAIAPIError(
+        404,
+        { message: 'model not found', code: 'not_found', type: 'invalid_request_error' },
+        undefined
+      )
     )
     await expect(ollamaProvider.executeRequest(baseRequest)).rejects.toThrow('model not found')
   })
 
   it('streams content and usage when no tools are used', async () => {
+    mockCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          choices: [{ delta: { content: 'streamed text' } }],
+          usage: {
+            prompt_tokens: 4,
+            completion_tokens: 6,
+            total_tokens: 10,
+          },
+        }
+      })()
+    )
+
     const result = (await ollamaProvider.executeRequest({
       ...baseRequest,
       stream: true,
@@ -399,27 +363,32 @@ describe('ollamaProvider.executeRequest', () => {
     expect(result.stream).toBeInstanceOf(ReadableStream)
     expect(mockCreate.mock.calls[0][0].stream_options).toEqual({ include_usage: true })
 
-    streamOnComplete.current?.('streamed text', {
-      prompt_tokens: 4,
-      completion_tokens: 6,
-      total_tokens: 10,
-    })
+    await readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
     expect(result.execution.output.content).toBe('streamed text')
     expect(result.execution.output.tokens).toMatchObject({ input: 4, output: 6, total: 10 })
   })
 
   it('strips ```json fences from streamed content when responseFormat is set', async () => {
+    mockCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          choices: [{ delta: { content: '```json\n{"a":1}\n```' } }],
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 2,
+            total_tokens: 3,
+          },
+        }
+      })()
+    )
+
     const result = (await ollamaProvider.executeRequest({
       ...baseRequest,
       stream: true,
       responseFormat: { name: 'r', schema: { type: 'object' }, strict: true },
     })) as unknown as StreamingResult
 
-    streamOnComplete.current?.('```json\n{"a":1}\n```', {
-      prompt_tokens: 1,
-      completion_tokens: 2,
-      total_tokens: 3,
-    })
+    await readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
     expect(result.execution.output.content).toBe('{"a":1}')
   })
 

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * What a caller can learn about a workflow run whose result the secret-egress boundary
  * withholds.
  *
@@ -16,6 +14,9 @@
  * on every block of every execution in the product, and buys a caller nothing it cannot get
  * by resolving the id it was handed.
  */
+import { executeWorkflowMock } from '@sim/testing/mocks/execute-workflow.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workflowsOrchestrationMock } from '@sim/testing/mocks/workflows-orchestration.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
@@ -43,14 +44,14 @@ vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
  * executor, the paused-run manager, and deployment orchestration — are stubbed
  * rather than loaded.
  */
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({ executeWorkflow: vi.fn() }))
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
 vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
   cancelWorkflowExecution: vi.fn(),
   WorkflowExecutionNotFoundError: class WorkflowExecutionNotFoundError extends Error {},
 }))
-vi.mock('@/lib/workflows/orchestration', () => ({ performCreateWorkflowTransition: vi.fn() }))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/core/telemetry', () => ({ PlatformEvents: { apiKeyGenerated: vi.fn() } }))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 import { executeRunWorkflow } from '@/lib/mothership/tools/handlers/workflow/mutations'
 
@@ -172,7 +173,6 @@ async function withhold(): Promise<ToolExecutionResult> {
 
 describe('a withheld run_workflow result', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.executeWorkflowUseCase.mockReset()
   })
 
@@ -186,7 +186,11 @@ describe('a withheld run_workflow result', () => {
       'run_workflow'
     )
 
-    expect(result.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
+    expect(result.output).toEqual({
+      resultWithheld: true,
+      withheldReason: expect.stringMatching(/could not be verified/),
+      effect: 'not_attempted',
+    })
     expect(result.error).toContain('nothing was created')
   })
 
@@ -197,6 +201,7 @@ describe('a withheld run_workflow result', () => {
     expect(result.success).toBe(succeeded)
     expect(result.output).toEqual({
       resultWithheld: true,
+      withheldReason: expect.stringMatching(/could not be verified/),
       effect,
       // An id is present exactly when there is something to resolve.
       ...(effect === 'not_attempted' ? {} : { executionId: EXECUTION_ID }),

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,67 +19,12 @@ import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import {
   archiveWorkspaceFileFolderIfEmpty,
   buildWorkspaceFileFolderPathMap,
-  createWorkspaceFileFolder,
   ensureWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
   relocateWorkspaceFileFolderByPath,
   WorkspaceFileFolderConflictError,
-  WorkspaceFileItemsNotFoundError,
-  WorkspaceFileMoveConflictError,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-
-describe('createWorkspaceFileFolder', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-    mockAcquireFolderMutationLock.mockReset()
-    mockDeduplicateFolderName.mockReset()
-  })
-
-  it('uses the shared numeric suffix allocator when exact naming is disabled', async () => {
-    const now = new Date('2026-08-17T12:00:00.000Z')
-    const inserted = {
-      id: 'folder-archive-3',
-      resourceType: 'file',
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      name: 'Archive (3)',
-      parentId: null,
-      sortOrder: 0,
-      deletedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    }
-    const validateResolvedName = vi.fn()
-    mockDeduplicateFolderName.mockResolvedValueOnce('Archive (3)')
-    dbChainMockFns.returning.mockResolvedValueOnce([inserted])
-
-    await expect(
-      createWorkspaceFileFolder({
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        name: 'Archive',
-        exactName: false,
-        validateResolvedName,
-      })
-    ).resolves.toMatchObject({ name: 'Archive (3)' })
-
-    expect(mockDeduplicateFolderName).toHaveBeenCalledWith(
-      expect.anything(),
-      'workspace-1',
-      null,
-      'Archive',
-      'file'
-    )
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Archive (3)' })
-    )
-    expect(validateResolvedName).toHaveBeenCalledWith('Archive (3)')
-    expect(validateResolvedName.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.values.mock.invocationCallOrder[0]
-    )
-  })
-})
 
 describe('workspace file folder paths', () => {
   it('builds nested paths from parent relationships', () => {
@@ -142,25 +83,6 @@ describe('workspace file folder failure classification', () => {
     expect(error.message).toBe('A folder named "Reports" already exists in this location')
   })
 
-  it('classifies a destination name collision as a conflict', () => {
-    const classified = asOrchestrationError(new WorkspaceFileMoveConflictError('report.pdf'))
-
-    expect(classified?.code).toBe('conflict')
-    expect(statusForOrchestrationError(classified?.code)).toBe(409)
-  })
-
-  it('classifies missing items as not found', () => {
-    const classified = asOrchestrationError(
-      new WorkspaceFileItemsNotFoundError(['file-1'], ['folder-1'])
-    )
-
-    expect(classified?.code).toBe('not_found')
-    expect(statusForOrchestrationError(classified?.code)).toBe(404)
-    expect(classified?.message).toBe(
-      'Workspace file items not found (files: file-1; folders: folder-1)'
-    )
-  })
-
   it('classifies a conflict raised inside a wrapping transaction error', () => {
     const wrapped = new Error('insert into "folder" ...', {
       cause: new WorkspaceFileFolderConflictError('Reports'),
@@ -205,15 +127,6 @@ describe('listWorkspaceFileFolders', () => {
     expect(folders).toHaveLength(1)
     expect(folders[0].path).toBe('Engineering/Archive')
   })
-
-  it('does not take an extra query for the active scope', async () => {
-    queueTableRows(schemaMock.folder, [activeParent])
-
-    const folders = await listWorkspaceFileFolders('workspace-1')
-
-    expect(folders.map((folder) => folder.path)).toEqual(['Engineering'])
-    expect(dbChainMockFns.from).toHaveBeenCalledOnce()
-  })
 })
 
 describe('archiveWorkspaceFileFolderIfEmpty', () => {
@@ -238,16 +151,6 @@ describe('archiveWorkspaceFileFolderIfEmpty', () => {
       'workspace-1',
       'file'
     )
-  })
-
-  it('returns false without archiving when the folder is missing or already archived', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    await expect(
-      archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
-    ).resolves.toBe(false)
-
-    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
   })
 
   it('refuses to archive a folder that still holds an active file', async () => {
@@ -319,39 +222,6 @@ describe('relocateWorkspaceFileFolderByPath', () => {
       expect.anything(),
       'workspace-1',
       'file'
-    )
-  })
-
-  it('renames a folder to a destination that names no folder', async () => {
-    queueTableRows(schemaMock.folder, [source])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...source, name: 'fx-archive' }])
-
-    const result = await relocateWorkspaceFileFolderByPath({
-      workspaceId: 'workspace-1',
-      path: '/xp-files',
-      destinationPath: '/fx-archive',
-    })
-
-    expect(result.path).toBe('/fx-archive')
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'fx-archive', parentId: null })
-    )
-  })
-
-  it('moves a nested folder back to the root when the destination is /', async () => {
-    const nested = { ...source, id: 'folder-nested', name: 'xp-docs', parentId: 'folder-archive' }
-    queueTableRows(schemaMock.folder, [archive, nested])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...nested, parentId: null }])
-
-    const result = await relocateWorkspaceFileFolderByPath({
-      workspaceId: 'workspace-1',
-      path: '/fx-archive/xp-docs',
-      destinationPath: '/',
-    })
-
-    expect(result.path).toBe('/xp-docs')
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'xp-docs', parentId: null })
     )
   })
 

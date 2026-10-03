@@ -9,8 +9,8 @@ import type {
 } from '@/lib/mothership/async-runs/lifecycle'
 import { upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 import {
+  CLIENT_TOOL_RESULT_TIMEOUT_MS,
   COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
-  STREAM_TIMEOUT_MS,
 } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
@@ -48,6 +48,7 @@ import type {
 } from '@/lib/mothership/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
@@ -56,10 +57,7 @@ import {
   normalizeToolActivityDescription,
   refineStreamingCliToolName,
 } from '@/lib/mothership/tools/tool-display'
-import {
-  isWorkflowToolName,
-  resolveWorkflowToolTargetId,
-} from '@/lib/mothership/tools/workflow-tools'
+import { resolveWorkflowToolTargetId } from '@/lib/mothership/tools/workflow-tools'
 import { getBlockByToolName } from '@/blocks/registry'
 import {
   abortPendingToolIfStreamDead,
@@ -216,10 +214,13 @@ export async function prePersistClientExecutableToolCall(
   if (!isToolCallStreamEvent(event)) return
 
   const data = event.payload
-  if (data.replay) return
   const isGenerating = data.status === TOOL_CALL_STATUS.generating
   const isPartial = data.partial === true || isGenerating
-  if (isPartial) return
+  // Only a live, complete call can be held behind a prompt; drop the stamp on any other frame.
+  if (data.replay || isPartial) {
+    if (data.status === TOOL_AWAITING_APPROVAL_STATUS) data.status = undefined
+    return
+  }
 
   const ui = getToolCallUI(data)
   const catalogEntry = getToolEntry(data.toolName)
@@ -882,7 +883,7 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
-    const timeoutMs = options.timeout || STREAM_TIMEOUT_MS
+    const timeoutMs = options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,
       {

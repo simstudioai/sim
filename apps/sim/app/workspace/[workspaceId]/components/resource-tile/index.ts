@@ -4,3 +4,4 @@ export {
   RESOURCE_TILE_PLAIN,
   ResourceTile,
 } from '@sim/emcn'
+export { BrandTile } from './resource-tile'

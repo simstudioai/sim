@@ -1,72 +1,63 @@
-/**
- * @vitest-environment node
- */
 import { resetDbChainMock } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import { executeWorkflowMock } from '@sim/testing/mocks/execute-workflow.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableRowsSecretProvenanceMock,
+  tableRowsSecretProvenanceMockFns,
+} from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getTableById: vi.fn(),
-  getRowById: vi.fn(),
-  getRowSummaryById: vi.fn(),
-  createProvenanceReader: vi.fn(),
-  pickNextEligibleGroupForRow: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   writeWorkflowGroupState: vi.fn(),
   markWorkflowGroupPickedUp: vi.fn(),
   runEnrichment: vi.fn(),
   getEnrichment: vi.fn(),
   readStampedCapabilitySubject: vi.fn(),
-  checkAttributedUsageLimits: vi.fn(),
-  exportProvenance: vi.fn(),
 }))
 
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
-vi.mock('@/lib/table/rows/service', () => ({
-  getRowById: mocks.getRowById,
-  getRowSummaryById: mocks.getRowSummaryById,
-  updateRow: vi.fn(),
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 vi.mock('@/lib/table/rows/executions', () => ({
-  readStampedCapabilitySubject: mocks.readStampedCapabilitySubject,
+  readStampedCapabilitySubject: hoisted.readStampedCapabilitySubject,
 }))
-vi.mock('@/lib/table/workflow-columns', () => ({
-  pickNextEligibleGroupForRow: mocks.pickNextEligibleGroupForRow,
-  stashCellContextForResume: vi.fn(),
-  buildWorkflowGroupExecutionCorrelation: vi.fn(),
-}))
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/table/cell-write', () => ({
   buildCancelledExecution: vi.fn(),
   createWorkflowCellProgressWriter: vi.fn(),
-  writeWorkflowGroupState: mocks.writeWorkflowGroupState,
-  markWorkflowGroupPickedUp: mocks.markWorkflowGroupPickedUp,
+  writeWorkflowGroupState: hoisted.writeWorkflowGroupState,
+  markWorkflowGroupPickedUp: hoisted.markWorkflowGroupPickedUp,
 }))
 vi.mock('@/lib/table/workflow-cell-result', () => ({
   classifyWorkflowCellTerminalResult: vi.fn(),
 }))
-vi.mock('@/enrichments/registry', () => ({ getEnrichment: mocks.getEnrichment }))
+vi.mock('@/enrichments/registry', () => ({ getEnrichment: hoisted.getEnrichment }))
 vi.mock('@/enrichments/run', () => ({
-  runEnrichment: mocks.runEnrichment,
+  runEnrichment: hoisted.runEnrichment,
   skippedEnrichmentDetail: () => ({}),
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
-  toBillingContext: () => ({}),
-}))
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkExecutionUsageLimits: mocks.checkAttributedUsageLimits,
-}))
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
-  createTableRowSecretProvenanceFromRegistry: () => ({ complete: true, columns: {} }),
-  TableRowProvenanceReader: class {
-    constructor(scope: unknown, selectedColumnIds: unknown) {
-      mocks.createProvenanceReader(scope, selectedColumnIds)
-    }
-    exportProvenance = mocks.exportProvenance
-  },
-}))
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({ executeWorkflow: vi.fn() }))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
 
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 /**
  * Unmocked, the pacing loop constructs a real RateLimiter against the global
@@ -84,6 +75,18 @@ vi.mock('@/lib/table/dispatcher', () => ({
 }))
 
 import { runRowCascadeLoop } from '@/background/workflow-column-execution'
+
+const mocks = {
+  ...hoisted,
+  getRowById: tableRowsServiceMockFns.mockGetRowById,
+  getRowSummaryById: tableRowsServiceMockFns.mockGetRowSummaryById,
+  pickNextEligibleGroupForRow: tableWorkflowColumnsMockFns.mockPickNextEligibleGroupForRow,
+  checkAttributedUsageLimits: billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits,
+  exportProvenance: tableRowsSecretProvenanceMockFns.mockTableRowProvenanceReaderExportProvenance,
+}
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+billingAttributionMockFns.mockToBillingContext.mockReturnValue({} as never)
 
 function enrichmentGroup(id: string) {
   return {
@@ -155,12 +158,11 @@ describe('draining another dispatch’s pre-stamped marker', () => {
   }, 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getRowSummaryById.mockImplementation((tableId, rowId, workspaceId) =>
       mocks.getRowById(tableId, rowId, workspaceId)
     )
-    mocks.getTableById.mockResolvedValue(TABLE)
+    mockGetTableById.mockResolvedValue(TABLE)
     mocks.getEnrichment.mockReturnValue({
       id: 'enrich-1',
       name: 'Enrich',

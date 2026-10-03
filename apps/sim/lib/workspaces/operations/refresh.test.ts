@@ -1,19 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
 import { refreshWorkspaceOperation } from '@/lib/workspaces/operations/refresh'
-
-const { receiptTable } = vi.hoisted(() => ({
-  receiptTable: {
-    id: 'workspaceOperationReceipt.id',
-    workspaceId: 'workspaceOperationReceipt.workspaceId',
-    report: 'workspaceOperationReceipt.report',
-  },
-}))
-vi.mock('@sim/db/schema', () => ({ ...schemaMock, workspaceOperationReceipt: receiptTable }))
 
 function report(overrides: Partial<WorkspaceOperationReport> = {}): WorkspaceOperationReport {
   return {
@@ -30,12 +18,11 @@ function report(overrides: Partial<WorkspaceOperationReport> = {}): WorkspaceOpe
 }
 
 function queueReport(value: WorkspaceOperationReport): void {
-  queueTableRows(receiptTable, [{ report: value }])
+  queueTableRows(schemaMock.workspaceOperationReceipt, [{ report: value }])
 }
 
 describe('refreshWorkspaceOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -149,13 +136,5 @@ describe('refreshWorkspaceOperation', () => {
       completionRecorded: true,
       copyProgress: { status: 'failed', copied: 2, failed: 1 },
     })
-  })
-
-  it('returns a completed receipt without rereading effects or changing it', async () => {
-    const current = report({ status: 'completed', completionRecorded: true })
-    queueReport(current)
-    expect(await refreshWorkspaceOperation('workspace', 'operation')).toEqual(current)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

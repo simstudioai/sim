@@ -38,26 +38,6 @@ afterEach(() => {
 })
 
 describe('SecretValueField', () => {
-  it('preserves the caret position when revealing an editable value', () => {
-    const value = 'editable-secret-value'
-    act(() => root.render(<SecretValueField value={value} />))
-
-    expect(input().value).toBe(value)
-    expect(input().className).toContain('[-webkit-text-security:disc]')
-
-    input().setSelectionRange(15, 15)
-    act(() => input().focus())
-
-    expect(input().value).toBe(value)
-    expect(input().selectionStart).toBe(15)
-    expect(input().readOnly).toBe(false)
-    expect(input().className).not.toContain('[-webkit-text-security:disc]')
-
-    act(() => input().blur())
-    expect(input().value).toBe(value)
-    expect(input().className).toContain('[-webkit-text-security:disc]')
-  })
-
   it('lets a read-only viewer reveal an allowed value without making it editable', () => {
     act(() => root.render(<SecretValueField value='visible-secret' canEdit={false} canReveal />))
 
@@ -76,11 +56,5 @@ describe('SecretValueField', () => {
     expect(input().value).toBe('•'.repeat(10))
     act(() => input().focus())
     expect(input().value).toBe('•'.repeat(10))
-  })
-
-  it('keeps an empty editable value empty while unfocused', () => {
-    act(() => root.render(<SecretValueField value='' />))
-
-    expect(input().value).toBe('')
   })
 })

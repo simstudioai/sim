@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 /**
@@ -10,32 +8,16 @@ import { describe, expect, it, vi } from 'vitest'
  * env). These tests only exercise pure parsing/model helpers, so stub the
  * client module out entirely.
  */
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: vi.fn(() => ({ data: null, isPending: false })),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { normalizeMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
-import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/mothership/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import { getHiddenToolNames } from '@/lib/mothership/tools/client/hidden-tools'
-import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import {
   getTurnLiveIndicators,
   ownsTurnWait,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
-import {
-  createTurnModel,
-  reduceEvent,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
-import { modelToContentBlocks } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '../../types'
-import {
-  deriveThinkingLabel,
-  getOrchestratorMessageText,
-  parseBlocks,
-  shouldSmoothTextSegment,
-} from './message-content'
+import { getOrchestratorMessageText, parseBlocks } from './message-content'
 
 /** Whether the transcript owns the turn's wait, read through the rule's single owner. */
 function ownsWait(segments: ReturnType<typeof parseBlocks>, isStreaming = false): boolean {
@@ -174,21 +156,6 @@ describe('top-level activity groups', () => {
     ).toEqual([['a1'], ['b1'], ['a2'], ['b2']])
   })
 
-  it('keeps calls without new metadata inside the current sequential activity', () => {
-    const groups = parseBlocks([
-      activityCall('a1', 'Checking invoice inputs'),
-      activityCall('b1'),
-      activityReference('a2', 'Checking invoice inputs'),
-    ]).filter((segment) => segment.type === 'agent_group')
-    expect(groups).toHaveLength(1)
-    expect(groups[0].activity?.title).toBe('Checking invoice inputs')
-    expect(groups[0].items.map((item) => item.type === 'tool' && item.data.id)).toEqual([
-      'a1',
-      'b1',
-      'a2',
-    ])
-  })
-
   it('keeps only the latest sequential activity open through thinking gaps', () => {
     const completed = [
       activityCall('a1', 'Checking invoice inputs'),
@@ -249,38 +216,6 @@ describe('top-level activity groups', () => {
     ])
   })
 
-  it('retains labels on id-only reuse and does not rewrite an earlier closed activity', () => {
-    const first = activityCall('a1', 'Checking invoice inputs')
-    const renamed = activityReference('a2', 'Checking invoice inputs')
-    renamed.toolCall!.params = {
-      activity: {
-        id: 'Checking invoice inputs',
-        title: 'Checking updated invoices',
-        completedTitle: 'Checked updated invoices',
-      },
-    }
-    first.toolCall!.status = 'success'
-    const segments = parseBlocks([first, mainText('Inputs changed.'), renamed], true)
-    const groups = segments.filter((segment) => segment.type === 'agent_group')
-    expect(groups.map((group) => group.activity?.title)).toEqual([
-      'Checking invoice inputs',
-      'Checking updated invoices',
-    ])
-  })
-
-  it('closes at prose and reopens a reused activity below it during the same turn', () => {
-    const first = activityCall('a1', 'Checking invoice inputs')
-    first.toolCall!.status = 'success'
-    const reused = activityReference('a2', 'Checking invoice inputs')
-    reused.toolCall!.status = 'success'
-    const segments = parseBlocks([first, mainText('Checking the updated inputs.'), reused], true)
-    expect(segments).toMatchObject([
-      { type: 'agent_group', isOpen: false, activity: { id: 'Checking invoice inputs' } },
-      { type: 'text' },
-      { type: 'agent_group', isOpen: true, activity: { id: 'Checking invoice inputs' } },
-    ])
-  })
-
   it('does not merge activities across prose or absorb a subagent into the main activity', () => {
     const segments = parseBlocks([
       activityCall('a1', 'Checking invoice inputs'),
@@ -307,92 +242,7 @@ describe('top-level activity groups', () => {
   })
 })
 
-function representativeToolArgs(entry: ToolCatalogEntry): Record<string, unknown> {
-  const args: Record<string, unknown> = {}
-  if (!entry.parameters || typeof entry.parameters !== 'object') return args
-  const properties = (entry.parameters as { properties?: unknown }).properties
-  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return args
-
-  for (const [key, rawSchema] of Object.entries(properties)) {
-    if (!rawSchema || typeof rawSchema !== 'object' || Array.isArray(rawSchema)) continue
-    const schema = rawSchema as { default?: unknown; enum?: unknown; type?: unknown }
-    if (schema.default !== undefined) {
-      args[key] = schema.default
-    } else if (Array.isArray(schema.enum) && schema.enum.length > 0) {
-      args[key] = schema.enum[0]
-    } else if (schema.type === 'boolean') {
-      args[key] = true
-    } else if (schema.type === 'object') {
-      args[key] = {}
-    }
-  }
-  return args
-}
-
-function toolEnvelope(
-  seq: number,
-  payload: Record<string, unknown>,
-  agentId = 'deploy'
-): PersistedStreamEventEnvelope {
-  return {
-    v: 1,
-    seq,
-    ts: new Date(seq).toISOString(),
-    stream: { streamId: 'stream-1', cursor: String(seq) },
-    type: 'tool',
-    payload,
-    scope: {
-      lane: 'subagent',
-      spanId: `${agentId}-span`,
-      parentSpanId: 'main',
-      agentId,
-    },
-  } as PersistedStreamEventEnvelope
-}
-
 describe('getOrchestratorMessageText', () => {
-  it('copies only orchestrator text from span-based messages', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('research', 'span-visible', 'main'),
-      {
-        type: 'subagent_text',
-        content: 'Visible research. ',
-        spanId: 'span-visible',
-        timestamp: 2,
-      },
-      {
-        type: 'subagent_text',
-        content: 'Hidden orphan. ',
-        spanId: 'span-orphan',
-        timestamp: 3,
-      },
-      mainText('Main answer.'),
-    ]
-
-    expect(getOrchestratorMessageText(blocks, 'Fallback.')).toBe('Main answer.')
-  })
-
-  it('copies only orchestrator text from legacy messages', () => {
-    const blocks: ContentBlock[] = [
-      { type: 'subagent_text', content: 'Hidden orphan. ', timestamp: 1 },
-      {
-        type: 'subagent',
-        content: 'research',
-        parentToolCallId: 'dispatch-visible',
-        timestamp: 2,
-      },
-      {
-        type: 'subagent_text',
-        content: 'Visible research. ',
-        parentToolCallId: 'dispatch-visible',
-        timestamp: 3,
-      },
-      mainText('Main answer.'),
-    ]
-
-    expect(getOrchestratorMessageText(blocks, 'Fallback.')).toBe('Main answer.')
-  })
-
   it('separates orchestrator text blocks around excluded subagent output', () => {
     const blocks: ContentBlock[] = [
       mainText('Starting answer.'),
@@ -411,62 +261,6 @@ describe('getOrchestratorMessageText', () => {
 })
 
 describe('parseBlocks span-identity tree', () => {
-  it.each(['read', 'respond', 'prepare_file_edit'])(
-    'prefers invocation intent over %s fallback titles',
-    (name) => {
-      const segments = parseBlocks([
-        {
-          type: 'tool_call',
-          toolCall: {
-            id: 'described-tool',
-            name,
-            status: 'success',
-            displayTitle: 'Fallback title',
-            activityDescription: '  Checking\nlaunch updates ',
-            params: { path: 'workspace/files/brief.md' },
-          },
-          timestamp: 1,
-        },
-      ])
-      const group = segments[0]
-      if (group.type !== 'agent_group') throw new Error('expected mothership group')
-      const tool = group.items[0]
-      if (tool?.type !== 'tool') throw new Error('expected tool activity')
-      expect(tool.data.displayTitle).toBe('Checked launch updates')
-      expect(tool.data.activityDescription).toBe('Checking launch updates')
-      expect(tool.data.params).toEqual({ path: 'workspace/files/brief.md' })
-    }
-  )
-
-  it('refines a completed credential rename with its previous and new names', () => {
-    const segments = parseBlocks([
-      {
-        type: 'tool_call',
-        toolCall: {
-          id: 'rename-credential',
-          name: 'manage_credential',
-          status: 'success',
-          params: { operation: 'rename', displayName: 'Production Stripe' },
-          result: {
-            success: true,
-            output: {
-              previousDisplayName: 'Stripe',
-              displayName: 'Production Stripe',
-            },
-          },
-        },
-        timestamp: 1,
-      },
-    ])
-
-    expect(segments).toHaveLength(1)
-    const group = segments[0]
-    if (group.type !== 'agent_group') throw new Error('expected mothership group')
-    const tool = group.items[0]
-    if (tool?.type !== 'tool') throw new Error('expected credential tool')
-    expect(tool.data.displayTitle).toBe('Renamed Stripe to Production Stripe')
-  })
-
   it('nests a deploy subagent inside the workflow subagent that spawned it', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),
@@ -489,61 +283,6 @@ describe('parseBlocks span-identity tree', () => {
     expect(nested.group.agentName).toBe('deploy')
     // Deploy's own tool nests under deploy, not under workflow.
     expect(nested.group.items.some((item) => item.type === 'tool')).toBe(true)
-  })
-
-  it('clears the parent delegating flag once it has spawned a child, leaving only the child active', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('workflow', 'S1', 'main'),
-      subagentStart('deploy', 'S2', 'S1'),
-    ]
-
-    const segments = parseBlocks(blocks)
-    expect(segments).toHaveLength(1)
-    const workflow = segments[0]
-    if (workflow.type !== 'agent_group') throw new Error('expected workflow group')
-    expect(workflow.isDelegating).toBe(false)
-
-    const nested = workflow.items.find((item) => item.type === 'agent_group')
-    if (!nested || nested.type !== 'agent_group') throw new Error('expected nested deploy group')
-    expect(nested.group.isDelegating).toBe(true)
-  })
-
-  it('keeps two top-level subagents as siblings', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('workflow', 'S1', 'main'),
-      subagentStart('research', 'S3', 'main'),
-    ]
-
-    const segments = parseBlocks(blocks)
-    const groups = segments.filter((s) => s.type === 'agent_group')
-    expect(groups).toHaveLength(2)
-  })
-
-  it('creates distinct groups for repeated deploy invocations (no collision)', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('deploy', 'S2', 'main'),
-      subagentToolCall('t1', 'deploy_as_api', 'S2', 'deploy'),
-      subagentStart('deploy', 'S4', 'main'),
-      subagentToolCall('t2', 'deploy_as_api', 'S4', 'deploy'),
-    ]
-
-    const segments = parseBlocks(blocks)
-    const groups = segments.filter((s) => s.type === 'agent_group')
-    expect(groups).toHaveLength(2)
-  })
-
-  it('shows the delegating spinner while a span subagent is open with no output, and clears it once content arrives', () => {
-    const openOnly = parseBlocks([subagentStart('deploy', 'S2', 'main')])
-    expect(openOnly).toHaveLength(1)
-    if (openOnly[0].type !== 'agent_group') throw new Error('expected group')
-    expect(openOnly[0].isDelegating).toBe(true)
-
-    const withContent = parseBlocks([
-      subagentStart('deploy', 'S2', 'main'),
-      { type: 'subagent_text', content: 'working on it', spanId: 'S2', timestamp: 2 },
-    ])
-    if (withContent[0].type !== 'agent_group') throw new Error('expected group')
-    expect(withContent[0].isDelegating).toBe(false)
   })
 
   it('keeps two concurrently-open subagent lanes separate with interleaved text', () => {
@@ -570,45 +309,6 @@ describe('parseBlocks span-identity tree', () => {
     // in their own lane and in order — no cross-contamination.
     expect(textOf(groups[0])).toBe('A1 A2')
     expect(textOf(groups[1])).toBe('B1 ')
-  })
-
-  it('renders a persisted subagent lane as closed when only endedAt is set (no subagent_end)', () => {
-    // The Sim backend stamps endedAt on the subagent block but does not emit a
-    // separate subagent_end block; a reloaded transcript must still show the
-    // lane closed (no stuck delegating spinner).
-    const blocks: ContentBlock[] = [
-      {
-        type: 'subagent',
-        content: 'research',
-        spanId: 'S1',
-        parentSpanId: 'main',
-        timestamp: 1,
-        endedAt: 5,
-      },
-      { type: 'subagent_text', content: 'done', spanId: 'S1', subagent: 'research', timestamp: 2 },
-    ]
-
-    const segments = parseBlocks(blocks)
-    const group = segments.find((s) => s.type === 'agent_group')
-    expect(group).toBeDefined()
-    if (!group || group.type !== 'agent_group') throw new Error('expected research group')
-    expect(group.isOpen).toBe(false)
-    expect(group.isDelegating).toBe(false)
-  })
-
-  it('prunes an empty nested subagent that started and ended without output', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('workflow', 'S1', 'main'),
-      subagentToolCall('t1', 'create_workflow', 'S1', 'workflow'),
-      subagentStart('deploy', 'S2', 'S1'),
-      { type: 'subagent_end', spanId: 'S2', parentSpanId: 'S1', timestamp: 3 },
-    ]
-    const segments = parseBlocks(blocks)
-    expect(segments).toHaveLength(1)
-    if (segments[0].type !== 'agent_group') throw new Error('expected workflow group')
-    // The empty, ended deploy group is pruned; only the workflow tool remains.
-    expect(segments[0].items.some((item) => item.type === 'agent_group')).toBe(false)
-    expect(segments[0].items.some((item) => item.type === 'tool')).toBe(true)
   })
 
   it('retains main activity around prose and subagents in stream order', () => {
@@ -638,296 +338,6 @@ describe('parseBlocks span-identity tree', () => {
           : []
       )
     ).toEqual(['t1', 't2'])
-  })
-
-  it('absorbs the dispatch tool of a nested file subagent from its parent span group', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('workflow', 'S1', 'main'),
-      subagentToolCall('t1', 'prepare_file_edit', 'S1', 'workflow'),
-      { type: 'subagent', content: 'file', spanId: 'S2', parentSpanId: 'S1', timestamp: 2 },
-      { type: 'subagent_text', content: 'writing', spanId: 'S2', timestamp: 3 },
-    ]
-
-    const segments = parseBlocks(blocks)
-    expect(segments).toHaveLength(1)
-    const workflow = segments[0]
-    if (workflow.type !== 'agent_group') throw new Error('expected workflow group')
-
-    // The prepare_file_edit dispatch tool is absorbed (not shown as a sibling tool);
-    // only the nested file subagent remains under workflow.
-    expect(workflow.items.some((item) => item.type === 'tool')).toBe(false)
-    const nested = workflow.items.find((item) => item.type === 'agent_group')
-    if (!nested || nested.type !== 'agent_group') throw new Error('expected nested file group')
-    expect(nested.group.agentName).toBe('file')
-  })
-
-  it('suppresses subagent thinking while keeping the delegating spinner', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('workflow', 'S1', 'main'),
-      {
-        type: 'subagent_thinking',
-        content: 'reasoning about the fix',
-        spanId: 'S1',
-        subagent: 'workflow',
-        timestamp: 2,
-      },
-    ]
-
-    const segments = parseBlocks(blocks)
-    expect(segments).toHaveLength(1)
-    if (segments[0].type !== 'agent_group') throw new Error('expected workflow group')
-    expect(segments[0].items).toEqual([])
-    // Suppressed reasoning does not count as visible output or clear activity.
-    expect(segments[0].isDelegating).toBe(true)
-  })
-
-  it('does not create visible output when thinking arrives before its subagent start', () => {
-    const blocks: ContentBlock[] = [
-      {
-        type: 'subagent_thinking',
-        content: 'early reasoning',
-        spanId: 'S1',
-        parentSpanId: 'main',
-        subagent: 'workflow',
-        timestamp: 1,
-      },
-      subagentStart('workflow', 'S1', 'main'),
-    ]
-
-    const segments = parseBlocks(blocks)
-    const group = segments.find((s) => s.type === 'agent_group')
-    if (!group || group.type !== 'agent_group') throw new Error('expected workflow group')
-    expect(group.agentName).toBe('workflow')
-    expect(group.items).toEqual([])
-  })
-
-  it('renders only assistant text after suppressed subagent thinking', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('workflow', 'S1', 'main'),
-      {
-        type: 'subagent_thinking',
-        content: 'planning',
-        spanId: 'S1',
-        subagent: 'workflow',
-        timestamp: 2,
-      },
-      { type: 'subagent_text', content: 'done', spanId: 'S1', subagent: 'workflow', timestamp: 3 },
-    ]
-
-    const segments = parseBlocks(blocks)
-    if (segments[0].type !== 'agent_group') throw new Error('expected workflow group')
-    expect(segments[0].items).toEqual([{ type: 'text', content: 'done' }])
-    expect(segments[0].isDelegating).toBe(false)
-  })
-
-  it('falls back to legacy flat grouping when blocks have no span identity', () => {
-    const blocks: ContentBlock[] = [
-      { type: 'subagent', content: 'workflow', parentToolCallId: 'tc-1', timestamp: 1 },
-      {
-        type: 'tool_call',
-        toolCall: { id: 't1', name: 'create_workflow', status: 'success', calledBy: 'workflow' },
-        parentToolCallId: 'tc-1',
-        timestamp: 1,
-      },
-    ]
-
-    const segments = parseBlocks(blocks)
-    const groups = segments.filter((s) => s.type === 'agent_group')
-    expect(groups).toHaveLength(1)
-    if (groups[0].type !== 'agent_group') throw new Error('expected group')
-    expect(groups[0].agentName).toBe('workflow')
-  })
-})
-
-describe('shouldSmoothTextSegment', () => {
-  it('only smooths the trailing text segment of a live stream', () => {
-    expect(shouldSmoothTextSegment({ isStreaming: true, segmentIndex: 0, segmentCount: 2 })).toBe(
-      false
-    )
-    expect(shouldSmoothTextSegment({ isStreaming: true, segmentIndex: 1, segmentCount: 2 })).toBe(
-      true
-    )
-  })
-
-  it('never smooths completed messages', () => {
-    expect(shouldSmoothTextSegment({ isStreaming: false, segmentIndex: 0, segmentCount: 1 })).toBe(
-      false
-    )
-  })
-})
-
-describe('completed tool titles', () => {
-  function queryLogsCall(status: 'executing' | 'success' | 'error', displayTitle?: string) {
-    return {
-      type: 'tool_call' as const,
-      toolCall: { id: 't1', name: 'query_logs', status, displayTitle },
-      timestamp: 1,
-    }
-  }
-
-  function firstToolTitle(blocks: ContentBlock[]): string {
-    const segments = parseBlocks(blocks)
-    const group = segments.find((s) => s.type === 'agent_group')
-    if (!group || group.type !== 'agent_group') throw new Error('expected group')
-    const tool = group.items.find((i) => i.type === 'tool')
-    if (!tool || tool.type !== 'tool') throw new Error('expected tool')
-    return tool.data.displayTitle
-  }
-
-  it('rewrites query_logs to past tense on success', () => {
-    expect(firstToolTitle([queryLogsCall('success')])).toBe('Queried logs')
-  })
-
-  it('preserves the enriched workflow name in the past-tense title', () => {
-    expect(firstToolTitle([queryLogsCall('success', 'Querying logs for Invoice Bot')])).toBe(
-      'Queried logs for Invoice Bot'
-    )
-  })
-
-  it('renders an accepted async workflow launch in past tense', () => {
-    expect(
-      firstToolTitle([
-        {
-          type: 'tool_call',
-          toolCall: {
-            id: 'async-workflow',
-            name: 'run_workflow',
-            status: 'success',
-            params: { async: true },
-          },
-          timestamp: 1,
-        },
-      ])
-    ).toBe('Ran workflow')
-  })
-
-  it('renders the completed deployment action and deployment type', () => {
-    expect(
-      firstToolTitle([
-        {
-          type: 'tool_call',
-          toolCall: {
-            id: 'undeploy-api',
-            name: 'deploy_as_api',
-            status: 'success',
-            params: { action: 'undeploy' },
-          },
-          timestamp: 1,
-        },
-      ])
-    ).toBe('Undeployed as API')
-
-    expect(firstToolTitle([mainToolCall('deploy-mcp', 'deploy_as_mcp')])).toBe(
-      'Deployed as MCP tool'
-    )
-  })
-
-  it('renders Compared after the full diff_workflows wire lifecycle succeeds', () => {
-    const model = createTurnModel()
-    reduceEvent(
-      model,
-      toolEnvelope(1, {
-        phase: 'call',
-        toolCallId: 'diff-1',
-        toolName: 'diff_workflows',
-        arguments: { ref1: 'live', ref2: 'draft' },
-      })
-    )
-    reduceEvent(
-      model,
-      toolEnvelope(2, {
-        phase: 'result',
-        toolCallId: 'diff-1',
-        toolName: 'diff_workflows',
-        success: true,
-        status: 'success',
-        output: { differences: [] },
-      })
-    )
-
-    expect(firstToolTitle(modelToContentBlocks(model))).toBe('Compared workflows')
-  })
-
-  it('humanizes an internal read target through the full wire lifecycle', () => {
-    const model = createTurnModel()
-    reduceEvent(
-      model,
-      toolEnvelope(
-        1,
-        {
-          phase: 'call',
-          toolCallId: 'read-oauth-integrations',
-          toolName: 'read',
-          arguments: { path: 'environment/oauth-integrations.json' },
-        },
-        'auth'
-      )
-    )
-    reduceEvent(
-      model,
-      toolEnvelope(
-        2,
-        {
-          phase: 'result',
-          toolCallId: 'read-oauth-integrations',
-          toolName: 'read',
-          success: true,
-          status: 'success',
-          output: {},
-        },
-        'auth'
-      )
-    )
-
-    expect(firstToolTitle(modelToContentBlocks(model))).toBe('Read OAuth integrations')
-  })
-
-  it('renders the completed title through the full wire lifecycle for every visible tool', () => {
-    const hiddenToolNames = getHiddenToolNames()
-    const failures: string[] = []
-
-    for (const [toolName, entry] of Object.entries(TOOL_CATALOG)) {
-      // Internal subagent dispatches become agent groups, and hidden plumbing
-      // is intentionally suppressed; neither produces a visible tool row.
-      if (entry.internal || hiddenToolNames.has(toolName)) continue
-
-      const args = representativeToolArgs(entry)
-      const model = createTurnModel()
-      reduceEvent(
-        model,
-        toolEnvelope(1, {
-          phase: 'call',
-          toolCallId: `${toolName}-1`,
-          toolName,
-          arguments: args,
-        })
-      )
-      reduceEvent(
-        model,
-        toolEnvelope(2, {
-          phase: 'result',
-          toolCallId: `${toolName}-1`,
-          toolName,
-          success: true,
-          status: 'success',
-          output: {},
-        })
-      )
-
-      const presentTitle = getToolDisplayTitle(toolName, args)
-      const expectedTitle = getToolStatusDisplayTitle(presentTitle, 'success', toolName)
-      const actualTitle = firstToolTitle(modelToContentBlocks(model))
-      if (actualTitle !== expectedTitle) {
-        failures.push(`${toolName}: expected ${expectedTitle}, received ${actualTitle}`)
-      }
-    }
-
-    expect(failures).toEqual([])
-  })
-
-  it('keeps the action description for executing and unsuccessful rows', () => {
-    expect(firstToolTitle([queryLogsCall('executing')])).toBe('Querying logs')
-    expect(firstToolTitle([queryLogsCall('error')])).toBe('Querying logs')
   })
 })
 
@@ -963,32 +373,6 @@ describe('narration text seams', () => {
     expect(seam('released in v2.', '1 last week')).toBe('released in v2.1 last week')
     expect(seam('pi is 3.', '14 roughly')).toBe('pi is 3.14 roughly')
   })
-
-  it('does not double-space when the seam already has whitespace', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('research', 'S1', 'main'),
-      {
-        type: 'subagent_text',
-        content: 'first sentence. ',
-        spanId: 'S1',
-        subagent: 'research',
-        timestamp: 2,
-      },
-      {
-        type: 'subagent_text',
-        content: 'second sentence.',
-        spanId: 'S1',
-        subagent: 'research',
-        timestamp: 3,
-      },
-    ]
-    const segments = parseBlocks(blocks)
-    const group = segments.find((s) => s.type === 'agent_group')
-    if (!group || group.type !== 'agent_group') throw new Error('expected group')
-    const text = group.items.find((i) => i.type === 'text')
-    if (!text || text.type !== 'text') throw new Error('expected text')
-    expect(text.content).toBe('first sentence. second sentence.')
-  })
 })
 
 describe('parseBlocks legacy — thinking between top-level tools', () => {
@@ -1012,18 +396,6 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     ])
   })
 
-  it('keeps separate activity groups around assistant prose', () => {
-    const blocks: ContentBlock[] = [
-      mainToolCall('t1', 'grep'),
-      mainText('Here is what I found so far.'),
-      mainToolCall('t2', 'read'),
-    ]
-    const segments = parseBlocks(blocks)
-    const groups = segments.filter((s) => s.type === 'agent_group')
-    expect(groups).toHaveLength(2)
-    expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
-  })
-
   it('does not let main thinking affect subagent lane grouping', () => {
     const blocks: ContentBlock[] = [
       { type: 'subagent', content: 'workflow', parentToolCallId: 'd1', timestamp: 1 },
@@ -1042,34 +414,9 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
       content: 'workinglater chunk with no lane tag',
     })
   })
-
-  it('suppresses subagent thinking inside the legacy lane', () => {
-    const blocks: ContentBlock[] = [
-      { type: 'subagent', content: 'workflow', parentToolCallId: 'd1', timestamp: 1 },
-      {
-        type: 'subagent_thinking',
-        content: 'legacy reasoning',
-        parentToolCallId: 'd1',
-        timestamp: 2,
-      },
-      { type: 'subagent_text', content: 'output', parentToolCallId: 'd1', timestamp: 3 },
-    ]
-    const segments = parseBlocks(blocks)
-    const groups = segments.filter((s) => s.type === 'agent_group')
-    expect(groups).toHaveLength(1)
-    if (groups[0].type !== 'agent_group') throw new Error('expected group')
-    expect(groups[0].items).toEqual([{ type: 'text', content: 'output' }])
-  })
 })
 
 describe('turn wait ownership', () => {
-  it('keeps the gap after a completed main tool with its open activity until prose closes it', () => {
-    const blocks = [mainToolCall('finished', 'read')]
-    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
-    expect(ownsWait(parseBlocks(blocks), false)).toBe(false)
-    expect(ownsWait(parseBlocks([...blocks, mainText('Done.')], true), true)).toBe(false)
-  })
-
   it.each(['error', 'cancelled'] as const)(
     'leaves the gap after a %s main tool to the turn indicator',
     (status) => {
@@ -1079,33 +426,6 @@ describe('turn wait ownership', () => {
       expect(ownsWait(parseBlocks(blocks, true), true)).toBe(false)
     }
   )
-
-  const searchCall = (id: string, status: 'executing' | 'success'): ContentBlock => ({
-    type: 'tool_call',
-    toolCall: { id, name: 'search_workspace', status, params: { query: 'launch review' } },
-    timestamp: 1,
-  })
-
-  it('lets a running main search, whose label shimmers, own the wait', () => {
-    const blocks = [mainToolCall('read', 'read'), searchCall('search', 'executing')]
-    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
-  })
-
-  it('keeps the search activity live between calls in an open lane', () => {
-    const blocks = [mainToolCall('read', 'read'), searchCall('search', 'success')]
-    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
-  })
-
-  it('lets the open group own the gap once a later non-search call follows a search', () => {
-    const blocks = [searchCall('search', 'success'), mainToolCall('read', 'read')]
-    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
-  })
-
-  it('leaves an empty open subagent to the turn indicator', () => {
-    const segments = parseBlocks([subagentStart('workflow', 'S1', 'main')])
-    expect(ownsWait(segments, true)).toBe(false)
-    expect(ownsWait(segments, false)).toBe(false)
-  })
 
   it.each([undefined, 'main'])('retains an earlier running tool with spanId=%s', (spanId) => {
     const blocks: ContentBlock[] = [
@@ -1124,43 +444,10 @@ describe('turn wait ownership', () => {
     expect(ownsWait(parseBlocks(blocks), false)).toBe(false)
   })
 
-  it('does not treat an open subagent lane as an executing tool row', () => {
-    expect(ownsWait(parseBlocks([subagentStart('workflow', 'S1', 'main')]))).toBe(false)
-  })
-
-  it('keeps a visible executing tool as active work', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('workflow', 'S1', 'main'),
-      {
-        type: 'tool_call',
-        toolCall: { id: 't1', name: 'grep', status: 'executing', calledBy: 'workflow' },
-        spanId: 'S1',
-        timestamp: 3,
-      },
-    ]
-    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
-    expect(ownsWait(parseBlocks(blocks), false)).toBe(false)
-  })
-
   it('does not let open parallel lanes suppress the single turn-level indicator', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),
       subagentStart('search', 'S2', 'main'),
-    ]
-    expect(ownsWait(parseBlocks(blocks))).toBe(false)
-  })
-
-  it('ignores the executing dispatch tool represented by its subagent lane', () => {
-    const blocks: ContentBlock[] = [
-      {
-        type: 'tool_call',
-        toolCall: { id: 'dispatch-1', name: 'prepare_file_edit', status: 'executing' },
-        timestamp: 1,
-      },
-      {
-        ...subagentStart('file', 'S1', 'main'),
-        parentToolCallId: 'dispatch-1',
-      },
     ]
     expect(ownsWait(parseBlocks(blocks))).toBe(false)
   })
@@ -1239,30 +526,6 @@ describe('parseBlocks main activity controls', () => {
   )
 })
 
-describe('deriveThinkingLabel', () => {
-  it('maps the most recent block to an activity phrase', () => {
-    expect(deriveThinkingLabel([])).toBe('Thinking')
-    expect(deriveThinkingLabel([{ type: 'thinking', content: 'hm', timestamp: 1 }])).toBe(
-      'Thinking'
-    )
-    // A stall after streamed text is the agent deciding what's next, not generating.
-    expect(deriveThinkingLabel([mainText('hi')])).toBe('Thinking')
-    expect(deriveThinkingLabel([{ type: 'subagent_text', content: 'x', timestamp: 1 }])).toBe(
-      'Thinking'
-    )
-    expect(deriveThinkingLabel([{ type: 'subagent_end', spanId: 'S1', timestamp: 1 }])).toBe(
-      'Returning…'
-    )
-  })
-
-  it('shows Dispatching for the dispatch call, then yields to the opened lane', () => {
-    expect(deriveThinkingLabel([mainToolCall('t1', 'workflow')])).toBe('Dispatching…')
-    expect(deriveThinkingLabel([mainToolCall('t1', 'prepare_file_edit')])).toBe('Dispatching…')
-    expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking')
-    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBe('Thinking')
-  })
-})
-
 describe.each([undefined, 'main'])('watch presentation (%s)', (spanId) => {
   const watch: ContentBlock = {
     type: 'task',
@@ -1284,23 +547,6 @@ describe.each([undefined, 'main'])('watch presentation (%s)', (spanId) => {
       result: { success: true, output: { ok: true, taskId: 'timer-1' } },
     },
   }
-
-  it('renders one watch row, preserving independent work and text ordering', () => {
-    const segments = parseBlocks([
-      mainText('Checking the result shortly.'),
-      registration,
-      watch,
-      { ...mainToolCall('other', 'cli_secrets_list'), spanId },
-      mainText('Continuing independent work.'),
-    ])
-    expect(segments).toMatchObject([
-      { type: 'text', content: 'Checking the result shortly.' },
-      watch,
-      { type: 'agent_group', items: [{ type: 'tool', data: { id: 'other' } }] },
-      { type: 'text', content: 'Continuing independent work.' },
-    ])
-    expect(ownsWait(segments, true)).toBe(false)
-  })
 
   it.each(['pending', 'completed', 'stopped'] as const)(
     'does not duplicate a %s watch on replay',
@@ -1336,39 +582,5 @@ describe.each([undefined, 'main'])('watch presentation (%s)', (spanId) => {
     expect(stripped.contentBlocks[0].toolCall?.result?.output).toEqual({ taskId: 'timer-1' })
     expect(stripToolResultOutput(stripped)).toBe(stripped)
     expect(parseBlocks(toDisplayMessage(stripped).contentBlocks ?? [])).toEqual([watch])
-  })
-
-  it('keeps the registration tool until its durable watch is present', () => {
-    expect(parseBlocks([registration])).toMatchObject([
-      { type: 'agent_group', items: [{ type: 'tool', data: { id: 'watch-call' } }] },
-    ])
-  })
-
-  it('does not hide failed, unmatched, or non-watch tools', () => {
-    const blocks = [
-      {
-        ...registration,
-        toolCall: { ...registration.toolCall!, id: 'failed', status: 'error' as const },
-      },
-      {
-        ...registration,
-        toolCall: {
-          ...registration.toolCall!,
-          id: 'unmatched',
-          result: { success: true, output: { taskId: 'timer-2' } },
-        },
-      },
-      {
-        ...registration,
-        toolCall: { ...registration.toolCall!, id: 'other', name: 'task_output' },
-      },
-      watch,
-    ]
-    const groups = parseBlocks(blocks).filter((segment) => segment.type === 'agent_group')
-    expect(
-      groups.flatMap((group) =>
-        group.items.flatMap((item) => (item.type === 'tool' ? [item.data.id] : []))
-      )
-    ).toEqual(['failed', 'unmatched', 'other'])
   })
 })

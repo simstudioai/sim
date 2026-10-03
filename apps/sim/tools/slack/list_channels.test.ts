@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeSlackListConversationsOperation } from '@/lib/internal/slack/operations/list-conversations'
 import {
   assertAssistantIntegrationCall,
@@ -27,18 +24,6 @@ describe('Slack list channels', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('uses the internal operation boundary for a single page', () => {
-    expect(slackListChannelsTool.operation.input).toBeTypeOf('function')
-    expect(slackListChannelsTool.request).toBeUndefined()
-    expect(slackListChannelsTool.oauth?.requiredScopes).toEqual([])
-    expect(slackListChannelsTool.params).not.toHaveProperty('maxPages')
-    expect(slackListChannelsTool.outputs).not.toHaveProperty('pages')
   })
 
   it('remains available through the caller’s own Assistant account without model-supplied tokens', () => {

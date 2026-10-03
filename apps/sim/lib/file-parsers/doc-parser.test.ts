@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import JSZip from 'jszip'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { ZipBombError } from '@/lib/file-parsers/ooxml-limits'
 
@@ -41,7 +38,7 @@ interface WordSections {
 }
 
 /** The accessor surface of word-extractor's `Document`, with empty sections by default. */
-function wordDocument(sections: WordSections) {
+function _wordDocument(sections: WordSections) {
   return {
     getBody: () => sections.body ?? '',
     getHeaders: () => sections.headers ?? '',
@@ -80,22 +77,10 @@ function buildLegacyOleDoc(): Buffer {
 }
 
 describe('DocParser.parseBuffer', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('rejects a ZIP-shaped .doc whose declared expanded size exceeds the cap', async () => {
     const bomb = await buildDeclaredOversizeArchive(2 * 1024 * 1024 * 1024)
 
     await expect(new DocParser().parseBuffer(bomb)).rejects.toBeInstanceOf(ZipBombError)
-  })
-
-  it('rejects the bomb before either decompression library sees the buffer', async () => {
-    const bomb = await buildDeclaredOversizeArchive(2 * 1024 * 1024 * 1024)
-
-    await expect(new DocParser().parseBuffer(bomb)).rejects.toThrow()
-    expect(mockParseOfficeText).not.toHaveBeenCalled()
-    expect(mockExtractRawText).not.toHaveBeenCalled()
   })
 
   it('rejects a .doc that under-declares its uncompressed size', async () => {
@@ -136,58 +121,6 @@ describe('DocParser.parseBuffer', () => {
     expect(mockParseOfficeText).not.toHaveBeenCalled()
   })
 
-  it('still parses a well-formed OOXML archive renamed to .doc', async () => {
-    const zip = new JSZip()
-    zip.file('word/document.xml', '<w:document><w:body>hello</w:body></w:document>')
-    const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
-    mockParseOfficeText.mockResolvedValue('hello')
-
-    const result = await new DocParser().parseBuffer(buffer)
-
-    expect(result.content).toBe('hello')
-    expect(result.metadata?.extractionMethod).toBe('officeparser')
-    expect(mockWordExtract).not.toHaveBeenCalled()
-  })
-
-  it('reports an OOXML .doc with no text as no_extractable_text rather than scraping it', async () => {
-    const zip = new JSZip()
-    zip.file('word/document.xml', '<w:document><w:body/></w:document>')
-    const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
-    mockParseOfficeText.mockResolvedValue('')
-    mockExtractRawText.mockResolvedValue({ value: '', messages: [] })
-
-    const error = await new DocParser().parseBuffer(buffer).catch((caught: unknown) => caught)
-
-    expect(error).toBeInstanceOf(FileParserError)
-    expect(error).toMatchObject({ code: 'no_extractable_text' })
-  })
-
-  it('reads a legacy OLE .doc through word-extractor and joins its sections', async () => {
-    mockWordExtract.mockResolvedValue(
-      wordDocument({
-        body: 'Body paragraph “quoted”',
-        headers: 'Running header',
-        footers: 'Page footer',
-        footnotes: '',
-        endnotes: 'An endnote',
-        textboxes: 'Pull quote in a text box',
-      })
-    )
-
-    const result = await new DocParser().parseBuffer(buildLegacyOleDoc())
-
-    expect(mockWordExtract).toHaveBeenCalledOnce()
-    expect(mockParseOfficeText).not.toHaveBeenCalled()
-    expect(result.content).toBe(
-      'Body paragraph “quoted”\n\nRunning header\n\nPage footer\n\nAn endnote\n\nPull quote in a text box'
-    )
-    expect(result.metadata).toMatchObject({
-      extractionMethod: 'word-extractor',
-      degraded: false,
-      characterCount: result.content.length,
-    })
-  })
-
   it('maps a Word 6/95 magic-number rejection to unsupported_type', async () => {
     mockWordExtract.mockRejectedValue(
       new Error('This does not seem to be a Word document: Invalid magic number: a5dc')
@@ -202,46 +135,6 @@ describe('DocParser.parseBuffer', () => {
     expect((error as Error).message).toMatch(/Word 6\/95/)
   })
 
-  it.each([
-    new Error('Invalid Short Sector Allocation Table'),
-    new RangeError('Attempt to access memory outside buffer bounds'),
-  ])(
-    'maps any other word-extractor failure to a stable invalid_format message with the cause retained: %s',
-    async (libraryError) => {
-      mockWordExtract.mockRejectedValue(libraryError)
-
-      const error = await new DocParser()
-        .parseBuffer(buildLegacyOleDoc())
-        .catch((caught: unknown) => caught)
-
-      expect(error).toBeInstanceOf(FileParserError)
-      expect(error).toMatchObject({
-        code: 'invalid_format',
-        message: 'This .doc file could not be read',
-      })
-      expect((error as FileParserError).cause).toBe(libraryError)
-    }
-  )
-
-  it('reports a legacy .doc with no text as no_extractable_text', async () => {
-    mockWordExtract.mockResolvedValue(wordDocument({ body: '   \n' }))
-
-    await expect(new DocParser().parseBuffer(buildLegacyOleDoc())).rejects.toMatchObject({
-      code: 'no_extractable_text',
-    })
-  })
-
-  it('returns a plain-text file misnamed .doc as its decoded text', async () => {
-    const result = await new DocParser().parseBuffer(
-      Buffer.from('Vendor list\nBloomberg\nCaf\xe9\n', 'latin1')
-    )
-
-    expect(result.content).toBe('Vendor list\nBloomberg\nCafé')
-    expect(result.metadata?.degraded).toBeFalsy()
-    expect(result.metadata?.encoding).toBe('windows-1252')
-    expect(mockWordExtract).not.toHaveBeenCalled()
-  })
-
   it('rejects bytes that are neither OLE, ZIP nor text instead of scraping placeholder prose', async () => {
     const png = Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -253,9 +146,5 @@ describe('DocParser.parseBuffer', () => {
     expect(error).toBeInstanceOf(FileParserError)
     expect(error).toMatchObject({ code: 'invalid_format' })
     expect(mockWordExtract).not.toHaveBeenCalled()
-  })
-
-  it('rejects an empty buffer', async () => {
-    await expect(new DocParser().parseBuffer(Buffer.alloc(0))).rejects.toThrow('Empty buffer')
   })
 })

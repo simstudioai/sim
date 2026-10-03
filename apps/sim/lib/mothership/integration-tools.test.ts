@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/blocks/registry-maps', () => ({
@@ -25,19 +22,18 @@ vi.mock('@/blocks/registry-maps', () => ({
   },
 }))
 
-vi.mock('@/tools/registry', () => ({
-  tools: {
-    svc_send_v1: { name: 'Send (legacy)' },
-    svc_send_v2: { name: 'Send' },
-    newsvc_do_v1: { name: 'Do' },
-  },
-}))
-
 import {
   filterExposedIntegrationTools,
   getExposedIntegrationTools,
   resetExposedIntegrationToolsCache,
 } from '@/lib/integrations/tool-catalog'
+import { tools } from '@/tools/registry'
+
+Object.assign(tools as Record<string, unknown>, {
+  svc_send_v1: { name: 'Send (legacy)' },
+  svc_send_v2: { name: 'Send' },
+  newsvc_do_v1: { name: 'Do' },
+})
 
 const allowAllOwners = () => true
 const allowAllTools = () => true

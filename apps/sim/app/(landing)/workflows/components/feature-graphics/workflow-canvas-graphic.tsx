@@ -71,7 +71,7 @@ export function WorkflowCanvasGraphic() {
           width={LAYOUT.width}
           height={LAYOUT.height}
           maxScale={Number.POSITIVE_INFINITY}
-          className='h-full w-full'
+          className='size-full'
           contentClassName='relative'
         >
           <svg

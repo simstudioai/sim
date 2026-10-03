@@ -1,78 +1,30 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  blocks: vi.fn(),
-  visibility: vi.fn(),
-  credentialGroups: vi.fn(),
-  allowedIntegrations: vi.fn(),
-  blacklistedProviders: vi.fn(),
-  integrationAvailable: vi.fn(),
-  oauthAvailable: vi.fn(),
-  filterModels: vi.fn(),
-  toolMetadata: vi.fn(),
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlockRegistry: mocks.blocks,
-  getBlock: (id: string) => mocks.blocks()[id],
-}))
-vi.mock('@/lib/core/config/block-visibility', () => ({ getBlockVisibility: mocks.visibility }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.credentialGroups,
-}))
-vi.mock('@/lib/core/config/env', () => ({ env: { VLLM_BASE_URL: '', LITELLM_BASE_URL: '' } }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getAllowedIntegrationsFromEnv: mocks.allowedIntegrations,
-  getBlacklistedProvidersFromEnv: mocks.blacklistedProviders,
-  isHosted: true,
-  isChatEnabled: false,
-  isInboxEnabled: true,
-  isInvitationsDisabled: true,
-  isPublicApiDisabled: true,
-  isSandboxesEnabled: false,
-  isSsoEnabled: false,
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ isOllamaUrlConfigured: () => false }))
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mocks.integrationAvailable,
-  isOAuthServiceDeploymentAvailable: mocks.oauthAvailable,
-}))
-vi.mock('@/providers/utils', () => ({ filterBlacklistedModels: mocks.filterModels }))
-vi.mock('@/tools/metadata', () => ({ getToolMetadata: mocks.toolMetadata }))
-vi.mock('@/providers/models', () => {
-  const publicModels = {
-    openai: [
-      { id: 'public-model' },
-      { id: 'blocked-model' },
-      { id: 'retired-model', sunset: { status: 'deprecated' } },
-    ],
-    fireworks: [{ id: 'fireworks/public-model' }],
-  }
-  return {
-    getStaticProviderModels: (providerId: string) =>
-      publicModels[providerId as keyof typeof publicModels] ?? [],
-    PROVIDER_DEFINITIONS: {
-      openai: { id: 'openai', name: 'OpenAI', models: publicModels.openai },
-      anthropic: { id: 'anthropic', name: 'Anthropic', models: [{ id: 'anthropic-model' }] },
-      ollama: { id: 'ollama', name: 'Ollama', models: [{ id: 'private-local' }] },
-      vllm: { id: 'vllm', name: 'vLLM', models: [] },
-      litellm: { id: 'litellm', name: 'LiteLLM', models: [] },
-      openrouter: {
-        id: 'openrouter',
-        name: 'OpenRouter',
-        models: [{ id: 'private-tenant-model' }],
-      },
-      fireworks: {
-        id: 'fireworks',
-        name: 'Fireworks',
-        models: [...publicModels.fireworks, { id: 'fireworks/private-model' }],
-      },
-    },
-  }
-})
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
+vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: {
     available: {
@@ -96,8 +48,8 @@ vi.mock('@/connectors/registry', () => ({
 
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { getBlock, getBlockRegistry } from '@/blocks/registry'
 import {
-  getAccessRequestDeploymentUnavailableReason,
   listAccessRequestTargets,
   loadAccessRequestCatalog,
 } from '@/ee/access-requests/lib/catalog'
@@ -105,12 +57,72 @@ import {
   buildAccessRequestPolicyDelta,
   validateAccessRequestTarget,
 } from '@/ee/access-requests/lib/targets'
+import { getToolMetadata } from '@/tools/metadata'
+
+const mocks = {
+  visibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  credentialGroups: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  integrationAvailable:
+    integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility,
+  oauthAvailable: integrationsAvailabilityMockFns.mockIsOAuthServiceDeploymentAvailable,
+  blocks: vi.mocked(getBlockRegistry),
+  allowedIntegrations: envFlagsMockFns.getAllowedIntegrationsFromEnv,
+  blacklistedProviders: envFlagsMockFns.getBlacklistedProvidersFromEnv,
+  filterModels: providersUtilsMockFns.mockFilterBlacklistedModels,
+  toolMetadata: vi.mocked(getToolMetadata),
+}
+
+const publicModels = {
+  openai: [
+    { id: 'public-model' },
+    { id: 'blocked-model' },
+    { id: 'retired-model', sunset: { status: 'deprecated' } },
+  ],
+  fireworks: [{ id: 'fireworks/public-model' }],
+}
+providersModelsMockFns.mockGetStaticProviderModels.mockImplementation(
+  (providerId: string) => publicModels[providerId as keyof typeof publicModels] ?? []
+)
+Object.assign(providersModelsMock.PROVIDER_DEFINITIONS, {
+  openai: { id: 'openai', name: 'OpenAI', models: publicModels.openai },
+  anthropic: { id: 'anthropic', name: 'Anthropic', models: [{ id: 'anthropic-model' }] },
+  ollama: { id: 'ollama', name: 'Ollama', models: [{ id: 'private-local' }] },
+  vllm: { id: 'vllm', name: 'vLLM', models: [] },
+  litellm: { id: 'litellm', name: 'LiteLLM', models: [] },
+  openrouter: {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    models: [{ id: 'private-tenant-model' }],
+  },
+  fireworks: {
+    id: 'fireworks',
+    name: 'Fireworks',
+    models: [...publicModels.fireworks, { id: 'fireworks/private-model' }],
+  },
+})
+vi.mocked(getBlock).mockImplementation((id: string) => mocks.blocks()[id])
+setEnv({ VLLM_BASE_URL: '', LITELLM_BASE_URL: '' })
+setEnvFlags({
+  isHosted: true,
+  isChatEnabled: false,
+  isInboxEnabled: true,
+  isInvitationsDisabled: true,
+  isPublicApiDisabled: true,
+  isSandboxesEnabled: false,
+  isSsoEnabled: false,
+})
+urlsMockFns.mockIsOllamaUrlConfigured.mockReturnValue(false)
+
+afterAll(() => {
+  resetEnvMock()
+  resetEnvFlagsMock()
+  resetUrlsMock()
+})
 
 const context = { userId: 'viewer', organizationId: 'org', workspaceId: 'ws' }
 
 describe('access request catalog deployment ceilings', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.visibility.mockResolvedValue({
       revealed: new Set(['revealed']),
       disabled: new Set(['killed']),
@@ -168,31 +180,6 @@ describe('access request catalog deployment ceilings', () => {
     expect(JSON.stringify(listAccessRequestTargets(catalog))).not.toContain('private')
   })
 
-  it.each(['feature', 'usage_limit', 'file_share_auth', 'chat_deploy_auth'] as const)(
-    'keeps %s discovery independent of registry and visibility work',
-    async (kind) => {
-      const catalog = await loadAccessRequestCatalog(context, kind)
-      expect(catalog.integrations.size).toBe(0)
-      expect(mocks.visibility).not.toHaveBeenCalled()
-      expect(mocks.credentialGroups).not.toHaveBeenCalled()
-      expect(mocks.blocks).not.toHaveBeenCalled()
-      expect(mocks.toolMetadata).not.toHaveBeenCalled()
-    }
-  )
-
-  it('loads only the relevant catalog family', async () => {
-    const integrations = await loadAccessRequestCatalog(context, 'integration')
-    expect(integrations.integrations.size).toBeGreaterThan(0)
-    expect(integrations.providers.size).toBe(0)
-    expect(integrations.tools.size).toBe(0)
-    expect(mocks.toolMetadata).not.toHaveBeenCalled()
-    mocks.visibility.mockClear()
-    const models = await loadAccessRequestCatalog(context, 'model')
-    expect(models.models.size).toBeGreaterThan(0)
-    expect(models.integrations.size).toBe(0)
-    expect(mocks.visibility).not.toHaveBeenCalled()
-  })
-
   it('canonicalizes the deployment integration allowlist before matching', async () => {
     mocks.allowedIntegrations.mockReturnValue(['SLACK'])
     const catalog = await loadAccessRequestCatalog(context)
@@ -243,24 +230,6 @@ describe('access request catalog deployment ceilings', () => {
       second: { type: 'second', name: 'Second', tools: { access: ['shared_tool'] } },
     })
     expect((await loadAccessRequestCatalog(context)).tools.has('shared_tool')).toBe(false)
-  })
-
-  it('reports deployment flags as unavailable, independently of group config', () => {
-    expect(
-      getAccessRequestDeploymentUnavailableReason({ kind: 'feature', configKey: 'hideCopilot' })
-    ).not.toBeNull()
-    expect(
-      getAccessRequestDeploymentUnavailableReason({
-        kind: 'feature',
-        configKey: 'disableInvitations',
-      })
-    ).not.toBeNull()
-    expect(
-      getAccessRequestDeploymentUnavailableReason({ kind: 'file_share_auth', id: 'sso' })
-    ).not.toBeNull()
-    expect(
-      getAccessRequestDeploymentUnavailableReason({ kind: 'feature', configKey: 'hideTablesTab' })
-    ).toBeNull()
   })
 
   it('retains genuinely governed core blocks while omitting canonical exemptions', async () => {

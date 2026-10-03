@@ -1,22 +1,15 @@
-/** @vitest-environment node */
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { acquire, extend, release } = vi.hoisted(() => ({
-  acquire: vi.fn(),
-  extend: vi.fn(),
-  release: vi.fn(),
-}))
-vi.mock('@/lib/core/config/redis', () => ({
-  acquireLock: acquire,
-  extendLock: extend,
-  releaseLock: release,
-}))
-
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
+
+const {
+  mockAcquireLock: acquire,
+  mockExtendLock: extend,
+  mockReleaseLock: release,
+} = redisConfigMockFns
 
 describe('sandbox session coordination', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     acquire.mockResolvedValue(true)
     extend.mockResolvedValue(true)
     release.mockResolvedValue(true)

@@ -2,7 +2,7 @@
  * Opt-in provider/API and PostgreSQL coverage for federated GitLab Search.
  * GITLAB_LIVE_FIXTURE_FILE contains {url, token} for a disposable localhost HTTPS
  * GitLab instance; NODE_EXTRA_CA_CERTS trusts its certificate. Uses the isolated
- * database from test-knowledge-acls.ts and deletes only resources it creates.
+ * database from `bun run test:integration` and deletes only resources it creates.
  */
 import { readFile } from 'node:fs/promises'
 import type { Principal } from '@sim/auth/principal'

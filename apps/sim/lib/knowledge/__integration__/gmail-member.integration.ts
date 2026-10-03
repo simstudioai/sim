@@ -11,7 +11,6 @@ import {
   credentialGroupEnrollment,
   document,
   embedding,
-  knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -218,10 +217,6 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       credentialGroupId: fixture.groupId,
       credentialGroupOptionId: fixture.optionId,
     })
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     await db
       .update(credentialGroup)
       .set({

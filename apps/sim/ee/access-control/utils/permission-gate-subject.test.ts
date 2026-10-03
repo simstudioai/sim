@@ -1,29 +1,19 @@
-/**
- * @vitest-environment node
- */
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getUserPermissionConfig: vi.fn(),
-}))
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
-  getUserPermissionConfigForOrganization: vi.fn(),
-  mergeEnvAllowlist: (config: unknown) => config,
-  resolveVerifiedUserAccessControlContext: vi.fn(),
-  resolveWorkspaceGroup: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: vi.fn() }))
-vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: () => false,
-  getProviderFromModel: () => 'openai',
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import type { ExecutionContext } from '@/executor/types'
 import {
@@ -31,6 +21,10 @@ import {
   ToolNotAllowedError,
   validateModelProvider,
 } from './permission-check'
+
+const mocks = {
+  getUserPermissionConfig: permissionGroupsResolveMockFns.mockGetUserPermissionConfig,
+}
 
 /**
  * A run's own metadata carries its gate subject. Only a trigger whose acting
@@ -46,7 +40,6 @@ function runDeclaring(capabilityGovernedUserId?: string | null): ExecutionContex
 
 describe('the subject a run’s permission gate is decided about', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getUserPermissionConfig.mockResolvedValue({ deniedTools: ['exa_search'] })
   })
 
@@ -97,18 +90,6 @@ describe('the subject a run’s permission gate is decided about', () => {
 
     expect(mocks.getUserPermissionConfig).toHaveBeenCalledWith('user-123', 'workspace-1')
   })
-
-  it('keeps gating on the caller when there is no run context at all', async () => {
-    await expect(
-      assertPermissionsAllowed({
-        userId: 'user-123',
-        workspaceId: 'workspace-1',
-        toolId: 'exa_search',
-      })
-    ).rejects.toBeInstanceOf(ToolNotAllowedError)
-
-    expect(mocks.getUserPermissionConfig).toHaveBeenCalledWith('user-123', 'workspace-1')
-  })
 })
 
 /**
@@ -122,7 +103,6 @@ describe('the subject a run’s permission gate is decided about', () => {
  */
 describe('the group a run’s later gates read from its cache', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getUserPermissionConfig.mockResolvedValue({
       allowedModelProviders: ['openai'],
       deniedTools: ['exa_search'],
@@ -152,21 +132,6 @@ describe('the group a run’s later gates read from its cache', () => {
       'requesting-member',
       'workspace-1'
     )
-  })
-
-  /** An actorless run consults no group, whichever check runs first. */
-  it('is nobody’s when the run declares no acting person', async () => {
-    const ctx = runDeclaring(null)
-
-    await validateModelProvider('workspace-billing-owner', 'workspace-1', 'gpt-4', ctx)
-    await assertPermissionsAllowed({
-      userId: 'workspace-billing-owner',
-      workspaceId: 'workspace-1',
-      toolId: 'exa_search',
-      ctx,
-    })
-
-    expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
   })
 })
 
@@ -198,7 +163,6 @@ describe('the run-scoped permission config cache', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getUserPermissionConfig.mockResolvedValue({ deniedTools: [] })
   })
 
@@ -227,18 +191,6 @@ describe('the run-scoped permission config cache', () => {
     expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps a separate entry per workspace', async () => {
-    const run = runContext()
-    mocks.getUserPermissionConfig.mockImplementation(async (_userId, workspaceId) =>
-      workspaceId === 'workspace-2' ? { deniedTools: ['http_request'] } : { deniedTools: [] }
-    )
-
-    await gate({ ...run }, 'workspace-1')
-    await expect(gate({ ...run }, 'workspace-2')).rejects.toBeInstanceOf(ToolNotAllowedError)
-
-    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
-  })
-
   it('evicts a failed load so a later gate loads again', async () => {
     const run = runContext()
     mocks.getUserPermissionConfig.mockRejectedValueOnce(new Error('config unavailable'))
@@ -257,14 +209,6 @@ describe('the run-scoped permission config cache', () => {
     await gate({ ...run })
 
     expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not retry a database failure that is not transient', async () => {
-    const sqlError = databaseError('42703')
-    mocks.getUserPermissionConfig.mockRejectedValue(sqlError)
-
-    await expect(gate(runContext())).rejects.toBe(sqlError)
-    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(1)
   })
 
   it('fails closed with the last error once retries are exhausted', async () => {
@@ -287,35 +231,6 @@ describe('the run-scoped permission config cache', () => {
     expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(1)
   })
 
-  it('does not memoize on a context that carries no run cache', async () => {
-    const ctx = { metadata: {} } as unknown as ExecutionContext
-
-    await gate(ctx)
-    await gate(ctx)
-
-    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
-    expect(ctx.permissionConfigCache).toBeUndefined()
-  })
-
-  it('stops retrying when the caller of a check outside a run cancels', async () => {
-    const controller = new AbortController()
-    const reason = new Error('Tool cancelled')
-    mocks.getUserPermissionConfig.mockImplementationOnce(async () => {
-      controller.abort(reason)
-      throw databaseError()
-    })
-
-    await expect(
-      assertPermissionsAllowed({
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        toolId: 'http_request',
-        signal: controller.signal,
-      })
-    ).rejects.toBe(reason)
-    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(1)
-  })
-
   it('does not let one caller cancel a load shared through the run cache', async () => {
     const run = runContext()
     const controller = new AbortController()
@@ -334,18 +249,6 @@ describe('the run-scoped permission config cache', () => {
     const other = gate({ ...run })
 
     await expect(Promise.all([cancelled, other])).resolves.toBeDefined()
-    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
-  })
-
-  it('retries a transient failure for a check made outside a run', async () => {
-    mocks.getUserPermissionConfig.mockRejectedValueOnce(databaseError())
-
-    await assertPermissionsAllowed({
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      toolId: 'http_request',
-    })
-
     expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
   })
 })

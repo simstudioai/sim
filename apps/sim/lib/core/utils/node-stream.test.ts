@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { PassThrough } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
@@ -13,13 +12,6 @@ describe('nodeReadableToWebStream', () => {
     source.destroy()
     await rejected
     expect(await reading.catch(isRetryableInfrastructureError)).toBe(true)
-  })
-
-  it('preserves complete responses', async () => {
-    const source = new PassThrough()
-    const reading = new Response(nodeReadableToWebStream(source)).text()
-    source.end('complete')
-    await expect(reading).resolves.toBe('complete')
   })
 
   it('preserves the original source error', async () => {

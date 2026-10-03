@@ -1,16 +1,21 @@
 import { posix } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { isPayloadSizeLimitError, PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { prepareSandboxSessionAccess } from '@/lib/execution/remote-sandbox/execution-observer'
 import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
+import { isSandboxOutputLimitError } from '@/lib/execution/remote-sandbox/output-limits'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import {
   ensureSessionSandbox,
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
 import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
-import { recordSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
+import {
+  readSessionSecretProvenance,
+  recordSessionFileInput,
+} from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import type { SandboxHandle } from '@/lib/execution/remote-sandbox/types'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -39,7 +44,7 @@ export function resolveSessionPath(path: string): string {
 }
 
 export type SessionFileRead =
-  | { outcome: 'read'; content: string }
+  | { outcome: 'read'; content: string; secretProvenance?: DurableSecretProvenance }
   | { outcome: 'no-session' }
   | { outcome: 'no-file'; detail: string }
   | { outcome: 'error'; detail: string }
@@ -62,15 +67,32 @@ export async function readSessionSandboxFile(
       if (!sandbox) return { outcome: 'no-session' }
       await sandbox.extendLifetime?.(SESSION_SANDBOX_IDLE_MS)
       signal.throwIfAborted()
+      let file: { content: string }
       try {
-        const file = await sandbox.readFileWithLimit(resolved, {
+        file = await sandbox.readFileWithLimit(resolved, {
           maxBytes: READ_LIMIT_BYTES,
           encoding,
           signal,
         })
-        return { outcome: 'read', content: file.content }
       } catch (error) {
-        return { outcome: 'no-file', detail: getErrorMessage(error) }
+        signal.throwIfAborted()
+        if (isSandboxOutputLimitError(error) || isPayloadSizeLimitError(error)) {
+          return {
+            outcome: 'error',
+            detail: `Workbench file exceeds the maximum read size of ${READ_LIMIT_BYTES} bytes`,
+          }
+        }
+        return { outcome: 'no-file', detail: 'Workbench file is missing or unreadable' }
+      }
+      try {
+        const secretProvenance = await readSessionSecretProvenance(sessionKey, {
+          providerId: provider.id,
+          sandboxId: sandbox.sandboxId,
+        })
+        return { outcome: 'read', content: file.content, secretProvenance }
+      } catch {
+        signal.throwIfAborted()
+        return { outcome: 'error', detail: 'Workbench file secret provenance is unavailable' }
       }
     })
   } catch (error) {

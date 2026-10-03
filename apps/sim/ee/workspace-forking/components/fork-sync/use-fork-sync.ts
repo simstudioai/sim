@@ -1,6 +1,13 @@
 'use client'
 
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react'
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
@@ -38,6 +45,7 @@ import {
   effectiveDependentValue,
   isDependentInvalidated,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
+import type { ForkComparisonSelection } from '@/ee/workspace-forking/components/fork-sync/fork-comparison-modal'
 import {
   forkDyingTriggerUrls,
   forkTriggerChoices,
@@ -191,6 +199,10 @@ export interface ForkSyncController {
   dependentClears: ForkClearedRef[]
   /** Deployed-workflow change list (update → create → archive, then by name). */
   workflowChanges: ForkWorkflowChange[]
+  comparisonReady: boolean
+  comparisonSelection: ForkComparisonSelection | null
+  openComparison: (change: Exclude<ForkWorkflowChange, { action: 'archive' }>) => void
+  closeComparison: () => void
   /** Names of target workflows this sync archives, for the confirm modal. */
   archivedWorkflowNames: string[]
   /**
@@ -220,6 +232,12 @@ export interface ForkSyncController {
   mcpReauthCount: number
   inlineSecretCount: number
   dirty: boolean
+  /**
+   * Whether a direction switch would discard anything chosen this session: unsaved mapping edits,
+   * a copy selection that differs from the default, accepted dropped references, or trigger URL
+   * choices. Broader than {@link dirty}, which only tracks what Save persists.
+   */
+  hasSessionChoices: boolean
   saving: boolean
   save: () => void
   discard: () => void
@@ -325,23 +343,31 @@ export function useForkSync(params: {
   // stored in the target block's `triggerPath`, so later syncs preserve it with no input at all.
   // `''` is the explicit "mint a new URL" choice, distinct from an absent key (take the default).
   const [triggerAdoptions, setTriggerAdoptions] = useState<Record<string, string>>({})
-  const [submitting, setSubmitting] = useState(false)
+  const [comparisonSelection, setComparisonSelection] = useState<ForkComparisonSelection | null>(
+    null
+  )
+  const [reviewedSourceVersions, setReviewedSourceVersions] = useState<Record<string, string>>({})
+  const sessionKey = JSON.stringify([workspaceId, direction, otherWorkspaceId])
+  const [previousSessionKey, setPreviousSessionKey] = useState(sessionKey)
 
-  // Drop every in-session choice when the direction (or edge) changes - the mapping set,
-  // copy candidates, and blockers all depend on it.
-  useEffect(() => {
+  if (previousSessionKey !== sessionKey) {
+    setPreviousSessionKey(sessionKey)
     setTargets({})
     setReconfig({})
     setCopySelected(new Set())
     setCopyDefaulted(false)
     setDroppedRefs(new Set())
     setTriggerAdoptions({})
-  }, [direction, otherWorkspaceId])
+    setComparisonSelection(null)
+    setReviewedSourceVersions({})
+  }
 
   const mapping = useForkMapping({ workspaceId, otherWorkspaceId, direction, enabled })
   const diff = useForkDiff({ workspaceId, otherWorkspaceId, direction, enabled })
   const updateMapping = useUpdateForkMapping()
   const promote = usePromoteFork()
+  const submitting = promote.isPending
+  const comparisonReady = enabled && !!diff.data && !diff.isPlaceholderData && !diff.isError
 
   const entries = useMemo<ForkMappingEntry[]>(() => mapping.data?.entries ?? [], [mapping.data])
   const dependentReconfigs = useMemo(
@@ -769,6 +795,23 @@ export function useForkSync(params: {
 
   const dirty = targetsDirty || reconfigDirty
 
+  // Compared over the visible candidates only - the ones a sync would send - so keys left behind
+  // by a completed copy never read as a change. A candidate defaults to selected when referenced.
+  const copySelectionChanged = useMemo(
+    () =>
+      copyDefaulted &&
+      visibleCopyables.some(
+        (candidate) => copySelected.has(forkRefKey(candidate)) !== candidate.referenced
+      ),
+    [copyDefaulted, visibleCopyables, copySelected]
+  )
+
+  const hasSessionChoices =
+    dirty ||
+    copySelectionChanged ||
+    droppedRefs.size > 0 ||
+    Object.keys(triggerAdoptions).length > 0
+
   const save = () => {
     if (!otherWorkspaceId || !dirty || updateMapping.isPending) return
     const submittedTargets = targets
@@ -856,17 +899,46 @@ export function useForkSync(params: {
   const triggerChoiceFor = (sourceBlockId: string): string =>
     chosenTriggerPaths.get(sourceBlockId) ?? ''
 
+  const openComparison = useCallback<ForkSyncController['openComparison']>(
+    (change) => {
+      if (!comparisonReady || change.comparison.status !== 'available') return
+      setComparisonSelection({
+        sourceWorkflowId: change.sourceWorkflowId,
+        comparison: change.comparison,
+      })
+      setReviewedSourceVersions((current) => ({
+        ...current,
+        [change.sourceWorkflowId]: change.comparison.target.id,
+      }))
+    },
+    [comparisonReady]
+  )
+  const closeComparison = useCallback(() => setComparisonSelection(null), [])
+
   const discard = () => {
     setTargets({})
     setReconfig({})
     setTriggerAdoptions({})
+    setReviewedSourceVersions({})
+    setComparisonSelection(null)
   }
 
   const sync = async () => {
-    if (!otherWorkspaceId) return
-    setSubmitting(true)
+    if (!otherWorkspaceId || !diff.data) return
+    const submittedReviewedVersions = reviewedSourceVersions
+    const sourceVersions = new Map(
+      diff.data.sourceVersions.map((source) => [source.workflowId, source.deploymentVersionId])
+    )
+    for (const [workflowId, deploymentVersionId] of Object.entries(reviewedSourceVersions))
+      sourceVersions.set(workflowId, deploymentVersionId)
+    const expectedSourceVersions = Array.from(
+      sourceVersions,
+      ([workflowId, deploymentVersionId]) => ({ workflowId, deploymentVersionId })
+    )
     const submittedTargets = targets
     const submittedReconfig = reconfig
+    const submittedDroppedRefs = droppedRefs
+    const submittedTriggerAdoptions = triggerAdoptions
     // Capture every payload from the state at confirm time, before any await - the page's
     // controls stay mounted during the run (unlike the old modal, which blocked its UI), so a
     // mid-flight edit must not leak into the promote body.
@@ -901,10 +973,6 @@ export function useForkSync(params: {
         adoptPath: triggerAdoptions[mapping.sourceBlockId] || null,
       }))
     try {
-      await updateMapping.mutateAsync({
-        workspaceId,
-        body: { otherWorkspaceId, direction, entries: mappingEntries },
-      })
       const copyResources = {
         knowledgeBases: selectedCopyables
           .filter((c) => c.kind === 'knowledge-base')
@@ -924,6 +992,8 @@ export function useForkSync(params: {
         body: {
           otherWorkspaceId,
           direction,
+          mappings: mappingEntries,
+          expectedSourceVersions,
           // Once the diff has loaded, ALWAYS send the full effective set - including `[]`,
           // which means "every dependent went away" and must reconcile/clear the live replace
           // targets' stored rows. Collapsing `[]` into omission would make the backend
@@ -962,10 +1032,14 @@ export function useForkSync(params: {
       }
 
       // The run committed the in-session choices: the mapping entries and dependent values are
-      // stored. Drop only the exact snapshots it submitted; edits made while the request was in
-      // flight were not committed by this run and must remain available for the next Save/Sync.
+      // stored, and the accepted drops and trigger choices are applied. Drop only the exact
+      // snapshots it submitted; edits made while the request was in flight were not committed by
+      // this run and must remain available for the next Save/Sync.
+      setReviewedSourceVersions((current) => (current === submittedReviewedVersions ? {} : current))
       setTargets((current) => (current === submittedTargets ? {} : current))
       setReconfig((current) => (current === submittedReconfig ? {} : current))
+      setDroppedRefs((current) => (current === submittedDroppedRefs ? new Set() : current))
+      setTriggerAdoptions((current) => (current === submittedTriggerAdoptions ? {} : current))
 
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
@@ -1001,8 +1075,6 @@ export function useForkSync(params: {
       }
     } catch (error) {
       toast.error(getErrorMessage(error, 'Sync failed'))
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -1047,6 +1119,10 @@ export function useForkSync(params: {
     blockingRefs,
     dependentClears,
     workflowChanges,
+    comparisonReady,
+    comparisonSelection,
+    openComparison,
+    closeComparison,
     archivedWorkflowNames,
     triggerUrlChanges,
     triggerMappings,
@@ -1059,6 +1135,7 @@ export function useForkSync(params: {
     mcpReauthCount: diff.data?.mcpReauthServerIds.length ?? 0,
     inlineSecretCount: diff.data?.inlineSecretSources.length ?? 0,
     dirty,
+    hasSessionChoices,
     saving: updateMapping.isPending,
     save,
     discard,

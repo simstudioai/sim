@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { deflateRawSync } from 'zlib'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockLoadAsync } = vi.hoisted(() => ({ mockLoadAsync: vi.fn() }))
 
@@ -94,10 +91,6 @@ function fakeArchive(files: Record<string, string>) {
 }
 
 describe('extractDocumentStyle', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('extracts theme colors and fonts from a well-formed docx', async () => {
     mockLoadAsync.mockResolvedValue(fakeArchive({ 'word/theme/theme1.xml': THEME_XML }))
 

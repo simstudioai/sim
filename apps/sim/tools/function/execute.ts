@@ -10,6 +10,7 @@ import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { SANDBOX_INPUT_DIR, SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { MAX_FUNCTION_CODE_LENGTH } from '@/lib/function-execution/limits'
 import type { UserFile } from '@/executor/types'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
 import type { InternalToolConfig } from '@/tools/types'
@@ -43,7 +44,13 @@ function normalizeSandboxInputFiles(value: unknown): FunctionExecuteBody['files'
   return userFiles.map((file) => ({ ...file }))
 }
 
-/** Builds the canonical Function protocol body for both HTTP compatibility and in-process calls. */
+/**
+ * Builds the canonical Function protocol body for both HTTP compatibility and in-process calls.
+ *
+ * `sourceCode` is the display copy used only to render errors, with referenced values inlined,
+ * so it can far outgrow the executed code. Past the route's source cap it is omitted, and errors
+ * fall back to the executed code, rather than failing a request whose executed code is in bounds.
+ */
 export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionExecuteBody {
   const codeContent = Array.isArray(params.code)
     ? params.code.map((entry: { content: string }) => entry.content).join('\n')
@@ -51,7 +58,10 @@ export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionEx
 
   return {
     code: codeContent,
-    sourceCode: params.sourceCode,
+    sourceCode:
+      params.sourceCode !== undefined && params.sourceCode.length <= MAX_FUNCTION_CODE_LENGTH
+        ? params.sourceCode
+        : undefined,
     language: params.language || DEFAULT_CODE_LANGUAGE,
     timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
     title: params.title,

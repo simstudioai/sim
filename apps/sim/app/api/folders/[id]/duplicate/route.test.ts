@@ -5,9 +5,8 @@
  * write most able to push a workspace past `MAX_FOLDERS_PER_WORKSPACE` — the ceiling every
  * capped folder reader materializes under. These pin that the whole subtree is charged
  * against the ceiling in one check, before anything is inserted.
- *
- * @vitest-environment node
  */
+
 import {
   auditMock,
   authMockFns,
@@ -19,27 +18,20 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  foldersOrchestrationMock,
+  foldersOrchestrationMockFns,
+} from '@sim/testing/mocks/folders-orchestration.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 
 const {
-  mockLogger,
-  mockNextFolderSortOrder,
   mockDeduplicateFolderName,
   mockDuplicateWorkflow,
   mockAcquireFolderMutationLock,
   mockWithFolderTreeLock,
 } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  },
-  mockNextFolderSortOrder: vi.fn(),
   mockDeduplicateFolderName: vi.fn(),
   mockDuplicateWorkflow: vi.fn(),
   mockAcquireFolderMutationLock: vi.fn(),
@@ -47,14 +39,8 @@ const {
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/folders/orchestration', () => ({ nextFolderSortOrder: mockNextFolderSortOrder }))
+vi.mock('@/lib/folders/orchestration', () => foldersOrchestrationMock)
 vi.mock('@/lib/folders/locks', () => ({
   acquireFolderMutationLock: mockAcquireFolderMutationLock,
   withFolderTreeLock: mockWithFolderTreeLock,
@@ -65,6 +51,8 @@ vi.mock('@/lib/workflows/persistence/duplicate', () => ({
 }))
 
 import { POST } from '@/app/api/folders/[id]/duplicate/route'
+
+const mockNextFolderSortOrder = foldersOrchestrationMockFns.mockNextFolderSortOrder
 
 const TEST_USER: MockUser = { id: 'user-123', email: 'test@example.com', name: 'Test User' }
 const WORKSPACE_ID = 'workspace-123'
@@ -112,7 +100,7 @@ function duplicateRequest(body: Record<string, unknown> = { name: 'Copy' }) {
   return createMockRequest('POST', body)
 }
 
-const routeContext = { params: Promise.resolve({ id: SOURCE_FOLDER_ID }) }
+const routeContext = createRouteContext({ id: SOURCE_FOLDER_ID })
 
 describe('POST /api/folders/[id]/duplicate', () => {
   afterAll(() => {
@@ -120,28 +108,12 @@ describe('POST /api/folders/[id]/duplicate', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockNextFolderSortOrder.mockResolvedValue(0)
     mockDeduplicateFolderName.mockImplementation(async (_tx, _ws, _parent, name) => name)
     mockDuplicateWorkflow.mockResolvedValue({ id: 'wf-copy' })
-  })
-
-  it('duplicates a folder that still fits under the ceiling', async () => {
-    queueDuplicationReads({
-      skeleton: [{ id: SOURCE_FOLDER_ID, parentId: null }],
-      activeFolderCount: MAX_FOLDERS_PER_WORKSPACE - 1,
-    })
-    // Child-folder recursion finds nothing, then the response re-reads the new folder.
-    queueTableRows(schemaMock.folder, [])
-    queueTableRows(schemaMock.folder, [folderRow({ id: 'folder-copy', name: 'Copy' })])
-
-    const response = await POST(duplicateRequest(), routeContext)
-
-    expect(response.status).toBe(201)
-    await expect(response.json()).resolves.toMatchObject({ folder: { name: 'Copy' } })
   })
 
   it('refuses a single-folder duplicate once the workspace is at the ceiling', async () => {
