@@ -1,9 +1,10 @@
-import type { GuardrailsPiiValidateBody, GuardrailsPiiValidateResult } from '@/lib/api/contracts'
 import {
+  type GuardrailsPiiValidateBody,
+  type GuardrailsPiiValidateResult,
   guardrailsPiiValidateBodySchema,
   guardrailsPiiValidateContract,
   guardrailsPiiValidateResponseSchema,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/hotspots'
 import { generateInternalToken } from '@/lib/auth/internal'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,

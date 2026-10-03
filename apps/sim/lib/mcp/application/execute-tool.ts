@@ -4,12 +4,17 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
-  mcpServerDelegationPolicy,
+  mcpServerExecutionDelegationPolicy,
   requireMcpCredentialUserId,
 } from '@/lib/mcp/application/authorization'
 import { resolveMcpServerContext } from '@/lib/mcp/application/context'
+import {
+  loadMcpOperationAccess,
+  requireMcpOperationAccess,
+} from '@/lib/mcp/application/operation-access'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { mcpService } from '@/lib/mcp/service'
+import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
 import type { McpTool, McpToolCall, McpToolResult } from '@/lib/mcp/types'
 import {
   assertPermissionsAllowed,
@@ -42,7 +47,7 @@ function hasType(value: unknown): value is SchemaProperty {
   return typeof value === 'object' && value !== null && 'type' in value
 }
 
-function coerceToolArguments(
+export function coerceToolArguments(
   tool: McpTool,
   input: Record<string, unknown>
 ): Record<string, unknown> {
@@ -55,8 +60,7 @@ function coerceToolArguments(
     if (value === undefined || value === null) continue
 
     if ((property.type === 'number' || property.type === 'integer') && typeof value === 'string') {
-      const numberValue =
-        property.type === 'integer' ? Number.parseInt(value) : Number.parseFloat(value)
+      const numberValue = Number(value)
       if (!Number.isNaN(numberValue)) result[name] = numberValue
       continue
     }
@@ -88,34 +92,13 @@ function coerceToolArguments(
   return result
 }
 
-function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
-  const schema = tool.inputSchema
-  if (!schema) return
-
-  for (const requiredProperty of schema.required ?? []) {
-    if (!(requiredProperty in args)) {
-      throw new OrchestrationError('validation', 'Invalid tool arguments')
-    }
-  }
-
-  for (const [name, property] of Object.entries(schema.properties ?? {})) {
-    const value = args[name]
-    if (value === undefined || !hasType(property)) continue
-    const isValid =
-      (property.type === 'string' && typeof value === 'string') ||
-      (property.type === 'number' && typeof value === 'number') ||
-      (property.type === 'integer' && typeof value === 'number' && Number.isInteger(value)) ||
-      (property.type === 'boolean' && typeof value === 'boolean') ||
-      (property.type === 'object' &&
-        typeof value === 'object' &&
-        value !== null &&
-        !Array.isArray(value)) ||
-      (property.type === 'array' && Array.isArray(value))
-    if (!isValid) throw new OrchestrationError('validation', 'Invalid tool arguments')
-  }
+/** Validates the complete discovered JSON Schema, including nested constraints and additional properties. */
+export function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
+  if (!compileMcpToolSchema(tool.inputSchema)(args))
+    throw new OrchestrationError('validation', 'Invalid MCP operation arguments')
 }
 
-function transformToolResult(result: McpToolResult): ExecuteMcpToolResult {
+export function transformToolResult(result: McpToolResult): ExecuteMcpToolResult {
   if (!result.isError) return { success: true, output: result }
   const firstContent = Array.isArray(result.content) ? result.content[0] : undefined
   const errorText =
@@ -131,9 +114,15 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.executeTool,
   resolveContext: ({ input }: { input: ExecuteMcpToolInput }) =>
     resolveMcpServerContext(input.workspaceId, input.serverId),
-  authorizationOptions: { delegation: mcpServerDelegationPolicy },
+  authorizationOptions: { delegation: mcpServerExecutionDelegationPolicy },
   async execute({ principal, input, context }): Promise<ExecuteMcpToolResult> {
     input.signal?.throwIfAborted()
+    if (context.server.credentialGroupId) {
+      throw new OrchestrationError(
+        'conflict',
+        'Credential Group MCP servers require an explicit managed connection ID'
+      )
+    }
     const userId = requireMcpCredentialUserId(principal)
     await assertPermissionsAllowed({
       userId,
@@ -142,39 +131,47 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     })
     input.signal?.throwIfAborted()
 
-    let tool: McpTool | undefined
-    let args = { ...input.arguments }
-    try {
-      const tools = await mcpService.discoverServerTools(
-        userId,
-        context.server.id,
-        context.workspaceId,
-        'cache-aside',
-        input.onResolvedSecretTraceProvenance,
-        { signal: input.signal }
-      )
-      tool = tools.find((candidate) => candidate.name === input.toolName)
-      if (!tool) {
-        throw new OrchestrationError('not_found', 'Tool not found on the specified server')
-      }
-      args = coerceToolArguments(tool, args)
-    } catch (error) {
-      input.signal?.throwIfAborted()
-      if (error instanceof OrchestrationError) throw error
-      logger.warn('Failed to discover MCP tools for validation; proceeding without schema', {
-        error: getErrorMessage(error),
+    const allowed = await loadMcpOperationAccess(
+      principal,
+      {
+        workspaceId: context.workspaceId,
         serverId: context.server.id,
-        toolName: input.toolName,
-      })
-    }
-
-    if (tool) validateToolArguments(tool, args)
+      },
+      'execute'
+    )
+    requireMcpOperationAccess(allowed, input.toolName)
+    const tools = await mcpService.discoverServerTools(
+      userId,
+      context.server.id,
+      context.workspaceId,
+      'skip-cache',
+      input.onResolvedSecretTraceProvenance,
+      { signal: input.signal, requireComplete: true }
+    )
+    const tool = tools.find((candidate) => candidate.name === input.toolName)
+    if (!tool) throw new OrchestrationError('not_found', 'Tool not found on the specified server')
+    const args =
+      allowed.argumentsMode === 'generated'
+        ? coerceToolArguments(tool, { ...input.arguments })
+        : { ...input.arguments }
+    validateToolArguments(tool, args)
     input.signal?.throwIfAborted()
     const toolCall: McpToolCall = { name: input.toolName, arguments: args }
     const extraHeaders =
       input.callChain && input.callChain.length > 0
         ? { [SIM_VIA_HEADER]: serializeCallChain(input.callChain) }
         : undefined
+    const current = await resolveMcpServerContext(context.workspaceId, context.server.id)
+    if (!current.server.enabled || current.server.credentialGroupId)
+      throw new OrchestrationError('forbidden', 'MCP server configuration changed during discovery')
+    requireMcpOperationAccess(
+      await loadMcpOperationAccess(
+        principal,
+        { workspaceId: context.workspaceId, serverId: context.server.id },
+        'execute'
+      ),
+      input.toolName
+    )
     const providerResult = await mcpService.executeTool(
       userId,
       context.server.id,

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { fileFetchTool, fileParserTool, fileParserV3Tool } from '@/tools/file/parser'
 

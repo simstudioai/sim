@@ -8,6 +8,8 @@ import type {
   AudioExtractionResult,
   AudioMetadata,
 } from '@/lib/audio/types'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { FFMPEG_BASE_ARGS, resolveExecutable, runExecutable } from '@/lib/media/ffmpeg-process'
 
 const logger = createLogger('AudioExtractor')
@@ -55,13 +57,15 @@ async function withTempDir<T>(prefix: string, fn: (dir: string) => Promise<T>): 
   }
 }
 
-async function runFfmpeg(args: string[]): Promise<void> {
+async function runFfmpeg(args: string[], signal?: AbortSignal): Promise<void> {
   try {
     await runExecutable(requireFfmpeg(), [...FFMPEG_BASE_ARGS, ...args], {
       maxOutputBytes: MAX_PROCESS_OUTPUT_BYTES,
+      signal,
       timeoutMs: CONVERSION_TIMEOUT_MS,
     })
   } catch (error) {
+    signal?.throwIfAborted()
     const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string }
     if (failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
       throw new Error('FFmpeg error: process output was too large to read')
@@ -84,7 +88,7 @@ export async function extractAudioFromVideo(
 
   if (isAudio && !options.outputFormat) {
     try {
-      const metadata = await getAudioMetadata(inputBuffer, mimeType)
+      const metadata = await getAudioMetadata(inputBuffer, mimeType, options.signal)
       return {
         buffer: inputBuffer,
         format: mimeType.split('/')[1] || 'unknown',
@@ -92,6 +96,7 @@ export async function extractAudioFromVideo(
         size: inputBuffer.length,
       }
     } catch {
+      options.signal?.throwIfAborted()
       return {
         buffer: inputBuffer,
         format: mimeType.split('/')[1] || 'unknown',
@@ -124,12 +129,13 @@ async function convertAudioWithFfmpeg(
   return withTempDir('audio-ffmpeg-', async (dir) => {
     const inputFile = path.join(dir, `input.${inputExt}`)
     const outputFile = path.join(dir, `output.${outputFormat}`)
-    await fs.writeFile(inputFile, inputBuffer)
+    await fs.writeFile(inputFile, inputBuffer, { signal: options.signal })
 
     let duration = 0
     try {
-      duration = (await getAudioMetadataFromFile(inputFile)).duration || 0
+      duration = (await getAudioMetadataFromFile(inputFile, options.signal)).duration || 0
     } catch (error) {
+      options.signal?.throwIfAborted()
       logger.warn('Failed to extract metadata:', error)
     }
 
@@ -139,8 +145,11 @@ async function convertAudioWithFfmpeg(
     if (options.bitrate) args.push('-b:a', options.bitrate.replace(/k?$/, 'k'))
     args.push(outputFile)
 
-    await runFfmpeg(args)
-    const outputBuffer = await fs.readFile(outputFile)
+    await runFfmpeg(args, options.signal)
+    options.signal?.throwIfAborted()
+    const { size } = await fs.stat(outputFile)
+    assertKnownSizeWithinLimit(size, MAX_MEDIA_BYTES, 'FFmpeg audio output')
+    const outputBuffer = await fs.readFile(outputFile, { signal: options.signal })
 
     return {
       buffer: outputBuffer,
@@ -152,12 +161,16 @@ async function convertAudioWithFfmpeg(
 }
 
 /** Read audio metadata with ffprobe. */
-export async function getAudioMetadata(buffer: Buffer, mimeType: string): Promise<AudioMetadata> {
+export async function getAudioMetadata(
+  buffer: Buffer,
+  mimeType: string,
+  signal?: AbortSignal
+): Promise<AudioMetadata> {
   const inputExt = getExtensionFromMimeType(mimeType)
   return withTempDir('audio-ffprobe-', async (dir) => {
     const inputFile = path.join(dir, `input.${inputExt}`)
-    await fs.writeFile(inputFile, buffer)
-    return getAudioMetadataFromFile(inputFile)
+    await fs.writeFile(inputFile, buffer, { signal })
+    return getAudioMetadataFromFile(inputFile, signal)
   })
 }
 
@@ -176,7 +189,10 @@ interface FfprobeMetadata {
   }
 }
 
-async function getAudioMetadataFromFile(filePath: string): Promise<AudioMetadata> {
+async function getAudioMetadataFromFile(
+  filePath: string,
+  signal?: AbortSignal
+): Promise<AudioMetadata> {
   let stdout: string
   try {
     ;({ stdout } = await runExecutable(
@@ -184,10 +200,12 @@ async function getAudioMetadataFromFile(filePath: string): Promise<AudioMetadata
       ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', filePath],
       {
         maxOutputBytes: MAX_PROCESS_OUTPUT_BYTES,
+        signal,
         timeoutMs: PROBE_TIMEOUT_MS,
       }
     ))
   } catch (error) {
+    signal?.throwIfAborted()
     const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string }
     if (failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
       throw new Error('FFprobe error: probe report was too large to read')

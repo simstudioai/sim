@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeConnector } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 
 export interface ActiveKnowledgeConnectorReference {
   id: string
@@ -21,13 +22,7 @@ export async function getActiveKnowledgeConnectorReference(
       status: knowledgeConnector.status,
     })
     .from(knowledgeConnector)
-    .where(
-      and(
-        eq(knowledgeConnector.id, connectorId),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
-      )
-    )
+    .where(and(eq(knowledgeConnector.id, connectorId), connectorIsLive()))
     .limit(1)
 
   return connector ?? null

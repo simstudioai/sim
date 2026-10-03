@@ -26,6 +26,19 @@ if (grafanaConfigured && !grafanaFullyConfigured) {
   )
 }
 
+/**
+ * Environment a run needs for sandboxed work. Function block runs and the
+ * document compiler share one provider selection, and the doc-template
+ * variables decide whether a run reads a generated document through the doc
+ * sandbox's artifact store or the isolated-vm fallback. The app authors
+ * documents for whichever compiler it sees, so a worker missing the doc
+ * template falls back to isolated-vm and tries to run Python or Node-style
+ * sources as sandbox JavaScript. Reading a generated document under the doc
+ * sandbox means loading its compiled artifact from the copilot storage
+ * context, so that bucket has to be visible to the run as well. The values
+ * still have to exist in the Trigger.dev environment; syncing only keeps the
+ * worker's view of them aligned with the app's.
+ */
 const FUNCTION_EXECUTION_ENV = [
   { name: 'REDIS_URL', secret: true },
   { name: 'REDIS_TLS_SERVERNAME', secret: false },
@@ -34,8 +47,13 @@ const FUNCTION_EXECUTION_ENV = [
   { name: 'E2B_API_KEY', secret: true },
   { name: 'E2B_FUNCTION_TEMPLATE_ID', secret: false },
   { name: 'E2B_FUNCTION_TEMPLATE_GENERATION', secret: false },
+  { name: 'MOTHERSHIP_E2B_DOC_TEMPLATE_ID', secret: false },
   { name: 'DAYTONA_API_KEY', secret: true },
   { name: 'DAYTONA_FUNCTION_SNAPSHOT_ID', secret: false },
+  { name: 'DAYTONA_DOC_SNAPSHOT_ID', secret: false },
+  { name: 'S3_COPILOT_BUCKET_NAME', secret: false },
+  { name: 'AZURE_STORAGE_COPILOT_CONTAINER_NAME', secret: false },
+  { name: 'GCS_COPILOT_BUCKET_NAME', secret: false },
 ] as const
 
 function getFunctionExecutionEnvVars() {
@@ -79,15 +97,36 @@ export default defineConfig({
   },
   dirs: ['./background'],
   /**
+   * Every file under `dirs` is imported as a task file at deploy time, so any
+   * test co-located there must be excluded or its top-level `vi.mock()` throws
+   * outside Vitest and fails the whole deploy. Setting this replaces the CLI's
+   * defaults (`*.test.*` and `*.spec.*`), which are restated here alongside
+   * the `*.integration.*` suffix used for suites that run against real
+   * Postgres/Redis, across every extension task discovery matches.
+   */
+  ignorePatterns: ['**/*.{test,spec,integration}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
+  /**
    * Runs before any task run, in the run process. Marks the process so that
    * dispatch decisions further down the call graph stop inferring from
    * environment variables whether Trigger.dev is available: a process that
    * Trigger.dev is executing has Trigger.dev available by definition.
    *
+   * Also warms the shared Redis connection, because nearly every task's first
+   * Redis call — a lock acquire, a usage reservation — would otherwise pay the
+   * handshake inside its own command deadline. Awaited so the connection is up
+   * before `run()` issues anything; imported dynamically so deploy-time
+   * evaluation of this config does not pull the client; and never throwing,
+   * because a throw here fails the run. The execution-signal subscriber is
+   * deliberately not warmed here: only the tasks that execute a workflow ever
+   * subscribe, and they are a minority of runs, so that connection is warmed
+   * on intent at the execution entry point instead.
+   *
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
-  init: () => {
+  init: async () => {
     markInsideTriggerRun()
+    const { warmRedisConnection } = await import('./lib/core/config/redis')
+    await warmRedisConnection()
   },
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {
@@ -105,6 +144,7 @@ export default defineConfig({
       // pdf.js resolves its worker via a runtime-relative dynamic import that
       // breaks inside the worker bundle; it must load from node_modules.
       'pdfjs-dist',
+      '@napi-rs/canvas',
     ],
     extensions: [
       syncEnvVars(() => [
@@ -130,12 +170,13 @@ export default defineConfig({
         packages: [
           'isolated-vm',
           'react-dom',
-          'react-email',
+          '@react-email/render',
           '@earendil-works/pi-ai',
           '@earendil-works/pi-coding-agent',
           '@e2b/code-interpreter',
           '@daytona/sdk',
           'pdfjs-dist',
+          '@napi-rs/canvas',
         ],
       }),
     ],

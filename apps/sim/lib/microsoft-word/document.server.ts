@@ -1,3 +1,4 @@
+import { escapeRegExp } from '@sim/utils/string'
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx'
 import JSZip from 'jszip'
 import { DocxParser } from '@/lib/file-parsers/docx-parser'
@@ -249,6 +250,12 @@ export async function extractDocxText(buffer: Buffer): Promise<string> {
 
 /** Whether the buffer is a valid Word package whose body holds no text. */
 async function isEmptyWordPackage(buffer: Buffer): Promise<boolean> {
+  // Reached with the untrusted buffer the parser just rejected — including when it
+  // rejected it as a zip bomb. Without this the rescue reads `word/document.xml`
+  // into a string with no size cap, making the guard the trigger for the expansion
+  // it prevents. Kept outside the catch so the rejection propagates.
+  assertOoxmlArchiveWithinLimits(buffer)
+
   try {
     const zip = await JSZip.loadAsync(buffer)
     const part = zip.file(DOCUMENT_PART_PATH)
@@ -269,11 +276,6 @@ function decodeXmlText(value: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&')
-}
-
-/** Escapes a literal for embedding in a regular expression. */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 interface TextNode {

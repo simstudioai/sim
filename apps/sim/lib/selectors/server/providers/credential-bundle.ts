@@ -1,7 +1,9 @@
+import { resolveOrganizationCredentialTokenBundle } from '@/lib/credentials/application/organization-credentials'
 import {
   resolveCredentialTokenBundle,
   type ServiceAccountTokenResult,
 } from '@/lib/oauth/credential-service'
+import { waitForSelectorCredentialResolution } from '@/lib/selectors/server/credentials'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import type {
   AuthorizedSelectorCredential,
@@ -23,6 +25,7 @@ export async function resolveSelectorCredentialBundle(input: {
   const credential = input.credential
   if (!credential) throw new SelectorConnectionUnavailableError()
 
+  credential.signal?.throwIfAborted()
   if (credential.fixedToken) {
     if (input.providerId) {
       input.recordCredentialUse?.(credential.providerId ?? input.providerId)
@@ -31,19 +34,34 @@ export async function resolveSelectorCredentialBundle(input: {
   }
 
   const ownerUserId = credential.access?.credentialOwnerUserId
-  if (!ownerUserId) throw new SelectorConnectionUnavailableError()
+  if (!ownerUserId && !credential.organization) throw new SelectorConnectionUnavailableError()
 
   let bundle: ServiceAccountTokenResult | null
   try {
-    bundle = await resolveCredentialTokenBundle(
-      credential.suppliedId,
-      ownerUserId,
-      'selector-execution',
-      input.scopes ? [...input.scopes] : undefined,
-      input.impersonateEmail,
-      { privacyMode: 'selector' }
+    bundle = await waitForSelectorCredentialResolution(
+      credential.organization
+        ? resolveOrganizationCredentialTokenBundle({
+            ...credential.organization,
+            credentialId: credential.suppliedId,
+            requestId: 'selector-execution',
+            purpose: 'browsing',
+            expectedProviderId: credential.providerId,
+            requiredScopes: input.scopes ? [...input.scopes] : undefined,
+            impersonateEmail: input.impersonateEmail,
+          })
+        : resolveCredentialTokenBundle(
+            credential.suppliedId,
+            ownerUserId!,
+            'selector-execution',
+            input.scopes ? [...input.scopes] : undefined,
+            input.impersonateEmail,
+            { privacyMode: 'selector' }
+          ),
+      credential.signal
     )
-  } catch {
+    credential.signal?.throwIfAborted()
+  } catch (error) {
+    if (credential.signal?.aborted) throw error
     throw new SelectorConnectionUnavailableError()
   }
   if (!bundle?.accessToken) throw new SelectorConnectionUnavailableError()

@@ -1,4 +1,4 @@
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OpenDialogOptions, Session, WebContents } from 'electron'
@@ -35,6 +35,7 @@ import {
   setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
+import { attachClientInfo } from '@/main/client-info'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
@@ -57,6 +58,12 @@ import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
+import {
+  attachLocalPageProtocol,
+  isLocalPageUrl,
+  localPageUrl,
+  registerLocalPageScheme,
+} from '@/main/local-pages'
 import { installApplicationMenu } from '@/main/menu'
 import { openExternalSafe } from '@/main/navigation'
 import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
@@ -71,10 +78,12 @@ import {
   readSessionUserId,
   resolveStartRoute,
 } from '@/main/session-lifecycle'
+import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
+import { installBrowserUserAgent } from '@/main/user-agent'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
 
@@ -91,8 +100,6 @@ function reportHandoffFailure(error: unknown): void {
   logger.error('Sign-in handoff failed', { error: getErrorMessage(error) })
 }
 
-const OFFLINE_PAGE = 'static/offline.html'
-const SERVER_PAGE = 'static/server.html'
 const DOCK_ICON_FOR_CHANNEL = {
   prod: 'dock-icon.png',
   staging: 'dock-icon-staging.png',
@@ -105,6 +112,7 @@ function main(): void {
 
   const userDataPath = app.getPath('userData')
   const config = createConfigStore(join(userDataPath, 'settings.json'))
+  setShellTheme(config.get('themeBackground'))
   initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
   const recoveryOrigin = getAccountDataTeardownOrigin()
   if (isAccountDataTeardownRequired() && recoveryOrigin && !config.isPersistenceAvailable()) {
@@ -157,7 +165,7 @@ function main(): void {
   let appSession: Session | null = null
   let sessionLifecycle: ReturnType<typeof createSessionLifecycleCoordinator> | null = null
   let resumingQuitAfterTeardown = false
-  let mandatoryRelaunchPending = false
+  let committedRelaunchPending = false
   let tray: TrayHandle | null = null
   let updater: UpdaterHandle | null = null
   let startupReady: Promise<void> | null = null
@@ -259,7 +267,9 @@ function main(): void {
     }
     configuredPartitions.add(partition)
     setupPermissionHandlers(ses, appOrigin)
+    attachLocalPageProtocol(ses)
     attachCspFallback(ses, appOrigin)
+    attachClientInfo(ses, appOrigin)
     attachDownloadHandling(ses, events)
     attachTelemetryPolicy(ses, config.get('blockThirdPartyAnalytics') ?? true)
     ses.setSpellCheckerLanguages(['en-US'])
@@ -383,7 +393,7 @@ function main(): void {
       preloadPath,
       isPackaged: app.isPackaged,
       restorePosition,
-      isMandatoryRelaunchPending: () => mandatoryRelaunchPending,
+      isCommittedRelaunchPending: () => committedRelaunchPending,
       onFullScreenChange: (isFullScreen) => {
         if (!win.isDestroyed()) {
           win.webContents.send('desktop:window-state:changed', { isFullScreen })
@@ -418,14 +428,14 @@ function main(): void {
         }
       },
       allowHttpLocalhost: allowHttpLocalhost(),
-      isMandatoryRelaunchPending: () => mandatoryRelaunchPending,
+      isCommittedRelaunchPending: () => committedRelaunchPending,
     })
     attachContextMenu(win.webContents, {
       isDev: !app.isPackaged,
       allowHttpLocalhost: allowHttpLocalhost(),
     })
     const loadHealth = attachLoadHealth(win, {
-      offlinePagePath: OFFLINE_PAGE,
+      offlinePageUrl: (query) => localPageUrl('offline.html', query),
       getStartUrl: () => `${appOrigin()}${route}`,
       isOnline: () => net.isOnline(),
       events,
@@ -524,7 +534,6 @@ function main(): void {
   const serverWindow = createServerWindow({
     config,
     defaultOrigin: DEFAULT_ORIGIN,
-    pagePath: SERVER_PAGE,
     preloadPath,
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,
@@ -554,7 +563,7 @@ function main(): void {
     },
     completeDeploymentScopedStateChange: completeDeploymentScopedTeardown,
     relaunch: () => {
-      mandatoryRelaunchPending = true
+      committedRelaunchPending = true
       relaunchApp()
     },
   })
@@ -585,11 +594,11 @@ function main(): void {
     if (!resumingQuitAfterTeardown && sessionLifecycle?.isTeardownActive()) {
       event.preventDefault()
       void sessionLifecycle.awaitTeardown().then((clean) => {
-        if (!clean && !mandatoryRelaunchPending) {
+        if (!clean && !committedRelaunchPending) {
           logger.error('Quit cancelled because account teardown did not finish safely')
           return
         }
-        if (!mandatoryRelaunchPending && !prepareAccountDataTeardownForQuit()) {
+        if (!committedRelaunchPending && !prepareAccountDataTeardownForQuit()) {
           logger.error('Quit cancelled because account-data recovery could not be persisted')
           return
         }
@@ -603,36 +612,27 @@ function main(): void {
       })
       return
     }
-    /**
-     * A mandatory relaunch is requested only after the server-switch transaction
-     * has cleared deployment-scoped capabilities and committed the replacement
-     * origin. The ordinary quit guard must not strand that committed process on
-     * its old partition; any retained marker is startup retry metadata.
-     */
-    if (!mandatoryRelaunchPending && !prepareAccountDataTeardownForQuit()) {
+    // A committed relaunch is requested only after its prerequisite teardown has
+    // succeeded. The ordinary quit guard must not strand that committed process;
+    // any retained marker is startup retry metadata.
+    if (!committedRelaunchPending && !prepareAccountDataTeardownForQuit()) {
       event.preventDefault()
       logger.error('Quit cancelled because account-data recovery could not be persisted')
       return
     }
-    // Stops the tray's background chat refresh alongside the OS handles.
-    tray?.destroy()
-    tray = null
-    localFilesystem.close()
-    // Quiesce native pages before publishing the final encrypted descriptor
-    // set. This prevents a navigation event racing the synchronous quit flush.
-    quiesceBrowserSessions()
-    terminal.dispose()
-    uninstallDocumentationHelpSearch()
-    flushDesktopChatSessions('before-quit')
-    // Settings writes coalesce, so a change made in the last moments before
-    // quit is still pending here.
-    config.flush()
   })
 
   app.on('will-quit', () => {
-    // Final backstop for any descriptor dirtied while Electron was closing
-    // windows after before-quit.
+    // Renderer unload guards have accepted the quit, so native resources can
+    // now be released without leaving a cancelled quit in a degraded state.
+    tray?.destroy()
+    tray = null
+    localFilesystem.close()
+    quiesceBrowserSessions()
+    terminal.dispose()
+    uninstallDocumentationHelpSearch()
     flushDesktopChatSessions('will-quit')
+    config.flush()
   })
 
   app.on('activate', () => {
@@ -720,8 +720,6 @@ function main(): void {
         onSessionStatus: (alive, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
         },
-        sitePermissionPromptSupported: (scopeId) =>
-          scopeEvents.browserSitePermissionPromptSupported(scopeId),
         onFillAvailability: (available, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
             available,
@@ -746,7 +744,9 @@ function main(): void {
       },
       {
         getDirectory: () => desktopSettings.getPreferences().browserDownloadDirectory,
-      }
+      },
+      { origin: processOrigin, session: ensureAppSession() },
+      localFilesystem
     )
     if (accountDataAvailable()) {
       await localFilesystem.initialize()
@@ -763,7 +763,7 @@ function main(): void {
       appOrigin,
       allowHttpLocalhost,
       accountDataAvailable,
-      localPagePaths: [resolve(OFFLINE_PAGE), resolve(SERVER_PAGE)],
+      isLocalPageUrl,
       scopeEvents,
       retryLoad: (sender) => {
         const win = windowForContents(sender)
@@ -830,6 +830,8 @@ function main(): void {
         },
       },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
+      prepareSourceConnect: () => handoff.prepareSourceConnect(),
+      cancelSourceConnect: (requestId) => handoff.cancelSourceConnect(requestId),
       updates: {
         getState: () => updater?.getState() ?? { status: 'idle' },
         check: () => updater?.check(),
@@ -866,8 +868,12 @@ function main(): void {
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
+      installStatePath: join(userDataPath, 'update-install.json'),
       appOrigin,
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
+      setRelaunchPending: (pending) => {
+        committedRelaunchPending = pending
+      },
       beforeInstall: async () => {
         if (!prepareAccountDataTeardownForQuit()) {
           throw new Error(
@@ -899,6 +905,11 @@ app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }
+installBrowserUserAgent()
+
+// The scheme the offline page and server picker load from must be declared
+// before the app is ready; the per-session handlers attach later.
+registerLocalPageScheme()
 
 // Capture native minidumps for main/renderer/GPU crashes. Local-only: there is
 // no crash-ingest backend, so nothing is uploaded — the dumps land under

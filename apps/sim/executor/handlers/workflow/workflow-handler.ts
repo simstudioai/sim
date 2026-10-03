@@ -5,6 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
@@ -13,7 +14,6 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
-import { getUserEmailById } from '@/lib/users/queries'
 import {
   admitCustomBlockChildExecution,
   buildCustomBlockCorrelation,
@@ -21,6 +21,10 @@ import {
   trackChildRun,
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
+import {
+  resolveStartBlockRunIdentity,
+  type StartBlockRunIdentity,
+} from '@/lib/workflows/executor/start-run-identity'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import {
   scopeOutputBlockId,
@@ -468,11 +472,9 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
       }
 
-      const childSnapshotResult = await snapshotService.createSnapshotWithDeduplication(
-        workflowId,
-        childWorkflow.workflowState
-      )
-      childWorkflowSnapshotId = childSnapshotResult.snapshot.id
+      childWorkflowSnapshotId = (
+        await snapshotService.resolveSnapshot(workflowId, childWorkflow.workflowState)
+      ).id
 
       const childDepth = (ctx.childWorkflowContext?.depth ?? 0) + 1
       const withinSseChildDepth = childDepth <= DEFAULTS.MAX_SSE_CHILD_DEPTH
@@ -716,14 +718,21 @@ export class WorkflowBlockHandler implements BlockHandler {
         // When the parent run already carries trusted metadata, propagate ALL of
         // it so nested children see one consistent invoking identity (the
         // original consumer) instead of a mix of original and intermediate.
-        // Inherited email is taken verbatim — a fail-soft null must stay null,
-        // not be re-resolved to the intermediate (publisher) identity.
+        // New metadata carries the complete projected subject. Legacy snapshots
+        // without it are re-projected from the preserved execution principal.
+        let invokingIdentity: StartBlockRunIdentity
+        if (inherited && Object.hasOwn(inherited, 'subject')) {
+          invokingIdentity = {
+            subject: inherited.subject ?? null,
+          }
+        } else {
+          if (!ctx.principal) {
+            throw new Error('Execution principal is required for Start block run metadata')
+          }
+          invokingIdentity = await resolveStartBlockRunIdentity(ctx.principal)
+        }
         childStartRunMetadata = {
-          userEmail: inherited
-            ? (inherited.userEmail ?? null)
-            : ctx.userId
-              ? await getUserEmailById(ctx.userId)
-              : null,
+          ...invokingIdentity,
           workspaceId: inherited?.workspaceId ?? ctx.workspaceId ?? null,
           workflowId: inherited?.workflowId ?? ctx.workflowId ?? null,
           executionId: ctx.executionId,
@@ -898,7 +907,10 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       const startTime = performance.now()
 
-      const result = await subExecutor.execute(workflowId)
+      const executeChild = () => subExecutor.execute(workflowId)
+      const result = await (isCustomBlock
+        ? withResourceOutboundScope({ workspaceId: childWorkspaceId }, executeChild)
+        : executeChild())
       const executionResult = this.toExecutionResult(result)
       const duration = performance.now() - startTime
 
@@ -936,10 +948,10 @@ export class WorkflowBlockHandler implements BlockHandler {
       // unmasked in the consumer's stream.
       let childTraceSpans: WorkflowTraceSpan[] = []
       if (!isCustomBlock) {
-        childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName, ctx)
+        childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName)
       } else if (shouldPropagateCallbacks && childSession) {
         childTraceSpans = await childSession.projectTraceSpansForLiveDisplay(
-          this.captureChildWorkflowLogs(executionResult, childWorkflowName, ctx)
+          this.captureChildWorkflowLogs(executionResult, childWorkflowName)
         )
       }
 
@@ -947,7 +959,6 @@ export class WorkflowBlockHandler implements BlockHandler {
         executionResult,
         workflowId,
         childWorkflowName,
-        duration,
         instanceId,
         childTraceSpans,
         childWorkflowSnapshotId
@@ -1035,7 +1046,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           logCount: executionResult.logs?.length ?? 0,
         })
 
-        childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName, ctx)
+        childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName)
 
         logger.info(`Captured ${childTraceSpans.length} child trace spans from failed execution`)
       } else if (ChildWorkflowError.isChildWorkflowError(error)) {
@@ -1406,8 +1417,7 @@ export class WorkflowBlockHandler implements BlockHandler {
    */
   private captureChildWorkflowLogs(
     childResult: ExecutionResult,
-    childWorkflowName: string,
-    parentContext: ExecutionContext
+    childWorkflowName: string
   ): WorkflowTraceSpan[] {
     try {
       if (!childResult.logs || !Array.isArray(childResult.logs)) {
@@ -1528,7 +1538,6 @@ export class WorkflowBlockHandler implements BlockHandler {
     childResult: ExecutionResult,
     childWorkflowId: string,
     childWorkflowName: string,
-    duration: number,
     instanceId: string,
     childTraceSpans?: WorkflowTraceSpan[],
     childWorkflowSnapshotId?: string

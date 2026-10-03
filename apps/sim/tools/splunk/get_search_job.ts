@@ -1,9 +1,9 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SplunkGetSearchJobParams, SplunkGetSearchJobResponse } from '@/tools/splunk/types'
 import {
   asBoolean,
   asNumber,
-  asString,
   buildSplunkHeaders,
   buildSplunkUrl,
   getEntryContent,
@@ -45,9 +45,9 @@ export const getSearchJobTool: ToolConfig<SplunkGetSearchJobParams, SplunkGetSea
     return {
       success: true,
       output: {
-        sid: asString(content.sid),
-        label: asString(content.label),
-        dispatchState: asString(content.dispatchState),
+        sid: toStringOrNull(content.sid),
+        label: toStringOrNull(content.label),
+        dispatchState: toStringOrNull(content.dispatchState),
         doneProgress: asNumber(content.doneProgress),
         isDone: asBoolean(content.isDone),
         isFailed: asBoolean(content.isFailed),
@@ -65,8 +65,8 @@ export const getSearchJobTool: ToolConfig<SplunkGetSearchJobParams, SplunkGetSea
         scanCount: asNumber(content.scanCount),
         runDuration: asNumber(content.runDuration),
         priority: asNumber(content.priority),
-        earliestTime: asString(content.earliestTime),
-        latestTime: asString(content.latestTime),
+        earliestTime: toStringOrNull(content.earliestTime),
+        latestTime: toStringOrNull(content.latestTime),
         searchEarliestTime: asNumber(content.searchEarliestTime),
         searchLatestTime: asNumber(content.searchLatestTime),
         messages: (content.messages as Record<string, unknown>) ?? null,

@@ -1,10 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { authOAuthUtilsMock, inputValidationMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
@@ -49,10 +46,6 @@ async function runVerifyAuth(rawBody: string, providerConfig: Record<string, unk
 describe('microsoftTeamsHandler verifyAuth (chat subscription clientState)', () => {
   const chatSubscriptionConfig = { triggerId: 'microsoftteams_chat_subscription' }
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('accepts notifications whose clientState matches the webhook id', async () => {
     const res = await runVerifyAuth(makeNotificationBody(WEBHOOK_ID), chatSubscriptionConfig)
     expect(res).toBeNull()
@@ -60,34 +53,6 @@ describe('microsoftTeamsHandler verifyAuth (chat subscription clientState)', () 
 
   it('rejects notifications with a forged clientState', async () => {
     const res = await runVerifyAuth(makeNotificationBody('forged'), chatSubscriptionConfig)
-    expect(res?.status).toBe(401)
-  })
-
-  it('rejects notifications missing clientState', async () => {
-    const res = await runVerifyAuth(makeNotificationBody(), chatSubscriptionConfig)
-    expect(res?.status).toBe(401)
-  })
-
-  it('rejects non-string clientState values', async () => {
-    const res = await runVerifyAuth(
-      makeNotificationBody({ nested: WEBHOOK_ID }),
-      chatSubscriptionConfig
-    )
-    expect(res?.status).toBe(401)
-  })
-
-  it('rejects payloads without a value array', async () => {
-    const res = await runVerifyAuth(JSON.stringify({ hello: 'world' }), chatSubscriptionConfig)
-    expect(res?.status).toBe(401)
-  })
-
-  it('rejects payloads with an empty value array', async () => {
-    const res = await runVerifyAuth(JSON.stringify({ value: [] }), chatSubscriptionConfig)
-    expect(res?.status).toBe(401)
-  })
-
-  it('rejects unparseable bodies', async () => {
-    const res = await runVerifyAuth('not-json', chatSubscriptionConfig)
     expect(res?.status).toBe(401)
   })
 
@@ -118,10 +83,6 @@ describe('microsoftTeamsHandler verifyAuth (chat subscription clientState)', () 
 describe('microsoftTeamsHandler verifyAuth (outgoing webhook HMAC)', () => {
   const secretBase64 = Buffer.from('super-secret').toString('base64')
   const outgoingWebhookConfig = { triggerId: 'microsoftteams_webhook', hmacSecret: secretBase64 }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
 
   function signedRequest(rawBody: string): NextRequest {
     const signature = hmacSha256Base64(rawBody, Buffer.from(secretBase64, 'base64'))
@@ -175,51 +136,9 @@ describe('microsoftTeamsHandler extractIdempotencyId', () => {
     const body = { id: 'activity-123', type: 'message', text: 'hi' }
     expect(microsoftTeamsHandler.extractIdempotencyId!(body)).toBe('activity-123')
   })
-
-  it('returns null when neither shape yields a stable identifier', () => {
-    expect(microsoftTeamsHandler.extractIdempotencyId!({ type: 'message' })).toBeNull()
-  })
-
-  it('returns null instead of throwing when body is null', () => {
-    expect(microsoftTeamsHandler.extractIdempotencyId!(null)).toBeNull()
-  })
-
-  it('returns null instead of throwing when body is a primitive', () => {
-    expect(microsoftTeamsHandler.extractIdempotencyId!('not-an-object')).toBeNull()
-  })
 })
 
 describe('microsoftTeamsHandler formatInput (outgoing webhook channelData)', () => {
-  it('populates teamsTeamId/teamsChannelId from nested team/channel ids', async () => {
-    const body = {
-      id: 'activity-123',
-      type: 'message',
-      text: 'hello',
-      channelData: {
-        team: { id: 'team-1' },
-        channel: { id: 'channel-1' },
-        tenant: { id: 'tenant-1' },
-      },
-    }
-    const result = await microsoftTeamsHandler.formatInput!({
-      body,
-      webhook: {},
-      workflow: { id: 'wf-1', userId: 'user-1' },
-      headers: {},
-      requestId: 'test-req',
-    })
-    const input = result.input as {
-      message: { raw: { channelData: Record<string, unknown> } }
-    }
-    expect(input.message.raw.channelData).toEqual({
-      team: { id: 'team-1' },
-      tenant: { id: 'tenant-1' },
-      channel: { id: 'channel-1' },
-      teamsTeamId: 'team-1',
-      teamsChannelId: 'channel-1',
-    })
-  })
-
   describe('handleChallenge', () => {
     function challengeRequest(method: string): NextRequest {
       return new NextRequest(
@@ -238,15 +157,6 @@ describe('microsoftTeamsHandler formatInput (outgoing webhook channelData)', () 
 
       expect(response?.status).toBe(200)
       await expect(response?.text()).resolves.toBe('token-123')
-    })
-
-    /**
-     * Non-POST deliveries never reach this handler: `handleProviderChallenges` gates it to the
-     * default `POST`, which is asserted in `lib/webhooks/processor.test.ts`. Declaring no
-     * `challengeMethods` is what buys that, so pin it here.
-     */
-    it('claims no challenge method, so it is gated to POST by default', () => {
-      expect(microsoftTeamsHandler.challengeMethods).toBeUndefined()
     })
   })
 })

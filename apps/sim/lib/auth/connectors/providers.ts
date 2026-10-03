@@ -10,11 +10,14 @@ import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
 import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { exchangeAtlassianAuthorizationCode } from '@/lib/oauth/atlassian-token'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { createGitHubRepositoriesProvider } from '@/lib/oauth/github-repositories'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
 import {
   assertMicrosoftDataverseLegacyOAuthCallbackScopes,
@@ -22,6 +25,11 @@ import {
   getBoundMicrosoftDataverseEnvironment,
   resolveMicrosoftDataverseOAuthCallbackScopes,
 } from '@/lib/oauth/microsoft-dataverse'
+import {
+  exchangeMondayAuthorizationCode,
+  MONDAY_OAUTH_AUTHORIZATION_URL,
+  MONDAY_OAUTH_TOKEN_URL,
+} from '@/lib/oauth/monday'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
@@ -84,6 +92,17 @@ interface AttioWorkspaceMemberResponse {
     email_address?: string | null
     avatar_url?: string | null
   }
+}
+
+interface MondayUserInfoResponse {
+  data?: {
+    me?: {
+      id?: string | number
+      name?: string | null
+      email?: string | null
+    } | null
+  }
+  errors?: unknown[]
 }
 
 /**
@@ -175,6 +194,11 @@ function salesforceConnector(providerId: string, loginHost: string): GenericOAut
  */
 export function buildConnectorProviders(): GenericOAuthConfig[] {
   const providers: GenericOAuthConfig[] = [
+    createGitHubRepositoriesProvider({
+      clientId: env.GITHUB_APP_CLIENT_ID as string,
+      clientSecret: env.GITHUB_APP_CLIENT_SECRET as string,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/github-repositories`,
+    }),
     {
       providerId: 'google-email',
       clientId: env.GOOGLE_CLIENT_ID as string,
@@ -847,6 +871,28 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'microsoft-powerbi',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+      scopes: getCanonicalScopesForProvider('microsoft-powerbi'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-powerbi`,
+      getUserInfo: async (tokens) => {
+        const canonicalScopes = getCanonicalScopesForProvider('microsoft-powerbi')
+        tokens.scopes = tokens.scopes?.map((scope) => {
+          const qualified = `https://analysis.windows.net/powerbi/api/${scope}`
+          return canonicalScopes.includes(qualified) ? qualified : scope
+        })
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-powerbi')
+      },
+    },
+
+    {
       providerId: 'outlook',
       clientId: env.MICROSOFT_CLIENT_ID as string,
       clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
@@ -1243,6 +1289,140 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'manageengine-sdp',
+      // Shares the Zoho API-console client with zoho-desk: Zoho scopes are
+      // chosen per authorization request, not per registered client, so one
+      // client serves both products.
+      clientId: env.ZOHO_CLIENT_ID as string,
+      clientSecret: env.ZOHO_CLIENT_SECRET as string,
+      authorizationUrl: 'https://accounts.zoho.com/oauth/v2/auth',
+      tokenUrl: 'https://accounts.zoho.com/oauth/v2/token',
+      scopes: getCanonicalScopesForProvider('manageengine-sdp'),
+      responseType: 'code',
+      pkce: true,
+      accessType: 'offline',
+      prompt: 'consent',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/manageengine-sdp`,
+      // Zoho only issues a refresh token when access_type=offline AND
+      // prompt=consent are present on the authorize request, and it expects
+      // comma-separated scopes rather than the default space-delimited list.
+      authorizationUrlParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+        scope: getCanonicalScopesForProvider('manageengine-sdp').join(','),
+      },
+      getToken: async ({ code, redirectURI, codeVerifier }) => {
+        const tokenParams = new URLSearchParams({
+          client_id: env.ZOHO_CLIENT_ID as string,
+          client_secret: env.ZOHO_CLIENT_SECRET as string,
+          code,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectURI,
+        })
+        // PKCE is enabled, so better-auth sent a code_challenge on the authorize
+        // request. The exchange MUST echo the matching code_verifier or Zoho
+        // rejects the request shape (invalid_request).
+        if (codeVerifier) tokenParams.set('code_verifier', codeVerifier)
+
+        const response = await fetch('https://accounts.zoho.com/oauth/v2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenParams.toString(),
+        })
+
+        const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
+          maxBytes: 1024 * 1024,
+          label: 'ManageEngine ServiceDesk Plus token response',
+        }).catch(() => null)
+
+        // Zoho answers a failed exchange with HTTP 200 and an `error` key, so
+        // the status alone is not a sufficient success test.
+        const zohoError =
+          data && typeof data.error === 'string' ? (data.error as string) : undefined
+        if (!response.ok || !data || zohoError) {
+          logger.error('ManageEngine ServiceDesk Plus OAuth token exchange failed', {
+            status: response.status,
+            zohoError: zohoError ?? null,
+          })
+          throw new Error(
+            `ManageEngine ServiceDesk Plus OAuth token exchange failed (HTTP ${response.status}${
+              zohoError ? `, ${zohoError}` : ''
+            })`
+          )
+        }
+
+        const tokens = getOAuth2Tokens(data)
+        if (!tokens.accessToken) {
+          throw new Error(
+            'ManageEngine ServiceDesk Plus OAuth token response did not include an access token'
+          )
+        }
+
+        // Unlike zoho-desk, no data-center marker is persisted: the SDP API
+        // host is not derivable from Zoho's `api_domain` (the regional apexes
+        // differ — sdpondemand.manageengine.eu but servicedeskplus.net.au), so
+        // the block selects it explicitly from a closed list instead.
+        //
+        // Zoho's token response does not consistently carry `scope`; falling
+        // back to the requested scopes keeps the credential picker from showing
+        // a permanent "needs update" badge on every connection.
+        const reportedScopes =
+          typeof data.scope === 'string' ? data.scope.split(/[\s,]+/).filter(Boolean) : []
+        tokens.scopes = reportedScopes.length
+          ? reportedScopes
+          : getCanonicalScopesForProvider('manageengine-sdp')
+        return tokens
+      },
+      getUserInfo: async (tokens) => {
+        try {
+          const response = await fetch('https://accounts.zoho.com/oauth/user/info', {
+            headers: { Authorization: `Zoho-oauthtoken ${tokens.accessToken}` },
+          })
+
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: 1024 * 1024,
+              label: 'ManageEngine ServiceDesk Plus profile error response',
+            }).catch(() => {})
+            logger.error('Error fetching ManageEngine ServiceDesk Plus user info:', {
+              status: response.status,
+              statusText: response.statusText,
+            })
+            return null
+          }
+
+          const profile = await readResponseJsonWithLimit<{
+            ZUID?: number | string
+            Display_Name?: string
+            Email?: string
+          }>(response, {
+            maxBytes: 1024 * 1024,
+            label: 'ManageEngine ServiceDesk Plus profile response',
+          })
+
+          const zuid = profile.ZUID?.toString()
+          if (!zuid) {
+            logger.error('Invalid ManageEngine ServiceDesk Plus profile response:', profile)
+            return null
+          }
+
+          const now = new Date()
+          return {
+            id: `${zuid}-${generateId()}`,
+            name: profile.Display_Name || 'ManageEngine User',
+            email: profile.Email || syntheticConnectorEmail('manageengine-sdp', zuid),
+            emailVerified: Boolean(profile.Email),
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Error in ManageEngine ServiceDesk Plus getUserInfo:', { error })
+          return null
+        }
+      },
+    },
+
+    {
       providerId: 'x',
       clientId: env.X_CLIENT_ID as string,
       clientSecret: env.X_CLIENT_SECRET as string,
@@ -1415,10 +1595,19 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
-      authentication: 'basic',
+      authentication: 'post',
       prompt: 'consent',
       authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/confluence`,
+      getToken: ({ code, redirectURI, codeVerifier }) =>
+        exchangeAtlassianAuthorizationCode({
+          provider: 'confluence',
+          clientId: env.CONFLUENCE_CLIENT_ID as string,
+          clientSecret: env.CONFLUENCE_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+          codeVerifier,
+        }),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.atlassian.com/me', {
@@ -1467,10 +1656,19 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
-      authentication: 'basic',
+      authentication: 'post',
       prompt: 'consent',
       authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/jira`,
+      getToken: ({ code, redirectURI, codeVerifier }) =>
+        exchangeAtlassianAuthorizationCode({
+          provider: 'jira',
+          clientId: env.JIRA_CLIENT_ID as string,
+          clientSecret: env.JIRA_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+          codeVerifier,
+        }),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.atlassian.com/me', {
@@ -1729,15 +1927,30 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'monday',
       clientId: env.MONDAY_CLIENT_ID as string,
       clientSecret: env.MONDAY_CLIENT_SECRET as string,
-      authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
-      tokenUrl: 'https://auth.monday.com/oauth2/token',
+      authorizationUrl: MONDAY_OAUTH_AUTHORIZATION_URL,
+      tokenUrl: MONDAY_OAUTH_TOKEN_URL,
       userInfoUrl: 'https://api.monday.com/v2',
       scopes: getCanonicalScopesForProvider('monday'),
       responseType: 'code',
-      pkce: false,
+      pkce: true,
+      authentication: 'post',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+      authorizationUrlParams: { force_install_if_needed: 'true' },
+      getToken: async ({ code, codeVerifier, redirectURI }) => {
+        if (!codeVerifier) {
+          throw new Error('Monday OAuth token exchange requires a PKCE verifier')
+        }
+        return exchangeMondayAuthorizationCode({
+          clientId: env.MONDAY_CLIENT_ID as string,
+          clientSecret: env.MONDAY_CLIENT_SECRET as string,
+          code,
+          codeVerifier,
+          redirectUri: redirectURI,
+        })
+      },
       getUserInfo: async (tokens) => {
         try {
+          const signal = AbortSignal.timeout(15_000)
           const response = await fetch(MONDAY_API_URL, {
             method: 'POST',
             headers: {
@@ -1746,10 +1959,15 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
               Authorization: tokens.accessToken ?? '',
             },
             body: JSON.stringify({ query: '{ me { id name email } }' }),
+            signal,
           })
 
           if (!response.ok) {
-            await response.text().catch(() => {})
+            await readResponseTextWithLimit(response, {
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+              label: 'Monday OAuth user info error response',
+              signal,
+            }).catch(() => {})
             logger.error('Error fetching Monday.com user info:', {
               status: response.status,
               statusText: response.statusText,
@@ -1757,16 +1975,33 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
             return null
           }
 
-          const data = await response.json()
+          const data = await readResponseJsonWithLimit<MondayUserInfoResponse>(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Monday OAuth user info response',
+            signal,
+          })
+          if (data.errors?.length) {
+            logger.error('Monday.com user info returned GraphQL errors', {
+              errorCount: data.errors.length,
+            })
+            return null
+          }
           const user = data.data?.me
-          if (!user) return null
+          const userId =
+            typeof user?.id === 'string' || typeof user?.id === 'number'
+              ? String(user.id)
+              : undefined
+          if (!user || !userId) return null
+
+          const email = typeof user.email === 'string' ? user.email : undefined
+          const name = typeof user.name === 'string' ? user.name : undefined
 
           const now = new Date()
           return {
-            id: `${user.id.toString()}-${generateId()}`,
-            name: user.name || 'Monday.com User',
-            email: user.email || syntheticConnectorEmail('monday', user.id),
-            emailVerified: !!user.email,
+            id: `${userId}-${generateId()}`,
+            name: name || 'Monday.com User',
+            email: email || syntheticConnectorEmail('monday', userId),
+            emailVerified: !!email,
             createdAt: now,
             updatedAt: now,
           }

@@ -1,15 +1,7 @@
-/**
- * @vitest-environment node
- */
-
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parseJSONBuffer, parseJSONLBuffer } from '@/lib/file-parsers/json-parser'
 
 describe('JSON parser complexity limits', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('rejects excessive nesting before serializing the parsed value', async () => {
     const content = `${'['.repeat(501)}0${']'.repeat(501)}`
     const stringify = vi.spyOn(JSON, 'stringify')
@@ -36,10 +28,9 @@ describe('JSON parser complexity limits', () => {
     expect(result.metadata).toMatchObject({ itemCount: 2, depth: 3 })
   })
 
-  it('preserves ordinary JSON content and metadata', async () => {
-    const result = await parseJSONBuffer(Buffer.from('{"items":[1,2],"name":"test"}'))
-
-    expect(JSON.parse(result.content)).toEqual({ items: [1, 2], name: 'test' })
-    expect(result.metadata).toMatchObject({ isArray: false, keys: ['items', 'name'], depth: 2 })
+  it('still rejects JSON that is invalid even after comment stripping', async () => {
+    await expect(parseJSONBuffer(Buffer.from('{ "a": [1, 2 }'))).rejects.toMatchObject({
+      code: 'invalid_format',
+    })
   })
 })

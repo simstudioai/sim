@@ -4,6 +4,7 @@ import {
   isPayloadSizeLimitError,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { MAX_FILE_SIZE as KB_DOCUMENT_MAX_BYTES } from '@/lib/uploads/utils/validation'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -54,6 +55,22 @@ export function parseOptionalUnlimitedSafeInteger(value: unknown, errorMessage: 
     throw new Error(errorMessage)
   }
   return parsed
+}
+
+/**
+ * Parses a connector cap that keeps `defaultValue` when the field is blank —
+ * absent, null, or a string of nothing but whitespace — and otherwise reads
+ * like {@link parseOptionalUnlimitedSafeInteger}, where 0 lifts the cap. A
+ * per-member sync writes that explicit 0; a form left empty must not.
+ */
+export function parseDefaultedUnlimitedSafeInteger(
+  value: unknown,
+  defaultValue: number,
+  errorMessage: string
+): number {
+  if (value === undefined || value === null) return defaultValue
+  if (typeof value === 'string' && value.trim() === '') return defaultValue
+  return parseOptionalUnlimitedSafeInteger(value, errorMessage)
 }
 
 const MICROSOFT_GRAPH_ORIGIN = 'https://graph.microsoft.com'
@@ -322,11 +339,11 @@ function decodeCharacterReference(raw: string, code: number): string {
  * A false positive therefore does not merely pass text through untouched — it
  * deletes the bracketed span and flattens the document's line structure. Plain
  * text routinely contains angle brackets that are not markup: an email address
- * (`Reply from John <john@acme.com>`), a markdown autolink
+ * (`Reply from John <john@acme.com>`, or `<a@acme.com>`, whose name is a tag's), a markdown autolink
  * (`<https://acme.com>`), or a placeholder (`<redacted>`).
  */
 const HTML_TAG_PATTERN =
-  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)\b[^>]*>/i
+  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)(?=[\s/>])[^>]*>/i
 
 /**
  * Reports whether a value carries real HTML markup and is therefore worth routing
@@ -345,15 +362,25 @@ export function looksLikeHtml(value: string): boolean {
  * punctuation as numeric references, which previously reached the index verbatim.
  */
 export function htmlToPlainText(html: string): string {
-  const text = html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(HTML_ENTITY_PATTERN, (raw: string, hex?: string, decimal?: string, named?: string) => {
+  return decodeHtmlEntities(html.replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Decodes HTML character references without touching markup or whitespace. Use for text a
+ * provider HTML-escapes but does not mark up, such as Gmail message snippets.
+ */
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(
+    HTML_ENTITY_PATTERN,
+    (raw: string, hex?: string, decimal?: string, named?: string) => {
       if (named !== undefined) return NAMED_ENTITIES[named] ?? raw
       if (hex !== undefined) return decodeCharacterReference(raw, Number.parseInt(hex, 16))
       if (decimal !== undefined) return decodeCharacterReference(raw, Number.parseInt(decimal, 10))
       return raw
-    })
-  return text.replace(/\s+/g, ' ').trim()
+    }
+  )
 }
 
 /**
@@ -400,7 +427,7 @@ const CONNECTOR_TEXT_EXTENSIONS = [
  * declaration, so a provider that omits or mislabels it cannot strand a PDF on
  * the non-OCR path.
  */
-const PIPELINE_PARSED_MIME_TYPES = new Map<string, string>([
+export const PIPELINE_PARSED_MIME_TYPES: ReadonlyMap<string, string> = new Map([
   ['pdf', 'application/pdf'],
   ['doc', 'application/msword'],
   ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -411,7 +438,6 @@ const PIPELINE_PARSED_MIME_TYPES = new Map<string, string>([
   ['xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
   ['xlsb', 'application/vnd.ms-excel.sheet.binary.macroEnabled.12'],
   ['xltx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.template'],
-  ['ppt', 'application/vnd.ms-powerpoint'],
   ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
   ['pptm', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12'],
   ['potx', 'application/vnd.openxmlformats-officedocument.presentationml.template'],
@@ -481,16 +507,18 @@ export function pipelineParsedMimeType(fileName: string): string | undefined {
  *
  * Only for formats that are already text — anything the shared parsers handle is
  * delivered to them verbatim instead, via {@link pipelineParsedMimeType}. HTML is
- * additionally reduced to plain text; everything else is a UTF-8 decode.
+ * additionally reduced to plain text; everything else is decoded with the shared
+ * BOM/UTF-8/Windows-1252 detection so a Latin-1 file never indexes as mojibake.
  */
 export function extractConnectorText(buffer: Buffer, fileName: string): string {
   const extension = connectorFileExtension(fileName)
+  const { text } = decodeTextBuffer(buffer)
 
   if (extension === 'html' || extension === 'htm') {
-    return htmlToPlainText(buffer.toString('utf8'))
+    return htmlToPlainText(text)
   }
 
-  return buffer.toString('utf8')
+  return text
 }
 
 /**
@@ -693,5 +721,223 @@ export class ConnectorFileTooLargeError extends Error {
   constructor(readonly limitBytes: number) {
     super(`File exceeds the ${Math.round(limitBytes / (1024 * 1024))}MB size limit`)
     this.name = 'ConnectorFileTooLargeError'
+  }
+}
+
+/**
+ * A listing failed because the caller cannot reach the configured scope — the
+ * folder, space, board, or calendar is not shared with them. A members-mode
+ * crawl treats that as a complete listing of nothing for that member, so
+ * their access is withdrawn rather than retried forever.
+ */
+export class ConnectorListingScopeUnavailableError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+    this.name = 'ConnectorListingScopeUnavailableError'
+  }
+}
+
+/**
+ * The error a listing request throws for a failed response: scope-unavailable
+ * when the source says the scope does not exist for this caller (404, or
+ * whatever `scopeUnavailable` recognises in the source's own error body), a
+ * plain error for anything else, which the sync engines retry with backoff.
+ */
+export function listingRequestError(
+  message: string,
+  status: number,
+  scopeUnavailable: boolean = status === 404
+): Error {
+  const described = `${message}: ${status}`
+  return scopeUnavailable
+    ? new ConnectorListingScopeUnavailableError(described, status)
+    : new Error(described)
+}
+
+export function isListingScopeUnavailableError(error: unknown): boolean {
+  return error instanceof ConnectorListingScopeUnavailableError
+}
+
+/**
+ * The error a failed Microsoft Graph listing request throws. Graph reports a
+ * drive, site, or folder the caller cannot reach as 404 (`itemNotFound`) or
+ * 403 (`accessDenied`); either is a complete listing of nothing for that
+ * caller, while anything else is a fault the sync engines retry.
+ */
+export function microsoftGraphListingError(
+  message: string,
+  status: number,
+  detail?: string
+): Error {
+  const described = detail ? `${message}: ${status} – ${detail}` : `${message}: ${status}`
+  return status === 403 || status === 404
+    ? new ConnectorListingScopeUnavailableError(described, status)
+    : new Error(described)
+}
+
+/**
+ * `syncContext` entry the members-mode crawl sets on every listing it runs
+ * under one member's own token. A connector that walks several scopes reads
+ * it to tell that a scope the caller cannot reach is simply absent from that
+ * member's complete listing, where the same failure under a shared credential
+ * is a cap or an error.
+ */
+export const PER_MEMBER_LISTING_CONTEXT = { perMemberListing: true } as const
+
+export function isPerMemberListing(syncContext: Record<string, unknown> | undefined): boolean {
+  return syncContext?.perMemberListing === true
+}
+
+function memberDocumentPrefix(syncContext: Record<string, unknown> | undefined): string {
+  const memberId = syncContext?.memberId
+  if (typeof memberId !== 'string' || !memberId.trim()) {
+    throw new Error('Per-member document identity requires a connector member ID')
+  }
+  return `member:${encodeURIComponent(memberId)}:`
+}
+
+/** Keeps credential-specific representations separate in the connector's shared document corpus. */
+export function memberDocumentId(
+  externalId: string,
+  syncContext: Record<string, unknown> | undefined
+): string {
+  return isPerMemberListing(syncContext)
+    ? `${memberDocumentPrefix(syncContext)}${externalId}`
+    : externalId
+}
+
+/** Refuses to hydrate another member's representation using the current member's credential. */
+export function sourceDocumentId(
+  externalId: string,
+  syncContext: Record<string, unknown> | undefined
+): string | null {
+  if (!isPerMemberListing(syncContext)) return externalId
+  const prefix = memberDocumentPrefix(syncContext)
+  return externalId.startsWith(prefix) && externalId.length > prefix.length
+    ? externalId.slice(prefix.length)
+    : null
+}
+
+/**
+ * Whether a folder request that failed while walking a Microsoft Graph drive
+ * can be left out of the listing: under a member's own token a descendant
+ * folder Graph reports as unreachable (403, 404) is simply not shared with
+ * them, so their listing stays complete without it and their access to its
+ * files is withdrawn. The configured root is the whole scope, which the
+ * members-mode crawl reads as a complete listing of nothing, and a shared
+ * credential never skips: dropping the folder's files would read as deletions.
+ */
+export function isSkippableMicrosoftGraphFolderError(
+  error: unknown,
+  syncContext: Record<string, unknown> | undefined,
+  isRootFolder: boolean
+): boolean {
+  return !isRootFolder && isListingScopeUnavailableError(error) && isPerMemberListing(syncContext)
+}
+
+/**
+ * Ceiling for a document a connector assembles from many source records (a
+ * mail thread, a chat transcript) rather than downloads as one file. Formatters
+ * enforce it through `BoundedLines`, and listings advertise it through
+ * `ExternalDocument.estimatedBytes`, so the sync engine plans hydration around
+ * a bound it can rely on: five such documents fit its 64 MiB in-flight budget
+ * and hydrate together instead of one at a time.
+ */
+export const CONNECTOR_TEXT_DOCUMENT_MAX_BYTES = 12 * 1024 * 1024
+
+const TRAILING_TRUNCATION_NOTICE = '[Truncated: the indexed text reached the size limit]'
+const LEADING_TRUNCATION_NOTICE = '[Truncated: earlier text was left out to fit the size limit]'
+
+/**
+ * Which end of the stream survives when it does not fit: `first` keeps what
+ * was pushed first and refuses the rest (a mail thread, whose root message is
+ * the context), `last` keeps what was pushed last and lets older records go
+ * (a chat transcript, whose newest messages are the ones people search for).
+ */
+export type BoundedLinesKeep = 'first' | 'last'
+
+interface BoundedRecord {
+  lines: string[]
+  bytes: number
+}
+
+function byteSize(lines: readonly string[]): number {
+  let size = 0
+  for (const line of lines) size += Buffer.byteLength(line, 'utf8') + 1
+  return size
+}
+
+/**
+ * Accumulates newline-joined text under a byte ceiling. A record is kept
+ * whole or not at all, so a truncated document never ends mid-message, and
+ * the output carries a notice where something was left out.
+ */
+export class BoundedLines {
+  private readonly pinned: string[] = []
+  private readonly records: BoundedRecord[] = []
+  private pinnedBytes = 0
+  private recordBytes = 0
+  private truncated = false
+
+  constructor(
+    private readonly maxBytes = CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+    private readonly keep: BoundedLinesKeep = 'first'
+  ) {}
+
+  /** Lines that open the document and are never let go, such as its header; counted against the ceiling. */
+  pin(...lines: string[]): void {
+    this.pinned.push(...lines)
+    this.pinnedBytes += byteSize(lines)
+  }
+
+  /** Records currently kept. */
+  get count(): number {
+    return this.records.length
+  }
+
+  /**
+   * Appends the lines as one record and returns whether it was kept. Keeping
+   * the first, a record that does not fit is refused, and so is every later
+   * one, so a caller can stop. Keeping the last, a record is refused only when
+   * it cannot fit on its own, and appending it lets the oldest records go
+   * until the rest fits, so a caller carries on.
+   */
+  push(...lines: string[]): boolean {
+    const bytes = byteSize(lines)
+    if (this.keep === 'first') {
+      if (this.truncated) return false
+      if (this.pinnedBytes + this.recordBytes + bytes > this.maxBytes) {
+        this.truncated = true
+        return false
+      }
+      this.records.push({ lines, bytes })
+      this.recordBytes += bytes
+      return true
+    }
+    if (this.pinnedBytes + bytes > this.maxBytes) {
+      this.truncated = true
+      return false
+    }
+    this.records.push({ lines, bytes })
+    this.recordBytes += bytes
+    while (this.pinnedBytes + this.recordBytes > this.maxBytes) {
+      const oldest = this.records.shift()
+      if (!oldest) break
+      this.recordBytes -= oldest.bytes
+      this.truncated = true
+    }
+    return true
+  }
+
+  /** Joins the kept lines, with the truncation notice where records were left out. */
+  join(): string {
+    const body = this.records.flatMap((record) => record.lines)
+    if (!this.truncated) return [...this.pinned, ...body].join('\n')
+    return this.keep === 'first'
+      ? [...this.pinned, ...body, TRAILING_TRUNCATION_NOTICE].join('\n')
+      : [...this.pinned, LEADING_TRUNCATION_NOTICE, ...body].join('\n')
   }
 }

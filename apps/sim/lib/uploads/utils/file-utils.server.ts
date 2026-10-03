@@ -36,8 +36,8 @@ import {
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
-import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+import { renderSimPageDocumentWithContributors } from '@/lib/workspace-files/page-document.server'
+import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('FileUtilsServer')
@@ -112,7 +112,7 @@ export async function resolveFileInputToUrl(
     // point at a different object than the verified key.
     if (userFile.key) {
       const context = resolveTrustedFileContext(userFile.key, userFile.context)
-      const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context, false)
+      const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context)
 
       if (!hasAccess) {
         logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
@@ -229,6 +229,13 @@ export interface DownloadFileFromUrlOptions {
    * be treated as implicitly trusted.
    */
   userId?: string
+  /**
+   * How a knowledge-base file identifies its reader. Omitted, the read is
+   * authorized as the workspace, which is what a caller-supplied URL gets. A
+   * background job processing a connector-owned row passes the system scope,
+   * because that row is hidden until the sync materializes who may read it.
+   */
+  knowledgeAccess?: KnowledgeFileAccess
 }
 
 /**
@@ -248,7 +255,13 @@ export async function downloadFileFromUrl(
   fileUrl: string,
   options: DownloadFileFromUrlOptions = {}
 ): Promise<Buffer> {
-  const { timeoutMs = getMaxExecutionTimeout(), maxBytes, signal, userId } = options
+  const {
+    timeoutMs = getMaxExecutionTimeout(),
+    maxBytes,
+    signal,
+    userId,
+    knowledgeAccess,
+  } = options
 
   signal?.throwIfAborted()
 
@@ -266,7 +279,9 @@ export async function downloadFileFromUrl(
 
     const context = inferContextFromKey(key)
 
-    const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
+    const hasAccess = await verifyFileAccess(key, userId, undefined, context, {
+      knowledgeAccess,
+    })
     if (!hasAccess) {
       logger.warn('Internal file download denied: access check failed', { key, context, userId })
       throw new Error('Access denied: file not found or insufficient permissions')
@@ -313,7 +328,7 @@ export async function resolveInternalFileUrl(
   try {
     const storageKey = extractStorageKey(filePath)
     const context = inferContextFromKey(storageKey)
-    const hasAccess = await verifyFileAccess(storageKey, userId, undefined, context, false)
+    const hasAccess = await verifyFileAccess(storageKey, userId, undefined, context)
 
     if (!hasAccess) {
       logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
@@ -446,16 +461,20 @@ export async function downloadServableFileFromStorage(
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
       const workspaceId = userFile.key
-        ? (parseWorkspaceFileKey(userFile.key) ?? undefined)
+        ? (parseWorkspaceFileKey(userFile.key) ??
+          extractWorkspaceIdFromExecutionKey(userFile.key) ??
+          undefined)
         : undefined
-      const rendered = Buffer.from(
-        await renderSimPageDocumentWithAssets(text, { workspaceId }),
-        'utf8'
-      )
+      const page = await renderSimPageDocumentWithContributors(text, { workspaceId })
+      const rendered = Buffer.from(page.html, 'utf8')
       // Rendering inlines referenced assets, so a source well under the ceiling can
       // resolve to a document well over it.
       assertKnownSizeWithinLimit(rendered.length, options.maxBytes, 'servable page render')
-      return { buffer: rendered, contentType: 'text/html' }
+      return {
+        buffer: rendered,
+        contentType: 'text/html',
+        contributingFiles: page.contributingFiles,
+      }
     }
   }
 
@@ -472,7 +491,9 @@ export async function downloadServableFileFromStorage(
       undefined)
     : undefined
 
-  const { resolveServableDocBytes } = await import('@/lib/copilot/tools/server/files/doc-compile')
+  const { resolveServableDocBytes } = await import(
+    '@/lib/mothership/tools/server/files/doc-compile'
+  )
   const resolved = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: userFile.name,

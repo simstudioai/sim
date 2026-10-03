@@ -1,5 +1,11 @@
-import type { ApplicationOperation, OperationDeclarableCapability } from '@/lib/core/application'
-import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
+import type {
+  ApplicationOperation,
+  OperationDeclarableCapability,
+} from '@/lib/core/application/operation'
+import {
+  defineWorkspaceOperation,
+  type WorkspaceOperation,
+} from '@/lib/core/application/workspace-operation'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
 
@@ -26,11 +32,45 @@ export function defineCredentialOperation<
 }
 
 const HUMAN_AND_COPILOT_PRINCIPALS = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
 
 export const credentialOperations = {
+  resolvePersonalToken: defineCredentialOperation(
+    defineWorkspaceOperation({
+      id: 'credentials.personal_tokens.resolve',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
+      ...HUMAN_AND_COPILOT_PRINCIPALS,
+    }),
+    'member'
+  ),
+  startPersonalConnection: defineWorkspaceOperation({
+    id: 'credentials.personal.connect',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    principalKinds: ['session'],
+  }),
+  listPersonal: defineWorkspaceOperation({
+    id: 'credentials.personal.list',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    ...HUMAN_AND_COPILOT_PRINCIPALS,
+  }),
+  authorizePersonal: defineWorkspaceOperation({
+    id: 'credentials.personal.authorize',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    ...HUMAN_AND_COPILOT_PRINCIPALS,
+  }),
   listInternal: defineWorkspaceOperation({
     id: 'credentials.list',
     minimumRole: 'read',
@@ -40,17 +80,33 @@ export const credentialOperations = {
   }),
   listProviders: defineWorkspaceOperation({
     id: 'credentials.providers.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
   listConnections: defineWorkspaceOperation({
     id: 'credentials.connections.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
   /**
    * `integrations.manage`, like every other credential operation — these three
@@ -65,10 +121,12 @@ export const credentialOperations = {
    */
   createConnection: defineWorkspaceOperation({
     id: 'credentials.connections.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
   }),
   prepareConnection: defineWorkspaceOperation({
     id: 'credentials.connections.prepare',
@@ -80,10 +138,11 @@ export const credentialOperations = {
   }),
   createServiceAccount: defineWorkspaceOperation({
     id: 'credentials.service_accounts.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key'],
+    ...HUMAN_AND_COPILOT_PRINCIPALS,
   }),
   read: defineCredentialOperation(
     defineWorkspaceOperation({
@@ -105,6 +164,7 @@ export const credentialOperations = {
   update: defineCredentialOperation(
     defineWorkspaceOperation({
       id: 'credentials.update',
+      oauthScope: 'api:write',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'integrations.manage',
@@ -115,6 +175,7 @@ export const credentialOperations = {
   delete: defineCredentialOperation(
     defineWorkspaceOperation({
       id: 'credentials.delete',
+      oauthScope: 'api:write',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'integrations.manage',
@@ -122,14 +183,6 @@ export const credentialOperations = {
     }),
     'admin'
   ),
-  deleteMany: defineWorkspaceOperation({
-    id: 'credentials.delete_many',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'integrations.manage',
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
-  }),
   saveDraft: defineWorkspaceOperation({
     id: 'credentials.drafts.save',
     minimumRole: 'write',
@@ -171,13 +224,32 @@ export const credentialOperations = {
     capability: 'integrations.manage',
     principalKinds: ['session'],
   }),
+  completeConnection: defineWorkspaceOperation({
+    id: 'credentials.connections.complete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    principalKinds: ['session'],
+  }),
   useManagedOAuth: defineWorkspaceOperation({
     id: 'credentials.managed_oauth.use',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
     principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    delegatedServices: ['executor', 'copilot'],
+    resourcePolicy: {
+      resourceType: 'credential_group',
+      action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
+    },
+  }),
+  useManagedMcp: defineWorkspaceOperation({
+    id: 'credentials.managed_mcp.use',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'mcp_tools.use',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor', 'copilot'],
     resourcePolicy: {
       resourceType: 'credential_group',
       action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,

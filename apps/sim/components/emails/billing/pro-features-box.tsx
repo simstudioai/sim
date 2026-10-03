@@ -1,4 +1,4 @@
-import { Section, Text } from 'react-email'
+import { Section, Text } from '@react-email/components'
 import { baseStyles, colors, fontWeight } from '@/components/emails/_styles'
 import { proFeatures } from '@/components/emails/billing/constants'
 

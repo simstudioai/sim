@@ -1,9 +1,8 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
-import { NextRequest } from 'next/server'
-import { describe, expect, it } from 'vitest'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
+import { describe, expect, it, vi } from 'vitest'
 import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
@@ -13,6 +12,8 @@ import {
   resolveInternalKnowledgeBillingAttribution,
 } from '@/lib/knowledge/api/internal-route'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
+
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'execution-billing-actor-1',
@@ -28,7 +29,8 @@ const BILLING_ATTRIBUTION = {
 }
 
 function request(): NextRequest {
-  return new NextRequest('http://localhost/api/knowledge/search', {
+  return createMockRequest({
+    url: 'http://localhost/api/knowledge/search',
     headers: {
       [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(BILLING_ATTRIBUTION),
     },

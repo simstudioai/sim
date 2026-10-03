@@ -1,6 +1,34 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 /**
- * @vitest-environment node
- *
  * Tools Registry and Executor Unit Tests
  *
  * This file contains unit tests for the tools registry and executeTool function,
@@ -11,11 +39,11 @@ import {
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
+  encryptionMock,
   encryptionMockFns,
   environmentUtilsMockFns,
   inputValidationMock,
   inputValidationMockFns,
-  loggerMock,
   type MockFetchResponse,
   resetEnvFlagsMock,
   resetEnvironmentUtilsMock,
@@ -27,130 +55,115 @@ import {
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
-import { buildFunctionExecuteBody } from '@/tools/function/execute'
+import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
+import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
+import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
+import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
+import { runwayVideoTool } from '@/tools/video/runway'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 // Hoisted mock state - these are available to vi.mock factories
 const {
-  mockGetBYOKKey,
   mockGetToolAsync,
   mockRateLimiterFns,
-  mockMarkWorkspaceFileSecretProvenanceUnknown,
   mockRunCustomBlockTool,
   mockRunWorkflowTool,
   mockReadAvailableCustomToolByIdOrTitleAsCopilot,
   mockReadAvailableCustomToolByIdOrTitleAsExecutor,
-  mockGenerateInternalToken,
-  mockResolveWorkspaceFileReference,
-  mockAssertPermissionsAllowed,
   mockExecuteFunction,
-  mockCreateExecutorPrincipalFromExecutionContext,
+  mockExecuteChatFunction,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
 } = vi.hoisted(() => ({
-  mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
   mockRateLimiterFns: {
     acquireKey: vi.fn(),
     preConsumeCapacity: vi.fn(),
     consumeCapacity: vi.fn(),
   },
-  mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
   mockRunCustomBlockTool: vi.fn(),
   mockRunWorkflowTool: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsCopilot: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsExecutor: vi.fn(),
-  mockGenerateInternalToken: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockAssertPermissionsAllowed: vi.fn(),
   mockExecuteFunction: vi.fn(),
-  mockCreateExecutorPrincipalFromExecutionContext: vi.fn(),
+  mockExecuteChatFunction: vi.fn(),
   mockGetInternalToolOperationHandler: vi.fn(),
   mockExecuteInternalToolOperation: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
-const mockGetEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
+const mockGetEffectiveEnvironmentSnapshot =
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
-// Mock getBYOKKey
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: (...args: unknown[]) => mockGetBYOKKey(...args),
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-  encryptSecret: encryptionMockFns.mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: mockAssertPermissionsAllowed,
-  validateBlockType: vi.fn().mockResolvedValue(undefined),
-  validateModelProvider: vi.fn().mockResolvedValue(undefined),
-  validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
-  validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
-  ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
-  IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
-  McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
-  CustomToolsNotAllowedError: class CustomToolsNotAllowedError extends Error {},
-  SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
-  InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
-  PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+vi.mock('@/lib/function-execution/application/execute-chat-function', () => ({
+  executeChatFunction: { execute: mockExecuteChatFunction },
+}))
 
 vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mockExecuteFunction },
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mockCreateExecutorPrincipalFromExecutionContext,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/tool-operations/registry.server', () => ({
   getInternalToolOperationHandler: mockGetInternalToolOperationHandler,
 }))
 
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
+
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
+
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  resolveWorkspaceFileReference: (...args: unknown[]) => mockResolveWorkspaceFileReference(...args),
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  markWorkspaceFileSecretProvenanceUnknown: (...args: unknown[]) =>
-    mockMarkWorkspaceFileSecretProvenanceUnknown(...args),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
   mockResolveExecutorCredentialToken: vi.fn(),
@@ -172,6 +185,10 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  stripe_list_subscriptions: stripeListSubscriptionsTool,
+  stripe_search_subscriptions: stripeSearchSubscriptionsTool,
+  slack_lists_items_list: slackListsItemsListTool,
+  github_search_issues_v2: searchIssuesV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -403,9 +420,20 @@ import { tools } from '@/tools/registry'
 import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
-const mockToolsLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Tools')
-].value
+const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
+const mockCreateExecutorPrincipalFromExecutionContext =
+  executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext
+const mockUploadExecutionFile = uploadsExecutionMockFns.mockUploadExecutionFile
+const mockUploadCopilotFile = uploadsCopilotMockFns.mockUploadCopilotFile
+
+const mockMarkWorkspaceFileSecretProvenanceUnknown =
+  workspaceFileSecretProvenanceMockFns.mockMarkWorkspaceFileSecretProvenanceUnknown
+const mockResolveWorkspaceFileReference =
+  workspaceFileManagerMockFns.mockResolveWorkspaceFileReference
+const mockAssertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
+
+const mockToolsLogger = getMockLogger('Tools')
 
 /**
  * Overlay the mock tools onto the REAL registry object instead of vi.mock:
@@ -462,14 +490,13 @@ function createMockQueryClient(): QueryClient {
  * Spy on the real get-query-client namespace instead of vi.mock: under
  * `isolate: false` the shared `@/tools/utils` module may be cached across test
  * files, so patching the real namespace is the only wiring that composes.
- * Re-applied in beforeEach because suites below call vi.resetAllMocks() /
- * vi.restoreAllMocks().
+ * Applied in beforeEach because spies are restored before every test.
  */
-vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
-
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
+  mockUploadExecutionFile.mockReset()
+  mockUploadCopilotFile.mockReset()
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   mockGetInternalToolOperationHandler.mockResolvedValue(mockExecuteInternalToolOperation)
   mockExecuteInternalToolOperation.mockImplementation(async (request: InternalToolOperationCall) =>
@@ -586,7 +613,7 @@ function createToolExecutionContext(overrides?: Partial<ExecutionContext>): Exec
   const principal =
     overrides?.principal ??
     (overrides?.userId
-      ? { kind: 'session' as const, userId: overrides.userId, sessionId: 'test-session' }
+      ? createSessionPrincipal({ userId: overrides.userId, sessionId: 'test-session' })
       : undefined)
   const executorDelegationOrigin =
     overrides?.executorDelegationOrigin ??
@@ -633,48 +660,6 @@ beforeAll(() => {
 })
 
 afterAll(resetEnvFlagsMock)
-
-describe('Tools Registry', () => {
-  it('should include all expected built-in tools', () => {
-    expect(tools.http_request).toBeDefined()
-    expect(tools.function_execute).toBeDefined()
-
-    expect(tools.gmail_read).toBeDefined()
-    expect(tools.gmail_send).toBeDefined()
-    expect(tools.google_drive_list).toBeDefined()
-    expect(tools.serper_search).toBeDefined()
-  })
-
-  it('getTool should return the correct tool by ID', () => {
-    const httpTool = getTool('http_request')
-    expect(httpTool).toBeDefined()
-    expect(httpTool?.id).toBe('http_request')
-    expect(httpTool?.name).toBe('HTTP Request')
-
-    const gmailTool = getTool('gmail_read')
-    expect(gmailTool).toBeDefined()
-    expect(gmailTool?.id).toBe('gmail_read')
-    expect(gmailTool?.name).toBe('Gmail Read')
-  })
-
-  it.each([
-    ['notion_add_database_row', 'notion_add_database_row_v2'],
-    ['notion_update_page', 'notion_update_page_v2'],
-  ])('getTool resolves both the legacy and v2 ids for %s', (legacyId, v2Id) => {
-    const legacy = getTool(legacyId)
-    expect(legacy).toBeDefined()
-    expect(legacy?.id).toBe(legacyId)
-
-    const v2 = getTool(v2Id)
-    expect(v2).toBeDefined()
-    expect(v2?.id).toBe(v2Id)
-  })
-
-  it('getTool should return undefined for non-existent tool', () => {
-    const nonExistentTool = getTool('non_existent_tool')
-    expect(nonExistentTool).toBeUndefined()
-  })
-})
 
 describe('Custom Tools', () => {
   it('does not resolve custom tools through the synchronous client helper', () => {
@@ -796,7 +781,17 @@ describe('executeTool Function', () => {
     })
 
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -1312,41 +1307,7 @@ describe('executeTool Function', () => {
     )
   })
 
-  it('retries transient database failures during permission preflight', async () => {
-    const driverError = Object.assign(new Error('read ECONNRESET'), {
-      code: 'ECONNRESET',
-      errno: 'ECONNRESET',
-      syscall: 'read',
-    })
-    const databaseError = new DrizzleQueryError(
-      'select "id" from "workspace" where "workspace"."id" = $1 limit $2',
-      ['workspace-secret-id', 1],
-      driverError
-    )
-    mockAssertPermissionsAllowed.mockRejectedValueOnce(databaseError)
-    mockToolsLogger.warn.mockClear()
-
-    const result = await executeTool(
-      'function_execute',
-      { code: 'return 1' },
-      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
-    )
-
-    expect(result.success).toBe(true)
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(2)
-    expect(mockExecuteFunction).toHaveBeenCalledTimes(1)
-    expect(global.fetch).not.toHaveBeenCalled()
-    expect(mockToolsLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Retrying tool permission preflight after database error'),
-      expect.objectContaining({
-        attempt: 1,
-        maxAttempts: 3,
-        cause: expect.objectContaining({ code: 'ECONNRESET' }),
-      })
-    )
-  })
-
-  it('logs exhausted database retries without exposing query details to the caller', async () => {
+  it('logs a permission database failure without exposing query details to the caller', async () => {
     const driverError = Object.assign(new Error('read ECONNRESET'), {
       code: 'ECONNRESET',
       errno: 'ECONNRESET',
@@ -1372,7 +1333,7 @@ describe('executeTool Function', () => {
     )
     expect(JSON.stringify(result)).not.toContain('Failed query')
     expect(JSON.stringify(result)).not.toContain('workspace-secret-id')
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(3)
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
     expect(global.fetch).not.toHaveBeenCalled()
 
     const loggedError = mockToolsLogger.error.mock.calls.at(-1)?.[1]
@@ -1393,28 +1354,6 @@ describe('executeTool Function', () => {
     )
     expect(loggedError).not.toHaveProperty('stack')
     expect(JSON.stringify(loggedError)).not.toContain('workspace-secret-id')
-  })
-
-  it('does not retry non-transient database failures during permission preflight', async () => {
-    const databaseError = new DrizzleQueryError(
-      'select "missing_column" from "workspace"',
-      [],
-      Object.assign(new Error('column does not exist'), { code: '42703' })
-    )
-    mockAssertPermissionsAllowed.mockRejectedValue(databaseError)
-
-    const result = await executeTool(
-      'function_execute',
-      { code: 'return 1' },
-      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toBe(
-      'An internal error occurred while executing the tool. Please try again.'
-    )
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
-    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('surfaces cancellation instead of a concurrent permission database failure', async () => {
@@ -1551,6 +1490,66 @@ describe('executeTool Function', () => {
       { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
     ])
   })
+
+  it.each([true, false])(
+    'carries File Fetch lineage into later durable values when complete=%s',
+    async (complete) => {
+      const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+      const registry = new ResolvedSecretTraceRegistry([], scope)
+      const entry = { name: 'API_KEY', encryptedValue: 'encrypted-value' }
+      encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        Response.json(
+          {
+            success: true,
+            output: {
+              content: 'secret-value',
+              name: 'report.txt',
+              fileType: 'text/plain',
+              size: 12,
+              binary: false,
+            },
+            __resolvedSecretTraceProvenance: {
+              version: 1,
+              complete,
+              entries: complete ? [entry] : [],
+              scope,
+            },
+          },
+          { headers: { 'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1' } }
+        )
+      )
+
+      const result = await executeTool(
+        'file_fetch',
+        { fileUrl: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/report.txt' },
+        {
+          executionContext: createToolExecutionContext(scope),
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result).toMatchObject({
+        success: true,
+        output: { combinedContent: 'secret-value' },
+      })
+      expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+      expect(
+        mockExecuteInternalToolOperation.mock.calls[0]?.[0].headers.get(
+          'x-sim-request-private-tool-metadata'
+        )
+      ).toBe('resolved-secret-provenance-v1')
+      for (const durableValue of [
+        { 'column-id': 'secret-value' },
+        { role: 'assistant', content: 'secret-value' },
+      ]) {
+        expect(registry.exportCommittedProvenanceForValue(durableValue)).toMatchObject({
+          complete,
+          entries: complete ? [entry] : [],
+        })
+      }
+    }
+  )
 
   it.each([
     {
@@ -2386,6 +2385,122 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
+  it.each([200, 400, 422])(
+    'preserves a generic Function response with empty provenance and omitted envVars (HTTP %i)',
+    async (status) => {
+      const registry = new ResolvedSecretTraceRegistry()
+      const originalTool = tools.function_execute
+      tools.function_execute = functionExecuteTool
+      const error = 'ValueError: expected one input image'
+      mockExecuteFunction.mockResolvedValueOnce(
+        Response.json(
+          {
+            success: status === 200,
+            ...(status === 200 ? {} : { error }),
+            output: { result: status === 200 ? { width: 160 } : null, stdout: '', files: [] },
+            __resolvedSecretNames: [],
+          },
+          {
+            status,
+            headers: {
+              'x-sim-private-tool-metadata': 'resolved-secret-names-durable-files-v2',
+            },
+          }
+        )
+      )
+
+      try {
+        const result = await executeTool(
+          'function_execute',
+          { code: '__sim_result__ = {"width": 160}', language: 'python' },
+          {
+            operationContext: {
+              userId: 'user-1',
+              workspaceId: 'workspace-456',
+              workflowId: '',
+              copilotToolExecution: true,
+            },
+            resolvedSecretTraceRegistry: registry,
+          }
+        )
+
+        const request = mockExecuteFunction.mock.calls[0]?.[0]
+        expect(request.input.body.envVars).toEqual({})
+        expect(request.input.headers.get('x-sim-request-private-tool-metadata')).toBe(
+          'resolved-secret-names-durable-files-v2'
+        )
+        expect(request.principal).toMatchObject({ kind: 'delegated', serviceId: 'copilot' })
+        expect(result).toMatchObject(
+          status === 200
+            ? { success: true, output: { result: { width: 160 }, files: [] } }
+            : { success: false, error }
+        )
+        expect(JSON.stringify(result)).not.toContain('__resolvedSecretNames')
+        expect(registry.isComplete()).toBe(true)
+        expect(registry.getActiveMatches()).toEqual([])
+        expect(mockMarkWorkspaceFileSecretProvenanceUnknown).not.toHaveBeenCalled()
+        expect(global.fetch).not.toHaveBeenCalled()
+      } finally {
+        tools.function_execute = originalTool
+      }
+    }
+  )
+
+  it.each([
+    { label: 'missing environment map', names: ['API_KEY'], envVars: undefined },
+    { label: 'missing named secret', names: ['API_KEY'], envVars: {} },
+    {
+      label: 'different named secret',
+      names: ['OTHER_KEY'],
+      envVars: { API_KEY: 'catalog-secret' },
+    },
+    { label: 'different secret value', names: ['API_KEY'], envVars: { API_KEY: 'wrong-secret' } },
+    { label: 'corrupt name list', names: {}, envVars: undefined },
+    { label: 'non-string name', names: [42], envVars: undefined },
+    { label: 'missing name list', names: undefined, envVars: undefined },
+    {
+      label: 'wrong capability',
+      names: [],
+      envVars: undefined,
+      marker: 'resolved-secret-provenance-v1',
+    },
+    { label: 'missing capability', names: [], envVars: undefined, marker: '' },
+  ])('rejects unverified Function provenance: $label', async ({ names, envVars, marker }) => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'catalog-secret', encryptedValue: 'encrypted-value' },
+    ])
+    mockExecuteFunction.mockResolvedValueOnce(
+      Response.json(
+        { success: true, output: { result: 'untrusted result' }, __resolvedSecretNames: names },
+        {
+          headers:
+            marker === ''
+              ? {}
+              : {
+                  'x-sim-private-tool-metadata': marker ?? 'resolved-secret-names-durable-files-v2',
+                },
+        }
+      )
+    )
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return "result"', ...(envVars === undefined ? {} : { envVars }) },
+      {
+        executionContext: createToolExecutionContext({ userId: 'user-1' }),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Internal tool response metadata could not be verified',
+    })
+    expect(JSON.stringify(result)).not.toContain('untrusted result')
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretNames')
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
   it('strips private metadata even when an internal endpoint returns the wrong marker', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     mockExecuteFunction.mockResolvedValueOnce(
@@ -2749,20 +2864,162 @@ describe('executeTool Function', () => {
     expect(mockExecuteFunction).not.toHaveBeenCalled()
     expect(result.success).toBe(false)
   })
+})
 
-  it('should add timing information to results', async () => {
-    const result = await executeTool(
-      'http_request',
-      {
-        url: 'https://api.example.com/data',
-      },
-      { skipPostProcess: true }
+describe('Stripe subscription pagination through tool execution', () => {
+  beforeEach(() => {
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockReset()
+  })
+
+  it('retains first-page filters and returns one page even when more subscriptions exist', async () => {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(
+        Response.json({
+          object: 'list',
+          data: [{ id: 'sub_first' }, { id: 'sub_last' }],
+          has_more: true,
+        })
+      )
     )
 
-    expect(result.timing).toBeDefined()
-    expect(result.timing?.startTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
-    expect(result.timing?.endTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
-    expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
+    const result = await executeTool('stripe_list_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      limit: 100,
+      customer: 'cus_example',
+      status: 'active',
+      price: 'price_example',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_first' }, { id: 'sub_last' }],
+        metadata: { count: 2, has_more: true },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledExactlyOnceWith(
+      'https://api.stripe.com/v1/subscriptions?limit=100&customer=cus_example&status=active&price=price_example',
+      '93.184.216.34',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ authorization: 'Bearer sk_test_pagination' }),
+      })
+    )
+  })
+
+  it.each(['starting_after', 'ending_before'] as const)(
+    'retrieves the requested %s page without interpreting cursor characters as filters',
+    async (direction) => {
+      const cursor = 'sub_cursor&status=canceled'
+      mockSecureFetchWithPinnedIP.mockImplementationOnce(async (url) => {
+        const request = new URL(url)
+        const valid =
+          request.pathname === '/v1/subscriptions' &&
+          request.searchParams.get(direction) === cursor &&
+          request.searchParams.get('status') === 'active'
+        return toSecureFetchResponse(
+          valid
+            ? Response.json({ object: 'list', data: [{ id: 'sub_next' }], has_more: false })
+            : Response.json(
+                { error: { message: 'Unexpected pagination request' } },
+                { status: 400 }
+              )
+        )
+      })
+
+      const result = await executeTool('stripe_list_subscriptions', {
+        apiKey: 'sk_test_pagination',
+        status: 'active',
+        [direction]: cursor,
+      })
+
+      expect(result).toMatchObject({
+        success: true,
+        output: { subscriptions: [{ id: 'sub_next' }], metadata: { count: 1, has_more: false } },
+      })
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('rejects conflicting list cursors before contacting Stripe', async () => {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json({ object: 'list', data: [], has_more: false }))
+    )
+
+    const result = await executeTool('stripe_list_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      starting_after: 'sub_last',
+      ending_before: 'sub_first',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Provide either starting_after or ending_before, not both'),
+    })
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('round-trips the search continuation token and exposes the terminal page', async () => {
+    const query = "status:'active'"
+    const nextPage = 'opaque/search+cursor=='
+    mockSecureFetchWithPinnedIP.mockImplementation(async (url) => {
+      const request = new URL(url)
+      if (
+        request.pathname !== '/v1/subscriptions/search' ||
+        request.searchParams.get('query') !== query ||
+        request.searchParams.get('limit') !== '100'
+      ) {
+        return toSecureFetchResponse(
+          Response.json({ error: { message: 'Search filters changed' } }, { status: 400 })
+        )
+      }
+      const page = request.searchParams.get('page')
+      if (page === null) {
+        return toSecureFetchResponse(
+          Response.json({
+            object: 'search_result',
+            data: [{ id: 'sub_first' }],
+            has_more: true,
+            next_page: nextPage,
+          })
+        )
+      }
+      return toSecureFetchResponse(
+        page === nextPage
+          ? Response.json({ object: 'search_result', data: [{ id: 'sub_last' }], has_more: false })
+          : Response.json({ error: { message: 'Invalid search page' } }, { status: 400 })
+      )
+    })
+
+    const first = await executeTool('stripe_search_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      query,
+      limit: 100,
+    })
+    expect(first).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_first' }],
+        metadata: { count: 1, has_more: true, next_page: nextPage },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledOnce()
+
+    const last = await executeTool('stripe_search_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      query,
+      limit: 100,
+      page: first.output.metadata.next_page,
+    })
+    expect(last).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_last' }],
+        metadata: { count: 1, has_more: false, next_page: null },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -2771,7 +3028,17 @@ describe('Internal Route Trust', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
 
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
     mockSecureFetchWithPinnedIP.mockResolvedValue({
@@ -3039,6 +3306,112 @@ describe('Internal Route Trust', () => {
       Reflect.deleteProperty(tools, authorityToolId)
       Reflect.deleteProperty(tools, ordinaryToolId)
     }
+  })
+
+  it('accepts an authoritative QuickBooks realmId only from credential resolution', async () => {
+    const toolId = 'test_quickbooks_realm_authority'
+    const credentialRealmId = '123456789'
+    const mockTool = {
+      id: toolId,
+      name: 'QuickBooks Realm Authority Test',
+      description: 'Verifies credential-derived QuickBooks company identity',
+      version: '1.0.0',
+      oauth: {
+        required: true,
+        provider: 'quickbooks',
+        authoritativeParams: ['realmId'] as const,
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        realmId: { type: 'string', required: true, visibility: 'hidden' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) =>
+          `https://quickbooks.example.com/v3/company/${params.realmId}/companyinfo/${params.realmId}`,
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+    ;(tools as Record<string, unknown>)[toolId] = mockTool
+
+    try {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'quickbooks-token',
+        realmId: credentialRealmId,
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'quickbooks-credential',
+        realmId: '999999999',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        `https://quickbooks.example.com/v3/company/${credentialRealmId}/companyinfo/${credentialRealmId}`,
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, toolId)
+    }
+  })
+
+  it.each(['oauth', 'managed_oauth', undefined])(
+    'rejects %s credentials for Slack Lists before calling Slack',
+    async (credentialType) => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'native-token',
+        credentialType,
+      })
+
+      const result = await executeTool('slack_lists_items_list', {
+        credential: 'native-credential',
+        credentialType: 'service_account',
+        listId: 'F123',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('requires a service-account credential'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    }
+  )
+
+  it('executes Slack Lists with a resolved custom bot credential', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'custom-bot-token',
+      credentialType: 'service_account',
+    })
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        get: () => 'application/json',
+        toRecord: () => ({ 'content-type': 'application/json' }),
+      },
+      text: async () => JSON.stringify({ ok: true, items: [] }),
+      json: async () => ({ ok: true, items: [] }),
+    })
+
+    const result = await executeTool('slack_lists_items_list', {
+      credential: 'custom-bot-credential',
+      listId: 'F123',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { items: [], list: null, nextCursor: '' },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://slack.com/api/slackLists.items.list',
+      '93.184.216.34',
+      expect.anything()
+    )
   })
 
   it('accepts credential-group provenance only from credential resolution', async () => {
@@ -3861,6 +4234,291 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it.each(['test_large_download', 'mcp-server-download'])(
+    'stores %s before response admission and preserves the file reference',
+    async (toolId) => {
+      const bytes = Buffer.alloc(20 * 1024 * 1024 + 3, 42)
+      const storedFile = {
+        id: 'stored-workbook',
+        name: 'dashboard.xlsx',
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        size: bytes.length,
+        key: 'execution/workspace-456/workflow-1/execution-1/dashboard.xlsx',
+        url: 'https://storage.example.com/dashboard.xlsx',
+        context: 'execution' as const,
+      }
+      const tool = {
+        id: toolId,
+        name: 'Large download',
+        description: 'Returns a stored workbook',
+        version: '1.0.0',
+        params: {},
+        operation: { input: () => ({}) },
+        outputs: { file: { type: 'file' } },
+      }
+      ;(tools as Record<string, unknown>)[tool.id] = tool
+      mockUploadExecutionFile.mockResolvedValueOnce(storedFile)
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        createInternalToolFileResult(
+          { buffer: bytes, name: storedFile.name, mimeType: storedFile.type },
+          (file) => ({ success: true, output: { file } })
+        )
+      )
+      try {
+        const result = await executeTool(
+          tool.id,
+          { _context: { workspaceId: 'forged', executionId: 'forged', userId: 'forged' } },
+          {
+            executionContext: createToolExecutionContext({
+              userId: 'user-1',
+              workspaceId: 'workspace-456',
+              workflowId: 'workflow-1',
+              executionId: 'execution-1',
+            }),
+          }
+        )
+        expect(result).toMatchObject({ success: true, output: { file: storedFile } })
+        expect(mockUploadExecutionFile).toHaveBeenCalledOnce()
+        const [scope, uploadedBytes, name, mimeType, owner] = mockUploadExecutionFile.mock.calls[0]!
+        expect(scope).toEqual({
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        })
+        expect(uploadedBytes).toBe(bytes)
+        expect([name, mimeType, owner]).toEqual([storedFile.name, storedFile.type, 'user-1'])
+        expect(JSON.stringify(result).length).toBeLessThan(2048)
+      } finally {
+        Reflect.deleteProperty(tools, tool.id)
+      }
+    }
+  )
+
+  it('stores late JSON-response attachments and their nested aliases for Copilot', async () => {
+    const bytes = Buffer.alloc(12 * 1024 * 1024, 42)
+    const stored = {
+      id: 'copilot-attachment',
+      name: 'attachment.bin',
+      size: bytes.length,
+      type: 'application/octet-stream',
+      key: 'copilot/attachment.bin',
+      url: 'https://storage.example.com/attachment.bin',
+      context: 'copilot',
+    }
+    const attachment = { name: stored.name, mimeType: stored.type, data: bytes }
+    const transformResponse = vi.fn(async (response: Response) => {
+      const metadata = await response.json()
+      return {
+        success: true,
+        output: { metadata, files: [attachment], messages: [{ attachments: [attachment] }] },
+      }
+    })
+    const tool = {
+      id: 'test_copilot_late_attachment',
+      name: 'Copilot attachment',
+      description: 'Stores late attachments',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/messages',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+      outputs: { files: { type: 'file[]' } },
+      transformResponse,
+    }
+    ;(tools as Record<string, unknown>)[tool.id] = tool
+    mockUploadCopilotFile.mockResolvedValueOnce(stored)
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json({ id: 'message-1' }))
+    )
+    const controller = new AbortController()
+    try {
+      const result = await executeTool(
+        tool.id,
+        {},
+        {
+          operationContext: {
+            workflowId: '',
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution: true,
+          },
+          signal: controller.signal,
+        }
+      )
+      expect(result).toMatchObject({
+        success: true,
+        output: { files: [stored], messages: [{ attachments: [stored] }] },
+      })
+      expect(JSON.stringify(result).length).toBeLessThan(2048)
+      expect(mockUploadCopilotFile).toHaveBeenCalledOnce()
+      expect(mockUploadCopilotFile.mock.calls[0]?.[0].buffer).toBe(bytes)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+      expect(transformResponse.mock.calls[0]).toHaveLength(3)
+      const transformContext = (transformResponse.mock.calls[0] as unknown[])[2] as {
+        signal: AbortSignal
+      }
+      expect(transformContext.signal).toBeInstanceOf(AbortSignal)
+    } finally {
+      Reflect.deleteProperty(tools, tool.id)
+    }
+  })
+
+  it('persists external binary downloads for Copilot as file references', async () => {
+    const bytes = Buffer.alloc(12 * 1024 * 1024, 42)
+    const stored = {
+      id: 'copilot-download',
+      name: 'download.bin',
+      size: bytes.length,
+      type: 'application/octet-stream',
+      key: 'copilot/download.bin',
+      url: 'https://storage.example.com/download.bin',
+      context: 'copilot',
+    }
+    const tool = {
+      id: 'test_copilot_binary',
+      name: 'Copilot binary download',
+      description: 'Preserves file ownership',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/download',
+        method: 'GET' as const,
+        headers: () => ({}),
+        responseType: 'binary' as const,
+      },
+      transformResponse: async (response: Response) => {
+        const buffer = Buffer.from(await response.arrayBuffer())
+        return {
+          success: true,
+          output: {
+            file: { name: stored.name, mimeType: stored.type, data: buffer, size: buffer.length },
+          },
+        }
+      },
+    }
+    ;(tools as Record<string, unknown>)[tool.id] = tool
+    mockUploadCopilotFile.mockResolvedValueOnce(stored)
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(toSecureFetchResponse(new Response(bytes)))
+    try {
+      const result = await executeTool(
+        tool.id,
+        {},
+        {
+          operationContext: {
+            workflowId: '',
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution: true,
+          },
+        }
+      )
+      expect(result).toMatchObject({ success: true, output: { file: stored } })
+      expect(result.output).not.toHaveProperty('content')
+      expect(result.output.file).not.toHaveProperty('data')
+      expect(JSON.stringify(result).length).toBeLessThan(2048)
+      expect(mockUploadCopilotFile).toHaveBeenCalledOnce()
+      const upload = mockUploadCopilotFile.mock.calls[0]?.[0]
+      expect(upload.userId).toBe('user-1')
+      expect(upload.buffer.equals(bytes)).toBe(true)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, tool.id)
+    }
+  })
+
+  it.each([
+    {
+      responseType: 'binary' as const,
+      status: 200,
+      succeeds: true,
+      declaredSize: 12 * 1024 * 1024,
+    },
+    { responseType: undefined, status: 200, succeeds: false, declaredSize: 12 * 1024 * 1024 },
+    {
+      responseType: 'binary' as const,
+      status: 500,
+      succeeds: false,
+      declaredSize: 12 * 1024 * 1024,
+    },
+    {
+      responseType: 'binary' as const,
+      status: 200,
+      succeeds: false,
+      declaredSize: 100 * 1024 * 1024 + 1,
+    },
+  ])(
+    'bounds external $responseType responses at status $status and size $declaredSize',
+    async ({ responseType, status, succeeds, declaredSize }) => {
+      const transformResponse = vi.fn(async (response: Response) => {
+        const buffer = Buffer.from(await response.arrayBuffer())
+        return {
+          success: true,
+          output: {
+            file: {
+              name: 'download.bin',
+              mimeType: 'application/octet-stream',
+              data: buffer,
+              size: buffer.length,
+            },
+          },
+        }
+      })
+      mockUploadExecutionFile.mockResolvedValueOnce({
+        id: 'download',
+        name: 'download.bin',
+        size: 12 * 1024 * 1024,
+        type: 'application/octet-stream',
+        key: 'execution/download.bin',
+        url: 'https://storage.example.com/download.bin',
+        context: 'execution',
+      })
+      const tool = {
+        id: 'test_binary_admission',
+        name: 'Binary admission',
+        description: 'Checks file and JSON response limits',
+        version: '1.0.0',
+        params: {},
+        request: {
+          url: 'https://api.example.com/download',
+          method: 'GET' as const,
+          headers: () => ({}),
+          responseType,
+        },
+        transformResponse,
+      }
+      ;(tools as Record<string, unknown>)[tool.id] = tool
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          new Response(new Uint8Array(12 * 1024 * 1024), {
+            status,
+            headers: { 'content-length': String(declaredSize) },
+          })
+        )
+      )
+      try {
+        const result = await executeTool(
+          tool.id,
+          {},
+          {
+            executionContext: createToolExecutionContext({ userId: 'user-1' }),
+          }
+        )
+        expect(result.success).toBe(succeeds)
+        expect(transformResponse).toHaveBeenCalledTimes(succeeds ? 1 : 0)
+        expect(mockUploadExecutionFile).toHaveBeenCalledTimes(succeeds ? 1 : 0)
+        expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+          tool.request.url,
+          expect.any(String),
+          expect.objectContaining({ maxResponseBytes: (responseType ? 100 : 10) * 1024 * 1024 })
+        )
+      } finally {
+        Reflect.deleteProperty(tools, tool.id)
+      }
+    }
+  )
+
   it('should reject internal tool responses that exceed the response body cap', async () => {
     const mockTool = {
       id: 'test_oversized_internal_tool',
@@ -4004,7 +4662,7 @@ describe('Internal Route Trust', () => {
 
     // The actual external fetch uses secureFetchWithPinnedIP which uses Node's http/https
     // This will fail with a network error in tests, which is expected
-    const result = await executeTool('test_external_tool', {})
+    await executeTool('test_external_tool', {})
 
     // We expect it to attempt direct fetch (which will fail in test env due to network)
     // The key point is it should NOT try to call /api/proxy
@@ -4189,7 +4847,7 @@ describe('Internal Route Trust', () => {
 
     // External URLs are now called directly with SSRF protection
     // The test verifies proxy is NOT called
-    const result = await executeTool('test_dynamic_external', { endpoint: 'users' })
+    await executeTool('test_dynamic_external', { endpoint: 'users' })
 
     // Verify proxy was not called
     expect(global.fetch).not.toHaveBeenCalledWith(
@@ -4245,7 +4903,17 @@ describe('File Parameter Normalization', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
     mockResolveWorkspaceFileReference.mockReset()
   })
 
@@ -4253,6 +4921,87 @@ describe('File Parameter Normalization', () => {
     vi.resetAllMocks()
     cleanupEnvVars()
   })
+
+  it.each(['execution', 'workspace', 'missing'] as const)(
+    'preserves an Agent file ID through the real video mapper and scoped hydration (%s)',
+    async (source) => {
+      const file = {
+        id: source === 'execution' ? 'file_1700000000_abc' : 'wf_reference',
+        name: 'reference.png',
+        url: '/api/files/reference.png',
+        size: 512,
+        type: 'image/png',
+        key: `${source}/workspace-456/reference.png`,
+        context: source === 'execution' ? 'execution' : 'workspace',
+      }
+      const context = createToolExecutionContext({ userId: 'user-1' })
+      if (source === 'execution') context.executionFilesById = new Map([[file.id, file]])
+      mockResolveWorkspaceFileReference.mockResolvedValue(
+        source === 'workspace' ? { ...file, path: file.url } : null
+      )
+      const originalTool = tools.video_runway
+      tools.video_runway = runwayVideoTool
+
+      try {
+        const providerTool = await transformBlockTool(
+          {
+            type: 'video_generator_v3',
+            params: { provider: 'runway', apiKey: 'test-runway-key' },
+          },
+          {
+            getAllBlocks: () => [VideoGeneratorV3Block],
+            getTool: () => runwayVideoTool,
+          }
+        )
+        expect(providerTool?.parameters?.properties?.visualReference).toMatchObject({
+          type: 'string',
+        })
+        expect(providerTool?.parameters?.required).toContain('visualReference')
+        const prepared = prepareToolExecution(
+          providerTool!,
+          {
+            prompt: 'Animate the boat',
+            visualReference: file.id,
+            provider: 'falai',
+            apiKey: 'model-invented-key',
+          },
+          {},
+          'call-video-reference'
+        )
+        expect(prepared.toolParams).toMatchObject({
+          visualReference: { id: file.id },
+          provider: 'runway',
+          apiKey: 'test-runway-key',
+        })
+
+        const result = await executeTool('video_runway', prepared.toolParams, {
+          executionContext: context,
+          skipPostProcess: true,
+        })
+
+        if (source === 'missing') {
+          expect(result.success).toBe(false)
+          expect(result.error).toContain(`Could not resolve file reference "${file.id}"`)
+          expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+        } else {
+          expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toMatchObject({
+            provider: 'runway',
+            apiKey: 'test-runway-key',
+            prompt: 'Animate the boat',
+            visualReference: file,
+          })
+        }
+        if (source === 'execution') {
+          expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
+        } else {
+          expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-456', file.id)
+        }
+        expect(global.fetch).not.toHaveBeenCalled()
+      } finally {
+        tools.video_runway = originalTool
+      }
+    }
+  )
 
   it('resolves canonical file IDs for single-file params during copilot execution', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValue({
@@ -4461,7 +5210,17 @@ describe('Copilot OAuth Credential Enforcement', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -4482,7 +5241,7 @@ describe('Copilot OAuth Credential Enforcement', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('credentialId')
-    expect(result.error).toContain('environment/credentials.json')
+    expect(result.error).toContain('credentials list')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
@@ -4581,6 +5340,21 @@ describe('Managed OAuth Credential Delegation', () => {
 describe('Copilot Env Variable Reference Resolution', () => {
   let cleanupEnvVars: () => void
 
+  function environmentSnapshot(variables: Record<string, string>): EnvironmentResolutionSnapshot {
+    return {
+      personalEncrypted: {},
+      workspaceEncrypted: Object.fromEntries(
+        Object.keys(variables).map((name) => [name, `encrypted-${name}`])
+      ),
+      personalDecrypted: {},
+      workspaceDecrypted: variables,
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceUnredactedKeys: [],
+    }
+  }
+
   function sentOperationInput(): Record<string, unknown> {
     const call = mockExecuteInternalToolOperation.mock.calls.findLast(
       ([request]) => request.toolId === 'test_env_ref_tool'
@@ -4598,9 +5372,21 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
-    mockGetEffectiveDecryptedEnv.mockReset()
-    mockGetEffectiveDecryptedEnv.mockResolvedValue({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
+    mockGetEffectiveEnvironmentSnapshot.mockReset()
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue(
+      environmentSnapshot({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
+    )
   })
 
   afterEach(() => {
@@ -4616,32 +5402,34 @@ describe('Copilot Env Variable Reference Resolution', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', 'workspace-456')
     expect(sentOperationInput().apiKey).toBe('sntrys_real_token')
   })
 
   it('keeps direct integration execution raw while projecting only its active workspace secret', async () => {
     const activeSecret = 'xxxxxxxx'
     const unusedSecret = 'true'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({
-      SERPER_API_KEY: activeSecret,
-      UNUSED_SECRET: unusedSecret,
-    })
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce(
+      environmentSnapshot({ SERPER_API_KEY: activeSecret, UNUSED_SECRET: unusedSecret })
+    )
     mockExecuteInternalToolOperation.mockResolvedValueOnce(
       Response.json({ reflected: activeSecret, ordinary: unusedSecret })
     )
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'SERPER_API_KEY',
-        plaintext: activeSecret,
-        encryptedValue: 'encrypted-active',
-      },
-      {
-        name: 'UNUSED_SECRET',
-        plaintext: unusedSecret,
-        encryptedValue: 'encrypted-unused',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'SERPER_API_KEY',
+          plaintext: activeSecret,
+          encryptedValue: 'encrypted-active',
+        },
+        {
+          name: 'UNUSED_SECRET',
+          plaintext: unusedSecret,
+          encryptedValue: 'encrypted-unused',
+        },
+      ],
+      { userId: 'user-123', workspaceId: 'workspace-456' }
+    )
     const callerParams = { apiKey: '{{SERPER_API_KEY}}' }
 
     const result = await executeTool('test_env_ref_tool', callerParams, {
@@ -4654,7 +5442,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
       output: { reflected: activeSecret, ordinary: unusedSecret },
     })
     expect(callerParams).toEqual({ apiKey: '{{SERPER_API_KEY}}' })
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', 'workspace-456')
     expect(sentOperationInput().apiKey).toBe(activeSecret)
     expect(projectToolResultForCopilot(result, registry)).toMatchObject({
       success: true,
@@ -4662,23 +5450,64 @@ describe('Copilot Env Variable Reference Resolution', () => {
     })
   })
 
+  it('tracks a secret added after the Copilot turn started', async () => {
+    const secret = 'new-workspace-api-key'
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce({
+      personalEncrypted: {},
+      workspaceEncrypted: { ADDED_API_KEY: 'encrypted-new-key' },
+      personalDecrypted: {},
+      workspaceDecrypted: { ADDED_API_KEY: secret },
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceUnredactedKeys: [],
+    })
+    const parent = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-123',
+      workspaceId: 'workspace-456',
+    })
+    const registry = parent.forkForInputPaths([])
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(Response.json({ reflected: secret }))
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{ADDED_API_KEY}}' },
+      { executionContext: copilotContext(), resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(sentOperationInput().apiKey).toBe(secret)
+    expect(projectToolResultForCopilot(result, registry)).toMatchObject({
+      success: true,
+      output: { reflected: '{{ADDED_API_KEY}}' },
+    })
+    expect(registry.isComplete()).toBe(true)
+    expect(parent.getActiveMatches()).toEqual([])
+    parent.mergeToolCallRegistry(registry)
+    expect(parent.getActiveMatches()).toEqual([
+      { plaintext: secret, replacement: '{{ADDED_API_KEY}}' },
+    ])
+  })
+
   it('does not let a pending user-only reference affect an unrelated result', async () => {
     const secret = 'sntrys_real_token'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'SENTRY_AUTH_TOKEN',
-        plaintext: secret,
-        encryptedValue: 'encrypted-token',
-      },
-    ])
-    let resolveEnvironment!: (variables: Record<string, string>) => void
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'SENTRY_AUTH_TOKEN',
+          plaintext: secret,
+          encryptedValue: 'encrypted-token',
+        },
+      ],
+      { userId: 'user-123', workspaceId: 'workspace-456' }
+    )
+    let resolveEnvironment!: (environment: EnvironmentResolutionSnapshot) => void
     let markResolutionStarted!: () => void
     const resolutionStarted = new Promise<void>((resolve) => {
       markResolutionStarted = resolve
     })
-    mockGetEffectiveDecryptedEnv.mockImplementationOnce(
+    mockGetEffectiveEnvironmentSnapshot.mockImplementationOnce(
       () =>
-        new Promise<Record<string, string>>((resolve) => {
+        new Promise<EnvironmentResolutionSnapshot>((resolve) => {
           resolveEnvironment = resolve
           markResolutionStarted()
         })
@@ -4698,7 +5527,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
       projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
     ).toMatchObject({ output: { result: secret } })
 
-    resolveEnvironment({ SENTRY_AUTH_TOKEN: secret })
+    resolveEnvironment(environmentSnapshot({ SENTRY_AUTH_TOKEN: secret }))
     await expect(execution).resolves.toMatchObject({ success: true })
 
     expect(registry.isComplete()).toBe(true)
@@ -4738,7 +5567,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(true)
     expect(sentOperationInput().apiKey).toBe('Bearer {{SENTRY_AUTH_TOKEN}}')
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 
   it('fails with a clear error before any request when the variable is missing', async () => {
@@ -4769,7 +5598,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('authenticated user context')
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
     expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
@@ -4788,7 +5617,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('only personal variables are available')
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', undefined)
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', undefined)
     expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
@@ -4800,7 +5629,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
     expect(sentOperationInput().apiKey).toBe('{{SENTRY_AUTH_TOKEN}}')
   })
 
@@ -4821,7 +5650,17 @@ describe('Centralized Error Handling', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -4829,7 +5668,7 @@ describe('Centralized Error Handling', () => {
     cleanupEnvVars()
   })
 
-  const testErrorFormat = async (name: string, errorResponse: any, expectedError: string) => {
+  const testErrorFormat = async (errorResponse: any, expectedError: string) => {
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
     mockSecureFetchWithPinnedIP.mockResolvedValue(
       toSecureFetchResponse(
@@ -4851,87 +5690,15 @@ describe('Centralized Error Handling', () => {
     expect(result.error).toBe(expectedError)
   }
 
-  it('should extract GraphQL error format (Linear API)', async () => {
-    await testErrorFormat(
-      'GraphQL',
-      { errors: [{ message: 'Invalid query field' }] },
-      'Invalid query field'
-    )
-  })
-
-  it('should extract X/Twitter API error format', async () => {
-    await testErrorFormat(
-      'X/Twitter',
-      { errors: [{ detail: 'Rate limit exceeded' }] },
-      'Rate limit exceeded'
-    )
-  })
-
   it('uses a tool-specific Prospeo extractor before flattening a failed response', async () => {
     const originalExtractor = tools.http_request.errorExtractor
     tools.http_request.errorExtractor = ErrorExtractorId.PROSPEO_ERRORS
 
     try {
-      await testErrorFormat('Prospeo', { error: true, error_code: 'NO_MATCH' }, 'NO_MATCH')
+      await testErrorFormat({ error: true, error_code: 'NO_MATCH' }, 'NO_MATCH')
     } finally {
       tools.http_request.errorExtractor = originalExtractor
     }
-  })
-
-  it('should extract Hunter API error format', async () => {
-    await testErrorFormat('Hunter', { errors: [{ details: 'Invalid API key' }] }, 'Invalid API key')
-  })
-
-  it('should extract direct errors array (string)', async () => {
-    await testErrorFormat('Direct string array', { errors: ['Network timeout'] }, 'Network timeout')
-  })
-
-  it('should extract direct errors array (object)', async () => {
-    await testErrorFormat(
-      'Direct object array',
-      { errors: [{ message: 'Validation failed' }] },
-      'Validation failed'
-    )
-  })
-
-  it('should extract OAuth error description', async () => {
-    await testErrorFormat('OAuth', { error_description: 'Invalid grant' }, 'Invalid grant')
-  })
-
-  it('should extract SOAP fault error', async () => {
-    await testErrorFormat(
-      'SOAP fault',
-      { fault: { faultstring: 'Server unavailable' } },
-      'Server unavailable'
-    )
-  })
-
-  it('should extract simple SOAP faultstring', async () => {
-    await testErrorFormat(
-      'Simple SOAP',
-      { faultstring: 'Authentication failed' },
-      'Authentication failed'
-    )
-  })
-
-  it('should extract Notion/Discord message format', async () => {
-    await testErrorFormat('Notion/Discord', { message: 'Page not found' }, 'Page not found')
-  })
-
-  it('should extract Airtable error object format', async () => {
-    await testErrorFormat(
-      'Airtable',
-      { error: { message: 'Invalid table ID' } },
-      'Invalid table ID'
-    )
-  })
-
-  it('should extract simple error string format', async () => {
-    await testErrorFormat(
-      'Simple string',
-      { error: 'Simple error message' },
-      'Simple error message'
-    )
   })
 
   it('should fall back to text when JSON parsing fails and extract error message', async () => {
@@ -5009,31 +5776,6 @@ describe('Centralized Error Handling', () => {
     // Should fall back to HTTP status text when both parsing methods fail
     expect(result.error).toBe('Internal Server Error')
   })
-
-  it('should handle complex nested error objects', async () => {
-    await testErrorFormat(
-      'Complex nested',
-      { error: { code: 400, message: 'Complex validation error', details: 'Field X is invalid' } },
-      'Complex validation error'
-    )
-  })
-
-  it('should handle error arrays with multiple entries (take first)', async () => {
-    await testErrorFormat(
-      'Multiple errors',
-      { errors: [{ message: 'First error' }, { message: 'Second error' }] },
-      'First error'
-    )
-  })
-
-  it('should stringify complex error objects when no message found', async () => {
-    const complexError = { code: 500, type: 'ServerError', context: { requestId: '123' } }
-    await testErrorFormat(
-      'Complex object stringify',
-      { error: complexError },
-      JSON.stringify(complexError)
-    )
-  })
 })
 
 describe('MCP Tool Execution', () => {
@@ -5041,7 +5783,17 @@ describe('MCP Tool Execution', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -5105,13 +5857,29 @@ describe('MCP Tool Execution', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  /**
+   * `retryDelayMs: 1` rather than `0`: the retry config falls back to the 500 ms
+   * default for a falsy delay, so 1 ms is the smallest delay the tool honors.
+   */
   describe('Tool request retries', () => {
     beforeEach(() => {
+      vi.useFakeTimers()
       mockValidateUrlWithDNS.mockResolvedValue({
         isValid: true,
         resolvedIP: '93.184.216.34',
       })
     })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    /** Runs the request with every retry backoff elapsed on the fake clock. */
+    async function executeWithRetries(params: Record<string, unknown>) {
+      const pending = executeTool('http_request', params)
+      await vi.runAllTimersAsync()
+      return pending
+    }
 
     function makeJsonResponse(
       status: number,
@@ -5132,11 +5900,11 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5150,7 +5918,7 @@ describe('MCP Tool Execution', () => {
         makeJsonResponse(500, { error: 'server error' })
       )
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
       })
@@ -5162,11 +5930,11 @@ describe('MCP Tool Execution', () => {
     it('stops retrying after max attempts for http_request', async () => {
       mockSecureFetchWithPinnedIP.mockResolvedValue(makeJsonResponse(502, { error: 'bad gateway' }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5177,11 +5945,11 @@ describe('MCP Tool Execution', () => {
     it('does not retry on 4xx responses for http_request', async () => {
       mockSecureFetchWithPinnedIP.mockResolvedValue(makeJsonResponse(400, { error: 'bad request' }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 5,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5194,11 +5962,11 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'POST',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5211,12 +5979,12 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'POST',
         retries: 1,
         retryNonIdempotent: true,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5232,7 +6000,7 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 3,
@@ -5250,7 +6018,7 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 3,
@@ -5268,11 +6036,11 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 5000,
       })
 
@@ -5288,11 +6056,11 @@ describe('MCP Tool Execution', () => {
         .mockRejectedValueOnce(etimedoutError)
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 1,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5307,7 +6075,17 @@ describe('Hosted Key Injection', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
     vi.clearAllMocks()
     mockGetBYOKKey.mockReset()
   })
@@ -5736,7 +6514,17 @@ describe('stripInternalFields Safety', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -6050,18 +6838,22 @@ describe('Cost Field Handling', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const result = await executeTool(
-      'test_copilot_hosted_cost',
-      {},
-      {
-        executionContext: createToolExecutionContext({
-          userId: 'user-123',
-          workspaceId: 'workspace-456',
-          copilotToolExecution: true,
-        }),
-      }
+    const metered = vi.fn().mockResolvedValue(undefined)
+    const result = await observeServiceCosts(metered, () =>
+      executeTool(
+        'test_copilot_hosted_cost',
+        {},
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-123',
+            workspaceId: 'workspace-456',
+            copilotToolExecution: true,
+          }),
+        }
+      )
     )
 
+    expect(metered).toHaveBeenCalledExactlyOnceWith('exa', 0.005)
     expect(result.success).toBe(true)
     expect(mockRateLimiterFns.acquireKey).toHaveBeenCalled()
     expect(result.output.cost).toEqual({ total: 0.005 })
@@ -6307,5 +7099,143 @@ describe('Cost Field Handling', () => {
     expect(result.output.cost).toBeUndefined()
 
     Object.assign(tools, originalTools)
+  })
+})
+
+describe('organization scratch internal entrance', () => {
+  it.each(['agent', 'plan'] as const)(
+    'admits the real function operation with trusted %s scope and no fake workspace',
+    async (requestMode) => {
+      mockExecuteChatFunction.mockResolvedValueOnce(
+        Response.json(
+          { success: true, output: { result: 'waited' }, __resolvedSecretNames: [] },
+          { headers: { 'x-sim-private-tool-metadata': 'resolved-secret-names-durable-files-v2' } }
+        )
+      )
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'test-org-token', encryptedValue: 'test-cipher' },
+      ])
+      const result = await executeTool(
+        'function_execute',
+        {
+          code: 'return "waited"',
+          secretScope: 'selected',
+          mountedSecrets: ['TOKEN'],
+          envVars: { TOKEN: 'test-org-token' },
+          sandboxSessionKey: 'mothership-chat:org-chat',
+        },
+        {
+          operationContext: {
+            userId: 'actor',
+            organizationId: 'org',
+            chatId: 'org-chat',
+            requestMode,
+            copilotToolExecution: true,
+          },
+          internalSandboxProfile: 'mothership',
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+      expect(result).toMatchObject({
+        success: true,
+        output: { success: true, output: { result: 'waited' } },
+      })
+      expect(mockExecuteChatFunction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: expect.objectContaining({
+            kind: 'organization_delegated',
+            organizationId: 'org',
+            subjectUserId: 'actor',
+          }),
+          input: expect.objectContaining({
+            chatId: 'org-chat',
+            body: expect.objectContaining({
+              mountedSecrets: ['TOKEN'],
+              envVars: { TOKEN: 'test-org-token' },
+            }),
+            resolvedSecretTraceRegistry: registry,
+          }),
+        })
+      )
+    }
+  )
+})
+
+describe('Live Search Assistant GitHub OAuth binding', () => {
+  beforeEach(async () => {
+    const metadata = await import('@/tools/metadata')
+    const actual = await vi.importActual<typeof import('@/tools/metadata')>('@/tools/metadata')
+    vi.mocked(metadata.getToolMetadata).mockImplementation(actual.getToolMetadata)
+    encryptionMockFns.mockEncryptSecret.mockResolvedValue({
+      encrypted: 'protected-github-oauth',
+      iv: 'test-iv',
+    })
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'personal-github-oauth' })
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'personal-github-oauth',
+      credentialType: 'managed_oauth',
+    })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockImplementation(async () =>
+      toSecureFetchResponse(
+        Response.json({ total_count: 137, incomplete_results: false, items: [] })
+      )
+    )
+    setupFetchMock({ body: { total_count: 137, incomplete_results: false, items: [] } })
+  })
+  afterEach(resetEnvFlagsMock)
+  const options = () => ({
+    skipPostProcess: true,
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+    operationContext: {
+      userId: 'person',
+      organizationId: 'org',
+      chatId: 'chat',
+      toolCallId: 'call',
+      copilotToolExecution: true,
+      requestMode: 'assistant' as const,
+    },
+  })
+  it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
+    const { getToolMetadata } = await import('@/tools/metadata')
+    expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
+      id: 'github_search_issues_v2',
+      params: { apiKey: { required: true } },
+    })
+    const params = {
+      credentialId: 'own-account',
+      q: 'repo:simstudioai/sim is:pr author:icecrasher321',
+    }
+    const result = await executeTool('github_search_issues_v2', params, options())
+    expect(result.success, result.error).toBe(true)
+    expect(result.output).toMatchObject({ total_count: 137, incomplete_results: false })
+    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'own-account',
+        userId: 'person',
+        toolId: 'github_search_issues_v2',
+        copilotExecutionContext: expect.objectContaining({ organizationId: 'org' }),
+      })
+    )
+    expect(params).not.toHaveProperty('apiKey')
+    const requests = [
+      ...mockSecureFetchWithPinnedIP.mock.calls,
+      ...vi.mocked(global.fetch).mock.calls,
+    ]
+    expect(
+      requests.some((call) => JSON.stringify(call).includes('Bearer personal-github-oauth'))
+    ).toBe(true)
+    expect(JSON.stringify(result)).not.toContain('personal-github-oauth')
+  })
+  it('rejects model-supplied credentials before resolving any account or requesting GitHub', async () => {
+    const result = await executeTool(
+      'github_search_issues_v2',
+      { credentialId: 'own-account', q: 'is:pr', apiKey: 'injected-admin-token' },
+      options()
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('cannot supply the apiKey')
+    expect(mockResolveExecutorCredentialToken).not.toHaveBeenCalled()
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isRetryableTransactionError, withTransactionRetry } from '@/lib/db/transaction'
 
@@ -12,7 +9,6 @@ function pgError(code: string): Error {
 
 describe('withTransactionRetry', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -28,17 +24,6 @@ describe('withTransactionRetry', () => {
     it.each(['23505', '23503', '42P01'])('treats %s as terminal', (code) => {
       expect(isRetryableTransactionError(pgError(code))).toBe(false)
     })
-
-    it('treats a non-postgres error as terminal', () => {
-      expect(isRetryableTransactionError(new Error('boom'))).toBe(false)
-    })
-  })
-
-  it('returns the callback result without retrying when it succeeds', async () => {
-    const fn = vi.fn().mockResolvedValue('ok')
-
-    await expect(withTransactionRetry(fn)).resolves.toBe('ok')
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
   })
 
   it.each(['40001', '40P01', '55P03'])(

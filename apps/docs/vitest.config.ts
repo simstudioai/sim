@@ -1,10 +1,14 @@
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, mergeConfig } from 'vitest/config'
+import sharedConfig from '../../vitest.shared'
 
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('.', import.meta.url)),
+export default mergeConfig(
+  sharedConfig,
+  defineConfig({
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('.', import.meta.url)),
+      },
     },
-  },
-})
+  })
+)

@@ -6,6 +6,7 @@ import {
   type DiscoverMcpToolsResponse,
   discoverMcpToolsContract,
   type ListMcpServersResponse,
+  listManagedMcpCatalogContract,
   listMcpServersContract,
 } from '@/lib/api/contracts/mcp'
 import {
@@ -22,6 +23,7 @@ import { createMcpToolId } from '@/lib/mcp/shared'
 import type { Credential } from '@/lib/oauth'
 import {
   executeSelectorRequest,
+  type LoadedSelectorOptions,
   loadAllSelectorOptions,
 } from '@/lib/selectors/client/execute-selector'
 import { projectSelectorContext } from '@/lib/selectors/context'
@@ -56,6 +58,11 @@ export interface WorkflowSearchResolvedResource {
   label: string
   resolved: boolean
   inaccessible: boolean
+}
+
+export interface WorkflowSearchSelectorReplacementOptions {
+  items: WorkflowSearchReplacementOption[]
+  truncated: boolean
 }
 
 export const workflowSearchReplaceKeys = {
@@ -386,6 +393,24 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
   )
 }
 
+/** Shared workspace MCP servers plus the managed catalog, as one list. */
+async function fetchWorkspaceMcpServers(workspaceId: string, signal: AbortSignal) {
+  const [shared, managed] = await Promise.all([
+    requestJson(listMcpServersContract, { query: { workspaceId }, signal }),
+    requestJson(listManagedMcpCatalogContract, { query: { workspaceId }, signal }),
+  ])
+  return [...shared.data.servers, ...managed.servers]
+}
+
+/** Discovered workspace MCP tools plus the managed catalog tools, as one list. */
+async function fetchWorkspaceMcpTools(workspaceId: string, signal: AbortSignal) {
+  const [shared, managed] = await Promise.all([
+    requestJson(discoverMcpToolsContract, { query: { workspaceId }, signal }),
+    requestJson(listManagedMcpCatalogContract, { query: { workspaceId }, signal }),
+  ])
+  return [...shared.data.tools, ...managed.tools]
+}
+
 export function useWorkflowSearchMcpServerDetails(
   matches: WorkflowSearchMatch[],
   workspaceId?: string
@@ -394,11 +419,7 @@ export function useWorkflowSearchMcpServerDetails(
 
   const serversQuery = useQuery({
     queryKey: workflowSearchReplaceKeys.mcpServerListDetails(workspaceId),
-    queryFn: ({ signal }: { signal: AbortSignal }) =>
-      requestJson(listMcpServersContract, {
-        query: { workspaceId: workspaceId as string },
-        signal,
-      }),
+    queryFn: ({ signal }) => fetchWorkspaceMcpServers(workspaceId as string, signal),
     enabled: Boolean(workspaceId && serverMatches.length > 0),
     staleTime: WORKFLOW_SEARCH_MCP_SERVER_LIST_STALE_TIME,
   })
@@ -406,7 +427,7 @@ export function useWorkflowSearchMcpServerDetails(
   return useMemo(
     () =>
       serverMatches.map((match) => {
-        const server = serversQuery.data?.data.servers.find((item) => item.id === match.rawValue)
+        const server = serversQuery.data?.find((item) => item.id === match.rawValue)
         return {
           data: serversQuery.data
             ? {
@@ -431,11 +452,7 @@ export function useWorkflowSearchMcpToolDetails(
 
   const toolsQuery = useQuery({
     queryKey: workflowSearchReplaceKeys.mcpToolListDetails(workspaceId),
-    queryFn: ({ signal }: { signal: AbortSignal }) =>
-      requestJson(discoverMcpToolsContract, {
-        query: { workspaceId: workspaceId as string },
-        signal,
-      }),
+    queryFn: ({ signal }) => fetchWorkspaceMcpTools(workspaceId as string, signal),
     enabled: Boolean(workspaceId && toolMatches.length > 0),
     staleTime: WORKFLOW_SEARCH_MCP_TOOL_LIST_STALE_TIME,
   })
@@ -443,7 +460,7 @@ export function useWorkflowSearchMcpToolDetails(
   return useMemo(
     () =>
       toolMatches.map((match) => {
-        const tool = toolsQuery.data?.data.tools.find(
+        const tool = toolsQuery.data?.find(
           (item) => createMcpToolId(item.serverId, item.name) === match.rawValue
         )
         return {
@@ -476,7 +493,11 @@ export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[])
 
       return {
         queryKey: workflowSearchReplaceKeys.selectorDetail(selectorKey, ordinal, revision),
-        queryFn: async ({ signal }: { signal: AbortSignal }): Promise<SelectorOption | null> => {
+        queryFn: async ({
+          signal,
+        }: {
+          signal: AbortSignal
+        }): Promise<{ option: SelectorOption | null; truncated: boolean }> => {
           if (manifest.supportsDetail) {
             const result = await executeSelectorRequest({
               selectorKey,
@@ -485,16 +506,22 @@ export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[])
               request: { kind: 'detail', id: match.rawValue },
               signal,
             })
-            return result.kind === 'detail' ? result.item : null
+            return {
+              option: result.kind === 'detail' ? result.item : null,
+              truncated: false,
+            }
           }
 
-          const options = await loadAllSelectorOptions({
+          const catalog = await loadAllSelectorOptions({
             selectorKey,
             scope,
             context,
             signal,
           })
-          return options.find((option) => option.id === match.rawValue) ?? null
+          return {
+            option: catalog.items.find((option) => option.id === match.rawValue) ?? null,
+            truncated: catalog.truncated,
+          }
         },
         enabled: Boolean(
           selectorKey &&
@@ -503,13 +530,16 @@ export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[])
             (manifest.classification === 'local' || scope)
         ),
         staleTime: manifest.staleTime ?? WORKFLOW_SEARCH_SELECTOR_DETAIL_STALE_TIME,
-        select: (option: SelectorOption | null): WorkflowSearchResolvedResource => ({
-          matchRawValue: match.rawValue,
-          resourceGroupKey: match.resource?.resourceGroupKey,
-          label: option?.label ?? match.rawValue,
-          resolved: Boolean(option),
-          inaccessible: false,
-        }),
+        select: ({ option, truncated }): WorkflowSearchResolvedResource => {
+          const unresolvedIncompleteCatalog = !option && truncated
+          return {
+            matchRawValue: match.rawValue,
+            resourceGroupKey: match.resource?.resourceGroupKey,
+            label: option?.label ?? match.rawValue,
+            resolved: Boolean(option),
+            inaccessible: unresolvedIncompleteCatalog,
+          }
+        },
       }
     }),
   })
@@ -687,16 +717,19 @@ export function useWorkflowSearchMcpServerReplacementOptions(
     queries: [
       {
         queryKey: workflowSearchReplaceKeys.mcpServerReplacementOptions(workspaceId),
-        queryFn: ({ signal }: { signal: AbortSignal }) =>
-          requestJson(listMcpServersContract, {
-            query: { workspaceId: workspaceId as string },
-            signal,
-          }),
+        queryFn: ({
+          signal,
+        }: {
+          signal: AbortSignal
+        }): Promise<ListMcpServersResponse['data']['servers']> =>
+          fetchWorkspaceMcpServers(workspaceId as string, signal),
         enabled: Boolean(workspaceId && serverGroups.length > 0),
         staleTime: WORKFLOW_SEARCH_MCP_SERVER_REPLACEMENT_STALE_TIME,
-        select: (response: ListMcpServersResponse): WorkflowSearchReplacementOption[] =>
+        select: (
+          servers: ListMcpServersResponse['data']['servers']
+        ): WorkflowSearchReplacementOption[] =>
           serverGroups.flatMap((match) =>
-            response.data.servers.map((server) => ({
+            servers.map((server) => ({
               kind: 'mcp-server',
               value: server.id,
               label: server.name,
@@ -735,15 +768,18 @@ export function useWorkflowSearchMcpToolReplacementOptions(
     queries: [
       {
         queryKey: workflowSearchReplaceKeys.mcpToolReplacementOptions(workspaceId),
-        queryFn: ({ signal }: { signal: AbortSignal }) =>
-          requestJson(discoverMcpToolsContract, {
-            query: { workspaceId: workspaceId as string },
-            signal,
-          }),
+        queryFn: ({
+          signal,
+        }: {
+          signal: AbortSignal
+        }): Promise<DiscoverMcpToolsResponse['data']['tools']> =>
+          fetchWorkspaceMcpTools(workspaceId as string, signal),
         enabled: Boolean(workspaceId && toolGroups.length > 0),
         staleTime: WORKFLOW_SEARCH_MCP_TOOL_REPLACEMENT_STALE_TIME,
-        select: (response: DiscoverMcpToolsResponse): WorkflowSearchReplacementOption[] =>
-          buildWorkflowSearchMcpToolReplacementOptions(toolGroups, response.data.tools),
+        select: (
+          tools: DiscoverMcpToolsResponse['data']['tools']
+        ): WorkflowSearchReplacementOption[] =>
+          buildWorkflowSearchMcpToolReplacementOptions(toolGroups, tools),
       },
     ],
   })
@@ -773,8 +809,11 @@ export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSea
           selectorKey && baseEnabled && (manifest.classification === 'local' || scope)
         ),
         staleTime: manifest.staleTime ?? WORKFLOW_SEARCH_SELECTOR_REPLACEMENT_STALE_TIME,
-        select: (options: SelectorOption[]): WorkflowSearchReplacementOption[] =>
-          options.map((option) => ({
+        select: ({
+          items,
+          truncated,
+        }: LoadedSelectorOptions): WorkflowSearchSelectorReplacementOptions => ({
+          items: items.map((option) => ({
             kind: match.kind,
             value: option.id,
             label: option.label,
@@ -782,6 +821,8 @@ export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSea
             selectorContext: context,
             resourceGroupKey: match.resource?.resourceGroupKey,
           })),
+          truncated,
+        }),
       }
     }),
   })

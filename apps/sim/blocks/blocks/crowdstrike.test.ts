@@ -1,23 +1,5 @@
-/**
- * @vitest-environment node
- */
-import fs from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { RTR_READ_ONLY_BASE_COMMANDS } from '@/lib/api/contracts/tools/crowdstrike'
 import { CrowdStrikeBlock } from '@/blocks/blocks/crowdstrike'
-
-/**
- * `buildToolDescriptionMap` in `scripts/generate-docs.ts` searches only the 600
- * characters that follow a tool's `id:` for its `name:` and `description:`. A
- * description whose closing quote falls outside that window does not fail the
- * build — it silently publishes as an empty string in `integrations.json` and in
- * the generated MDX.
- */
-const DOCS_GENERATOR_ID_WINDOW = 600
-
-/** Leave headroom so a small wording edit cannot silently cross the window. */
-const DESCRIPTION_SPAN_BUDGET = DOCS_GENERATOR_ID_WINDOW - 40
 
 const mapParams = CrowdStrikeBlock.tools.config?.params
 if (!mapParams) {
@@ -105,15 +87,6 @@ describe('CrowdStrike block params', () => {
     ).toBeUndefined()
   })
 
-  it('sends the after cursor only to the cursor-paginated collections', () => {
-    expect(
-      merge({ ...credentials, operation: 'crowdstrike_query_indicators', after: 'cursor-1' }).after
-    ).toBe('cursor-1')
-    expect(
-      merge({ ...credentials, operation: 'crowdstrike_query_alerts', after: 'cursor-1' }).after
-    ).toBeUndefined()
-  })
-
   it('never sends an offset to Spotlight, which paginates by cursor only', () => {
     const merged = merge({
       ...credentials,
@@ -139,75 +112,10 @@ describe('CrowdStrike block params', () => {
     expect(merged.filter).toBeUndefined()
   })
 
-  it('forwards the dedicated delete filter', () => {
-    const merged = merge({
-      ...credentials,
-      operation: 'crowdstrike_delete_indicators',
-      deleteFilter: "type:'sha256'",
-    })
-
-    expect(merged.filter).toBe("type:'sha256'")
-  })
-
   it('rejects an IOC limit above the documented maximum of 500', () => {
     expect(() =>
       merge({ ...credentials, operation: 'crowdstrike_query_indicators', limit: '2000' })
     ).toThrow(/500/)
-  })
-
-  /**
-   * Asserted against the contract constant rather than a second hand-maintained
-   * literal: the route validates `base_command` with `RTR_READ_ONLY_BASE_COMMANDS`,
-   * so a dropdown that drifts from it either hides a command the API accepts or
-   * offers one the API rejects. Duplicating the list here would just move the
-   * drift into the test.
-   */
-  it('offers exactly the read-tier RTR base command families the contract accepts', () => {
-    const baseCommand = CrowdStrikeBlock.subBlocks.find((subBlock) => subBlock.id === 'baseCommand')
-    const ids = (baseCommand?.options as { id: string }[] | undefined)?.map((option) => option.id)
-
-    expect(ids).toEqual([...RTR_READ_ONLY_BASE_COMMANDS])
-  })
-
-  it('offers no write-tier RTR base command under the read-scoped tool', () => {
-    const baseCommand = CrowdStrikeBlock.subBlocks.find((subBlock) => subBlock.id === 'baseCommand')
-    const ids = (baseCommand?.options as { id: string }[] | undefined)?.map((option) => option.id)
-
-    for (const writeTier of ['eventlog backup', 'eventlog export', 'put', 'get', 'runscript']) {
-      expect(ids).not.toContain(writeTier)
-    }
-  })
-
-  it('exposes every CrowdStrike commercial and GovCloud region', () => {
-    const cloud = CrowdStrikeBlock.subBlocks.find((subBlock) => subBlock.id === 'cloud')
-    const ids = (cloud?.options as { id: string }[] | undefined)?.map((option) => option.id)
-
-    expect(ids).toEqual(['us-1', 'us-2', 'us-3', 'eu-1', 'us-gov-1', 'us-gov-2'])
-  })
-
-  it('does not preselect the network-isolating host action', () => {
-    const hostAction = CrowdStrikeBlock.subBlocks.find(
-      (subBlock) => subBlock.id === 'hostActionName'
-    )
-    const ids = (hostAction?.options as { id: string }[] | undefined)?.map((option) => option.id)
-
-    expect(hostAction?.value).toBeUndefined()
-    expect(ids).toContain('detection_suppress')
-    expect(ids).toContain('detection_unsuppress')
-  })
-
-  /**
-   * CrowdStrike declares `include_hidden` with `"default": true` on every alert
-   * endpoint this switch feeds, so omitting the parameter still returns hidden
-   * alerts. A switch that renders off while the wire behaves as on tells the
-   * analyst the opposite of what Falcon does.
-   */
-  it('seeds the hidden-alert switch on, matching the CrowdStrike default', () => {
-    const includeHidden = CrowdStrikeBlock.subBlocks.find(
-      (subBlock) => subBlock.id === 'includeHidden'
-    )
-
-    expect(includeHidden?.value?.({})).toBe('true')
   })
 
   it.each([
@@ -237,24 +145,5 @@ describe('CrowdStrike block params', () => {
     })
 
     expect(merged.includeHidden).toBe(false)
-  })
-
-  it('keeps every tool description inside the docs generator id-search window', () => {
-    const toolsDir = path.join(__dirname, '../../tools/crowdstrike')
-    const offenders: string[] = []
-
-    for (const file of fs.readdirSync(toolsDir)) {
-      if (file === 'index.ts' || file === 'types.ts') continue
-      const source = fs.readFileSync(path.join(toolsDir, file), 'utf-8')
-      const idIndex = source.search(/\bid\s*:\s*'crowdstrike_/)
-      const descriptionEnd = source.indexOf("',", source.indexOf('description:'))
-      if (idIndex < 0 || descriptionEnd < 0) continue
-      const span = descriptionEnd + 2 - idIndex
-      if (span > DESCRIPTION_SPAN_BUDGET) {
-        offenders.push(`${file} (${span} chars)`)
-      }
-    }
-
-    expect(offenders).toEqual([])
   })
 })

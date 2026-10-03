@@ -15,12 +15,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getAllOAuthServices } from '../apps/sim/lib/oauth/utils'
-import integrationsJson from '../packages/deployment-config/src/integrations.json'
-
-interface DeploymentIntegration {
-  authType: 'oauth' | 'api-key' | 'none'
-  oauthServiceId?: string
-}
+import { INTEGRATION_METADATA } from '../packages/deployment-config/src/integration-metadata'
+import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -30,17 +26,28 @@ const OUTPUT_PATH = resolve(
 )
 const CHECK_MODE = process.argv.includes('--check')
 
-function buildServiceAccountProviders(): ReadonlyMap<string, string> {
-  const canonicalServices = new Map<string, string | undefined>()
+interface CanonicalOAuthDeploymentFacts {
+  credentialConfiguredOAuthServiceIds: readonly string[]
+  serviceAccountProviders: ReadonlyMap<string, string>
+}
+
+function buildOAuthDeploymentFacts(): CanonicalOAuthDeploymentFacts {
+  const canonicalServices = new Map<
+    string,
+    { credentialConfigured: boolean; serviceAccountProviderId?: string }
+  >()
   for (const service of getAllOAuthServices()) {
     if (canonicalServices.has(service.serviceId)) {
       throw new Error(`Duplicate canonical OAuth service id: ${service.serviceId}`)
     }
-    canonicalServices.set(service.serviceId, service.serviceAccountProviderId)
+    canonicalServices.set(service.serviceId, {
+      credentialConfigured: Boolean(service.clientConfiguration),
+      serviceAccountProviderId: service.serviceAccountProviderId,
+    })
   }
 
   const catalogServiceIds = new Set<string>()
-  for (const integration of integrationsJson.integrations as readonly DeploymentIntegration[]) {
+  for (const integration of INTEGRATION_METADATA) {
     if (integration.authType !== 'oauth') continue
     if (!integration.oauthServiceId) {
       throw new Error(
@@ -51,23 +58,29 @@ function buildServiceAccountProviders(): ReadonlyMap<string, string> {
   }
 
   const providers = new Map<string, string>()
+  const credentialConfiguredOAuthServiceIds: string[] = []
   for (const serviceId of [...catalogServiceIds].sort()) {
     if (!canonicalServices.has(serviceId)) {
       throw new Error(`Integration catalog references unknown OAuth service: ${serviceId}`)
     }
-    const providerId = canonicalServices.get(serviceId)
+    const service = canonicalServices.get(serviceId)
+    if (service?.credentialConfigured) credentialConfiguredOAuthServiceIds.push(serviceId)
+    const providerId = service?.serviceAccountProviderId
     if (providerId) providers.set(serviceId, providerId)
   }
-  return providers
+  return { credentialConfiguredOAuthServiceIds, serviceAccountProviders: providers }
 }
 
-function renderServiceAccountProviders(providers: ReadonlyMap<string, string>): string {
+function renderOAuthDeploymentFacts(facts: CanonicalOAuthDeploymentFacts): string {
   const quote = (value: string) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
-  const entries = [...providers]
+  const entries = [...facts.serviceAccountProviders]
     .map(
       ([serviceId, providerId]) =>
         `  ${/^[A-Za-z_$][\w$]*$/.test(serviceId) ? serviceId : quote(serviceId)}: ${quote(providerId)},`
     )
+    .join('\n')
+  const credentialConfiguredServiceIds = facts.credentialConfiguredOAuthServiceIds
+    .map((serviceId) => `  ${quote(serviceId)},`)
     .join('\n')
 
   return `/**
@@ -77,10 +90,19 @@ function renderServiceAccountProviders(providers: ReadonlyMap<string, string>): 
 export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
 ${entries}
 } as const
+
+/** OAuth services whose users supply app credentials when connecting an account. */
+export const CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS = [
+${credentialConfiguredServiceIds}
+] as const
 `
 }
 
-const generated = renderServiceAccountProviders(buildServiceAccountProviders())
+const generated = formatGeneratedSource(
+  renderOAuthDeploymentFacts(buildOAuthDeploymentFacts()),
+  OUTPUT_PATH,
+  ROOT
+)
 
 if (CHECK_MODE) {
   const current = await readFile(OUTPUT_PATH, 'utf8').catch(() => '')

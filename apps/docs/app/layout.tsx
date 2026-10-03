@@ -1,20 +1,17 @@
 import type { ReactNode } from 'react'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
+import { SidebarProvider, SidebarTrigger, useSidebar } from 'fumadocs-ui/layouts/docs/slots/sidebar'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import type { Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
-import {
-  SidebarFolder,
-  SidebarItem,
-  SidebarSeparator,
-} from '@/components/docs-layout/sidebar-components'
+import { DocsSidebar } from '@/components/docs-layout/docs-sidebar'
 import { Footer } from '@/components/footer/footer'
 import { Navbar } from '@/components/navbar/navbar'
 import { SimWordmark } from '@/components/ui/sim-logo'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { source } from '@/lib/source'
-import { DOCS_BASE_URL } from '@/lib/urls'
+import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 import { season } from '@/app/fonts/season'
 import './global.css'
 
@@ -34,7 +31,7 @@ const structuredData = {
   publisher: {
     '@type': 'Organization',
     name: 'Sim',
-    url: 'https://sim.ai',
+    url: SIM_SITE_URL,
     logo: {
       '@type': 'ImageObject',
       url: `${DOCS_BASE_URL}/static/logo.png`,
@@ -61,11 +58,22 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           disableTransitionOnChange
         >
           <RootProvider theme={{ enabled: false }}>
+            <a
+              href='#nd-page'
+              className='sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-[var(--bg)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)]'
+            >
+              Skip to content
+            </a>
             <Navbar />
             <DocsLayout
               tree={source.pageTree}
               nav={{
-                title: <SimWordmark className='h-[18px]' />,
+                title: (
+                  <>
+                    <SimWordmark className='h-[18px]' />
+                    <span className='sr-only'>Sim documentation home</span>
+                  </>
+                ),
               }}
               sidebar={{
                 tabs: false,
@@ -74,14 +82,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 footer: null,
                 banner: null,
                 prefetch: false,
-                components: {
-                  Item: SidebarItem,
-                  Folder: SidebarFolder,
-                  Separator: SidebarSeparator,
+              }}
+              slots={{
+                sidebar: {
+                  provider: SidebarProvider,
+                  root: DocsSidebar,
+                  trigger: SidebarTrigger,
+                  useSidebar,
                 },
               }}
               containerProps={{
-                className: '!pt-0',
+                className:
+                  '!pt-0 [--text-muted:var(--text-secondary)] [--color-fd-muted-foreground:var(--text-secondary)]',
               }}
             >
               {children}
@@ -126,7 +138,7 @@ export const metadata = {
     'AI agent deployment',
     'AI tools',
   ],
-  authors: [{ name: 'Sim Team', url: 'https://sim.ai' }],
+  authors: [{ name: 'Sim Team', url: SIM_SITE_URL }],
   creator: 'Sim',
   publisher: 'Sim',
   category: 'Developer Tools',
@@ -173,18 +185,16 @@ export const metadata = {
     site: '@simdotai',
     images: [`${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`],
   },
+  /**
+   * Preview hints only. Indexable is the default, and asserting `index` or a
+   * root canonical here would also reach the not-found page, contradicting
+   * the `noindex` Next adds there; each doc page sets its own canonical.
+   */
   robots: {
-    index: true,
-    follow: true,
     googleBot: {
-      index: true,
-      follow: true,
       'max-video-preview': -1,
       'max-image-preview': 'large',
       'max-snippet': -1,
     },
-  },
-  alternates: {
-    canonical: DOCS_BASE_URL,
   },
 }

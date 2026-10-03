@@ -10,6 +10,7 @@ import {
   type SelectorKey,
 } from '@/lib/selectors/manifest'
 import type {
+  SafeSelectorOption,
   SelectorContext,
   SelectorExecutionResult,
   SelectorRequest,
@@ -22,6 +23,11 @@ export interface ExecuteSelectorClientInput {
   context: SelectorContext
   request: SelectorRequest
   signal?: AbortSignal
+}
+
+export interface LoadedSelectorOptions {
+  items: SafeSelectorOption[]
+  truncated: boolean
 }
 
 export async function executeSelectorRequest(
@@ -46,14 +52,11 @@ export async function executeSelectorRequest(
 
 export async function loadAllSelectorOptions(
   input: Omit<ExecuteSelectorClientInput, 'request'> & { search?: string }
-) {
+): Promise<LoadedSelectorOptions> {
   const supportsSearch = getSelectorManifestEntry(input.selectorKey).supportsSearch
-  const items: Array<{
-    id: string
-    label: string
-    meta?: Record<string, string | number | boolean | null>
-  }> = []
+  const items: SafeSelectorOption[] = []
   const seen = new Set<string>()
+  let providerTruncated = false
   let cursor: string | undefined
   for (let page = 0; page < MAX_SELECTOR_PAGES; page += 1) {
     const result = await executeSelectorRequest({
@@ -65,14 +68,23 @@ export async function loadAllSelectorOptions(
       },
     })
     if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
-    for (const item of result.items) {
+    providerTruncated ||= result.truncated === true
+    for (const [index, item] of result.items.entries()) {
       if (seen.has(item.id)) continue
       seen.add(item.id)
       items.push(item)
-      if (items.length >= MAX_SELECTOR_OPTIONS) return items
+      if (items.length >= MAX_SELECTOR_OPTIONS) {
+        const omittedUniqueOption = result.items
+          .slice(index + 1)
+          .some((candidate) => !seen.has(candidate.id))
+        return {
+          items,
+          truncated: providerTruncated || omittedUniqueOption || result.nextCursor !== undefined,
+        }
+      }
     }
     cursor = result.nextCursor
-    if (!cursor) break
+    if (!cursor) return { items, truncated: providerTruncated }
   }
-  return items
+  return { items, truncated: providerTruncated || cursor !== undefined }
 }

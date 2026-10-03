@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db, workflow } from '@sim/db'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { eq } from 'drizzle-orm'
@@ -7,9 +7,8 @@ import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
@@ -23,17 +22,7 @@ export interface UpdateWorkflowPublicApiInput {
 
 export const updateWorkflowPublicApi = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.updatePublicApi,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: UpdateWorkflowPublicApiInput
-  }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
+  resolveContext: resolvePrincipalWorkflowContext<UpdateWorkflowPublicApiInput>,
   async execute({ principal, input, context }) {
     const actingUserId = requirePrincipalSubjectUserId(principal)
     try {

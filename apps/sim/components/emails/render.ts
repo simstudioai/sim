@@ -1,4 +1,4 @@
-import { render } from 'react-email'
+import { render } from '@react-email/render'
 import { InboxErrorEmail, InboxResponseEmail } from '@/components/emails/agent/inbox-response-email'
 import {
   ExistingAccountEmail,
@@ -27,6 +27,7 @@ import {
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
 import {
+  PermissionAccessRequestEmail,
   ScheduleDisabledEmail,
   type SubprocessorChange,
   SubprocessorChangeEmail,
@@ -44,7 +45,6 @@ interface WorkspaceInvitation {
 
 export async function renderOTPEmail(
   otp: string,
-  email: string,
   type:
     | 'sign-in'
     | 'email-verification'
@@ -52,7 +52,7 @@ export async function renderOTPEmail(
     | 'forget-password' = 'email-verification',
   chatTitle?: string
 ): Promise<string> {
-  return await render(OTPVerificationEmail({ otp, email, type, chatTitle }))
+  return await render(OTPVerificationEmail({ otp, type, chatTitle }))
 }
 
 export async function renderExistingAccountEmail(username: string): Promise<string> {
@@ -162,6 +162,13 @@ export async function renderUsageLimitReachedEmail(params: {
   ctaLink: string
 }): Promise<string> {
   return await render(UsageLimitReachedEmail(params))
+}
+
+export async function renderPermissionAccessRequestEmail(params: {
+  kind: 'created' | 'decided'
+  requestLink: string
+}): Promise<string> {
+  return await render(PermissionAccessRequestEmail(params))
 }
 
 export async function renderScheduleDisabledEmail(params: {

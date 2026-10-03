@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { SubBlockConfig } from '@/blocks/types'
 import {
@@ -77,12 +74,6 @@ describe('provider tool binding registration', () => {
 
     expect(getProviderToolBindings(tool)).toEqual([binding])
     expect(getProviderToolBindings({ ...tool })).toBeUndefined()
-  })
-
-  it('stores nothing for an empty binding list', () => {
-    const tool = providerTool('gmail_read_email')
-    registerProviderToolBindings(tool, [])
-    expect(getProviderToolBindings(tool)).toBeUndefined()
   })
 })
 

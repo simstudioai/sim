@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   CONNECTOR_SYNC_MAX_DURATION_SECONDS,

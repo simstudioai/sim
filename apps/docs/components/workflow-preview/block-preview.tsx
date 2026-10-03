@@ -1,13 +1,12 @@
 'use client'
 
 import { useMemo } from 'react'
-import { CANVAS_Z_INDEX_MODE } from '@sim/workflow-renderer'
+import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
 import { type NodeTypes, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { domAnimation, LazyMotion } from 'framer-motion'
 import '@xyflow/react/dist/style.css'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
-import { usePreviewColorMode } from '@/components/workflow-preview/use-preview-color-mode'
 import { toReactFlowElements } from '@/components/workflow-preview/workflow-data'
 
 /** The hero mounts the same node type the canvas uses, so it can never drift. */
@@ -30,7 +29,7 @@ interface BlockPreviewProps {
  * `block-display-workflows.ts`.
  */
 export function BlockPreview({ type }: BlockPreviewProps) {
-  const colorMode = usePreviewColorMode()
+  const colorMode = useCanvasColorMode()
   const workflow = BLOCK_DISPLAY_WORKFLOWS[type]
 
   const elements = useMemo(() => (workflow ? toReactFlowElements(workflow) : null), [workflow])
@@ -38,10 +37,7 @@ export function BlockPreview({ type }: BlockPreviewProps) {
   if (!workflow || !elements) return null
 
   return (
-    <div
-      className='not-prose my-6 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
-      style={{ height: 400 }}
-    >
+    <div className='not-prose my-6 h-[280px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'>
       <LazyMotion features={domAnimation}>
         <ReactFlowProvider>
           <ReactFlow
@@ -57,6 +53,9 @@ export function BlockPreview({ type }: BlockPreviewProps) {
             maxZoom={1.3}
             nodesDraggable={false}
             nodesConnectable={false}
+            nodesFocusable={false}
+            edgesFocusable={false}
+            disableKeyboardA11y
             elementsSelectable={false}
             zoomOnScroll={false}
             zoomOnDoubleClick={false}
@@ -64,7 +63,7 @@ export function BlockPreview({ type }: BlockPreviewProps) {
             panOnDrag={false}
             panOnScroll={false}
             preventScrolling={false}
-            className='h-full w-full'
+            className='size-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
           />
         </ReactFlowProvider>
       </LazyMotion>

@@ -25,6 +25,8 @@
  * Squirrel.Mac cannot apply (bundle-id mismatch) — each channel only ever
  * moves forward on its own artifacts.
  */
+
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { compareVersions } from '@/lib/desktop/min-version'
 
 export const DESKTOP_STABLE_RELEASE_REPOSITORY = 'simstudioai/sim'
@@ -66,6 +68,7 @@ export function channelOfVersion(version: string): DesktopUpdateChannel {
  * release belongs to is carried entirely by its tag.
  */
 export const MANIFEST_ASSET_NAME = 'latest-mac.yml'
+export const MAX_DESKTOP_UPDATE_MANIFEST_BYTES = 256 * 1024
 
 /** The subset of the GitHub releases API the feed needs. */
 export interface DesktopReleaseCandidate {
@@ -76,18 +79,16 @@ export interface DesktopReleaseCandidate {
 }
 
 /**
- * Picks the newest release of the channel's own kind. Channels never see
- * another channel's artifacts (see module docs). Releases without their
- * updater manifest asset are skipped — a release created before its build
- * finished (or whose build failed) must not take the channel down. Returns
- * null when nothing qualifies.
+ * Lists releases of the channel's own kind, newest first. Channels never see
+ * another channel's artifacts (see module docs). Artifact validation happens
+ * in the candidate resolver so invalid releases remain distinguishable from
+ * a channel with no releases.
  */
-export function selectReleaseForChannel(
+function releasesForChannel(
   releases: DesktopReleaseCandidate[],
   channel: DesktopUpdateChannel
-): DesktopReleaseCandidate | null {
-  let best: DesktopReleaseCandidate | null = null
-  let bestVersion = ''
+): DesktopReleaseCandidate[] {
+  const candidates: Array<{ release: DesktopReleaseCandidate; version: string }> = []
   for (const release of releases) {
     if (release.draft) continue
     const version = release.tag_name.replace(/^v/, '')
@@ -95,23 +96,19 @@ export function selectReleaseForChannel(
     // Defense in depth: a bare vX.Y.Z tag manually marked "pre-release" on
     // GitHub must not reach stable clients.
     if (channel === 'latest' && release.prerelease) continue
-    if (release.assets && !release.assets.some((asset) => asset.name === MANIFEST_ASSET_NAME)) {
-      continue
-    }
-    if (best === null) {
-      const valid = compareVersions(version, '0.0.0')
-      if (valid === null) continue
-      best = release
-      bestVersion = version
-      continue
-    }
-    const comparison = compareVersions(version, bestVersion)
-    if (comparison !== null && comparison > 0) {
-      best = release
-      bestVersion = version
-    }
+    if (compareVersions(version, '0.0.0') === null) continue
+    candidates.push({ release, version })
   }
-  return best
+  candidates.sort((left, right) => compareVersions(right.version, left.version) ?? 0)
+  return candidates.map(({ release }) => release)
+}
+
+/** Picks the newest release that passes the channel and version checks. */
+export function selectReleaseForChannel(
+  releases: DesktopReleaseCandidate[],
+  channel: DesktopUpdateChannel
+): DesktopReleaseCandidate | null {
+  return releasesForChannel(releases, channel)[0] ?? null
 }
 
 /**
@@ -124,15 +121,36 @@ export function selectReleaseForChannel(
 export function rewriteManifestUrls(
   manifest: string,
   tag: string,
-  repository: DesktopReleaseRepository
-): string {
+  repository: DesktopReleaseRepository,
+  availableAssetNames: ReadonlySet<string>
+): string | null {
   const base = `https://github.com/${repository}/releases/download/${tag}/`
-  return manifest.replace(/^(\s*(?:-\s*)?(?:url|path):\s*)(\S+)\s*$/gm, (line, prefix, value) => {
-    if (value.startsWith('http://') || value.startsWith('https://')) {
-      return line
+  const version = tag.replace(/^v/, '')
+  const expectedNames = new Set([`Sim-${version}-universal.dmg`, `Sim-${version}-universal.zip`])
+  let valid = true
+  let hasUpdaterFile = false
+  const rewritten = manifest.replace(
+    /^(\s*(?:-\s*)?(?:url|path):\s*)(\S+)\s*$/gm,
+    (_line, prefix: string, value: string) => {
+      try {
+        const pathname =
+          value.startsWith('http://') || value.startsWith('https://')
+            ? new URL(value).pathname
+            : value
+        const name = decodeURIComponent(pathname.split('/').at(-1) ?? '')
+        if (!expectedNames.has(name) || !availableAssetNames.has(name)) {
+          valid = false
+          return ''
+        }
+        if (/\burl:\s*$/.test(prefix)) hasUpdaterFile = true
+        return `${prefix}${base}${encodeURIComponent(name)}`
+      } catch {
+        valid = false
+        return ''
+      }
     }
-    return `${prefix}${base}${encodeURIComponent(value)}`
-  })
+  )
+  return valid && hasUpdaterFile ? rewritten : null
 }
 
 /**
@@ -150,6 +168,39 @@ export const DESKTOP_RELEASES_PAGE_SIZE = 100
  */
 export const MAX_DESKTOP_RELEASE_PAGES = 5
 
+export interface DesktopReleaseAssets {
+  manifest: string
+  installer: { name: string; browser_download_url: string }
+}
+
+/** Reads and validates the complete artifact set required to offer a release. */
+export async function resolveReleaseAssets(
+  release: DesktopReleaseCandidate,
+  repository: DesktopReleaseRepository,
+  fetchManifest: (url: string) => Promise<Response>
+): Promise<DesktopReleaseAssets | null> {
+  const manifestAsset = release.assets?.find((asset) => asset.name === MANIFEST_ASSET_NAME)
+  const installer = selectInstallerAsset(release, repository)
+  if (!manifestAsset || !installer) return null
+
+  try {
+    const response = await fetchManifest(manifestAsset.browser_download_url)
+    if (!response.ok) return null
+    const source = await readResponseTextWithLimit(response, {
+      maxBytes: MAX_DESKTOP_UPDATE_MANIFEST_BYTES,
+      label: 'Desktop update manifest',
+    })
+    const version = release.tag_name.replace(/^v/, '')
+    if (/^version:\s*(\S+)\s*$/m.exec(source)?.[1] !== version) return null
+
+    const availableAssetNames = new Set(release.assets?.map((asset) => asset.name))
+    const manifest = rewriteManifestUrls(source, release.tag_name, repository, availableAssetNames)
+    return manifest ? { manifest, installer } : null
+  } catch {
+    return null
+  }
+}
+
 /** One page of the GitHub releases API, newest release first. */
 export function releasesApiUrl(repository: DesktopReleaseRepository, page: number): string {
   return `https://api.github.com/repos/${repository}/releases?per_page=${DESKTOP_RELEASES_PAGE_SIZE}&page=${page}`
@@ -164,22 +215,32 @@ export function releasesApiUrl(repository: DesktopReleaseRepository, page: numbe
  * (other tag families, other channels) cannot push a channel's newest build
  * out of the window and take the whole channel's updates down.
  *
- * `fetchPage` returns null when the page could not be read; the resolver
- * surfaces that as a failure rather than silently serving an older release.
+ * Every candidate is passed to `resolveCandidate`; a rejected candidate falls
+ * through to the next version. `fetchPage` returning null remains fatal because
+ * an unreadable page could hide a newer valid release.
  */
-export async function resolveLatestRelease(
+export async function resolveLatestRelease<T>(
   channel: DesktopUpdateChannel,
-  fetchPage: (page: number) => Promise<DesktopReleaseCandidate[] | null>
-): Promise<{ release: DesktopReleaseCandidate | null } | { error: 'fetch-failed' }> {
+  fetchPage: (page: number) => Promise<DesktopReleaseCandidate[] | null>,
+  resolveCandidate: (release: DesktopReleaseCandidate) => T | null | Promise<T | null>
+): Promise<
+  | { release: DesktopReleaseCandidate; value: T }
+  | { release: null; rejectedCandidates: boolean }
+  | { error: 'fetch-failed' }
+> {
+  let rejectedCandidates = false
   for (let page = 1; page <= MAX_DESKTOP_RELEASE_PAGES; page++) {
     const releases = await fetchPage(page)
     if (releases === null) return { error: 'fetch-failed' }
-    const release = selectReleaseForChannel(releases, channel)
-    if (release) return { release }
+    for (const release of releasesForChannel(releases, channel)) {
+      const value = await resolveCandidate(release)
+      if (value !== null) return { release, value }
+      rejectedCandidates = true
+    }
     // A short page is the end of the list; nothing older remains to walk.
     if (releases.length < DESKTOP_RELEASES_PAGE_SIZE) break
   }
-  return { release: null }
+  return { release: null, rejectedCandidates }
 }
 
 /**
@@ -189,12 +250,19 @@ export async function resolveLatestRelease(
  * web-app and SDK tags that carry no desktop artifact at all.
  */
 export function selectInstallerAsset(
-  release: DesktopReleaseCandidate
+  release: DesktopReleaseCandidate,
+  repository: DesktopReleaseRepository
 ): { name: string; browser_download_url: string } | null {
   const assets = release.assets ?? []
-  return (
-    assets.find((asset) => asset.name.endsWith('.dmg')) ??
-    assets.find((asset) => asset.name.endsWith('.zip')) ??
-    null
-  )
+  const version = release.tag_name.replace(/^v/, '')
+  const dmgName = `Sim-${version}-universal.dmg`
+  const zipName = `Sim-${version}-universal.zip`
+  const asset =
+    assets.find((candidate) => candidate.name === dmgName) ??
+    assets.find((candidate) => candidate.name === zipName)
+  if (!asset) return null
+  return {
+    name: asset.name,
+    browser_download_url: `https://github.com/${repository}/releases/download/${release.tag_name}/${asset.name}`,
+  }
 }

@@ -8,6 +8,7 @@ import { buildSelectorRawContext, projectSelectorContext } from '@/lib/selectors
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext, SelectorScope } from '@/lib/selectors/types'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { resolveFolderPathLabel } from '@/lib/workflows/subblocks/display'
 import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { isUuid } from '@/executor/constants'
@@ -27,6 +28,11 @@ interface ResolvedValue {
   displayLabel: string
   /** Whether the value was successfully resolved to a name */
   resolved: boolean
+}
+
+interface ResolvedSelectorValue {
+  label: string | null
+  incomplete: boolean
 }
 
 /**
@@ -87,7 +93,7 @@ async function resolveSelectorValue(
   selectorKey: SelectorKey,
   selectorContext: SelectorContext,
   scope: SelectorScope
-): Promise<string | null> {
+): Promise<ResolvedSelectorValue> {
   try {
     const manifest = getSelectorManifestEntry(selectorKey)
 
@@ -99,20 +105,26 @@ async function resolveSelectorValue(
         request: { kind: 'detail', id: value },
       })
       if (result.kind === 'detail' && result.item?.label) {
-        return result.item.label
+        return { label: result.item.label, incomplete: false }
       }
     }
 
-    const options = await loadAllSelectorOptions({
+    const catalog = await loadAllSelectorOptions({
       selectorKey,
       scope,
       context: selectorContext,
     })
-    const match = options.find((opt) => opt.id === value)
-    return match?.label ?? null
+    const match = catalog.items.find((option) => option.id === value)
+    const incomplete = !match && catalog.truncated
+    if (incomplete) {
+      logger.warn('Selector catalog was truncated before display label could be resolved', {
+        selectorKey,
+      })
+    }
+    return { label: match?.label ?? null, incomplete }
   } catch {
     logger.warn('Failed to resolve selector display label', { selectorKey })
-    return null
+    return { label: null, incomplete: false }
   }
 }
 
@@ -125,18 +137,28 @@ function extractMcpToolName(toolId: string): string {
   return withoutPrefix
 }
 
-/**
- * Resolves a subBlock field ID to its human-readable title.
- * Falls back to the raw ID if the block or subBlock is not found.
- */
-export function resolveFieldLabel(blockType: string, subBlockId: string): string {
+const BLOCK_FIELD_LABELS: Record<string, string> = {
+  'data.canonicalModes': 'Field modes',
+  enabled: 'Block enabled',
+  errorEnabled: 'Error handling',
+  advancedMode: 'Advanced mode',
+  triggerMode: 'Trigger mode',
+}
+
+/** Resolves field labels in their block-setting or subblock namespace. */
+export function resolveFieldLabel(
+  blockType: string,
+  subBlockId: string,
+  scope: 'block' | 'subblock' = 'subblock'
+): string {
+  if (scope === 'block') return BLOCK_FIELD_LABELS[subBlockId] ?? formatParameterLabel(subBlockId)
   if (subBlockId.startsWith('data.')) {
     return formatParameterLabel(subBlockId.slice(5))
   }
   const blockConfig = getBlock(blockType)
   if (!blockConfig) return subBlockId
   const subBlockConfig = blockConfig.subBlocks.find((sb) => sb.id === subBlockId)
-  return subBlockConfig?.title ?? subBlockId
+  return subBlockConfig?.title || subBlockId
 }
 
 /**
@@ -252,6 +274,17 @@ export async function resolveValueForDisplay(
     }
   }
 
+  /*
+   * A folder picker is in the hydration list but has no selector manifest entry,
+   * so without this it falls through to the generic semantic fallback and a diff
+   * renders both the old and the new path as the same word — hiding the change
+   * it exists to show. Same resolver the canvas card uses, so the two agree.
+   */
+  const folderPathLabel = resolveFolderPathLabel(subBlockConfig, value)
+  if (folderPathLabel) {
+    return { original: value, displayLabel: folderPathLabel, resolved: true }
+  }
+
   if (SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlockConfig.type)) {
     const selectorKey = subBlockConfig.selectorKey
     const scope: SelectorScope | undefined = context.workflowId
@@ -267,9 +300,12 @@ export async function resolveValueForDisplay(
       const selectorContext = context.blockId
         ? extractSelectorContext(context.blockId, context.currentState, selectorKey, subBlockConfig)
         : projectSelectorContext(selectorKey, { mimeType: subBlockConfig.mimeType })
-      const label = await resolveSelectorValue(value, selectorKey, selectorContext, scope)
-      if (label) {
-        return { original: value, displayLabel: label, resolved: true }
+      const selectorValue = await resolveSelectorValue(value, selectorKey, selectorContext, scope)
+      if (selectorValue.label) {
+        return { original: value, displayLabel: selectorValue.label, resolved: true }
+      }
+      if (selectorValue.incomplete) {
+        return { original: value, displayLabel: formatValueForDisplay(value), resolved: false }
       }
     }
     return { original: value, displayLabel: semanticFallback, resolved: true }

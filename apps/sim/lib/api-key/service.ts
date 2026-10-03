@@ -1,28 +1,12 @@
 import { db } from '@sim/db'
 import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBillingSettings, type WorkspaceBillingSettings } from '@/lib/workspaces/utils'
 
 const logger = createLogger('ApiKeyService')
-
-export async function listApiKeys(workspaceId: string) {
-  return db
-    .select({
-      id: apiKeyTable.id,
-      name: apiKeyTable.name,
-      type: apiKeyTable.type,
-      lastUsed: apiKeyTable.lastUsed,
-      createdAt: apiKeyTable.createdAt,
-      expiresAt: apiKeyTable.expiresAt,
-      createdBy: apiKeyTable.createdBy,
-    })
-    .from(apiKeyTable)
-    .where(and(eq(apiKeyTable.workspaceId, workspaceId), eq(apiKeyTable.type, 'workspace')))
-    .orderBy(apiKeyTable.createdAt)
-}
 
 export interface ApiKeyAuthOptions {
   userId?: string
@@ -48,6 +32,7 @@ interface HashCandidate {
   type: string
   expiresAt: Date | null
   userBanned: boolean | null
+  userSuspendedAt: Date | null
 }
 
 /**
@@ -84,6 +69,7 @@ export async function authenticateApiKeyFromHeader(
         type: apiKeyTable.type,
         expiresAt: apiKeyTable.expiresAt,
         userBanned: userTable.banned,
+        userSuspendedAt: userTable.suspendedAt,
       })
       .from(apiKeyTable)
       .leftJoin(userTable, eq(apiKeyTable.userId, userTable.id))
@@ -96,6 +82,14 @@ export async function authenticateApiKeyFromHeader(
 
     // Defense in depth: banning deletes a user's keys, but reject any survivor too.
     if (record.userBanned) return INVALID
+
+    /**
+     * A suspension deliberately leaves the account's resources intact, so unlike
+     * a ban it does not delete the keys. Refusing a personal key here is what
+     * ends the member's own machine access. A workspace key is shared and
+     * belongs to the workspace, so one member's suspension does not break it.
+     */
+    if (record.userSuspendedAt && keyType === 'personal') return INVALID
 
     if (options.userId && record.userId !== options.userId) return INVALID
     if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) return INVALID
@@ -122,6 +116,10 @@ export async function authenticateApiKeyFromHeader(
     }
 
     logger.debug('API key matched via hash lookup', { keyId: record.id, keyType })
+    setRequestAuth(
+      { kind: keyType === 'personal' ? 'personal_api_key' : 'workspace_api_key' },
+      { preserveExisting: true }
+    )
 
     return {
       success: true,

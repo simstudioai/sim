@@ -32,8 +32,16 @@ describe('Pi provider catalog', () => {
     )
   })
 
+  it('rejects saved model IDs removed by Pi 1.0 without substituting another model', () => {
+    expect(resolvePiModelId('anthropic', 'claude-opus-4-1')).toBeUndefined()
+    expect(resolvePiModelId('cerebras', 'cerebras/zai-glm-4.7')).toBeUndefined()
+    expect(resolvePiModelId('zai', 'glm-5.1')).toBeUndefined()
+    expect(resolvePiModelId('zai', 'glm-4.5-air')).toBeUndefined()
+  })
+
   it('rejects provider/model pairs absent from the installed Pi catalog', () => {
     expect(resolvePiModelId('anthropic', 'claude-sonnet-999')).toBeUndefined()
+    expect(resolvePiModelId('zai', 'glm-4.5-air-unknown')).toBeUndefined()
     expect(resolvePiModelId('unsupported', 'model')).toBeUndefined()
   })
 })

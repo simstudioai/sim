@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { userFileSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, userFileSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
@@ -40,7 +40,17 @@ export const listLogsQuerySchema = logFilterQuerySchema.extend({
   sortOrder: logSortOrderSchema,
   /** Also run a COUNT(*) under the same filters and return it as `total`. */
   includeTotal: z.coerce.boolean().optional(),
+  /** Skip fetching and sorting log rows; return total and any requested revision. */
+  countOnly: booleanQueryFlagSchema.optional(),
+  /** Include a fingerprint of matching rows and their sort values for change detection. */
+  includeRevision: booleanQueryFlagSchema.optional(),
+  /** Bound run start times for pagination; mutable fields remain live on the server. */
+  snapshotAt: z.union([z.literal('now'), z.iso.datetime()]).optional(),
+  /** Count or list runs started after the displayed snapshot, within the other filters. */
+  startedAfter: z.iso.datetime().optional(),
 })
+
+export type ListLogsQuery = z.input<typeof listLogsQuerySchema>
 
 export const logDetailQuerySchema = z.object({
   workspaceId: z.string().min(1),
@@ -218,8 +228,13 @@ export const traceSpanSchema: z.ZodType<LogTraceSpan> = z
         id: z.string().describe('Trace-span identifier.'),
         name: z.string().describe('Trace-span name.'),
         type: z.string().describe('Trace-span category.'),
-        duration: z.number().describe('Legacy span duration in milliseconds.').optional(),
-        durationMs: z.number().describe('Span duration in milliseconds.').optional(),
+        duration: z.number().describe('Current trace-span duration in milliseconds.').optional(),
+        durationMs: z
+          .number()
+          .describe(
+            'Compatibility field for span duration in milliseconds. Read `duration` for current trace spans.'
+          )
+          .optional(),
         startTime: z.string().describe('ISO 8601 span start timestamp.').optional(),
         endTime: z.string().describe('ISO 8601 span end timestamp.').optional(),
         status: z.string().describe('Trace-span status.').optional(),
@@ -327,7 +342,10 @@ export type WorkflowLogRow = WorkflowLogSummary &
 export const listLogsResponseSchema = z.object({
   data: z.array(workflowLogSummarySchema),
   nextCursor: z.string().nullable(),
-  /** Total rows matching the filters; present only when `includeTotal` was set. */
+  /** Server-resolved upper bound for a manually refreshed list. */
+  snapshotAt: z.iso.datetime().optional(),
+  revision: z.string().max(160).optional(),
+  /** Total rows matching the filters; present when `includeTotal` or `countOnly` was set. */
   total: z.number().optional(),
 })
 
@@ -354,6 +372,8 @@ export const dashboardStatsResponseSchema = z.object({
   aggregateSegments: z.array(segmentStatsSchema),
   totalRuns: z.number(),
   totalErrors: z.number(),
+  /** Runs holding a handled block error; present only when the read counted them. */
+  handledErrorRuns: z.number().optional(),
   avgLatency: z.number(),
   timeBounds: z.object({
     start: z.string(),
@@ -376,11 +396,6 @@ export const executionSnapshotDataSchema = z.object({
     totalTokens: z.number().nullable().optional(),
   }),
 })
-
-export const triggersQuerySchema = z.object({
-  workspaceId: z.string(),
-})
-export type TriggersQuery = z.output<typeof triggersQuerySchema>
 
 export type SegmentStats = z.output<typeof segmentStatsSchema>
 export type WorkflowStats = z.output<typeof workflowStatsSchema>

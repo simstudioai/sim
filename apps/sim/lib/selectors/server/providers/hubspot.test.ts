@@ -1,24 +1,28 @@
-/**
- * @vitest-environment node
- */
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { hubspotSelectorAttachments } from '@/lib/selectors/server/providers/hubspot'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
-function args(request: ExecuteServerSelectorArgs['request']): ExecuteServerSelectorArgs {
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
+
+function args(
+  request: ExecuteServerSelectorArgs['request'],
+  selectorKey: ExecuteServerSelectorArgs['selectorKey'] = 'hubspot.lists'
+): ExecuteServerSelectorArgs {
   return {
-    selectorKey: 'hubspot.lists',
+    selectorKey,
     context: { oauthCredential: 'credential-1' },
     request,
     scope: { kind: 'workspace', workspaceId: 'workspace-1' },
@@ -33,7 +37,6 @@ function args(request: ExecuteServerSelectorArgs['request']): ExecuteServerSelec
 
 describe('HubSpot server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })

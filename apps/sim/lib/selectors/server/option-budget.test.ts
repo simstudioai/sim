@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'

@@ -158,6 +158,21 @@ interface HubSpotPipeline {
   archived?: boolean
 }
 
+interface HubSpotOwner {
+  id: string
+  email?: string
+  firstName?: string
+  lastName?: string
+  archived?: boolean
+}
+
+function hubspotOwnerOption(owner: HubSpotOwner) {
+  return {
+    id: owner.id,
+    label: [owner.firstName, owner.lastName].filter(Boolean).join(' ') || owner.email || owner.id,
+  }
+}
+
 async function loadPipelines(args: ExecuteServerSelectorArgs): Promise<HubSpotPipeline[]> {
   const objectType = resolveObjectType(args)
   if (!objectType) return []
@@ -194,37 +209,36 @@ async function executePipelineStages(args: ExecuteServerSelectorArgs) {
 }
 
 async function executeOwners(args: ExecuteServerSelectorArgs) {
-  requireListRequest(args.selectorKey, args.request)
   const accessToken = await hubspotToken(args)
-  const owners: Array<{
-    id: string
-    email?: string
-    firstName?: string
-    lastName?: string
-    archived?: boolean
-  }> = []
-  let after: string | undefined
-  for (let page = 0; page < 10; page++) {
-    const url = new URL('https://api.hubapi.com/crm/v3/owners')
-    url.searchParams.set('limit', '100')
-    if (after) url.searchParams.set('after', after)
-    const data = await fetchProviderJson<{
-      results?: typeof owners
-      paging?: { next?: { after?: string } }
-    }>(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal: args.signal })
-    owners.push(...(data.results ?? []))
-    after = data.paging?.next?.after
-    if (!after) break
+  if (args.request.kind === 'detail') {
+    const ownerId = args.request.id.trim()
+    if (!ownerId || ownerId.length > 100) throw new SelectorContextUnavailableError()
+    const owner = await fetchProviderJson<HubSpotOwner>(
+      `https://api.hubapi.com/crm/v3/owners/${encodeURIComponent(ownerId)}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: args.signal,
+      }
+    )
+    return detailSelectorResult(
+      owner.archived || !owner.id ? null : { ...hubspotOwnerOption(owner), id: ownerId }
+    )
   }
+
+  requireListRequest(args.selectorKey, args.request)
+  const url = new URL('https://api.hubapi.com/crm/v3/owners')
+  url.searchParams.set('limit', '100')
+  if (args.request.cursor) url.searchParams.set('after', args.request.cursor)
+  const data = await fetchProviderJson<{
+    results?: HubSpotOwner[]
+    paging?: { next?: { after?: string } }
+  }>(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal: args.signal })
   return listSelectorResult(
-    owners
+    (data.results ?? [])
       .filter((owner) => !owner.archived && owner.id)
-      .map((owner) => ({
-        id: owner.id,
-        label:
-          [owner.firstName, owner.lastName].filter(Boolean).join(' ') || owner.email || owner.id,
-      }))
-      .sort((left, right) => left.label.localeCompare(right.label))
+      .map(hubspotOwnerOption)
+      .sort((left, right) => left.label.localeCompare(right.label)),
+    data.paging?.next?.after
   )
 }
 

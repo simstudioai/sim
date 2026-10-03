@@ -1,13 +1,10 @@
 export { getErrorMessage, getPostgresErrorCode, toError } from './errors'
 export {
-  formatAbsoluteDate,
-  formatCompactTimestamp,
   formatDate,
   formatDateTime,
   formatDuration,
   formatRelativeTime,
   formatTime,
-  formatTimeWithSeconds,
   getTimezoneAbbreviation,
 } from './formatting'
 export { chunkArray, noop, sleep } from './helpers'
@@ -16,6 +13,7 @@ export type { EmbedInfo } from './media-embed'
 export { getEmbedInfo } from './media-embed'
 export {
   filterUndefined,
+  getValueAtPath,
   isPlainRecord,
   isRecordLike,
   omit,

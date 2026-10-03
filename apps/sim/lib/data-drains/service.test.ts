@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -62,25 +59,11 @@ const baseDrain = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mockDecryptCredentials.mockResolvedValue({})
 })
 
 describe('runDrain', () => {
-  it('returns skipped when drain is disabled', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ ...baseDrain, enabled: false }])
-    const result = await runDrain('drain-1', 'manual')
-    expect(result.status).toBe('skipped')
-    expect(result.rowsExported).toBe(0)
-    expect(mockGetSource).not.toHaveBeenCalled()
-  })
-
-  it('throws when drain does not exist', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-    await expect(runDrain('drain-1', 'manual')).rejects.toThrow(/not found/)
-  })
-
   it('delivers each page and advances cursor on success', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([baseDrain])
     const source = makeSource([

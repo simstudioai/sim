@@ -5,8 +5,7 @@ import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/em
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AuthSubmitButton } from '@/app/(auth)/components'
-import { AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton, AuthTextLink } from '@/app/(auth)/components'
 import { useChatEmailOtpRequest, useChatEmailOtpVerify } from '@/hooks/queries/chats'
 
 const logger = createLogger('EmailAuth')
@@ -220,28 +219,26 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                         Resend in <span className='text-[var(--text-primary)]'>{countdown}s</span>
                       </span>
                     ) : (
-                      <button
-                        className={AUTH_TEXT_LINK}
+                      <AuthTextLink
                         onClick={handleResendOtp}
                         disabled={verifyOtp.isPending || requestOtp.isPending}
                       >
                         Resend
-                      </button>
+                      </AuthTextLink>
                     )}
                   </p>
                 </div>
 
                 <div className='text-center font-light text-sm'>
-                  <button
+                  <AuthTextLink
                     onClick={() => {
                       setShowOtpVerification(false)
                       setOtpValue('')
                       setAuthError(null)
                     }}
-                    className={AUTH_TEXT_LINK}
                   >
                     Change email
-                  </button>
+                  </AuthTextLink>
                 </div>
               </div>
             )}

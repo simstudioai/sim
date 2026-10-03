@@ -1,10 +1,11 @@
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 /**
  * Home-page JSON-LD - the entities specific to `/`: the `WebPage`, its
  * `BreadcrumbList`, the product `WebApplication` (`#software`, with offers /
- * featureList / reviews), and the `SoftwareSourceCode`.
+ * featureList), and the `SoftwareSourceCode`.
  *
  * Rendered only by the landing root (`landing.tsx`), server-side before visible
  * content. The site-wide `Organization` / `WebSite` entities live in
@@ -14,22 +15,22 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
  * Maintenance:
  * - Offer prices must match the Pricing component exactly.
  * - All claims must also appear as visible text on the page.
- * - Do not add `aggregateRating` without real, verifiable review data.
+ * - Do not add `review` or `aggregateRating` without real, rated, verifiable
+ *   review data; curated testimonials do not qualify for review snippets.
  */
 /**
  * The home page's canonical description - the single string shared by the
  * `<meta name="description">`, OG/Twitter cards (`page.tsx`), and the JSON-LD
  * `WebPage.description` below, so the three surfaces never drift.
  */
-export const HOME_PAGE_DESCRIPTION =
-  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents across 1,000+ integrations and every major LLM, visually or with code.'
+export const HOME_PAGE_DESCRIPTION = `Sim is the open-source AI workspace where companies build, distribute, and govern AI agents. ${INTEGRATION_COUNT_LABEL} integrations, every major LLM, permission groups, spend limits, and self-hosting.`
 
 /**
  * The home page's canonical title - the single string shared by the
  * `<title>`, OG/Twitter titles (`page.tsx`), and the JSON-LD `WebPage.name`
  * below, so the title surfaces never drift.
  */
-export const HOME_PAGE_TITLE = 'The AI Workspace | Build, Deploy & Manage AI Agents | Sim'
+export const HOME_PAGE_TITLE = 'The AI Workspace | Build, Distribute & Govern AI Agents | Sim'
 
 const HOME_JSON_LD = {
   '@context': 'https://schema.org',
@@ -61,8 +62,7 @@ const HOME_JSON_LD = {
       '@id': `${SITE_URL}#software`,
       url: SITE_URL,
       name: 'Sim, The AI Workspace',
-      description:
-        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work, visually, conversationally, or with code. Trusted by over 100,000 builders. SOC2 compliant.',
+      description: `Sim is the open-source AI workspace where companies build, distribute, and govern AI agents in one place. Teams build agents visually, conversationally, or with code across ${INTEGRATION_COUNT_LABEL} integrations and every major LLM, while administrators control model access, integration access, spend limits, and deployment. Trusted by over 100,000 builders. SOC2 compliant and self-hostable.`,
       applicationCategory: 'BusinessApplication',
       applicationSubCategory: 'AI Workspace',
       operatingSystem: 'Web',
@@ -109,7 +109,8 @@ const HOME_JSON_LD = {
         'AI workspace for teams',
         'Chat: build and manage agents in natural language',
         'Visual workflow builder',
-        '1,000+ integrations',
+        'CLI access for coding agents and terminal workflows',
+        `${INTEGRATION_COUNT_LABEL} integrations`,
         'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
         'Knowledge base creation',
         'Table creation',
@@ -118,28 +119,14 @@ const HOME_JSON_LD = {
         'Custom functions',
         'Scheduled workflows',
         'Event triggers',
-      ],
-      review: [
-        {
-          '@type': 'Review',
-          author: { '@type': 'Person', name: 'Hasan Toor' },
-          reviewBody:
-            'This startup just dropped the fastest way to build AI agents. This Figma-like canvas to build agents will blow your mind.',
-          url: 'https://x.com/hasantoxr/status/1912909502036525271',
-        },
-        {
-          '@type': 'Review',
-          author: { '@type': 'Person', name: 'nizzy' },
-          reviewBody:
-            'This is the zapier of agent building. I always believed that building agents and using AI should not be limited to technical people. I think this solves just that.',
-          url: 'https://x.com/nizzyabi/status/1907864421227180368',
-        },
-        {
-          '@type': 'Review',
-          author: { '@type': 'Organization', name: 'xyflow' },
-          reviewBody: 'A very good looking agent workflow builder and open source!',
-          url: 'https://x.com/xyflowdev/status/1909501499719438670',
-        },
+        'Permission groups for model, integration, and tool access',
+        'Organization and per-member spend limits',
+        'Usage analytics by workspace and member',
+        'Agent deployment as chat, API, or MCP with SSO, email, or password access',
+        'Single sign-on with domain verification',
+        'Audit records and run tracing',
+        'Configurable data retention',
+        'Self-hosting with Docker or Kubernetes',
       ],
     },
     {

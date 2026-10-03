@@ -1,6 +1,36 @@
 import type { AthenaStartQueryParams, AthenaStartQueryResponse } from '@/tools/athena/types'
 import type { InternalToolConfig } from '@/tools/types'
 
+/**
+ * Normalizes execution parameters supplied as a JSON array, a JSON-array string, or a
+ * comma-separated string into the string list Athena expects.
+ */
+function parseExecutionParameters(value: string[] | string | undefined): string[] | undefined {
+  if (value === undefined || value === null) return undefined
+  if (Array.isArray(value)) {
+    const values = value.map((item) => String(item))
+    return values.length > 0 ? values : undefined
+  }
+  const trimmed = value.trim()
+  if (trimmed === '') return undefined
+  if (trimmed.startsWith('[')) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new Error('Execution parameters must be a valid JSON array of strings')
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error('Execution parameters must be a JSON array of strings')
+    }
+    return parsed.map((item) => String(item))
+  }
+  return trimmed
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 export const startQueryTool: InternalToolConfig<AthenaStartQueryParams, AthenaStartQueryResponse> =
   {
     id: 'athena_start_query',
@@ -57,19 +87,50 @@ export const startQueryTool: InternalToolConfig<AthenaStartQueryParams, AthenaSt
         visibility: 'user-or-llm',
         description: 'Workgroup to execute the query in (default: primary)',
       },
+      executionParameters: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Values for ? placeholders in a parameterized query or EXECUTE statement, applied in order. Pass a JSON array of strings (e.g. ["2024-01-01", "US"]); a plain comma-separated list is also accepted when no value contains a comma',
+      },
+      resultReuseEnabled: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Reuse a previous result of the same query instead of re-scanning data (default: false)',
+      },
+      resultReuseMaxAgeInMinutes: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Maximum age in minutes of a previous result eligible for reuse (0-10080, default: 60)',
+      },
     },
 
     operation: {
-      input: (params) => ({
-        region: params.awsRegion,
-        accessKeyId: params.awsAccessKeyId,
-        secretAccessKey: params.awsSecretAccessKey,
-        queryString: params.queryString,
-        ...(params.database && { database: params.database }),
-        ...(params.catalog && { catalog: params.catalog }),
-        ...(params.outputLocation && { outputLocation: params.outputLocation }),
-        ...(params.workGroup && { workGroup: params.workGroup }),
-      }),
+      input: (params) => {
+        const executionParameters = parseExecutionParameters(params.executionParameters)
+        return {
+          region: params.awsRegion,
+          accessKeyId: params.awsAccessKeyId,
+          secretAccessKey: params.awsSecretAccessKey,
+          queryString: params.queryString,
+          ...(params.database && { database: params.database }),
+          ...(params.catalog && { catalog: params.catalog }),
+          ...(params.outputLocation && { outputLocation: params.outputLocation }),
+          ...(params.workGroup && { workGroup: params.workGroup }),
+          ...(executionParameters && { executionParameters }),
+          ...(params.resultReuseEnabled !== undefined && {
+            resultReuseEnabled: params.resultReuseEnabled,
+          }),
+          ...(params.resultReuseMaxAgeInMinutes !== undefined && {
+            resultReuseMaxAgeInMinutes: params.resultReuseMaxAgeInMinutes,
+          }),
+        }
+      },
     },
 
     transformResponse: async (response: Response) => {

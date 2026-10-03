@@ -28,19 +28,9 @@ interface AddDocumentsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   knowledgeBaseId: string
-  chunkingConfig?: {
-    maxSize: number
-    minSize: number
-    overlap: number
-  }
 }
 
-export function AddDocumentsModal({
-  open,
-  onOpenChange,
-  knowledgeBaseId,
-  chunkingConfig,
-}: AddDocumentsModalProps) {
+export function AddDocumentsModal({ open, onOpenChange, knowledgeBaseId }: AddDocumentsModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [files, setFiles] = useState<File[]>([])
@@ -193,16 +183,17 @@ export function AddDocumentsModal({
                     >
                       {file.name}
                     </span>
-                    <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                    <span className='shrink-0 text-[var(--text-muted)] text-xs'>
                       {formatFileSize(file.size)}
                     </span>
-                    <div className='flex flex-shrink-0 items-center gap-1'>
+                    <div className='flex shrink-0 items-center gap-1'>
                       {isProcessing ? (
                         <Loader className='size-4 text-[var(--text-muted)]' animate />
                       ) : (
                         <>
                           {isFailed && (
                             <Button
+                              aria-label='Retry upload'
                               type='button'
                               variant='ghost'
                               className='size-4 p-0'
@@ -213,6 +204,7 @@ export function AddDocumentsModal({
                             </Button>
                           )}
                           <Button
+                            aria-label='Remove file'
                             type='button'
                             variant='ghost'
                             className='size-4 p-0'

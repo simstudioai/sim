@@ -1,20 +1,25 @@
 import {
   type DelegatedPrincipal,
+  type OAuthAccessTokenPrincipal,
+  type PersonalApiKeyPrincipal,
   type Principal,
   resolvePrincipalSubject,
 } from '@sim/auth/principal'
-import type { db } from '@sim/db'
 import {
   type PermissionType,
   permissionSatisfies,
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
+import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import type {
   PrincipalForOperation,
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   assertWorkspaceCapability,
   capabilityDeniedBy,
@@ -41,11 +46,17 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
   switch (principal.kind) {
     case 'session':
     case 'personal_api_key':
+    case 'oauth_access_token':
       return principal.userId
     case 'workspace_api_key':
     case 'system':
     case 'credential_group_enrollment':
+    case 'scim_connection':
+    case 'slack_installation':
+    case 'slack_app':
       return null
+    case 'organization_delegated':
+      return principal.subjectUserId
     case 'delegated': {
       if (principal.serviceId === 'executor') return null
       const subject = resolvePrincipalSubject(principal)
@@ -66,7 +77,7 @@ export interface WorkspaceDelegationPolicy<C extends WorkspaceAuthorizationConte
 }
 
 export interface WorkspaceAuthorizationOptions<C extends WorkspaceAuthorizationContext> {
-  executor?: Pick<typeof db, 'select'>
+  executor?: DbOrTx
   forUpdate?: boolean
   delegation?: WorkspaceDelegationPolicy<C>
 }
@@ -167,6 +178,7 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
     }
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
   }
+  requireOAuthOperationScope(principal, operation)
   if (principal.kind !== 'delegated') return
 
   const delegatedServices = operation.delegatedServices
@@ -197,7 +209,8 @@ function requirePermission(permission: PermissionType | null, required: Permissi
 async function requireCapability(
   userId: string,
   context: WorkspaceAuthorizationContext,
-  operation: WorkspaceOperation
+  operation: WorkspaceOperation,
+  executor?: DbOrTx
 ): Promise<void> {
   const capability = operation.capability
   if (capability === 'none') return
@@ -207,33 +220,90 @@ async function requireCapability(
     userId,
     context.workspaceId,
     capability,
-    context.workspaceOrganizationId
+    context.workspaceOrganizationId,
+    executor
   )
 }
 
 /**
- * Refuses a personal API key the caller's permission group withholds.
+ * Refuses a token the Sim CLI holds when the caller's group withholds CLI use.
  *
- * Separate from {@link requireCapability} because it is not a property of the
- * operation: no operation opts into it, and every operation a personal key can
- * reach is subject to it.
+ * permission-group-enforced: cli.use — the consent page enforces it when the
+ * grant is first made, but a consent already on file lets every later
+ * authorization skip the consent endpoint, and a refresh token keeps minting
+ * access tokens for a month. Withdrawing the capability has to stop the
+ * credential in use, not only the next fresh grant, so it is asked again here,
+ * on the request. Without an explicit executor, the personal-key check that runs
+ * just before this one has already cached the group config, so it costs no extra query.
  *
- * Exported for the one authorization path that does not run through
- * {@link authorizeWorkspaceOperation} — the billing reads, which resolve their
- * own workspace scope. One copy, or the same key the funnel refuses keeps
- * working somewhere.
+ * Three surfaces authorize themselves instead of entering through the funnel.
+ * Billing and audit-log reads repeat this check at their own call sites, since
+ * both return data a withdrawn capability is meant to cut off. `/api/v2/meta`
+ * does not, and should not: it answers only with facts about the credential
+ * the caller already holds, so there is nothing there to withhold.
  */
+export async function requireCliAccessAllowed(
+  clientId: string,
+  userId: string,
+  context: WorkspaceAuthorizationContext,
+  executor?: DbOrTx
+): Promise<void> {
+  if (clientId !== SIM_CLI_CLIENT_ID) return
+  if (context.workspaceOrganizationId === null) return
+
+  await assertWorkspaceCapability(
+    userId,
+    context.workspaceId,
+    'cli.use',
+    context.workspaceOrganizationId,
+    executor
+  )
+}
+
+/**
+ * Enforces credential-wide restrictions after current workspace membership is established.
+ * Shared by the authorization funnel and workspace billing/chat reads.
+ */
+export async function requireUserCredentialCapabilities(
+  principal: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal,
+  context: WorkspaceAuthorizationContext,
+  executor?: DbOrTx
+): Promise<void> {
+  await requirePersonalApiKeysAllowed(principal.userId, context, executor)
+  if (principal.kind === 'oauth_access_token') {
+    /** permission-group-enforced: oauth_apps.use — applies to every OAuth principal after the role check. */
+    if (context.workspaceOrganizationId !== null) {
+      await assertWorkspaceCapability(
+        principal.userId,
+        context.workspaceId,
+        'oauth_apps.use',
+        context.workspaceOrganizationId,
+        executor
+      )
+    }
+    await requireCliAccessAllowed(principal.clientId, principal.userId, context, executor)
+  }
+}
+
 export async function requirePersonalApiKeysAllowed(
   userId: string,
-  context: WorkspaceAuthorizationContext
+  context: WorkspaceAuthorizationContext,
+  executor?: DbOrTx
 ): Promise<void> {
   if (context.workspaceOrganizationId === null) return
 
-  const config = await resolvePermissionGroupConfig(
-    userId,
-    context.workspaceId,
-    context.workspaceOrganizationId
-  )
+  const config = executor
+    ? await resolvePermissionGroupConfig(
+        userId,
+        context.workspaceId,
+        context.workspaceOrganizationId,
+        executor
+      )
+    : await resolvePermissionGroupConfig(
+        userId,
+        context.workspaceId,
+        context.workspaceOrganizationId
+      )
   if (capabilityDeniedBy('personal_api_key.use', config)) throw new PersonalApiKeysDisabledError()
 }
 
@@ -248,7 +318,7 @@ export async function requirePersonalApiKeysAllowed(
  * raising a role, rather than chasing an admin about a group setting that is
  * not why they were refused.
  */
-async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
+export async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,
   required: PermissionType,
@@ -264,6 +334,13 @@ async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
   requirePermission(permission, required)
 }
 
+/**
+ * A use case's own escalation: refuses unless the person holds `required` in
+ * the workspace right now. For an operation whose minimum role fits most of
+ * its inputs but one variant needs more — a connector that crawls as every
+ * enrolled member is an admin decision even though creating a connector is
+ * not — so the operation keeps its role and the variant asserts its own.
+ */
 async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,
@@ -271,7 +348,7 @@ async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
   await requireCurrentHumanRole(userId, context, operation.minimumRole, options)
-  await requireCapability(userId, context, operation)
+  await requireCapability(userId, context, operation, options?.executor)
 }
 
 export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizationContext>(
@@ -281,6 +358,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
   requireAllowedWorkspacePrincipal(principal, operation)
+  assertWorkspaceInvocationScope(context)
 
   switch (principal.kind) {
     case 'session':
@@ -315,9 +393,19 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new PersonalApiKeysDisabledError()
       }
       await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
-      await requirePersonalApiKeysAllowed(principal.userId, context)
-      await requireCapability(principal.userId, context, operation)
+      await requirePersonalApiKeysAllowed(principal.userId, context, options?.executor)
+      await requireCapability(principal.userId, context, operation, options?.executor)
       return
+    /** OAuth scopes and expiry were checked before loading protected context. */
+    case 'oauth_access_token': {
+      if (!context.allowPersonalApiKeys) {
+        throw new PersonalApiKeysDisabledError()
+      }
+      await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
+      await requireUserCredentialCapabilities(principal, context, options?.executor)
+      await requireCapability(principal.userId, context, operation, options?.executor)
+      return
+    }
     /**
      * A workspace API key authorizes as the workspace, so there is no user and
      * therefore no permission group to resolve — the operation's `capability`
@@ -337,6 +425,8 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new WorkspaceApiKeyAuthorizationError()
       }
       return
+    case 'organization_delegated':
+      throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
     case 'delegated': {
       const delegation = options?.delegation
       if (!delegation) {

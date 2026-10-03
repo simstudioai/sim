@@ -296,13 +296,21 @@ export async function executeSttOperation(
           outputFormat: 'mp3',
           sampleRate: 16000,
           channels: 1,
+          signal,
         })
         signal?.throwIfAborted()
         audioBuffer = extracted.buffer
         audioMimeType = 'audio/mpeg'
         audioFileName = audioFileName.replace(/\.[^.]+$/, '.mp3')
       } catch (error) {
+        signal?.throwIfAborted()
         logger.error(`[${requestId}] Video extraction failed:`, error)
+        if (isPayloadSizeLimitError(error)) {
+          return Response.json(
+            { error: 'Extracted audio exceeds the maximum supported size' },
+            { status: 413 }
+          )
+        }
         return Response.json(
           {
             error: `Failed to extract audio from video: ${getErrorMessage(error, 'Unknown error')}`,

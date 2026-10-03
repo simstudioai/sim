@@ -1,0 +1,2 @@
+-- Script migration 0017 builds embedding_search_document_lookup_idx concurrently.
+-- The shared search-index builder repairs interrupted builds and preserves valid indexes on replay.

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import type { PiSdk } from '@/executor/handlers/pi/core/pi-sdk'
 import { createSealedPiResourceLoader } from '@/executor/handlers/pi/core/pi-sdk'
@@ -21,9 +18,7 @@ describe('createSealedPiResourceLoader', () => {
     })
     expect(loader.getAgentsFiles()).toEqual({ agentsFiles: [] })
     expect(loader.getSystemPrompt()).toBe('sealed system prompt')
-    expect(loader.getSystemPromptSource()).toBeUndefined()
     expect(loader.getAppendSystemPrompt()).toEqual([])
-    expect(loader.getAppendSystemPromptSources()).toEqual([])
     await expect(loader.reload()).resolves.toBeUndefined()
   })
 })

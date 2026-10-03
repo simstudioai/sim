@@ -5,21 +5,20 @@ import { chipBorderShadowRing, cn } from '@sim/emcn'
 import dynamic from 'next/dynamic'
 import { preconnect } from 'react-dom'
 import { DemoForm, type DemoLead } from '@/app/(landing)/demo/components/demo-form'
-import { CAL_ORIGIN } from '@/app/(landing)/demo/components/demo-scheduler/cal-config'
 import { applyLegacyInertFallback } from '@/app/(landing)/demo/components/legacy-inert-fallback'
 
 const importScheduler = () => import('@/app/(landing)/demo/components/demo-scheduler')
 
 /**
  * Warm the entire booking path while the visitor fills the form: preconnect to
- * the configured Cal origin, then load the scheduler chunk and the
+ * app.cal.com, then load the scheduler chunk, Cal.com's embed.js, and the
  * booker iframe assets (via the embed's `preload` instruction). Fired on first
  * form focus so nothing Cal.com-related competes with initial page load — the
  * connection handshake overlaps the chunk import, and it all finishes long
  * before the visitor submits.
  */
 function preloadScheduler() {
-  preconnect(CAL_ORIGIN)
+  preconnect('https://app.cal.com')
   return importScheduler().then((m) => m.preloadCalEmbed())
 }
 
@@ -98,7 +97,7 @@ export function DemoBooking({ className }: DemoBookingProps) {
       style={{ '--demo-card-h': formHeight ? `${formHeight}px` : undefined } as CSSProperties}
     >
       <div
-        className='flex h-full w-full transition-transform duration-200 ease-out motion-reduce:transition-none'
+        className='flex size-full transition-transform duration-200 ease-out motion-reduce:transition-none'
         style={{ transform: showScheduler ? 'translateX(-100%)' : undefined }}
       >
         <div
@@ -111,11 +110,7 @@ export function DemoBooking({ className }: DemoBookingProps) {
             <DemoForm onComplete={setLead} />
           </div>
         </div>
-        <div
-          ref={schedulerPanelRef}
-          className='h-full w-full min-w-0 shrink-0'
-          inert={!showScheduler}
-        >
+        <div ref={schedulerPanelRef} className='size-full min-w-0 shrink-0' inert={!showScheduler}>
           {lead ? <DemoScheduler lead={lead} /> : null}
         </div>
       </div>

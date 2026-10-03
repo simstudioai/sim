@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 
@@ -91,7 +91,7 @@ export function resolveSubscriptionUsagePeriod(
     return subscription.usagePeriod
   }
   if (subscription && isEnterprise(subscription.plan)) {
-    const metadata = isRecordLike(subscription.metadata) ? subscription.metadata : {}
+    const metadata = toRecord(subscription.metadata)
     const anchor = metadata[ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY]
     const interval =
       parseBillingInterval(metadata[ENTERPRISE_REPORTING_PERIOD_INTERVAL_METADATA_KEY]) ??

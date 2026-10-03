@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import TableLoading from '@/app/workspace/[workspaceId]/tables/[tableId]/loading'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { Table } from './table'
 
 export const metadata: Metadata = {
@@ -15,7 +16,9 @@ export const metadata: Metadata = {
 export default function TablePage() {
   return (
     <Suspense fallback={<TableLoading />}>
-      <Table />
+      <PermissionAccessBoundary configKey='hideTablesTab'>
+        <Table />
+      </PermissionAccessBoundary>
     </Suspense>
   )
 }

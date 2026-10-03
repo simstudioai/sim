@@ -8,7 +8,17 @@ import { NextResponse } from 'next/server'
 import { mcpOauthCallbackContract } from '@/lib/api/contracts/mcp'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { credentialGroupOAuthAttemptPrincipal } from '@/lib/credential-groups/application/enrollment-auth'
+import { completePublicCredentialGroupMcpOAuth } from '@/lib/credential-groups/application/public-enrollment'
+import {
+  consumeCredentialGroupMcpOAuthAttempt,
+  isCredentialGroupMcpOAuthState,
+} from '@/lib/credential-groups/mcp-oauth-state'
+import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
+import type { CredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
+import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import {
   assertSafeOauthServerUrl,
   clearState,
@@ -21,6 +31,10 @@ import {
   SimMcpOauthProvider,
 } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
+import {
+  createCredentialGroupCompletionRedirect,
+  createCredentialGroupEnrollmentRedirect,
+} from '@/app/api/credential-groups/enrollment-redirect'
 
 const logger = createLogger('McpOauthCallbackAPI')
 const timedStep = makeTimedStep(logger)
@@ -70,12 +84,100 @@ function htmlClose(
   })
 }
 
+async function completeManagedMcpCallback(params: {
+  request: NextRequest
+  state: string
+  code?: string
+  error?: string
+}): Promise<NextResponse> {
+  let attempt
+  try {
+    attempt = await consumeCredentialGroupMcpOAuthAttempt(params.state)
+  } catch (error) {
+    if (error instanceof CredentialGroupOAuthStateVersionError) {
+      return htmlClose(error.message, false, 'invalid_state', undefined, params.state)
+    }
+    throw error
+  }
+  if (!attempt) {
+    return htmlClose(
+      'Invalid or expired authorization state.',
+      false,
+      'invalid_state',
+      undefined,
+      params.state
+    )
+  }
+  const failureRedirect = (oauth: CredentialGroupOAuthFailure) =>
+    attempt.completionId
+      ? createCredentialGroupCompletionRedirect(
+          oauth,
+          attempt.completionId,
+          attempt.returnTo === 'integrations' ? attempt.organizationId : undefined
+        )
+      : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth })
+  if (params.error) {
+    const errorCode = [
+      'invalid_request',
+      'unauthorized_client',
+      'access_denied',
+      'unsupported_response_type',
+      'invalid_scope',
+      'server_error',
+      'temporarily_unavailable',
+    ].includes(params.error)
+      ? params.error
+      : 'unknown'
+    logger.warn('Managed MCP authorization returned a provider error', {
+      phase: 'provider_authorization',
+      errorCode,
+    })
+    return failureRedirect(
+      errorCode === 'access_denied'
+        ? 'denied'
+        : errorCode === 'server_error' || errorCode === 'temporarily_unavailable'
+          ? 'provider_unavailable'
+          : 'failed'
+    )
+  }
+  if (!params.code) {
+    return failureRedirect('failed')
+  }
+  try {
+    const principal = await credentialGroupOAuthAttemptPrincipal(attempt)
+    const result = await completePublicCredentialGroupMcpOAuth.execute({
+      principal,
+      input: { attempt, code: params.code },
+      request: params.request,
+    })
+    if (attempt.completionId)
+      return createCredentialGroupCompletionRedirect(
+        undefined,
+        attempt.completionId,
+        attempt.returnTo === 'integrations' ? attempt.organizationId : undefined
+      )
+    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+      mcp: 'connected',
+      mcpServerId: result.mcpServerId,
+    })
+  } catch (error) {
+    logger.error('Managed MCP OAuth callback failed', error)
+    return failureRedirect('failed')
+  }
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const parsed = await parseRequest(mcpOauthCallbackContract, request, {})
   if (!parsed.success) {
     return htmlClose('Malformed authorization callback.', false, 'missing_params')
   }
   const { state, code, error: errorParam } = parsed.data.query
+
+  if (state && isCredentialGroupMcpOAuthState(state)) {
+    const limited = await enforcePublicCredentialGroupIpRateLimit(request, 'oauth-callback')
+    if (limited) return limited
+    return completeManagedMcpCallback({ request, state, code, error: errorParam })
+  }
 
   // Echo the flow's `state` on every result so the opener can correlate a broadcast back to
   // the exact flow it started — including failures (e.g. `invalid_state`) that never resolve
@@ -145,7 +247,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .where(and(eq(mcpServers.id, row.mcpServerId), isNull(mcpServers.deletedAt)))
         .limit(1)
     )
-    if (!server || !server.url) {
+    if (!server || !server.url || !server.workspaceId) {
       return respond('Server no longer exists.', false, 'server_gone', serverId)
     }
     if (server.workspaceId !== row.workspaceId) {
@@ -157,6 +259,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
     const serverUrl = server.url
+    const serverWorkspaceId = server.workspaceId
     try {
       assertSafeOauthServerUrl(serverUrl)
     } catch {
@@ -179,11 +282,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const provider = new SimMcpOauthProvider({ row, preregistered })
     let result: Awaited<ReturnType<typeof mcpAuthGuarded>>
     try {
-      result = await timedStep('mcpAuthGuarded', 120_000, () =>
-        mcpAuthGuarded(provider, {
-          serverUrl,
-          authorizationCode: code,
-        })
+      result = await withResourceOutboundScope({ workspaceId: serverWorkspaceId }, () =>
+        timedStep('mcpAuthGuarded', 120_000, () =>
+          mcpAuthGuarded(provider, { serverUrl, authorizationCode: code })
+        )
       )
     } catch (e) {
       logger.error('Token exchange failed during MCP OAuth callback', e)
@@ -208,7 +310,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       // forceRefresh: skip any stale cache from before re-auth.
       await timedStep('discoverServerTools', 60_000, () =>
-        mcpService.discoverServerTools(session.user.id, server.id, server.workspaceId, 'force')
+        withResourceOutboundScope({ workspaceId: serverWorkspaceId }, () =>
+          mcpService.discoverServerTools(session.user.id, server.id, serverWorkspaceId, 'force')
+        )
       )
     } catch (e) {
       logger.warn('Post-auth tools refresh failed', toError(e).message)

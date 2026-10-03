@@ -11,18 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[HubSpot](https://www.hubspot.com) is a comprehensive CRM platform that provides a full suite of marketing, sales, and customer service tools to help businesses grow. With powerful automation capabilities and an extensive API, HubSpot serves businesses of all sizes across industries.
-
-With the HubSpot integration in Sim, you can:
-
-- **Manage contacts**: List, get, create, update, and search contacts in your CRM
-- **Manage companies**: List, get, create, update, and search company records
-- **Track deals**: List deals in your sales pipeline
-- **Access users**: Retrieve user information from your HubSpot account
-
-In Sim, the HubSpot integration enables your agents to interact with your CRM data as part of automated workflows. Agents can qualify leads, enrich contact records, track deals, and synchronize data across your tech stack—enabling intelligent sales and marketing automation.
-
-New to the integration? Follow the [HubSpot setup guide](/integrations/hubspot-setup) to install it, connect your account, and configure your first workflow.
+[HubSpot](https://www.hubspot.com/) stores CRM contacts, companies, deals, tickets, and related records. Use this integration to read and update those records and trigger workflows from HubSpot events. Follow the [HubSpot setup guide](/integrations/hubspot-setup) to connect your account.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -2042,8 +2031,6 @@ Create a new list in HubSpot. Specify the object type and processing type (MANUA
 | `listId` | string | The created list ID |
 | `success` | boolean | Operation success status |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2088,4 +2075,38 @@ Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom o
 | `previousValue` | string | Previous value before the change \(property_changed events only\) |
 | `listId` | string | HubSpot list ID \(list_membership events only\) |
 | `timestamp` | string | ISO timestamp when Sim emitted the event |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a HubSpot account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/hubspot` |
+| Environment variables | `HUBSPOT_CLIENT_ID`, `HUBSPOT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `crm.objects.contacts.read` | Read HubSpot contacts |
+| `crm.objects.contacts.write` | Create, update, and delete HubSpot contacts |
+| `crm.objects.companies.read` | Read HubSpot companies |
+| `crm.objects.companies.write` | Create, update, and delete HubSpot companies |
+| `crm.objects.deals.read` | Read HubSpot deals |
+| `crm.objects.deals.write` | Create, update, and delete HubSpot deals |
+| `crm.objects.owners.read` | Read HubSpot object owners |
+| `crm.objects.users.read` | Read HubSpot users |
+| `crm.objects.marketing_events.read` | Read HubSpot marketing events |
+| `crm.objects.line_items.read` | Read HubSpot line items |
+| `crm.objects.line_items.write` | Create, update, and delete HubSpot line items |
+| `crm.objects.quotes.read` | Read HubSpot quotes |
+| `crm.objects.appointments.read` | Read HubSpot appointments |
+| `crm.objects.appointments.write` | Create and update HubSpot appointments |
+| `crm.objects.carts.read` | Read HubSpot shopping carts |
+| `sales-email-read` | Read the content of HubSpot email engagements |
+| `crm.lists.read` | Read HubSpot lists |
+| `crm.lists.write` | Create and update HubSpot lists |
+| `tickets` | Create, read, update, and delete HubSpot tickets |
+| `oauth` | Authenticate with HubSpot OAuth |
+
 

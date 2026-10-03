@@ -1,0 +1,82 @@
+import {
+  knowledgeMemberQueueMock,
+  knowledgeMemberQueueMockFns,
+} from '@sim/testing/mocks/knowledge-member-queue.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockExecuteMemberSync } = vi.hoisted(() => ({
+  mockExecuteMemberSync: vi.fn(),
+}))
+
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
+vi.mock('@/lib/knowledge/connectors/member-sync-engine', () => ({
+  executeMemberSync: mockExecuteMemberSync,
+}))
+
+import { AbortTaskRunError } from '@trigger.dev/sdk'
+import {
+  classifyMemberSyncResult,
+  executeMemberSyncJob,
+} from '@/background/knowledge-connector-member-sync'
+
+const mockAssertPayload = knowledgeMemberQueueMockFns.mockAssertMemberSyncPayload
+
+const RESULT = {
+  docsAdded: 0,
+  docsUpdated: 0,
+  docsDeleted: 0,
+  docsUnchanged: 0,
+  docsSkipped: 0,
+  docsFailed: 0,
+  processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+  membersClaimed: 2,
+  membersCompleted: 2,
+  membersIncomplete: 0,
+  membersFailed: 0,
+  membersRemaining: false,
+  docsListed: 4,
+  docsHydratedOnce: 4,
+  observationsAdded: 4,
+  observationsRemoved: 0,
+  docsTombstoned: 0,
+  docsResurrected: 0,
+  docsPurged: 0,
+  credentialsAudited: 2,
+}
+
+const PAYLOAD = {
+  connectorId: 'c-1',
+  requestId: 'r-1',
+  billingAttribution: { workspaceId: 'ws-1' },
+  dispatchToken: 't-1',
+}
+
+describe('knowledge connector member sync worker', () => {
+  beforeEach(() => {
+    mockAssertPayload.mockReturnValue(PAYLOAD)
+    mockExecuteMemberSync.mockResolvedValue(RESULT)
+  })
+
+  it('classifies outcomes from the run counters', () => {
+    expect(classifyMemberSyncResult(RESULT)).toBe('completed')
+    expect(classifyMemberSyncResult({ ...RESULT, membersIncomplete: 1 })).toBe('partial')
+    expect(classifyMemberSyncResult({ ...RESULT, membersRemaining: true })).toBe('partial')
+    expect(classifyMemberSyncResult({ ...RESULT, membersFailed: 1 })).toBe('partial')
+    expect(classifyMemberSyncResult({ ...RESULT, docsFailed: 1 })).toBe('partial')
+    expect(classifyMemberSyncResult({ ...RESULT, error: 'boom' })).toBe('failed')
+    expect(classifyMemberSyncResult({ ...RESULT, skipReason: 'sync_in_progress' })).toBe('skipped')
+  })
+
+  it('aborts rather than retries a failed run', async () => {
+    mockExecuteMemberSync.mockResolvedValue({ ...RESULT, error: 'source down' })
+    await expect(executeMemberSyncJob(PAYLOAD)).rejects.toBeInstanceOf(AbortTaskRunError)
+  })
+
+  it('reports a partial run without aborting, so members retry on their own ladder', async () => {
+    mockExecuteMemberSync.mockResolvedValue({ ...RESULT, membersFailed: 1 })
+    await expect(executeMemberSyncJob(PAYLOAD)).resolves.toMatchObject({
+      success: false,
+      outcome: 'partial',
+    })
+  })
+})

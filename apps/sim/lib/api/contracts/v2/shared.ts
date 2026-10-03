@@ -1,10 +1,7 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { LIST_SORT_ORDERS, type ListSortOrder } from '@/lib/api/list-query'
-import {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
-  FORBIDDEN_DETAIL_CODES,
-} from '@/lib/core/application/forbidden'
+import { FORBIDDEN_DETAIL_CODES } from '@/lib/core/application/forbidden'
 import {
   FolderPathError,
   MAX_FOLDER_PATH_BYTES,
@@ -102,7 +99,7 @@ import {
  *
  * ## Which lists are paged
  *
- * The authoritative split is pinned in `v2/__tests__/list-pagination.test.ts`,
+ * The authoritative split is pinned in `v2/list-pagination.test.ts`,
  * not restated here. A full-set list returns `nextCursor: null` on every
  * response — its OpenAPI description says so explicitly, so a caller never
  * writes a pagination loop that can only ever run once.
@@ -151,7 +148,7 @@ import {
  * is documented on `cursorScopeKey` in `lib/api/cursor-binding.ts`.
  *
  * The authoritative per-list binding is pinned in
- * `v2/__tests__/list-pagination.test.ts`, which fails when a list gains a param
+ * `v2/list-pagination.test.ts`, which fails when a list gains a param
  * that is neither bound nor explicitly exempted. The two lists whose token is
  * minted by a domain codec (`GET /audit-logs`, `GET /billing/logs`) get the same
  * binding by wrapping that token in a query-stamped envelope.
@@ -186,6 +183,21 @@ export const v2ResourceWebUrlSchema = z
   .url()
   .describe('Canonical absolute URL for opening this resource in the Sim web application.')
 
+export const v2ForbiddenDetailCodeSchema = z.enum(FORBIDDEN_DETAIL_CODES).meta({
+  id: 'V2ForbiddenDetailCode',
+  title: 'Forbidden detail code',
+  description: 'Stable cause code for an actionable `403` response.',
+})
+
+const v2ActionableForbiddenDetailsSchema = z
+  .object({ code: v2ForbiddenDetailCodeSchema })
+  .catchall(z.unknown().describe('Additional context for this refusal.'))
+  .meta({
+    id: 'V2ActionableForbiddenDetails',
+    title: 'Actionable forbidden details',
+    description: 'Machine-readable cause and optional context for an actionable `403` response.',
+  })
+
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
   error: z
@@ -193,15 +205,13 @@ export const v2ErrorResponseSchema = z.object({
       code: z.string().describe('Stable machine-readable error code.'),
       message: z.string().describe('Human-readable explanation of the error.'),
       details: z
-        .unknown()
+        .union([
+          v2ActionableForbiddenDetailsSchema,
+          z.unknown().describe('Other structured context defined by the specific error.'),
+        ])
         .optional()
         .describe(
-          [
-            'Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:',
-            ...FORBIDDEN_DETAIL_CODES.map(
-              (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
-            ),
-          ].join('\n')
+          'Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.'
         ),
     })
     .describe('Canonical error details.'),
@@ -476,8 +486,7 @@ export const v2SearchSchema = z
  * folder filter in the family. Mutations keep their 404 — creating into or
  * moving to a folder that does not exist has no empty-set reading.
  */
-export const V2_FOLDER_FILTER_MISS =
-  'A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.'
+export const V2_FOLDER_FILTER_MISS = 'Unknown folder paths contribute no matches.'
 
 export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS).describe('Sort direction.')
 
@@ -535,7 +544,8 @@ export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRoo
   maxLength: MAX_FOLDER_PATH_BYTES,
 })
 
-function normalizeFolderPathInput(path: string): string {
+/** Adds the leading slash a folder path may omit; validation stays with the canonical schemas. */
+export function normalizeFolderPathInput(path: string): string {
   return path.length === 0 || path.startsWith('/') ? path : `/${path}`
 }
 
@@ -612,8 +622,8 @@ export const v2RelocateFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the folder.'),
     path: v2NonRootFolderPathInputSchema.describe('Current folder path.'),
-    destinationPath: v2NonRootFolderPathInputSchema.describe(
-      'New full path for the folder and its descendants.'
+    destinationPath: v2FolderPathInputSchema.describe(
+      'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).'
     ),
   })
   .strict()

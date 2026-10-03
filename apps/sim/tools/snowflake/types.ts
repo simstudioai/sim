@@ -358,3 +358,180 @@ export const SNOWFLAKE_STATEMENT_OUTPUTS = {
     },
   },
 } satisfies Record<string, OutputProperty>
+
+/** A Cortex Analyst conversation message, in the shape the message endpoint accepts and returns. */
+export interface SnowflakeCortexAnalystMessage {
+  role: 'user' | 'analyst'
+  content: Array<Record<string, unknown>>
+}
+
+/** A Verified Query Repository entry Cortex Analyst used to generate its SQL. */
+export interface SnowflakeCortexAnalystVerifiedQuery {
+  name: string | null
+  question: string | null
+  sql: string | null
+  verifiedAt: number | null
+  verifiedBy: string | null
+}
+
+/** The semantic source Cortex Analyst chose from `semantic_models`. */
+export interface SnowflakeCortexAnalystModelSelection {
+  index: number | null
+  semanticView: string | null
+  semanticModelFile: string | null
+  inlineSemanticModel: string | null
+}
+
+export interface SnowflakeCortexAnalystAskParams extends SnowflakeResultParams {
+  question: string
+  semanticView?: string
+  semanticModelFile?: string
+  semanticModel?: string
+  semanticModels?: unknown
+  history?: unknown
+  executeSql?: boolean
+}
+
+export interface SnowflakeCortexAnalystAskOutput {
+  requestId: string | null
+  text: string | null
+  sql: string | null
+  verifiedQuery: SnowflakeCortexAnalystVerifiedQuery | null
+  suggestions: string[]
+  warnings: string[]
+  questionCategory: string | null
+  modelNames: string[]
+  semanticModelSelection: SnowflakeCortexAnalystModelSelection | null
+  cortexSearchRetrieval: unknown
+  conversation: SnowflakeCortexAnalystMessage[]
+  execution: SnowflakeStatementOutput | null
+}
+
+export interface SnowflakeCortexAnalystAskResponse extends ToolResponse {
+  output: SnowflakeCortexAnalystAskOutput
+}
+
+export interface SnowflakeCortexAnalystFeedbackParams extends SnowflakeBaseParams {
+  requestId: string
+  positive: boolean
+  feedbackMessage?: string
+}
+
+export interface SnowflakeCortexAnalystFeedbackResponse extends ToolResponse {
+  output: {
+    success: boolean
+  }
+}
+
+export const SNOWFLAKE_CORTEX_ANALYST_ASK_OUTPUTS = {
+  requestId: {
+    type: 'string',
+    description: 'Cortex Analyst request ID, used to send feedback on this answer',
+    nullable: true,
+  },
+  text: {
+    type: 'string',
+    description:
+      'How Cortex Analyst interpreted the question, or why it could not answer it (text content joined in order)',
+    nullable: true,
+  },
+  sql: {
+    type: 'string',
+    description: 'SQL Cortex Analyst generated, or null when the question was ambiguous',
+    nullable: true,
+  },
+  verifiedQuery: {
+    type: 'object',
+    description:
+      'Verified Query Repository entry used to generate the SQL, or null when none was used',
+    nullable: true,
+    properties: {
+      name: { type: 'string', description: 'Verified query name', nullable: true },
+      question: {
+        type: 'string',
+        description: 'Question the verified query answers',
+        nullable: true,
+      },
+      sql: { type: 'string', description: 'SQL of the verified query', nullable: true },
+      verifiedAt: {
+        type: 'number',
+        description: 'When the query was last verified (Unix epoch seconds, UTC)',
+        nullable: true,
+      },
+      verifiedBy: { type: 'string', description: 'Who verified the query', nullable: true },
+    },
+  },
+  suggestions: {
+    type: 'array',
+    description:
+      'Questions the semantic model can answer, returned instead of SQL when the question was ambiguous',
+    items: { type: 'string', description: 'Suggested question' },
+  },
+  warnings: {
+    type: 'array',
+    description: 'Warnings Cortex Analyst raised about the request',
+    items: { type: 'string', description: 'Warning message' },
+  },
+  questionCategory: {
+    type: 'string',
+    description: 'How Cortex Analyst categorized the question (for example CLEAR_SQL)',
+    nullable: true,
+  },
+  modelNames: {
+    type: 'array',
+    description: 'Models used to generate the response',
+    items: { type: 'string', description: 'Model name' },
+  },
+  semanticModelSelection: {
+    type: 'object',
+    description:
+      'Which semantic source Cortex Analyst chose when several were given, or null for a single source',
+    nullable: true,
+    properties: {
+      index: {
+        type: 'number',
+        description: 'Zero-based position of the chosen source in Semantic Sources',
+        nullable: true,
+      },
+      semanticView: { type: 'string', description: 'Chosen semantic view', nullable: true },
+      semanticModelFile: {
+        type: 'string',
+        description: 'Chosen staged semantic model file',
+        nullable: true,
+      },
+      inlineSemanticModel: {
+        type: 'string',
+        description: 'Chosen inline semantic model YAML',
+        nullable: true,
+      },
+    },
+  },
+  cortexSearchRetrieval: {
+    type: 'json',
+    description:
+      'Entities Cortex Analyst resolved with Cortex Search ([{service, query, response_body}]), passed through as returned',
+    nullable: true,
+  },
+  conversation: {
+    type: 'array',
+    description:
+      'Full conversation including this question and answer (analyst turns keep their text and SQL); pass it as History to ask a follow-up. Snowflake recommends starting a new conversation after many turns',
+    items: {
+      type: 'object',
+      properties: {
+        role: { type: 'string', description: 'user or analyst' },
+        content: {
+          type: 'array',
+          description: 'Message content blocks (text, sql, suggestions)',
+        },
+      },
+    },
+  },
+  execution: {
+    type: 'object',
+    description:
+      'Result of running the generated SQL when Run Generated SQL is on, otherwise null. A query still running after 45 seconds returns status RUNNING with a statementHandle; fetch its rows with Get Statement',
+    nullable: true,
+    properties: SNOWFLAKE_STATEMENT_OUTPUTS,
+  },
+} satisfies Record<string, OutputProperty>

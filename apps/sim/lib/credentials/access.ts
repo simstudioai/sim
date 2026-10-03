@@ -1,6 +1,11 @@
 import { db } from '@sim/db'
-import { account, credential, credentialMember, credentialTypeEnum } from '@sim/db/schema'
+import { account, credential, credentialMember, credentialTypeEnum, member } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import {
+  type ResourceScope,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   getUserEntityPermissions,
@@ -12,24 +17,35 @@ type ActiveCredentialMember = typeof credentialMember.$inferSelect
 type CredentialRecord = typeof credential.$inferSelect
 
 export type CredentialType = (typeof credentialTypeEnum.enumValues)[number]
-export type OrdinaryCredentialType = Exclude<CredentialType, 'managed_oauth'>
+export type ManagedCredentialType = Extract<CredentialType, 'managed_oauth' | 'managed_mcp'>
+
+export const MANAGED_CREDENTIAL_TYPES: readonly ManagedCredentialType[] = [
+  'managed_oauth',
+  'managed_mcp',
+]
+
+export function isManagedCredentialType(type: CredentialType): type is ManagedCredentialType {
+  return MANAGED_CREDENTIAL_TYPES.some((managed) => managed === type)
+}
+
+export type OrdinaryCredentialType = Exclude<CredentialType, ManagedCredentialType>
 
 /** Narrows credentials exposed through ordinary user-managed credential surfaces. */
 export function requireOrdinaryCredentialType(type: CredentialType): OrdinaryCredentialType {
-  if (type === 'managed_oauth') {
-    throw new Error('Managed OAuth credential reached an ordinary credential surface')
+  if (isManagedCredentialType(type)) {
+    throw new Error('Managed credential reached an ordinary credential surface')
   }
   return type
 }
 
 /**
- * Credential types shared at the workspace level — every type except a user's
- * personal env vars. Derived from the enum so a newly added credential type is
+ * Credential types shared at the workspace level — every type except personal
+ * credentials. Derived from the enum so a newly added credential type is
  * treated as shared by default, keeping visibility, role, and admin derivation
  * consistent instead of drifting against a hand-maintained inclusion list.
  */
 export const SHARED_CREDENTIAL_TYPES = credentialTypeEnum.enumValues.filter(
-  (type) => type !== 'env_personal'
+  (type) => type !== 'env_personal' && type !== 'personal_token'
 )
 
 /**
@@ -57,11 +73,15 @@ export type CredentialTokenIdentity =
  */
 export async function resolveCredentialTokenIdentity(
   credentialId: string,
-  workspaceId: string
+  owner: string | ResourceScope
 ): Promise<CredentialTokenIdentity | null> {
+  const scope: ResourceScope =
+    typeof owner === 'string' ? { kind: 'workspace', workspaceId: owner } : owner
   const [platformCredential] = await db
     .select({
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
+      createdBy: credential.createdBy,
       type: credential.type,
       accountId: credential.accountId,
     })
@@ -70,10 +90,28 @@ export async function resolveCredentialTokenIdentity(
     .limit(1)
 
   if (platformCredential) {
-    if (platformCredential.workspaceId !== workspaceId) return null
-    if (platformCredential.type === 'service_account') return { kind: 'service_account' }
+    if (!sameResourceScope(resourceScopeFromOwner(platformCredential), scope)) return null
+    if (platformCredential.type === 'service_account') {
+      if (scope.kind === 'organization') {
+        if (!platformCredential.createdBy) return null
+        const [membership] = await db
+          .select({ id: member.id })
+          .from(member)
+          .where(
+            and(
+              eq(member.organizationId, scope.organizationId),
+              eq(member.userId, platformCredential.createdBy)
+            )
+          )
+          .limit(1)
+        if (!membership) return null
+      }
+      return { kind: 'service_account' }
+    }
     if (platformCredential.type !== 'oauth' || !platformCredential.accountId) return null
   }
+
+  if (!platformCredential && scope.kind === 'organization') return null
 
   // Credentials predating the workspace-scoped `credential` table are raw account ids.
   const accountId = platformCredential?.accountId ?? credentialId
@@ -86,21 +124,37 @@ export async function resolveCredentialTokenIdentity(
 
   if (!accountRow) return null
 
-  const ownerPerm = await getUserEntityPermissions(accountRow.userId, 'workspace', workspaceId)
-  if (ownerPerm === null) return null
+  if (scope.kind === 'organization') {
+    if (platformCredential?.createdBy !== accountRow.userId) return null
+    const [membership] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(
+        and(eq(member.organizationId, scope.organizationId), eq(member.userId, accountRow.userId))
+      )
+      .limit(1)
+    if (!membership) return null
+  } else {
+    const ownerPerm = await getUserEntityPermissions(
+      accountRow.userId,
+      'workspace',
+      scope.workspaceId
+    )
+    if (ownerPerm === null) return null
+  }
 
   return { kind: 'oauth', userId: accountRow.userId }
 }
 
-/** Whether a credential is shared at the workspace level (i.e. not a personal env var). */
+/** Whether a credential is shared at the workspace level (excluding personal credentials). */
 export function isSharedCredentialType(type: CredentialType): boolean {
-  return type !== 'env_personal'
+  return type !== 'env_personal' && type !== 'personal_token'
 }
 
 /**
  * Whether a user is an admin of a credential: an explicit credential-member admin,
  * or — for shared credentials only — a workspace admin (workspace admins are
- * derived credential admins, but never for personal env vars).
+ * derived credential admins, but never for personal credentials).
  */
 export function deriveCredentialAdmin(params: {
   credentialType: CredentialType
@@ -141,7 +195,7 @@ export function canUseCredential(access: CredentialActorContext): boolean {
 export async function getCredentialActorContext(
   credentialId: string,
   userId: string,
-  options?: { workspaceAccess?: WorkspaceAccess }
+  options?: { workspaceAccess?: WorkspaceAccess; workspaceId?: string }
 ): Promise<CredentialActorContext> {
   const [credentialRow] = await db
     .select()
@@ -149,7 +203,12 @@ export async function getCredentialActorContext(
     .where(eq(credential.id, credentialId))
     .limit(1)
 
-  if (!credentialRow) {
+  const organizationToken =
+    credentialRow?.type === 'personal_token' &&
+    credentialRow.organizationId &&
+    !credentialRow.workspaceId
+  const workspaceId = organizationToken ? options?.workspaceId : credentialRow?.workspaceId
+  if (!credentialRow || !workspaceId) {
     return {
       credential: null,
       member: null,
@@ -160,10 +219,33 @@ export async function getCredentialActorContext(
   }
 
   const workspaceAccess = await resolveWorkspaceAccess(
-    credentialRow.workspaceId,
+    workspaceId,
     userId,
     options?.workspaceAccess
   )
+  if (credentialRow.type === 'personal_token') {
+    let hasAccess = workspaceAccess.hasAccess
+    if (organizationToken) {
+      const [membership] = await db
+        .select({ id: member.id })
+        .from(member)
+        .where(
+          and(eq(member.organizationId, credentialRow.organizationId!), eq(member.userId, userId))
+        )
+        .limit(1)
+      hasAccess =
+        hasAccess &&
+        Boolean(membership) &&
+        workspaceAccess.workspace?.organizationId === credentialRow.organizationId
+    }
+    return {
+      credential: credentialRow.createdBy === userId && hasAccess ? credentialRow : null,
+      member: null,
+      hasWorkspaceAccess: hasAccess,
+      canWriteWorkspace: hasAccess && workspaceAccess.canWrite,
+      isAdmin: credentialRow.createdBy === userId && hasAccess,
+    }
+  }
   const [memberRow] = await db
     .select()
     .from(credentialMember)

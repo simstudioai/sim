@@ -1,6 +1,9 @@
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
-import type { SelectorProtectedValues } from '@/lib/selectors/server/types'
+import type {
+  SelectorProtectedValues,
+  ServerSelectorExecutionResult,
+} from '@/lib/selectors/server/types'
 import type {
   SafeOptionMeta,
   SafeOptionMetaValue,
@@ -122,7 +125,7 @@ function sanitizeOption(
 }
 
 export function sanitizeSelectorResult(
-  result: SelectorExecutionResult,
+  result: ServerSelectorExecutionResult,
   protectedValues: SelectorProtectedValues,
   options?: SanitizeSelectorResultOptions
 ): SelectorExecutionResult {
@@ -143,5 +146,6 @@ export function sanitizeSelectorResult(
     kind: 'list',
     items: result.items.map((item) => sanitizeOption(item, protectedValues)),
     ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+    ...(result.diagnostics?.truncated ? { truncated: true } : {}),
   }
 }

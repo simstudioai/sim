@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   PrincipalSubjectUserRequiredError,
   parsePrincipal,
@@ -16,6 +13,29 @@ import {
 import { describe, expect, it } from 'vitest'
 
 describe('principal subject users', () => {
+  it('does not assign a human, billing owner, or workflow authority to a Slack installation', () => {
+    const principal = {
+      kind: 'slack_installation',
+      credentialId: 'credential',
+      credentialVersion: 'secret-version',
+      appId: 'app',
+      teamId: 'team',
+      eventId: 'event',
+      receivedAt: new Date(),
+    } as const
+    expect(resolvePrincipalSubject(principal)).toBeNull()
+    expect(resolvePrincipalAuditAttribution(principal)).toMatchObject({
+      actorId: null,
+      actorName: 'Slack Search',
+    })
+    expect(toPrincipalActor(principal)).not.toHaveProperty('credentialVersion')
+    expect(() =>
+      resolvePrincipalAttribution(principal, { workspaceBillingOwnerUserId: 'owner' })
+    ).toThrow(PrincipalSubjectUserRequiredError)
+    expect(() => parsePrincipal({ version: 1, principal })).toThrow(
+      'Unsupported serialized principal kind'
+    )
+  })
   it('resolves the human subject represented by user-backed principals', () => {
     expect(
       requirePrincipalSubjectUserId({
@@ -277,6 +297,21 @@ describe('principal persistence', () => {
     expect(parsePrincipal(serializePrincipal(principal))).toEqual(principal)
   })
 
+  it('round trips an authenticated chat email subject', () => {
+    const principal = {
+      kind: 'system' as const,
+      serviceId: 'chat' as const,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      subject: {
+        kind: 'authenticated_email' as const,
+        email: 'person@example.com',
+      },
+    }
+
+    expect(parsePrincipal(serializePrincipal(principal))).toEqual(principal)
+  })
+
   it('rejects incomplete or cross-provider webhook identity', () => {
     expect(() =>
       parsePrincipal({
@@ -309,10 +344,43 @@ describe('principal persistence', () => {
       })
     ).toThrow('subject provider must match')
   })
+
+  it('rejects subjects on the wrong system surface', () => {
+    expect(() =>
+      parsePrincipal({
+        version: 1,
+        principal: {
+          kind: 'system',
+          serviceId: 'chat',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          subject: {
+            kind: 'external_user',
+            provider: 'slack',
+            tenantId: 'T123',
+            subjectId: 'U123',
+          },
+        },
+      })
+    ).toThrow('Unsupported serialized principal subject kind external_user')
+
+    expect(() =>
+      parsePrincipal({
+        version: 1,
+        principal: {
+          kind: 'system',
+          serviceId: 'schedule',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          subject: { kind: 'authenticated_email', email: 'person@example.com' },
+        },
+      })
+    ).toThrow('cannot carry a subject')
+  })
 })
 
 describe('principal subjects', () => {
-  it('keeps Sim and external subjects distinct', () => {
+  it('keeps Sim, external, and authenticated-email subjects distinct', () => {
     expect(
       resolvePrincipalSubject({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
     ).toEqual({ kind: 'sim_user', userId: 'user-1' })
@@ -337,6 +405,15 @@ describe('principal subjects', () => {
       tenantId: 'T123',
       subjectId: 'U123',
     })
+    expect(
+      resolvePrincipalSubject({
+        kind: 'system',
+        serviceId: 'chat',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        subject: { kind: 'authenticated_email', email: 'person@example.com' },
+      })
+    ).toEqual({ kind: 'authenticated_email', email: 'person@example.com' })
     expect(
       resolvePrincipalSubject({
         kind: 'system',

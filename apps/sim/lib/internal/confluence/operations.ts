@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toArray, toRecord } from '@sim/utils/object'
 import type {
   ConfluenceBlogPostOperationBody,
   ConfluenceCreateCommentBody,
@@ -50,8 +51,7 @@ import {
 } from '@/lib/core/security/input-validation'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
-  asArray,
-  asObject,
+  type ConfluenceClient,
   createConfluenceClient,
   type JsonObject,
   nested,
@@ -108,7 +108,7 @@ function cappedLimit(value: string | number): string {
 }
 
 function mappedPage(value: unknown): JsonObject {
-  const page = asObject(value)
+  const page = toRecord(value)
   return {
     id: page.id,
     title: page.title,
@@ -120,6 +120,71 @@ function mappedPage(value: unknown): JsonObject {
     version: page.version ?? null,
     webUrl: nested(page, '_links', 'webui') ?? null,
   }
+}
+
+const NUMERIC_SPACE_ID_PATTERN = /^[1-9][0-9]{0,19}$/
+const SPACE_STATUSES = ['current', 'archived'] as const
+
+function normalizedConfluenceSpaceKey(value: string): string {
+  const spaceKey = value.trim()
+  if (!spaceKey || spaceKey.length > 255 || spaceKey.includes('\0')) {
+    throw new ConfluenceOperationError('Invalid Confluence space key', 400)
+  }
+  return spaceKey
+}
+
+async function findConfluenceSpaceByKey(
+  client: ConfluenceClient,
+  spaceKey: string,
+  signal?: AbortSignal
+): Promise<JsonObject | null> {
+  for (const status of SPACE_STATUSES) {
+    const query = new URLSearchParams({ keys: spaceKey, limit: '1', status })
+    const data = await client.json(client.apiV2(`/spaces?${query}`), {}, signal)
+    const match = toArray(data.results)
+      .map(toRecord)
+      .find((space) => space.key === spaceKey)
+    if (match) return match
+  }
+  return null
+}
+
+async function resolveConfluenceSpaceId(
+  client: ConfluenceClient,
+  value: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const spaceIdentifier = value.trim()
+  if (NUMERIC_SPACE_ID_PATTERN.test(spaceIdentifier)) return spaceIdentifier
+
+  const spaceKey = normalizedConfluenceSpaceKey(spaceIdentifier)
+  const space = await findConfluenceSpaceByKey(client, spaceKey, signal)
+  const resolvedId = space?.id
+  if (
+    (typeof resolvedId !== 'string' && typeof resolvedId !== 'number') ||
+    !NUMERIC_SPACE_ID_PATTERN.test(String(resolvedId))
+  ) {
+    throw new ConfluenceOperationError(`Confluence space key "${spaceKey}" was not found`, 404)
+  }
+  return String(resolvedId)
+}
+
+async function resolveConfluenceSpaceKey(
+  client: ConfluenceClient,
+  value: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const spaceIdentifier = normalizedConfluenceSpaceKey(value)
+  if (!NUMERIC_SPACE_ID_PATTERN.test(spaceIdentifier)) return spaceIdentifier
+
+  const space = await client.json(client.apiV2(`/spaces/${spaceIdentifier}`), {}, signal)
+  if (typeof space.key !== 'string' || !space.key) {
+    throw new ConfluenceOperationError(
+      `Confluence space ID "${spaceIdentifier}" did not return a space key`,
+      422
+    )
+  }
+  return space.key
 }
 
 export async function executeConfluenceRetrievePage(
@@ -208,17 +273,11 @@ export async function executeConfluenceCreatePage(
   input: ConfluenceCreatePageBody,
   context: ConfluenceOperationContext
 ) {
-  if (!/^\d+$/.test(String(input.spaceId))) {
-    throw new ConfluenceOperationError(
-      'Invalid Space ID. The Space ID must be a numeric value, not the space key from the URL. Use the "list" operation to get all spaces with their numeric IDs.',
-      400
-    )
-  }
-  assertId(input.spaceId, 'spaceId')
-  if (input.parentId) assertId(input.parentId, 'parentId')
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  if (input.parentId) assertId(input.parentId, 'parentId')
   const body: JsonObject = {
-    spaceId: input.spaceId,
+    spaceId,
     status: 'current',
     title: input.title,
     body: { representation: 'storage', value: input.content },
@@ -255,8 +314,8 @@ export async function executeConfluenceListAttachments(
     context.signal
   )
   return {
-    attachments: asArray(data.results).map((value) => {
-      const attachment = asObject(value)
+    attachments: toArray(data.results).map((value) => {
+      const attachment = toRecord(value)
       return {
         id: attachment.id,
         title: attachment.title,
@@ -355,7 +414,7 @@ export async function executeConfluenceUploadAttachment(
     signal,
     'Confluence attachment response'
   )
-  const attachment = asObject(asArray(data.results)[0] || data)
+  const attachment = toRecord(toArray(data.results)[0] || data)
   return {
     attachmentId: attachment.id,
     title: attachment.title,
@@ -377,7 +436,7 @@ export async function executeConfluenceAddLabel(
     jsonInit('POST', [{ prefix: input.prefix || 'global', name: input.labelName }]),
     context.signal
   )
-  const label = asObject(asArray(data.results)[0] || asArray(data)[0] || data)
+  const label = toRecord(toArray(data.results)[0] || toArray(data)[0] || data)
   return {
     id: label.id ?? '',
     name: label.name ?? input.labelName,
@@ -401,8 +460,8 @@ export async function executeConfluenceListLabels(
     context.signal
   )
   return {
-    labels: asArray(data.results).map((value) => {
-      const label = asObject(value)
+    labels: toArray(data.results).map((value) => {
+      const label = toRecord(value)
       return { id: label.id, name: label.name, prefix: label.prefix || 'global' }
     }),
     nextCursor: nextCursor(data),
@@ -458,8 +517,8 @@ export async function executeConfluenceListComments(
     context.signal
   )
   return {
-    comments: asArray(data.results).map((value) => {
-      const comment = asObject(value)
+    comments: toArray(data.results).map((value) => {
+      const comment = toRecord(value)
       return {
         id: comment.id,
         body: {
@@ -561,8 +620,8 @@ export async function executeConfluenceListPageProperties(
     context.signal
   )
   return {
-    properties: asArray(data.results).map((value) => {
-      const property = asObject(value)
+    properties: toArray(data.results).map((value) => {
+      const property = toRecord(value)
       return {
         id: property.id,
         key: property.key,
@@ -621,8 +680,8 @@ export async function executeConfluenceGetPageAncestors(
     context.signal
   )
   return {
-    ancestors: asArray(data.results).map((value) => {
-      const page = asObject(value)
+    ancestors: toArray(data.results).map((value) => {
+      const page = toRecord(value)
       return {
         id: page.id,
         title: page.title,
@@ -649,8 +708,8 @@ export async function executeConfluenceGetPageChildren(
     context.signal
   )
   return {
-    children: asArray(data.results).map((value) => {
-      const page = asObject(value)
+    children: toArray(data.results).map((value) => {
+      const page = toRecord(value)
       return {
         id: page.id,
         title: page.title,
@@ -680,8 +739,8 @@ export async function executeConfluenceGetPageDescendants(
     context.signal
   )
   return {
-    descendants: asArray(data.results).map((value) => {
-      const page = asObject(value)
+    descendants: toArray(data.results).map((value) => {
+      const page = toRecord(value)
       return {
         id: page.id,
         title: page.title,
@@ -770,8 +829,8 @@ export async function executeConfluencePageVersions(
     context.signal
   )
   return {
-    versions: asArray(data.results).map((value) => {
-      const version = asObject(value)
+    versions: toArray(data.results).map((value) => {
+      const version = toRecord(value)
       return {
         number: version.number,
         message: version.message ?? null,
@@ -799,7 +858,7 @@ export async function executeConfluenceGetPagesByLabel(
     context.signal
   )
   return {
-    pages: asArray(data.results).map(mappedPage),
+    pages: toArray(data.results).map(mappedPage),
     labelId: input.labelId,
     nextCursor: nextCursor(data),
   }
@@ -820,11 +879,11 @@ export async function executeConfluenceSearch(
   })
   const data = await client.json(client.rest(`/search?${query}`), {}, context.signal)
   return {
-    results: asArray(data.results).map((value) => {
-      const result = asObject(value)
-      const content = asObject(result.content)
-      const globalContainer = asObject(result.resultGlobalContainer)
-      const contentSpace = asObject(content.space)
+    results: toArray(data.results).map((value) => {
+      const result = toRecord(value)
+      const content = toRecord(result.content)
+      const globalContainer = toRecord(result.resultGlobalContainer)
+      const contentSpace = toRecord(content.space)
       const space = Object.keys(globalContainer).length ? globalContainer : contentSpace
       return {
         id: content.id || result.id,
@@ -853,16 +912,16 @@ export async function executeConfluenceSearchInSpace(
   input: ConfluenceSearchInSpaceBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceKey, 'spaceKey')
   const client = await createConfluenceClient(input, context.signal)
-  let cql = `space = "${escapeCql(input.spaceKey)}"`
+  const spaceKey = await resolveConfluenceSpaceKey(client, input.spaceKey, context.signal)
+  let cql = `space = "${escapeCql(spaceKey)}"`
   if (input.query) cql += ` AND text ~ "${escapeCql(input.query)}"`
   if (input.contentType) cql += ` AND type = "${escapeCql(input.contentType)}"`
   const query = new URLSearchParams({ cql, limit: cappedLimit(input.limit) })
   const data = await client.json(client.rest(`/search?${query}`), {}, context.signal)
-  const results = asArray(data.results).map((value) => {
-    const result = asObject(value)
-    const content = asObject(result.content)
+  const results = toArray(data.results).map((value) => {
+    const result = toRecord(value)
+    const content = toRecord(result.content)
     return {
       id: content.id ?? result.id,
       title: content.title ?? result.title,
@@ -873,27 +932,27 @@ export async function executeConfluenceSearchInSpace(
       lastModified: result.lastModified ?? null,
     }
   })
-  return { results, spaceKey: input.spaceKey, totalSize: data.totalSize ?? results.length }
+  return { results, spaceKey, totalSize: data.totalSize ?? results.length }
 }
 
 export async function executeConfluenceListBlogPostsInSpace(
   input: ConfluenceSpaceBlogPostsBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.status) query.set('status', input.status)
   if (input.bodyFormat) query.set('body-format', input.bodyFormat)
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(
-    client.apiV2(`/spaces/${input.spaceId}/blogposts?${query}`),
+    client.apiV2(`/spaces/${spaceId}/blogposts?${query}`),
     {},
     context.signal
   )
   return {
-    blogPosts: asArray(data.results).map((value) => {
-      const post = asObject(value)
+    blogPosts: toArray(data.results).map((value) => {
+      const post = toRecord(value)
       return {
         id: post.id,
         title: post.title,
@@ -914,20 +973,20 @@ export async function executeConfluenceListPagesInSpace(
   input: ConfluenceSpacePagesBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.status) query.set('status', input.status)
   if (input.bodyFormat) query.set('body-format', input.bodyFormat)
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(
-    client.apiV2(`/spaces/${input.spaceId}/pages?${query}`),
+    client.apiV2(`/spaces/${spaceId}/pages?${query}`),
     {},
     context.signal
   )
   return {
-    pages: asArray(data.results).map((value) => {
-      const page = asObject(value)
+    pages: toArray(data.results).map((value) => {
+      const page = toRecord(value)
       return { ...mappedPage(page), body: page.body ?? null }
     }),
     nextCursor: nextCursor(data),
@@ -938,21 +997,21 @@ export async function executeConfluenceListSpaceLabels(
   input: ConfluenceSpaceLabelsQuery,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(
-    client.apiV2(`/spaces/${input.spaceId}/labels?${query}`),
+    client.apiV2(`/spaces/${spaceId}/labels?${query}`),
     {},
     context.signal
   )
   return {
-    labels: asArray(data.results).map((value) => {
-      const label = asObject(value)
+    labels: toArray(data.results).map((value) => {
+      const label = toRecord(value)
       return { id: label.id, name: label.name, prefix: label.prefix || 'global' }
     }),
-    spaceId: input.spaceId,
+    spaceId,
     nextCursor: nextCursor(data),
   }
 }
@@ -961,19 +1020,19 @@ export async function executeConfluenceListSpacePermissions(
   input: ConfluenceSpacePermissionsBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   assertCursor(input.cursor)
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(
-    client.apiV2(`/spaces/${input.spaceId}/permissions?${query}`),
+    client.apiV2(`/spaces/${spaceId}/permissions?${query}`),
     {},
     context.signal
   )
   return {
-    permissions: asArray(data.results).map((value) => {
-      const permission = asObject(value)
+    permissions: toArray(data.results).map((value) => {
+      const permission = toRecord(value)
       return {
         id: permission.id,
         principalType: nested(permission, 'principal', 'type') ?? null,
@@ -984,7 +1043,7 @@ export async function executeConfluenceListSpacePermissions(
         unlicensedAccess: permission.unlicensedAccess ?? false,
       }
     }),
-    spaceId: input.spaceId,
+    spaceId,
     nextCursor: nextCursor(data),
   }
 }
@@ -1000,8 +1059,8 @@ export async function executeConfluenceListBlogPosts(
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(client.apiV2(`/blogposts?${query}`), {}, context.signal)
   return {
-    blogPosts: asArray(data.results).map((value) => {
-      const post = asObject(value)
+    blogPosts: toArray(data.results).map((value) => {
+      const post = toRecord(value)
       return {
         id: post.id,
         title: post.title,
@@ -1025,10 +1084,11 @@ export async function executeConfluenceCreateBlogPost(
     throw new ConfluenceOperationError('Invalid create blog post request', 400)
   }
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const data = await client.json(
     client.apiV2('/blogposts'),
     jsonInit('POST', {
-      spaceId: input.spaceId,
+      spaceId,
       status: input.status || 'current',
       title: input.title,
       body: { representation: 'storage', value: input.content },
@@ -1123,9 +1183,9 @@ export async function executeConfluenceGetSpace(
   input: ConfluenceGetSpaceQuery,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
-  return client.json(client.apiV2(`/spaces/${input.spaceId}`), {}, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  return client.json(client.apiV2(`/spaces/${spaceId}`), {}, context.signal)
 }
 
 export async function executeConfluenceCreateSpace(
@@ -1144,7 +1204,6 @@ export async function executeConfluenceUpdateSpace(
   input: ConfluenceUpdateSpaceBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   if (!input.name && input.description === undefined) {
     throw new ConfluenceOperationError(
       'At least one of name or description is required for update',
@@ -1152,7 +1211,8 @@ export async function executeConfluenceUpdateSpace(
     )
   }
   const client = await createConfluenceClient(input, context.signal)
-  const current = await client.json(client.apiV2(`/spaces/${input.spaceId}`), {}, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  const current = await client.json(client.apiV2(`/spaces/${spaceId}`), {}, context.signal)
   const body: JsonObject = { name: input.name || current.name }
   if (input.description !== undefined) {
     body.description = { plain: { value: input.description, representation: 'plain' } }
@@ -1168,9 +1228,9 @@ export async function executeConfluenceDeleteSpace(
   input: ConfluenceDeleteSpaceBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
-  const current = await client.json(client.apiV2(`/spaces/${input.spaceId}`), {}, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  const current = await client.json(client.apiV2(`/spaces/${spaceId}`), {}, context.signal)
   const response = await client.fetch(
     client.rest(`/space/${encodeURIComponent(String(current.key))}`),
     { method: 'DELETE' },
@@ -1185,12 +1245,12 @@ export async function executeConfluenceDeleteSpace(
       'Confluence delete space response',
       'DELETE'
     )
-    if (text) longTask = asObject(JSON.parse(text))
+    if (text) longTask = toRecord(JSON.parse(text))
   } catch {
     context.signal?.throwIfAborted()
   }
   return {
-    spaceId: input.spaceId,
+    spaceId,
     deleted: true,
     longTaskId: longTask.id,
     longTaskStatusLink: nested(longTask, 'links', 'status'),
@@ -1206,8 +1266,8 @@ export async function executeConfluenceListSpaces(
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(client.apiV2(`/spaces?${query}`), {}, context.signal)
   return {
-    spaces: asArray(data.results).map((value) => {
-      const space = asObject(value)
+    spaces: toArray(data.results).map((value) => {
+      const space = toRecord(value)
       return {
         id: space.id,
         name: space.name,
@@ -1228,16 +1288,16 @@ export async function executeConfluenceSpaceProperties(
   input: ConfluenceSpacePropertiesBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
-  const base = client.apiV2(`/spaces/${input.spaceId}/properties`)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  const base = client.apiV2(`/spaces/${spaceId}/properties`)
   if (input.action === 'delete') {
     if (!input.propertyId) {
       throw new ConfluenceOperationError('Property ID is required for delete action', 400)
     }
     assertId(input.propertyId, 'propertyId')
     await client.delete(`${base}/${encodeURIComponent(input.propertyId)}`, context.signal)
-    return { spaceId: input.spaceId, propertyId: input.propertyId, deleted: true }
+    return { spaceId, propertyId: input.propertyId, deleted: true }
   }
   if (input.action === 'create') {
     if (!input.key) {
@@ -1248,24 +1308,24 @@ export async function executeConfluenceSpaceProperties(
       jsonInit('POST', { key: input.key, value: input.value ?? {} }),
       context.signal
     )
-    return { propertyId: data.id, key: data.key, value: data.value ?? null, spaceId: input.spaceId }
+    return { propertyId: data.id, key: data.key, value: data.value ?? null, spaceId }
   }
   assertCursor(input.cursor)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(`${base}?${query}`, {}, context.signal)
   return {
-    properties: asArray(data.results).map((value) => {
-      const property = asObject(value)
+    properties: toArray(data.results).map((value) => {
+      const property = toRecord(value)
       return { id: property.id, key: property.key, value: property.value ?? null }
     }),
-    spaceId: input.spaceId,
+    spaceId,
     nextCursor: nextCursor(data),
   }
 }
 
 function mapTask(value: unknown): JsonObject {
-  const task = asObject(value)
+  const task = toRecord(value)
   return {
     id: task.id,
     localId: task.localId ?? null,
@@ -1329,7 +1389,7 @@ export async function executeConfluenceTasks(
     query.set('assigned-to', input.assignedTo)
   }
   const data = await client.json(client.apiV2(`/tasks?${query}`), {}, context.signal)
-  return { tasks: asArray(data.results).map(mapTask), nextCursor: nextCursor(data) }
+  return { tasks: toArray(data.results).map(mapTask), nextCursor: nextCursor(data) }
 }
 
 export async function executeConfluenceGetUser(

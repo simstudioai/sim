@@ -198,11 +198,11 @@ In the block config (`blocks/blocks/{service}.ts`), add `hideWhenHosted: true` t
 },
 ```
 
-The visibility is controlled by `isSubBlockHidden()` in `lib/workflows/subblocks/visibility.ts`, which checks both the `isHosted` feature flag (`hideWhenHosted`) and optional env var conditions (`hideWhenEnvSet`).
+The visibility is controlled by `isSubBlockHidden()` in `lib/workflows/subblocks/visibility.ts`, which checks both `getDeploymentShape().hosted` (`hideWhenHosted`) and optional env var conditions (`hideWhenEnvSet`).
 
 ### Excluding Specific Operations from Hosted Key Support
 
-When a block has multiple operations but some operations should **not** use a hosted key (e.g., the underlying API is deprecated, unsupported, or too expensive), use the **duplicate apiKey subblock** pattern. This is the same pattern Exa uses for its `research` operation:
+When a block has multiple operations but some operations should **not** use a hosted key (e.g., the underlying API is deprecated, unsupported, or too expensive), use the **duplicate apiKey subblock** pattern:
 
 1. **Remove the `hosting` config** from the tool definition for that operation — it must not have a `hosting` object at all.
 2. **Duplicate the `apiKey` subblock** in the block config with opposing conditions:
@@ -235,9 +235,7 @@ Both subblocks share the same `id: 'apiKey'`, so the same value flows to the too
 
 To exclude multiple operations, use an array: `{ field: 'operation', value: ['op_a', 'op_b'] }`.
 
-**Reference implementations:**
-- **Exa** (`blocks/blocks/exa.ts`): `exa_research` operation excluded from hosting — duplicate `apiKey` pair around lines ~348-365
-- **Google Maps** (`blocks/blocks/google_maps.ts`): `speed_limits` operation excluded from hosting (deprecated Roads API)
+**Reference implementation:** `blocks/blocks/google_maps.ts` — `speed_limits` (deprecated Roads API) is excluded from hosting with the duplicate `apiKey` pair.
 
 ## Step 5: Add to the BYOK Settings UI
 
@@ -252,6 +250,9 @@ Add an entry to the `PROVIDERS` array in the BYOK settings component so users ca
   placeholder: 'Enter your API key',
 },
 ```
+
+Then add the id to exactly one section's `ids` in `PROVIDER_SECTIONS` (same file), and run
+`bun run check:byok-providers`.
 
 ## Step 6: Summarize Pricing and Throttling Comparison
 
@@ -298,5 +299,6 @@ This summary helps reviewers verify that the pricing and rate limiting are well-
 - [ ] Cost data captured in `transformResponse` or `postProcess` if API provides it
 - [ ] `hideWhenHosted: true` added to the API key subblock in the block config
 - [ ] Provider entry added to the BYOK settings UI with icon and description
+- [ ] Provider id listed in exactly one `PROVIDER_SECTIONS` section's `ids`; `bun run check:byok-providers` passes
 - [ ] Env vars documented: `{PREFIX}_COUNT` and `{PREFIX}_1..N`
 - [ ] Pricing and throttling summary provided to reviewer

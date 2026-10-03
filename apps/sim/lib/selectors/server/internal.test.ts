@@ -1,13 +1,20 @@
-/**
- * @vitest-environment node
- */
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockListWorkflows = vi.hoisted(() => vi.fn())
+const mockFetchOpenRouterEmbeddingModelCatalog = vi.hoisted(() => vi.fn())
+const mockGetWorkspaceOrganizationAccounts = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/credential-groups/application/workspace-organization-accounts', () => ({
+  getWorkspaceOrganizationAccounts: { execute: mockGetWorkspaceOrganizationAccounts },
+}))
 
 vi.mock('@/lib/workflows/application/list-workflows', () => ({
   listWorkflows: { execute: mockListWorkflows },
+}))
+
+vi.mock('@/lib/embeddings/openrouter-model-catalog.server', () => ({
+  fetchOpenRouterEmbeddingModelCatalog: mockFetchOpenRouterEmbeddingModelCatalog,
 }))
 
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
@@ -29,9 +36,40 @@ function workflowArgs(): ExecuteServerSelectorArgs {
   }
 }
 
+describe.each([
+  {
+    key: 'workspace.credentialGroupProviders',
+    field: 'providers',
+    option: { id: 'google-email', label: 'Gmail' },
+  },
+  {
+    key: 'workspace.organizationMcpProviders',
+    field: 'mcpProviders',
+    option: { id: 'fireflies', label: 'Fireflies' },
+  },
+] as const)('$key selector', ({ key, field, option }) => {
+  it('uses the authorized organization provider projection', async () => {
+    mockGetWorkspaceOrganizationAccounts.mockResolvedValue({ allowed: true, [field]: [option] })
+    const args: ExecuteServerSelectorArgs = { ...workflowArgs(), selectorKey: key }
+    await expect(internalSelectorAttachments[key].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [option],
+    })
+    expect(mockGetWorkspaceOrganizationAccounts).toHaveBeenCalledWith({
+      principal: args.principal,
+      input: { workspaceId: 'workspace-1' },
+    })
+  })
+  it('refuses providers when workspace access is not granted', async () => {
+    mockGetWorkspaceOrganizationAccounts.mockResolvedValue({ allowed: false, [field]: [option] })
+    await expect(
+      internalSelectorAttachments[key].execute({ ...workflowArgs(), selectorKey: key })
+    ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
+  })
+})
+
 describe('workspace.secretNames selector', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvironmentUtilsMock()
   })
 
@@ -70,10 +108,6 @@ describe('workspace.secretNames selector', () => {
 })
 
 describe('sim.workflows selector', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('continues beyond the former 5,000-workflow limit', async () => {
     for (let page = 0; page < 20; page += 1) {
       mockListWorkflows.mockResolvedValueOnce({

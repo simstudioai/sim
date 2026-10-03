@@ -1,9 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import {
-  prepareCopyableMarkdown,
-  toCopyableMarkdown,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
+import { toCopyableMarkdown } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { parseChipLinks } from '@/app/workspace/[workspaceId]/home/components/user-input/components/chip-clipboard-codec'
 
 const WORKSPACE_FILES: WorkspaceFileRecord[] = [
@@ -22,24 +19,6 @@ const WORKSPACE_FILES: WorkspaceFileRecord[] = [
 ]
 
 describe('toCopyableMarkdown', () => {
-  it('preserves message Markdown, including fenced code and its language', () => {
-    const message = [
-      '# Elevator diagnosis',
-      '',
-      'The bug is in `dispatch_legacy.py`:',
-      '',
-      '```python',
-      'def next_stop(requests, current):',
-      '    ranked = sorted(requests)',
-      '    return ranked[1:]',
-      '```',
-      '',
-      '**Result:** the closest request *was not* always selected.',
-    ].join('\n')
-
-    expect(toCopyableMarkdown(message)).toBe(message)
-  })
-
   it('removes internal structured tags without flattening surrounding Markdown', () => {
     const message = [
       'Before **formatted text**.',
@@ -50,19 +29,6 @@ describe('toCopyableMarkdown', () => {
     expect(toCopyableMarkdown(message)).toBe(
       ['Before **formatted text**.', '', 'After [a link](https://example.com).'].join('\n')
     )
-  })
-
-  it('preserves tag-shaped text that the chat renders literally', () => {
-    const message = [
-      'Document `<credential>example</credential>`.',
-      '',
-      '```html',
-      '<file>example</file>',
-      '<question>example</question>',
-      '```',
-    ].join('\n')
-
-    expect(toCopyableMarkdown(message)).toBe(message)
   })
 
   it('copies workspace resources as portable Markdown links with real ids', () => {
@@ -100,29 +66,17 @@ describe('toCopyableMarkdown', () => {
     ])
   })
 
-  it('uses resolved file metadata for a resource without a title', () => {
-    const message =
-      'Read <workspace_resource>{"type":"file","path":"files/The%20Bell%20at%20Low%20Tide.md"}</workspace_resource>.'
+  it('keeps an organization resource owner so the pasted chip still resolves', () => {
+    const message = `See <workspace_resource>${JSON.stringify({
+      workspaceId: 'sales',
+      type: 'table',
+      id: 'table-1',
+      title: 'Accounts',
+    })}</workspace_resource>.`
 
-    expect(toCopyableMarkdown(message, WORKSPACE_FILES)).toBe(
-      'Read [The Bell at Low Tide.md](sim:file/file_bell).'
-    )
-  })
+    const [link] = parseChipLinks(toCopyableMarkdown(message))
 
-  it('refreshes missing file metadata before producing copyable Markdown', async () => {
-    const message =
-      'Read <workspace_resource>{"type":"file","path":"files/The%20Bell%20at%20Low%20Tide.md","title":"The Bell at Low Tide.md"}</workspace_resource>.'
-    const refreshWorkspaceFiles = vi.fn().mockResolvedValue(WORKSPACE_FILES)
-
-    const content = prepareCopyableMarkdown(message, [], refreshWorkspaceFiles)
-    expect(content).not.toBeTypeOf('string')
-    if (typeof content === 'string') throw new Error('Expected deferred clipboard content')
-    expect(content.fallback).toBe('Read The Bell at Low Tide.md.')
-    expect(parseChipLinks(content.fallback)).toEqual([])
-    await expect(content.prepare()).resolves.toBe(
-      'Read [The Bell at Low Tide.md](sim:file/file_bell).'
-    )
-    expect(refreshWorkspaceFiles).toHaveBeenCalledOnce()
+    expect(link).toMatchObject({ kind: 'table', id: 'table-1', workspaceId: 'sales' })
   })
 
   it('copies unresolved file references as plain text', () => {
@@ -133,30 +87,5 @@ describe('toCopyableMarkdown', () => {
 
     expect(markdown).toBe('Read Q1 plan).md.')
     expect(parseChipLinks(markdown)).toEqual([])
-  })
-
-  it('keeps the plain-text fallback when refreshing file metadata fails', async () => {
-    const message =
-      'Read <workspace_resource>{"type":"file","path":"files/notes.md","title":"notes.md"}</workspace_resource>.'
-    const refreshWorkspaceFiles = vi.fn().mockRejectedValue(new Error('Refresh failed'))
-
-    const content = prepareCopyableMarkdown(message, [], refreshWorkspaceFiles)
-
-    expect(content).not.toBeTypeOf('string')
-    if (typeof content === 'string') throw new Error('Expected deferred clipboard content')
-    expect(content.fallback).toBe('Read notes.md.')
-    await expect(content.prepare()).resolves.toBe('Read notes.md.')
-    expect(refreshWorkspaceFiles).toHaveBeenCalledOnce()
-  })
-
-  it('does not refresh metadata when all workspace resources already resolve', () => {
-    const message =
-      'Read <workspace_resource>{"type":"file","path":"files/The%20Bell%20at%20Low%20Tide.md","title":"The Bell at Low Tide.md"}</workspace_resource>.'
-    const refreshWorkspaceFiles = vi.fn()
-
-    expect(prepareCopyableMarkdown(message, WORKSPACE_FILES, refreshWorkspaceFiles)).toBe(
-      'Read [The Bell at Low Tide.md](sim:file/file_bell).'
-    )
-    expect(refreshWorkspaceFiles).not.toHaveBeenCalled()
   })
 })
