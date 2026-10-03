@@ -137,7 +137,7 @@ describe('copilot tool executor fallback', () => {
     ).toEqual({ success: true })
     expect(executeAppTool).toHaveBeenCalledWith(
       'gmail_send',
-      expect.objectContaining({ credential: 'own' }),
+      expect.objectContaining({ credentialId: 'own' }),
       expect.any(Object)
     )
   })
