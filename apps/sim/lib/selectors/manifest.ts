@@ -185,6 +185,19 @@ export const selectorManifest = {
     search: true,
     detail: true,
   }),
+  'eloqua.campaigns': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'eloqua.contactLists': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'eloqua.emails': providerSelector([], { listMode: 'paginated', search: true, detail: true }),
+  'eloqua.forms': providerSelector([], { listMode: 'paginated', search: true, detail: true }),
+  'eloqua.segments': providerSelector([], { listMode: 'paginated', search: true, detail: true }),
   'google.tasks.lists': providerSelector(['impersonateUserEmail'], {
     listMode: 'paginated',
     detail: true,

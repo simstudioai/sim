@@ -234,6 +234,7 @@ export const v2ListCredentialProvidersContract = defineRouteContract({
 
 export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'github-repositories',
+  'eloqua',
   'google-email',
   'google-drive',
   'google-docs',

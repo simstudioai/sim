@@ -1,0 +1,32 @@
+---
+title: Oracle Eloqua
+description: Manage Eloqua contacts, accounts, marketing assets, and Bulk API syncs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="eloqua"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect Oracle Eloqua to list and manage contacts and accounts, inspect campaigns and marketing assets, activate campaigns, and run explicit Bulk API import and export lifecycles. Results are returned one bounded page at a time. Contact and account updates use Eloqua full-representation PUT semantics, so retrieve and preserve fields before updating. Bulk jobs remain explicit: create a definition, upload import data when applicable, start a sync, inspect its status, and retrieve results, logs, or rejects.
+
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects an Oracle Eloqua account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/eloqua` |
+| Environment variables | `ELOQUA_CLIENT_ID`, `ELOQUA_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `full` | Access Oracle Eloqua data and marketing assets |
+
+

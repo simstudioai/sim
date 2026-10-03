@@ -1109,6 +1109,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     HUBSPOT_CLIENT_ID: { input: 'text' },
     HUBSPOT_CLIENT_SECRET: { input: 'secret' },
   },
+  eloqua: {
+    ELOQUA_CLIENT_ID: { input: 'text' },
+    ELOQUA_CLIENT_SECRET: { input: 'secret' },
+  },
   'zoom-mcp': {
     ZOOM_MCP_CLIENT_ID: { input: 'text' },
     ZOOM_MCP_CLIENT_SECRET: { input: 'secret' },

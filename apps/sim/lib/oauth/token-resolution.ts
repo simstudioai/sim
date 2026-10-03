@@ -20,6 +20,7 @@ import {
   resolveOAuthAccountId,
   resolveServiceAccountToken,
 } from '@/lib/oauth/credential-service'
+import { extractEloquaInstanceUrl } from '@/lib/oauth/eloqua'
 import {
   extractMicrosoftDataverseEnvironmentUrl,
   MICROSOFT_DATAVERSE_PROVIDER_ID,
@@ -147,7 +148,9 @@ function buildOAuthTokenPayload(
     ? extractSalesforceInstanceUrl(credential.scope ?? undefined)
     : credential.providerId === MICROSOFT_DATAVERSE_PROVIDER_ID
       ? extractMicrosoftDataverseEnvironmentUrl(credential.scope)
-      : undefined
+      : credential.providerId === 'eloqua'
+        ? extractEloquaInstanceUrl(credential.scope)
+        : undefined
 
   let apiDomain: string | undefined
   if (credential.providerId === 'zoho-desk' && credential.scope) {
