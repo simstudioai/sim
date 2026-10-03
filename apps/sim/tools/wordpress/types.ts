@@ -14,9 +14,9 @@ interface WordPressBaseParams {
 
 export const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
 
-export type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
+type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
 
-export type CommentStatus = 'approved' | 'hold' | 'spam' | 'trash'
+type CommentStatus = 'approved' | 'hold' | 'spam' | 'trash'
 
 export interface WordPressCreatePostParams extends WordPressBaseParams {
   title: string

@@ -185,7 +185,7 @@ export interface GoogleDriveRevision {
 }
 
 /** A threaded reply attached to a comment. */
-export interface GoogleDriveCommentReply {
+interface GoogleDriveCommentReply {
   id?: string
   kind?: string
   createdTime?: string

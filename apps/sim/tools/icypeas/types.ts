@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base params shared by every Icypeas operation. */
-export interface IcypeasBaseParams {
+interface IcypeasBaseParams {
   apiKey: string
 }
 

@@ -2,7 +2,7 @@ import type { ToolResponse } from '@/tools/types'
 
 export type RailwayTokenType = 'account' | 'workspace' | 'project' | 'oauth'
 
-export interface RailwayAuthParams {
+interface RailwayAuthParams {
   apiKey: string
   tokenType?: RailwayTokenType
 }

@@ -218,7 +218,7 @@ export interface SportmonksUsage {
 }
 
 /** A single type entry as returned by the "Type by Entity" endpoint. */
-export interface SportmonksTypeEntityEntry {
+interface SportmonksTypeEntityEntry {
   id: number
   name: string
   code?: string | null
@@ -228,7 +228,7 @@ export interface SportmonksTypeEntityEntry {
 }
 
 /** The per-entity grouping returned by the "Type by Entity" endpoint. */
-export interface SportmonksTypeEntityGroup {
+interface SportmonksTypeEntityGroup {
   updated_at: string
   types: SportmonksTypeEntityEntry[]
 }

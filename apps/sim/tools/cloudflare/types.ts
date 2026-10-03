@@ -9,7 +9,7 @@ interface CloudflareBaseParams {
  * endpoints populate `page`/`per_page`/`total_count`; the Rulesets engine and
  * R2 use cursors instead, so every field is optional.
  */
-export interface CloudflareResultInfo {
+interface CloudflareResultInfo {
   page?: number
   per_page?: number
   count?: number
@@ -35,7 +35,7 @@ export interface CloudflareEnvelope<TResult = unknown> {
 }
 
 /** Raw rule payload inside a ruleset, as returned by the Rulesets API. */
-export interface CloudflareRawRule {
+interface CloudflareRawRule {
   id?: string
   version?: string
   action?: string
@@ -251,7 +251,7 @@ export interface CloudflareRawDnsRecord {
 }
 
 /** Raw hostname-validation record shared by certificate pack validation fields. */
-export interface CloudflareRawValidationRecord {
+interface CloudflareRawValidationRecord {
   cname?: string
   cname_target?: string
   emails?: string[]
@@ -263,7 +263,7 @@ export interface CloudflareRawValidationRecord {
 }
 
 /** Raw certificate inside a certificate pack. */
-export interface CloudflareRawCertificate {
+interface CloudflareRawCertificate {
   id?: string
   hosts?: string[]
   issuer?: string
@@ -296,7 +296,7 @@ export interface CloudflareRawCertificatePack {
 }
 
 /** Raw DNS analytics aggregate block (`totals`, `min`, and `max` share this shape). */
-export interface CloudflareRawDnsAnalyticsAggregate {
+interface CloudflareRawDnsAnalyticsAggregate {
   queryCount?: number
   uncachedCount?: number
   staleCount?: number

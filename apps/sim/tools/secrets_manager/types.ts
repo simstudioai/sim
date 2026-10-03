@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface SecretsManagerConnectionConfig {
+interface SecretsManagerConnectionConfig {
   region: string
   accessKeyId: string
   secretAccessKey: string
@@ -47,7 +47,7 @@ export interface SecretsManagerGetSecretResponse extends ToolResponse {
   error?: string
 }
 
-export interface SecretsManagerRotationRules {
+interface SecretsManagerRotationRules {
   automaticallyAfterDays: number | null
   duration: string | null
   scheduleExpression: string | null
@@ -110,7 +110,7 @@ export interface SecretsManagerDescribeSecretParams extends SecretsManagerConnec
   secretId: string
 }
 
-export interface SecretsManagerReplicationStatus {
+interface SecretsManagerReplicationStatus {
   region: string
   kmsKeyId: string | null
   status: string | null

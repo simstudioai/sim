@@ -52,15 +52,6 @@ export interface GmailLabelParams extends BaseGmailParams {
   labelIds: string
 }
 
-// Union type for all Gmail tool parameters
-export type GmailToolParams =
-  | GmailSendParams
-  | GmailReadParams
-  | GmailSearchParams
-  | GmailMoveParams
-  | GmailMarkReadParams
-  | GmailLabelParams
-
 // Response metadata
 interface BaseGmailMetadata {
   id?: string

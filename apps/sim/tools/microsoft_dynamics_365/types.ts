@@ -210,13 +210,3 @@ export interface DataverseCloseCaseResponse extends ToolResponse {
     success: boolean
   }
 }
-
-export type DataverseResponse =
-  | DataverseListRecordsResponse
-  | DataverseGetRecordResponse
-  | DataverseCreateRecordResponse
-  | DataverseUpdateRecordResponse
-  | DataverseSearchResponse
-  | DataverseQualifyLeadResponse
-  | DataverseCloseOpportunityResponse
-  | DataverseCloseCaseResponse

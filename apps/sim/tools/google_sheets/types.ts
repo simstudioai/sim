@@ -73,7 +73,7 @@ export interface GoogleSheetsToolParams {
 
 // V2 Types - with explicit sheetName parameter
 
-export interface GoogleSheetsFilterInfo {
+interface GoogleSheetsFilterInfo {
   /** Whether row filtering was actually applied to the data rows. */
   applied: boolean
   /** The column header the filter targeted. */

@@ -36,14 +36,6 @@ export interface GoogleMeetListParticipantsParams extends BaseGoogleMeetParams {
   pageToken?: string
 }
 
-export type GoogleMeetToolParams =
-  | GoogleMeetCreateSpaceParams
-  | GoogleMeetGetSpaceParams
-  | GoogleMeetEndConferenceParams
-  | GoogleMeetListConferenceRecordsParams
-  | GoogleMeetGetConferenceRecordParams
-  | GoogleMeetListParticipantsParams
-
 export interface GoogleMeetApiSpaceResponse {
   name: string
   meetingUri: string

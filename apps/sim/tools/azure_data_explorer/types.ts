@@ -8,7 +8,7 @@ export interface AzureDataExplorerBaseParams {
   resource?: string
 }
 
-export interface AzureDataExplorerColumn {
+interface AzureDataExplorerColumn {
   name: string
   type: string | null
   dataType: string | null

@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Common params shared by all Enrow tool operations. */
-export interface EnrowBaseParams {
+interface EnrowBaseParams {
   apiKey: string
 }
 

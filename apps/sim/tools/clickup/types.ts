@@ -149,7 +149,7 @@ export interface ClickUpChecklist {
   items: ClickUpChecklistItem[]
 }
 
-export interface ClickUpTimeEntryLocation {
+interface ClickUpTimeEntryLocation {
   listId: string | null
   folderId: string | null
   spaceId: string | null
