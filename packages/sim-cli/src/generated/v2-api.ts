@@ -1687,6 +1687,7 @@ export type CreateCredentialConnectionBody =
       displayName: string
       providerId:
         | 'github-repositories'
+        | 'eloqua'
         | 'google-email'
         | 'google-drive'
         | 'google-docs'
