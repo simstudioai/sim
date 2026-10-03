@@ -15,6 +15,38 @@ export const GoogleAdsBlock: BlockConfig = {
   bgColor: '#FFFFFF',
   icon: GoogleAdsIcon,
   authMode: AuthMode.OAuth,
+  canvasPresentation: {
+    defaultTitle: 'Google Ads',
+    sentences: {
+      byOperation: {
+        list_customers: ['List all accessible ad accounts'],
+        list_campaigns: [
+          { text: 'List campaigns in account', field: 'customerId', core: true },
+          { text: ', with status', field: 'status' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        campaign_performance: [
+          { text: 'Report campaign performance in account', field: 'customerId', core: true },
+          { text: ', for campaign', field: 'campaignId' },
+          { text: ', over', field: 'dateRange' },
+        ],
+        list_ad_groups: [
+          { text: 'List ad groups in account', field: 'customerId', core: true },
+          { text: ', for campaign', field: 'campaignId' },
+          { text: ', with status', field: 'status' },
+        ],
+        ad_performance: [
+          { text: 'Report ad performance in account', field: 'customerId', core: true },
+          { text: ', for ad group', field: 'adGroupId' },
+          { text: ', over', field: 'dateRange' },
+        ],
+        search: [
+          { text: 'Run GAQL query', field: 'query', core: true },
+          { text: 'against account', field: 'customerId' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

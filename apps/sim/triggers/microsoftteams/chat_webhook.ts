@@ -49,6 +49,8 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
     {
       id: 'triggerChatId',
       title: 'Chat ID',
+      /* "Runs on … in a chat ID" reads as form scaffolding; the card wants the thing. */
+      canvasNoun: 'a chat',
       type: 'short-input',
       placeholder: 'Enter chat ID',
       description: 'The ID of the Teams chat to monitor',

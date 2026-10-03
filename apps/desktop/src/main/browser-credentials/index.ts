@@ -30,6 +30,7 @@ export function credentialVault(): CredentialVault {
 
 /** Creates the coordinator once the browser session can report its active tab. */
 export function initFillCoordinator(deps: Omit<FillCoordinatorDeps, 'vault'>): FillCoordinator {
+  coordinatorInstance?.dispose()
   coordinatorInstance = new FillCoordinator({ ...deps, vault: credentialVault() })
   return coordinatorInstance
 }
@@ -89,6 +90,7 @@ export async function forgetAllCredentials(): Promise<BrowserCredentialMetadata[
 export async function revealCredential(id: string): Promise<string | null> {
   const authorized = await authorizeForSecret({
     credentialId: id,
+    operation: 'reveal',
     reason: 'show a saved password',
     action: 'Show password',
   })
@@ -106,6 +108,7 @@ export async function revealCredential(id: string): Promise<string | null> {
 export async function copyCredential(id: string): Promise<boolean> {
   const authorized = await authorizeForSecret({
     credentialId: id,
+    operation: 'copy',
     reason: 'copy a saved password',
     action: 'Copy password',
   })

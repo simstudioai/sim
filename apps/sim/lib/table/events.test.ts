@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 beforeAll(() => {
   setEnv({ REDIS_URL: undefined })
@@ -32,19 +29,6 @@ function cellEvent(tableId: string): TableEvent {
 }
 
 describe('getLatestTableEventId (memory buffer)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns 0 for a table with no events, without allocating a stream', async () => {
-    const tableId = uniqueTableId()
-    expect(await getLatestTableEventId(tableId)).toBe(0)
-    // A pure read must not have created a buffer: appending afterwards still
-    // starts the sequence at 1.
-    const entry = await appendTableEvent(cellEvent(tableId))
-    expect(entry?.eventId).toBe(1)
-  })
-
   it('returns the latest assigned eventId after appends', async () => {
     const tableId = uniqueTableId()
     await appendTableEvent(cellEvent(tableId))

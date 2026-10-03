@@ -5,6 +5,5 @@ export {
   getResourceConfig,
   invalidateResourceQueries,
   RESOURCE_REGISTRY,
-  RESOURCE_TYPES,
 } from './resource-registry'
 export { ResourceTabs } from './resource-tabs'

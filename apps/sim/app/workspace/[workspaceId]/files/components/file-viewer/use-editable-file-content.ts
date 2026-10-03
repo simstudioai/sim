@@ -1,20 +1,23 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { saveBlob } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { GENERATED_DOCUMENT_SOURCE_TYPES } from '@/lib/uploads/utils/file-utils'
 import {
+  INITIAL_TEXT_EDITOR_CONTENT_STATE,
+  type SyncTextEditorContentStateOptions,
+  textEditorContentReducer,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor-state'
+import {
+  useReloadWorkspaceFileContent,
   useUpdateWorkspaceFileContent,
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { type SaveStatus, useAutosave } from '@/hooks/use-autosave'
 import { useSmoothText } from '@/hooks/use-smooth-text'
-import {
-  INITIAL_TEXT_EDITOR_CONTENT_STATE,
-  type SyncTextEditorContentStateOptions,
-  textEditorContentReducer,
-} from './text-editor-state'
 
 /**
  * Generated-document source files (`.pptx`/`.docx`/`.pdf`/`.xlsx` builders) whose
@@ -61,6 +64,13 @@ interface UseEditableFileContentOptions {
    * the at-rest baseline, never while an agent stream is in flight. Stable reference required.
    */
   normalizeBaseline?: (raw: string) => string
+  /**
+   * Extra gate on autosave (and draft persistence). When `false`, saving is
+   * suppressed even when otherwise eligible — the collaborative editor uses it to
+   * hold saves until the shared document is synced AND seeded, so an empty or
+   * partially-synced doc can never overwrite the real file. Defaults to `true`.
+   */
+  canAutosave?: boolean
 }
 
 interface EditableFileContent {
@@ -79,6 +89,11 @@ interface EditableFileContent {
   saveStatus: SaveStatus
   saveImmediately: () => Promise<void>
   isDirty: boolean
+  hasConflict: boolean
+  isReloading: boolean
+  reloadLatestContent: () => Promise<void>
+  downloadDraft: () => void
+  acceptedBaselineContent?: string
 }
 
 /**
@@ -88,15 +103,15 @@ interface EditableFileContent {
 function useFileContentState(options: SyncTextEditorContentStateOptions) {
   const [state, dispatch] = useReducer(textEditorContentReducer, INITIAL_TEXT_EDITOR_CONTENT_STATE)
 
-  const prevOptionsRef = useRef<SyncTextEditorContentStateOptions | null>(null)
-  const prev = prevOptionsRef.current
+  const [prev, setPrev] = useState<SyncTextEditorContentStateOptions | null>(null)
   if (
     prev === null ||
     prev.canReconcileToFetchedContent !== options.canReconcileToFetchedContent ||
     prev.fetchedContent !== options.fetchedContent ||
+    prev.fetchedVersion !== options.fetchedVersion ||
     prev.streamingContent !== options.streamingContent
   ) {
-    prevOptionsRef.current = options
+    setPrev(options)
     dispatch({ type: 'sync-external', ...options })
   }
 
@@ -104,9 +119,19 @@ function useFileContentState(options: SyncTextEditorContentStateOptions) {
     dispatch({ type: 'edit', content })
   }, [])
 
-  const markSavedContent = useCallback((content: string) => {
-    dispatch({ type: 'save-success', content })
+  const markSavedContent = useCallback((content: string, version?: string) => {
+    dispatch({ type: 'save-success', content, version })
   }, [])
+
+  const markConflict = useCallback(() => dispatch({ type: 'save-conflict' }), [])
+  const restoreConflictingDraft = useCallback(
+    (content: string) => dispatch({ type: 'restore-conflicting-draft', content }),
+    []
+  )
+  const acceptReload = useCallback(
+    (content: string, version: string) => dispatch({ type: 'reload', content, version }),
+    []
+  )
 
   return {
     content: state.content,
@@ -116,6 +141,12 @@ function useFileContentState(options: SyncTextEditorContentStateOptions) {
     isReconciling: state.phase === 'reconciling',
     setDraftContent,
     markSavedContent,
+    savedVersion: state.savedVersion,
+    hasConflict: Boolean(state.conflict),
+    acceptedBaselineContent: state.acceptedBaselineContent,
+    markConflict,
+    restoreConflictingDraft,
+    acceptReload,
   }
 }
 
@@ -136,11 +167,10 @@ export function useEditableFileContent({
   saveRef,
   discardRef,
   normalizeBaseline,
+  canAutosave = true,
 }: UseEditableFileContentOptions): EditableFileContent {
   const onDirtyChangeRef = useRef(onDirtyChange)
   const onSaveStatusChangeRef = useRef(onSaveStatusChange)
-  onDirtyChangeRef.current = onDirtyChange
-  onSaveStatusChangeRef.current = onSaveStatusChange
 
   /**
    * Mirrors the reducer's `reconciling` phase (assigned below the reducer hook; read here through a
@@ -170,30 +200,49 @@ export function useEditableFileContent({
     file.id,
     file.key,
     GENERATED_SOURCE_FILE_TYPES.has(file.type),
-    { refetchInterval: reconcileRefetchInterval }
+    {
+      refetchInterval: reconcileRefetchInterval,
+      // `canAutosave: false` on this surface means a server-side owner holds durability — the
+      // collaborative relay, which projects the live document to markdown itself and merges
+      // external writes INTO that document. There is nothing a focus refetch of the durable bytes
+      // can teach the editor that the shared document does not already have; all it does is
+      // re-read a storage key the relay's last save has already rotated away from.
+      refetchOnWindowFocus: canAutosave,
+    }
   )
 
-  /**
-   * Latches once this mount has ever streamed (agent edit). A mount that streams keeps the raw fetched
-   * value as its baseline for its whole life, so normalization can never perturb the stream-reconcile
-   * comparisons in {@link syncTextEditorContentState}. A pure at-rest open never latches and normalizes
-   * freely. Set during render (not an effect) so it is observed before the baseline is derived.
-   */
-  const everStreamedRef = useRef(false)
-  if (streamingContent !== undefined || isAgentEditing) everStreamedRef.current = true
-
-  // Re-derived only when the fetched content changes (never on a stream-flag flip), so the dirty
-  // baseline stays stable through a post-stream reconcile.
-  const baselineContent = useMemo(() => {
-    if (fetchedContent === undefined || !normalizeBaseline || everStreamedRef.current) {
-      return fetchedContent
-    }
-    return normalizeBaseline(fetchedContent)
-  }, [fetchedContent, normalizeBaseline])
+  /** A stream-only transition retains the accepted representation; subsequent fetched snapshots stay raw for reconciliation. */
+  const isStreamObserved = streamingContent !== undefined || Boolean(isAgentEditing)
+  const [baseline, setBaseline] = useState(() => ({
+    source: fetchedContent,
+    normalizer: normalizeBaseline,
+    everStreamed: isStreamObserved,
+    content:
+      fetchedContent !== undefined && normalizeBaseline && !isStreamObserved
+        ? normalizeBaseline(fetchedContent)
+        : fetchedContent,
+  }))
+  const everStreamed = baseline.everStreamed || isStreamObserved
+  const sourceChanged =
+    baseline.source !== fetchedContent || baseline.normalizer !== normalizeBaseline
+  if (sourceChanged || everStreamed !== baseline.everStreamed) {
+    setBaseline({
+      source: fetchedContent,
+      normalizer: normalizeBaseline,
+      everStreamed,
+      content: sourceChanged
+        ? fetchedContent !== undefined && normalizeBaseline && !everStreamed
+          ? normalizeBaseline(fetchedContent)
+          : fetchedContent
+        : baseline.content,
+    })
+  }
+  const baselineContent = baseline.content
+  const everStreamedRef = useRef(everStreamed)
 
   const updateContent = useUpdateWorkspaceFileContent()
+  const reloadContent = useReloadWorkspaceFileContent()
   const updateContentRef = useRef(updateContent)
-  updateContentRef.current = updateContent
 
   const {
     content,
@@ -203,15 +252,25 @@ export function useEditableFileContent({
     isReconciling,
     setDraftContent,
     markSavedContent,
+    savedVersion,
+    hasConflict,
+    acceptedBaselineContent,
+    markConflict,
+    restoreConflictingDraft,
+    acceptReload,
   } = useFileContentState({
     canReconcileToFetchedContent: file.key.length > 0,
     fetchedContent: baselineContent,
+    fetchedVersion:
+      fetchedContent !== undefined && file.contentUpdatedAt
+        ? new Date(file.contentUpdatedAt).toISOString()
+        : undefined,
     streamingContent,
   })
-  if (isReconciling && !isReconcilingRef.current) reconcilingSinceRef.current = Date.now()
-  isReconcilingRef.current = isReconciling
-
-  const isStreamInteractionLocked = isStreamPhaseLocked || Boolean(isAgentEditing)
+  const isAgentStreamActive = streamingContent !== undefined || Boolean(isAgentEditing)
+  const streamActiveRef = useRef(isAgentStreamActive)
+  const isStreamInteractionLocked =
+    isStreamPhaseLocked || Boolean(isAgentEditing) || (hasConflict && isAgentStreamActive)
 
   // Pace the streamed reveal for DISPLAY only. The reducer above keeps the true content so
   // reconciliation, dirty tracking, and saves are never thrown off by the paced prefix. Pacing is
@@ -223,42 +282,155 @@ export function useEditableFileContent({
   const displayContent = isStreamPhaseLocked ? pacedReveal : content
 
   const contentRef = useRef(content)
-  contentRef.current = content
+  const saveVersionRef = useRef(savedVersion)
+  const conflictRef = useRef(hasConflict)
+
+  /** Publish one committed draft/baseline to asynchronous saves, reloads, and query polling. */
+  useLayoutEffect(() => {
+    if (isReconciling && !isReconcilingRef.current) reconcilingSinceRef.current = Date.now()
+    isReconcilingRef.current = isReconciling
+    everStreamedRef.current = everStreamed
+    onDirtyChangeRef.current = onDirtyChange
+    onSaveStatusChangeRef.current = onSaveStatusChange
+    updateContentRef.current = updateContent
+    streamActiveRef.current = isAgentStreamActive
+    contentRef.current = content
+    saveVersionRef.current = savedVersion
+    conflictRef.current = hasConflict
+  })
 
   const onSave = useCallback(
     async (overrideContent?: string) => {
       const next = overrideContent ?? contentRef.current
-      await updateContentRef.current.mutateAsync({ workspaceId, fileId: file.id, content: next })
-      markSavedContent(next)
+      const expectedUpdatedAt = saveVersionRef.current
+      if (conflictRef.current) throw new Error('Reload the latest file before saving this draft')
+      if (!expectedUpdatedAt) {
+        conflictRef.current = true
+        markConflict()
+        throw new Error('The file version is unavailable; reload before saving')
+      }
+      try {
+        const result = await updateContentRef.current.mutateAsync({
+          workspaceId,
+          fileId: file.id,
+          content: next,
+          expectedUpdatedAt,
+        })
+        const version = result.file.contentUpdatedAt
+        if (!version) {
+          conflictRef.current = true
+          markConflict()
+          throw new Error('Saved file version is unavailable; reload before continuing')
+        }
+        const acknowledgedVersion = new Date(version).toISOString()
+        if (
+          !saveVersionRef.current ||
+          Date.parse(acknowledgedVersion) >= Date.parse(saveVersionRef.current)
+        ) {
+          saveVersionRef.current = acknowledgedVersion
+        }
+        markSavedContent(next, acknowledgedVersion)
+      } catch (error) {
+        if (
+          isApiClientError(error) &&
+          error.status === 409 &&
+          saveVersionRef.current === expectedUpdatedAt
+        ) {
+          conflictRef.current = true
+          markConflict()
+        }
+        throw error
+      }
     },
-    [workspaceId, file.id, markSavedContent]
+    [workspaceId, file.id, markSavedContent, markConflict]
   )
 
-  const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked
+  const autosaveEnabled =
+    canEdit &&
+    isInitialized &&
+    canAutosave &&
+    (!isStreamInteractionLocked ||
+      hasConflict ||
+      (!isStreamPhaseLocked && content !== savedContent))
 
-  const { saveStatus, saveImmediately, isDirty, discard } = useAutosave({
+  const {
+    saveStatus: autosaveStatus,
+    saveImmediately,
+    isDirty,
+    discard,
+  } = useAutosave({
     content,
     savedContent,
     onSave,
     enabled: autosaveEnabled,
+    pauseSaving: hasConflict || isStreamInteractionLocked,
     draftKey: autosaveEnabled ? `${workspaceId}:${file.id}` : undefined,
     onRestoreDraft: setDraftContent,
+    onRestoreConflictingDraft: restoreConflictingDraft,
     onDiscardCorrectionFailed: () =>
       toast.error(
         `Failed to discard "${file.name}" — the server may still have the discarded edit`
       ),
   })
+  const saveStatus = hasConflict ? 'error' : autosaveStatus
+
+  const reloadLatestContent = useCallback(async () => {
+    if (streamActiveRef.current)
+      throw new Error('Wait for the agent edit to finish before reloading')
+    const draftAtStart = contentRef.current
+    const result = await reloadContent.mutateAsync({
+      workspaceId,
+      fileId: file.id,
+      raw: GENERATED_SOURCE_FILE_TYPES.has(file.type),
+    })
+    if (streamActiveRef.current)
+      throw new Error('An agent edit started while reloading. Retry after it finishes.')
+    if (contentRef.current !== draftAtStart)
+      throw new Error('Your draft changed while reloading. Download it or retry reload.')
+    if (!result.file.contentUpdatedAt) throw new Error('The latest file version is unavailable')
+    const latestContent =
+      normalizeBaseline && !everStreamedRef.current
+        ? normalizeBaseline(result.content)
+        : result.content
+    discard({ correctInFlightSave: false })
+    const version = new Date(result.file.contentUpdatedAt).toISOString()
+    saveVersionRef.current = version
+    conflictRef.current = false
+    acceptReload(latestContent, version)
+  }, [
+    reloadContent.mutateAsync,
+    workspaceId,
+    file.id,
+    file.type,
+    normalizeBaseline,
+    discard,
+    acceptReload,
+  ])
+
+  const downloadDraft = useCallback(() => {
+    saveBlob(
+      new Blob([contentRef.current], { type: 'text/plain;charset=utf-8' }),
+      `${file.name}.local-draft.txt`
+    )
+  }, [file.name])
+
+  // When the client can't autosave it isn't the durability owner: the collaborative editor holds
+  // `canAutosave` permanently false because the relay persists the doc server-side (debounced + on
+  // last-disconnect), so `savedContent` never advances and raw `isDirty` would latch true after any
+  // local OR remote keystroke — surfacing a spurious "Unsaved changes" navigation prompt whose
+  // "Discard" discards nothing real. With nothing the user can save, there is nothing to warn about.
+  const isDirtyForCaller = canAutosave && isDirty
 
   useEffect(() => {
-    onDirtyChangeRef.current?.(isDirty)
-  }, [isDirty])
+    onDirtyChangeRef.current?.(isDirtyForCaller)
+  }, [isDirtyForCaller])
 
   useEffect(() => {
     onSaveStatusChangeRef.current?.(
       saveStatus,
-      saveStatus === 'error' ? saveImmediately : undefined
+      saveStatus === 'error' && !hasConflict ? saveImmediately : undefined
     )
-  }, [saveStatus, saveImmediately])
+  }, [saveStatus, saveImmediately, hasConflict])
 
   useEffect(() => {
     if (!saveRef) return
@@ -299,6 +471,11 @@ export function useEditableFileContent({
     hasContentError: streamingContent === undefined && Boolean(error) && !isInitialized,
     saveStatus,
     saveImmediately,
-    isDirty,
+    isDirty: isDirtyForCaller,
+    hasConflict,
+    isReloading: reloadContent.isPending,
+    reloadLatestContent,
+    downloadDraft,
+    acceptedBaselineContent,
   }
 }

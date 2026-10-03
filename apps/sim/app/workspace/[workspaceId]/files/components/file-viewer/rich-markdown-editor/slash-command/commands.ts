@@ -1,19 +1,41 @@
-import type { Editor, Range } from '@tiptap/core'
+import type { ComponentType, SVGProps } from 'react'
 import {
-  Code2,
+  ChartColumn,
+  Code,
   Heading1,
   Heading2,
   Heading3,
-  Image as ImageIcon,
+  ImageUp as ImageIcon,
   List,
   ListChecks,
   ListOrdered,
-  type LucideIcon,
   Minus,
   Pilcrow,
   Table as TableIcon,
   TextQuote,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import type { Editor, Range } from '@tiptap/core'
+import { TextSelection } from '@tiptap/pm/state'
+import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
+
+/** A time-series starter; the table id is left for the author to fill in. */
+const DASHBOARD_EMBED_STARTER = `title: Rows over time
+time: 7d
+source:
+  tableId: # table id
+blocks:
+  - chart: Rows per day
+    source:
+      groupBy: [createdAt]
+      bucket: day
+      aggregate:
+        rows: { op: count }
+    option:
+      xAxis: { type: time }
+      yAxis: { type: value }
+      series:
+        - { type: line, encode: { x: createdAt, y: rows } }
+`
 
 export interface SlashCommandContext {
   editor: Editor
@@ -33,7 +55,7 @@ export interface SlashCommandItem {
   title: string
   /** Group heading the item is shown under in the menu. */
   group: string
-  icon: LucideIcon
+  icon: ComponentType<SVGProps<SVGSVGElement>>
   /** Extra search terms matched against the slash query, beyond the title. */
   aliases: string[]
   /** Keyboard shortcut shown on the right of the item (omitted when there is none). */
@@ -116,10 +138,37 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
   {
     title: 'Code block',
     group: 'Blocks',
-    icon: Code2,
+    icon: Code,
     aliases: ['codeblock', 'snippet', 'fence'],
     shortcut: '⌘⌥C',
     run: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
+  },
+  {
+    title: 'Chart',
+    group: 'Blocks',
+    icon: ChartColumn,
+    aliases: ['dashboard', 'graph', 'metric', 'live data'],
+    run: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({
+          type: 'codeBlock',
+          attrs: { language: DASHBOARD_EMBED_LANGUAGE },
+          content: [{ type: 'text', text: DASHBOARD_EMBED_STARTER }],
+        })
+        .command(({ tr }) => {
+          let fence = -1
+          tr.doc.nodesBetween(range.from - 1, tr.doc.content.size, (node, pos) => {
+            if (fence < 0 && node.type.name === 'codeBlock') fence = pos
+            return fence < 0
+          })
+          if (fence < 0) return false
+          tr.setSelection(TextSelection.create(tr.doc, fence + 1))
+          return true
+        })
+        .run(),
   },
   {
     title: 'Table',

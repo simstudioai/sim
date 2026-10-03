@@ -1,7 +1,10 @@
 import type { AgiloftLockRecordParams, AgiloftLockResponse } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftLockResponse> = {
+export const agiloftLockRecordTool: InternalToolConfig<
+  AgiloftLockRecordParams,
+  AgiloftLockResponse
+> = {
   id: 'agiloft_lock_record',
   name: 'Agiloft Lock Record',
   description: 'Lock, unlock, or check the lock status of an Agiloft record.',
@@ -50,13 +53,16 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
       visibility: 'user-or-llm',
       description: 'Action to perform: "lock", "unlock", or "check"',
     },
+    force: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Unlock only: release a lock held by another user.',
+    },
   },
 
-  request: {
-    url: () => '/api/tools/agiloft/lock_record',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,
@@ -64,6 +70,7 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
       table: params.table,
       recordId: params.recordId,
       lockAction: params.lockAction,
+      force: params.force,
     }),
   },
 
@@ -81,9 +88,14 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
       type: 'string',
       description: 'Record ID',
     },
+    tableId: {
+      type: 'number',
+      description: 'Numeric system identifier of the table holding the record',
+      optional: true,
+    },
     lockStatus: {
       type: 'string',
-      description: 'Lock status (e.g., "LOCKED", "UNLOCKED")',
+      description: 'Lock status: "LOCKED" when the record is held, "NO_LOCK" when it is free',
     },
     lockedBy: {
       type: 'string',

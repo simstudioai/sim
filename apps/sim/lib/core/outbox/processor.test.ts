@@ -1,0 +1,123 @@
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  recover: vi.fn(),
+  reap: vi.fn(),
+  prune: vi.fn(),
+}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/core/outbox/retention', () => ({ pruneCompletedOutboxEvents: mocks.prune }))
+vi.mock('@/lib/knowledge/documents/processing-recovery', () => ({
+  recoverKnowledgeDocumentProcessing: mocks.recover,
+}))
+vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
+  reapStaleBackgroundWork: mocks.reap,
+}))
+vi.mock('@/lib/knowledge/connectors/connector-error', () => ({
+  getConnectorFailureDiagnostic: () => undefined,
+}))
+vi.mock('@/lib/admin/invitation-operation', () => ({ adminInvitationOperationOutboxHandlers: {} }))
+vi.mock('@/lib/admin/member-operation', () => ({ adminMemberOperationOutboxHandlers: {} }))
+vi.mock('@/lib/billing/enterprise-owner-claim', () => ({ enterpriseOwnerClaimOutboxHandlers: {} }))
+vi.mock('@/lib/billing/enterprise-provisioning', () => ({ enterpriseIssuanceOutboxHandlers: {} }))
+vi.mock('@/lib/billing/organizations/membership-reconciliation', () => ({
+  membershipBillingOutboxHandlers: {},
+}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
+vi.mock('@/lib/invitations/direct-grant', () => ({ directGrantOutboxHandlers: {} }))
+vi.mock('@/lib/knowledge/application/slack-search/outbox', () => ({
+  slackSearchOutboxHandlers: {},
+}))
+vi.mock('@/lib/knowledge/documents/processing-outbox-handler', () => ({
+  knowledgeDocumentProcessingOutboxHandlers: {},
+}))
+vi.mock('@/lib/mothership/inbox/cleanup-outbox', () => ({ inboxCleanupOutboxHandlers: {} }))
+vi.mock('@/lib/organizations/resource-cleanup', () => ({
+  organizationResourceCleanupOutboxHandlers: {},
+}))
+vi.mock('@/ee/access-requests/lib/notifications', () => ({
+  permissionAccessRequestOutboxHandlers: {},
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () => ({
+  workspaceFileLiveDocOutboxHandlers: {},
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+  workspaceFileStorageCleanupOutboxHandlers: {},
+}))
+vi.mock('@/lib/workflows/deployment-outbox', () => ({ workflowDeploymentOutboxHandlers: {} }))
+vi.mock('@/lib/workspaces/admin-move', () => ({ invitationMigrationOutboxHandlers: {} }))
+vi.mock('@/lib/workspaces/operations/outbox', () => ({ workspaceOperationOutboxHandlers: {} }))
+vi.mock('@/ee/workspace-forking/application/content-outbox', () => ({
+  forkContentOutboxHandlers: {},
+}))
+
+import { runOutboxProcessor } from '@/lib/core/outbox/processor'
+
+const mockProcessOutboxEvents = outboxServiceMockFns.mockProcessOutboxEvents
+
+describe('outbox processor recovery', () => {
+  const result = { processed: 5, retried: 1, deadLettered: 0, leaseLost: 0, reaped: 0 }
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.useFakeTimers()
+    mockProcessOutboxEvents.mockResolvedValue(result)
+    mocks.recover.mockResolvedValue(2)
+    mocks.reap.mockResolvedValue(3)
+    mocks.prune.mockResolvedValue(4)
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('still reaps expired background work when document recovery fails', async () => {
+    mocks.recover.mockRejectedValueOnce(new Error('document recovery unavailable'))
+    await expect(runOutboxProcessor()).resolves.toEqual({
+      result,
+      recoveredDocuments: 0,
+      reapedBackgroundWork: 3,
+      prunedEvents: 4,
+    })
+  })
+
+  it('retains successful delivery results when the background-work reaper fails', async () => {
+    mocks.reap.mockRejectedValueOnce(new Error('reaper unavailable'))
+    await expect(runOutboxProcessor()).resolves.toEqual({
+      result,
+      recoveredDocuments: 2,
+      reapedBackgroundWork: 0,
+      prunedEvents: 4,
+    })
+  })
+
+  it('retains delivery, recovery and reap results when completed-event pruning fails', async () => {
+    mocks.prune.mockRejectedValueOnce(new Error('statement timeout'))
+    await expect(runOutboxProcessor()).resolves.toEqual({
+      result,
+      recoveredDocuments: 2,
+      reapedBackgroundWork: 3,
+      prunedEvents: 0,
+    })
+  })
+
+  it('skips document recovery after the processing budget is exhausted', async () => {
+    mockProcessOutboxEvents.mockImplementationOnce(async () => {
+      vi.advanceTimersByTime(770_000)
+      return result
+    })
+    await expect(runOutboxProcessor()).resolves.toEqual({
+      result,
+      recoveredDocuments: 0,
+      reapedBackgroundWork: 3,
+      prunedEvents: 4,
+    })
+    expect(mocks.recover).not.toHaveBeenCalled()
+  })
+
+  it('propagates delivery failures to the worker instead of reporting success', async () => {
+    mockProcessOutboxEvents.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(runOutboxProcessor()).rejects.toThrow('database unavailable')
+    expect(mocks.recover).not.toHaveBeenCalled()
+    expect(mocks.reap).not.toHaveBeenCalled()
+  })
+})

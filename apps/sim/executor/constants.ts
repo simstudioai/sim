@@ -4,6 +4,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 
 /**
  * Runtime-injected keys for trigger blocks that should be hidden from logs/display.
@@ -37,10 +38,12 @@ export enum BlockType {
 
   RESPONSE = 'response',
   HUMAN_IN_THE_LOOP = 'human_in_the_loop',
+  HUMAN_IN_THE_LOOP_V2 = 'human_in_the_loop_v2',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
 
   CREDENTIAL = 'credential',
+  CREDENTIAL_GROUP = 'credential_group',
 
   WAIT = 'wait',
 
@@ -48,6 +51,25 @@ export enum BlockType {
 
   SENTINEL_START = 'sentinel_start',
   SENTINEL_END = 'sentinel_end',
+}
+
+/**
+ * Every Human block version.
+ *
+ * v2 exists because its notification tools run through the same param transform an
+ * agent block applies — canonical basic/advanced resolution and the block's own
+ * `tools.config.params` function — which changes what a configured tool receives. A
+ * single predicate keeps the two versions from drifting apart at the ten sites that
+ * ask "is this the Human block?".
+ */
+export const HUMAN_IN_THE_LOOP_BLOCK_TYPES: readonly string[] = [
+  BlockType.HUMAN_IN_THE_LOOP,
+  BlockType.HUMAN_IN_THE_LOOP_V2,
+]
+
+/** Whether a block type is any version of the Human block. */
+export function isHumanInTheLoopBlock(blockType: string | undefined | null): boolean {
+  return typeof blockType === 'string' && HUMAN_IN_THE_LOOP_BLOCK_TYPES.includes(blockType)
 }
 
 export const TRIGGER_BLOCK_TYPES = [
@@ -169,12 +191,6 @@ export const LOOP_REFERENCE = {
   INDEX_PATH: 'loop.index',
 } as const
 
-export const PARALLEL_REFERENCE = {
-  INDEX: 'index',
-  CURRENT_ITEM: 'currentItem',
-  ITEMS: 'items',
-} as const
-
 export const DEFAULTS = {
   BLOCK_TYPE: 'unknown',
   BLOCK_TITLE: 'Untitled Block',
@@ -212,7 +228,7 @@ export const HTTP = {
 } as const
 
 export const AGENT = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   get DEFAULT_FUNCTION_TIMEOUT() {
     return getMaxExecutionTimeout()
   },
@@ -226,22 +242,14 @@ export const MCP = {
   TOOL_PREFIX: 'mcp-',
 } as const
 
-export const MEMORY = {
-  DEFAULT_SLIDING_WINDOW_SIZE: 10,
-  DEFAULT_SLIDING_WINDOW_TOKENS: 4000,
-  CONTEXT_WINDOW_UTILIZATION: 0.9,
-  MAX_CONVERSATION_ID_LENGTH: 255,
-  MAX_MESSAGE_CONTENT_BYTES: 100 * 1024,
-} as const
-
 export const ROUTER = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,
@@ -277,19 +285,7 @@ export function buildResumeUiUrl(
   return `${prefix}${PAUSE_RESUME.PATH.UI_RESUME}/${workflowId}/${executionId}`
 }
 
-export const PARSING = {
-  JSON_RADIX: 10,
-  PREVIEW_LENGTH: 200,
-  PREVIEW_SUFFIX: '...',
-} as const
-
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
-
-interface ConditionConfig {
-  id: string
-  label?: string
-  condition: string
-}
 
 export function isTriggerBlockType(blockType: string | undefined): boolean {
   return blockType !== undefined && (TRIGGER_BLOCK_TYPES as readonly string[]).includes(blockType)
@@ -325,6 +321,44 @@ export function isWorkflowBlockType(blockType: string | undefined): boolean {
   return blockType === BlockType.WORKFLOW || blockType === BlockType.WORKFLOW_INPUT
 }
 
+/**
+ * Internal marker carrying a custom block's child execution id from the workflow
+ * handler out to the block executor, which lifts it onto the block log and strips
+ * it before the output reaches workflow state. Underscore-prefixed so
+ * `filterOutputForLog` drops it from every display and log projection.
+ */
+export const CHILD_EXECUTION_ID_OUTPUT_KEY = '_childExecutionId'
+
+/**
+ * Internal marker saying a custom block ran a child whose trace it deliberately
+ * did not publish. Carried instead of {@link CHILD_EXECUTION_ID_OUTPUT_KEY}, never
+ * beside it: withholding the handle is what makes tracing-off fail closed, and a
+ * marker that travelled with the handle would be one dropped field away from
+ * joining a run the caller opted out of. Underscore-prefixed for the same reason.
+ *
+ * Recorded because a boundary span with no children renders exactly like a leaf
+ * block, so an untraced invocation would otherwise read as one that did nothing.
+ *
+ * Neither key may become a globally hidden output key: on the Agent-tool path the
+ * block log's nested `toolCalls[].result` is the only carrier from the tool
+ * response to the tool span, so hiding them there would silently stop custom
+ * blocks invoked as tools from joining their child runs at all.
+ */
+export const CHILD_TRACE_DISABLED_OUTPUT_KEY = '_childTraceDisabled'
+
+/**
+ * Whether a block runs another workflow underneath it, and therefore owns a
+ * nested subtree in the trace/terminal — a workflow block, or a custom block
+ * whose publisher opted its runs into consumer traces.
+ *
+ * Deliberately wider than {@link isWorkflowBlockType}, which stays narrow because
+ * it also gates whether the child workflow's NAME may be attached to an error —
+ * something a custom block's consumer must never receive.
+ */
+export function isSubExecutionBlockType(blockType: string | undefined): boolean {
+  return isWorkflowBlockType(blockType) || isCustomBlockType(blockType)
+}
+
 export function isSentinelBlockType(blockType: string | undefined): boolean {
   return blockType === BlockType.SENTINEL_START || blockType === BlockType.SENTINEL_END
 }
@@ -349,26 +383,6 @@ export function isAnnotationOnlyBlock(blockType: string | undefined): boolean {
   return blockType === BlockType.NOTE
 }
 
-export function supportsHandles(blockType: string | undefined): boolean {
-  return !isAnnotationOnlyBlock(blockType)
-}
-
-export function getDefaultTokens() {
-  return {
-    input: DEFAULTS.TOKENS.PROMPT,
-    output: DEFAULTS.TOKENS.COMPLETION,
-    total: DEFAULTS.TOKENS.TOTAL,
-  }
-}
-
-export function getDefaultCost() {
-  return {
-    input: DEFAULTS.COST.INPUT,
-    output: DEFAULTS.COST.OUTPUT,
-    total: DEFAULTS.COST.TOTAL,
-  }
-}
-
 export function buildReference(path: string): string {
   return `${REFERENCE.START}${path}${REFERENCE.END}`
 }
@@ -377,24 +391,8 @@ export function buildLoopReference(property: string): string {
   return buildReference(`${REFERENCE.PREFIX.LOOP}${REFERENCE.PATH_DELIMITER}${property}`)
 }
 
-export function buildParallelReference(property: string): string {
-  return buildReference(`${REFERENCE.PREFIX.PARALLEL}${REFERENCE.PATH_DELIMITER}${property}`)
-}
-
-export function buildVariableReference(variableName: string): string {
-  return buildReference(`${REFERENCE.PREFIX.VARIABLE}${REFERENCE.PATH_DELIMITER}${variableName}`)
-}
-
-export function buildBlockReference(blockId: string, path?: string): string {
-  return buildReference(path ? `${blockId}${REFERENCE.PATH_DELIMITER}${path}` : blockId)
-}
-
 export function buildLoopIndexCondition(maxIterations: number): string {
   return `${buildLoopReference(LOOP_REFERENCE.INDEX)} < ${maxIterations}`
-}
-
-export function buildEnvVarReference(varName: string): string {
-  return `${REFERENCE.ENV_VAR_START}${varName}${REFERENCE.ENV_VAR_END}`
 }
 
 export function isReference(value: string): boolean {
@@ -423,17 +421,12 @@ export function parseReferencePath(reference: string): string[] {
 
 export const PATTERNS = {
   UUID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
-  UUID_V4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   UUID_PREFIX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   ENV_VAR_NAME: /^[A-Za-z_][A-Za-z0-9_]*$/,
 } as const
 
 export function isUuid(value: string): boolean {
   return PATTERNS.UUID.test(value)
-}
-
-export function isUuidV4(value: string): boolean {
-  return PATTERNS.UUID_V4.test(value)
 }
 
 export function startsWithUuid(value: string): boolean {
@@ -463,14 +456,6 @@ export function stripCustomToolPrefix(name: string): string {
   return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
     ? name.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
     : name
-}
-
-export function stripMcpToolPrefix(name: string): string {
-  return name.startsWith(MCP.TOOL_PREFIX) ? name.slice(MCP.TOOL_PREFIX.length) : name
-}
-
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**

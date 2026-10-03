@@ -1,50 +1,27 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { FolderApi } from '@/lib/api/contracts'
-import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-files'
-import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
-import {
-  WORKSPACE_FILES_LIST_STALE_TIME,
-  workspaceFilesKeys,
-} from '@/hooks/queries/workspace-files'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import { seedWorkspaceFiles } from '@/app/workspace/[workspaceId]/lib/seed-workspace-files'
 
 /**
- * Prefetches the home page's secondary lists — folders and workspace files —
- * under the same query keys their client hooks (`useFolders`,
- * `useWorkspaceFiles`) use, so the home view paints populated on first render.
+ * Prefetches what the Home surface needs on top of the workspace layout's own prefetch.
  *
- * The workflow list (`workflowKeys.list(ws, 'active')`) is already hydrated by
- * the workspace sidebar prefetch and is intentionally not repeated here.
+ * Home reads the workspace file list on mount (resource tabs, mentions, the resource picker), so
+ * the list is seeded by the routes that render Home rather than by the layout: seeding it in the
+ * layout would pay for it on every workspace route, including the ones that never read it.
  *
- * Folders are fetched through the route and mapped with the same `mapFolder`
- * the hook applies, matching its cached shape (string dates → `Date`). Files
- * carry `Date` fields, so they go through the route and cache the serialized
- * wire shape — see {@link prefetchInternalJson}.
+ * The seed carries no authorization of its own, so the viewer is proved first. This reuses the
+ * layout's `cache`d host-context lookup rather than re-deriving the permission, so it costs no
+ * additional queries; a viewer without access caches nothing and the client fetch reaches the
+ * route for the real 403.
  */
-export async function prefetchHomeLists(
+export async function prefetchHomeSurface(
   queryClient: QueryClient,
-  workspaceId: string
+  workspaceId: string,
+  userId: string | undefined
 ): Promise<void> {
-  await Promise.all([
-    queryClient.prefetchQuery({
-      queryKey: folderKeys.list(workspaceId, 'active', 'workflow'),
-      queryFn: async () => {
-        const { folders } = await prefetchInternalJson<{ folders?: FolderApi[] }>(
-          `/api/folders?workspaceId=${workspaceId}&scope=active&resourceType=workflow`
-        )
-        return (folders ?? []).map(mapFolder)
-      },
-      staleTime: FOLDER_LIST_STALE_TIME,
-    }),
-    queryClient.prefetchQuery({
-      queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
-      queryFn: async () => {
-        const data = await prefetchInternalJson<ListWorkspaceFilesResponse>(
-          `/api/workspaces/${workspaceId}/files?scope=active`
-        )
-        return data.success ? data.files : []
-      },
-      staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
-    }),
-  ])
+  if (!userId) return
+  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+  if (!hostContext) return
+
+  await seedWorkspaceFiles(queryClient, workspaceId)
 }

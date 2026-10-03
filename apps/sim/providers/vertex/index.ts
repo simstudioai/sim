@@ -2,10 +2,15 @@ import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { OAuth2Client } from 'google-auth-library'
 import { env } from '@/lib/core/config/env'
+import {
+  validateGoogleCloudLocation,
+  validateGoogleCloudProject,
+} from '@/lib/core/security/input-validation'
 import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
+import { isGemini3Model } from '@/providers/utils'
 
 const logger = createLogger('VertexProvider')
 
@@ -30,8 +35,14 @@ export const vertexProvider: ProviderConfig = {
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
+    const model = request.model.replace(/^vertex\//i, '')
     const vertexProject = request.vertexProject || env.VERTEX_PROJECT
-    const vertexLocation = request.vertexLocation || env.VERTEX_LOCATION || 'us-central1'
+    /** Gemini 3 models use global or multi-region endpoints instead of legacy regions. */
+    const vertexLocation = (
+      request.vertexLocation ||
+      env.VERTEX_LOCATION ||
+      (isGemini3Model(model) ? 'global' : 'us-central1')
+    ).toLowerCase()
 
     if (!vertexProject) {
       throw new Error(
@@ -39,14 +50,27 @@ export const vertexProvider: ProviderConfig = {
       )
     }
 
+    // The @google/genai SDK interpolates location into the API hostname and project
+    // into the URL path. Both must be validated before they reach the client, or a
+    // crafted value relocates the request — and the attached bearer token — to an
+    // arbitrary host.
+    const locationValidation = validateGoogleCloudLocation(vertexLocation, 'vertexLocation')
+    if (!locationValidation.isValid) {
+      logger.warn('Blocked invalid Vertex AI location', { error: locationValidation.error })
+      throw new Error(`Invalid Vertex AI location: ${locationValidation.error}`)
+    }
+
+    const projectValidation = validateGoogleCloudProject(vertexProject, 'vertexProject')
+    if (!projectValidation.isValid) {
+      logger.warn('Blocked invalid Vertex AI project', { error: projectValidation.error })
+      throw new Error(`Invalid Vertex AI project: ${projectValidation.error}`)
+    }
+
     if (!request.apiKey) {
       throw new Error(
         'Access token is required for Vertex AI. Run `gcloud auth print-access-token` to get one, or use a service account.'
       )
     }
-
-    // Strip 'vertex/' prefix from model name if present
-    const model = request.model.replace('vertex/', '')
 
     logger.info('Creating Vertex AI client', {
       project: vertexProject,

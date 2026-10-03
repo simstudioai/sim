@@ -19,6 +19,11 @@ const INVITATION_ERROR_MESSAGES: Record<string, string> = {
     'This organization has reached its seat limit. Ask an admin to add seats, then try again.',
   'upgrade-required':
     'The workspace owner needs an active paid plan before you can join. Ask them to update it, then try again.',
+  'external-requires-paid-plan':
+    'External collaborators need their own paid Sim plan. Upgrade your plan, or ask the organization to re-invite you as a member — that uses one of their seats instead.',
+  'disclosure-outdated':
+    'What accepting does changed since this list loaded. Reopen your invitations to see the updated details, then accept again.',
+  'workspace-not-found': 'The workspace this invitation points at could not be found.',
   'server-error': 'Something went wrong processing the invitation. Please try again.',
 }
 

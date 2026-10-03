@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getPiModelOptions } from '@/blocks/utils'
 import { resolvePiModelId } from '@/providers/pi-providers'
@@ -13,7 +10,15 @@ const originalOpenRouterModels = useProvidersStore.getState().providers.openrout
 describe('Pi model options', () => {
   beforeAll(() => {
     const store = useProvidersStore.getState()
-    store.setProviderModels('base', ['claude-sonnet-4-6', 'claude-sonnet-4-0', 'gpt-5.4'])
+    store.setProviderModels('base', [
+      'claude-sonnet-4-6',
+      'claude-opus-4-1',
+      'claude-sonnet-4-0',
+      'gpt-5.4',
+      'cerebras/zai-glm-4.7',
+      'glm-5.1',
+      'glm-4.5-air',
+    ])
     store.setProviderModels('openrouter', [
       'openrouter/openai/gpt-5',
       'openrouter/openrouter/fusion',
@@ -36,10 +41,11 @@ describe('Pi model options', () => {
     }
   })
 
-  it('keeps current models and excludes stale catalog entries', () => {
+  it('keeps current models and excludes retired catalog entries', () => {
     const modelIds = getPiModelOptions().map(({ id }) => id)
 
     expect(modelIds).toContain('claude-sonnet-4-6')
+    expect(modelIds).not.toContain('claude-opus-4-1')
     expect(modelIds).not.toContain('claude-sonnet-4-0')
   })
 

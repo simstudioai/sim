@@ -1,9 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_CONVERSATIONS, outlookConnectorMeta } from '@/connectors/outlook/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  BoundedLines,
+  CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+  htmlToPlainText,
+  isListingScopeUnavailableError,
+  listingRequestError,
+  parseDefaultedUnlimitedSafeInteger,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('OutlookConnector')
 
@@ -55,6 +64,19 @@ const FULL_MESSAGE_FIELDS = [
  * Prevents unbounded memory usage for very large mailboxes.
  */
 const MAX_TOTAL_MESSAGES = 5000
+
+/**
+ * Hard cap Graph applies to a `$search` request on a message collection:
+ * "A `$search` request returns up to 1,000 results."
+ *
+ * Graph simply stops emitting `@odata.nextLink` at the cap, which is
+ * indistinguishable from mailbox exhaustion. A search-scoped listing that
+ * reaches it is therefore flagged as capped, otherwise deletion reconciliation
+ * would read every conversation past the 1,000th as deleted and hard-delete it.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/search-query-parameter
+ */
+const GRAPH_SEARCH_RESULT_LIMIT = 1000
 
 interface OutlookEmailAddress {
   name?: string
@@ -139,6 +161,26 @@ const MAX_FOLDER_RESOLUTION_REQUESTS = 25
  * without ever holding an OAuth access token in a process-global structure.
  */
 const EXCLUDED_FOLDER_IDS_CONTEXT_KEY = '_outlookExcludedFolderIds'
+
+/**
+ * Key under which `listDocuments` records the newest message date it saw per
+ * conversation, so the deferred `getDocument` hydration can reuse it verbatim.
+ *
+ * The listing filters messages (focused-inbox classification, `$search`, the
+ * date cutoff) that `getDocument` cannot reproduce in a `conversationId`
+ * lookup, so recomputing the date there yields a different `contentHash` than
+ * the stub. Since the sync engine stores the hydrated hash and compares the
+ * next listing's stub hash against it, that mismatch is permanent — the
+ * conversation would be re-fetched and re-indexed on every single sync.
+ */
+const CONVERSATION_LAST_DATE_CONTEXT_KEY = '_outlookConversationLastDates'
+
+/**
+ * Key under which the date cutoff is memoized for the sync run, so every page
+ * of a `$search` listing filters against the same instant rather than a
+ * per-page "now".
+ */
+const DATE_CUTOFF_CONTEXT_KEY = '_outlookDateCutoffMs'
 
 const EMPTY_FOLDER_IDS: ReadonlySet<string> = new Set<string>()
 
@@ -345,55 +387,78 @@ async function resolveExcludedFolderIds(
 }
 
 /**
+ * Builds the message-collection path for the configured folder.
+ *
+ * A folder that is not one of the well-known names is a Graph folder id coming
+ * from the folder selector, so it is URI-encoded before being spliced into the
+ * path. Well-known names are plain ASCII and encode to themselves.
+ */
+function buildMessagesBasePath(sourceConfig: Record<string, unknown>): string {
+  const folder = resolveFolder(sourceConfig)
+  if (folder === 'all') return `${GRAPH_API_BASE}/messages`
+  const segment = WELL_KNOWN_FOLDERS[folder] ?? encodeURIComponent(folder)
+  return `${GRAPH_API_BASE}/mailFolders/${segment}/messages`
+}
+
+/**
+ * Returns the trimmed free-text search query, or `undefined` when unset.
+ */
+function resolveSearchQuery(sourceConfig: Record<string, unknown>): string | undefined {
+  const query = sourceConfig.query
+  if (typeof query !== 'string') return undefined
+  return query.trim() || undefined
+}
+
+/**
+ * Escapes a KQL clause for the `$search` parameter.
+ *
+ * Graph documents the clause as double-quote delimited: "The whole clause must
+ * be enclosed in double quotes. If it contains double quotes or backslash,
+ * escape it with a backslash." An unescaped quote in a user-supplied filter
+ * otherwise produces a malformed query that Graph rejects with a 400.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/search-query-parameter
+ */
+function escapeSearchValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+/**
  * Builds the initial Graph API URL for listing messages.
+ *
+ * Graph documents combining `$search` with `$filter` only for directory
+ * objects; for Outlook message collections it documents neither the combination
+ * nor which `$filter` properties survive one. Rather than depend on
+ * undocumented behavior, a search-scoped listing sends no `$filter` at all and
+ * applies the draft, focused-inbox, and date-cutoff predicates client-side.
  */
 function buildInitialUrl(sourceConfig: Record<string, unknown>): string {
-  const folder = resolveFolder(sourceConfig)
-  const basePath =
-    folder === 'all'
-      ? `${GRAPH_API_BASE}/messages`
-      : `${GRAPH_API_BASE}/mailFolders/${WELL_KNOWN_FOLDERS[folder] || folder}/messages`
-
   const params = new URLSearchParams({
     $top: String(MESSAGES_PER_PAGE),
     $select: LIST_MESSAGE_FIELDS,
   })
 
-  // Build $filter clauses
-  const filterParts: string[] = []
+  const searchQuery = resolveSearchQuery(sourceConfig)
 
-  // Date range filter
-  const dateRange = (sourceConfig.dateRange as string) || 'all'
-  const dateIso = getDateRangeIso(dateRange)
+  if (searchQuery) {
+    params.set('$search', `"${escapeSearchValue(searchQuery)}"`)
+    return `${buildMessagesBasePath(sourceConfig)}?${params.toString()}`
+  }
+
+  const filterParts: string[] = ['isDraft eq false']
+
+  const dateIso = getDateRangeIso((sourceConfig.dateRange as string) || 'all')
   if (dateIso) {
     filterParts.push(`receivedDateTime ge ${dateIso}`)
   }
 
-  // When $search is active, Graph API restricts which $filter properties work.
-  // Apply isDraft and inferenceClassification filters client-side in that case.
-  const searchQuery = sourceConfig.query as string | undefined
-  const hasSearch = Boolean(searchQuery?.trim())
-
-  if (!hasSearch) {
-    filterParts.push('isDraft eq false')
-  }
-
-  // Focused inbox filter — only apply server-side when no $search
-  const focusedOnly = sourceConfig.focusedOnly !== 'false'
-  if (focusedOnly && !hasSearch) {
+  if (sourceConfig.focusedOnly !== 'false') {
     filterParts.push("inferenceClassification eq 'focused'")
   }
 
-  if (filterParts.length > 0) {
-    params.set('$filter', filterParts.join(' and '))
-  }
+  params.set('$filter', filterParts.join(' and '))
 
-  // Free-text search (KQL syntax)
-  if (searchQuery?.trim()) {
-    params.set('$search', `"${searchQuery.trim()}"`)
-  }
-
-  return `${basePath}?${params.toString()}`
+  return `${buildMessagesBasePath(sourceConfig)}?${params.toString()}`
 }
 
 /**
@@ -428,6 +493,43 @@ function getDateRangeIso(dateRange: string): string | null {
 }
 
 /**
+ * Resolves the date cutoff as epoch milliseconds for the client-side filtering
+ * that replaces the `receivedDateTime` `$filter` when `$search` is active.
+ *
+ * Memoized on the sync run so every page measures against the same instant —
+ * the server-side path is inherently stable because Graph replays the original
+ * `$filter` through `@odata.nextLink`.
+ */
+function resolveDateCutoffMs(
+  sourceConfig: Record<string, unknown>,
+  syncContext?: Record<string, unknown>
+): number | null {
+  const cached = syncContext?.[DATE_CUTOFF_CONTEXT_KEY]
+  if (typeof cached === 'number') return cached
+
+  const iso = getDateRangeIso((sourceConfig.dateRange as string) || 'all')
+  if (!iso) return null
+
+  const cutoff = Date.parse(iso)
+  if (syncContext) syncContext[DATE_CUTOFF_CONTEXT_KEY] = cutoff
+  return cutoff
+}
+
+/**
+ * Returns the messages ordered oldest-first. Graph does not guarantee an order
+ * without `$orderby`, and `$orderby` cannot be combined with this connector's
+ * `$filter` clauses without tripping Graph's `InefficientFilter` rule, so the
+ * ordering is established client-side.
+ */
+function sortByReceivedAscending(messages: OutlookMessage[]): OutlookMessage[] {
+  return [...messages].sort((a, b) => {
+    const dateA = a.receivedDateTime ? new Date(a.receivedDateTime).getTime() : 0
+    const dateB = b.receivedDateTime ? new Date(b.receivedDateTime).getTime() : 0
+    return dateA - dateB
+  })
+}
+
+/**
  * Formats a recipient's display string.
  */
 function formatRecipient(recipient?: OutlookRecipient): string {
@@ -456,12 +558,7 @@ function formatConversation(
 ): { content: string; subject: string; metadata: Record<string, unknown> } | null {
   if (messages.length === 0) return null
 
-  // Sort by receivedDateTime ascending (oldest first)
-  const sorted = [...messages].sort((a, b) => {
-    const dateA = a.receivedDateTime ? new Date(a.receivedDateTime).getTime() : 0
-    const dateB = b.receivedDateTime ? new Date(b.receivedDateTime).getTime() : 0
-    return dateA - dateB
-  })
+  const sorted = sortByReceivedAscending(messages)
 
   const first = sorted[0]
   const last = sorted[sorted.length - 1]
@@ -469,24 +566,20 @@ function formatConversation(
   const from = formatRecipient(first.from)
   const to = first.toRecipients?.map(formatRecipient).join(', ') || ''
 
-  const lines: string[] = []
-  lines.push(`Subject: ${subject}`)
-  lines.push(`From: ${from}`)
+  const lines = new BoundedLines()
+  lines.push(`Subject: ${subject}`, `From: ${from}`)
   if (to) lines.push(`To: ${to}`)
-  lines.push(`Messages: ${sorted.length}`)
-  lines.push('')
+  lines.push(`Messages: ${sorted.length}`, '')
 
   for (const msg of sorted) {
     const msgFrom = formatRecipient(msg.from)
     const msgDate = msg.receivedDateTime || ''
     const body = extractBodyText(msg.body)
 
-    lines.push(`--- ${msgFrom} (${msgDate}) ---`)
-    lines.push(body.trim())
-    lines.push('')
+    if (!lines.push(`--- ${msgFrom} (${msgDate}) ---`, body.trim(), '')) break
   }
 
-  const content = lines.join('\n').trim()
+  const content = lines.join().trim()
   if (!content) return null
 
   const categories = new Set<string>()
@@ -514,8 +607,22 @@ function formatConversation(
   }
 }
 
+/**
+ * The conversation cap. A blank field keeps the default; 0 lifts the cap so a
+ * per-member listing is complete.
+ */
+function parseMaxConversations(value: unknown): number {
+  return parseDefaultedUnlimitedSafeInteger(
+    value,
+    DEFAULT_MAX_CONVERSATIONS,
+    'Max conversations must be a positive safe integer, or 0 for unlimited'
+  )
+}
+
 export const outlookConnector: ConnectorConfig = {
   ...outlookConnectorMeta,
+
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
 
   listDocuments: async (
     accessToken: string,
@@ -523,9 +630,7 @@ export const outlookConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const maxConversations = sourceConfig.maxConversations
-      ? Number(sourceConfig.maxConversations)
-      : DEFAULT_MAX_CONVERSATIONS
+    const maxConversations = parseMaxConversations(sourceConfig.maxConversations)
 
     // Initialize accumulator in syncContext
     if (syncContext && !syncContext._conversations) {
@@ -559,15 +664,20 @@ export const outlookConnector: ConnectorConfig = {
           status: response.status,
           error: errorText,
         })
-        throw new Error(`Failed to fetch Outlook messages: ${response.status}`)
+        throw listingRequestError('Failed to fetch Outlook messages', response.status)
       }
 
       const data = await response.json()
       const messages = (data.value || []) as OutlookMessage[]
 
-      // Client-side filtering when $search is active (Graph API can't combine these with $search)
+      /**
+       * A search-scoped listing deliberately carries no `$filter` (see
+       * {@link buildInitialUrl}), so the draft, focused-inbox, and date-cutoff
+       * predicates are applied here instead.
+       */
       const focusedOnly = sourceConfig.focusedOnly !== 'false'
-      const hasSearch = Boolean((sourceConfig.query as string)?.trim())
+      const hasSearch = Boolean(resolveSearchQuery(sourceConfig))
+      const dateCutoffMs = hasSearch ? resolveDateCutoffMs(sourceConfig, syncContext) : null
 
       const excludedFolderIds = isAllMailSync(sourceConfig)
         ? await resolveExcludedFolderIds(accessToken, syncContext)
@@ -587,6 +697,11 @@ export const outlookConnector: ConnectorConfig = {
         // Apply focused filter client-side when search prevented server-side filter
         if (focusedOnly && hasSearch && msg.inferenceClassification !== 'focused') {
           continue
+        }
+
+        if (dateCutoffMs !== null) {
+          const received = msg.receivedDateTime ? Date.parse(msg.receivedDateTime) : Number.NaN
+          if (Number.isFinite(received) && received < dateCutoffMs) continue
         }
 
         if (!msg.conversationId) continue
@@ -615,6 +730,15 @@ export const outlookConnector: ConnectorConfig = {
          * unvisited tail as deleted mail and hard-delete those documents.
          */
         if (nextLink) syncContext.listingCapped = true
+        /**
+         * Graph stops paging a `$search` request at 1,000 results by simply
+         * omitting `@odata.nextLink`, which is indistinguishable from mailbox
+         * exhaustion. Treat reaching the cap as a truncated listing so the tail
+         * beyond it is not read as deleted mail and hard-deleted.
+         */
+        if (hasSearch && newTotal >= GRAPH_SEARCH_RESULT_LIMIT) {
+          syncContext.listingCapped = true
+        }
         syncContext._fetchComplete = true
       }
     }
@@ -641,14 +765,22 @@ export const outlookConnector: ConnectorConfig = {
     })
 
     /**
-     * Limit to `maxConversations`. Dropping the overflow makes the listing an
-     * incomplete view of the mailbox, so it is flagged as capped — otherwise
-     * reconciliation would hard-delete every conversation past the cap.
+     * Limit to `maxConversations` when one is set. Dropping the overflow makes
+     * the listing an incomplete view of the mailbox, so it is flagged as capped —
+     * otherwise reconciliation would hard-delete every conversation past the cap.
      */
-    const limited = conversationEntries.slice(0, maxConversations)
+    const limited =
+      maxConversations > 0 ? conversationEntries.slice(0, maxConversations) : conversationEntries
     if (conversationEntries.length > limited.length && syncContext) {
       syncContext.listingCapped = true
     }
+
+    /**
+     * The hash date each stub was built from, handed to `getDocument` so the
+     * hydrated hash matches the stub exactly. See
+     * {@link CONVERSATION_LAST_DATE_CONTEXT_KEY}.
+     */
+    const listedLastDates: Record<string, string> = {}
 
     const documents: ExternalDocument[] = []
     for (const [convId, msgs] of limited) {
@@ -659,20 +791,29 @@ export const outlookConnector: ConnectorConfig = {
         return d > max ? d : max
       }, '')
 
-      const subject = msgs[0].subject || 'No Subject'
-      const firstWithLink = msgs.find((m) => m.webLink)
+      /** Oldest-first, matching how `formatConversation` picks the subject */
+      const sorted = sortByReceivedAscending(msgs)
+      const subject = sorted[0].subject || 'No Subject'
+      const firstWithLink = sorted.find((m) => m.webLink)
       const sourceUrl = firstWithLink?.webLink || 'https://outlook.office.com/mail/inbox'
+
+      listedLastDates[convId] = lastDate
 
       documents.push({
         externalId: convId,
         title: subject,
         content: '',
         contentDeferred: true,
+        estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
         mimeType: 'text/plain',
         sourceUrl,
         contentHash: `outlook:${convId}:${lastDate}`,
         metadata: {},
       })
+    }
+
+    if (syncContext) {
+      syncContext[CONVERSATION_LAST_DATE_CONTEXT_KEY] = listedLastDates
     }
 
     return { documents, hasMore: false }
@@ -686,11 +827,7 @@ export const outlookConnector: ConnectorConfig = {
   ): Promise<ExternalDocument | null> => {
     try {
       // Scope to the same folder as listDocuments so contentHash stays consistent
-      const folder = resolveFolder(sourceConfig)
-      const basePath =
-        folder === 'all'
-          ? `${GRAPH_API_BASE}/messages`
-          : `${GRAPH_API_BASE}/mailFolders/${WELL_KNOWN_FOLDERS[folder] || folder}/messages`
+      const basePath = buildMessagesBasePath(sourceConfig)
 
       const filterParts = [
         `conversationId eq '${externalId.replace(/'/g, "''")}'`,
@@ -723,11 +860,12 @@ export const outlookConnector: ConnectorConfig = {
       const allMessages = (data.value || []) as OutlookMessage[]
 
       /**
-       * Mirrors the listing's exclusion so `contentHash` is computed over the
-       * same message set on both sides. Without it, deleting the newest message
-       * of a conversation would leave the listing hash (recomputed from the
-       * surviving messages) permanently disagreeing with the hash returned
-       * here, re-fetching the conversation on every sync forever.
+       * Mirrors the listing's exclusion so the indexed content — and the
+       * fallback `contentHash` computed below when no listing date is
+       * available — covers the same message set on both sides. Without it,
+       * deleting the newest message of a conversation would leave the listing
+       * hash permanently disagreeing with the hash returned here, re-fetching
+       * the conversation on every sync forever.
        */
       const excludedFolderIds = isAllMailSync(sourceConfig)
         ? await resolveExcludedFolderIds(accessToken, syncContext)
@@ -739,12 +877,28 @@ export const outlookConnector: ConnectorConfig = {
       const result = formatConversation(externalId, messages)
       if (!result) return null
 
-      const lastDate = messages.reduce((max, m) => {
-        const d = m.receivedDateTime || ''
-        return d > max ? d : max
-      }, '')
+      /**
+       * Prefer the date the listing hashed this conversation with. The listing
+       * narrows messages by focused-inbox classification, `$search`, and the
+       * date cutoff — none of which can be replayed in a `conversationId`
+       * lookup — so recomputing here would produce a hash that permanently
+       * disagrees with the stub and re-index the conversation every sync.
+       */
+      const listedLastDates = syncContext?.[CONVERSATION_LAST_DATE_CONTEXT_KEY]
+      const listedLastDate =
+        listedLastDates && typeof listedLastDates === 'object'
+          ? (listedLastDates as Record<string, unknown>)[externalId]
+          : undefined
 
-      const firstWithLink = messages.find((m) => m.webLink)
+      const lastDate =
+        typeof listedLastDate === 'string'
+          ? listedLastDate
+          : messages.reduce((max, m) => {
+              const d = m.receivedDateTime || ''
+              return d > max ? d : max
+            }, '')
+
+      const firstWithLink = sortByReceivedAscending(messages).find((m) => m.webLink)
 
       return {
         externalId,
@@ -757,11 +911,17 @@ export const outlookConnector: ConnectorConfig = {
         metadata: result.metadata,
       }
     } catch (error) {
+      /**
+       * A transport or Graph failure that survived `fetchWithRetry`. Returning
+       * `null` would drop the conversation from the run with no `failed` row and
+       * no error log; rethrowing lets the sync engine record it per-document.
+       * Genuine absence is already handled above (404, or no matching messages).
+       */
       logger.warn('Failed to get Outlook conversation', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 
@@ -769,22 +929,16 @@ export const outlookConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxConversations = sourceConfig.maxConversations as string | undefined
-
-    if (
-      maxConversations &&
-      (Number.isNaN(Number(maxConversations)) || Number(maxConversations) <= 0)
-    ) {
-      return { valid: false, error: 'Max conversations must be a positive number' }
+    try {
+      parseMaxConversations(sourceConfig.maxConversations)
+    } catch (error) {
+      return { valid: false, error: toError(error).message }
     }
 
     try {
       // Verify Graph API access
       const folder = resolveFolder(sourceConfig)
-      const testUrl =
-        folder === 'all'
-          ? `${GRAPH_API_BASE}/messages?$top=1&$select=id`
-          : `${GRAPH_API_BASE}/mailFolders/${WELL_KNOWN_FOLDERS[folder] || folder}/messages?$top=1&$select=id`
+      const testUrl = `${buildMessagesBasePath(sourceConfig)}?$top=1&$select=id`
 
       const response = await fetchWithRetry(
         testUrl,
@@ -806,14 +960,14 @@ export const outlookConnector: ConnectorConfig = {
       }
 
       // If a search query is specified, verify it's valid with a dry run
-      const searchQuery = sourceConfig.query as string | undefined
-      if (searchQuery?.trim()) {
+      const searchQuery = resolveSearchQuery(sourceConfig)
+      if (searchQuery) {
         const searchParams = new URLSearchParams({
-          $search: `"${searchQuery.trim()}"`,
+          $search: `"${escapeSearchValue(searchQuery)}"`,
           $top: '1',
           $select: 'id',
         })
-        const searchUrl = `${GRAPH_API_BASE}/messages?${searchParams.toString()}`
+        const searchUrl = `${buildMessagesBasePath(sourceConfig)}?${searchParams.toString()}`
         const searchResponse = await fetchWithRetry(
           searchUrl,
           {

@@ -2,8 +2,9 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { validateMondayNumericId } from '@/lib/core/security/input-validation'
+import { getOAuthToken } from '@/lib/oauth/credential-service'
 import {
-  getCredentialOwner,
+  getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
@@ -15,15 +16,13 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
 
 const logger = createLogger('WebhookProvider:Monday')
 
-const MONDAY_API_URL = 'https://api.monday.com/v2'
-
 /**
  * Resolves an OAuth access token from the webhook's credential configuration.
- * Follows the Airtable pattern: credentialId → getCredentialOwner → refreshAccessTokenIfNeeded.
+ * Follows the Airtable pattern: credentialId → getCredentialAccessToken.
  */
 async function resolveAccessToken(
   config: Record<string, unknown>,
@@ -33,15 +32,8 @@ async function resolveAccessToken(
   const credentialId = config.credentialId as string | undefined
 
   if (credentialId) {
-    const credentialOwner = await getCredentialOwner(credentialId, requestId)
-    if (credentialOwner) {
-      const token = await refreshAccessTokenIfNeeded(
-        credentialOwner.accountId,
-        credentialOwner.userId,
-        requestId
-      )
-      if (token) return token
-    }
+    const token = await getCredentialAccessToken(credentialId, requestId)
+    if (token) return token
   }
 
   const fallbackToken = await getOAuthToken(userId, 'monday')
@@ -109,11 +101,7 @@ export const mondayHandler: WebhookProviderHandler = {
     try {
       const response = await fetch(MONDAY_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'API-Version': '2024-10',
-          Authorization: accessToken,
-        },
+        headers: mondayHeaders(accessToken),
         body: JSON.stringify({
           query: `mutation { create_webhook(board_id: ${boardIdValidation.sanitized}, url: ${JSON.stringify(notificationUrl)}, event: ${eventType}) { id board_id } }`,
         }),
@@ -198,14 +186,7 @@ export const mondayHandler: WebhookProviderHandler = {
     try {
       const credentialId = config.credentialId as string | undefined
       if (credentialId) {
-        const credentialOwner = await getCredentialOwner(credentialId, ctx.requestId)
-        if (credentialOwner) {
-          accessToken = await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            ctx.requestId
-          )
-        }
+        accessToken = await getCredentialAccessToken(credentialId, ctx.requestId)
       }
     } catch (error) {
       logger.warn(
@@ -226,11 +207,7 @@ export const mondayHandler: WebhookProviderHandler = {
     try {
       const response = await fetch(MONDAY_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'API-Version': '2024-10',
-          Authorization: accessToken,
-        },
+        headers: mondayHeaders(accessToken),
         body: JSON.stringify({
           query: `mutation { delete_webhook(id: ${externalIdValidation.sanitized}) { id board_id } }`,
         }),

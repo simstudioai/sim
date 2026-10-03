@@ -1,7 +1,10 @@
 import type { TwilioGetRecordingOutput, TwilioGetRecordingParams } from '@/tools/twilio_voice/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRecordingOutput> = {
+export const getRecordingTool: InternalToolConfig<
+  TwilioGetRecordingParams,
+  TwilioGetRecordingOutput
+> = {
   id: 'twilio_voice_get_recording',
   name: 'Twilio Voice Get Recording',
   description: 'Retrieve call recording information and transcription (if enabled via TwiML).',
@@ -28,13 +31,8 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
     },
   },
 
-  request: {
-    url: '/api/tools/twilio/get-recording',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accountSid: params.accountSid,
       authToken: params.authToken,
       recordingSid: params.recordingSid,

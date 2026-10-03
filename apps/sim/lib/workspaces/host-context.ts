@@ -1,6 +1,12 @@
 import { cache } from 'react'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
+import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
+import {
+  isKnowledgeMemberAccessAvailable,
+  resolveKnowledgeAccessAvailability,
+} from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -25,7 +31,19 @@ async function resolveWorkspaceHostContextForViewer(
     getWorkspaceOwnerSubscriptionAccess(workspaceId),
     hostOrganizationId
       ? getOrganizationSettingsAccess(hostOrganizationId, userId)
-      : Promise.resolve({ isMember: false, isAdmin: false }),
+      : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
+  ])
+  const [credentialGroupsAvailable, knowledgeAccess, organizationSearch] = await Promise.all([
+    hostOrganizationId
+      ? isScopedCredentialGroupsAvailable({
+          kind: 'organization',
+          organizationId: hostOrganizationId,
+        })
+      : Promise.resolve(false),
+    resolveKnowledgeAccessAvailability({ workspaceId, ownerBilling }),
+    hostOrganizationId && hostOrganizationAccess.isMember
+      ? isKnowledgeMemberAccessAvailable({ organizationId: hostOrganizationId })
+      : Promise.resolve(false),
   ])
 
   return {
@@ -34,6 +52,7 @@ async function resolveWorkspaceHostContextForViewer(
       name: access.workspace.name,
       workspaceMode: access.workspace.workspaceMode,
       billedAccountUserId: access.workspace.billedAccountUserId,
+      allowPersonalApiKeys: access.workspace.allowPersonalApiKeys,
     },
     hostOrganizationId,
     ownerBilling,
@@ -41,7 +60,15 @@ async function resolveWorkspaceHostContextForViewer(
       permission: access.permission,
       isHostOrganizationMember: hostOrganizationAccess.isMember,
       isHostOrganizationAdmin: hostOrganizationAccess.isAdmin,
+      organizationRole: hostOrganizationAccess.role,
     },
+    features: {
+      credentialGroups: credentialGroupsAvailable,
+      organizationSearch,
+      knowledgeMemberAccess: knowledgeAccess.memberScoped,
+      knowledgeSourceMirroredAccess: knowledgeAccess.sourceMirrored,
+    },
+    deployment: resolveDeploymentShape(),
   }
 }
 

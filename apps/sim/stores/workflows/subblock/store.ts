@@ -49,11 +49,28 @@ export const EMPTY_BLOCK_SUBBLOCK_VALUES: Record<string, SubBlockValue> = {}
  * server — the client's merged state and the DB draft stay equivalent, which
  * is what keeps deploy-time change detection honest (deploy snapshots the DB
  * draft). Direct setValue callers do not persist, and each is safe for a
- * different reason: remote-broadcast application (already persisted
- * server-side), undo/redo (persists via its own queued inverse operations),
- * webhook management (writes trigger-runtime ids the comparison excludes), and
- * populateTriggerFieldsFromConfig (values derived from the persisted
- * triggerConfig aggregate, compensated via normalizeTriggerConfigValues).
+ * different reason:
+ *
+ * - remote-broadcast application — already persisted server-side
+ * - undo/redo — persists via its own queued inverse operations
+ * - synthetic tool subblock ids — excluded from both persistence and comparison
+ * - whole-document replacement — the server's own state, re-seeded
+ * - webhook management's runtime ids (webhookId/triggerPath/triggerConfig/
+ *   triggerId) — excluded by filterSubBlockIds
+ * - populateTriggerFieldsFromConfig — writes deploy-materialized defaults, which
+ *   the canonical form resolves to the same value on both sides
+ *
+ * That last entry previously claimed `normalizeTriggerConfigValues` compensated
+ * for it. It never could: that helper back-fills from a side's OWN persisted
+ * `triggerConfig` aggregate, nothing has persisted one since the modal-era
+ * migration, and it only fills keys that already exist — while the divergence it
+ * was supposed to cancel is a key that does not. Roughly half of all deployed
+ * webhooks carried a phantom "Update" because of it. The compensation is now
+ * `canonicalizeSubBlockValue`, which resolves a blank value and a value equal to
+ * its declared default to the same thing on both sides of the comparison.
+ *
+ * Adding a new direct caller means adding a line above. If it writes an id the
+ * comparison reads, and nothing here explains why that is safe, it is not.
  */
 
 export const useSubBlockStore = create<SubBlockStore>()(

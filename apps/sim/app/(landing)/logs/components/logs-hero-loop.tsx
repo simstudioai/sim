@@ -5,7 +5,7 @@ import type { BadgeProps } from '@sim/emcn'
 import { Badge, cn } from '@sim/emcn'
 import { ArrowUpDown, Download, Library, ListFilter, Search, Workflow } from '@sim/emcn/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the logs hero - a team living in its run history. */
@@ -196,8 +196,8 @@ function LogsTableRow({ row, visible }: LogsTableRowProps) {
     >
       <td className='px-6 align-middle'>
         <div className='flex items-center gap-2'>
-          <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
+          <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+          <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
             {row.workflowName}
           </span>
         </div>
@@ -223,8 +223,8 @@ function LogsTableRow({ row, visible }: LogsTableRowProps) {
 
 /**
  * The logs hero's platform loop - the workflows editor loop's architecture
- * (fixed 1280x735 design-space layer scaled to the window via ResizeObserver
- * + `transform: scale`, a parent-owned clock, reduced-motion showing the
+ * (a fixed 1280x735 HTML design surface fitted to the window via the shared
+ * responsive stage, a parent-owned clock, reduced-motion showing the
  * finished frame) with the workspace pane replaced by a static rendering of
  * the real Logs surface: the 44px title bar (Library icon, "Logs", Export,
  * Logs/Dashboard tabs), the search/Filter/Sort options bar, and the runs
@@ -259,7 +259,7 @@ export function LogsHeroLoop() {
           ),
           setTimeout(() => setLiveState('running'), LIVE_APPEAR_MS),
           setTimeout(() => setLiveState('completed'), LIVE_COMPLETE_MS),
-          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+          setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
         ],
         totalMs,
       }
@@ -274,20 +274,20 @@ export function LogsHeroLoop() {
   const liveCompleted = liveState === 'completed'
 
   return (
-    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeNav='Logs'>
-      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeItem='Logs'>
+      <div className='size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           key={cycleId}
           className={cn(
-            'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
+            'flex size-full flex-col transition-opacity duration-300 ease-out',
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >
-          <div className='flex h-[44px] flex-shrink-0 items-center border-[var(--border)] border-b px-6'>
+          <div className='flex h-[44px] shrink-0 items-center border-[var(--border)] border-b px-6'>
             <div className='flex w-full items-center justify-between'>
               <div className='flex items-center gap-3'>
                 <Library className='size-[14px] text-[var(--text-icon)]' />
-                <span className='font-medium text-[var(--text-body)] text-sm'>Logs</span>
+                <span className='text-[var(--text-body)] text-sm'>Logs</span>
               </div>
               <div className='flex items-center gap-1'>
                 <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
@@ -304,10 +304,10 @@ export function LogsHeroLoop() {
             </div>
           </div>
 
-          <div className='flex-shrink-0 border-[var(--border)] border-b px-6 py-2.5'>
+          <div className='shrink-0 border-[var(--border)] border-b px-6 py-2.5'>
             <div className='flex items-center justify-between'>
               <div className='flex flex-1 items-center gap-2.5'>
-                <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <Search className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                 <span className='flex-1 text-[var(--text-muted)] text-caption'>Search logs...</span>
               </div>
               <div className='flex items-center gap-1.5'>
@@ -330,12 +330,12 @@ export function LogsHeroLoop() {
                   <col key={index} style={{ width }} />
                 ))}
               </colgroup>
-              <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+              <thead className='border-[var(--border)] border-b'>
                 <tr>
                   {COL_HEADERS.map((label) => (
                     <th
                       key={label}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-caption'
+                      className='h-10 px-6 py-1.5 text-left align-middle text-[var(--text-muted)] text-caption'
                     >
                       {label}
                     </th>
@@ -351,8 +351,8 @@ export function LogsHeroLoop() {
                 >
                   <td className='px-6 align-middle'>
                     <div className='flex items-center gap-2'>
-                      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
+                      <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                      <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                         {LIVE_ROW.workflowName}
                       </span>
                     </div>

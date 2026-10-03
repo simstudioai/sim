@@ -1,15 +1,16 @@
 /**
- * The Create PR `web_search` implementation, as a Pi extension written into the sandbox at runtime
- * (mirroring `cloud-review-tools-script.ts`).
+ * The Create PR `web_search` implementation, shared by its creation and optional
+ * Babysit continuation sandbox phases and written at runtime (mirroring
+ * `cloud-review-tools-script.ts`).
  *
- * Create PR runs the Pi CLI inside E2B/Daytona with no host in the loop and no stdin channel, so it
- * cannot call `executeTool` and must issue its own bounded `fetch`. That makes the request
+ * These phases run the Pi CLI inside E2B/Daytona with no host in the loop and no stdin channel, so
+ * they cannot call `executeTool` and must issue their own bounded `fetch`. That makes the request
  * construction and normalization exist twice — here and in `tool.ts` plus `normalize.ts`. Every
  * value the two copies must agree on is interpolated from those modules rather than retyped, so the
  * duplication is confined to control flow, which the offline loader test covers per provider.
  *
  * A load failure fails the run loudly rather than silently disabling search: Pi treats an extension
- * load error as fatal and exits non-zero, which the Create PR backend surfaces as a failed run.
+ * load error as fatal and exits non-zero, which the sandbox backends surface as a failed run.
  */
 
 import {
@@ -104,13 +105,13 @@ function buildRequest(provider, apiKey, query, numResults) {
   }
   if (provider === "parallel") {
     return {
-      url: "https://api.parallel.ai/v1beta/search",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "parallel-beta": "search-extract-2025-10-10",
+      url: "https://api.parallel.ai/v1/search",
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+      body: {
+        search_queries: [query],
+        objective: query,
+        advanced_settings: { max_results: numResults },
       },
-      body: { objective: query, max_results: numResults },
     }
   }
   if (provider === "firecrawl") {

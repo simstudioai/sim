@@ -1,47 +1,110 @@
 'use client'
 
-import { createElement, lazy, Suspense, useMemo, useState } from 'react'
 import {
-  ArrowRight,
-  Button,
-  ChevronDown,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import {
+  ChipLink,
   cn,
   Expandable,
   ExpandableContent,
-  SecretInput,
   SecretReveal,
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { Cursor, TerminalWindow } from '@sim/emcn/icons'
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Lock,
+  SquareArrowUpRight,
+  TerminalWindow,
+  TriangleAlert,
+} from '@sim/emcn/icons'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
-import { ThinkingLoader } from '@/components/ui'
+import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
+import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+import { readLatestOAuthChatAttempt } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
+import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
+import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
 } from '@/lib/integrations/oauth-service'
+import {
+  readSearchConnectionAttempt,
+  searchConnectionAttemptKey,
+} from '@/lib/knowledge/search/connection-attempt'
+import {
+  parseSearchConnectionBody,
+  searchConnectionTargetSchema,
+} from '@/lib/knowledge/search/connection-target'
+import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { organizationSecretNameSchema } from '@/lib/organization-secrets/validation'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
+import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
-import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
+import {
+  INTERACTION_CARD_ROW_CLASSES,
+  InteractionCard,
+  InteractionCardActionRow,
+  InteractionCardInputRow,
+  InteractionCardRecap,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
+import {
+  parseQuestionAnswerMessage,
+  QuestionDisplay,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
+import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
+import {
+  CredentialWorkspaceHost,
+  useCredentialWorkspaceId,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
+import {
+  OrganizationSecretInputHost,
+  useOrganizationSecretInput,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/organization-secret-input'
+import {
+  resolveOAuthChipTarget,
+  useOAuthChipConnection,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-oauth-chip-connection'
+import { usePersonalCredentialConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-personal-credential-connection'
+import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import type {
   ChatMessageContext,
   MothershipResource,
+  WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 // Deep import, not the barrel: the barrel also re-exports
 // ConnectServiceAccountModal, and that edge would pull the modal into this
 // chunk and defeat the lazy() split below.
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useWorkspaceCredential } from '@/hooks/queries/credentials'
+import { BrandIcon } from '@/blocks/brand-icon'
+import { MemberLimitRequestAction } from '@/ee/access-requests/components/member-limit-request-action'
+import {
+  useUpdateWorkspaceCredential,
+  useWorkspaceCredential,
+  useWorkspaceCredentials,
+} from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -49,8 +112,10 @@ import {
 } from '@/hooks/queries/environment'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
+import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceUsageGate } from '@/hooks/queries/workspace-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 export interface OptionsItemData {
@@ -85,6 +150,12 @@ const ConnectServiceAccountModal = lazy(() =>
   ).then((m) => ({ default: m.ConnectServiceAccountModal }))
 )
 
+const ConnectPersonalTokenModal = lazy(() =>
+  import('@/app/workspace/[workspaceId]/integrations/components/connect-personal-token-modal').then(
+    (module) => ({ default: module.ConnectPersonalTokenModal })
+  )
+)
+
 export const CREDENTIAL_TAG_TYPES = [
   'env_key',
   'oauth_key',
@@ -100,11 +171,13 @@ export const CREDENTIAL_TAG_TYPES = [
 
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
 
-export const SECRET_INPUT_SCOPES = ['personal', 'workspace'] as const
+export const SECRET_INPUT_SCOPES = ['personal', 'workspace', 'organization'] as const
 
 export type SecretInputScope = (typeof SECRET_INPUT_SCOPES)[number]
 
-export interface CredentialTagData {
+export interface CredentialItemData {
+  /** Explicit workspace target for organization Agent credential controls. */
+  workspaceId?: string
   value?: string
   type: CredentialTagType
   provider?: string
@@ -114,13 +187,138 @@ export interface CredentialTagData {
    * for browser_takeover; what the user needs to do for terminal_handoff.
    */
   name?: string
-  /** Where a secret_input value is persisted. Defaults to "workspace". */
+  /** Defaults to workspace; organization uses the current org's Generic Secrets source. */
   scope?: SecretInputScope
+  /**
+   * What the secret is for (secret_input, workspace scope only), written by the
+   * agent that asked for it. Never shown or editable in the card — it exists so
+   * the saved secret carries its purpose into workspace settings.
+   */
+  description?: string
   /**
    * Existing credential to reconnect in place (service_account only). Present =
    * rotate the secret on this credential; absent = create a new one.
    */
   credentialId?: string
+  /** Canonical Search source requested by an organization connection control. */
+  connectorType?: string
+  connectorId?: string
+  connectionMode?: 'live'
+  optionId?: string
+}
+
+/**
+ * Normalized `<credential>` payload. A singleton object remains valid for old
+ * messages, while an array lets one terminal tag render several controls as
+ * rows in a single card.
+ */
+export type CredentialTagData = CredentialItemData[]
+
+export interface CredentialSubmissionProgress {
+  connectedIntegrationIndexes: ReadonlySet<number>
+  savedSecretIndexes: ReadonlySet<number>
+}
+
+export interface CredentialSubmissionPayload {
+  integrations: Array<{ name: string; status: 'connected' | 'skipped' }>
+  secrets: Array<{ name: string; status: 'saved' | 'skipped' }>
+}
+
+/**
+ * Safe user-turn payload emitted by the credential question card. It carries
+ * only the requested provider and environment-variable names; secret values
+ * remain in Sim's credential stores and never enter the transcript.
+ */
+export function formatCredentialSubmissionMessage(
+  data: CredentialTagData,
+  progress?: CredentialSubmissionProgress
+): string {
+  const integrations = data
+    .filter((item) => item.type === 'link' || item.type === 'service_account')
+    .map((item) => item.provider?.trim())
+    .filter((provider): provider is string => Boolean(provider))
+  const secrets = data
+    .filter((item) => item.type === 'secret_input')
+    .map((item) => item.name?.trim())
+    .filter((name): name is string => Boolean(name))
+  const payload: CredentialSubmissionPayload = {
+    integrations: integrations.map((name, index) => ({
+      name,
+      status:
+        !progress || progress.connectedIntegrationIndexes.has(index) ? 'connected' : 'skipped',
+    })),
+    secrets: secrets.map((name, index) => ({
+      name,
+      status: !progress || progress.savedSecretIndexes.has(index) ? 'saved' : 'skipped',
+    })),
+  }
+  return `Credential setup submitted — ${JSON.stringify(payload)}`
+}
+
+export function parseCredentialSubmissionProgress(
+  data: CredentialTagData,
+  content: string
+): CredentialSubmissionPayload | null {
+  const legacyIntegrations = data
+    .filter((item) => item.type === 'link' || item.type === 'service_account')
+    .map((item) => item.provider?.trim())
+    .filter((provider): provider is string => Boolean(provider))
+  const legacySecrets = data
+    .filter((item) => item.type === 'secret_input')
+    .map((item) => item.name?.trim())
+    .filter((name): name is string => Boolean(name))
+  const legacyParts = [
+    legacyIntegrations.length > 0 ? `integrations: ${legacyIntegrations.join(', ')}` : null,
+    legacySecrets.length > 0 ? `secrets: ${legacySecrets.join(', ')}` : null,
+  ].filter((part): part is string => part !== null)
+  const legacyMessage = `Credential setup complete${legacyParts.length > 0 ? ` — ${legacyParts.join('; ')}` : ''}`
+  if (content === legacyMessage) {
+    return {
+      integrations: legacyIntegrations.map((name) => ({ name, status: 'connected' })),
+      secrets: legacySecrets.map((name) => ({ name, status: 'saved' })),
+    }
+  }
+
+  const prefix = 'Credential setup submitted — '
+  if (!content.startsWith(prefix)) return null
+
+  try {
+    const payload = JSON.parse(content.slice(prefix.length)) as CredentialSubmissionPayload
+    const expectedIntegrations = data
+      .filter((item) => item.type === 'link' || item.type === 'service_account')
+      .map((item) => item.provider?.trim())
+      .filter((provider): provider is string => Boolean(provider))
+    const expectedSecrets = data
+      .filter((item) => item.type === 'secret_input')
+      .map((item) => item.name?.trim())
+      .filter((name): name is string => Boolean(name))
+
+    const valid =
+      Array.isArray(payload.integrations) &&
+      payload.integrations.length === expectedIntegrations.length &&
+      payload.integrations.every(
+        (item, index) =>
+          item.name === expectedIntegrations[index] &&
+          (item.status === 'connected' || item.status === 'skipped')
+      ) &&
+      Array.isArray(payload.secrets) &&
+      payload.secrets.length === expectedSecrets.length &&
+      payload.secrets.every(
+        (item, index) =>
+          item.name === expectedSecrets[index] &&
+          (item.status === 'saved' || item.status === 'skipped')
+      )
+    return valid ? payload : null
+  } catch {
+    return null
+  }
+}
+
+export function parseCredentialSubmissionMessage(
+  data: CredentialTagData,
+  content: string
+): boolean {
+  return parseCredentialSubmissionProgress(data, content) !== null
 }
 
 export interface MothershipErrorTagData {
@@ -159,15 +357,52 @@ export interface QuestionItem {
 /** Normalized `<question>` payload: single-object bodies become a one-element array. */
 export type QuestionTagData = QuestionItem[]
 
-export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'file'] as const
+export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'dashboard', 'file'] as const
 
 export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
 
 export interface WorkspaceResourceTagData {
+  /** Explicit resource owner in organization chat; omitted on a workspace surface. */
+  workspaceId?: string
   type: WorkspaceResourceTagType
   id?: string
   path?: string
   title?: string
+}
+
+/**
+ * A `<source>` tag: one document the reply drew on. The tag contract for
+ * search answers — the model emits it inline, right after the sentence, list
+ * item, or paragraph the document supports, as a JSON body:
+ *
+ * `<source>{"url":"https://docs.github.com/…","siteName":"GitHub Docs"}</source>`
+ *
+ * Each tag renders as its own small chip where it sits (adjacent tags are
+ * never collapsed into a count), and every distinct `url` in the message is
+ * repeated in the footer strip below the reply.
+ */
+export interface SourceTagData {
+  /** Canonical http(s) link to the referenced document. */
+  url: string
+  /** Document title, used as the citation label and shown in full on hover. */
+  title?: string
+  /**
+   * The site or product the document lives in ("GitHub Docs", "Confluence"),
+   * used when its title is missing and as secondary metadata in source cards.
+   */
+  siteName?: string
+  /**
+   * Knowledge-base connector the document was synced through
+   * (`CONNECTOR_META_REGISTRY` key). Lends the chip the product's brand mark;
+   * without it the chip shows the site favicon.
+   */
+  connectorType?: string
+  /** The passage the reply relied on; a reply whose sources carry one is listed as result cards. */
+  snippet?: string
+  /** When the source last changed the document, as an ISO timestamp. */
+  updatedAt?: string
+  /** The person behind the document, as the source names them. */
+  author?: string
 }
 
 export type ContentSegment =
@@ -179,6 +414,7 @@ export type ContentSegment =
   | { type: 'mothership-error'; data: MothershipErrorTagData }
   | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
   | { type: 'question'; data: QuestionTagData }
+  | { type: 'source'; data: SourceTagData }
 
 export type RuntimeSpecialTagName =
   | 'thinking'
@@ -188,6 +424,7 @@ export type RuntimeSpecialTagName =
   | 'file'
   | 'workspace_resource'
   | 'question'
+  | 'source'
 
 export interface ParsedSpecialContent {
   segments: ContentSegment[]
@@ -202,6 +439,7 @@ const RUNTIME_SPECIAL_TAG_NAMES = [
   'file',
   'workspace_resource',
   'question',
+  'source',
 ] as const
 
 /**
@@ -217,24 +455,76 @@ export const SPECIAL_TAG_NAMES = [
   'mothership-error',
   'workspace_resource',
   'question',
+  'source',
 ] as const
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 function isOptionsItemData(value: unknown): value is OptionsItemData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return typeof value.title === 'string' && typeof value.description === 'string'
 }
 
+/**
+ * Repairs the one malformed options payload seen in the wild: the LAST entry
+ * loses its object braces, so its title lands directly on the numeric key and
+ * its description is hoisted to a sibling of the entries —
+ *
+ *   {"1": {…}, "2": {…}, "3": "Third title", "description": "Third desc"}
+ *
+ * — which fails both the per-item shape check and the numeric-key gate, so the
+ * whole card was dropped and the raw JSON rendered as prose.
+ *
+ * Deliberately narrow: a bare string is only accepted under a numeric key, and
+ * only a single stray `description` is absorbed, attaching to the last numeric
+ * entry that lacks one. Anything else is returned untouched so a JSON object
+ * quoted in prose still cannot masquerade as an options card. Returns the input
+ * unchanged when there is nothing to repair.
+ */
+/** Whether keys are exactly "1".."N" in order, the shape the options contract emits. */
+function isSequentialOptionKeys(keys: string[]): boolean {
+  return keys.length > 0 && keys.every((key, index) => key === String(index + 1))
+}
+
+function repairFlattenedOptionEntry(value: unknown): unknown {
+  if (!isRecordLike(value) || Array.isArray(value)) return value
+
+  const entries = Object.entries(value)
+  const numericKeys = entries.filter(([key]) => /^\d+$/.test(key))
+  if (numericKeys.length === 0) return value
+
+  // The hoisted description IS the signature of this corruption. Without one,
+  // a numeric-keyed map of plain strings is just data ({"1": "ok", "2": "ok"})
+  // and must stay prose.
+  const strayKeys = entries.filter(([key]) => !/^\d+$/.test(key))
+  if (strayKeys.length !== 1) return value
+  const [strayKey, strayValue] = strayKeys[0]
+  if (strayKey !== 'description' || typeof strayValue !== 'string') return value
+
+  // Exactly one entry lost its braces, and it is the last one — every earlier
+  // entry must already be a well-formed option.
+  const flattenedCount = numericKeys.filter(([, item]) => typeof item === 'string').length
+  if (flattenedCount !== 1) return value
+  const [lastKey, lastItem] = numericKeys[numericKeys.length - 1]
+  if (typeof lastItem !== 'string') return value
+
+  const repaired: Record<string, unknown> = {}
+  for (const [key, item] of numericKeys) {
+    repaired[key] = key === lastKey ? { title: lastItem, description: strayValue } : item
+  }
+  return repaired
+}
+
+/**
+ * Arrays are accepted alongside keyed objects: an agent that emits
+ * `<options>[{title,description},…]</options>` still renders, with the array
+ * index standing in as the option key.
+ */
 function isOptionsTagData(value: unknown): value is OptionsTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value) && !Array.isArray(value)) return false
   return Object.values(value).every(isOptionsItemData)
 }
 
 function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.reason === 'string' &&
     typeof value.message === 'string' &&
@@ -243,8 +533,15 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
   )
 }
 
-function isCredentialTagData(value: unknown): value is CredentialTagData {
-  if (!isRecord(value)) return false
+function isOptionalWorkspaceTarget(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (typeof value === 'string' && value.length > 0 && value.length <= 256 && value === value.trim())
+  )
+}
+
+function isCredentialItemData(value: unknown): value is CredentialItemData {
+  if (!isRecordLike(value)) return false
   if (
     typeof value.type !== 'string' ||
     !(CREDENTIAL_TAG_TYPES as readonly string[]).includes(value.type)
@@ -252,6 +549,7 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     return false
   }
   if (value.provider !== undefined && typeof value.provider !== 'string') return false
+  if (!isOptionalWorkspaceTarget(value.workspaceId)) return false
   // secret_input is an empty input the user fills in — it carries a key name to
   // save under, not a value.
   if (value.type === 'secret_input') {
@@ -261,6 +559,12 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     ) {
       return false
     }
+    if (value.scope === 'organization')
+      return (
+        value.workspaceId === undefined &&
+        value.value === undefined &&
+        organizationSecretNameSchema.safeParse(value.name).success
+      )
     return typeof value.name === 'string' && value.name.trim().length > 0
   }
   // folder_access, browser_takeover and terminal_handoff are value-less action
@@ -287,16 +591,44 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     }
     return typeof value.provider === 'string' && value.provider.trim().length > 0
   }
+  if (value.type === 'link' && value.connectorType !== undefined)
+    return searchConnectionTargetSchema.safeParse(value).success
+  if (value.type === 'link' && value.value === undefined) {
+    return typeof value.provider === 'string' && value.provider.trim().length > 0
+  }
   // A sim_key chip is platform-filled: the model only marks where the workspace
   // API key belongs (it never holds the value) and Sim injects it from the tool
-  // result, so the tag is valid with or without a `value`. Every other rendered
-  // type (e.g. link) needs a string value to render.
+  // result, so the tag is valid with or without a `value`.
   if (value.type === 'sim_key') return true
   return typeof value.value === 'string'
 }
 
+/**
+ * Parses a `<credential>` body and normalizes a singleton object to one row.
+ * Empty arrays and arrays containing one invalid control reject the whole card.
+ */
+export function parseCredentialTagBody(body: string): CredentialTagData | null {
+  try {
+    const parsed = JSON.parse(body) as unknown
+    const items = Array.isArray(parsed) ? parsed : [parsed]
+    if (items.some((item) => isRecordLike(item) && item.connectorType !== undefined))
+      return parseSearchConnectionBody(body)
+    return items.length > 0 && items.every(isCredentialItemData) ? items : null
+  } catch {
+    return null
+  }
+}
+
+/** Last complete credential batch, used to pair its Submit turn on reload. */
+export function parseLastCredentialTag(content: string): CredentialTagData | null {
+  const matches = content.match(/<credential>([\s\S]*?)<\/credential>/g)
+  if (!matches || matches.length === 0) return null
+  const last = matches[matches.length - 1]
+  return parseCredentialTagBody(last.slice('<credential>'.length, -'</credential>'.length))
+}
+
 function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.message === 'string' &&
     (value.code === undefined || typeof value.code === 'string') &&
@@ -304,8 +636,35 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
   )
 }
 
+/**
+ * Only an absolute http(s) URL with a host can be linked; anything else is not
+ * a source. Parsed rather than pattern-matched so a malformed value such as
+ * `https://?` — which a prefix check would accept — never becomes a dead link.
+ */
+export function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || /\s/.test(value)) return false
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname.length > 0
+  } catch {
+    return false
+  }
+}
+
+function isSourceTagData(value: unknown): value is SourceTagData {
+  if (!isRecordLike(value)) return false
+  if (!isHttpUrl(value.url)) return false
+  if (value.title !== undefined && typeof value.title !== 'string') return false
+  if (value.siteName !== undefined && typeof value.siteName !== 'string') return false
+  if (value.connectorType !== undefined && typeof value.connectorType !== 'string') return false
+  if (value.snippet !== undefined && typeof value.snippet !== 'string') return false
+  if (value.updatedAt !== undefined && typeof value.updatedAt !== 'string') return false
+  if (value.author !== undefined && typeof value.author !== 'string') return false
+  return true
+}
+
 function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value) || !isOptionalWorkspaceTarget(value.workspaceId)) return false
   if (
     typeof value.type !== 'string' ||
     !(WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type)
@@ -323,7 +682,7 @@ function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceT
 }
 
 function isQuestionOption(value: unknown): value is QuestionOption {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return typeof value.id === 'string' && typeof value.label === 'string'
 }
 
@@ -341,7 +700,7 @@ const SELF_PROVIDED_OPTION_LABELS = new Set([
 ])
 
 function isQuestionItem(value: unknown): value is QuestionItem {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   if (
     typeof value.type !== 'string' ||
     !(QUESTION_TYPES as readonly string[]).includes(value.type)
@@ -395,7 +754,7 @@ function recoverQuestionPrompts(body: string): string | null {
     const parsed = JSON.parse(body) as unknown
     const items = Array.isArray(parsed) ? parsed : [parsed]
     const prompts = items
-      .filter(isRecord)
+      .filter(isRecordLike)
       .map((item) => (typeof item.prompt === 'string' ? item.prompt.trim() : ''))
       .filter((prompt) => prompt.length > 0)
     return prompts.length > 0 ? prompts.join('\n\n') : null
@@ -423,11 +782,14 @@ export function parseQuestionTagBody(body: string): QuestionTagData | null {
 
 export function parseJsonTagBody<T>(
   body: string,
-  isExpectedShape: (value: unknown) => value is T
+  isExpectedShape: (value: unknown) => value is T,
+  /** Optional normalizer applied before the shape check, for known model typos. */
+  repair?: (value: unknown) => unknown
 ): T | null {
   try {
     const parsed = JSON.parse(body) as unknown
-    return isExpectedShape(parsed) ? parsed : null
+    const candidate = repair ? repair(parsed) : parsed
+    return isExpectedShape(candidate) ? candidate : null
   } catch {
     return null
   }
@@ -440,12 +802,13 @@ export function parseTextTagBody(body: string): string | null {
 /**
  * Whether `body` is syntactically valid JSON, regardless of its shape.
  *
- * Separates "the agent formed a payload that failed its shape guard" from "this
- * was never JSON" — the line that decides whether a failed body may be dropped
- * or must be shown (see {@link classifyBody}). Costs a second parse of a body
- * that already failed one, which is the rare path; the common cases never reach
- * it, since a valid payload returns earlier and prose is rejected by the cheaper
- * viability rule before this runs.
+ * Separates "the agent formed a well-formed payload that failed its shape
+ * guard" (`wrong-shape`) from "this body will not parse"; for the latter,
+ * {@link wasAttemptedPayload} then decides whether it may be dropped or must be
+ * shown (see {@link classifyBody}). Costs a second parse of a body that already
+ * failed one, which is the rare path; the common cases never reach it, since a
+ * valid payload returns earlier and prose is rejected by the cheaper viability
+ * rule before this runs.
  */
 function isParseableJson(body: string): boolean {
   try {
@@ -490,6 +853,7 @@ function parseSpecialTagData(
   | { type: 'mothership-error'; data: MothershipErrorTagData }
   | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
   | { type: 'question'; data: QuestionTagData }
+  | { type: 'source'; data: SourceTagData }
   | null {
   if (tagName === 'thinking') {
     const content = parseTextTagBody(body)
@@ -497,7 +861,7 @@ function parseSpecialTagData(
   }
 
   if (tagName === 'options') {
-    const data = parseJsonTagBody(body, isOptionsTagData)
+    const data = parseJsonTagBody(body, isOptionsTagData, repairFlattenedOptionEntry)
     return data ? { type: 'options', data } : null
   }
 
@@ -507,7 +871,7 @@ function parseSpecialTagData(
   }
 
   if (tagName === 'credential') {
-    const data = parseJsonTagBody(body, isCredentialTagData)
+    const data = parseCredentialTagBody(body)
     return data ? { type: 'credential', data } : null
   }
 
@@ -519,6 +883,11 @@ function parseSpecialTagData(
   if (tagName === 'workspace_resource') {
     const data = parseJsonTagBody(body, isWorkspaceResourceTagData)
     return data ? { type: 'workspace_resource', data } : null
+  }
+
+  if (tagName === 'source') {
+    const data = parseJsonTagBody(body, isSourceTagData)
+    return data ? { type: 'source', data } : null
   }
 
   if (tagName === 'question') {
@@ -608,8 +977,8 @@ const LONGEST_TAG_MARKER = Math.max(...SPECIAL_TAG_NAMES.map((name) => `</${name
  */
 function blankJsonStringLiterals(body: string): string {
   // With no quote there is no string literal, so the loop below would copy the
-  // body to itself character by character. Both callers reach here on bodies
-  // that are usually plain prose, and this runs per opener per streamed chunk.
+  // body to itself character by character. Callers reach here on bodies that
+  // are usually plain prose, and this runs per opener per streamed chunk.
   if (!body.includes('"')) return body
 
   let out = ''
@@ -636,6 +1005,33 @@ function blankJsonStringLiterals(body: string): string {
   }
 
   return out
+}
+
+/**
+ * Whether `body` ends inside a JSON string literal, under the same quote and
+ * escape rules as {@link blankJsonStringLiterals}.
+ *
+ * True means the body's quotes are mispaired, so blanking assigned at least one
+ * region to the wrong side of a string boundary — the one condition under which
+ * a marker missing from the blanked copy may still be real. With balanced
+ * quotes the blanked scan already saw every marker outside a string, so a
+ * marker visible only in the raw text really was quoted content (see
+ * {@link classifyBody}).
+ */
+function endsInsideJsonString(body: string): boolean {
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < body.length; i++) {
+    const char = body[i]
+    if (escaped) {
+      escaped = false
+    } else if (char === '\\' && inString) {
+      escaped = true
+    } else if (char === '"') {
+      inString = !inString
+    }
+  }
+  return inString
 }
 
 /**
@@ -673,6 +1069,33 @@ function isViableJsonPrefixOf(scannable: string): boolean {
 
   return true
 }
+
+/**
+ * Index just past the close of `scannable`'s top-level JSON value, or -1 while
+ * the value is still open. Same depth rules as {@link isViableJsonPrefixOf},
+ * and takes the same blanked form, so braces inside JSON strings do not count.
+ */
+function jsonValueEndIn(scannable: string): number {
+  let depth = 0
+  for (let i = 0; i < scannable.length; i++) {
+    const char = scannable[i]
+    if (char === '{' || char === '[') {
+      depth++
+    } else if (char === '}' || char === ']') {
+      depth--
+      if (depth <= 0) return i + 1
+    }
+  }
+  return -1
+}
+
+/**
+ * Nothing but JSON punctuation and whitespace — what a fumbled payload's tail
+ * looks like on the BLANKED body, where string contents are already spaces. A
+ * letter or digit here means the model moved on to prose instead (see
+ * {@link resolveTagAt}).
+ */
+const JSON_DEBRIS_ONLY = /^[\s[\]{}",:]*$/
 
 /**
  * Whether `text` contains a marker for one of the tags this parser knows.
@@ -770,18 +1193,20 @@ type TagResolution =
   | { outcome: 'segment'; segment: ContentSegment; resumeAt: number }
   /** Provably not a tag; render the span verbatim and resume after it. */
   | { outcome: 'literal'; resumeAt: number }
-  /** A well-formed payload that failed its shape guard — dropped deliberately. */
+  /** A payload the agent attempted and botched — dropped deliberately. */
   | { outcome: 'discard'; resumeAt: number }
   /** Still streaming and a close remains plausible; suppress the remainder. */
   | { outcome: 'pending' }
 
 /**
- * Why a failed body was never an attempted payload — so the markers were literal
- * text and the span must be shown rather than swallowed. `null` means the body
- * really was a payload that failed its shape guard.
+ * Mechanical evidence about a failed body — named for what was OBSERVED, never
+ * for what it means. The semantic conclusion (attempted payload vs prose) is
+ * drawn in {@link classifyBody}, which refines `not-viable-json` through
+ * {@link wasAttemptedPayload}. `null` means the body parsed as JSON and simply
+ * failed its shape guard.
  *
- * The two reasons resume differently, which is why they are distinguished
- * rather than collapsed into a boolean (see {@link resumeForClass}).
+ * The two reasons lead to different resumes, which is why they are
+ * distinguished rather than collapsed into a boolean (see {@link resumeForClass}).
  */
 type LiteralTextVerdict =
   /**
@@ -789,8 +1214,8 @@ type LiteralTextVerdict =
    * the close we matched belongs to a different opener.
    */
   | { reason: 'foreign-markers'; markerOffset: number }
-  /** The tag wrapped prose that was never JSON to begin with. */
-  | { reason: 'never-a-payload' }
+  /** The body is not a viable JSON prefix (first char or bracket depth). */
+  | { reason: 'not-viable-json' }
 
 function literalTextReason(
   tagName: (typeof SPECIAL_TAG_NAMES)[number],
@@ -805,7 +1230,7 @@ function literalTextReason(
   const scannable = isJsonBodied ? blankJsonStringLiterals(body) : body
   const marker = TAG_SHAPED_MARKER.exec(scannable)
   if (marker) return { reason: 'foreign-markers', markerOffset: marker.index }
-  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return { reason: 'never-a-payload' }
+  if (isJsonBodied && !isViableJsonPrefixOf(scannable)) return { reason: 'not-viable-json' }
   return null
 }
 
@@ -906,10 +1331,48 @@ type BodyClass =
   | { kind: 'prose-nested-marker' }
   /** Only a prefix was read, and it settled nothing. Says nothing about the rest. */
   | { kind: 'unexamined' }
-  /** Not a payload at all — never JSON, or JSON that will not parse. */
-  | { kind: 'never-json' }
-  /** Parsed as JSON, then failed its shape guard. The only droppable class. */
-  | { kind: 'broken-payload' }
+  /**
+   * Never an attempted payload — prose, prose-in-braces, a bare scalar, an
+   * unquoted-key slip. The model's own words: showing them is mandatory,
+   * dropping them deletes text the reader was meant to see.
+   */
+  | { kind: 'not-a-payload' }
+  /**
+   * An attempted payload that will not parse — opens like JSON (see
+   * {@link wasAttemptedPayload}) but carries a syntax error. Droppable: the
+   * reader was never meant to see the JSON, and rendering it raw is the
+   * failure this parser exists to prevent.
+   */
+  | { kind: 'not-parsable' }
+  /** Parsed as JSON, then failed its shape guard. Droppable, like `not-parsable`. */
+  | { kind: 'wrong-shape' }
+
+/**
+ * Whether a body that will not parse was nonetheless an ATTEMPT at this tag's
+ * JSON payload — the line between `not-parsable` (droppable) and
+ * `not-a-payload` (must render).
+ *
+ * Two pieces of evidence, both required, both structural: the opener pair and
+ * a key-value colon. Every payload these tags carry is built from objects of
+ * quoted keys, so an attempt opens `{"`, `[{`, or `["` AND carries a `:`
+ * outside its string literals. Prose fails one or the other by construction —
+ * `{the Q4 report}` opens `{t`, `{type: "file"}` opens `{t`, `{'type':'file'}`
+ * opens `{'`, a bare scalar opens with its own first character, and a
+ * brace-wrapped quoted phrase (`{"the Q4 report"}`) has no colon outside its
+ * quotes — so every wrapped-prose shape stays rendered while a payload one
+ * typo away from valid (`{"type":"multi_select",options": …`) is recognized as
+ * the broken emission it is. Deleting text is the harm here, so the predicate
+ * fails toward rendering. Named for the question it answers, not the checks it performs:
+ * the class names assert meaning, and this predicate is what earns the
+ * assertion. Blanks on the rare path only, like {@link isParseableJson} — the
+ * common cases never reach it.
+ */
+function wasAttemptedPayload(body: string): boolean {
+  const opener = /^\s*([{[])\s*(["{])/.exec(body)
+  if (!opener) return false
+  if (opener[1] === '{' && opener[2] !== '"') return false
+  return blankJsonStringLiterals(body).includes(':')
+}
 
 /**
  * Classify a complete body. Pure: no positions, no outcome, no resume.
@@ -943,29 +1406,39 @@ function classifyBody(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string)
   }
   if (inspected.truncated) return { kind: 'unexamined' }
 
-  // Dropping text is only defensible for a payload the agent actually FORMED.
-  // `{the Q4 report}` is prose in braces and `{type: "file"}` is an ordinary
-  // model slip; bracket depth cannot tell either from a real payload, only a
-  // parse can. Both routes to that answer are funnelled through one place so the
-  // rescan below cannot be added to one and forgotten on the other.
-  const neverJson =
-    verdict?.reason === 'never-a-payload' || (isJsonBodied && !isParseableJson(body))
+  // Dropping text is only defensible for a payload the agent actually
+  // ATTEMPTED. A parse settles the well-formed case (`wrong-shape`); for a body
+  // that will not parse, the opener decides via wasAttemptedPayload below.
+  // Bracket depth can tell neither prose-in-braces nor a typo'd payload from a
+  // real one, so both routes to "unparseable" are funnelled through one place
+  // and the rescan below cannot be added to one and forgotten on the other.
+  const unparseable =
+    verdict?.reason === 'not-viable-json' || (isJsonBodied && !isParseableJson(body))
 
-  if (neverJson) {
+  if (unparseable) {
     // literalTextReason blanked this body's quoted regions on the assumption it
-    // was JSON. It never was, so that assumption is void — and a body with an
-    // odd number of `"` blanks the WRONG regions, which can hide a real marker
-    // and turn what should be `nested-marker` into `never-json`. The difference
-    // is not academic: `never-json` resumes past the close, flattening a genuine
-    // tag inside the span, so a card already on screen un-renders when the close
-    // finally arrives. With the JSON premise gone, the raw text is the honest
-    // evidence, and a marker in it means the close we matched belongs elsewhere.
-    const rawMarker = TAG_SHAPED_MARKER.exec(inspected.text)
-    if (rawMarker) return { kind: 'nested-marker', offsetInBody: rawMarker.index }
-    return { kind: 'never-json' }
+    // was valid JSON. It is not — but the blanked offsets only LIE when the
+    // body's quotes are mispaired: an odd `"` blanks the wrong regions, which
+    // can hide a real marker and misread a mispaired span as this tag's own
+    // body. The difference is not academic: both failure classes below resume
+    // past the close, flattening or discarding a genuine tag inside the span,
+    // so a card already on screen un-renders when the close finally arrives.
+    // With mispaired quotes the raw text is the honest evidence, and a marker
+    // in it means the close we matched belongs elsewhere. With BALANCED quotes
+    // the blanked scan above already saw every marker outside a string, so a
+    // marker visible only in the raw text is quoted content — rescanning would
+    // classify a broken payload whose strings legitimately mention tag syntax
+    // as nested markers and render it as raw JSON, the exact failure `discard`
+    // exists to prevent. Only after the marker question settles may the opener
+    // test decide the remaining two classes.
+    if (endsInsideJsonString(inspected.text)) {
+      const rawMarker = TAG_SHAPED_MARKER.exec(inspected.text)
+      if (rawMarker) return { kind: 'nested-marker', offsetInBody: rawMarker.index }
+    }
+    return wasAttemptedPayload(body) ? { kind: 'not-parsable' } : { kind: 'not-a-payload' }
   }
 
-  return { kind: 'broken-payload' }
+  return { kind: 'wrong-shape' }
 }
 
 /**
@@ -978,8 +1451,9 @@ function classifyBody(tagName: (typeof SPECIAL_TAG_NAMES)[number], body: string)
 function resumeForClass(cls: BodyClass, bodyStart: number, pastClose: number): number {
   switch (cls.kind) {
     case 'payload':
-    case 'broken-payload':
-    case 'never-json':
+    case 'wrong-shape':
+    case 'not-parsable':
+    case 'not-a-payload':
       // The whole span was read and accounted for; continue after it.
       return pastClose
     case 'nested-marker':
@@ -1021,14 +1495,14 @@ function resolveMatchedPair(
   switch (cls.kind) {
     case 'payload':
       return { outcome: 'segment', segment: cls.segment, resumeAt }
-    case 'broken-payload':
-      // Well-formed but the wrong shape — a broken emission. Showing the reader
-      // raw JSON is worse than showing nothing.
+    case 'wrong-shape':
+    case 'not-parsable':
+      // Showing the reader raw JSON is worse than showing nothing.
       return { outcome: 'discard', resumeAt }
     case 'nested-marker':
     case 'prose-nested-marker':
     case 'unexamined':
-    case 'never-json':
+    case 'not-a-payload':
       return { outcome: 'literal', resumeAt }
   }
 }
@@ -1047,8 +1521,33 @@ function resolveTagAt(
 
   if (closeIdx === -1) {
     const inspected = inspectWithin(content, bodyStart)
-    if (isStreaming && !unclosedTagCannotResolve(tagName, inspected.text)) {
-      return { outcome: 'pending' }
+    if (isStreaming) {
+      if (!unclosedTagCannotResolve(tagName, inspected.text)) return { outcome: 'pending' }
+      // The body can no longer resolve, but it reads as a payload the model is
+      // still fumbling: it opens like an attempted payload and everything past
+      // its top-level value is JSON debris (a stray `}` or `]}`) — exactly the
+      // shapes the matched-pair path DISCARDS the moment a close arrives.
+      // Releasing such a body now paints raw JSON on screen only for the close
+      // to retract it, so keep suppressing while the stream runs; the settled
+      // parse still shows it if the close never comes. Two kinds of
+      // counter-evidence release immediately, because each means the model
+      // moved on and holding the remainder back would blank the rest of the
+      // message for the whole stream — the failure unclosedTagCannotResolve
+      // exists to prevent: a tag-shaped marker outside the payload's strings
+      // (a misspelled close, a new tag), or prose after the value closed (a
+      // mention flowing on, pinned by the trace 220cc02d and trace afbeefd0
+      // tests).
+      if (JSON_BODY_TAG_NAMES.has(tagName)) {
+        const pending = dropArrivingClose(inspected.text, closeTag)
+        const blanked = blankJsonStringLiterals(pending)
+        if (
+          wasAttemptedPayload(pending) &&
+          !TAG_SHAPED_MARKER.test(blanked) &&
+          JSON_DEBRIS_ONLY.test(blanked.slice(Math.max(0, jsonValueEndIn(blanked))))
+        ) {
+          return { outcome: 'pending' }
+        }
+      }
     }
     // Nothing can close it, so only the opener itself is literal. Resuming just
     // past it (rather than abandoning the message) keeps a genuinely valid tag
@@ -1155,25 +1654,168 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     segments.push({ type: 'text', content })
   }
 
+  if (!isStreaming) {
+    recoverTrailingBareOptions(segments)
+    recoverTrailingBareQuestion(segments)
+  }
+
   return { segments, hasPendingTag }
+}
+/**
+ * Recovers a trailing bare-JSON options payload the model emitted WITHOUT the
+ * `<options>` wrapper (observed when an automation prompt asks the model to
+ * "(re)send suggested actions" and it answers with the JSON as content). The
+ * shape check is strict — a non-empty object whose every value is
+ * { title, description } with numeric-string keys — so ordinary JSON in prose
+ * cannot false-positive. Only a message's FINAL text segment is considered,
+ * mirroring the tag contract (options go last), and only when no options tag
+ * already parsed. Never applied mid-stream: a partial JSON tail must not
+ * flicker between prose and a card.
+ */
+const NEAR_MISS_OPTIONS_WRAPPER = /<option>\s*(\{[\s\S]*\})\s*<\/option>\s*$/
+
+/**
+ * Locates a trailing bare JSON payload: the earliest opening delimiter from
+ * which the whole remainder parses. Nested objects mean the FIRST `{` is not
+ * necessarily the payload's start, so positions are probed left to right and
+ * bounded so a brace-heavy prose block cannot become a hot loop.
+ */
+function findTrailingJsonPayload(
+  text: string,
+  openers: string[]
+): { start: number; body: string } | null {
+  const trimmed = text.trimEnd()
+  if (!openers.some((opener) => trimmed.endsWith(opener === '[' ? ']' : '}'))) return null
+  let probe = -1
+  for (const opener of openers) {
+    const index = text.indexOf(opener)
+    if (index !== -1 && (probe === -1 || index < probe)) probe = index
+  }
+  for (let attempts = 0; probe !== -1 && attempts < 20; attempts++) {
+    const body = text.slice(probe).trim()
+    try {
+      JSON.parse(body)
+      return { start: probe, body }
+    } catch {
+      let next = -1
+      for (const opener of openers) {
+        const index = text.indexOf(opener, probe + 1)
+        if (index !== -1 && (next === -1 || index < next)) next = index
+      }
+      probe = next
+    }
+  }
+  return null
+}
+
+/** Drops a bare `question` / `<question>` label sitting just before a payload. */
+const BARE_QUESTION_LABEL = /(^|\n)\s*<?questions?>?\s*:?\s*$/i
+
+/**
+ * Recovers a trailing `<question>` payload the model emitted WITHOUT the
+ * wrapper, mirroring {@link recoverTrailingBareOptions}.
+ *
+ * Safe to attempt on bare JSON because the question shape is far more
+ * distinctive than the options one: `parseQuestionTagBody` requires a `type` of
+ * exactly `single_select` or `multi_select`, a non-empty `prompt`, and a
+ * non-empty `options` array of `{id, label}`. Ordinary JSON in prose — a config
+ * blob, an API response, a code sample — does not carry that combination, so
+ * the strict validator is the whole gate. Accepts an array or a single object,
+ * exactly as the tagged path does.
+ */
+function recoverTrailingBareQuestion(segments: ContentSegment[]): void {
+  const last = segments[segments.length - 1]
+  if (!last || last.type !== 'text') return
+  if (segments.some((segment) => segment.type === 'question')) return
+  const payload = findTrailingJsonPayload(last.content, ['{', '['])
+  if (!payload) return
+  const data = parseQuestionTagBody(payload.body)
+  if (!data) return
+  const prefix = last.content
+    .slice(0, payload.start)
+    .replace(/\s+$/, '')
+    .replace(BARE_QUESTION_LABEL, '$1')
+    .replace(/\s+$/, '')
+  segments.pop()
+  if (prefix) segments.push({ type: 'text', content: prefix })
+  segments.push({ type: 'question', data })
+}
+
+function recoverTrailingBareOptions(segments: ContentSegment[]): void {
+  const last = segments[segments.length - 1]
+  if (!last || last.type !== 'text') return
+  if (segments.some((segment) => segment.type === 'options')) return
+  let text = last.content
+  // A near-miss wrapper — the singular `<option>` tag observed in the wild —
+  // is neither a parseable tag nor bare JSON (the trailing `</option>` fails
+  // the brace gate below). Unwrap it and let the strict shape check decide.
+  const nearMiss = NEAR_MISS_OPTIONS_WRAPPER.exec(text)
+  if (nearMiss) {
+    text = `${text.slice(0, nearMiss.index)}${nearMiss[1]}`
+  }
+  if (!text.trimEnd().endsWith('}')) return
+  // The payload nests objects, so the START brace is the first one from which
+  // the remainder parses — probe brace positions left to right (bounded).
+  let start = -1
+  let parsed: unknown
+  let probe = text.indexOf('{')
+  for (let attempts = 0; probe !== -1 && attempts < 20; attempts++) {
+    try {
+      parsed = JSON.parse(text.slice(probe).trim())
+      start = probe
+      break
+    } catch {
+      probe = text.indexOf('{', probe + 1)
+    }
+  }
+  if (start === -1) return
+  const repaired = repairFlattenedOptionEntry(parsed)
+  if (!isOptionsTagData(repaired) || Object.keys(repaired as object).length === 0) return
+  // The contract numbers options from 1 upward. Demanding the exact run — not
+  // merely "every key is numeric" — keeps a numeric-keyed map that happens to
+  // hold {title, description} values (e.g. {"0": {…}}) from becoming a card.
+  if (!isSequentialOptionKeys(Object.keys(repaired as object))) return
+  // A bare `options` / `<options>` label immediately before the payload is the
+  // wrapper the model meant to emit, not prose — drop it rather than leaving a
+  // stray word above the card.
+  const prefix = text
+    .slice(0, start)
+    .replace(/\s+$/, '')
+    .replace(/(^|\n)\s*<?options>?\s*:?\s*$/i, '$1')
+    .replace(/\s+$/, '')
+  segments.pop()
+  if (prefix) segments.push({ type: 'text', content: prefix })
+  segments.push({ type: 'options', data: repaired })
 }
 
 interface SpecialTagsProps {
   segment: Exclude<ContentSegment, { type: 'text' }>
+  requestMode?: 'agent' | 'assistant' | 'plan'
+  /** Stable identity for interaction state owned by this message/tag. */
+  interactionId?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
+  /** Transcript-derived status payload for this message's credential card. */
+  credentialSubmission?: CredentialSubmissionPayload
+  /** The user moved on without submitting this message's credential card. */
+  credentialAbandoned?: boolean
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
 }
 
 /**
  * Unified renderer for inline special tags: `<options>`, `<usage_upgrade>`, `<credential>`,
- * and `<workspace_resource>`.
+ * and `<workspace_resource>`. A `<source>` never reaches here — the chat renderer
+ * folds it into the surrounding markdown as an inline chip.
  */
 export function SpecialTags({
   segment,
+  requestMode,
+  interactionId,
   questionAnswers,
+  credentialSubmission,
+  credentialAbandoned,
   onOptionSelect,
   onQuestionDismiss,
   onWorkspaceResourceSelect,
@@ -1186,11 +1828,22 @@ export function SpecialTags({
     case 'usage_upgrade':
       return <UsageUpgradeDisplay data={segment.data} />
     case 'credential':
-      return <CredentialDisplay data={segment.data} />
+      return (
+        <CredentialDisplay
+          data={segment.data}
+          requestMode={requestMode}
+          interactionId={interactionId}
+          submitted={credentialSubmission}
+          abandoned={credentialAbandoned}
+          onContinue={onOptionSelect}
+        />
+      )
     case 'mothership-error':
       return <MothershipErrorDisplay data={segment.data} />
     case 'workspace_resource':
       return <WorkspaceResourceDisplay data={segment.data} onSelect={onWorkspaceResourceSelect} />
+    case 'source':
+      return null
     case 'question':
       return (
         <QuestionDisplay
@@ -1203,22 +1856,6 @@ export function SpecialTags({
     default:
       return null
   }
-}
-
-interface PendingTagIndicatorProps {
-  /** Activity phrase next to the loader; crossfades on change. */
-  label: string
-}
-
-/**
- * Renders the turn-level activity shimmer.
- */
-export function PendingTagIndicator({ label }: PendingTagIndicatorProps) {
-  return (
-    <div className='animate-stream-fade-in py-2'>
-      <ThinkingLoader size={20} startVariant='corners' label={label} labelRatio={0.7} />
-    </div>
-  )
 }
 
 interface OptionsDisplayProps {
@@ -1247,7 +1884,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
           <ChevronDown
             className={cn(
-              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
+              'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}
           />
@@ -1268,12 +1905,12 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
                   disabled={disabled}
                   onClick={() => onSelect?.(title)}
                   className={cn(
-                    'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors',
+                    'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors',
                     disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]',
                     i > 0 && 'border-t'
                   )}
                 >
-                  <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+                  <div className='flex size-[16px] shrink-0 items-center justify-center'>
                     <span className='text-[var(--text-icon)] text-sm'>{i + 1}</span>
                   </div>
                   <span className='flex-1 text-[var(--text-body)] text-sm'>{title}</span>
@@ -1294,6 +1931,8 @@ function fallbackWorkspaceResourceTitle(type: WorkspaceResourceTagType): string 
       return 'Workflow'
     case 'table':
       return 'Table'
+    case 'dashboard':
+      return 'Dashboard'
     case 'file':
       return 'File'
   }
@@ -1309,33 +1948,56 @@ function toChatMessageContext(data: WorkspaceResourceTagData, label: string): Ch
       return { kind: 'workflow', label, workflowId: data.id ?? '' }
     case 'table':
       return { kind: 'table', label, tableId: data.id ?? '' }
+    case 'dashboard':
+      return { kind: 'dashboard', label, dashboardId: data.id ?? '' }
     case 'file':
       return { kind: 'file', label, fileId: data.id ?? data.path ?? '' }
   }
 }
 
-export function WorkspaceResourceDisplay({
+interface WorkspaceResourceDisplayProps {
+  data: WorkspaceResourceTagData
+  onSelect?: (resource: WorkspaceResourceRef) => void
+}
+
+export function WorkspaceResourceDisplay(props: WorkspaceResourceDisplayProps) {
+  const { workspaceId, organizationId } = useParams<{
+    workspaceId?: string
+    organizationId?: string
+  }>()
+  if (organizationId) {
+    const target = props.data.workspaceId
+    if (!target) return <span role='status'>This resource needs an explicit workspace target.</span>
+    return (
+      <ResourceWorkspaceHost
+        key={target}
+        workspaceId={target}
+        organizationId={organizationId}
+        inline
+      >
+        <WorkspaceResourceDisplayContent {...props} workspaceId={target} addressed />
+      </ResourceWorkspaceHost>
+    )
+  }
+  if (!workspaceId || (props.data.workspaceId && props.data.workspaceId !== workspaceId))
+    return <span role='status'>This resource belongs to a different workspace.</span>
+  return <WorkspaceResourceDisplayContent {...props} workspaceId={workspaceId} />
+}
+
+function WorkspaceResourceDisplayContent({
   data,
   onSelect,
-}: {
-  data: WorkspaceResourceTagData
-  onSelect?: (resource: MothershipResource) => void
-}) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  workspaceId,
+  addressed = false,
+}: WorkspaceResourceDisplayProps & { workspaceId: string; addressed?: boolean }) {
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
 
-  const resource = useMemo<MothershipResource>(() => {
+  const resource = useMemo<WorkspaceResourceRef>(() => {
     const fileFromPath =
-      data.type === 'file' && data.path
-        ? files.find(
-            (file) =>
-              canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) ===
-              data.path
-          )
-        : undefined
+      data.type === 'file' ? findWorkspaceFileByPath(files, data.path) : undefined
     const title =
       data.type === 'workflow'
         ? (workflows.find((workflow) => workflow.id === data.id)?.name ??
@@ -1343,54 +2005,61 @@ export function WorkspaceResourceDisplay({
         : data.type === 'table'
           ? (tables.find((table) => table.id === data.id)?.name ??
             fallbackWorkspaceResourceTitle(data.type))
-          : data.type === 'file'
-            ? (files.find((file) => file.id === data.id)?.name ??
-              fileFromPath?.name ??
-              data.title ??
-              fallbackWorkspaceResourceTitle(data.type))
-            : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
-              fallbackWorkspaceResourceTitle(data.type))
+          : data.type === 'dashboard'
+            ? (data.title ?? fallbackWorkspaceResourceTitle(data.type))
+            : data.type === 'file'
+              ? (files.find((file) => file.id === data.id)?.name ??
+                fileFromPath?.name ??
+                data.title ??
+                fallbackWorkspaceResourceTitle(data.type))
+              : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
+                fallbackWorkspaceResourceTitle(data.type))
 
+    const id = data.id ?? fileFromPath?.id
     return {
       type: toMothershipResourceType(data.type),
-      id: data.id ?? fileFromPath?.id ?? data.path ?? '',
+      ...(addressed ? { workspaceId } : {}),
+      ...(id ? { id } : {}),
       title,
       ...(data.type === 'file' && data.path ? { path: data.path } : {}),
     }
-  }, [data.id, data.path, data.title, data.type, files, knowledgeBases, tables, workflows])
+  }, [
+    data.id,
+    data.path,
+    data.title,
+    data.type,
+    files,
+    knowledgeBases,
+    tables,
+    workflows,
+    addressed,
+    workspaceId,
+  ])
 
   const context = toChatMessageContext(data, resource.title)
 
-  const mentionContent = (
-    <>
-      <ContextMentionIcon
-        context={context}
-        className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
-      />
-      {resource.title}
-    </>
-  )
-
-  const classes =
-    'inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] align-baseline font-[inherit] text-[inherit] leading-[inherit]'
-
-  if (!onSelect) {
-    return <span className={classes}>{mentionContent}</span>
-  }
-
   return (
-    <button
-      type='button'
-      onClick={() => onSelect(resource)}
-      className={cn(classes, 'cursor-pointer transition-colors hover-hover:bg-[var(--surface-6)]')}
-    >
-      {mentionContent}
-    </button>
+    <ResourceMention
+      icon={
+        <ContextMentionIcon
+          context={context}
+          className='size-[12px] shrink-0 text-[var(--text-icon)]'
+        />
+      }
+      title={resource.title}
+      onSelect={onSelect ? () => onSelect(resource) : undefined}
+    />
   )
 }
 
 function getCredentialIcon(provider: string): React.ComponentType<{ className?: string }> | null {
   const lower = provider.toLowerCase()
+  if (lower === 'gitlab')
+    return resolveCredentialDisplay({
+      type: 'personal_token',
+      providerId: lower,
+      displayName: provider,
+    }).icon
 
   const directMatch = OAUTH_PROVIDERS[lower]
   if (directMatch) return directMatch.icon
@@ -1406,23 +2075,19 @@ function getCredentialIcon(provider: string): React.ComponentType<{ className?: 
   return null
 }
 
-const LockIcon = (props: { className?: string }) => (
-  <svg
-    className={props.className}
-    viewBox='0 0 16 16'
-    fill='none'
-    xmlns='http://www.w3.org/2000/svg'
-  >
-    <rect x='2' y='5' width='12' height='8' rx='1.5' stroke='currentColor' strokeWidth='1.3' />
-    <path
-      d='M5 5V3.5a3 3 0 1 1 6 0V5'
-      stroke='currentColor'
-      strokeWidth='1.3'
-      strokeLinecap='round'
-    />
-    <circle cx='8' cy='9.5' r='1.25' fill='currentColor' />
-  </svg>
-)
+function getCredentialProviderDisplayName(provider: string): string {
+  if (provider.toLowerCase() === 'gitlab')
+    return resolveCredentialDisplay({
+      type: 'personal_token',
+      providerId: 'gitlab',
+      displayName: provider,
+    }).detailTitle
+  return (
+    getServiceConfigByProviderId(provider)?.name ??
+    OAUTH_PROVIDERS[provider.toLowerCase()]?.name ??
+    provider
+  )
+}
 
 /**
  * Inline "paste a secret" widget rendered for
@@ -1431,25 +2096,100 @@ const LockIcon = (props: { className?: string }) => (
  * workspace (default) or personal environment variables under `name` and never
  * flows back through the chat transcript.
  */
-function SecretInputDisplay({ data }: { data: CredentialTagData }) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+interface CredentialControlProps {
+  data: CredentialItemData
+  requestMode?: 'agent' | 'assistant' | 'plan'
+  controlId?: string
+  embedded?: boolean
+  divided?: boolean
+  secretValue?: string
+  disabled?: boolean
+  onSecretValueChange?: (value: string) => void
+  onSaved?: () => void
+  onConnected?: () => void
+}
+
+/**
+ * Attaches the agent-authored descriptions to workspace secrets once their values
+ * are saved, reusing the credential update endpoint the secrets settings page
+ * calls. It runs after the value write because that write is what mints the
+ * credential row a description hangs on, and it is best-effort: the value is the
+ * point of the card, so a failed note never fails the save. Personal rows are
+ * skipped — their credential rows are per-workspace mirrors of one user-global
+ * secret, so no single row can own a description.
+ */
+function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
+  const workspaceId = useCredentialWorkspaceId()
+  const describedByName = useMemo(() => {
+    const entries = new Map<string, string>()
+    for (const item of items) {
+      if (item.type !== 'secret_input' || (item.scope && item.scope !== 'workspace')) continue
+      const name = item.name?.trim()
+      const description = item.description?.trim()
+      if (name && description) entries.set(name, description)
+    }
+    return entries
+  }, [items])
+
+  const credentialsQuery = useWorkspaceCredentials({
+    workspaceId,
+    type: 'env_workspace',
+    enabled: describedByName.size > 0,
+  })
+  const updateCredential = useUpdateWorkspaceCredential()
+  const refetchCredentials = credentialsQuery.refetch
+
+  return useCallback(
+    async (savedNames: string[]) => {
+      const pending = savedNames.filter((name) => describedByName.has(name))
+      if (pending.length === 0) return
+
+      try {
+        const { data } = await refetchCredentials()
+        const idByEnvKey = new Map((data ?? []).map((row) => [row.envKey, row.id]))
+        await Promise.all(
+          pending.map(async (name) => {
+            const credentialId = idByEnvKey.get(name)
+            if (!credentialId) return
+            await updateCredential.mutateAsync({
+              credentialId,
+              description: describedByName.get(name),
+            })
+          })
+        )
+      } catch {
+        // Swallowed deliberately: the secret is stored, and the card must not
+        // report failure over a missing note.
+      }
+    },
+    [describedByName, refetchCredentials, updateCredential.mutateAsync]
+  )
+}
+
+function SecretInputDisplay({ data, divided = false, onSaved }: CredentialControlProps) {
+  const workspaceId = useCredentialWorkspaceId()
   const secretName = (data.name ?? '').trim()
-  const scope: SecretInputScope = data.scope === 'personal' ? 'personal' : 'workspace'
+  const scope = data.scope ?? 'workspace'
+  const organizationSecretInput = useOrganizationSecretInput()
 
   const [value, setValue] = useState('')
+  const [isFocused, setIsFocused] = useState(false)
   const [saved, setSaved] = useState(false)
 
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
-  const personalQuery = usePersonalEnvironment()
+  const personalQuery = usePersonalEnvironment({ enabled: scope === 'personal' })
   const personalEnv = personalQuery.data
   const { canEdit } = useUserPermissionsContext()
+  const attachDescriptions = useWorkspaceSecretDescriptions(useMemo(() => [data], [data]))
 
   // Setting a workspace var needs write/admin (same gate as the secrets manager);
   // personal vars are the user's own, so any member may set them.
-  const canManage = scope === 'personal' || canEdit
+  const canManage =
+    scope === 'organization' ? Boolean(organizationSecretInput) : scope === 'personal' || canEdit
 
-  const isSaving = upsertWorkspace.isPending || savePersonal.isPending
+  const isSaving =
+    upsertWorkspace.isPending || savePersonal.isPending || organizationSecretInput?.isSaving
   // Personal saves replace the whole map, so block until existing vars are loaded.
   const personalReady = scope !== 'personal' || personalEnv !== undefined
   const canSave =
@@ -1458,7 +2198,10 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   const handleSave = async () => {
     if (!canSave) return
     try {
-      if (scope === 'personal') {
+      if (scope === 'organization') {
+        if (!organizationSecretInput) return
+        await organizationSecretInput.save({ [secretName]: value })
+      } else if (scope === 'personal') {
         // The personal POST replaces the whole map, so re-read the latest vars
         // right before merging — a stale snapshot would drop keys saved elsewhere.
         const { data: latest } = await personalQuery.refetch()
@@ -1469,9 +2212,11 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
         await savePersonal.mutateAsync({ variables: merged })
       } else {
         await upsertWorkspace.mutateAsync({ workspaceId, variables: { [secretName]: value } })
+        await attachDescriptions([secretName])
       }
       setValue('')
       setSaved(true)
+      onSaved?.()
       toast.success(`Saved ${secretName}`)
     } catch {
       toast.error(`Couldn't save ${secretName}. Please try again.`)
@@ -1485,33 +2230,90 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   if (!canManage) return null
 
   return (
-    <SecretInput
-      value={value}
-      onChange={setValue}
+    <InteractionCardInputRow
+      divided={divided}
+      type='text'
+      value={isFocused ? value : '•'.repeat(value.length)}
+      disabled={isSaving}
       placeholder={`Paste ${secretName}`}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
+      autoComplete='off'
+      aria-label={secretName}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+      onChange={(event) => {
+        if (isFocused) setValue(event.target.value)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.currentTarget.blur()
+          return
+        }
+        if (event.key === 'Enter' && canSave) {
+          event.preventDefault()
           void handleSave()
         }
       }}
-      endAdornment={
+      trailing={
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
+            <button
               type='button'
-              variant='quiet'
-              className='size-[18px] rounded-sm p-0'
               onClick={() => void handleSave()}
               disabled={!canSave}
               aria-label='Save'
+              className='disabled:cursor-default'
             >
-              <ArrowRight className='size-[13px]' />
-            </Button>
+              <ArrowRight
+                className={cn(
+                  'size-[16px] shrink-0 transition-colors',
+                  canSave ? 'text-[var(--text-body)]' : 'text-[var(--text-icon)]'
+                )}
+              />
+            </button>
           </Tooltip.Trigger>
-          <Tooltip.Content>{isSaving ? 'Saving…' : 'Save'}</Tooltip.Content>
+          <Tooltip.Content>{isSaving ? 'Saving' : 'Save'}</Tooltip.Content>
         </Tooltip.Root>
       }
+    />
+  )
+}
+
+interface CredentialSecretInputRowProps {
+  name: string
+  value: string
+  divided?: boolean
+  disabled?: boolean
+  onChange: (value: string) => void
+}
+
+/** Secret draft field for the unified card; the card's final Submit owns persistence. */
+function CredentialSecretInputRow({
+  name,
+  value,
+  divided = false,
+  disabled = false,
+  onChange,
+}: CredentialSecretInputRowProps) {
+  const [isFocused, setIsFocused] = useState(false)
+
+  return (
+    <InteractionCardInputRow
+      divided={divided}
+      disabled={disabled}
+      type='text'
+      value={isFocused ? value : '•'.repeat(value.length)}
+      placeholder={`Paste ${name}`}
+      autoComplete='off'
+      aria-label={name}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+      onChange={(event) => {
+        const maskedValue = '•'.repeat(value.length)
+        if (isFocused || event.target.value !== maskedValue) onChange(event.target.value)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') event.currentTarget.blur()
+      }}
     />
   )
 }
@@ -1538,7 +2340,7 @@ const FolderGrantIcon = ({ className }: { className?: string }) => (
  * same flow as the Desktop settings folder picker). Renders nothing outside the
  * desktop app — there is no local filesystem bridge to grant against.
  */
-function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
+function FolderAccessDisplay({ data }: { data: CredentialItemData }) {
   const [picking, setPicking] = useState(false)
   const [grantedName, setGrantedName] = useState<string | null>(null)
 
@@ -1581,7 +2383,7 @@ function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
     >
       <FolderGrantIcon className='size-[16px] shrink-0' />
       <span className='flex-1 text-[var(--text-body)] text-sm'>
-        {picking ? 'Choose a folder…' : label}
+        {picking ? 'Choose a folder' : label}
       </span>
       {grantedName === null && (
         <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
@@ -1591,40 +2393,65 @@ function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
 }
 
 /**
- * Inline hand-back chip rendered while `browser_request_takeover` waits on
- * the user (`{"type":"browser_takeover","name":"Please sign in to LinkedIn"}`).
- * Same chip as the other credential actions; clicking hands control of the
- * agent browser back to Sim. Renders nothing outside the desktop app — there
- * is no agent browser to hand back.
+ * Shared browser hand-back question. While active it reports the selected
+ * answer; after completion the same component renders its answered recap.
  */
-function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
-  const [handedBack, setHandedBack] = useState(false)
+export function BrowserTakeoverQuestion({
+  reason,
+  answer,
+  onAnswer,
+}: {
+  reason?: string
+  answer?: string
+  onAnswer?: (answer: string) => void
+}) {
+  const normalizedReason = reason?.trim() ?? ''
+  const normalizedAnswer = answer?.trim() ?? ''
+  const prompt = normalizedReason || 'Finish in the browser'
+  const questions: QuestionItem[] = [
+    {
+      type: 'single_select',
+      prompt,
+      options: [{ id: 'continue', label: 'Continue' }],
+    },
+  ]
+
+  return (
+    <QuestionDisplay
+      data={questions}
+      answers={normalizedAnswer ? [normalizedAnswer] : undefined}
+      dismissible={false}
+      onSelect={
+        onAnswer
+          ? (message) => {
+              const answer = parseQuestionAnswerMessage(questions, message)?.[0]?.trim()
+              if (answer) onAnswer(answer)
+            }
+          : undefined
+      }
+    />
+  )
+}
+
+/** Connects the active browser question to the desktop panel action. */
+function BrowserTakeoverDisplay({ data }: { data: CredentialItemData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { chatId } = useChatSurface()
 
   if (!isBrowserAgentAvailable()) return null
 
-  const reason = (data.name ?? '').trim()
-  const label = handedBack
-    ? 'Handed control back to Sim'
-    : reason || 'Take over in the browser, then hand control back'
-
   return (
-    <button
-      type='button'
-      onClick={() => {
-        if (handedBack) return
-        setHandedBack(true)
-        sendBrowserPanelAction('takeover-done')
+    <BrowserTakeoverQuestion
+      reason={data.name}
+      onAnswer={(answer) => {
+        const takeoverResponse = answer !== 'Continue' ? answer : undefined
+        sendBrowserPanelAction(
+          'takeover-done',
+          takeoverResponse ? { takeoverResponse } : {},
+          desktopChatScopeId(workspaceId, chatId)
+        )
       }}
-      disabled={handedBack}
-      className={cn(
-        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
-        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
-      )}
-    >
-      <Cursor className='size-[16px] shrink-0' />
-      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
-      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
-    </button>
+    />
   )
 }
 
@@ -1636,10 +2463,16 @@ function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
  * the integrations page — the user stays in the conversation that asked for
  * the credential, and comes back to it with the credential in hand.
  */
-function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+function ServiceAccountConnectDisplay({
+  data,
+  embedded = false,
+  divided = false,
+  onConnected,
+}: CredentialControlProps) {
+  const workspaceId = useCredentialWorkspaceId()
   const { canEdit } = useUserPermissionsContext()
   const [open, setOpen] = useState(false)
+  const [locallyConnected, setLocallyConnected] = useState(false)
 
   const match = useMemo(
     () => (data.provider ? resolveServiceAccountIntegration(data.provider) : null),
@@ -1656,6 +2489,7 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
   // account in place rather than creating a new one — the modal keeps its id.
   const reconnectCredentialId = data.credentialId
   const { data: reconnectCredential } = useWorkspaceCredential(reconnectCredentialId)
+  const connected = locallyConnected
 
   // Creating a credential mutates the workspace — hide it from read-only
   // members, and honour the provider's own preview gate (custom Slack bots
@@ -1666,17 +2500,31 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? target.serviceName}`
     : `${target.label} for ${target.serviceName}`
+  const displayLabel = connected ? `Connected ${target.serviceName}` : label
 
   return (
     <>
       <button
         type='button'
-        onClick={() => setOpen(true)}
-        className='flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors hover-hover:bg-[var(--surface-5)]'
+        onClick={() => {
+          if (!connected) setOpen(true)
+        }}
+        disabled={connected}
+        className={cn(
+          embedded
+            ? INTERACTION_CARD_ROW_CLASSES
+            : 'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
+          embedded && divided && 'border-t',
+          'hover-hover:bg-[var(--surface-5)]'
+        )}
       >
-        {createElement(target.serviceIcon, { className: 'size-[16px] shrink-0' })}
-        <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
-        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        <BrandIcon icon={target.serviceIcon} className='size-[16px] shrink-0' />
+        <span className='flex-1 text-[var(--text-body)] text-sm'>{displayLabel}</span>
+        {connected ? (
+          <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        ) : (
+          <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        )}
       </button>
       {open && (
         <Suspense fallback={null}>
@@ -1685,10 +2533,15 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
             onOpenChange={setOpen}
             workspaceId={workspaceId}
             serviceAccountProviderId={target.serviceAccountProviderId}
+            atlassianProduct={match?.providerId === 'confluence' ? 'confluence' : 'jira'}
             serviceName={target.serviceName}
             serviceIcon={target.serviceIcon}
             credentialId={reconnectCredentialId}
             credentialDisplayName={reconnectCredential?.displayName ?? undefined}
+            onCreated={() => {
+              setLocallyConnected(true)
+              onConnected?.()
+            }}
           />
         </Suspense>
       )}
@@ -1696,19 +2549,30 @@ function ServiceAccountConnectDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
+function CredentialLinkDisplay({
+  data,
+  controlId = 'credential-link',
+  embedded = false,
+  divided = false,
+  onConnected,
+}: CredentialControlProps) {
   const { canEdit } = useUserPermissionsContext()
-
-  // A connect URL carrying a credentialId re-authorizes that existing
-  // credential in place (reconnect) rather than creating a new one.
-  const reconnectCredentialId = useMemo(() => {
-    if (!data.value) return undefined
-    try {
-      return new URL(data.value).searchParams.get('credentialId') ?? undefined
-    } catch {
-      return undefined
-    }
-  }, [data.value])
+  const integrationName = getCredentialProviderDisplayName(data.provider ?? '')
+  const {
+    reconnectCredentialId,
+    status,
+    connected,
+    connectedFromAttempt,
+    hasExistingCredential,
+    isReady,
+    onConnectClick,
+  } = useOAuthChipConnection({
+    connectUrl: data.value,
+    provider: data.provider,
+    displayName: integrationName,
+    controlId,
+    onConnected,
+  })
   const { data: reconnectCredential } = useWorkspaceCredential(reconnectCredentialId)
 
   // Connecting a credential mutates the workspace — hide it from read-only members.
@@ -1716,49 +2580,139 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   // The connect link value comes from the streamed model output, so only
   // render it as a clickable link when it resolves to a real http(s) URL.
   if (!data.value || !isSafeHttpUrl(data.value)) return null
-  const Icon = getCredentialIcon(data.provider) ?? LockIcon
-  const integrationName =
-    getServiceConfigByProviderId(data.provider)?.name ??
-    OAUTH_PROVIDERS[data.provider.toLowerCase()]?.name ??
-    data.provider
+  const Icon = getCredentialIcon(data.provider) ?? Lock
   const label = reconnectCredentialId
     ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
-    : `Connect ${integrationName}`
-
-  /**
-   * Desktop app: OAuth cannot run in an embedded window — not in the app
-   * window (better-auth binds the flow's state to the initiating browser's
-   * cookies) and not in the Sim browser panel (its partition isn't signed in
-   * to Sim, and Google/Microsoft reject embedded user agents outright). So
-   * the chip hands the whole flow to the system browser via the connect
-   * handoff, carrying the workspace/credential scope from the authorize URL;
-   * completion returns through the app's loopback and refreshes credentials.
-   */
-  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    const bridge = getDesktopBridge()
-    if (!bridge?.beginOAuthConnect || !data.value) return
-    event.preventDefault()
-    const url = new URL(data.value)
-    const providerId = url.searchParams.get('providerId') ?? data.provider
-    if (!providerId) return
-    void bridge.beginOAuthConnect(providerId, {
-      workspaceId: url.searchParams.get('workspaceId') ?? undefined,
-      credentialId: url.searchParams.get('credentialId') ?? undefined,
-    })
-  }
+    : hasExistingCredential
+      ? `Connect another ${integrationName}`
+      : `Connect ${integrationName}`
+  const retryLabel = reconnectCredentialId
+    ? `Not connected — reconnect ${reconnectCredential?.displayName ?? integrationName}`
+    : hasExistingCredential
+      ? `Not connected — connect another ${integrationName}`
+      : `Not connected — connect ${integrationName}`
+  const displayLabel = connected
+    ? `Connected ${integrationName}`
+    : !isReady
+      ? `Checking ${integrationName} connections`
+      : status === 'pending'
+        ? `Waiting for ${integrationName} connection`
+        : status === 'failed'
+          ? retryLabel
+          : label
 
   return (
     <a
       href={data.value}
       target='_blank'
       rel='noopener noreferrer'
-      onClick={handleClick}
-      className='flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
+      onClick={onConnectClick}
+      aria-disabled={!isReady || connectedFromAttempt}
+      className={cn(
+        embedded
+          ? INTERACTION_CARD_ROW_CLASSES
+          : 'flex items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 transition-colors',
+        embedded && divided && 'border-t',
+        'hover-hover:bg-[var(--surface-5)]'
+      )}
     >
-      {createElement(Icon, { className: 'size-[16px] shrink-0' })}
-      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
-      <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>{displayLabel}</span>
+      {connected ? (
+        <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      ) : (
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      )}
     </a>
+  )
+}
+
+function PersonalCredentialLinkDisplay({
+  data,
+  controlId = 'credential-link',
+  embedded = false,
+  divided = false,
+  onConnected,
+}: CredentialControlProps) {
+  const workspaceId = useCredentialWorkspaceId()
+  const { canEdit } = useUserPermissionsContext()
+  const [tokenModalOpen, setTokenModalOpen] = useState(false)
+  const provider = data.provider?.trim() ?? ''
+  const name = getCredentialProviderDisplayName(provider)
+  const connection = usePersonalCredentialConnection({
+    provider,
+    displayName: name,
+    controlId,
+    onConnected,
+  })
+  if (!provider || (provider.toLowerCase() === 'gitlab' && !canEdit)) return null
+  const Icon = getCredentialIcon(provider) ?? Lock
+  const connected = connection.status === 'connected'
+  const label = connected
+    ? `Connected ${name}`
+    : connection.hasMetadataError
+      ? `Retry checking ${name} connections`
+      : !connection.isReady
+        ? `Checking ${name} connections`
+        : connection.status === 'pending'
+          ? `Waiting for ${name} connection`
+          : connection.status === 'failed'
+            ? `Not connected — connect ${name}`
+            : `Connect ${name}`
+  return (
+    <>
+      <button
+        type='button'
+        disabled={
+          (!connection.isReady && !connection.hasMetadataError) ||
+          connected ||
+          connection.isStarting
+        }
+        onClick={() => {
+          if (connection.hasMetadataError) {
+            void connection.retryMetadata()
+            return
+          }
+          if (provider.toLowerCase() === 'gitlab') {
+            connection.beginPersonalToken()
+            setTokenModalOpen(true)
+          } else connection.connectOAuth()
+        }}
+        className={cn(
+          embedded
+            ? INTERACTION_CARD_ROW_CLASSES
+            : 'flex w-full items-center gap-2 rounded-2xl border border-[var(--border)] px-3 py-2.5 text-left transition-colors',
+          embedded && divided && 'border-t',
+          'hover-hover:bg-[var(--surface-5)]'
+        )}
+      >
+        <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
+        <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
+        {connected ? (
+          <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        ) : (
+          <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        )}
+      </button>
+      {connection.error && (
+        <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
+          {connection.error}
+        </p>
+      )}
+      {tokenModalOpen && (
+        <Suspense fallback={null}>
+          <ConnectPersonalTokenModal
+            open={tokenModalOpen}
+            onOpenChange={(open) => {
+              setTokenModalOpen(open)
+              if (!open) connection.cancelPersonalToken()
+            }}
+            workspaceId={workspaceId}
+            onConnected={connection.connectedPersonalToken}
+          />
+        </Suspense>
+      )}
+    </>
   )
 }
 
@@ -1770,7 +2724,9 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
  * handoff they are done; the terminal id rides in `value` so the click reaches
  * the right shell. Renders nothing outside the desktop app.
  */
-function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
+function TerminalHandoffDisplay({ data }: { data: CredentialItemData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { chatId } = useChatSurface()
   const [handedBack, setHandedBack] = useState(false)
 
   if (!isTerminalAvailable()) return null
@@ -1786,7 +2742,7 @@ function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
       onClick={() => {
         if (handedBack) return
         setHandedBack(true)
-        finishTerminalHandoff(data.value ?? '')
+        finishTerminalHandoff(data.value ?? '', desktopChatScopeId(workspaceId, chatId))
       }}
       disabled={handedBack}
       className={cn(
@@ -1801,9 +2757,97 @@ function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
-export function CredentialDisplay({ data }: { data: CredentialTagData }) {
+/**
+ * sim_key stays in the routing set so a payload carrying one still takes the
+ * card path (CredentialDisplay renders its reveal separately), but it is an
+ * output, so the card itself never shows it as a row.
+ */
+const CREDENTIAL_CARD_TYPES: ReadonlySet<CredentialTagType> = new Set([
+  'secret_input',
+  'link',
+  'service_account',
+  'sim_key',
+])
+
+function isCredentialCardItemVisible(
+  item: CredentialItemData,
+  canEdit: boolean,
+  requestMode?: 'agent' | 'assistant' | 'plan'
+): boolean {
+  if (requestMode === 'assistant')
+    return (
+      item.type === 'link' &&
+      Boolean(item.provider?.trim()) &&
+      (item.provider?.trim().toLowerCase() !== 'gitlab' || canEdit)
+    )
+  if (item.type === 'sim_key') return false
+  if (item.type === 'secret_input')
+    return item.scope === 'personal' || item.scope === 'organization' || canEdit
+  if (item.type === 'link') {
+    return canEdit && Boolean(item.provider) && Boolean(item.value && isSafeHttpUrl(item.value))
+  }
+  return canEdit
+}
+
+/** Whether a terminal credential tag produces the shared question-style card. */
+export function credentialTagHasVisibleCard(
+  data: CredentialTagData,
+  canEdit: boolean,
+  requestMode?: 'agent' | 'assistant' | 'plan'
+): boolean {
+  return (
+    data.length > 0 &&
+    data.every((item) => CREDENTIAL_CARD_TYPES.has(item.type)) &&
+    data.some((item) => isCredentialCardItemVisible(item, canEdit, requestMode))
+  )
+}
+
+function CredentialItemDisplay({
+  data,
+  requestMode,
+  controlId = 'credential-link',
+  embedded = false,
+  divided = false,
+  secretValue,
+  disabled,
+  onSecretValueChange,
+  onSaved,
+  onConnected,
+}: CredentialControlProps) {
+  const { organizationId } = useParams<{ organizationId?: string }>()
+  const { SearchConnectionComponent } = useChatSurface()
+  const { data: session } = useSession()
+  const organizationSecretInput = useOrganizationSecretInput()
+  if (
+    requestMode === 'assistant' &&
+    data.type !== 'link' &&
+    data.type !== 'browser_takeover' &&
+    data.type !== 'terminal_handoff'
+  )
+    return null
   if (data.type === 'secret_input') {
-    return <SecretInputDisplay data={data} />
+    const secretName = data.name?.trim()
+    if (embedded) {
+      if (!secretName || !onSecretValueChange) return null
+      return (
+        <CredentialSecretInputRow
+          name={secretName}
+          value={secretValue ?? ''}
+          divided={divided}
+          disabled={disabled}
+          onChange={onSecretValueChange}
+        />
+      )
+    }
+    return (
+      <SecretInputDisplay
+        key={data.scope === 'organization' ? organizationSecretInput?.sourceKey : undefined}
+        data={data}
+        embedded={embedded}
+        divided={divided}
+        onSaved={onSaved}
+      />
+    )
   }
 
   if (data.type === 'folder_access') {
@@ -1819,78 +2863,656 @@ export function CredentialDisplay({ data }: { data: CredentialTagData }) {
   }
 
   if (data.type === 'link') {
-    return <CredentialLinkDisplay data={data} />
+    if (requestMode === 'assistant') {
+      if (organizationId) {
+        const target = searchConnectionTargetSchema.safeParse(data)
+        if (!target.success || !session?.user?.id) return null
+        if (!SearchConnectionComponent)
+          throw new Error('Search connection controls require an organization chat surface')
+        return (
+          <SearchConnectionComponent
+            organizationId={organizationId}
+            userId={session.user.id}
+            target={target.data}
+            controlId={controlId}
+            embedded={embedded}
+            divided={divided}
+            onConnected={onConnected}
+          />
+        )
+      }
+      return (
+        <PersonalCredentialLinkDisplay
+          data={data}
+          controlId={controlId}
+          embedded={embedded}
+          divided={divided}
+          onConnected={onConnected}
+        />
+      )
+    }
+    return (
+      <CredentialLinkDisplay
+        data={data}
+        controlId={controlId}
+        embedded={embedded}
+        divided={divided}
+        onConnected={onConnected}
+      />
+    )
   }
 
   if (data.type === 'service_account') {
-    return <ServiceAccountConnectDisplay data={data} />
+    return (
+      <ServiceAccountConnectDisplay
+        data={data}
+        embedded={embedded}
+        divided={divided}
+        onConnected={onConnected}
+      />
+    )
   }
 
-  if (data.type === 'sim_key') {
-    // SecretReveal masks itself when there's no value, so a value-less tag (the
-    // model's placeholder / persisted form) renders masked and a Sim-filled tag
-    // reveals the key + copy button — no separate "redacted" flag needed.
-    return <SecretReveal value={data.value} />
-  }
-
+  // sim_key never reaches here: CredentialDisplay renders its reveal chip
+  // standalone (SecretReveal masks itself when the tag carries no value).
   return null
 }
 
-function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
-  const detail = data.code ? `${data.message} (${data.code})` : data.message
+/**
+ * Credential input and OAuth controls use the same InteractionCard primitives
+ * as QuestionDisplay. Integrations come first and secrets follow in one card
+ * with one Submit; legacy/system actions retain their standalone presentation.
+ */
+function CredentialInputCard({
+  data,
+  requestMode,
+  interactionId,
+  submitted,
+  abandoned,
+  onContinue,
+}: {
+  data: CredentialTagData
+  requestMode?: 'agent' | 'assistant' | 'plan'
+  interactionId?: string
+  submitted?: CredentialSubmissionPayload
+  abandoned?: boolean
+  onContinue?: (message: string) => void
+}) {
+  const workspaceId = useCredentialWorkspaceId()
+  const { organizationId } = useParams<{ organizationId?: string }>()
+  const { data: session } = useSession()
+  const { canEdit } = useUserPermissionsContext()
+  const upsertWorkspace = useUpsertWorkspaceEnvironment()
+  const savePersonal = useSavePersonalEnvironment()
+  const organizationSecretInput = useOrganizationSecretInput()
+  const personalQuery = usePersonalEnvironment({
+    enabled:
+      requestMode !== 'assistant' &&
+      data.some((item) => item.type === 'secret_input' && item.scope === 'personal'),
+  })
+  const attachDescriptions = useWorkspaceSecretDescriptions(requestMode === 'assistant' ? [] : data)
+  const organizationSourceKey = organizationSecretInput?.sourceKey
+  const currentOrganizationSource = useRef(organizationSourceKey)
+  const [secretState, setSecretState] = useState(() => ({
+    organizationSourceKey,
+    drafts: {} as Record<number, string>,
+    savedRows: new Set<number>(),
+  }))
+  const { drafts: secretDrafts, savedRows: savedSecretRows } = secretState
+  const [connectedIntegrationRows, setConnectedIntegrationRows] = useState<Set<number>>(
+    () => new Set()
+  )
+  const [locallySubmitted, setLocallySubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const controlIdPrefix = interactionId ?? 'credential-card'
 
-  return <p className='text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>{detail}</p>
+  /** Async submissions compare against the committed source, including unmount. */
+  useLayoutEffect(() => {
+    currentOrganizationSource.current = organizationSourceKey
+    return () => {
+      currentOrganizationSource.current = undefined
+    }
+  }, [organizationSourceKey])
+
+  /**
+   * An abandoned card recaps from progress its rows made, but it replaces those
+   * rows — so on a fresh mount nothing is left to report a connect the user
+   * already finished, and the recap would read "Skipped" over it. An OAuth
+   * connect records a row-scoped attempt that outlives the mount, so restore
+   * the verdict from there.
+   *
+   * Only OAuth rows need this. A secret is written solely by Submit, which ends
+   * the card as a real submission instead; a service-account connect never
+   * outlives its own row either way.
+   */
+  useEffect(() => {
+    if (!abandoned) return
+    const restored = new Set<number>()
+    let restoreIndex = 0
+    for (const [dataIndex, item] of data.entries()) {
+      if (item.type !== 'link' && item.type !== 'service_account') continue
+      const index = restoreIndex++
+      if (item.type !== 'link') continue
+      if (requestMode === 'assistant' && organizationId && session?.user?.id) {
+        const target = searchConnectionTargetSchema.safeParse(item)
+        if (!target.success) continue
+        const attempt = readSearchConnectionAttempt(
+          searchConnectionAttemptKey(
+            organizationId,
+            session.user.id,
+            `${controlIdPrefix}:${dataIndex}:${JSON.stringify(target.data)}`
+          )
+        )
+        if (attempt?.status === 'connected') restored.add(index)
+        continue
+      }
+      const { providerId, reconnectCredentialId } =
+        requestMode === 'assistant'
+          ? {
+              providerId:
+                resolveOAuthServiceForSlug(item.provider ?? '')?.providerId ?? item.provider ?? '',
+              reconnectCredentialId: undefined,
+            }
+          : resolveOAuthChipTarget(item.value, item.provider)
+      if (!providerId) continue
+      const attempt = readLatestOAuthChatAttempt({
+        workspaceId,
+        providerId,
+        controlId: `${requestMode === 'assistant' ? 'personal:' : ''}${controlIdPrefix}:${dataIndex}`,
+        credentialId: reconnectCredentialId,
+      })
+      if (attempt?.status === 'connected') restored.add(index)
+    }
+    if (restored.size === 0) return
+    setConnectedIntegrationRows((current) => {
+      if (Array.from(restored).every((index) => current.has(index))) return current
+      return new Set([...current, ...restored])
+    })
+  }, [
+    abandoned,
+    controlIdPrefix,
+    data,
+    workspaceId,
+    requestMode,
+    organizationId,
+    session?.user?.id,
+  ])
+
+  let integrationIndex = 0
+  let secretIndex = 0
+  const indexedRows = data.map((item, dataIndex) => ({
+    item,
+    dataIndex,
+    integrationIndex:
+      item.type === 'link' || item.type === 'service_account' ? integrationIndex++ : undefined,
+    secretIndex: item.type === 'secret_input' ? secretIndex++ : undefined,
+  }))
+  const organizationSecretIndexes = indexedRows.flatMap(({ item, secretIndex }) =>
+    item.type === 'secret_input' && item.scope === 'organization' && secretIndex !== undefined
+      ? [secretIndex]
+      : []
+  )
+  if (secretState.organizationSourceKey !== organizationSourceKey) {
+    setSecretState({
+      organizationSourceKey,
+      drafts: omit(secretDrafts, organizationSecretIndexes),
+      savedRows:
+        submitted || abandoned || locallySubmitted
+          ? savedSecretRows
+          : new Set(
+              [...savedSecretRows].filter((index) => !organizationSecretIndexes.includes(index))
+            ),
+    })
+  }
+  const visibleRows = indexedRows.filter(
+    ({ item }) =>
+      isCredentialCardItemVisible(item, canEdit, requestMode) &&
+      (item.type !== 'secret_input' ||
+        item.scope !== 'organization' ||
+        organizationSecretInput ||
+        submitted ||
+        abandoned ||
+        locallySubmitted)
+  )
+  if (visibleRows.length === 0) return null
+
+  const integrationRows = visibleRows.filter(
+    ({ item }) => item.type === 'link' || item.type === 'service_account'
+  )
+  const secretRows = visibleRows.filter(({ item }) => item.type === 'secret_input')
+  const title =
+    integrationRows.length > 0 && secretRows.length > 0
+      ? 'Set up credentials'
+      : integrationRows.length > 0
+        ? 'Connect integrations'
+        : 'Add secrets'
+  const rows = [
+    ...integrationRows.map(({ item, dataIndex, integrationIndex }, index) => (
+      <CredentialItemDisplay
+        key={`${item.type}-${item.provider ?? dataIndex}-${dataIndex}`}
+        data={item}
+        requestMode={requestMode}
+        controlId={`${controlIdPrefix}:${dataIndex}`}
+        embedded
+        divided={index > 0}
+        onConnected={() =>
+          setConnectedIntegrationRows((current) => {
+            if (integrationIndex === undefined || current.has(integrationIndex)) return current
+            const next = new Set(current)
+            next.add(integrationIndex)
+            return next
+          })
+        }
+      />
+    )),
+    ...secretRows.map(({ item, dataIndex, secretIndex }, index) => {
+      if (secretIndex !== undefined && savedSecretRows.has(secretIndex))
+        return (
+          <div
+            key={`saved-${dataIndex}`}
+            className={cn(
+              INTERACTION_CARD_ROW_CLASSES,
+              (integrationRows.length > 0 || index > 0) && 'border-t'
+            )}
+          >
+            <span className='flex-1 text-sm'>{item.name}</span>
+            <span className='text-[var(--text-muted)] text-sm'>Added</span>
+          </div>
+        )
+      return (
+        <CredentialItemDisplay
+          key={`${item.type}-${item.name ?? dataIndex}-${dataIndex}`}
+          data={item}
+          embedded
+          disabled={isSubmitting}
+          divided={integrationRows.length > 0 || index > 0}
+          secretValue={
+            item.type === 'secret_input' ? (secretDrafts[secretIndex ?? -1] ?? '') : undefined
+          }
+          onSecretValueChange={
+            item.type === 'secret_input' && secretIndex !== undefined
+              ? (value) =>
+                  setSecretState((current) => ({
+                    ...current,
+                    drafts: { ...current.drafts, [secretIndex]: value },
+                  }))
+              : undefined
+          }
+        />
+      )
+    }),
+  ]
+
+  const submitCredentialSetup = async (): Promise<boolean> => {
+    if (!onContinue) return false
+
+    const workspaceVariables: Record<string, string> = {}
+    const personalVariables: Record<string, string> = {}
+    const organizationVariables: Record<string, string> = {}
+
+    for (const { item, secretIndex } of secretRows) {
+      if (secretIndex === undefined) continue
+      const name = item.name?.trim()
+      const value = secretDrafts[secretIndex] ?? ''
+      if (!name || value.trim().length === 0) continue
+      const target =
+        item.scope === 'organization'
+          ? organizationVariables
+          : item.scope === 'personal'
+            ? personalVariables
+            : workspaceVariables
+      target[name] = value
+    }
+
+    const nextSavedSecretRows = new Set(savedSecretRows)
+    const saveGroup = async (
+      scope: SecretInputScope,
+      variables: Record<string, string>,
+      save: () => Promise<unknown>
+    ) => {
+      await save()
+      for (const { item, secretIndex } of secretRows) {
+        if (
+          secretIndex !== undefined &&
+          (item.scope ?? 'workspace') === scope &&
+          Object.hasOwn(variables, item.name?.trim() ?? '')
+        )
+          nextSavedSecretRows.add(secretIndex)
+      }
+      if (scope === 'workspace') await attachDescriptions(Object.keys(variables))
+    }
+
+    const saves: Promise<unknown>[] = []
+    if (Object.keys(organizationVariables).length > 0) {
+      if (!organizationSecretInput) return false
+      saves.push(
+        saveGroup('organization', organizationVariables, () =>
+          organizationSecretInput.save(organizationVariables)
+        )
+      )
+    }
+    if (Object.keys(workspaceVariables).length > 0) {
+      saves.push(
+        saveGroup('workspace', workspaceVariables, () =>
+          upsertWorkspace.mutateAsync({ workspaceId, variables: workspaceVariables })
+        )
+      )
+    }
+    if (Object.keys(personalVariables).length > 0) {
+      saves.push(
+        saveGroup('personal', personalVariables, async () => {
+          const { data: latest } = await personalQuery.refetch()
+          const merged: Record<string, string> = {}
+          for (const [key, entry] of Object.entries(latest ?? personalQuery.data ?? {})) {
+            merged[key] = entry.value
+          }
+          Object.assign(merged, personalVariables)
+          await savePersonal.mutateAsync({ variables: merged })
+        })
+      )
+    }
+    const results = await Promise.allSettled(saves)
+    setSecretState((current) => {
+      const completedRows = [...nextSavedSecretRows].filter(
+        (index) =>
+          current.organizationSourceKey === organizationSourceKey ||
+          !organizationSecretIndexes.includes(index)
+      )
+      return {
+        ...current,
+        savedRows: new Set([...current.savedRows, ...completedRows]),
+        drafts: omit(current.drafts, completedRows),
+      }
+    })
+    if (results.some((result) => result.status === 'rejected')) {
+      toast.error(`Couldn't save all secrets. Retry the remaining entries.`)
+      return false
+    }
+    if (
+      currentOrganizationSource.current !== organizationSourceKey &&
+      organizationSecretIndexes.some((index) => nextSavedSecretRows.has(index))
+    ) {
+      toast.error('Generic Secrets changed. Review the remaining entries before submitting.')
+      return false
+    }
+
+    onContinue(
+      formatCredentialSubmissionMessage(data, {
+        connectedIntegrationIndexes: connectedIntegrationRows,
+        savedSecretIndexes: nextSavedSecretRows,
+      })
+    )
+    return true
+  }
+
+  const needsContinuation = integrationRows.length > 0 || secretRows.length > 0
+  const credentialSummary = [
+    ...integrationRows.map(({ item, integrationIndex }) => ({
+      label: getCredentialProviderDisplayName(item.provider ?? 'Integration'),
+      status: (
+        submitted
+          ? submitted.integrations[integrationIndex ?? -1]?.status === 'connected'
+          : connectedIntegrationRows.has(integrationIndex ?? -1)
+      )
+        ? ('Connected' as const)
+        : ('Skipped' as const),
+    })),
+    ...secretRows.map(({ item, secretIndex }) => {
+      const saved = submitted
+        ? submitted.secrets[secretIndex ?? -1]?.status === 'saved'
+        : savedSecretRows.has(secretIndex ?? -1)
+      return {
+        label: item.name ?? 'Secret',
+        status: saved ? ('Added' as const) : ('Skipped' as const),
+      }
+    }),
+  ]
+
+  // An abandoned card recaps from local progress only: a row the user connected
+  // or saved before moving on keeps its status, everything else reads "Skipped".
+  if (submitted || locallySubmitted || (abandoned && needsContinuation)) {
+    return (
+      <InteractionCardRecap
+        items={credentialSummary.map((item) => ({ label: item.label, values: [item.status] }))}
+      />
+    )
+  }
+
+  const handleSubmit = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      if (await submitCredentialSetup()) setLocallySubmitted(true)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <InteractionCard title={title}>
+      <div className='flex flex-col'>
+        {rows}
+        {needsContinuation && onContinue && (
+          <InteractionCardActionRow
+            label='Submit'
+            disabled={isSubmitting}
+            onClick={() => void handleSubmit()}
+          />
+        )}
+      </div>
+    </InteractionCard>
+  )
+}
+
+/** Workspace credential controls in organization chat require one explicit, authorized target. */
+export function CredentialDisplay(props: Parameters<typeof CredentialDisplayContent>[0]) {
+  const { organizationId, workspaceId } = useParams<{
+    organizationId?: string
+    workspaceId?: string
+  }>()
+  if (props.requestMode === 'assistant') return <CredentialDisplayContent {...props} />
+  const organizationSecrets = props.data.filter(
+    (item) => item.type === 'secret_input' && item.scope === 'organization'
+  )
+  if (
+    organizationSecrets.length > 0 &&
+    (!organizationId || organizationSecrets.some((item) => item.workspaceId))
+  )
+    return (
+      <p role='status'>
+        Organization Generic Secrets require an organization conversation and no workspace target.
+      </p>
+    )
+  const targeted = props.data.filter(
+    (item) =>
+      item.type === 'link' ||
+      item.type === 'service_account' ||
+      item.type === 'sim_key' ||
+      (item.type === 'secret_input' && (!item.scope || item.scope === 'workspace'))
+  )
+  const targets = new Set(targeted.map((item) => item.workspaceId).filter(Boolean))
+  const target = targets.values().next().value
+  const mismatchedLink =
+    Boolean(organizationId) &&
+    targeted.some((item) => {
+      if (item.type !== 'link' || !item.value) return false
+      try {
+        return new URL(item.value).searchParams.get('workspaceId') !== item.workspaceId
+      } catch {
+        return true
+      }
+    })
+  const invalid =
+    mismatchedLink ||
+    targets.size > 1 ||
+    (organizationId && targeted.some((item) => !item.workspaceId)) ||
+    (!organizationId && target && target !== workspaceId)
+  if (invalid)
+    return <p role='status'>This credential request needs one explicit workspace target.</p>
+  const content =
+    organizationSecrets.length > 0 && !props.submitted && !props.abandoned ? (
+      <OrganizationSecretInputHost organizationId={organizationId ?? ''}>
+        <CredentialDisplayContent {...props} />
+      </OrganizationSecretInputHost>
+    ) : (
+      <CredentialDisplayContent {...props} />
+    )
+  if (organizationId && target) {
+    return (
+      <CredentialWorkspaceHost key={target} workspaceId={target} organizationId={organizationId}>
+        {content}
+      </CredentialWorkspaceHost>
+    )
+  }
+  return content
+}
+
+function CredentialDisplayContent({
+  data,
+  requestMode,
+  interactionId,
+  submitted,
+  abandoned,
+  onContinue,
+}: {
+  data: CredentialTagData
+  requestMode?: 'agent' | 'assistant' | 'plan'
+  interactionId?: string
+  submitted?: CredentialSubmissionPayload
+  abandoned?: boolean
+  onContinue?: (message: string) => void
+}) {
+  // A sim_key is an OUTPUT — the workspace API key the platform filled in —
+  // never a setup request, so it renders as its own reveal chip outside any
+  // card. Inside the question-style card it read as something to submit, and
+  // the card's recap swallowed the key after Submit. The reveal also outlives
+  // submission/abandonment: the key must stay retrievable. The full payload
+  // still flows to the card so row indexes (OAuth controlIds, submission
+  // pairing) stay stable — the card simply renders no sim_key rows.
+  const simKeyReveals = data
+    .map((item, index) =>
+      item.type === 'sim_key' && requestMode !== 'assistant' ? (
+        <SecretReveal key={`sim-key-${index}`} value={item.value} />
+      ) : null
+    )
+    .filter(Boolean)
+  const inputItems = data.filter((item) => item.type !== 'sim_key')
+  const usesCredentialCard = data.every((item) => CREDENTIAL_CARD_TYPES.has(item.type))
+
+  const inputControls = usesCredentialCard ? (
+    <CredentialInputCard
+      data={data}
+      requestMode={requestMode}
+      interactionId={interactionId}
+      submitted={submitted}
+      abandoned={abandoned}
+      onContinue={onContinue}
+    />
+  ) : inputItems.length > 0 ? (
+    <div className={cn(inputItems.length > 1 && 'space-y-3')}>
+      {inputItems.map((item, index) => (
+        <CredentialItemDisplay
+          key={`${item.type}-${item.provider ?? item.name ?? index}`}
+          data={item}
+          requestMode={requestMode}
+        />
+      ))}
+    </div>
+  ) : null
+
+  if (simKeyReveals.length === 0) return inputControls
+  return (
+    <div className='space-y-3'>
+      {simKeyReveals}
+      {inputControls}
+    </div>
+  )
+}
+
+/**
+ * The message is the whole user-facing story. The raw `code` is an internal
+ * identifier ("async_resume_aborted") that means nothing to a reader and made
+ * every error line end in parenthesized jargon; it stays in the tag payload for
+ * logs and support, just not on screen.
+ */
+function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
+  return (
+    <p className='text-[var(--text-secondary)] text-small italic leading-[20px]'>{data.message}</p>
+  )
 }
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { data: session } = useSession()
-  const hostContext = useWorkspaceHostContext()
+  const hostContext = useOptionalWorkspaceHostContext()
+  const organizationContext = useOptionalOrganizationContext()
   const { getSettingsHref } = useSettingsNavigation()
-  const settingsPath = getSettingsHref({ section: 'billing' })
+  const { hosted } = useDeploymentShape()
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
-  const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
-  const unavailableMessage = hostContext.hostOrganizationId
-    ? 'Contact an organization admin to manage this workspace’s usage limits.'
-    : 'Only the workspace owner can manage this workspace’s usage limits.'
+
+  // Self-hosted plan and limit both live on the hosted account, so local
+  // workspace billing roles say nothing about who may change them.
+  const href = hosted
+    ? organizationContext
+      ? getOrganizationSettingsHref(organizationContext.organization.id, 'billing')
+      : getSettingsHref({ section: 'billing' })
+    : data.action === 'upgrade_plan'
+      ? buildHostedUpgradeUrl()
+      : HOSTED_BILLING_SETTINGS_URL
+  const canManageBilling =
+    !hosted ||
+    (organizationContext
+      ? organizationContext.viewer.isAdmin
+      : Boolean(hostContext && canManageWorkspaceBilling(hostContext, session?.user?.id)))
+  const usageGate = useWorkspaceUsageGate(
+    data.action === 'increase_limit' && !canManageBilling ? hostContext?.workspace.id : undefined
+  )
+  const unavailableMessage = organizationContext
+    ? 'Contact an organization admin to manage usage limits.'
+    : hostContext?.hostOrganizationId
+      ? 'Contact an organization admin to manage this workspace’s usage limits.'
+      : 'Only the workspace owner can manage this workspace’s usage limits.'
 
   return (
-    <div className='rounded-2xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
-      <div className='flex items-center gap-2'>
-        <svg
-          className='size-4 shrink-0 text-amber-600 dark:text-amber-400'
-          viewBox='0 0 16 16'
-          fill='none'
-          xmlns='http://www.w3.org/2000/svg'
-        >
-          <path
-            d='M8 1.5L1 14h14L8 1.5z'
-            stroke='currentColor'
-            strokeWidth='1.3'
-            strokeLinejoin='round'
+    <InteractionCard
+      title={
+        <span className='inline-flex items-center gap-2'>
+          <TriangleAlert
+            aria-hidden
+            className='size-[14px] shrink-0 text-[var(--badge-amber-text)]'
           />
-          <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
-          <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
-        </svg>
-        <span className='font-[500] text-amber-800 text-sm leading-5 dark:text-amber-300'>
           Usage Limit Reached
         </span>
+      }
+    >
+      <div className='px-2 pb-2'>
+        <p className='text-[var(--text-body)] text-small leading-5'>{data.message}</p>
+        {canManageBilling ? (
+          <ChipLink
+            href={href}
+            onNavigate={() => rememberSettingsReturnUrl(href)}
+            variant='border'
+            rightIcon={hosted ? ArrowRight : SquareArrowUpRight}
+            target={hosted ? undefined : '_blank'}
+            rel={hosted ? undefined : 'noopener noreferrer'}
+            aria-label={hosted ? undefined : `${buttonLabel} (opens in a new tab)`}
+            className='mt-2'
+          >
+            {buttonLabel}
+          </ChipLink>
+        ) : (
+          <div className='mt-2 flex flex-col items-start gap-2'>
+            <p className='text-[var(--text-secondary)] text-small'>{unavailableMessage}</p>
+            {hostContext &&
+              usageGate.isSuccess &&
+              usageGate.data.isExceeded &&
+              usageGate.data.scope === 'member' && (
+                <MemberLimitRequestAction
+                  scope={{ kind: 'workspace', workspaceId: hostContext.workspace.id }}
+                />
+              )}
+          </div>
+        )}
       </div>
-      <p className='mt-1.5 text-amber-700/90 text-small leading-[20px] dark:text-amber-400/80'>
-        {data.message}
-      </p>
-      {canManageBilling ? (
-        <a
-          href={settingsPath}
-          className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
-        >
-          {buttonLabel}
-          <ArrowRight className='size-3' />
-        </a>
-      ) : (
-        <p className='mt-2 font-[500] text-amber-700 text-small dark:text-amber-300'>
-          {unavailableMessage}
-        </p>
-      )}
-    </div>
+    </InteractionCard>
   )
 }

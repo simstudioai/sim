@@ -1,7 +1,7 @@
 import type { PostgresUpdateParams, PostgresUpdateResponse } from '@/tools/postgresql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<PostgresUpdateParams, PostgresUpdateResponse> = {
+export const updateTool: InternalToolConfig<PostgresUpdateParams, PostgresUpdateResponse> = {
   id: 'postgresql_update',
   name: 'PostgreSQL Update',
   description: 'Update data in PostgreSQL database',
@@ -64,13 +64,8 @@ export const updateTool: ToolConfig<PostgresUpdateParams, PostgresUpdateResponse
     },
   },
 
-  request: {
-    url: '/api/tools/postgresql/update',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

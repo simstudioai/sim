@@ -26,21 +26,13 @@ export const WEBFLOW_ITEM_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete item output definition
- */
-export const WEBFLOW_ITEM_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Webflow CMS collection item',
-  properties: WEBFLOW_ITEM_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for list metadata.
  */
 export const WEBFLOW_LIST_METADATA_OUTPUT_PROPERTIES = {
   itemCount: { type: 'number', description: 'Number of items returned' },
   offset: { type: 'number', description: 'Pagination offset', optional: true },
   limit: { type: 'number', description: 'Maximum items per page', optional: true },
+  total: { type: 'number', description: 'Total number of matching items', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 interface WebflowBaseParams {
@@ -60,6 +52,7 @@ interface WebflowListItemsOutput {
     itemCount: number
     offset?: number
     limit?: number
+    total?: number
   }
 }
 

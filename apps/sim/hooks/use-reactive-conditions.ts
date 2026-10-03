@@ -1,26 +1,53 @@
 import { useCallback, useMemo } from 'react'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
-import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndexForSurface,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { EMPTY_BLOCK_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
- * Evaluates reactive conditions for subblocks. Always calls the same hooks
+ * Evaluates reactive conditions for subblocks or supplied option targets. Always calls the same hooks
  * regardless of whether a reactive condition exists (Rules of Hooks).
  *
- * Returns a Set of subblock IDs that should be hidden.
+ * Returns the target IDs that should be hidden.
  */
 export function useReactiveConditions(
   subBlocks: SubBlockConfig[],
   blockId: string,
   activeWorkflowId: string | null,
-  canonicalModeOverrides?: CanonicalModeOverrides
+  canonicalModeOverrides?: CanonicalModeOverrides,
+  triggerSurface = false,
+  conditionTargets: ReadonlyArray<Pick<SubBlockConfig, 'id' | 'reactiveCondition'>> = subBlocks
 ): Set<string> {
-  const reactiveSubBlock = useMemo(() => subBlocks.find((sb) => sb.reactiveCondition), [subBlocks])
-  const reactiveCond = reactiveSubBlock?.reactiveCondition
+  const reactiveSubBlocks = useMemo(
+    () => conditionTargets.filter((target) => target.reactiveCondition),
+    [conditionTargets]
+  )
+  const reactiveCond = reactiveSubBlocks[0]?.reactiveCondition
 
-  const canonicalIndex = useMemo(() => buildCanonicalIndex(subBlocks), [subBlocks])
+  for (const subBlock of reactiveSubBlocks) {
+    if (
+      subBlock.reactiveCondition &&
+      reactiveCond &&
+      subBlock.reactiveCondition.watchFields.join('\0') !== reactiveCond.watchFields.join('\0')
+    ) {
+      throw new Error('Reactive subblocks on the same block must watch identical credential fields')
+    }
+  }
+
+  /**
+   * Scoped so a trigger-mode block watches its own credential. The only shipped reactive
+   * condition (`SERVICE_ACCOUNT_SUBBLOCKS`) watches `oauthCredential`, which on Gmail, Drive,
+   * Sheets, Forms and Calendar spans both surfaces under different ids — unscoped, trigger mode
+   * resolves it to the dormant action credential and fetches the wrong one.
+   */
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndexForSurface(subBlocks, triggerSurface),
+    [subBlocks, triggerSurface]
+  )
 
   // Resolve watchFields through canonical index to get the active credential value
   const watchedCredentialId = useSubBlockStore(
@@ -52,12 +79,13 @@ export function useReactiveConditions(
 
   return useMemo(() => {
     const hidden = new Set<string>()
-    if (!reactiveSubBlock || !reactiveCond) return hidden
+    if (!reactiveCond) return hidden
 
-    const conditionMet = credential?.type === reactiveCond.requiredType
-    if (!conditionMet) {
-      hidden.add(reactiveSubBlock.id)
+    for (const subBlock of reactiveSubBlocks) {
+      if (credential?.type !== subBlock.reactiveCondition?.requiredType) {
+        hidden.add(subBlock.id)
+      }
     }
     return hidden
-  }, [reactiveSubBlock, reactiveCond, credential?.type])
+  }, [reactiveSubBlocks, reactiveCond, credential?.type])
 }

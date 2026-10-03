@@ -5,6 +5,7 @@ import { ArrowLeft, Chip, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   getUpgradeCardCta,
@@ -15,7 +16,6 @@ import {
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
 import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   BillingPeriodToggle,
@@ -69,26 +69,19 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
 
   const handleBack = useCallback(() => {
-    router.replace(origin ?? `/workspace/${workspaceId}/home`)
+    router.replace(origin ?? `/workspace/${workspaceId}`)
   }, [origin, router, workspaceId])
 
-  // Enterprise manages billing out-of-band, and self-hosted deployments with
-  // billing disabled have no plans to surface — redirect to home in both cases.
+  // Enterprise manages billing out-of-band, so there is no plan to pick here.
+  // The self-hosted and billing-disabled cases are build constants, not reactive
+  // state — page.tsx resolves those before this ever mounts.
   useEffect(() => {
-    if (!isBillingEnabled) {
-      router.replace(`/workspace/${workspaceId}/home`)
-      return
-    }
     if (canManageBilling && !state.isLoading && state.subscription.isEnterprise) {
-      router.replace(`/workspace/${workspaceId}/home`)
+      router.replace(`/workspace/${workspaceId}`)
     }
   }, [canManageBilling, state.isLoading, state.subscription.isEnterprise, router, workspaceId])
 
-  if (
-    !isBillingEnabled ||
-    state.isLoading ||
-    (canManageBilling && state.subscription.isEnterprise)
-  ) {
+  if (state.isLoading || (canManageBilling && state.subscription.isEnterprise)) {
     return null
   }
 
@@ -99,16 +92,14 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
 
     return (
       <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <div className={PAGE_HEADER_BAR}>
           <Chip leftIcon={ArrowLeft} onClick={handleBack}>
             Back
           </Chip>
         </div>
         <div className='flex min-h-0 flex-1 items-center justify-center px-6'>
           <div className='flex max-w-md flex-col items-center gap-3 text-center'>
-            <h1 className='font-medium text-[var(--text-body)] text-lg'>
-              Workspace plans unavailable
-            </h1>
+            <h1 className='text-[var(--text-body)] text-lg'>Workspace plans unavailable</h1>
             <p className='text-[var(--text-muted)] text-sm'>{description}</p>
           </div>
         </div>
@@ -192,7 +183,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+      <div className={PAGE_HEADER_BAR}>
         <Chip leftIcon={ArrowLeft} onClick={handleBack}>
           Back
         </Chip>

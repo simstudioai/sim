@@ -1,6 +1,7 @@
 import { Link, Section, Text } from '@react-email/components'
-import { baseStyles, colors } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { baseStyles, colors, fontWeight } from '@/components/emails/_styles'
+import { EmailButton, EmailLayout } from '@/components/emails/components'
+import { getEmailSubject } from '@/components/emails/subjects'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface PaymentFailedEmailProps {
@@ -9,7 +10,6 @@ interface PaymentFailedEmailProps {
   lastFourDigits?: string
   billingPortalUrl: string
   failureReason?: string
-  sentDate?: Date
 }
 
 export function PaymentFailedEmail({
@@ -18,23 +18,19 @@ export function PaymentFailedEmail({
   lastFourDigits,
   billingPortalUrl,
   failureReason,
-  sentDate = new Date(),
 }: PaymentFailedEmailProps) {
   const brand = getBrandConfig()
 
-  const previewText = `${brand.name}: Payment Failed - Action Required`
+  const previewText = getEmailSubject('payment-failed')
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={false}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text
         style={{
           ...baseStyles.paragraph,
-          fontSize: '16px',
-          fontWeight: 600,
+          fontWeight: fontWeight.semibold,
           color: colors.textPrimary,
         }}
       >
@@ -46,57 +42,39 @@ export function PaymentFailedEmail({
         unexpected charges. To restore access immediately, please update your payment method.
       </Text>
 
-      <Section
-        style={{
-          backgroundColor: colors.errorBg,
-          border: `1px solid ${colors.errorBorder}`,
-          borderRadius: '6px',
-          padding: '16px 18px',
-          margin: '16px 0',
-        }}
-      >
-        <Text
-          style={{
-            ...baseStyles.paragraph,
-            marginBottom: 8,
-            marginTop: 0,
-            fontWeight: 'bold',
-          }}
-        >
-          Payment Details
-        </Text>
-        <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>
+      <Section style={baseStyles.errorBox}>
+        <Text style={baseStyles.infoBoxTitle}>Payment Details</Text>
+        <Text style={baseStyles.infoBoxList}>
           Amount due: ${amountDue.toFixed(2)}
+          {lastFourDigits && (
+            <>
+              <br />
+              Payment method: •••• {lastFourDigits}
+            </>
+          )}
+          {failureReason && (
+            <>
+              <br />
+              Reason: {failureReason}
+            </>
+          )}
         </Text>
-        {lastFourDigits && (
-          <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>
-            Payment method: •••• {lastFourDigits}
-          </Text>
-        )}
-        {failureReason && (
-          <Text style={{ ...baseStyles.paragraph, margin: '4px 0' }}>Reason: {failureReason}</Text>
-        )}
       </Section>
 
-      <Link href={billingPortalUrl} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Update Payment Method</Text>
-      </Link>
+      <Section style={baseStyles.infoBox}>
+        <Text style={baseStyles.infoBoxTitle}>What happens next</Text>
+        <Text style={baseStyles.infoBoxList}>
+          • Your workflows and automations are currently paused
+          <br />• Update your payment method to restore service immediately
+          <br />• Stripe will automatically retry the charge once payment is updated
+        </Text>
+      </Section>
 
-      {/* Divider */}
+      <EmailButton href={billingPortalUrl}>Update Payment Method</EmailButton>
+
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.paragraph, fontWeight: 'bold' }}>What happens next?</Text>
-
-      <Text style={baseStyles.paragraph}>
-        • Your workflows and automations are currently paused
-        <br />• Update your payment method to restore service immediately
-        <br />• Stripe will automatically retry the charge once payment is updated
-      </Text>
-
-      {/* Divider */}
-      <div style={baseStyles.divider} />
-
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Common issues: expired card, insufficient funds, or incorrect billing info. Need help?{' '}
         <Link href={`mailto:${brand.supportEmail}`} style={baseStyles.link}>
           {brand.supportEmail}

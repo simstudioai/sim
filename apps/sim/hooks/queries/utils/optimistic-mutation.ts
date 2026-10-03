@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import type { QueryClient } from '@tanstack/react-query'
 
 const logger = createLogger('OptimisticMutation')
 
-export interface OptimisticMutationConfig<TData, TVariables, TItem, TContext> {
+export interface OptimisticMutationConfig<TData, TVariables, TItem> {
   name: string
   getQueryKey: (variables: TVariables) => readonly unknown[]
   getSnapshot: (variables: TVariables) => Record<string, TItem>
@@ -22,7 +23,7 @@ export interface OptimisticMutationContext<TItem> {
 
 export function createOptimisticMutationHandlers<TData, TVariables, TItem>(
   queryClient: QueryClient,
-  config: OptimisticMutationConfig<TData, TVariables, TItem, OptimisticMutationContext<TItem>>
+  config: OptimisticMutationConfig<TData, TVariables, TItem>
 ) {
   const {
     name,
@@ -72,6 +73,12 @@ export function createOptimisticMutationHandlers<TData, TVariables, TItem>(
   }
 }
 
+/**
+ * Placeholder id for an optimistic row, held only until the server response
+ * replaces it. Uses `generateId()` rather than a timestamp so two rows created
+ * in the same millisecond cannot collide — a collision would make
+ * `replaceOptimisticEntry` overwrite both entries with one server row.
+ */
 export function generateTempId(prefix: string): string {
-  return `${prefix}-${Date.now()}`
+  return `${prefix}-${generateId()}`
 }

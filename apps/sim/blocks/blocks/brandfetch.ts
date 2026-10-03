@@ -1,9 +1,8 @@
 import { BrandfetchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { BrandfetchGetBrandResponse, BrandfetchSearchResponse } from '@/tools/brandfetch/types'
 
-export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | BrandfetchSearchResponse> = {
+export const BrandfetchBlock: BlockConfig = {
   type: 'brandfetch',
   name: 'Brandfetch',
   description: 'Look up brand assets, logos, colors, and company info',
@@ -15,6 +14,15 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
   bgColor: '#000000',
   icon: BrandfetchIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Brandfetch',
+    sentences: {
+      byOperation: {
+        get_brand: [{ text: 'Fetch brand assets for', field: 'identifier', core: true }],
+        search: [{ text: 'Search brands named', field: 'name', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

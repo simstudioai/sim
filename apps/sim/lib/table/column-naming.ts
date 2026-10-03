@@ -6,6 +6,7 @@
  * get from the sidebar.
  */
 
+import { COLUMN_TYPE_REGISTRY, isColumnType } from '@/lib/table/column-types'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 /**
@@ -43,14 +44,11 @@ export function deriveOutputColumnName(path: string, taken: Set<string>): string
  * union falls back to `json`, the most permissive shape that still validates.
  */
 export function columnTypeForLeaf(leafType: string | undefined): ColumnDefinition['type'] {
-  switch (leafType) {
-    case 'string':
-    case 'number':
-    case 'boolean':
-    case 'date':
-    case 'json':
-      return leafType
-    default:
-      return 'json'
+  // A block output can only land on a type that carries no configuration of its
+  // own — a `select` needs an option set and a `currency` needs a code, neither
+  // of which a leaf type supplies.
+  if (isColumnType(leafType) && COLUMN_TYPE_REGISTRY[leafType].ownedMetadata.length === 0) {
+    return leafType
   }
+  return 'json'
 }

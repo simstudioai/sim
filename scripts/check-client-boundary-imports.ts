@@ -1,6 +1,25 @@
 #!/usr/bin/env bun
 /**
- * Guards against the Next.js `'use client'` server-import foot-gun.
+ * Guards the two Next.js boundary directives: `'use client'` imports and any
+ * `'use server'` module.
+ *
+ * ## `'use server'`
+ *
+ * A single `'use server'` module anywhere in the graph flips Next's
+ * `hasServerActions()` to true, which removes the early 404 for Server Action
+ * requests. Next classifies a request as a Server Action from HEADERS ALONE —
+ * no body inspection, no auth — so once actions exist, ANY unauthenticated
+ * `POST` with `Content-Type: multipart/form-data` to ANY App Router path takes
+ * the non-fetch action path, which bare-`throw`s and surfaces as an HTTP 500.
+ * A trickle of such requests is enough to trip the ALB 5xx alarm. Every export
+ * of a `'use server'` module is also a remotely invocable, unauthenticated
+ * endpoint.
+ *
+ * Sim has no Server Actions — server-only modules use the `.server.ts` suffix
+ * and are called directly from route handlers. If you genuinely need a Server
+ * Action, remove this check deliberately and wrap every export in auth.
+ *
+ * ## `'use client'`
  *
  * Next.js rewrites EVERY export of a `'use client'` module into a client
  * reference in the server bundle. Server-evaluated code can only *render* such
@@ -27,6 +46,17 @@
  * Escape hatch: `// client-boundary-allow: <reason>` on the line directly above
  * the import (reason required). Use only for a genuinely browser-only code path.
  *
+ * ## Deployment-shape flags in client code
+ *
+ * Client code — `stores/`, `hooks/`, `blocks/`, and any `'use client'` module or hook
+ * under the workspace, organization, or standalone settings surfaces — must not import the
+ * deployment-shape flags from `env-flags`; it reads them through
+ * `@/lib/core/config/deployment-shape`. The flag list is that module's own `env-flags`
+ * import, so it cannot drift. A namespace import (`* as flags`) is refused outright: its reads
+ * (`flags.x`, `flags['x']`, destructuring) cannot be enumerated, and named imports cover every
+ * legitimate use. Same escape hatch as above. Why: CLAUDE.md "Deployment flags
+ * in the browser".
+ *
  * Usage:
  *   bun run scripts/check-client-boundary-imports.ts          # report
  *   bun run scripts/check-client-boundary-imports.ts --check  # CI gate (fail on any)
@@ -35,7 +65,35 @@ import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
+
+/** A lone directive statement, e.g. `'use server'` or `"use client";`. */
+const DIRECTIVE_STATEMENT = /^(['"])(use [a-z-]+)\1\s*;?$/
+
+/**
+ * The directive a single source line states, e.g. `use client`, or null. Notes may sit on the same
+ * line, so `//` and inline `/* *\/` comments come off before matching.
+ */
+function directiveOn(line: string): string | null {
+  const statement = line
+    .replace(/\/\*.*?\*\//g, '')
+    .replace(/\/\/.*$/, '')
+    .trim()
+  return DIRECTIVE_STATEMENT.exec(statement)?.[2] ?? null
+}
+
+/** Comments and whitespace ahead of a module's first statement. */
+const LEADING_COMMENTS = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*/
+
+/**
+ * The module's leading directive prologue, if any. A directive must be the first statement;
+ * comments and blank lines may precede it.
+ */
+function leadingDirective(content: string): string | null {
+  return directiveOn(content.replace(LEADING_COMMENTS, '').split('\n', 1)[0])
+}
 const APP_DIR = path.join(ROOT, 'apps/sim')
+/** Everything Next compiles into the app's module graph. */
+const DIRECTIVE_SCAN_DIRS = [path.join(ROOT, 'apps'), path.join(ROOT, 'packages')]
 
 /** Server-evaluated, non-JSX surfaces. A file matches if its path passes one. */
 function isServerSurface(rel: string): boolean {
@@ -46,8 +104,46 @@ function isServerSurface(rel: string): boolean {
   return false
 }
 
+const ENV_FLAGS_MODULE = path.join(APP_DIR, 'lib/core/config/env-flags.ts')
+const DEPLOYMENT_SHAPE_MODULE = path.join(APP_DIR, 'lib/core/config/deployment-shape.ts')
+
+/** Surfaces whose shell seeds the server-resolved deployment shape (paths relative to apps/sim). */
+function isDeploymentShapeSurface(rel: string): boolean {
+  return /^(?:app\/(?:workspace|o|account|selfhost\/settings)|components\/settings|ee)\//.test(rel)
+}
+
+/**
+ * Client code bound by the deployment-shape rule: client-only directories by path, and
+ * `'use client'` modules or hooks (a `hooks/` folder or `use-*` file) inside a surface.
+ */
+async function isDeploymentShapeClient(rel: string, absFile: string): Promise<boolean> {
+  if (/\.(?:test|spec|integration)\.tsx?$/.test(rel)) return false
+  if (/^(?:stores|hooks|blocks)\//.test(rel)) return true
+  if (!isDeploymentShapeSurface(rel)) return false
+  return /(?:^|\/)(?:hooks\/|use-[^/]+\.tsx?$)/.test(rel) || isUseClientModule(absFile)
+}
+
+/** The named members an import clause brings in. */
+function namedImports(clause: string): string[] {
+  if (!clause.includes('{')) return []
+  return clause
+    .slice(clause.indexOf('{') + 1, clause.lastIndexOf('}'))
+    .split(',')
+    .map((member) => member.trim().split(/\s+as\s+/)[0])
+    .filter(Boolean)
+}
+
 const SOURCE_EXTENSIONS = ['.ts', '.tsx']
 const ALLOW_DIRECTIVE = 'client-boundary-allow'
+const sourceCache = new Map<string, string>()
+
+async function readSource(file: string): Promise<string> {
+  const cached = sourceCache.get(file)
+  if (cached !== undefined) return cached
+  const source = await readFile(file, 'utf8')
+  sourceCache.set(file, source)
+  return source
+}
 
 async function listFiles(dir: string): Promise<string[]> {
   const out: string[] = []
@@ -74,29 +170,37 @@ const useClientCache = new Map<string, boolean>()
 async function isUseClientModule(absFile: string): Promise<boolean> {
   const cached = useClientCache.get(absFile)
   if (cached !== undefined) return cached
-  let content: string
-  try {
-    content = await readFile(absFile, 'utf8')
-  } catch {
-    useClientCache.set(absFile, false)
-    return false
-  }
-  // The directive must be the first statement (comments/blank lines may precede it).
   let isClient = false
-  for (const raw of content.split('\n')) {
-    const line = raw.trim()
-    if (line === '' || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
-      continue
-    }
-    isClient = line === "'use client'" || line === '"use client"'
-    break
-  }
+  try {
+    isClient = leadingDirective(await readSource(absFile)) === 'use client'
+  } catch {}
   useClientCache.set(absFile, isClient)
   return isClient
 }
 
+/**
+ * Locations declaring `'use server'` — module prologue or inline in a function
+ * body. Either form registers Server Actions app-wide.
+ */
+async function findUseServerDirectives(files: readonly string[]): Promise<string[]> {
+  const found: string[] = []
+  for (const absFile of files) {
+    const lines = (await readSource(absFile)).split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      if (directiveOn(lines[i]) === 'use server') {
+        found.push(`${path.relative(ROOT, absFile)}:${i + 1}`)
+      }
+    }
+  }
+  return found
+}
+
 /** Resolve an import specifier to an absolute source file, or null if external/unresolved. */
-async function resolveSpecifier(spec: string, fromFile: string): Promise<string | null> {
+function resolveSpecifier(
+  spec: string,
+  fromFile: string,
+  sourceFiles: ReadonlySet<string>
+): string | null {
   let base: string
   if (spec.startsWith('@/')) {
     base = path.join(APP_DIR, spec.slice(2))
@@ -112,10 +216,7 @@ async function resolveSpecifier(spec: string, fromFile: string): Promise<string 
   ]
   for (const candidate of candidates) {
     if (!SOURCE_EXTENSIONS.includes(path.extname(candidate))) continue
-    try {
-      await readFile(candidate, 'utf8')
-      return candidate
-    } catch {}
+    if (sourceFiles.has(candidate)) return candidate
   }
   return null
 }
@@ -132,9 +233,11 @@ function parseImports(content: string): ImportInfo[] {
   const imports: ImportInfo[] = []
   const re = /^\s*import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"]/
   for (let i = 0; i < lines.length; i++) {
-    if (!/^\s*import\b/.test(lines[i]) || !lines[i].includes('import')) continue
-    // Join up to 12 following lines to capture multi-line import clauses.
-    const block = lines.slice(i, i + 12).join('\n')
+    if (!/^\s*import\b/.test(lines[i]) || /^\s*import\s*['"(]/.test(lines[i])) continue
+    // Join through the `from` line so a long multi-line clause is captured whole.
+    let end = i
+    while (end < lines.length - 1 && !/\bfrom\s+['"]/.test(lines[end])) end++
+    const block = lines.slice(i, end + 1).join('\n')
     const match = re.exec(block)
     if (!match) continue
     imports.push({ line: i + 1, clause: match[1], specifier: match[2] })
@@ -188,19 +291,40 @@ interface Violation {
 
 async function main() {
   const checkMode = process.argv.includes('--check')
-  const allFiles = await listFiles(APP_DIR)
+  let failed = false
+
+  const allFiles: string[] = []
+  for (const dir of DIRECTIVE_SCAN_DIRS) {
+    allFiles.push(...(await listFiles(dir)))
+  }
+  const sourceFiles = new Set(allFiles)
+  const serverDirectives = await findUseServerDirectives(allFiles)
+  if (serverDirectives.length === 0) {
+    console.log("✓ No 'use server' directives (Server Actions stay disabled).")
+  } else {
+    failed = true
+    console.error(
+      `\n✗ ${serverDirectives.length} 'use server' directive(s) found.\n` +
+        `  These enable Next's Server Action handling app-wide, which turns any unauthenticated\n` +
+        `  multipart/form-data POST to any App Router path into a 500, and exposes every export\n` +
+        `  as an unauthenticated endpoint. Use a '.server.ts' module called from a route handler.\n`
+    )
+    for (const location of serverDirectives) console.error(`  ${location}`)
+  }
+
   const violations: Violation[] = []
 
   for (const absFile of allFiles) {
+    if (!absFile.startsWith(`${APP_DIR}${path.sep}`)) continue
     const rel = path.relative(APP_DIR, absFile)
     if (!isServerSurface(rel)) continue
     // A server file that is itself `'use client'` is a client component — out of scope.
     if (await isUseClientModule(absFile)) continue
 
-    const content = await readFile(absFile, 'utf8')
+    const content = await readSource(absFile)
     for (const imp of parseImports(content)) {
       if (!importsAValue(imp.clause)) continue
-      const resolved = await resolveSpecifier(imp.specifier, absFile)
+      const resolved = resolveSpecifier(imp.specifier, absFile, sourceFiles)
       if (!resolved) continue
       if (!(await isUseClientModule(resolved))) continue
       if (hasAllowDirective(content, imp.line)) continue
@@ -212,19 +336,64 @@ async function main() {
     console.log(
       "✓ Client-boundary import check passed (no server file imports a value from a 'use client' module)."
     )
-    return
+  } else {
+    failed = true
+    console.error(
+      `\n✗ ${violations.length} server file(s) import a runtime value from a 'use client' module.\n` +
+        `  On the server these resolve to client-reference stubs and throw when called (e.g. 'X.list is not a function').\n` +
+        `  Move the imported factory/fetcher/constant into a non-'use client' module (hooks/queries/utils/*-keys.ts or fetch-*.ts).\n` +
+        `  See .claude/rules/sim-queries.md. Escape hatch: // ${ALLOW_DIRECTIVE}: <reason> above the import.\n`
+    )
+    for (const v of violations) {
+      console.error(`  ${v.file}:${v.line}  imports from '${v.specifier}'`)
+    }
   }
 
-  console.error(
-    `\n✗ ${violations.length} server file(s) import a runtime value from a 'use client' module.\n` +
-      `  On the server these resolve to client-reference stubs and throw when called (e.g. 'X.list is not a function').\n` +
-      `  Move the imported factory/fetcher/constant into a non-'use client' module (hooks/queries/utils/*-keys.ts or fetch-*.ts).\n` +
-      `  See .claude/rules/sim-queries.md. Escape hatch: // ${ALLOW_DIRECTIVE}: <reason> above the import.\n`
+  const shapeFlags = new Set(
+    parseImports(await readSource(DEPLOYMENT_SHAPE_MODULE))
+      .filter(
+        (imp) =>
+          resolveSpecifier(imp.specifier, DEPLOYMENT_SHAPE_MODULE, sourceFiles) === ENV_FLAGS_MODULE
+      )
+      .flatMap((imp) => namedImports(imp.clause))
   )
-  for (const v of violations) {
-    console.error(`  ${v.file}:${v.line}  imports from '${v.specifier}'`)
+  if (shapeFlags.size === 0) {
+    throw new Error(
+      `${DEPLOYMENT_SHAPE_MODULE} no longer imports from env-flags; update this check`
+    )
   }
-  if (checkMode) process.exit(1)
+  const shapeViolations: Array<Violation & { flags: string[] }> = []
+  for (const absFile of allFiles) {
+    if (!absFile.startsWith(`${APP_DIR}${path.sep}`)) continue
+    const rel = path.relative(APP_DIR, absFile)
+    if (!(await isDeploymentShapeClient(rel, absFile))) continue
+    const content = await readSource(absFile)
+    for (const imp of parseImports(content)) {
+      if (!importsAValue(imp.clause)) continue
+      if (resolveSpecifier(imp.specifier, absFile, sourceFiles) !== ENV_FLAGS_MODULE) continue
+      const flags = /\*\s*as\s/.test(imp.clause)
+        ? [imp.clause.trim()]
+        : namedImports(imp.clause).filter((name) => shapeFlags.has(name))
+      if (flags.length === 0 || hasAllowDirective(content, imp.line)) continue
+      shapeViolations.push({ file: rel, line: imp.line, specifier: imp.specifier, flags })
+    }
+  }
+
+  if (shapeViolations.length === 0) {
+    console.log('✓ No client code reads deployment-shape flags from env-flags.')
+  } else {
+    failed = true
+    console.error(
+      `\n✗ ${shapeViolations.length} client module(s) read deployment-shape flags from env-flags.\n` +
+        `  Read them via useDeploymentShape() (components) or getDeploymentShape() (helpers) from @/lib/core/config/deployment-shape;\n` +
+        `  import any other env-flags export by name, never as a namespace.\n`
+    )
+    for (const v of shapeViolations) {
+      console.error(`  ${v.file}:${v.line}  imports ${v.flags.join(', ')} from '${v.specifier}'`)
+    }
+  }
+
+  if (failed && checkMode) process.exit(1)
 }
 
 main().catch((error) => {

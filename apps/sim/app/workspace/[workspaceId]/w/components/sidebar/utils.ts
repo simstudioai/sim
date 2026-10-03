@@ -1,7 +1,20 @@
-import type { MothershipResource } from '@/lib/copilot/resource-types'
+import type { MouseEvent } from 'react'
+import type { MothershipResource } from '@/lib/mothership/resource-types'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+
+/** Distinguishes sidebar background clicks from controls and portaled overlays. */
+export function isSidebarBackgroundClick(event: MouseEvent<HTMLElement>): boolean {
+  return (
+    event.target instanceof Element &&
+    event.currentTarget.contains(event.target) &&
+    !event.target.closest(
+      'a, button, input, textarea, select, [role="button"], [contenteditable]:not([contenteditable="false"])'
+    )
+  )
+}
 
 /**
  * Builds a `MothershipResource` array from a sidebar drag selection so it can
@@ -103,6 +116,41 @@ export function compareByOrder<T extends { sortOrder: number; createdAt?: Date; 
   const timeB = b.createdAt?.getTime() ?? 0
   if (timeA !== timeB) return timeA - timeB
   return a.id.localeCompare(b.id)
+}
+
+/** One sibling slot in the sidebar tree — folders and workflows share the ordering. */
+export type SidebarSiblingItem =
+  | { kind: 'folder'; id: string; node: FolderTreeNode }
+  | { kind: 'workflow'; id: string; workflow: WorkflowMetadata }
+
+/**
+ * Orders one level of the sidebar tree as a single list. Folders are not hoisted
+ * above the workflows beside them: drag-and-drop writes `sortOrder` across both
+ * kinds as one sibling set, so partitioning them would render an order the user
+ * cannot produce by dragging.
+ */
+export function interleaveSiblings(
+  folders: FolderTreeNode[],
+  workflows: WorkflowMetadata[]
+): SidebarSiblingItem[] {
+  const items: (SidebarSiblingItem & { sortOrder: number; createdAt?: Date })[] = [
+    ...folders.map((node) => ({
+      kind: 'folder' as const,
+      id: node.id,
+      node,
+      sortOrder: node.sortOrder,
+      createdAt: node.createdAt,
+    })),
+    ...workflows.map((workflow) => ({
+      kind: 'workflow' as const,
+      id: workflow.id,
+      workflow,
+      sortOrder: workflow.sortOrder,
+      createdAt: workflow.createdAt,
+    })),
+  ]
+  items.sort(compareByOrder)
+  return items
 }
 
 export function groupWorkflowsByFolder(

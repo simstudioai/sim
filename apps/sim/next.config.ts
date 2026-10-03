@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
@@ -7,24 +8,8 @@ import {
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
-
-/**
- * Dev-only escape hatch: when `SIM_DEV_MINIMAL_REGISTRY=1` (`bun run dev:minimal`),
- * swap the heavy block and tool registries for tiny curated variants via a
- * Turbopack/webpack resolve alias. The shared workspace layout drags the
- * ~247-tool registry (~2,074 modules) into every route via providers/utils →
- * tools/params, and the editor/executor pull all ~268 block configs; aliasing
- * both to minimal variants stops Turbopack from compiling those graphs, cutting
- * dev compile-time RAM (e.g. /logs ~16GB → ~5GB, 4.9min → ~15s). Only the
- * curated core blocks/tools work in this mode. Never enabled in production.
- */
-const useMinimalRegistry = isDev && process.env.SIM_DEV_MINIMAL_REGISTRY === '1'
-const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
-  ? {
-      '@/tools/registry': './tools/registry.minimal.ts',
-      '@/blocks/registry-maps': './blocks/registry-maps.minimal.ts',
-    }
-  : {}
+import { LANDING_ROUTES } from './lib/landing/routes'
+import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -35,20 +20,6 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: true,
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
-    resolveAlias: minimalRegistryAlias,
-  },
-  webpack: (config) => {
-    if (useMinimalRegistry) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@/tools/registry$': path.resolve(import.meta.dirname, 'tools/registry.minimal.ts'),
-        '@/blocks/registry-maps$': path.resolve(
-          import.meta.dirname,
-          'blocks/registry-maps.minimal.ts'
-        ),
-      }
-    }
-    return config
   },
   images: {
     formats: ['image/avif', 'image/webp'],
@@ -123,8 +94,6 @@ const nextConfig: NextConfig = {
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   serverExternalPackages: [
     '@1password/sdk',
-    'unpdf',
-    'fluent-ffmpeg',
     'ws',
     'isolated-vm',
     '@e2b/code-interpreter',
@@ -132,34 +101,130 @@ const nextConfig: NextConfig = {
     '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
+    /**
+     * Keep PDF.js and its native canvas implementation intact. The shared server
+     * loader initializes canvas primitives before PDF.js evaluates its module.
+     */
+    'pdfjs-dist',
+    '@napi-rs/canvas',
+    // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
+    // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
+    'jsdom',
+    // The collab-doc converter runs TipTap + Yjs headlessly server-side. Two reasons these must be
+    // external (native Node require), not bundled: (1) the server bundler gives bundled TipTap a
+    // `window` that does NOT read `globalThis`, so `elementFromString` throws "no window object" even
+    // after the converter installs a jsdom window; (2) bundling would load a SECOND copy of `yjs`, so
+    // `@tiptap/y-tiptap`'s `item instanceof Y.XmlElement` checks — against the external `yjs` — would
+    // fail on nodes the app created with the bundled `yjs` ("Unexpected case"). One external copy fixes
+    // both. Server-only — the client editor bundles its own copies for the browser.
+    'yjs',
+    'y-protocols',
+    'lib0',
+    '@tiptap/core',
+    '@tiptap/pm',
+    '@tiptap/markdown',
+    '@tiptap/y-tiptap',
+    '@tiptap/starter-kit',
+    '@tiptap/extension-code',
+    '@tiptap/extension-code-block',
+    '@tiptap/extension-image',
+    '@tiptap/extension-list',
+    '@tiptap/extension-paragraph',
+    '@tiptap/extension-table',
+    '@tiptap/extension-highlight',
   ],
   outputFileTracingIncludes: {
-    '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
+    // The seed, merge, and persist endpoints all lazily `require('jsdom')` (via the collab-doc
+    // converter), which is invisible to the standalone file tracer, so force jsdom (and its transitive
+    // deps, followed from its static requires) into the trace — otherwise a Docker/standalone build
+    // omits it and the endpoint 500s with MODULE_NOT_FOUND. (The Yjs external stack — yjs/lib0/
+    // y-protocols — is copied whole in docker/app.Dockerfile: its glob would resolve against apps/sim
+    // but those deps hoist to the monorepo root, so a trace include can't reach them.)
+    '/api/internal/file-doc/seed': ['./node_modules/jsdom/**/*'],
+    '/api/internal/file-doc/merge': ['./node_modules/jsdom/**/*'],
+    '/api/internal/file-doc/persist': ['./node_modules/jsdom/**/*'],
+    /**
+     * No `sharp`/`@img` entries: these globs resolve against apps/sim while both hoist to the
+     * monorepo root, so they matched nothing. docker/app.Dockerfile copies them instead.
+     */
     '/*': [
-      './node_modules/sharp/**/*',
-      './node_modules/@img/**/*',
       './lib/execution/sandbox/bundles/*.cjs',
+      './node_modules/ws/**/*',
+      '../../packages/sim-cli/dist/runtime.js',
     ],
   },
   experimental: {
-    turbopackFileSystemCacheForDev: false,
     /**
-     * Turbopack's persistent build cache (beta) — opt-in via env so only the
-     * CI check build uses it; production image builds stay on the default
-     * cold-build path until the feature stabilizes.
+     * Turbopack's dev filesystem cache stays ON (this is also the Next default
+     * since v16.1). It is what makes a dev-server restart cheap: without it every
+     * restart recompiles the route graph from scratch.
+     *
+     * Measured locally on `/workspace/[workspaceId]/w`, n=3 per cell, restarting
+     * the dev server between each run:
+     *
+     *   cache OFF   31.4s / 30.1s / 31.9s   RSS ~9.0-9.8 GB
+     *   cache ON     5.7s /  6.1s /  5.7s   RSS ~4.8-5.1 GB
+     *
+     * 5.4x faster restarts and ~1.9x less memory. Cold compile with an empty
+     * cache is unchanged (~32s either way) — the cache only pays back on restart.
+     *
+     * This is deliberately NOT the same decision as `turbopackFileSystemCacheForBuild`
+     * below. That one is measured-harmful for `next build`; this one is
+     * measured-beneficial for `next dev`. It was previously `false`, but that was
+     * incidental — it was introduced by a landing-page redesign (#5408) whose
+     * description never mentions Turbopack, caching, or dev performance, and it
+     * is not covered by the #6078 build A/B cited below.
+     *
+     * The cache is unbounded on disk (an abandoned one reached 78 GB here), so
+     * `scripts/prune-turbopack-cache.ts` is chained into every `dev` script to cap it.
+     * A *corrupted* cache can abort Turbopack outright ("Cache corruption
+     * detected: checksum mismatch") rather than falling back — it depends whether
+     * the damaged region is read. `bun run dev:clean` and restart is the fix.
+     *
+     * If you re-measure any of this: `next dev` compiles routes on demand, so
+     * startup time means nothing — time the first request to a route, restart the
+     * server between runs, and stop it with SIGINT. A `kill -9` mid-write makes
+     * Turbopack discard the partially-written cache and rebuild silently, which
+     * reads as "the cache does nothing" and is how this flag stayed wrong.
      */
-    turbopackFileSystemCacheForBuild: process.env.NEXT_TURBOPACK_BUILD_CACHE === '1',
+    turbopackFileSystemCacheForDev: true,
+    /**
+     * Turbopack's persistent build cache (beta) stays off — it is a net loss at
+     * this app's size. A controlled A/B on a byte-identical module graph (PR
+     * #6078) measured compile at 113s with it off, 162s cold with it on, and 360s
+     * warm: the cache made the same build 3.2x slower. It also grew 5.1 GB ->
+     * 12 GB across two runs of an unchanged tree, so a cache degrades the longer
+     * it lives. Restoring across commits is separately undocumented-as-supported
+     * (vercel/next.js#87283 reports stale HTML from a cache built elsewhere).
+     *
+     * The explicit pin is load-bearing: 16.3.0 flipped this default to true for
+     * stable (vercel/next.js#94616), so dropping it re-enables the slower cache.
+     */
+    turbopackFileSystemCacheForBuild: false,
+    /**
+     * TypeScript 7 ships no JavaScript compiler API until 7.1, so Next's default
+     * checker cannot load it — this shells out to the project-local `tsc` instead.
+     * Pinned because the failure mode is not slower type checking but none at all:
+     * 16.2.12 skipped the stage silently in 138ms.
+     */
+    useTypeScriptCli: true,
     preloadEntriesOnStart: false,
+    /**
+     * Under Turbopack this is not a no-op: the list feeds
+     * `side_effect_free_packages` and is force-appended to `transpiledPackages`,
+     * which also removes each entry from the server externals set. Entries here
+     * must be real barrel packages that are actually imported - a stale entry
+     * costs transform work and overrides that package's own `sideEffects`
+     * declaration.
+     */
     optimizePackageImports: [
-      'lodash',
       'framer-motion',
-      'reactflow',
+      '@xyflow/react',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-popover',
       '@radix-ui/react-select',
       '@radix-ui/react-tabs',
-      '@radix-ui/react-accordion',
       '@radix-ui/react-checkbox',
       '@radix-ui/react-switch',
       '@radix-ui/react-slider',
@@ -186,9 +251,9 @@ const nextConfig: NextConfig = {
     ],
   }),
   transpilePackages: [
-    'prettier',
     '@react-email/components',
     '@react-email/render',
+    'sim',
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
@@ -211,6 +276,16 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        /** Generated footer artwork uses content hashes, so URLs are immutable. */
+        source: '/landing/footer-artwork/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        /** Generated hero artwork uses content hashes, so URLs are immutable. */
+        source: '/landing/hero-artwork/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
         source: '/.well-known/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
@@ -231,14 +306,25 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker
-        // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues
-        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',
+        source: '/api/v2/workflows/:workflowId/execute',
         headers: [
+          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
           {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'credentialless',
+            key: 'Content-Security-Policy',
+            value: getWorkflowExecutionCSPPolicy(),
           },
+        ],
+      },
+      {
+        // Exclude Vercel internal resources and static assets from strict COOP, Google Drive Picker
+        // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues.
+        // The pages an OAuth popup can land on are excluded too: `same-origin` would disown the
+        // popup from its opener, leaving it not reliably script-closable and reporting `closed`
+        // for a live window.
+        source:
+          '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace|api/tools/drive|demo|oauth-error|oauth/chat-complete).*)',
+        headers: [
           {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin',
@@ -246,8 +332,25 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For main app routes, Google Drive Picker, the /demo Cal.com embed, and Vercel resources - use permissive policies
-        source: '/(w/.*|workspace/.*|api/tools/drive|demo.*|_next/.*|_vercel/.*)',
+        // COEP stays on by default - a new route is cross-origin isolated unless
+        // it is named here. The exemptions are the app surfaces that embed
+        // credentialed third parties (Drive Picker, Vercel resources) and the
+        // marketing surface, which must opt out wholesale: see LANDING_ROUTES.
+        // The trailing `|$` exempts the root path.
+        source: `/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|${LANDING_ROUTES.join('|')}|$).*)`,
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'credentialless',
+          },
+        ],
+      },
+      {
+        // For main app routes, Google Drive Picker, the /demo Cal.com embed, the OAuth popup pages,
+        // and Vercel resources - use permissive policies. The popup pages match their opener's
+        // value so the two stay in one browsing-context group.
+        source:
+          '/(w/.*|workspace.*|api/tools/drive|demo.*|oauth-error|oauth/chat-complete|_next/.*|_vercel/.*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -259,7 +362,10 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Block access to sourcemap files (defense in depth). The trailing
+      // Keeps sourcemap files out of search indexes. This does NOT block
+      // access to them - `productionBrowserSourceMaps` is on and the `.map`
+      // files ship publicly in the production image; nothing here restricts
+      // who can fetch one. The trailing
       // `$` this rule previously ended with is not a regex anchor in Next's
       // `source` matcher (path-to-regexp syntax, not raw regex) - it matched
       // a literal `$` character, so this rule never actually fired against
@@ -347,7 +453,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/linkedin',
-        destination: 'https://www.linkedin.com/company/simstudioai/',
+        destination: 'https://www.linkedin.com/company/simdotai/',
         permanent: false,
       },
       {
@@ -362,19 +468,34 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Redirect /building and /studio to /blog (legacy URL support)
-    redirects.push(
-      {
-        source: '/building/:path*',
-        destination: 'https://www.sim.ai/blog/:path*',
-        permanent: true,
-      },
-      {
-        source: '/studio/:path*',
-        destination: 'https://www.sim.ai/blog/:path*',
-        permanent: true,
+    /**
+     * Legacy `/building` and `/studio` URLs map to `/blog`. Posts since moved to
+     * `/library` get their own rules ahead of the wildcard (first match wins)
+     * so they land there in one hop instead of chaining through `/blog`.
+     */
+    for (const legacyPrefix of ['building', 'studio']) {
+      for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
+        redirects.push({
+          source: `/${legacyPrefix}/${slug}`,
+          destination: `${SIM_SITE_URL}/library/${slug}`,
+          permanent: true,
+        })
       }
-    )
+      redirects.push({
+        source: `/${legacyPrefix}/:path*`,
+        destination: `${SIM_SITE_URL}/blog/:path*`,
+        permanent: true,
+      })
+    }
+
+    // The scheduled-tasks marketing page is retired with the feature. The URL is
+    // indexed, so send it to the surface that still carries scheduled execution
+    // (the workflow Schedule trigger) instead of letting it 404.
+    redirects.push({
+      source: '/scheduled-tasks',
+      destination: '/workflows',
+      permanent: true,
+    })
 
     /**
      * The marketing Academy course/lesson pages were removed; content is
@@ -452,22 +573,18 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
-    /**
-     * AEO/GEO-style posts (listicles, comparisons, how-tos) were split out of
-     * `/blog` into the dedicated `/library` section so `/blog` stays
-     * editorial-only. Preserve previously indexed URLs for the moved posts.
-     */
-    for (const slug of [
-      'best-zapier-alternatives',
-      'ai-agents-vs-rpa',
-      'ai-agent-vs-chatbot',
-      'openai-vs-n8n-vs-sim',
-      'ai-agent-ideas',
-      'how-to-create-an-ai-agent',
-    ]) {
+    for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
       redirects.push({
         source: `/blog/${slug}`,
         destination: `/library/${slug}`,
+        permanent: true,
+      })
+    }
+
+    for (const [retired, kept] of Object.entries(LIBRARY_MERGED_SLUGS)) {
+      redirects.push({
+        source: `/library/${retired}`,
+        destination: `/library/${kept}`,
         permanent: true,
       })
     }

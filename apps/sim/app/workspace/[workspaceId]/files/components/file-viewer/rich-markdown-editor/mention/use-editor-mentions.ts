@@ -27,15 +27,15 @@ export function useEditorMentions(
   useEffect(() => {
     if (!editor) return
     const taggingOn = Boolean(workspaceId) && !disableTagging
-    editor.storage.mention.enabled = taggingOn
-    editor.storage.mention.navigable = navigable
-    editor.storage.mention.onOpen = taggingOn ? () => setActive(true) : null
+    editor.storage.mentionMenu.enabled = taggingOn
+    editor.storage.mentionMenu.navigable = navigable
+    editor.storage.mentionMenu.onOpen = taggingOn ? () => setActive(true) : null
     return () => {
-      editor.storage.mention.onOpen = null
+      editor.storage.mentionMenu.onOpen = null
     }
   }, [editor, workspaceId, navigable, disableTagging])
 
   useEffect(() => {
-    editor?.storage.mention.store.set(items)
+    editor?.storage.mentionMenu.store.set(items)
   }, [editor, items])
 }

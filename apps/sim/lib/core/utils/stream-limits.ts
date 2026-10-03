@@ -1,4 +1,5 @@
 import { toError } from '@sim/utils/errors'
+import { containsNulCharacter } from '@sim/utils/string'
 
 export const DEFAULT_MAX_ERROR_BODY_BYTES = 64 * 1024
 
@@ -71,6 +72,65 @@ export interface ReadFormDataWithLimitRequest {
   formData: () => Promise<FormData>
 }
 
+/**
+ * A multipart field whose text a downstream store cannot represent. Distinct
+ * from {@link PayloadSizeLimitError} so a surface can project it as its own 400
+ * with the reason intact, and never as a size failure.
+ */
+export class MultipartFieldValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MultipartFieldValidationError'
+  }
+}
+
+export function isMultipartFieldValidationError(
+  error: unknown
+): error is MultipartFieldValidationError {
+  return error instanceof MultipartFieldValidationError
+}
+
+/**
+ * Multipart is the second request boundary, and `parseRequest`'s NUL scan
+ * cannot reach it: a multipart route declares no body contract, so its fields
+ * never pass through contract validation at all. A NUL in a `filename` therefore
+ * reached the knowledge-document insert directly, and because the storage key is
+ * sanitized while `original_name`/`display_name` are not, the object landed in
+ * object storage *before* the insert threw — a 500 plus an orphan.
+ *
+ * So the scan belongs on the shared multipart reader, which is what every
+ * multipart route already funnels through, rather than on each route's own
+ * field extraction. Rejecting here also runs before the caller has a `File` to
+ * hand to a storage write, which is what removes the orphan rather than
+ * cleaning it up afterwards.
+ *
+ * Only field names, text values, and file names are scanned. A `File`'s bytes
+ * are deliberately not: a zero *byte* in binary content is legitimate, and the
+ * bytes never become a text column.
+ */
+function assertMultipartFieldsAreStorable(formData: FormData): void {
+  for (const [name, value] of formData.entries()) {
+    if (containsNulCharacter(name)) {
+      throw new MultipartFieldValidationError(
+        'Multipart field names cannot contain a NUL character (U+0000)'
+      )
+    }
+    if (typeof value === 'string') {
+      if (containsNulCharacter(value)) {
+        throw new MultipartFieldValidationError(
+          `Multipart field "${name}" cannot contain a NUL character (U+0000)`
+        )
+      }
+      continue
+    }
+    if (containsNulCharacter(value.name)) {
+      throw new MultipartFieldValidationError(
+        `Multipart file name for field "${name}" cannot contain a NUL character (U+0000)`
+      )
+    }
+  }
+}
+
 export async function readFormDataWithLimit(
   request: ReadFormDataWithLimitRequest,
   options: { maxBytes: number; label: string }
@@ -78,7 +138,9 @@ export async function readFormDataWithLimit(
   assertContentLengthWithinLimit(request.headers, options.maxBytes, options.label)
 
   if (request.headers?.get('content-length') || !request.body) {
-    return request.formData()
+    const formData = await request.formData()
+    assertMultipartFieldsAreStorable(formData)
+    return formData
   }
 
   const body = await readStreamToBufferWithLimit(request.body, options)
@@ -87,7 +149,9 @@ export async function readFormDataWithLimit(
     headers: request.headers,
     body: new Uint8Array(body),
   })
-  return boundedRequest.formData()
+  const formData = await boundedRequest.formData()
+  assertMultipartFieldsAreStorable(formData)
+  return formData
 }
 
 export interface ReadStreamWithLimitOptions {
@@ -178,7 +242,7 @@ export async function readNodeStreamToBufferWithLimit(
 
     const onAbort = () => {
       if ('destroy' in stream && typeof stream.destroy === 'function') {
-        stream.destroy(toError(options.signal?.reason ?? new Error('Aborted')))
+        stream.destroy()
       }
       finish(() => reject(toError(options.signal?.reason ?? new Error('Aborted'))))
     }
@@ -231,10 +295,12 @@ export interface ReadResponseWithLimitOptions extends ReadStreamWithLimitOptions
   headers?: { get(name: string): string | null }
   preferTextFallback?: boolean
   allowNoBodyFallback?: boolean
+  requestMethod?: string
 }
 
 export async function readResponseToBufferWithLimit(
   response: {
+    status?: number
     headers?: { get(name: string): string | null }
     body?: ReadableStream<Uint8Array> | null
     arrayBuffer?: () => Promise<ArrayBuffer>
@@ -242,6 +308,16 @@ export async function readResponseToBufferWithLimit(
   },
   options: ReadResponseWithLimitOptions
 ): Promise<Buffer> {
+  const isSemanticallyBodyless =
+    response.status === 204 ||
+    response.status === 205 ||
+    response.status === 304 ||
+    options.requestMethod?.toUpperCase() === 'HEAD'
+  if (isSemanticallyBodyless) {
+    await response.body?.cancel().catch(() => {})
+    return Buffer.alloc(0)
+  }
+
   const contentLength = getContentLength(response.headers ?? options.headers)
   try {
     if (contentLength !== null) {
@@ -253,13 +329,7 @@ export async function readResponseToBufferWithLimit(
     }
     throw error
   }
-  if (
-    !options.allowNoBodyFallback &&
-    !options.preferTextFallback &&
-    !response.body &&
-    contentLength === null &&
-    (response.arrayBuffer || response.text)
-  ) {
+  if (!options.allowNoBodyFallback && !response.body && contentLength === null) {
     throw new PayloadSizeLimitError({
       label: options.label,
       maxBytes: options.maxBytes,
@@ -293,6 +363,7 @@ export async function readResponseToBufferWithLimit(
 
 export async function readResponseTextWithLimit(
   response: {
+    status?: number
     headers?: { get(name: string): string | null }
     body?: ReadableStream<Uint8Array> | null
     arrayBuffer?: () => Promise<ArrayBuffer>

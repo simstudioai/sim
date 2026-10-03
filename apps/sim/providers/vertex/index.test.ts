@@ -1,0 +1,139 @@
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ProviderRequest } from '@/providers/types'
+
+const { mockGoogleGenAI, genAIArgs, mockExecuteGeminiRequest } = vi.hoisted(() => {
+  const genAIArgs: Array<Record<string, unknown>> = []
+  class MockGoogleGenAI {
+    constructor(opts: Record<string, unknown>) {
+      genAIArgs.push(opts)
+    }
+  }
+  return {
+    mockGoogleGenAI: MockGoogleGenAI,
+    genAIArgs,
+    mockExecuteGeminiRequest: vi.fn(),
+  }
+})
+
+vi.mock('@google/genai', () => ({ GoogleGenAI: mockGoogleGenAI }))
+vi.mock('google-auth-library', () => ({
+  OAuth2Client: class {
+    setCredentials() {}
+  },
+}))
+vi.mock('@/providers/gemini/core', () => ({ executeGeminiRequest: mockExecuteGeminiRequest }))
+
+import { vertexProvider } from '@/providers/vertex'
+
+setEnv({ VERTEX_LOCATION: undefined, VERTEX_PROJECT: undefined })
+afterAll(resetEnvMock)
+
+function request(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
+  return {
+    model: 'vertex/gemini-2.0-flash',
+    apiKey: 'ya29.canary-token',
+    vertexProject: 'pentest-proj',
+    messages: [],
+    ...overrides,
+  } as ProviderRequest
+}
+
+describe('vertexProvider location and project validation', () => {
+  beforeEach(() => {
+    genAIArgs.length = 0
+    mockExecuteGeminiRequest.mockResolvedValue({ content: 'ok' })
+  })
+
+  it('rejects a location that terminates the URL authority', async () => {
+    await expect(
+      vertexProvider.executeRequest(request({ vertexLocation: 'attacker.example.com/x' }))
+    ).rejects.toThrow(/Invalid Vertex AI location/)
+
+    expect(genAIArgs).toHaveLength(0)
+    expect(mockExecuteGeminiRequest).not.toHaveBeenCalled()
+  })
+
+  it.each(['us-central1:8080', 'user@attacker.tld', 'us-central1 attacker.tld', '../us-central1'])(
+    'rejects the malformed location %j without constructing a client',
+    async (vertexLocation) => {
+      await expect(vertexProvider.executeRequest(request({ vertexLocation }))).rejects.toThrow(
+        /Invalid Vertex AI location/
+      )
+      expect(genAIArgs).toHaveLength(0)
+    }
+  )
+
+  it('rejects a project that injects extra URL path segments', async () => {
+    await expect(
+      vertexProvider.executeRequest(
+        request({ vertexProject: 'proj/../../attacker', vertexLocation: 'us-central1' })
+      )
+    ).rejects.toThrow(/Invalid Vertex AI project/)
+
+    expect(genAIArgs).toHaveLength(0)
+  })
+
+  it('passes a valid location and project through to the SDK', async () => {
+    await vertexProvider.executeRequest(request({ vertexLocation: 'europe-west4' }))
+
+    expect(genAIArgs).toHaveLength(1)
+    expect(genAIArgs[0]).toMatchObject({
+      vertexai: true,
+      project: 'pentest-proj',
+      location: 'europe-west4',
+    })
+    expect(mockExecuteGeminiRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('normalizes a mixed-case location rather than rejecting it', async () => {
+    await vertexProvider.executeRequest(request({ vertexLocation: 'US-Central1' }))
+
+    expect(genAIArgs[0]).toMatchObject({ location: 'us-central1' })
+  })
+
+  it('defaults to us-central1 when no location is supplied', async () => {
+    await vertexProvider.executeRequest(request())
+
+    expect(genAIArgs[0]).toMatchObject({ location: 'us-central1' })
+  })
+
+  it.each([
+    'vertex/gemini-3.8-flash',
+    'vertex/gemini-3.7-flash',
+    'vertex/gemini-3.6-flash',
+    'vertex/gemini-3.5-flash-lite',
+    'vertex/publishers/google/models/gemini-3.8-flash',
+  ])('defaults %s to the supported global endpoint', async (model) => {
+    await vertexProvider.executeRequest(request({ model }))
+
+    expect(genAIArgs[0]).toMatchObject({ location: 'global' })
+  })
+
+  it.each(['us', 'eu', 'global'])(
+    'preserves the explicitly selected %s endpoint for Gemini 3',
+    async (vertexLocation) => {
+      await vertexProvider.executeRequest(
+        request({ model: 'vertex/gemini-3.8-flash', vertexLocation })
+      )
+
+      expect(genAIArgs[0]).toMatchObject({ location: vertexLocation })
+    }
+  )
+
+  it.each([
+    ['VERTEX/Custom-Deployment', 'Custom-Deployment'],
+    ['vertex/publishers/google/models/Custom-Model', 'publishers/google/models/Custom-Model'],
+    [
+      'vertex/projects/MyProject/locations/global/publishers/google/models/Custom-Model',
+      'projects/MyProject/locations/global/publishers/google/models/Custom-Model',
+    ],
+    ['publishers/vertex/models/Custom-Model', 'publishers/vertex/models/Custom-Model'],
+  ])('preserves the custom model identifier in %s', async (model, expectedModel) => {
+    await vertexProvider.executeRequest(request({ model }))
+
+    expect(mockExecuteGeminiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ model: expectedModel, providerType: 'vertex' })
+    )
+  })
+})

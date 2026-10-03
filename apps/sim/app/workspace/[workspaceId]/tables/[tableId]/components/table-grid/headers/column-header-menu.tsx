@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
-import type { WorkflowGroup } from '@/lib/table'
+import type { SortDirection, WorkflowGroup } from '@/lib/table'
+import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
 import type { ColumnSourceInfo, DisplayColumn } from '../types'
@@ -14,6 +15,10 @@ interface ColumnHeaderMenuProps {
   column: DisplayColumn
   colIndex: number
   readOnly?: boolean
+  /** Why column changes are unavailable; disables the schema rows and explains them. */
+  schemaLockedReason?: string
+  /** Why deleting is unavailable; disables the destructive column row. */
+  deleteLockedReason?: string
   isRenaming: boolean
   isColumnSelected: boolean
   renameValue: string
@@ -41,6 +46,10 @@ interface ColumnHeaderMenuProps {
   /** Opens a popup preview of the column's underlying workflow. Surfaced in
    *  the chevron menu for workflow-output columns. */
   onViewWorkflow?: (workflowId: string) => void
+  onSortColumn?: (columnId: string, direction: SortDirection) => void
+  onClearSort?: () => void
+  /** This column's active sort direction. Absent when another column owns the sort. */
+  sortDirection?: SortDirection
   /** Whether this column is currently pinned to the left. */
   isPinned?: boolean
   /** Toggle the pinned state for this column. */
@@ -60,6 +69,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
   colIndex,
   readOnly,
+  schemaLockedReason,
+  deleteLockedReason,
   isRenaming,
   isColumnSelected,
   renameValue,
@@ -83,6 +94,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   sourceInfo,
   onOpenConfig,
   onViewWorkflow,
+  onSortColumn,
+  onClearSort,
+  sortDirection,
   isPinned,
   onPinToggle,
   stickyLeft,
@@ -162,8 +176,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
       const ghost = document.createElement('div')
       ghost.textContent = ghostLabel
+      ghost.className = 'text-small'
       ghost.style.cssText =
-        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
+        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;white-space:nowrap;color:var(--text-primary)'
       document.body.appendChild(ghost)
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
       requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
@@ -243,6 +258,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
   return (
     <th
+      data-column-drag-target={column.key}
+      data-column-drag-group={column.workflowGroupId}
       className={cn(
         'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
         stickyLeft !== undefined && 'z-[11]',
@@ -267,7 +284,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         />
       )}
       {isRenaming ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+        <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
@@ -284,26 +301,27 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               if (e.key === 'Escape') onRenameCancel()
             }}
             onBlur={onRenameSubmit}
-            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
+            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden focus:outline-hidden focus:ring-0'
           />
         </div>
       ) : readOnly ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+        <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
             blockIconInfo={sourceInfo?.blockIconInfo}
             blockMissing={blockMissing}
           />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
-            {column.workflowGroupId ? column.headerLabel : column.name}
-          </span>
+          <HeaderLabel
+            label={column.workflowGroupId ? column.headerLabel : column.name}
+            className='ml-1.5 text-[var(--text-primary)] text-small'
+          />
         </div>
       ) : (
-        <div className='flex h-full w-full min-w-0 items-center'>
+        <div className='flex size-full min-w-0 items-center'>
           <button
             type='button'
-            className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
+            className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-hidden'
             onClick={handleHeaderClick}
             draggable={false}
           >
@@ -313,9 +331,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               blockIconInfo={sourceInfo?.blockIconInfo}
               blockMissing={blockMissing}
             />
-            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-              {column.workflowGroupId ? column.headerLabel : column.name}
-            </span>
+            <HeaderLabel
+              label={column.workflowGroupId ? column.headerLabel : column.name}
+              className='ml-1.5 text-[var(--text-primary)] text-small'
+            />
           </button>
           <button
             type='button'
@@ -333,12 +352,17 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             column={column}
             deleteLabel={deleteLabel}
             onOpenConfig={onOpenConfig}
+            schemaLockedReason={schemaLockedReason}
+            deleteLockedReason={deleteLockedReason}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
             onDeleteColumn={onDeleteColumn}
             onViewWorkflow={
               onViewWorkflow && ownGroup ? () => onViewWorkflow(ownGroup.workflowId) : undefined
             }
+            onSortColumn={onSortColumn}
+            onClearSort={onClearSort}
+            sortDirection={sortDirection}
             isPinned={isPinned}
             onPinToggle={onPinToggle}
           />

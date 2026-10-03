@@ -1,8 +1,7 @@
 import { ClayIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ClayPopulateResponse } from '@/tools/clay/types'
 
-export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
+export const ClayBlock: BlockConfig = {
   type: 'clay',
   name: 'Clay',
   description: 'Populate Clay workbook',
@@ -13,6 +12,12 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: ClayIcon,
+  canvasPresentation: {
+    defaultTitle: 'Clay',
+    sentences: {
+      default: [{ text: 'Populate a table with', field: 'data', core: true }],
+    },
+  },
   subBlocks: [
     {
       id: 'webhookURL',
@@ -24,6 +29,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
     {
       id: 'data',
       title: 'Data (JSON or Plain Text)',
+      canvasNoun: 'a record',
       type: 'long-input',
       placeholder: 'Enter your JSON data to populate your Clay table',
       required: true,

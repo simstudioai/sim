@@ -1,31 +1,54 @@
+import { serializePrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
+import {
+  type MothershipExecuteStreamEvent,
+  mothershipExecuteContract,
+} from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { verifyInternalDelegationToken } from '@/lib/auth/internal'
 import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
-import { processContextsServer } from '@/lib/copilot/chat/process-contents'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
-import {
-  MothershipStreamV1EventType,
-  MothershipStreamV1TextChannel,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import type { StreamEvent } from '@/lib/copilot/request/types'
-import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import {
+  PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+  requestsPrivateToolMetadata,
+} from '@/lib/execution/private-tool-metadata'
+import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
+import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
+import { createMcpToolId } from '@/lib/mcp/utils'
+import { processContextsServer } from '@/lib/mothership/chat/process-contents'
+import {
+  type CopilotEnvironmentContext,
+  createCopilotEnvironmentContext,
+} from '@/lib/mothership/environment-context'
+import { IntegrationCatalogMcpExecution } from '@/lib/mothership/generated/integration-catalog'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import { ExecuteEventProjection } from '@/lib/mothership/request/lifecycle/execute-events'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+import type { StreamEvent } from '@/lib/mothership/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
+import { getSimConnection } from '@/lib/mothership/transport/connection'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
+import {
+  createIncompleteResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
+import { hasToolId } from '@/tools/tool-ids'
 
+/** Caps this response on serverless hosts only; the Node server bounds nothing with it. */
 export const maxDuration = 3600
 
 const logger = createLogger('MothershipExecuteAPI')
@@ -35,6 +58,30 @@ const MOTHERSHIP_EXECUTE_STREAM_CONTENT_TYPE = 'application/x-ndjson'
 const MOTHERSHIP_EXECUTE_HEARTBEAT_INTERVAL_MS = 15_000
 const ndjsonEncoder = new TextEncoder()
 
+function withPrivateProvenance<T extends Record<string, unknown>>(
+  payload: T,
+  registry: ResolvedSecretTraceRegistry | undefined,
+  include: boolean
+): T & Partial<Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>> {
+  return {
+    ...payload,
+    ...(include && registry
+      ? {
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: registry.exportCommittedProvenanceForInputPaths([]),
+        }
+      : {}),
+  }
+}
+
+function privateResponseHeaders(
+  registry: ResolvedSecretTraceRegistry | undefined,
+  include: boolean
+): Record<string, string> {
+  return include && registry
+    ? { [PRIVATE_TOOL_METADATA_RESPONSE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1 }
+    : {}
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
@@ -42,7 +89,7 @@ function isAbortError(error: unknown): boolean {
 function wantsStreamedExecuteResponse(req: NextRequest): boolean {
   return (
     req.headers.get(MOTHERSHIP_EXECUTE_STREAM_HEADER) === MOTHERSHIP_EXECUTE_STREAM_VALUE ||
-    req.headers.get('accept')?.includes(MOTHERSHIP_EXECUTE_STREAM_CONTENT_TYPE) === true
+    acceptsMediaType(req.headers.get('accept'), MOTHERSHIP_EXECUTE_STREAM_CONTENT_TYPE)
   )
 }
 
@@ -50,26 +97,12 @@ function encodeNdjson(value: unknown): Uint8Array {
   return ndjsonEncoder.encode(`${JSON.stringify(value)}\n`)
 }
 
-/**
- * Server-owned tools whose invocation the CALLER must see, even though they are
- * not client/integration tools. The scheduled-task runner branches on whether
- * the agent called complete_scheduled_task; filtering it out of the response
- * made that check permanently false, so a completed job was rescheduled by the
- * runner's own post-run bookkeeping.
- */
-export const CALLER_VISIBLE_SERVER_TOOLS = new Set(['complete_scheduled_task'])
-
 export function buildExecuteResponsePayload(
   result: Awaited<ReturnType<typeof runHeadlessCopilotLifecycle>>,
-  effectiveChatId: string,
-  integrationTools: Array<{ name: string }>
+  effectiveChatId: string
 ) {
-  const clientToolNames = new Set(integrationTools.map((t) => t.name))
   const clientToolCalls = (result.toolCalls || []).filter(
-    (tc: { name: string }) =>
-      clientToolNames.has(tc.name) ||
-      tc.name.startsWith('mcp-') ||
-      CALLER_VISIBLE_SERVER_TOOLS.has(tc.name)
+    (tc: { name: string }) => hasToolId(tc.name) || tc.name.startsWith('mcp-')
   )
 
   return {
@@ -99,6 +132,12 @@ export function buildExecuteResponsePayload(
 export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
   let requestId: string | undefined
+  let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
+  let environmentContext: CopilotEnvironmentContext | undefined
+  const includePrivateProvenance = requestsPrivateToolMetadata(
+    req.headers,
+    RESOLVED_SECRET_PROVENANCE_METADATA_V1
+  )
 
   try {
     const auth = await checkInternalAuth(req, { requireWorkflowId: false })
@@ -111,18 +150,45 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const {
       messages,
       responseFormat,
+      useConversationHistory,
+      modelSelection,
+      effort,
       workspaceId,
       userId: bodyUserId,
       chatId,
       messageId: providedMessageId,
       requestId: providedRequestId,
-      fileAttachments,
       contexts,
       mcpTools,
       workflowId,
       executionId,
-      userMetadata,
+      secretScope,
+      mountedSecrets,
     } = validation.data.body
+    const mcpDelegationToken = validation.data.headers['x-sim-mcp-delegation']
+    if (!mcpDelegationToken) throw new Error('Mothership requires signed workflow provenance')
+    const delegation = await verifyInternalDelegationToken(mcpDelegationToken)
+    if (!delegation.mcpBlockId) throw new Error('Mothership requires signed block provenance')
+    if (
+      workflowId !== (delegation.currentWorkflow?.workflowId ?? delegation.workflowId) ||
+      executionId !== delegation.executionId
+    )
+      throw new Error('Mothership workflow scope does not match signed provenance')
+    const mcpContext = {
+      userId: auth.userId,
+      workflowId: workflowId ?? delegation.workflowId,
+      workspaceId,
+      executionId,
+      executorDelegationOrigin: delegation,
+      mcpBlockId: delegation.mcpBlockId,
+    }
+    const mcpPrincipal = await createExecutorPrincipalFromExecutionContext({
+      context: mcpContext,
+      audience: MCP_SERVER_DELEGATION_AUDIENCE,
+    })
+    if (mcpPrincipal.workspaceId !== workspaceId)
+      throw new Error('MCP workspace scope does not match')
+    const secretMountPolicy = normalizeSecretMountPolicy({ secretScope, mountedSecrets })
 
     /**
      * Bind actor attribution to the authenticated identity. The executor mints
@@ -146,7 +212,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       actorUserId: userId,
       workspaceId,
     })
-
+    const scope = { userId, workspaceId }
+    let activeResolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
+    try {
+      const environment = await getPersonalAndWorkspaceEnv(userId, workspaceId, {
+        workspaceAccess,
+      })
+      environmentContext = await createCopilotEnvironmentContext(userId, workspaceId, environment)
+      const registry = environmentContext.resolvedSecretTraceRegistry
+      if (!registry) throw new Error('Mothership model-egress secret catalog is unavailable')
+      activeResolvedSecretTraceRegistry = registry
+    } catch (error) {
+      logger.warn('Failed to build Mothership model-egress secret catalog', {
+        error: getErrorMessage(error),
+        userId,
+        workspaceId,
+      })
+      activeResolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
+    }
+    resolvedSecretTraceRegistry = activeResolvedSecretTraceRegistry
     const effectiveChatId = chatId || generateId()
     messageId = providedMessageId || generateId()
     requestId = providedRequestId || generateId()
@@ -156,7 +240,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
     })
-    const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
+    const lastUserMessage = messages.filter((message) => message.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
     const taggedMcpServerIds = (agentMentions ?? []).flatMap((context) =>
@@ -164,78 +248,87 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
     const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
     const userPermission = workspaceAccess.permission
-    const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
-      await Promise.all([
-        generateWorkspaceContext(workspaceId, userId, { workspaceAccess }),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        Promise.all([
-          buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
-          buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
-        ]).then((groups) => {
-          const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
-          return [...byName.values()]
-        }),
-        computeWorkspaceEntitlements(workspaceId, userId),
-        processContextsServer(
-          nonMcpAgentMentions,
-          userId,
-          lastUserMessage,
-          workspaceId,
-          effectiveChatId
-        ).catch((error) => {
-          reqLogger.warn('Failed to resolve agent contexts for execution', {
-            error: toError(error).message,
-          })
-          return []
-        }),
-      ])
-    const requestPayload: Record<string, unknown> = {
-      messages,
-      responseFormat,
+    const selectedMcpToolIds = (mcpTools ?? [])
+      .filter((tool) => tool.type === 'mcp' && (tool.usageControl || 'auto') !== 'none')
+      .map((tool) => {
+        const { serverId, toolName } = resolveMcpToolBinding(tool)
+        return createMcpToolId(serverId, toolName)
+      })
+    const requiredToolIds = (mcpTools ?? [])
+      .filter((tool) => tool.usageControl === 'force')
+      .map((tool) => {
+        const { serverId, toolName } = resolveMcpToolBinding(tool)
+        return createMcpToolId(serverId, toolName)
+      })
+    const agentContexts = await processContextsServer(
+      nonMcpAgentMentions,
       userId,
-      // Go's auth middleware reads workspaceId off the request body to forward
-      // to /api/copilot/api-keys/validate (per-member org usage gate). Omitting
-      // it makes that validation 400 ("API key validation failed"), which kills
-      // the block. The chat path sends it via buildCopilotRequestPayload; the
-      // block path must too.
+      lastUserMessage,
+      workspaceId,
+      effectiveChatId,
+      activeResolvedSecretTraceRegistry
+    ).catch((error) => {
+      reqLogger.warn('Failed to resolve agent contexts for execution', {
+        error: toError(error).message,
+      })
+      return []
+    })
+    /**
+     * The wire payload IS the shared ExecuteRequest contract. Caller-side context —
+     * resolved mentions and the MCP-enablement notice — folds into the message array
+     * itself (the worker adds no persona of its own on this surface), and the run-scoped
+     * delegation credential is minted here exactly as on the chat path.
+     */
+    const contextBlocks: string[] = [
+      ...agentContexts.map((ctx) => {
+        const c = ctx as { type?: string; content?: string }
+        return `[Attached ${c.type ?? 'context'}]\n${c.content ?? ''}`
+      }),
+      ...(taggedMcpServerIds.length || selectedMcpToolIds.length
+        ? [
+            [
+              'MCP operations are enabled. Discover their current input schemas with search_integration_tools, then invoke them through call_integration_tool.',
+              'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+              ...taggedMcpServerIds.map((id) => `Enabled MCP server: ${id}`),
+              ...selectedMcpToolIds.map((id) => `Enabled MCP operation: ${id}`),
+            ].join('\n'),
+          ]
+        : []),
+    ]
+    const wireMessages = messages.map((m, i) =>
+      i === messages.length - 1 && contextBlocks.length > 0
+        ? { ...m, content: `${contextBlocks.join('\n\n')}\n\n${m.content}` }
+        : m
+    )
+    const requestPayload: Record<string, unknown> = {
+      simConnection: getSimConnection(),
+      messages: wireMessages,
+      ...(useConversationHistory !== undefined ? { useConversationHistory } : {}),
+      ...(modelSelection ? { modelSelection } : {}),
+      ...(effort ? { effort } : {}),
+      ...(responseFormat !== undefined ? { responseFormat } : {}),
+      userId,
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId,
       chatId: effectiveChatId,
-      mode: 'agent',
       messageId,
-      isHosted: true,
-      workspaceContext,
-      ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-      ...(userMetadata ? { userMetadata } : {}),
-      ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
-      ...(agentContexts.length > 0 || mothershipTools.length > 0
-        ? {
-            contexts: [
-              ...agentContexts,
-              ...(mothershipTools.length > 0
-                ? [
-                    {
-                      type: 'mcp',
-                      content: [
-                        'The following MCP tools are explicitly enabled for this request and are callable directly by the exact name shown — there is no loading step.',
-                        'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
-                        ...mothershipTools.map(
-                          (tool) => `- ${tool.name}: ${tool.description || tool.name}`
-                        ),
-                      ].join('\n'),
-                    },
-                  ]
-                : []),
-            ],
-          }
-        : {}),
-      ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
-      ...(userPermission ? { userPermission } : {}),
-      ...(entitlements.length > 0 ? { entitlements } : {}),
+      integrationCatalog: {
+        mcpServerIds: taggedMcpServerIds,
+        mcpToolIds: selectedMcpToolIds,
+        ...(requiredToolIds.length ? { requiredToolIds: [...new Set(requiredToolIds)] } : {}),
+        mcpExecution: IntegrationCatalogMcpExecution.parse({
+          workflowId: delegation.workflowId,
+          executionId: delegation.executionId,
+          mcpBlockId: delegation.mcpBlockId,
+          subjectUserId: delegation.subjectUserId,
+          ...(delegation.principal ? { principal: serializePrincipal(delegation.principal) } : {}),
+          ...(delegation.currentWorkflow ? { currentWorkflow: delegation.currentWorkflow } : {}),
+        }),
+      },
     }
 
     let allowExplicitAbort = true
-    let explicitAbortRequest: Promise<void> | undefined
+    let explicitAbortRequest: Promise<unknown> | undefined
     const lifecycleAbortController = new AbortController()
     const requestExplicitAbortOnce = () => {
       if (!allowExplicitAbort || explicitAbortRequest || !messageId) {
@@ -246,7 +339,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         streamId: messageId,
         userId,
         chatId: effectiveChatId,
-        workspaceId,
       }).catch((error) => {
         reqLogger.warn('Failed to send explicit abort for mothership execution', {
           error: toError(error).message,
@@ -279,9 +371,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         simRequestId: requestId,
         goRoute: '/api/mothership/execute',
         autoExecuteTools: true,
+        mcpBlockId: delegation.mcpBlockId,
+        executorDelegationOrigin: delegation,
         interactive: false,
         abortSignal: lifecycleAbortController.signal,
         billingAttribution,
+        ...(userPermission ? { userPermission } : {}),
+        secretActorUserId: userId,
+        secretMountPolicy,
+        environmentContext,
+        ...(!environmentContext && resolvedSecretTraceRegistry
+          ? { resolvedSecretTraceRegistry }
+          : {}),
         onEvent,
       })
 
@@ -291,12 +392,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
-          let forwardedAssistantContent = ''
-          const send = (event: unknown) => {
+          const send = (event: MothershipExecuteStreamEvent) => {
             if (!cancelled) {
               controller.enqueue(encodeNdjson(event))
             }
           }
+
+          const projection = new ExecuteEventProjection((event) => {
+            /** Keep text frames readable by workers deployed before agent-event versioning. */
+            if (event.type === 'text_delta')
+              send({ type: 'chunk', v: 1, content: event.text, turn: event.turn })
+            else send({ type: 'agent_event', v: 1, event })
+          })
 
           // Flush response headers promptly and keep long headless runs from
           // looking idle to worker/proxy HTTP stacks.
@@ -307,30 +414,23 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
           void (async () => {
             try {
-              const result = await runLifecycle(async (event) => {
-                if (
-                  event.type === MothershipStreamV1EventType.text &&
-                  event.payload.channel === MothershipStreamV1TextChannel.assistant &&
-                  event.payload.text
-                ) {
-                  const text = event.payload.text
-                  const content = text.startsWith(forwardedAssistantContent)
-                    ? text.slice(forwardedAssistantContent.length)
-                    : text
-                  if (content) {
-                    forwardedAssistantContent += content
-                    send({ type: 'chunk', content })
-                  }
-                }
-              })
+              const result = await runLifecycle(async (event) => projection.accept(event))
               allowExplicitAbort = false
 
               if (lifecycleAbortController.signal.aborted) {
-                send({ type: 'error', error: 'Sim execution aborted' })
+                projection.finish('cancelled')
+                send(
+                  withPrivateProvenance(
+                    { type: 'error', error: 'Sim execution aborted' },
+                    resolvedSecretTraceRegistry,
+                    includePrivateProvenance
+                  )
+                )
                 return
               }
 
               if (!result.success) {
+                projection.finish('error')
                 logger.error(
                   messageId
                     ? `Mothership execute failed [messageId:${messageId}]`
@@ -343,19 +443,31 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                     errors: result.errors,
                   }
                 )
-                send({
-                  type: 'error',
-                  error: result.error || 'Sim execution failed',
-                  content: result.content || '',
-                })
+                send(
+                  withPrivateProvenance(
+                    {
+                      type: 'error',
+                      error: result.error || 'Sim execution failed',
+                      content: result.content || '',
+                    },
+                    resolvedSecretTraceRegistry,
+                    includePrivateProvenance
+                  )
+                )
                 return
               }
 
+              projection.finish('success')
               send({
                 type: 'final',
-                data: buildExecuteResponsePayload(result, effectiveChatId, integrationTools),
+                data: withPrivateProvenance(
+                  buildExecuteResponsePayload(result, effectiveChatId),
+                  resolvedSecretTraceRegistry,
+                  includePrivateProvenance
+                ),
               })
             } catch (error) {
+              projection.finish(lifecycleAbortController.signal.aborted ? 'cancelled' : 'error')
               if (
                 lifecycleAbortController.signal.aborted ||
                 req.signal.aborted ||
@@ -367,7 +479,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                     : 'Mothership execute aborted',
                   { requestId }
                 )
-                send({ type: 'error', error: 'Sim execution aborted' })
+                send(
+                  withPrivateProvenance(
+                    { type: 'error', error: 'Sim execution aborted' },
+                    resolvedSecretTraceRegistry,
+                    includePrivateProvenance
+                  )
+                )
                 return
               }
 
@@ -380,10 +498,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                   error: getErrorMessage(error, 'Unknown error'),
                 }
               )
-              send({
-                type: 'error',
-                error: getErrorMessage(error, 'Internal server error'),
-              })
+              send(
+                withPrivateProvenance(
+                  {
+                    type: 'error',
+                    error: getErrorMessage(error, 'Internal server error'),
+                  },
+                  resolvedSecretTraceRegistry,
+                  includePrivateProvenance
+                )
+              )
             } finally {
               allowExplicitAbort = false
               if (heartbeatId) {
@@ -410,6 +534,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         headers: {
           'Content-Type': `${MOTHERSHIP_EXECUTE_STREAM_CONTENT_TYPE}; charset=utf-8`,
           'Cache-Control': 'no-cache, no-transform',
+          ...privateResponseHeaders(resolvedSecretTraceRegistry, includePrivateProvenance),
         },
       })
     }
@@ -421,7 +546,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       if (lifecycleAbortController.signal.aborted || req.signal.aborted) {
         reqLogger.info('Mothership execute aborted after lifecycle completion')
-        return NextResponse.json({ error: 'Sim execution aborted' }, { status: 499 })
+        return NextResponse.json(
+          withPrivateProvenance(
+            { error: 'Sim execution aborted' },
+            resolvedSecretTraceRegistry,
+            includePrivateProvenance
+          ),
+          {
+            status: 499,
+            headers: privateResponseHeaders(resolvedSecretTraceRegistry, includePrivateProvenance),
+          }
+        )
       }
 
       if (!result.success) {
@@ -438,16 +573,30 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           }
         )
         return NextResponse.json(
+          withPrivateProvenance(
+            {
+              error: result.error || 'Sim execution failed',
+              content: result.content || '',
+            },
+            resolvedSecretTraceRegistry,
+            includePrivateProvenance
+          ),
           {
-            error: result.error || 'Sim execution failed',
-            content: result.content || '',
-          },
-          { status: 500 }
+            status: 500,
+            headers: privateResponseHeaders(resolvedSecretTraceRegistry, includePrivateProvenance),
+          }
         )
       }
 
       return NextResponse.json(
-        buildExecuteResponsePayload(result, effectiveChatId, integrationTools)
+        withPrivateProvenance(
+          buildExecuteResponsePayload(result, effectiveChatId),
+          resolvedSecretTraceRegistry,
+          includePrivateProvenance
+        ),
+        {
+          headers: privateResponseHeaders(resolvedSecretTraceRegistry, includePrivateProvenance),
+        }
       )
     } finally {
       allowExplicitAbort = false
@@ -465,7 +614,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         }
       )
 
-      return NextResponse.json({ error: 'Sim execution aborted' }, { status: 499 })
+      return NextResponse.json(
+        withPrivateProvenance(
+          { error: 'Sim execution aborted' },
+          resolvedSecretTraceRegistry,
+          includePrivateProvenance
+        ),
+        {
+          status: 499,
+          headers: privateResponseHeaders(resolvedSecretTraceRegistry, includePrivateProvenance),
+        }
+      )
     }
 
     if (isWorkspaceAccessDeniedError(error)) {
@@ -481,8 +640,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
 
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Internal server error') },
-      { status: 500 }
+      withPrivateProvenance(
+        { error: getErrorMessage(error, 'Internal server error') },
+        resolvedSecretTraceRegistry,
+        includePrivateProvenance
+      ),
+      {
+        status: 500,
+        headers: privateResponseHeaders(resolvedSecretTraceRegistry, includePrivateProvenance),
+      }
     )
   }
 })

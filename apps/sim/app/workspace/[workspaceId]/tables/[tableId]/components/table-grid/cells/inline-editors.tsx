@@ -15,8 +15,11 @@ import {
 } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'
-import { useTimezone } from '@/hooks/queries/general-settings'
+import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
+import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
+import { useTimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import {
   cleanCellValue,
@@ -32,8 +35,25 @@ interface InlineEditorProps {
   value: unknown
   column: ColumnDefinition
   initialCharacter?: string
+  /** Shows the value without allowing changes; text stays selectable and copyable. */
+  readOnly?: boolean
   onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
+}
+
+/**
+ * Produces the raw draft that the column type will coerce on save. Ordinary
+ * date columns keep their display parser for partial dates; other date-editor
+ * types receive the untouched draft so their own safety rules are not erased.
+ */
+export function dateEditorRawValue(
+  draft: string,
+  column: ColumnDefinition,
+  timeZone: string,
+  storageValue?: string
+): string {
+  if (storageValue !== undefined) return storageValue
+  return column.type === 'date' ? (displayToStorage(draft, timeZone) ?? draft) : draft
 }
 
 /** Redirect wheel gestures over an inline editor to the surrounding table scroll container. */
@@ -52,13 +72,46 @@ function handleEditorWheel(e: React.WheelEvent<HTMLInputElement>) {
  * edits update the draft in place — the day pick keeps the time-of-day
  * (including seconds), the time field keeps the day — and Enter/blur commits.
  */
-function InlineDateEditor({
+function InlineDateEditor(props: InlineEditorProps) {
+  const { onCancel } = props
+  const timezoneState = useTimezoneState()
+  const timezoneUnavailable = timezoneState.status !== 'ready'
+  const timezoneBlockedMessage = getTimezoneEditBlockedMessage(timezoneState)
+
+  useEffect(() => {
+    if (timezoneState.status !== 'error' && timezoneState.status !== 'invalid') return
+    if (timezoneBlockedMessage) toast.error(timezoneBlockedMessage)
+    onCancel()
+  }, [onCancel, timezoneBlockedMessage, timezoneState.status])
+
+  if (timezoneUnavailable) {
+    return (
+      <span role='status' className='w-full min-w-0 truncate text-[var(--text-muted)] text-small'>
+        {timezoneState.status === 'loading'
+          ? 'Loading timezone…'
+          : timezoneState.status === 'invalid'
+            ? 'Invalid timezone'
+            : 'Timezone unavailable'}
+      </span>
+    )
+  }
+
+  return <ReadyInlineDateEditor {...props} initialTimeZone={timezoneState.timezone} />
+}
+
+interface ReadyInlineDateEditorProps extends InlineEditorProps {
+  initialTimeZone: string
+}
+
+function ReadyInlineDateEditor({
   value,
   column,
   initialCharacter,
+  readOnly,
   onSave,
   onCancel,
-}: InlineEditorProps) {
+  initialTimeZone,
+}: ReadyInlineDateEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const doneRef = useRef(false)
@@ -67,13 +120,18 @@ function InlineDateEditor({
    *  and refocuses while a popover interaction is in flight (covers browsers
    *  where buttons don't take focus on click). */
   const popoverPointerAtRef = useRef(0)
-  const timeZone = useTimezone()
+  /** Keep one wall-clock interpretation for the lifetime of this edit. */
+  const editTimeZoneRef = useRef(initialTimeZone)
+  const timeZone = editTimeZoneRef.current
 
+  const isOffsetDate = columnTypeOf(column).editor === 'offset-date'
   const storedValue = formatValueForInput(value, column.type)
   const initialDraft =
     initialCharacter !== undefined
       ? initialCharacter
-      : storageToDisplay(storedValue, { seconds: true })
+      : isOffsetDate
+        ? storedValue
+        : storageToDisplay(storedValue, { seconds: true })
   const [draft, setDraft] = useState(initialDraft)
   const [invalid, setInvalid] = useState(false)
   /** Picker commits mutate the draft from timeouts/child handlers; reading it
@@ -81,9 +139,9 @@ function InlineDateEditor({
   const draftRef = useRef(draft)
   draftRef.current = draft
 
-  /** The calendar works on wall times; feed it the draft's literal wall
-   *  representation. */
-  const draftParts = dateValueToLocalParts(displayToStorage(draft, timeZone) ?? storedValue)
+  const offsetParts = isOffsetDate ? ttlValueToPickerParts(draft) : null
+  const draftParts =
+    offsetParts ?? dateValueToLocalParts(displayToStorage(draft, timeZone) ?? storedValue)
   const pickerValue = draftParts.day
     ? draftParts.time
       ? `${draftParts.day}T${draftParts.time}`
@@ -109,31 +167,32 @@ function InlineDateEditor({
       if (doneRef.current) return
       clearTimeout(blurTimeoutRef.current)
       const current = draftRef.current
-      // Untouched draft → re-save the stored value byte-identical. Re-parsing
-      // the display form would re-stamp the offset with THIS viewer's zone,
-      // silently shifting the instant of a value someone else wrote.
+      /** Preserve Date cells' stored offsets instead of reinterpreting their
+       * display text in the viewer's timezone. */
       if (storageVal === undefined && initialCharacter === undefined && current === initialDraft) {
         doneRef.current = true
-        onSave(storedValue || null, reason)
+        onSave(storedValue ? cleanCellValue(storedValue, column, timeZone) : null, reason)
         return
       }
-      const raw = storageVal ?? displayToStorage(current, timeZone) ?? current
-      if (raw && Number.isNaN(Date.parse(raw))) {
+      const raw = dateEditorRawValue(current, column, timeZone, storageVal)
+      const cleaned = raw ? cleanCellValue(raw, column, timeZone) : null
+      const parseError = columnTypeOf(column).parseErrorMessage
+      if (raw && cleaned === null && parseError) {
         if (reason === 'blur') {
-          if (!invalid) toast.error('Invalid date')
+          if (!invalid) toast.error(parseError)
           doneRef.current = true
           onCancel()
         } else {
-          toast.error('Invalid date')
+          toast.error(parseError)
           setInvalid(true)
           inputRef.current?.focus()
         }
         return
       }
       doneRef.current = true
-      onSave(raw || null, reason)
+      onSave(cleaned, reason)
     },
-    [invalid, onSave, onCancel, timeZone, initialDraft, initialCharacter, storedValue]
+    [invalid, onSave, onCancel, timeZone, initialDraft, initialCharacter, storedValue, column]
   )
 
   const handleKeyDown = useCallback(
@@ -179,21 +238,25 @@ function InlineDateEditor({
    * immediately) or a local `YYYY-MM-DDTHH:mm[:ss]` wall time (update the
    * draft and keep editing).
    */
-  const handlePickerChange = useCallback(
-    (picked: string) => {
-      clearTimeout(blurTimeoutRef.current)
-      if (isCalendarDateString(picked)) {
-        doSave('enter', picked)
-        return
-      }
-      const canonical = displayToStorage(picked, timeZone)
-      if (!canonical) return
-      setDraft(storageToDisplay(canonical, { seconds: true }))
+  const handlePickerChange = (picked: string) => {
+    clearTimeout(blurTimeoutRef.current)
+    if (isCalendarDateString(picked)) {
+      doSave('enter', offsetParts ? ttlValueFromPicker(picked, null, offsetParts.offset) : picked)
+      return
+    }
+    if (offsetParts) {
+      const [day, time] = picked.split('T')
+      setDraft(ttlValueFromPicker(day, time ?? null, offsetParts.offset))
       setInvalid(false)
       inputRef.current?.focus()
-    },
-    [doSave, timeZone]
-  )
+      return
+    }
+    const canonical = displayToStorage(picked, timeZone)
+    if (!canonical) return
+    setDraft(storageToDisplay(canonical, { seconds: true }))
+    setInvalid(false)
+    inputRef.current?.focus()
+  }
 
   const handlePickerOpenChange = useCallback((open: boolean) => {
     if (!open && !doneRef.current) {
@@ -214,39 +277,48 @@ function InlineDateEditor({
         }}
         onKeyDown={handleKeyDown}
         onBlur={scheduleBlurSave}
-        placeholder='mm/dd/yyyy'
+        readOnly={readOnly}
+        placeholder={isOffsetDate ? 'YYYY-MM-DDTHH:mm:ss±HH:mm' : 'mm/dd/yyyy'}
         className={cn(
-          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden',
           invalid && 'text-[var(--text-error)]'
         )}
       />
-      <Popover open onOpenChange={handlePickerOpenChange}>
-        <PopoverAnchor className='absolute top-full left-0 size-0' />
-        <PopoverContent
-          ref={popoverRef}
-          align='start'
-          sideOffset={4}
-          className='w-auto p-0'
-          onPointerDownCapture={handlePopoverPointerDown}
-          onBlurCapture={scheduleBlurSave}
-        >
-          <Calendar
-            value={pickerValue}
-            onChange={handlePickerChange}
-            showTime
-            today={todayLocalCalendarDate(timeZone)}
-          />
-        </PopoverContent>
-      </Popover>
+      {!readOnly && (
+        <Popover open onOpenChange={handlePickerOpenChange}>
+          <PopoverAnchor className='absolute top-full left-0 size-0' />
+          <PopoverContent
+            ref={popoverRef}
+            align='start'
+            sideOffset={4}
+            className='w-auto p-0'
+            onPointerDownCapture={handlePopoverPointerDown}
+            onBlurCapture={scheduleBlurSave}
+          >
+            <Calendar
+              value={pickerValue}
+              onChange={handlePickerChange}
+              showTime
+              timeLabel={offsetParts ? `Time (${offsetParts.offset})` : undefined}
+              today={
+                offsetParts
+                  ? todayAtTtlOffset(offsetParts.offset)
+                  : todayLocalCalendarDate(timeZone)
+              }
+            />
+          </PopoverContent>
+        </Popover>
+      )}
     </>
   )
 }
 
-/** Inline editor for `string`/`number`/`json` columns — single-line text input. Number columns use `type="number"` so the browser rejects non-numeric input. */
+/** Inline editor for `string`/`number`/`currency`/`json` columns — single-line text input. Numeric columns get a decimal keypad and reject a draft that cannot be parsed. */
 function InlineTextEditor({
   value,
   column,
   initialCharacter,
+  readOnly,
   onSave,
   onCancel,
 }: InlineEditorProps) {
@@ -291,8 +363,11 @@ function InlineTextEditor({
       rejectDraft('Invalid JSON', reason)
       return
     }
-    if (column.type === 'number' && cleaned === null && draft.trim() !== '') {
-      rejectDraft('Invalid number', reason)
+    // `cleanCellValue` nulls an unparseable draft rather than throwing; types
+    // that declare a message reject it instead of silently clearing the cell.
+    const parseError = columnTypeOf(column).parseErrorMessage
+    if (cleaned === null && draft.trim() !== '' && parseError) {
+      rejectDraft(parseError, reason)
       return
     }
     doneRef.current = true
@@ -313,13 +388,13 @@ function InlineTextEditor({
     }
   }
 
-  const isNumber = column.type === 'number'
+  const inputMode = columnTypeOf(column).inputMode
 
   return (
     <input
       ref={inputRef}
       type='text'
-      inputMode={isNumber ? 'decimal' : undefined}
+      inputMode={inputMode}
       value={draft ?? ''}
       onChange={(e) => {
         setDraft(e.target.value)
@@ -328,8 +403,9 @@ function InlineTextEditor({
       onKeyDown={handleKeyDown}
       onWheel={handleEditorWheel}
       onBlur={() => doSave('blur')}
+      readOnly={readOnly}
       className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden',
         invalid && 'text-[var(--text-error)]'
       )}
     />
@@ -343,7 +419,7 @@ function InlineTextEditor({
  * toggles and commits when the menu closes. Escape discards the draft, matching
  * the text/date inline editors.
  */
-function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorProps) {
+function InlineSelectEditor({ value, column, readOnly, onSave, onCancel }: InlineEditorProps) {
   const isMulti = !!column.multiple
   const allOptions = column.options ?? []
   const [draft, setDraft] = useState<string[]>(() => selectedOptionIds(column, value))
@@ -409,15 +485,19 @@ function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorPro
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' sideOffset={2} className='min-w-[180px]'>
         {!isMulti && !column.required && (
-          <DropdownMenuItem onSelect={() => setDraftAnd([])}>
+          <DropdownMenuItem disabled={readOnly} onSelect={() => setDraftAnd([])}>
             <span className='text-[var(--text-muted)]'>None</span>
-            {draft.length === 0 && <Check className='!ml-auto' />}
+            {draft.length === 0 && <Check className='ml-auto!' />}
           </DropdownMenuItem>
         )}
         {allOptions.map((option) => (
-          <DropdownMenuItem key={option.id} onSelect={(e) => handleSelectOption(e, option.id)}>
+          <DropdownMenuItem
+            key={option.id}
+            disabled={readOnly}
+            onSelect={(e) => handleSelectOption(e, option.id)}
+          >
             <SelectPill option={option} />
-            {draft.includes(option.id) && <Check className='!ml-auto' />}
+            {draft.includes(option.id) && <Check className='ml-auto!' />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -425,13 +505,18 @@ function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorPro
   )
 }
 
-/** Dispatches to the right editor variant based on the column type. */
+/** Dispatches to the editor variant the column type declares. */
 export function InlineEditor(props: InlineEditorProps) {
-  if (props.column.type === 'date') {
-    return <InlineDateEditor {...props} />
+  switch (columnTypeOf(props.column).editor) {
+    case 'date':
+      return <InlineDateEditor {...props} />
+    case 'offset-date':
+      return <ReadyInlineDateEditor {...props} initialTimeZone='UTC' />
+    case 'select':
+      return <InlineSelectEditor {...props} />
+    // `toggle` types never open an editor — the grid flips them in place — so
+    // reaching here at all means a text draft is the sane fallback.
+    default:
+      return <InlineTextEditor {...props} />
   }
-  if (props.column.type === 'select') {
-    return <InlineSelectEditor {...props} />
-  }
-  return <InlineTextEditor {...props} />
 }

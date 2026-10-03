@@ -2,6 +2,7 @@
 
 import { memo, type RefObject } from 'react'
 import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type {
   ContextMenuPosition,
   TerminalFilters,
@@ -39,6 +40,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClearConsole,
   onFixInCopilot,
 }: LogRowContextMenuProps) {
+  const { chatEnabled } = useDeploymentShape()
   const hasRunId = entry?.executionId != null
 
   const isBlockFiltered = entry ? filters.blockIds.has(entry.blockId) : false
@@ -46,13 +48,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   const isStatusFiltered = entry ? filters.statuses.has(entryStatus) : false
 
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-      colorScheme='inverted'
-    >
+    <Popover open={isOpen} onOpenChange={(open) => !open && onClose()} size='sm'>
       <PopoverAnchor
         style={{
           position: 'fixed',
@@ -79,7 +75,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         )}
 
         {/* Fix in Chat - only for error rows */}
-        {entry && !entry.success && (
+        {chatEnabled && entry && !entry.success && (
           <>
             <PopoverItem
               onClick={() => {

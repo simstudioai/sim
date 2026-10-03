@@ -12,6 +12,54 @@ export const LumaBlock: BlockConfig = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#000000',
   icon: LumaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Luma',
+    sentences: {
+      byOperation: {
+        get_event: [{ text: 'Fetch event', field: 'eventId', core: true }],
+        create_event: [
+          { text: 'Create event', field: 'name', core: true },
+          { text: 'starting', field: 'startAt' },
+        ],
+        update_event: [
+          { text: 'Update event', field: 'eventId', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', moving start to', field: 'startAt' },
+        ],
+        list_events: [
+          'List events',
+          { text: ', after', field: 'after' },
+          { text: ', before', field: 'before' },
+          { text: ', up to', field: 'paginationLimit', after: 'results' },
+        ],
+        lookup_event: [{ text: 'Resolve the ID of event', field: ['url', 'eventId'], core: true }],
+        cancel_event: [{ text: 'Cancel event', field: 'eventId', core: true }],
+        get_guests: [
+          { text: 'List guests of event', field: 'eventId', core: true },
+          { text: ', with status', field: 'approvalStatus' },
+          { text: ', up to', field: 'paginationLimit', after: 'results' },
+        ],
+        get_guest: [
+          { text: 'Fetch guest', field: 'guestIdentifier', core: true },
+          { text: 'on event', field: 'eventId' },
+        ],
+        add_guests: [
+          { text: 'Register', field: 'guests', core: true },
+          { text: 'for event', field: 'eventId', core: true },
+        ],
+        send_invites: [
+          { text: 'Email invites to', field: 'guests', core: true },
+          { text: 'for event', field: 'eventId', core: true },
+          { text: ', saying', field: 'message' },
+        ],
+        update_guest_status: [
+          { text: 'Set guest', field: 'guestIdentifier', core: true },
+          { text: 'to', field: 'status' },
+          { text: 'on event', field: 'eventId' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

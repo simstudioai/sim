@@ -23,7 +23,7 @@ interface UseBlockVisualProps {
 
 /**
  * Provides visual state and interaction handlers for workflow blocks.
- * Computes ring styling based on editor open state, execution, diff, deletion, and run path states.
+ * Computes ring styling based on editor open state, execution, diff, deletion, and pending states.
  * Ring is shown only when the editor panel is open for this block, not during selection/dragging.
  * In preview mode, uses isPreviewSelected for selection highlighting.
  *
@@ -84,7 +84,6 @@ export function useBlockVisual({
         isPending: isPreview ? false : isPending,
         isDeletedBlock: isPreview ? false : isDeletedBlock,
         diffStatus: isPreview ? undefined : diffStatus,
-        runPathStatus,
         isPreviewSelection: isPreview && isPreviewSelected,
         isSelected: isPreview || isEmbedded ? false : isSelected,
       }),
@@ -94,7 +93,6 @@ export function useBlockVisual({
       isPending,
       isDeletedBlock,
       diffStatus,
-      runPathStatus,
       isPreview,
       isEmbedded,
       isPreviewSelected,
@@ -106,6 +104,7 @@ export function useBlockVisual({
     currentWorkflow,
     activeWorkflowId,
     isEnabled,
+    isExecuting,
     isLocked,
     handleClick,
     hasRing,

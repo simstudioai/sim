@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Alpine Linux with Bun
 # ========================================
-FROM oven/bun:1.3.13-alpine AS base
+FROM oven/bun:1.4.2-alpine AS base
 
 # ========================================
 # Dependencies Stage: Install Dependencies
@@ -11,13 +11,16 @@ WORKDIR /app
 
 # Copy only package files needed for migrations (these change less frequently)
 COPY package.json bun.lock turbo.json ./
+COPY patches ./patches
 RUN mkdir -p packages/db packages/logger packages/tsconfig packages/utils
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 COPY packages/utils/package.json ./packages/utils/package.json
 
-# Install dependencies with cache mount for faster builds
+# Install dependencies with cache mount for faster builds. This stage contains
+# only the migration workspace manifests, so Bun must normalize the full root
+# lockfile to that subset; full-repository CI owns frozen-lockfile validation.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     bun install --ignore-scripts
 

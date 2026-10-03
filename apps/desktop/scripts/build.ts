@@ -1,5 +1,10 @@
-import { copyFileSync } from 'node:fs'
-import { build } from 'esbuild'
+import { execFileSync } from 'node:child_process'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { type BuildOptions, build } from 'esbuild'
+import postcss from 'postcss'
+import loadPostcssConfig from 'postcss-load-config'
+import { identityForOrigin } from './channels'
 
 const watch = process.argv.includes('--watch')
 
@@ -23,21 +28,57 @@ if (bakedDefaultOrigin) {
   console.log(`• Baking default server origin: ${bakedDefaultOrigin}`)
 }
 
-/** Selects the branded app icon that matches the build's baked environment. */
-function iconForOrigin(origin: string): string {
-  if (!origin) return 'build/icon.icns'
-  const host = new URL(origin).hostname.toLowerCase()
-  if (host === 'localhost' || host === '127.0.0.1') return 'build/icon-local.icns'
-  if (host === 'dev.sim.ai' || host.endsWith('.dev.sim.ai')) return 'build/icon-dev.icns'
-  if (host === 'staging.sim.ai' || host.endsWith('.staging.sim.ai')) {
-    return 'build/icon-staging.icns'
-  }
-  return 'build/icon.icns'
-}
-
-const appIcon = iconForOrigin(bakedDefaultOrigin)
-copyFileSync(appIcon, 'build/generated-icon.icns')
+const appIcon = identityForOrigin(bakedDefaultOrigin).icon
+const generatedIcon = 'build/generated-icon.icon'
+rmSync(generatedIcon, { force: true, recursive: true })
+cpSync(appIcon, generatedIcon, { recursive: true })
 console.log(`• Selecting desktop icon: ${appIcon}`)
+
+function compileNativeHelpSearch(): void {
+  const outputDirectory = 'dist/native'
+  rmSync(outputDirectory, { force: true, recursive: true })
+  if (process.platform !== 'darwin') return
+
+  const nodeExecutable = execFileSync('node', ['-p', 'process.execPath'], {
+    encoding: 'utf8',
+  }).trim()
+  const nodeIncludeDirectory = join(dirname(nodeExecutable), '..', 'include', 'node')
+  const nodeApiHeader = join(nodeIncludeDirectory, 'node_api.h')
+  if (!existsSync(nodeApiHeader)) {
+    throw new Error(`Could not find Node-API headers at ${nodeApiHeader}`)
+  }
+
+  mkdirSync(outputDirectory, { recursive: true })
+  execFileSync(
+    'xcrun',
+    [
+      'clang++',
+      '-std=c++17',
+      '-DNAPI_VERSION=8',
+      '-fobjc-arc',
+      '-fblocks',
+      '-bundle',
+      '-undefined',
+      'dynamic_lookup',
+      '-mmacosx-version-min=12.0',
+      '-arch',
+      'arm64',
+      '-arch',
+      'x86_64',
+      '-I',
+      nodeIncludeDirectory,
+      '-framework',
+      'AppKit',
+      '-framework',
+      'Foundation',
+      '-o',
+      join(outputDirectory, 'help-search.node'),
+      'native/help-search.mm',
+    ],
+    { stdio: 'inherit' }
+  )
+  console.log('• Compiled native macOS documentation Help search')
+}
 
 const common = {
   bundle: true,
@@ -55,9 +96,62 @@ const common = {
   },
 }
 
+/** Bundles the shared EMCN components and app tokens for offline shell use. */
+const renderer: BuildOptions = {
+  entryPoints: {
+    server: 'src/renderer/server/index.tsx',
+    offline: 'src/renderer/offline/index.tsx',
+    dialog: 'src/renderer/dialog/index.tsx',
+    'credential-picker': 'src/renderer/credential-picker/index.tsx',
+  },
+  outdir: 'dist/renderer',
+  bundle: true,
+  platform: 'browser',
+  format: 'iife',
+  target: 'chrome146',
+  minify: true,
+  tsconfig: 'tsconfig.json',
+  external: ['*.woff2'],
+  define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
+  loader: { '.module.css': 'local-css' },
+  plugins: [
+    {
+      name: 'desktop-tailwind',
+      setup(builder) {
+        builder.onLoad({ filter: /shell\.css$/ }, async ({ path }) => {
+          const config = await loadPostcssConfig({}, resolve('../sim'))
+          const result = await postcss(config.plugins).process(readFileSync(path, 'utf8'), {
+            from: path,
+          })
+          return {
+            contents: result.css,
+            loader: 'css',
+            resolveDir: dirname(path),
+            watchFiles: result.messages.flatMap((message) =>
+              message.type === 'dependency' ? [message.file as string] : []
+            ),
+          }
+        })
+      },
+    },
+  ],
+}
+
 async function run(): Promise<void> {
+  compileNativeHelpSearch()
   if (watch) {
     const { context } = await import('esbuild')
+    const rendererCtx = await context(renderer)
+    const shellPreloadCtx = await context({
+      ...common,
+      entryPoints: ['src/preload/shell.ts'],
+      outfile: 'dist/shell-preload.cjs',
+    })
+    const credentialPickerPreloadCtx = await context({
+      ...common,
+      entryPoints: ['src/preload/credential-picker.ts'],
+      outfile: 'dist/credential-picker-preload.cjs',
+    })
     const mainCtx = await context({
       ...common,
       entryPoints: ['src/main/index.ts'],
@@ -75,10 +169,24 @@ async function run(): Promise<void> {
       entryPoints: ['src/preload/browser/index.ts'],
       outfile: 'dist/browser-preload.cjs',
     })
-    await Promise.all([mainCtx.watch(), preloadCtx.watch(), browserPreloadCtx.watch()])
+    await Promise.all([
+      mainCtx.watch(),
+      preloadCtx.watch(),
+      browserPreloadCtx.watch(),
+      rendererCtx.watch(),
+      shellPreloadCtx.watch(),
+      credentialPickerPreloadCtx.watch(),
+    ])
     return
   }
   await Promise.all([
+    build(renderer),
+    build({
+      ...common,
+      entryPoints: ['src/preload/credential-picker.ts'],
+      outfile: 'dist/credential-picker-preload.cjs',
+    }),
+    build({ ...common, entryPoints: ['src/preload/shell.ts'], outfile: 'dist/shell-preload.cjs' }),
     build({ ...common, entryPoints: ['src/main/index.ts'], outfile: 'dist/main.cjs' }),
     build({ ...common, entryPoints: ['src/preload/index.ts'], outfile: 'dist/preload.cjs' }),
     build({

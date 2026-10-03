@@ -1,11 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { OutlookIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import { outlookFoldersSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('OutlookPollingTrigger')
 
 export const outlookPollingTrigger: TriggerConfig = {
   id: 'outlook_poller',
@@ -21,6 +15,7 @@ export const outlookPollingTrigger: TriggerConfig = {
       id: 'triggerCredentials',
       title: 'Credentials',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
       description: 'This trigger requires outlook credentials to access your account.',
       serviceId: 'outlook',
       requiredScopes: [],
@@ -30,32 +25,13 @@ export const outlookPollingTrigger: TriggerConfig = {
     {
       id: 'folderIds',
       title: 'Outlook Folders to Monitor',
+      canvasNoun: 'a folder',
       type: 'dropdown',
+      selectorKey: 'outlook.folders',
       multiSelect: true,
       placeholder: 'Select Outlook folders to monitor for new emails',
       description: 'Choose which Outlook folders to monitor. Leave empty to monitor all emails.',
       required: false,
-      options: [], // Will be populated dynamically
-      fetchOptions: async (blockId: string) => {
-        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
-          | string
-          | null
-        if (!credentialId) {
-          throw new Error('No Outlook credential selected')
-        }
-        try {
-          const data = await requestJson(outlookFoldersSelectorContract, {
-            query: { credentialId },
-          })
-          return data.folders.map((folder) => ({
-            id: folder.id,
-            label: folder.name,
-          }))
-        } catch (error) {
-          logger.error('Error fetching Outlook folders:', error)
-          throw error
-        }
-      },
       dependsOn: ['triggerCredentials'],
       mode: 'trigger',
     },

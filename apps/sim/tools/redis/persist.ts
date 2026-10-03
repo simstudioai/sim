@@ -1,7 +1,7 @@
 import type { RedisPersistParams, RedisPersistResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisPersistTool: ToolConfig<RedisPersistParams, RedisPersistResponse> = {
+export const redisPersistTool: InternalToolConfig<RedisPersistParams, RedisPersistResponse> = {
   id: 'redis_persist',
   name: 'Redis PERSIST',
   description: 'Remove the expiration from a key in Redis, making it persist indefinitely.',
@@ -22,11 +22,8 @@ export const redisPersistTool: ToolConfig<RedisPersistParams, RedisPersistRespon
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'PERSIST',
       args: [params.key],

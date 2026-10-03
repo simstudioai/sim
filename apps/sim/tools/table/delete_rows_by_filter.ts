@@ -1,9 +1,11 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableBulkOperationResponse, TableDeleteByFilterParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableDeleteRowsByFilterTool: ToolConfig<
+export const tableDeleteRowsByFilterTool: InternalToolConfig<
   TableDeleteByFilterParams,
   TableBulkOperationResponse
 > = {
@@ -15,17 +17,12 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
 
   toolEnrichment: {
     dependsOn: 'tableId',
-    enrichTool: (tableId, schema, desc) =>
-      enrichTableToolSchema(tableId, 'table_delete_rows_by_filter', schema, desc),
+    enrichTool: (tableId, schema, desc, context) =>
+      enrichTableToolSchema(tableId, 'table_delete_rows_by_filter', schema, desc, context),
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     filter: {
       type: 'object',
       required: true,
@@ -41,19 +38,15 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params: TableDeleteByFilterParams) => `/api/table/${params.tableId}/rows`,
-    method: 'DELETE',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableDeleteByFilterParams) => {
+  operation: {
+    input: (params: TableDeleteByFilterParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
         filter: params.filter,
         limit: params.limit,
         workspaceId,
@@ -65,14 +58,11 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        deletedCount: data.deletedCount || 0,
-        deletedRowIds: data.deletedRowIds || [],
-        message: data.message || 'Rows deleted successfully',
-      },
-    }
+    return tableSuccess({
+      deletedCount: data.deletedCount || 0,
+      deletedRowIds: data.deletedRowIds || [],
+      message: data.message || 'Rows deleted successfully',
+    })
   },
 
   outputs: {

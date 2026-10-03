@@ -1,7 +1,8 @@
 'use client'
 
-import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
+import dynamic from 'next/dynamic'
 import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
 import {
   handleAnchors,
@@ -13,12 +14,25 @@ import {
 import {
   BLOCK_WIDTH,
   type BlockDef,
+  blockHeight,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
+import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 
-/** Upper bound on the canvas render scale (the scale at the full 1300px cap). */
-const MAX_STAGE_SCALE = 0.71
 /** Breathing room between the canvas bounds and the card edges, in card px. */
 const STAGE_MARGIN = 20
+
+/**
+ * The interactive stage mounts React Flow and the production renderers. It is
+ * loaded on demand so the staged loops (and every page that renders them) never
+ * ship that graph; the homepage fetches it with the lazily mounted hero loop.
+ */
+const ProductionWorkflowStage = dynamic(
+  () =>
+    import(
+      '@/app/(landing)/components/hero/components/hero-platform-loop/production-workflow-stage'
+    ).then((mod) => mod.ProductionWorkflowStage),
+  { ssr: false }
+)
 
 interface HeroWorkflowStageProps {
   /** How many of the stage's blocks (in build order) are on canvas. */
@@ -29,33 +43,108 @@ interface HeroWorkflowStageProps {
   edges?: ReadonlyArray<readonly [string, string]>
   /** Design-space bounding box of the block layout. Defaults with them. */
   canvas?: { width: number; height: number }
-  /**
-   * Block to dress with the selection ring - graphite (`--text-secondary`)
-   * rather than the real canvas's blue, per the landing pages' grayscale
-   * language - the workflows hero uses this for its "being edited" beat.
-   * Off by default, so existing stages are unchanged.
-   */
+  /** Block to dress with the selection ring in the timed, non-interactive loops. */
+  selectedId?: string
+  /** Mounts the shared production node and edge renderers in a real React Flow canvas. */
+  interactive?: boolean
+}
+
+interface StagedHeroWorkflowStageProps {
+  builtCount: number
+  blocks: BlockDef[]
+  edges: ReadonlyArray<readonly [string, string]>
+  canvas: { width: number; height: number }
   selectedId?: string
 }
 
+/** Timed, non-interactive workflow stage used by the secondary landing loops. */
+function StagedHeroWorkflowStage({
+  builtCount,
+  blocks,
+  edges,
+  canvas,
+  selectedId,
+}: StagedHeroWorkflowStageProps) {
+  const blocksById = useMemo(() => new Map(blocks.map((block) => [block.id, block])), [blocks])
+  const builtIds = useMemo(
+    () => new Set(blocks.slice(0, builtCount).map((block) => block.id)),
+    [blocks, builtCount]
+  )
+
+  return (
+    <ResponsiveDesignStage
+      width={canvas.width}
+      height={canvas.height}
+      inset={STAGE_MARGIN}
+      className='size-full'
+      contentClassName='relative'
+    >
+      <svg
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-0 size-full overflow-visible'
+        viewBox={`0 0 ${canvas.width} ${canvas.height}`}
+        fill='none'
+      >
+        {edges.map(([from, to]) => {
+          const source = blocksById.get(from)
+          const target = blocksById.get(to)
+          if (!source || !target) return null
+          const visible = builtIds.has(from) && builtIds.has(to)
+          const sourceAnchor = handleAnchors(source).out
+          const targetAnchor = handleAnchors(target).in
+
+          return (
+            <path
+              key={`${from}-${to}`}
+              d={verticalSmoothStep(sourceAnchor.x, sourceAnchor.y, targetAnchor.x, targetAnchor.y)}
+              pathLength={1}
+              stroke='var(--workflow-edge)'
+              strokeWidth={2}
+              strokeLinecap='round'
+              className={cn(
+                'transition-[stroke-dashoffset] duration-500 [stroke-dasharray:1] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
+                visible ? '[stroke-dashoffset:0]' : '[stroke-dashoffset:1]'
+              )}
+            />
+          )
+        })}
+      </svg>
+
+      {blocks.map((block) => {
+        const built = builtIds.has(block.id)
+
+        return (
+          <div
+            key={block.id}
+            className={cn(
+              'pointer-events-none absolute origin-center transition-[opacity,scale] duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
+              built ? 'scale-100 opacity-100' : 'scale-[0.94] opacity-0'
+            )}
+            style={{
+              left: block.x,
+              top: block.y,
+              width: BLOCK_WIDTH,
+              height: blockHeight(block),
+            }}
+          >
+            <StageBlockCard block={block} />
+            <span
+              aria-hidden
+              className={cn(
+                'pointer-events-none absolute inset-0 rounded-[13px] ring-[1.75px] ring-[var(--text-secondary)] transition-opacity duration-300 ease-out',
+                selectedId === block.id && built ? 'opacity-100' : 'opacity-0'
+              )}
+            />
+          </div>
+        )
+      })}
+    </ResponsiveDesignStage>
+  )
+}
+
 /**
- * The hero window's live workflow canvas - the right-pane counterpart of the
- * chat loop. Blocks pop in one by one as `builtCount` advances (staggered
- * scale/fade entrances, edges stroke-draw once both endpoints exist) at their
- * fixed positions. The edge SVG is `overflow-visible` - SVGs clip
- * at their viewport by default, which would cut the lines if a block ever sat
- * outside the design-canvas bounds.
- *
- * Decorative and `aria-hidden` (via the parent frame), so blocks are NOT
- * draggable - `pointer-events-none`, matching the rest of the hero animation.
- *
- * Blocks reuse the hero-visual's {@link WorkflowBlockContent} (the faithful
- * icon-tile + rows card body) in a card shell with vertical-flow handle nubs
- * (top in / bottom out), matching the real editor's vertical layout.
- *
- * The staged flow is injectable (`blocks`/`edges`/`canvas`), defaulting to the
- * homepage's lead-enrichment flow - the enterprise loop stages its own flow
- * through the same component.
+ * Landing workflow stage. The homepage demo uses the exact production renderer
+ * inside React Flow; secondary timed loops retain their staged presentation.
  */
 export function HeroWorkflowStage({
   builtCount,
@@ -63,117 +152,26 @@ export function HeroWorkflowStage({
   edges = STAGE_EDGES,
   canvas = STAGE_CANVAS,
   selectedId,
+  interactive = false,
 }: HeroWorkflowStageProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(MAX_STAGE_SCALE)
-  const blocksById = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks])
-
-  // Fit the design canvas to the card: scale down when the pane narrows so the
-  // branch blocks never clip, capped at the full-width scale. Measures LAYOUT
-  // size (offsetWidth/Height) - the stage lives inside the platform loop's
-  // scale-transformed design-space layer, and getBoundingClientRect's visual
-  // size would compound that outer scale into a double shrink.
-  useLayoutEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const measure = () => {
-      const w = el.offsetWidth
-      const h = el.offsetHeight
-      if (w < 40 || h < 40) return
-      setScale(
-        Math.min(
-          MAX_STAGE_SCALE,
-          (w - STAGE_MARGIN) / canvas.width,
-          (h - STAGE_MARGIN) / canvas.height
-        )
-      )
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [canvas.width, canvas.height])
-
-  const builtIds = useMemo(
-    () => new Set(blocks.slice(0, builtCount).map((b) => b.id)),
-    [blocks, builtCount]
-  )
+  if (interactive) {
+    return (
+      <ProductionWorkflowStage
+        builtCount={builtCount}
+        blocks={blocks}
+        edges={edges}
+        canvas={canvas}
+      />
+    )
+  }
 
   return (
-    <div
-      ref={containerRef}
-      className='flex h-full w-full items-center justify-center overflow-hidden'
-    >
-      <div
-        className='relative shrink-0'
-        style={{
-          width: canvas.width * scale,
-          height: canvas.height * scale,
-        }}
-      >
-        <div
-          className='absolute top-0 left-0'
-          style={{
-            width: canvas.width,
-            height: canvas.height,
-            transform: `scale(${scale})`,
-            transformOrigin: '0 0',
-          }}
-        >
-          <svg
-            className='pointer-events-none absolute inset-0 overflow-visible'
-            width={canvas.width}
-            height={canvas.height}
-            viewBox={`0 0 ${canvas.width} ${canvas.height}`}
-            fill='none'
-            aria-hidden='true'
-          >
-            {edges.map(([from, to]) => {
-              const source = blocksById.get(from)
-              const target = blocksById.get(to)
-              if (!source || !target) return null
-              const visible = builtIds.has(from) && builtIds.has(to)
-              const s = handleAnchors(source).out
-              const t = handleAnchors(target).in
-              return (
-                <path
-                  key={`${from}-${to}`}
-                  d={verticalSmoothStep(s.x, s.y, t.x, t.y)}
-                  pathLength={1}
-                  stroke='var(--workflow-edge)'
-                  strokeWidth={2}
-                  strokeLinecap='round'
-                  className='transition-[stroke-dashoffset] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] [stroke-dasharray:1]'
-                  style={{ strokeDashoffset: visible ? 0 : 1 } as CSSProperties}
-                />
-              )
-            })}
-          </svg>
-
-          {blocks.map((block) => {
-            const built = builtIds.has(block.id)
-            return (
-              <div
-                key={block.id}
-                className={cn(
-                  'pointer-events-none absolute transition-[opacity,scale] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
-                  built ? 'scale-100 opacity-100' : 'scale-[0.94] opacity-0'
-                )}
-                style={{ left: block.x, top: block.y, width: BLOCK_WIDTH }}
-              >
-                <StageBlockCard block={block} />
-                <span
-                  aria-hidden
-                  className={cn(
-                    'pointer-events-none absolute inset-0 rounded-[13px] ring-[1.75px] ring-[var(--text-secondary)] transition-opacity duration-300 ease-out',
-                    selectedId === block.id && built ? 'opacity-100' : 'opacity-0'
-                  )}
-                />
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
+    <StagedHeroWorkflowStage
+      builtCount={builtCount}
+      blocks={blocks}
+      edges={edges}
+      canvas={canvas}
+      selectedId={selectedId}
+    />
   )
 }

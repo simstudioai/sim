@@ -1,7 +1,7 @@
-import type { MemoryResponse } from '@/tools/memory/types'
-import type { ToolConfig } from '@/tools/types'
+import type { MemoryIdentifierParams, MemoryResponse } from '@/tools/memory/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
+export const memoryGetTool: InternalToolConfig<MemoryIdentifierParams, MemoryResponse> = {
   id: 'memory_get',
   name: 'Get Memory',
   description: 'Retrieve memory by conversationId. Returns matching memories.',
@@ -24,26 +24,13 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
     },
   },
 
-  request: {
-    url: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-
+  operation: {
+    input: (params) => {
       const conversationId = params.conversationId || params.id
-      if (!conversationId) {
-        throw new Error('conversationId or id is required')
-      }
-      const url = new URL(`/api/memory/${encodeURIComponent(conversationId)}`, 'http://dummy')
-      url.searchParams.set('workspaceId', workspaceId)
-
-      return url.pathname + url.search
+      if (!conversationId) throw new Error('conversationId or id is required')
+      return { id: conversationId }
     },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
+    secretProvenance: { response: { incomplete: 'reject' } },
   },
 
   transformResponse: async (response): Promise<MemoryResponse> => {

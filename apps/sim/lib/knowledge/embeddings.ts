@@ -1,197 +1,60 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type BillingAttributionSnapshot,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
-import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
-import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { embedKnowledge } from '@/lib/embeddings'
+import { isOllamaEmbeddingModel } from '@/lib/embeddings/catalog'
+import { EmbeddingInputLimitError } from '@/lib/embeddings/client'
 import {
+  getOllamaEmbeddingModelMetadata,
+  OllamaEmbeddingModelNotFoundError,
+  OllamaEmbeddingWidthUnknownError,
+} from '@/lib/embeddings/ollama-model-catalog.server'
+import type { EmbeddingBatchCheckpoints } from '@/lib/embeddings/types'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import {
+  assertKbEmbeddingModel,
   DEFAULT_EMBEDDING_MODEL,
-  EMBEDDING_DIMENSIONS,
+  defaultKbEmbeddingDimensions,
   getEmbeddingModelInfo,
-  SUPPORTED_EMBEDDING_MODELS,
-  type TokenizerProviderId,
+  isKbEmbeddingDimensions,
+  isKbEmbeddingModel,
+  KB_EMBEDDING_STORAGE_DIMENSIONS,
+  type KbEmbeddingDimensions,
 } from '@/lib/knowledge/embedding-models'
-import { batchByTokenLimit, estimateTokenCount } from '@/lib/tokenization'
+import { projectKnowledgeModelInputs } from '@/lib/knowledge/model-input-provenance'
+import { estimateTokenCount } from '@/lib/tokenization'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('EmbeddingUtils')
 
-const MAX_TOKENS_PER_REQUEST = 8000
-const MAX_CONCURRENT_BATCHES = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 50)
-const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
-
-export { EMBEDDING_DIMENSIONS } from '@/lib/knowledge/embedding-models'
-
-class EmbeddingAPIError extends Error {
-  public status: number
-
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'EmbeddingAPIError'
-    this.status = status
-  }
-}
-
 export type EmbeddingInputType = 'document' | 'query'
 
-interface ProviderRequest {
-  apiUrl: string
-  headers: Record<string, string>
-  body: unknown
-  parse: (json: unknown) => number[][]
-}
-
-interface ResolvedProvider {
-  modelName: string
-  pricingId: string
-  isBYOK: boolean
-  /** Tokenizer used to estimate tokens when the API does not return a usage field. */
-  tokenizerProvider: TokenizerProviderId
-  /** Hard per-request item cap enforced by the provider (e.g. Gemini caps at 100). */
-  maxItemsPerRequest?: number
-  buildRequest: (inputs: string[], inputType: EmbeddingInputType) => ProviderRequest
-}
-
-/** Gemini's `batchEmbedContents` rejects requests with more than 100 items. */
-const GEMINI_MAX_ITEMS_PER_REQUEST = 100
-
-async function resolveOpenAIKey(workspaceId?: string | null): Promise<{
-  apiKey: string
-  isBYOK: boolean
-}> {
-  if (workspaceId) {
-    const byokResult = await getBYOKKey(workspaceId, 'openai')
-    if (byokResult) {
-      logger.info('Using workspace BYOK key for OpenAI embeddings')
-      return { apiKey: byokResult.apiKey, isBYOK: true }
-    }
-  }
-  if (env.OPENAI_API_KEY) {
-    return { apiKey: env.OPENAI_API_KEY, isBYOK: false }
-  }
-  try {
-    return { apiKey: getRotatingApiKey('openai'), isBYOK: false }
-  } catch {
-    throw new Error('OPENAI_API_KEY is not configured')
-  }
-}
-
-async function resolveGeminiKey(workspaceId?: string | null): Promise<{
-  apiKey: string
-  isBYOK: boolean
-}> {
-  if (workspaceId) {
-    const byokResult = await getBYOKKey(workspaceId, 'google')
-    if (byokResult) {
-      logger.info('Using workspace BYOK key for Gemini embeddings')
-      return { apiKey: byokResult.apiKey, isBYOK: true }
-    }
-  }
-  if (env.GEMINI_API_KEY) {
-    return { apiKey: env.GEMINI_API_KEY, isBYOK: false }
-  }
-  try {
-    return { apiKey: getRotatingApiKey('gemini'), isBYOK: false }
-  } catch {
-    throw new Error(
-      'GEMINI_API_KEY (or GEMINI_API_KEY_1/2/3 for rotation) must be configured for Gemini embeddings'
-    )
-  }
-}
-
-function buildOpenAIProvider(modelName: string, apiKey: string): ResolvedProvider['buildRequest'] {
-  return (inputs) => ({
-    apiUrl: 'https://api.openai.com/v1/embeddings',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: {
-      input: inputs,
-      model: modelName,
-      encoding_format: 'float',
-      dimensions: EMBEDDING_DIMENSIONS,
-    },
-    parse: (json) => {
-      const data = json as { data: Array<{ embedding: number[] }> }
-      return data.data.map((item) => item.embedding)
-    },
-  })
-}
-
-function buildAzureOpenAIProvider(
-  deployment: string,
-  apiKey: string,
-  endpoint: string,
-  apiVersion: string
-): ResolvedProvider['buildRequest'] {
-  return (inputs) => ({
-    apiUrl: `${endpoint}/openai/deployments/${deployment}/embeddings?api-version=${apiVersion}`,
-    headers: {
-      'api-key': apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: {
-      input: inputs,
-      encoding_format: 'float',
-      dimensions: EMBEDDING_DIMENSIONS,
-    },
-    parse: (json) => {
-      const data = json as { data: Array<{ embedding: number[] }> }
-      return data.data.map((item) => item.embedding)
-    },
-  })
-}
-
 /**
- * Gemini does NOT auto-normalize embeddings when `outputDimensionality` is set below the
- * native 3072 dimension on `gemini-embedding-001`. Manually L2-normalize so cosine and
- * inner-product similarity work correctly.
+ * The model a knowledge base is indexed with and the vector width it stores.
+ * The two travel together everywhere: a width is only meaningful for the model
+ * that emits it, and a chunk written at the wrong width lands in the wrong
+ * pgvector column or none at all.
  */
-function l2Normalize(vector: number[]): number[] {
-  let sumSquares = 0
-  for (const v of vector) sumSquares += v * v
-  const norm = Math.sqrt(sumSquares)
-  if (norm === 0) return vector
-  return vector.map((v) => v / norm)
-}
-
-function buildGeminiProvider(modelName: string, apiKey: string): ResolvedProvider['buildRequest'] {
-  return (inputs, inputType) => ({
-    apiUrl: `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:batchEmbedContents`,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-    },
-    body: {
-      requests: inputs.map((text) => ({
-        model: `models/${modelName}`,
-        content: { parts: [{ text }] },
-        taskType: inputType === 'query' ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
-        outputDimensionality: EMBEDDING_DIMENSIONS,
-      })),
-    },
-    parse: (json) => {
-      const data = json as { embeddings: Array<{ values: number[] }> }
-      return data.embeddings.map((item) => l2Normalize(item.values))
-    },
-  })
+export interface KbEmbeddingTarget {
+  model: string
+  dimensions: KbEmbeddingDimensions
 }
 
 /**
  * Returns the embedding model to use for new knowledge bases.
  * Sourced from the `KB_EMBEDDING_MODEL` env var; falls back to the default if
- * unset or set to an unsupported model.
+ * unset or set to a model knowledge bases cannot use.
  */
-export function getConfiguredEmbeddingModel(): string {
+function resolveConfiguredEmbeddingModel(): string {
   const configured = env.KB_EMBEDDING_MODEL
-  if (configured && SUPPORTED_EMBEDDING_MODELS[configured]) {
+  if (configured && isKbEmbeddingModel(configured)) {
     return configured
   }
   if (configured) {
@@ -202,150 +65,103 @@ export function getConfiguredEmbeddingModel(): string {
   return DEFAULT_EMBEDDING_MODEL
 }
 
-async function resolveProvider(
-  embeddingModel: string,
-  workspaceId?: string | null
-): Promise<ResolvedProvider> {
-  const azureApiKey = env.AZURE_OPENAI_API_KEY
-  const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
-  const azureApiVersion = env.AZURE_OPENAI_API_VERSION
-  const isOpenAIModel = SUPPORTED_EMBEDDING_MODELS[embeddingModel]?.provider === 'openai'
+/**
+ * Vector width new knowledge bases are stored at, from `EMBEDDING_OUTPUT_DIMS`.
+ *
+ * Matching the width to what the configured model actually emits is the
+ * operator's job — Sim cannot verify it for a model on their own Ollama server,
+ * and for a catalogued model it can only check the widths the provider
+ * documents. Either way a value this deployment cannot store falls back rather
+ * than failing knowledge-base creation outright, because a base that exists at
+ * a working width is recoverable and one that could not be created is not.
+ */
+function resolveConfiguredEmbeddingDimensions(model: string): KbEmbeddingDimensions {
+  const raw = env.EMBEDDING_OUTPUT_DIMS
+  if (raw === undefined || String(raw).trim() === '') return defaultKbEmbeddingDimensions(model)
+
+  const fallback = defaultKbEmbeddingDimensions(model)
   /**
-   * Azure deployment names default to the embedding model name when
-   * `KB_OPENAI_MODEL_NAME` is unset — this matches the pre-existing
-   * convention where deployments are named after the model they host.
+   * Read through `envNumber` rather than trusted as the number its schema
+   * declares: `createEnv` runs with `skipValidation`, so the declared
+   * `z.coerce.number()` never executes and the value arrives as the raw string
+   * from the environment. Comparing that string against the storage widths
+   * matches nothing, which silently ignored every configured width. `0` is the
+   * sentinel for a value that is not a number at all; no storage width is 0.
    */
-  const azureDeploymentName = env.KB_OPENAI_MODEL_NAME || embeddingModel
-  const useAzure = Boolean(isOpenAIModel && azureApiKey && azureEndpoint && azureApiVersion)
-
-  const info = getEmbeddingModelInfo(embeddingModel)
-
-  if (useAzure) {
-    return {
-      modelName: azureDeploymentName,
-      pricingId: info.pricingId,
-      isBYOK: false,
-      tokenizerProvider: info.tokenizerProvider,
-      buildRequest: buildAzureOpenAIProvider(
-        azureDeploymentName,
-        azureApiKey!,
-        azureEndpoint!,
-        azureApiVersion!
-      ),
-    }
+  const configured = envNumber(raw, 0, { min: 1, integer: true })
+  if (!isKbEmbeddingDimensions(configured)) {
+    logger.warn(
+      `EMBEDDING_OUTPUT_DIMS="${raw}" is not a storable vector width — falling back to ${fallback}. Supported: ${KB_EMBEDDING_STORAGE_DIMENSIONS.join(', ')}`
+    )
+    return fallback
   }
-
-  if (info.provider === 'openai') {
-    const { apiKey, isBYOK } = await resolveOpenAIKey(workspaceId)
-    return {
-      modelName: embeddingModel,
-      pricingId: info.pricingId,
-      isBYOK,
-      tokenizerProvider: info.tokenizerProvider,
-      buildRequest: buildOpenAIProvider(embeddingModel, apiKey),
-    }
+  if (!getEmbeddingModelInfo(model).dimensions.includes(configured)) {
+    logger.warn(
+      `EMBEDDING_OUTPUT_DIMS="${raw}" is not a width ${model} can emit — falling back to ${fallback}`
+    )
+    return fallback
   }
-
-  if (info.provider === 'gemini') {
-    const { apiKey, isBYOK } = await resolveGeminiKey(workspaceId)
-    return {
-      modelName: embeddingModel,
-      pricingId: info.pricingId,
-      isBYOK,
-      tokenizerProvider: info.tokenizerProvider,
-      maxItemsPerRequest: GEMINI_MAX_ITEMS_PER_REQUEST,
-      buildRequest: buildGeminiProvider(embeddingModel, apiKey),
-    }
-  }
-
-  throw new Error(`Unknown embedding provider for model ${embeddingModel}`)
+  return configured
 }
 
-async function callEmbeddingAPI(
-  inputs: string[],
-  provider: ResolvedProvider,
-  inputType: EmbeddingInputType
-): Promise<{ embeddings: number[][]; totalTokens: number }> {
-  return retryWithExponentialBackoff(
-    async () => {
-      const request = provider.buildRequest(inputs, inputType)
+/**
+ * Model and vector width every knowledge base created on this deployment uses.
+ *
+ * Asynchronous for one case: an Ollama model whose width the deployment did not
+ * state. Sim can read that from the server the model is installed on, and doing
+ * so is much better than the platform default, which would silently create every
+ * base at 1,536 and fail each document against a 768-wide model.
+ */
+export async function getConfiguredKbEmbedding(): Promise<KbEmbeddingTarget> {
+  const model = resolveConfiguredEmbeddingModel()
+  const configured = env.EMBEDDING_OUTPUT_DIMS
+  const stated = configured !== undefined && String(configured).trim() !== ''
 
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
-
-      const response = await fetch(request.apiUrl, {
-        method: 'POST',
-        headers: request.headers,
-        body: JSON.stringify(request.body),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeout))
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new EmbeddingAPIError(
-          `Embedding API failed: ${response.status} ${response.statusText} - ${errorText}`,
-          response.status
-        )
+  /**
+   * An Ollama model's width is a property of what the operator pulled, and the
+   * adapter cannot ask for a different one, so there is no width to fall back
+   * to: the platform default would pin every base to 1,536 and fail every
+   * document against a model that emits anything else. When it cannot be
+   * established the base is refused instead, which is recoverable — a base
+   * created at an impossible width is not.
+   */
+  if (isOllamaEmbeddingModel(model) && !stated) {
+    let dimensions: number
+    try {
+      dimensions = (await getOllamaEmbeddingModelMetadata(model)).dimensions
+    } catch (error) {
+      /**
+       * A model the server does not have, or one whose width it will not report,
+       * is the operator's to fix and is surfaced as such. An unreachable server
+       * is a dependency failure and keeps its default classification — the
+       * orchestration vocabulary has no upstream-failure code, and the message
+       * carries the cause either way.
+       */
+      const message = `Could not read the vector width of ${model} from the configured Ollama server (${getErrorMessage(error, 'Unknown error')}). Set EMBEDDING_OUTPUT_DIMS to the width it emits.`
+      if (
+        error instanceof OllamaEmbeddingModelNotFoundError ||
+        error instanceof OllamaEmbeddingWidthUnknownError
+      ) {
+        throw new OrchestrationError('validation', message)
       }
-
-      const json = await response.json()
-      const embeddings = request.parse(json)
-      const usage = (json as { usage?: { total_tokens?: number } }).usage
-      const totalTokens =
-        usage?.total_tokens ??
-        // Gemini does not return usage.total_tokens — estimate with the provider's tokenizer
-        inputs.reduce(
-          (sum, text) => sum + estimateTokenCount(text, provider.tokenizerProvider).count,
-          0
-        )
-
-      return { embeddings, totalTokens }
-    },
-    {
-      maxRetries: 3,
-      initialDelayMs: 1000,
-      maxDelayMs: 10000,
-      retryCondition: (error: unknown) => {
-        if (error instanceof EmbeddingAPIError) {
-          return error.status === 429 || error.status >= 500
-        }
-        return isRetryableError(error)
-      },
+      throw new Error(message, { cause: error })
     }
-  )
-}
-
-function splitByItemLimit<T>(items: T[], limit: number): T[][] {
-  if (items.length <= limit) return [items]
-  const result: T[][] = []
-  for (let i = 0; i < items.length; i += limit) {
-    result.push(items.slice(i, i + limit))
+    if (!isKbEmbeddingDimensions(dimensions)) {
+      throw new OrchestrationError(
+        'validation',
+        `${model} emits ${dimensions}-dimensional vectors, which knowledge bases cannot store. Choose a model emitting one of ${KB_EMBEDDING_STORAGE_DIMENSIONS.join(', ')}.`
+      )
+    }
+    return { model, dimensions }
   }
-  return result
-}
 
-async function processWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  processor: (item: T, index: number) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  let currentIndex = 0
-
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (currentIndex < items.length) {
-      const index = currentIndex++
-      results[index] = await processor(items[index], index)
-    }
-  })
-
-  await Promise.all(workers)
-  return results
+  return { model, dimensions: resolveConfiguredEmbeddingDimensions(model) }
 }
 
 export interface GenerateEmbeddingsResult {
   embeddings: number[][]
   totalTokens: number
+  billableTokens: number
   isBYOK: boolean
   modelName: string
   /** Pricing identifier for use with calculateCost / EMBEDDING_MODEL_PRICING. */
@@ -354,64 +170,65 @@ export interface GenerateEmbeddingsResult {
 
 /**
  * Generate embeddings for multiple texts with token-aware batching and parallel processing.
+ *
+ * Every vector is pinned to the width its knowledge base was created at, so it
+ * matches the pgvector column the base stores into.
  */
 export async function generateEmbeddings(
   texts: string[],
-  embeddingModel: string = DEFAULT_EMBEDDING_MODEL,
-  workspaceId?: string | null
+  target: KbEmbeddingTarget,
+  workspaceId?: string | null,
+  signal?: AbortSignal,
+  checkpoints?: EmbeddingBatchCheckpoints
 ): Promise<GenerateEmbeddingsResult> {
-  const provider = await resolveProvider(embeddingModel, workspaceId)
+  assertKbEmbeddingModel(target.model, target.dimensions)
 
-  const tokenBatches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, embeddingModel)
-  const batches = provider.maxItemsPerRequest
-    ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, provider.maxItemsPerRequest!))
-    : tokenBatches
-
-  const batchResults = await processWithConcurrency(
-    batches,
-    MAX_CONCURRENT_BATCHES,
-    async (batch, i) => {
-      try {
-        return await callEmbeddingAPI(batch, provider, 'document')
-      } catch (error) {
-        logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
-        throw error
-      }
+  const result = await embedKnowledge(texts, {
+    model: target.model,
+    workspaceId,
+    taskType: 'document',
+    checkpoints,
+    inputOverflow: 'reject',
+    dimensions: target.dimensions,
+    projectInputs: projectKnowledgeModelInputs,
+    signal,
+  }).catch((error: unknown) => {
+    if (error instanceof EmbeddingInputLimitError) {
+      throw new PermanentDocumentProcessingError('document_complexity_limit', error.message, error)
     }
-  )
-
-  const allEmbeddings: number[][] = []
-  let totalTokens = 0
-  for (const batch of batchResults) {
-    for (const emb of batch.embeddings) {
-      allEmbeddings.push(emb)
-    }
-    totalTokens += batch.totalTokens
-  }
+    throw error
+  })
 
   return {
-    embeddings: allEmbeddings,
-    totalTokens,
-    isBYOK: provider.isBYOK,
-    modelName: provider.modelName,
-    pricingId: provider.pricingId,
+    embeddings: result.embeddings,
+    totalTokens: result.totalTokens,
+    billableTokens: result.billableTokens,
+    isBYOK: result.isBYOK,
+    modelName: result.modelName,
+    pricingId: result.pricingId,
   }
 }
 
-/**
- * Generate embedding for a single search query.
- */
 export async function generateSearchEmbedding(
   query: string,
-  embeddingModel: string = DEFAULT_EMBEDDING_MODEL,
-  workspaceId?: string | null
+  target: KbEmbeddingTarget,
+  workspaceId?: string | null,
+  signal?: AbortSignal
 ): Promise<{ embedding: number[]; isBYOK: boolean }> {
-  const provider = await resolveProvider(embeddingModel, workspaceId)
+  assertKbEmbeddingModel(target.model, target.dimensions)
 
-  logger.info(`Using ${provider.modelName} for search embedding generation`)
+  const result = await embedKnowledge([query], {
+    model: target.model,
+    workspaceId,
+    taskType: 'query',
+    dimensions: target.dimensions,
+    signal,
+    projectInputs: projectKnowledgeModelInputs,
+  })
 
-  const { embeddings } = await callEmbeddingAPI([query], provider, 'query')
-  return { embedding: embeddings[0], isBYOK: provider.isBYOK }
+  logger.info(`Using ${result.modelName} for search embedding generation`)
+
+  return { embedding: result.embeddings[0], isBYOK: result.isBYOK }
 }
 
 /**

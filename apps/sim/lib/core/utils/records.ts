@@ -3,6 +3,15 @@ import { isPlainRecord } from '@sim/utils/object'
 export type UnknownRecord = Record<string, unknown>
 export type StringRecord = Record<string, string>
 
+export function setRecordValue(record: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(record, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  })
+}
+
 /**
  * Normalizes optional execution context maps to the record shape expected by
  * internal API contracts.
@@ -25,7 +34,11 @@ export function normalizeStringRecord(value: unknown): StringRecord {
     if (entryValue === undefined || entryValue === null) {
       continue
     }
-    normalized[key] = typeof entryValue === 'string' ? entryValue : String(entryValue)
+    setRecordValue(
+      normalized,
+      key,
+      typeof entryValue === 'string' ? entryValue : String(entryValue)
+    )
   }
   return normalized
 }
@@ -41,7 +54,7 @@ export function normalizeRecordMap(value: unknown): Record<string, UnknownRecord
   const normalized: Record<string, UnknownRecord> = {}
   for (const [key, entryValue] of Object.entries(value)) {
     if (isPlainRecord(entryValue)) {
-      normalized[key] = entryValue
+      setRecordValue(normalized, key, entryValue)
     }
   }
   return normalized
@@ -72,7 +85,7 @@ export function normalizeWorkflowVariables(value: unknown): UnknownRecord {
     const key = id ?? name
 
     if (key) {
-      normalized[key] = variable
+      setRecordValue(normalized, key, variable)
     }
   }
 

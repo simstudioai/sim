@@ -8,7 +8,7 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@sim/emcn'
-import { Plus } from 'lucide-react'
+import { Plus } from '@sim/emcn/icons'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
@@ -33,13 +33,13 @@ interface EnvVarDropdownProps {
   /** Callback when the dropdown should close */
   onClose?: () => void
   /** Custom styles for positioning */
-  style?: React.CSSProperties
+  style?: Pick<React.CSSProperties, 'top' | 'left' | 'zIndex'>
   /** Workspace ID for loading workspace-specific environment variables */
   workspaceId?: string
   /** Maximum height for the dropdown */
   maxHeight?: string
   /** Reference to the input element for caret positioning */
-  inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+  inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
 }
 
 /**
@@ -286,7 +286,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         <div
           className={cn('pointer-events-none', className)}
           style={{
-            ...style,
+            zIndex: style?.zIndex,
             position: inputElement ? 'fixed' : 'absolute',
             top: inputElement ? `${caretViewport.top}px` : style?.top,
             left: inputElement ? `${caretViewport.left}px` : style?.left,

@@ -15,10 +15,6 @@ export const helpFormBodySchema = z.object({
 })
 export type HelpFormBody = z.input<typeof helpFormBodySchema>
 
-export const emailPreviewQuerySchema = z.object({
-  template: z.string().optional(),
-})
-
 export const integrationRequestBodySchema = z.object({
   integrationName: z
     .string()
@@ -57,6 +53,21 @@ export const getAllowedProvidersContract = defineRouteContract({
   },
 })
 
+export const integrationAvailabilitySchema = z.object({
+  type: z.string().min(1),
+  state: z.enum(['ready', 'limited', 'unavailable', 'misconfigured']),
+  oauthAvailable: z.boolean(),
+})
+
+export type IntegrationAvailabilityResponse = z.output<typeof integrationAvailabilitySchema>
+
+export const oauthServiceAvailabilitySchema = z.object({
+  providerId: z.string().min(1).max(200),
+  available: z.boolean(),
+})
+
+export type OAuthServiceAvailabilityResponse = z.output<typeof oauthServiceAvailabilitySchema>
+
 export const getAllowedIntegrationsContract = defineRouteContract({
   method: 'GET',
   path: '/api/settings/allowed-integrations',
@@ -66,9 +77,15 @@ export const getAllowedIntegrationsContract = defineRouteContract({
       // `null` means "no env-derived allowlist" (unrestricted); a non-null
       // array narrows the visible integrations.
       allowedIntegrations: z.array(z.string()).nullable(),
+      integrationAvailability: z.array(integrationAvailabilitySchema),
+      oauthServiceAvailability: z.array(oauthServiceAvailabilitySchema).max(1000),
     }),
   },
 })
+
+export type GetAllowedIntegrationsResponse = z.output<
+  typeof getAllowedIntegrationsContract.response.schema
+>
 
 export const getVoiceSettingsContract = defineRouteContract({
   method: 'GET',
@@ -92,21 +109,7 @@ export const getStarsContract = defineRouteContract({
   },
 })
 
-export const getStatusContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/status',
-  response: {
-    mode: 'json',
-    schema: z.object({
-      status: z.enum(['operational', 'degraded', 'outage', 'maintenance', 'loading', 'error']),
-      message: z.string(),
-      url: z.string().url(),
-      lastUpdated: z.string(),
-    }),
-  },
-})
-
-const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
+const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed', 'cancelled'])
 
 const jobStatusResponseSchema = z
   .object({

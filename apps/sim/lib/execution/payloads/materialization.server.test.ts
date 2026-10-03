@@ -1,0 +1,450 @@
+import { resetDbChainMock } from '@sim/testing'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockReadWorkspaceFileByKey } = vi.hoisted(() => ({
+  mockReadWorkspaceFileByKey: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+
+vi.mock(
+  '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/lib/workspace-files/application/read-stored-workspace-file-record-by-key')
+    >()),
+    readStoredWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileByKey },
+  })
+)
+
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  assertUserFileContentAccess,
+  readUserFileContent,
+  readUserFileContentWithContributors,
+} from '@/lib/execution/payloads/materialization.server'
+import { StoredWorkspaceFileUnavailableError } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
+import type { UserFile } from '@/executor/types'
+
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockVerifyFileAccess } = filesAuthorizationMockFns
+
+const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas')
+const PDF_BYTES = Buffer.from('%PDF-1.4 rendered bytes')
+
+const generatedPdf: UserFile = {
+  id: 'file-1',
+  name: 'report.pdf',
+  url: '',
+  size: PDF_SOURCE.length,
+  type: 'text/x-python-pdf',
+  key: 'workspace/2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f/1700000000000-abc1234-report.pdf',
+}
+
+const delegatedReader = createDelegatedPrincipal({
+  subjectUserId: 'reader',
+  delegationId: 'read-1',
+  audience: 'sim:function-executions',
+})
+
+describe('readUserFileContent', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    generatedPdf.size = PDF_SOURCE.length
+    mockVerifyFileAccess.mockResolvedValue(true)
+    mockReadWorkspaceFileByKey.mockResolvedValue({ file: { id: 'file-1' } })
+    mockDownloadServableFileFromStorage.mockResolvedValue({
+      buffer: PDF_BYTES,
+      contentType: 'application/pdf',
+    })
+  })
+
+  it('returns rendered contributor identities for the consuming boundary to classify', async () => {
+    const identity = {
+      fileId: 'image',
+      key: 'workspace/workspace-1/image.png',
+      context: 'workspace' as const,
+      contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+    }
+    const html = '<img src="data:image/png;base64,aGlkZGVuLXNlY3JldA==">'
+    mockDownloadServableFileFromStorage.mockResolvedValue({
+      buffer: Buffer.from(html),
+      contentType: 'text/html',
+      contributingFiles: [identity],
+    })
+
+    await expect(
+      readUserFileContentWithContributors(
+        { ...generatedPdf, name: 'page', type: 'text/x-sim-page' },
+        { userId: 'user-1', encoding: 'text' }
+      )
+    ).resolves.toEqual({
+      content: html,
+      contributingFiles: [identity],
+      renderedContributingFiles: [identity],
+    })
+  })
+
+  it('returns the compiled artifact instead of the stored generation source', async () => {
+    const content = await readUserFileContent(generatedPdf, {
+      userId: 'user-1',
+      encoding: 'base64',
+    })
+
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledOnce()
+    expect(content).toBe(PDF_BYTES.toString('base64'))
+    expect(content).not.toBe(PDF_SOURCE.toString('base64'))
+    expect(generatedPdf.size).toBe(PDF_BYTES.length)
+  })
+
+  it('carries the actual execution principal through live knowledge-file authorization', async () => {
+    const principal = createSessionPrincipal({ userId: 'reader' })
+    const file: UserFile = {
+      id: 'kb-file',
+      name: 'page.txt',
+      url: '',
+      size: 4,
+      type: 'text/plain',
+      key: 'kb/page.txt',
+      context: 'knowledge-base',
+    }
+    await readUserFileContent(file, {
+      userId: 'reader',
+      workspaceId: 'workspace-1',
+      principal,
+      encoding: 'text',
+    })
+    expect(mockVerifyFileAccess).toHaveBeenCalledWith(
+      'kb/page.txt',
+      'reader',
+      undefined,
+      'knowledge-base',
+      {
+        knowledgeAccess: expect.objectContaining({
+          get: expect.any(Function),
+          getForConnectors: expect.any(Function),
+          getForDocuments: expect.any(Function),
+        }),
+      }
+    )
+  })
+
+  it('authorizes execution-scoped files without inventing a human subject', async () => {
+    const executionFile: UserFile = {
+      id: 'file-2',
+      name: 'result.txt',
+      url: '',
+      size: 6,
+      type: 'text/plain',
+      key: 'execution/workspace-1/workflow-1/execution-1/result.txt',
+      context: 'execution',
+    }
+    mockDownloadServableFileFromStorage.mockResolvedValueOnce({ buffer: Buffer.from('result') })
+
+    await expect(
+      readUserFileContent(executionFile, {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        encoding: 'text',
+      })
+    ).resolves.toBe('result')
+
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+  })
+
+  it('allows only explicitly granted prior-run files within the same workspace', async () => {
+    const key = 'execution/workspace-1/source-workflow/old-run/alpha.txt'
+    const file = {
+      id: 'alpha',
+      name: 'alpha.txt',
+      size: 5,
+      type: 'text/plain',
+      url: '',
+      key,
+      context: 'execution' as const,
+    }
+    const scope = {
+      workspaceId: 'workspace-1',
+      workflowId: 'consumer-workflow',
+      executionId: 'new-run',
+      encoding: 'text' as const,
+    }
+    mockDownloadServableFileFromStorage.mockResolvedValue({ buffer: Buffer.from('alpha') })
+    await expect(readUserFileContent(file, scope)).rejects.toThrow()
+    await expect(readUserFileContent(file, { ...scope, fileKeys: [key] })).resolves.toBe('alpha')
+    await expect(
+      readUserFileContent(
+        { ...file, key: key.replace('alpha.txt', 'other.txt') },
+        { ...scope, fileKeys: [key] }
+      )
+    ).rejects.toThrow()
+    await expect(
+      readUserFileContent(file, { ...scope, workspaceId: 'foreign', fileKeys: [key] })
+    ).rejects.toThrow()
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['profile-pictures', 'og-images', 'workspace-logos'] as const)(
+    'authorizes actorless reads from the trusted public %s context',
+    async (context) => {
+      const publicFile: UserFile = {
+        id: 'public-file',
+        name: 'public.png',
+        url: '',
+        size: 6,
+        type: 'image/png',
+        key: `${context}/public.png`,
+        context,
+      }
+      mockDownloadServableFileFromStorage.mockResolvedValueOnce({ buffer: Buffer.from('public') })
+
+      await expect(readUserFileContent(publicFile, { encoding: 'text' })).resolves.toBe('public')
+
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+      expect(mockReadWorkspaceFileByKey).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not let an actorless caller relabel a private key as public', async () => {
+    const relabeledFile: UserFile = {
+      id: 'private-file',
+      name: 'private.txt',
+      url: '',
+      size: 7,
+      type: 'text/plain',
+      key: 'workspace/workspace-1/private.txt',
+      context: 'og-images',
+    }
+
+    await expect(readUserFileContent(relabeledFile, { encoding: 'text' })).rejects.toThrow(
+      'File context does not match its storage key.'
+    )
+
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+  })
+
+  it('authorizes workspace files with the preserved actorless deployment principal', async () => {
+    const principal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      workspaceId: 'workspace-1',
+      delegationId: 'function-1',
+      audience: 'sim:function-executions',
+      issuedAt: new Date(Date.now() - 1_000),
+      expiresAt: new Date(Date.now() + 60_000),
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        principal: {
+          kind: 'system' as const,
+          serviceId: 'schedule' as const,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment' as const,
+          deploymentVersionId: 'deployment-1',
+        },
+      },
+    }
+
+    await readUserFileContent(generatedPdf, {
+      principal,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      encoding: 'base64',
+    })
+
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: {
+          key: generatedPdf.key,
+          assertedWorkspaceId: 'workspace-1',
+        },
+        principal: expect.objectContaining({
+          audience: 'sim:workspace-files',
+          delegationContext: principal.delegationContext,
+        }),
+      })
+    )
+  })
+
+  it('authorizes an exact workspace storage key with the workspace-key principal', async () => {
+    const principal = createWorkspaceApiKeyPrincipal()
+
+    await readUserFileContent(generatedPdf, {
+      principal,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      encoding: 'base64',
+    })
+
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith({
+      principal,
+      input: {
+        key: generatedPdf.key,
+        assertedWorkspaceId: 'workspace-1',
+      },
+    })
+  })
+
+  it.each([undefined, 'workspace', 'mothership'] as const)(
+    'resolves chat-upload ownership canonically with descriptor context %s',
+    async (context) => {
+      const principal = createWorkspaceApiKeyPrincipal()
+      await assertUserFileContentAccess(
+        { key: 'workspace/workspace-1/upload.png', context },
+        { principal, workspaceId: 'workspace-1' }
+      )
+
+      expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith({
+        principal,
+        input: {
+          key: 'workspace/workspace-1/upload.png',
+          assertedWorkspaceId: 'workspace-1',
+        },
+      })
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { userId: 'billing-owner' },
+    {
+      userId: 'billing-owner',
+      workspaceId: 'workspace-1',
+      principal: createWorkspaceApiKeyPrincipal(),
+    },
+  ])('never uses a user fallback to accept a mothership context alias', async (options) => {
+    mockReadWorkspaceFileByKey.mockRejectedValue(
+      new OrchestrationError('not_found', 'File not found')
+    )
+
+    await expect(
+      assertUserFileContentAccess(
+        { key: 'workspace/workspace-1/upload.png', context: 'mothership' },
+        options
+      )
+    ).rejects.toThrow('Chat upload access requires canonical file authorization.')
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+  })
+
+  it.each(
+    ([undefined, 'workspace', 'mothership'] as const).flatMap((context) =>
+      (['forbidden', 'not_found'] as const).flatMap((code) =>
+        [{ fileId: 'file-1' }, { chatId: 'chat-1' }, { fileId: 'file-1', chatId: 'chat-1' }].map(
+          (resourceScope) => ({ context, code, resourceScope })
+        )
+      )
+    )
+  )(
+    'preserves delegated file/chat limits after canonical rejection: %j',
+    async ({ context, code, resourceScope }) => {
+      const principal = { ...delegatedReader, resourceScope }
+      mockReadWorkspaceFileByKey.mockRejectedValue(new OrchestrationError(code, 'Denied'))
+
+      await expect(
+        assertUserFileContentAccess(
+          { key: 'workspace/workspace-1/upload.png', context },
+          { principal, workspaceId: 'workspace-1', userId: 'billing-owner' }
+        )
+      ).rejects.toMatchObject({ code })
+      expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: expect.objectContaining({ resourceScope: principal.resourceScope }),
+        })
+      )
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(
+    ([undefined, 'workspace'] as const).flatMap((context) =>
+      [createSessionPrincipal({ userId: 'reader' }), delegatedReader].map((principal) => ({
+        context,
+        principal,
+      }))
+    )
+  )(
+    'retains legacy authorization for an unscoped caller with absent metadata: %j',
+    async ({ context, principal }) => {
+      mockReadWorkspaceFileByKey.mockRejectedValue(
+        new OrchestrationError('not_found', 'File not found')
+      )
+      await expect(
+        assertUserFileContentAccess(
+          { key: 'workspace/workspace-1/legacy.png', context },
+          { principal, workspaceId: 'workspace-1', userId: 'reader' }
+        )
+      ).resolves.toBeUndefined()
+      expect(mockVerifyFileAccess).toHaveBeenCalledWith(
+        'workspace/workspace-1/legacy.png',
+        'reader',
+        undefined,
+        'workspace',
+        { knowledgeAccess: undefined }
+      )
+    }
+  )
+
+  it.each(
+    ([undefined, 'workspace', 'mothership'] as const).flatMap((context) =>
+      [
+        createSessionPrincipal({ userId: 'reader' }),
+        delegatedReader,
+        { ...delegatedReader, resourceScope: { fileId: 'file-1', chatId: 'chat-1' } },
+      ].map((principal) => ({ context, principal }))
+    )
+  )(
+    'never falls back or reads bytes for a known unavailable binding: %j',
+    async ({ context, principal }) => {
+      const unavailable = new StoredWorkspaceFileUnavailableError()
+      mockReadWorkspaceFileByKey.mockRejectedValue(unavailable)
+      await expect(
+        readUserFileContent(
+          { ...generatedPdf, key: 'workspace/workspace-1/upload.png', context },
+          { principal, workspaceId: 'workspace-1', userId: 'reader', encoding: 'base64' }
+        )
+      ).rejects.toBe(unavailable)
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+      expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    'execution/workspace-1/workflow-1/run-1/file.png',
+    'profile-pictures/file.png',
+    'assistant/org-1/file.png',
+  ])('does not extend the mothership alias to %s', async (key) => {
+    await expect(
+      assertUserFileContentAccess({ key, context: 'mothership' }, { workspaceId: 'workspace-1' })
+    ).rejects.toThrow()
+    expect(mockReadWorkspaceFileByKey).not.toHaveBeenCalled()
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+  })
+})

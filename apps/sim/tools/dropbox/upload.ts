@@ -1,7 +1,7 @@
 import type { DropboxUploadParams, DropboxUploadResponse } from '@/tools/dropbox/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadResponse> = {
+export const dropboxUploadTool: InternalToolConfig<DropboxUploadParams, DropboxUploadResponse> = {
   id: 'dropbox_upload',
   name: 'Dropbox Upload File',
   description: 'Upload a file to Dropbox',
@@ -59,13 +59,12 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
     },
   },
 
-  request: {
-    url: '/api/tools/dropbox/upload',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ path: params.path, file: params.file, fileName: params.fileName }),
+    },
+    input: (params) => ({
       accessToken: params.accessToken,
       path: params.path.trim(),
       file: params.file,

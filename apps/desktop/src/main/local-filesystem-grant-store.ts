@@ -1,8 +1,21 @@
-import { readFile } from 'node:fs/promises'
+import { createLogger } from '@sim/logger'
 import { safeStorage } from 'electron'
-import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
+import {
+  FileResourceLimitError,
+  readFileWithinLimit,
+  removeFileIfPresent,
+  writeJsonFileAtomically,
+} from '@/main/atomic-json-file'
 
 const STORE_VERSION = 1
+const MAX_GRANT_STORE_BYTES = 4 * 1024 * 1024
+const MAX_GRANT_PAYLOAD_BYTES = 5 * 512 * 1024
+const MAX_PERSISTED_GRANTS = 256
+const MAX_GRANT_ID_LENGTH = 128
+const MAX_GRANT_NAME_LENGTH = 512
+const MAX_GRANT_PATH_LENGTH = 4_096
+const MAX_GRANT_BOOKMARK_LENGTH = 256 * 1024
+const logger = createLogger('LocalFilesystemGrantStore')
 
 export interface PersistedLocalFilesystemGrant {
   id: string
@@ -33,9 +46,19 @@ function isPersistedGrant(value: unknown): value is PersistedLocalFilesystemGran
   const grant = value as Record<string, unknown>
   return (
     typeof grant.id === 'string' &&
+    grant.id.length > 0 &&
+    grant.id.length <= MAX_GRANT_ID_LENGTH &&
     typeof grant.name === 'string' &&
+    grant.name.length > 0 &&
+    grant.name.length <= MAX_GRANT_NAME_LENGTH &&
     typeof grant.rootPath === 'string' &&
-    (grant.bookmark === undefined || typeof grant.bookmark === 'string')
+    grant.rootPath.length > 0 &&
+    grant.rootPath.length <= MAX_GRANT_PATH_LENGTH &&
+    !grant.rootPath.includes('\0') &&
+    (grant.bookmark === undefined ||
+      (typeof grant.bookmark === 'string' &&
+        grant.bookmark.length > 0 &&
+        grant.bookmark.length <= MAX_GRANT_BOOKMARK_LENGTH))
   )
 }
 
@@ -62,33 +85,93 @@ export function createEncryptedLocalFilesystemGrantStore(
   filePath: string,
   encryption: EncryptionProvider = safeStorage
 ): LocalFilesystemGrantStore {
-  return {
-    async load() {
-      if (!encryptionAvailable(encryption)) return []
-      try {
-        const raw = JSON.parse(await readFile(filePath, 'utf8')) as Partial<EncryptedGrantEnvelope>
-        if (raw.version !== STORE_VERSION || typeof raw.ciphertext !== 'string') return []
-        const decrypted = encryption.decryptString(Buffer.from(raw.ciphertext, 'base64'))
-        const parsed = JSON.parse(decrypted) as unknown
-        return Array.isArray(parsed) ? parsed.filter(isPersistedGrant) : []
-      } catch {
+  let state: 'unknown' | 'writable' | 'blocked' = 'unknown'
+  let mutationTail = Promise.resolve()
+
+  const enqueueMutation = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = mutationTail.then(operation)
+    mutationTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
+  const blockPersistence = (
+    reason: 'invalid-envelope' | 'invalid-payload' | 'read-failed' | 'resource-limit'
+  ) => {
+    if (state !== 'blocked') {
+      logger.warn('Local filesystem grant persistence is unavailable', { reason })
+    }
+    state = 'blocked'
+  }
+
+  const load = async (): Promise<PersistedLocalFilesystemGrant[]> => {
+    if (!encryptionAvailable(encryption) || state === 'blocked') return []
+    try {
+      const raw = JSON.parse(
+        (await readFileWithinLimit(filePath, MAX_GRANT_STORE_BYTES)).toString('utf8')
+      ) as Partial<EncryptedGrantEnvelope>
+      if (raw.version !== STORE_VERSION || typeof raw.ciphertext !== 'string') {
+        blockPersistence('invalid-envelope')
         return []
       }
-    },
-
-    async save(grants) {
-      if (!encryptionAvailable(encryption)) return false
-      const encrypted = encryption.encryptString(JSON.stringify(grants))
-      const envelope: EncryptedGrantEnvelope = {
-        version: STORE_VERSION,
-        ciphertext: encrypted.toString('base64'),
+      const decrypted = encryption.decryptString(Buffer.from(raw.ciphertext, 'base64'))
+      if (Buffer.byteLength(decrypted, 'utf8') > MAX_GRANT_PAYLOAD_BYTES) {
+        blockPersistence('resource-limit')
+        return []
       }
-      await writeJsonFileAtomically(filePath, envelope)
-      return true
+      const parsed = JSON.parse(decrypted) as unknown
+      if (
+        !Array.isArray(parsed) ||
+        parsed.length > MAX_PERSISTED_GRANTS ||
+        !parsed.every(isPersistedGrant)
+      ) {
+        blockPersistence('invalid-payload')
+        return []
+      }
+      state = 'writable'
+      return parsed
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        state = 'writable'
+        return []
+      }
+      if (error instanceof FileResourceLimitError) {
+        blockPersistence('resource-limit')
+        return []
+      }
+      blockPersistence('read-failed')
+      return []
+    }
+  }
+
+  return {
+    load,
+
+    save(grants) {
+      return enqueueMutation(async () => {
+        if (!encryptionAvailable(encryption)) return false
+        if (state === 'unknown') await load()
+        if (state === 'blocked') return false
+        if (grants.length > MAX_PERSISTED_GRANTS || !grants.every(isPersistedGrant)) return false
+        const payload = JSON.stringify(grants)
+        if (Buffer.byteLength(payload, 'utf8') > MAX_GRANT_PAYLOAD_BYTES) return false
+        const encrypted = encryption.encryptString(payload)
+        const envelope: EncryptedGrantEnvelope = {
+          version: STORE_VERSION,
+          ciphertext: encrypted.toString('base64'),
+        }
+        await writeJsonFileAtomically(filePath, envelope)
+        return true
+      })
     },
 
-    async clear() {
-      await removeFileIfPresent(filePath)
+    clear() {
+      return enqueueMutation(async () => {
+        await removeFileIfPresent(filePath)
+        state = 'writable'
+      })
     },
   }
 }

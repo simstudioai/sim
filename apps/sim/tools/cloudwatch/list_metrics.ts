@@ -2,9 +2,9 @@ import type {
   CloudWatchListMetricsParams,
   CloudWatchListMetricsResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listMetricsTool: ToolConfig<
+export const listMetricsTool: InternalToolConfig<
   CloudWatchListMetricsParams,
   CloudWatchListMetricsResponse
 > = {
@@ -58,13 +58,8 @@ export const listMetricsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/list-metrics',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

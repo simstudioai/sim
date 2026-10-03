@@ -1,3 +1,4 @@
+import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import type { OutputFieldDefinition, ParamType } from '@/blocks/types'
 import type { Position } from '@/stores/workflows/workflow/types'
 
@@ -40,6 +41,10 @@ export interface SerializedBlock {
   enabled: boolean
   /** Canonical mode overrides from block.data (used by agent handler for tool param resolution) */
   canonicalModes?: Record<string, 'basic' | 'advanced'>
+  /** Server-only lifecycle input ids omitted from execution-log projections. */
+  privateInputIds?: string[]
+  /** Opt-in retry for failed tries; absent means the block runs exactly once. */
+  retry?: BlockRetryConfig
 }
 
 export interface SerializedLoop {

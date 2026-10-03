@@ -48,14 +48,14 @@ export interface PricingCardProps {
  */
 function FeatureValue({ value }: { value: CellValue }) {
   if (value === true) {
-    return <Check className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+    return <Check className='size-[14px] shrink-0 text-[var(--text-icon)]' />
   }
   if (value === false) {
     return <span className='select-none text-[var(--text-muted)]'>–</span>
   }
   if (typeof value === 'object') {
     const Icon = CELL_ICONS[value.icon]
-    return <Icon className='size-[14px] flex-shrink-0' />
+    return <Icon className='size-[14px] shrink-0' />
   }
   return (
     <span className='whitespace-nowrap text-right text-[var(--text-primary)] text-sm tabular-nums'>
@@ -99,16 +99,10 @@ export function PricingCard({
             <span className='text-[20px] text-[var(--text-primary)] tabular-nums'>{price}</span>
             {discountLabel && <ChipTag variant='mono'>{discountLabel}</ChipTag>}
           </div>
-          <p className='text-[var(--text-muted)] text-base'>{priceSubtext ?? ' '}</p>
+          <p className='text-[var(--text-secondary)] text-base'>{priceSubtext ?? ' '}</p>
         </div>
 
-        <ChipLink
-          href={cta.href}
-          variant={cta.variant}
-          fullWidth
-          flush
-          className='w-full justify-center'
-        >
+        <ChipLink href={cta.href} variant={cta.variant} fullWidth className='w-full justify-center'>
           {cta.label}
         </ChipLink>
       </div>

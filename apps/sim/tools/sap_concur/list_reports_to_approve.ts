@@ -1,16 +1,15 @@
-import type { ListReportsToApproveParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListReportsToApproveParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listReportsToApproveTool: ToolConfig<
+export const listReportsToApproveTool: InternalToolConfig<
   ListReportsToApproveParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_list_reports_to_approve',
   name: 'SAP Concur List Reports To Approve',
@@ -91,15 +90,12 @@ export const listReportsToApproveTool: ToolConfig<
       description: 'Whether to include reports the caller can approve as a delegate',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const contextType = (params.contextType ?? 'MANAGER').trim() || 'MANAGER'
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reportsToApprove`,
         method: 'GET',
         query: buildListQuery({
@@ -110,7 +106,7 @@ export const listReportsToApproveTool: ToolConfig<
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

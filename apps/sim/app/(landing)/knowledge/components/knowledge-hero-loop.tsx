@@ -14,7 +14,7 @@ import {
   ZendeskIcon,
 } from '@/components/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the knowledge hero - a team living in its docs. */
@@ -116,8 +116,8 @@ type SyncPhase = 'idle' | 'syncing' | 'synced'
 
 /**
  * The knowledge hero's module loop - the WorkflowsEditorLoop architecture
- * (fixed 1280x735 design-space layer scaled to the window via ResizeObserver
- * + `transform: scale`, a parent-owned clock, reduced-motion showing the
+ * (a fixed 1280x735 HTML design surface fitted to the window via the shared
+ * responsive stage, a parent-owned clock, reduced-motion showing the
  * finished frame) with the workspace pane retelling the Knowledge Base
  * module: the 44px title bar (Database mark, "New base"), the search /
  * Filter / Sort options bar, and the knowledge-bases table in the real
@@ -149,7 +149,7 @@ export function KnowledgeHeroLoop() {
           ),
           setTimeout(() => setSyncPhase('syncing'), syncAt),
           setTimeout(() => setSyncPhase('synced'), syncAt + SYNC_MS),
-          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+          setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
         ],
         totalMs,
       }
@@ -162,18 +162,18 @@ export function KnowledgeHeroLoop() {
   })
 
   return (
-    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeNav='Knowledge base'>
-      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeItem='Knowledge bases'>
+      <div className='size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           className={cn(
-            'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
+            'flex size-full flex-col transition-opacity duration-300 ease-out',
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >
-          <div className='flex h-[44px] flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
+          <div className='flex h-[44px] shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
             <div className='flex items-center gap-3'>
               <Database className='size-[14px] text-[var(--text-icon)]' />
-              <span className='font-medium text-[var(--text-body)] text-sm'>Knowledge Base</span>
+              <span className='text-[var(--text-body)] text-sm'>Knowledge Base</span>
             </div>
             <div className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
               <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
@@ -181,9 +181,9 @@ export function KnowledgeHeroLoop() {
             </div>
           </div>
 
-          <div className='flex flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
+          <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
             <div className='flex items-center gap-2.5'>
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <Search className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-subtle)] text-caption'>
                 Search knowledge bases...
               </span>
@@ -209,12 +209,12 @@ export function KnowledgeHeroLoop() {
                 <col style={{ width: 170 }} />
                 <col style={{ width: 190 }} />
               </colgroup>
-              <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+              <thead className='border-[var(--border)] border-b'>
                 <tr>
                   {COL_HEADERS.map((header) => (
                     <th
                       key={header}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-caption'
+                      className='h-10 px-6 py-1.5 text-left align-middle text-[var(--text-muted)] text-caption'
                     >
                       {header}
                     </th>
@@ -229,29 +229,29 @@ export function KnowledgeHeroLoop() {
                     <tr
                       key={row.name}
                       className={cn(
-                        'transition-all duration-300 ease-out',
+                        'transition-[opacity,transform] duration-300 ease-out',
                         index < visibleRows
                           ? 'translate-y-0 opacity-100'
                           : '-translate-y-1 opacity-0'
                       )}
                     >
                       <td className='px-6 py-2.5 align-middle'>
-                        <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
-                          <Database className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                        <span className='flex min-w-0 items-center gap-3 text-[var(--text-body)] text-sm'>
+                          <Database className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                           <span className='truncate'>{row.name}</span>
                         </span>
                       </td>
-                      <td className='px-6 py-2.5 align-middle font-medium text-[var(--text-secondary)] text-sm'>
+                      <td className='px-6 py-2.5 align-middle text-[var(--text-secondary)] text-sm'>
                         {synced && row.documentsSynced ? row.documentsSynced : row.documents}
                       </td>
-                      <td className='px-6 py-2.5 align-middle font-medium text-[var(--text-secondary)] text-sm'>
+                      <td className='px-6 py-2.5 align-middle text-[var(--text-secondary)] text-sm'>
                         {synced && row.tokensSynced ? row.tokensSynced : row.tokens}
                       </td>
                       <td className='px-6 py-2.5 align-middle'>
                         <span className='flex items-center gap-2.5'>
                           <span className='flex items-center gap-1'>
                             {row.connectors.map((Icon, iconIndex) => (
-                              <Icon key={iconIndex} className='size-3.5 flex-shrink-0' />
+                              <Icon key={iconIndex} className='size-3.5 shrink-0' />
                             ))}
                           </span>
                           {isSyncRow && syncPhase === 'syncing' && (
@@ -265,7 +265,7 @@ export function KnowledgeHeroLoop() {
                           )}
                         </span>
                       </td>
-                      <td className='px-6 py-2.5 align-middle font-medium text-[var(--text-secondary)] text-sm'>
+                      <td className='px-6 py-2.5 align-middle text-[var(--text-secondary)] text-sm'>
                         {row.created}
                       </td>
                     </tr>

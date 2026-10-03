@@ -5,15 +5,27 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  type EnvironmentResolutionSnapshot,
+  getEffectiveEnvironmentSnapshot,
+} from '@/lib/environment/utils'
 import type { McpServerConfig } from '@/lib/mcp/types'
+import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import {
+  createIncompleteResolvedSecretTraceRegistry,
+  createResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceProvenanceV1,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('McpResolveConfig')
 
 export interface ResolveMcpConfigOptions {
   /** If true, throws an error when env vars are missing. Default: true */
   strict?: boolean
+  onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
 }
 
 /**
@@ -31,22 +43,57 @@ export async function resolveMcpConfigEnvVars(
   userId: string,
   workspaceId?: string,
   options: ResolveMcpConfigOptions = {}
-): Promise<{ config: McpServerConfig; missingVars: string[] }> {
+): Promise<{
+  config: McpServerConfig
+  missingVars: string[]
+  resolvedSecretTraceProvenance: ResolvedSecretTraceProvenanceV1
+}> {
   const { strict = true } = options
   const allMissingVars: string[] = []
+  const scope = { userId, ...(workspaceId ? { workspaceId } : {}) }
 
-  let envVars: Record<string, string> = {}
+  let env: EnvironmentResolutionSnapshot
   try {
-    envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+    env = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
   } catch (error) {
     logger.error('Failed to fetch environment variables for MCP config:', error)
-    return { config, missingVars: [] }
+    const resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
+    const provenance = resolvedSecretTraceRegistry.exportProvenance()
+    options.onResolvedSecretTraceProvenance?.(provenance)
+    return {
+      config,
+      missingVars: [],
+      resolvedSecretTraceProvenance: provenance,
+    }
+  }
+  const envVars = { ...env.personalDecrypted, ...env.workspaceDecrypted }
+
+  let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
+  try {
+    resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: env.personalEncrypted,
+      workspaceEncrypted: env.workspaceEncrypted,
+      personalDecrypted: env.personalDecrypted,
+      workspaceDecrypted: env.workspaceDecrypted,
+      decryptionFailures: env.decryptionFailures,
+      personalOwners: env.personalOwners,
+      workspaceUnredactedKeys: env.workspaceUnredactedKeys,
+      scope,
+    })
+  } catch (error) {
+    logger.warn('Failed to build MCP trace secret catalog; provenance will be incomplete', {
+      error: getErrorMessage(error),
+    })
+    resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
   }
 
   const resolveValue = (value: string): string => {
     const missingVars: string[] = []
     const resolved = resolveEnvVarReferences(value, envVars, {
       missingKeys: missingVars,
+      onResolved: (name, resolvedValue) => {
+        resolvedSecretTraceRegistry.recordResolved(name, resolvedValue)
+      },
     }) as string
     allMissingVars.push(...missingVars)
     return resolved
@@ -66,7 +113,9 @@ export async function resolveMcpConfigEnvVars(
     resolvedConfig.headers = resolvedHeaders
   }
 
-  // Handle missing vars based on strict mode
+  const resolvedSecretTraceProvenance = resolvedSecretTraceRegistry.exportProvenance()
+  options.onResolvedSecretTraceProvenance?.(resolvedSecretTraceProvenance)
+
   if (allMissingVars.length > 0) {
     const uniqueMissing = Array.from(new Set(allMissingVars))
 
@@ -81,5 +130,22 @@ export async function resolveMcpConfigEnvVars(
     })
   }
 
-  return { config: resolvedConfig, missingVars: allMissingVars }
+  /**
+   * MCP server config resolves outside any workflow run, so no execution completion will
+   * record it. Without this a secret used only to reach an MCP server reads as never used.
+   */
+  if (workspaceId) {
+    recordSecretUsage(resolvedSecretTraceRegistry.getResolvedSecretUsage(), {
+      workspaceId,
+      source: 'mcp',
+      actorUserId: userId,
+      trigger: 'mcp',
+    })
+  }
+
+  return {
+    config: resolvedConfig,
+    missingVars: allMissingVars,
+    resolvedSecretTraceProvenance,
+  }
 }

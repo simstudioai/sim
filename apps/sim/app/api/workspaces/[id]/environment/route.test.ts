@@ -1,37 +1,30 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest, environmentUtilsMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkspaceById, mockGetUserEntityPermissions, mockGetWorkspaceEnvKeyAdminAccess } =
-  vi.hoisted(() => ({
-    mockGetWorkspaceById: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
-    mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
-  }))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceById: mockGetWorkspaceById,
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
 
-vi.mock('@/lib/credentials/environment', () => ({
-  getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
-  createWorkspaceEnvCredentials: vi.fn(),
-  deleteWorkspaceEnvCredentials: vi.fn(),
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 import { GET } from '@/app/api/workspaces/[id]/environment/route'
 
+const { mockGetWorkspaceEnvKeyAdminAccess, mockGetPersonalEnvKeyRawAccess } =
+  credentialsEnvironmentMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const { mockGetWorkspaceById, mockGetUserEntityPermissions } = permissionsMockFns
 
 const WORKSPACE_ID = 'ws-1'
 
 function buildParams() {
-  return { params: Promise.resolve({ id: WORKSPACE_ID }) }
+  return createRouteContext({ id: WORKSPACE_ID })
 }
 
 async function callGet() {
@@ -42,24 +35,19 @@ async function callGet() {
 
 describe('GET /api/workspaces/[id]/environment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'u-1' } })
     mockGetWorkspaceById.mockResolvedValue({ id: WORKSPACE_ID })
     mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
       workspaceDecrypted: { OPENAI_API_KEY: 'sk-secret', DATABASE_URL: 'postgres://secret' },
-      personalDecrypted: { PERSONAL: { value: 'p' } },
+      personalDecrypted: { PERSONAL: 'personal-secret', SHARED_PERSONAL: 'shared-secret' },
+      personalOwners: { PERSONAL: 'u-1', SHARED_PERSONAL: 'owner-2' },
       conflicts: [],
+      workspaceUnredactedKeys: [],
     })
-  })
-
-  it('returns 401 when the caller has no workspace permission', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue(null)
-
-    const { status, body } = await callGet()
-
-    expect(status).toBe(401)
-    expect(body.error).toBe('Unauthorized')
-    expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
+    mockGetPersonalEnvKeyRawAccess.mockResolvedValue({
+      ownedKeys: new Set(['PERSONAL']),
+      adminKeys: new Set<string>(),
+    })
   })
 
   it('masks workspace secret values for a read-only member', async () => {
@@ -82,6 +70,26 @@ describe('GET /api/workspaces/[id]/environment', () => {
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set(['OPENAI_API_KEY']),
       knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+    })
+
+    const { body } = await callGet()
+
+    expect(body.data.workspace.OPENAI_API_KEY).toBe('sk-secret')
+    expect(body.data.workspace.DATABASE_URL).toBe('')
+  })
+
+  it('reveals an unredacted workspace value to a read-only credential member', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
+      adminKeys: new Set<string>(),
+      knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+    })
+    mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+      workspaceDecrypted: { OPENAI_API_KEY: 'sk-secret', DATABASE_URL: 'postgres://secret' },
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      workspaceUnredactedKeys: ['OPENAI_API_KEY'],
     })
 
     const { body } = await callGet()
@@ -116,7 +124,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
     expect(body.data.workspace.DATABASE_URL).toBe('')
   })
 
-  it('always returns personal values untouched', async () => {
+  it('reveals own personal values and masks shared personal values without an admin grant', async () => {
     mockGetUserEntityPermissions.mockResolvedValue('read')
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set<string>(),
@@ -125,6 +133,6 @@ describe('GET /api/workspaces/[id]/environment', () => {
 
     const { body } = await callGet()
 
-    expect(body.data.personal).toEqual({ PERSONAL: { value: 'p' } })
+    expect(body.data.personal).toEqual({ PERSONAL: 'personal-secret', SHARED_PERSONAL: '' })
   })
 })

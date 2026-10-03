@@ -1,11 +1,14 @@
 import { memo, useMemo } from 'react'
 import { type SubflowNodeData, SubflowNodeView } from '@sim/workflow-renderer'
-import { type NodeProps, useReactFlow } from 'reactflow'
+import { type Node, type NodeProps, useReactFlow } from '@xyflow/react'
 import { hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
-import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useLastRunPath } from '@/stores/execution'
+import {
+  useCurrentWorkflow,
+  useIsBlockInActiveExecutionHandoff,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useIsBlockActive, useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
@@ -16,7 +19,9 @@ import { usePanelEditorStore } from '@/stores/panel'
  * the pure view shared with the docs preview — injecting the editor-only
  * {@link ActionBar} through the view's `actionBar` slot.
  */
-export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<SubflowNodeData>) => {
+type SubflowNode = Node<SubflowNodeData, 'subflowNode'>
+
+export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<SubflowNode>) => {
   const { getNodes } = useReactFlow()
   const userPermissions = useUserPermissionsContext()
   const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
@@ -30,20 +35,20 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
   const isEnabled = currentBlock?.enabled ?? true
   const isLocked = currentBlock?.locked ?? false
-  const isPreview = data?.isPreview || false
-
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const isFocused = currentBlockId === id
 
-  const lastRunPath = useLastRunPath()
-  const executionStatus = data.executionStatus
-  const runPathStatus: 'success' | 'error' | undefined =
-    executionStatus === 'success' || executionStatus === 'error'
-      ? executionStatus
-      : isPreview
-        ? undefined
-        : lastRunPath.get(id)
+  /*
+   * Three separate signals, deliberately. `isRunning` and
+   * `isExecutionHighlighted` are per-container and drive this node's own loader
+   * and border; `isWorkflowRunning` only swaps Run for Stop and disables
+   * mutations. Driving the visuals off the workflow instead would light up
+   * every node on the canvas for the whole run.
+   */
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isRunning = useIsBlockActive(id)
+  const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)
 
   /**
    * Nesting depth, walking the parent chain so the view can apply nested
@@ -57,7 +62,8 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       level++
       const parentNode = getNodes().find((n) => n.id === currentParentId)
       if (!parentNode) break
-      currentParentId = parentNode.data?.parentId
+      currentParentId =
+        typeof parentNode.data?.parentId === 'string' ? parentNode.data.parentId : undefined
     }
 
     return level
@@ -71,12 +77,22 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isEnabled={isEnabled}
       isLocked={isLocked}
       isFocused={isFocused}
-      runPathStatus={runPathStatus}
+      isRunning={isRunning}
+      isExecutionHighlighted={isExecutionHighlighted}
       diffStatus={diffStatus}
       nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}
       onSelect={() => setCurrentBlockId(id)}
-      actionBar={<ActionBar blockId={id} blockType={data.kind} disabled={!canEditWorkflow} />}
+      actionBar={
+        <ActionBar
+          blockId={id}
+          blockType={data.kind}
+          disabled={!canEditWorkflow}
+          variant='swell'
+          isRunning={isRunning}
+          isWorkflowRunning={isWorkflowRunning}
+        />
+      }
     />
   )
 })

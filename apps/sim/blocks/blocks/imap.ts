@@ -17,6 +17,14 @@ export const ImapBlock: BlockConfig = {
   triggerAllowed: true,
   docsLink: 'https://docs.sim.ai/integrations/imap',
   hideFromToolbar: false,
+  canvasPresentation: {
+    defaultTitle: 'IMAP Email',
+    /* Server, port and credentials are how the block connects, not what it
+       watches — the mailbox is the only scope worth reading on the card. */
+    triggerSentences: {
+      default: ['Run on a new email', { text: 'in', field: 'mailbox', core: true }],
+    },
+  },
   subBlocks: [...getTrigger('imap_poller').subBlocks],
   tools: {
     access: [],

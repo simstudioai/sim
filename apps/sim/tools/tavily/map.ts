@@ -79,6 +79,10 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ instructions: params.instructions }),
+    },
     url: 'https://api.tavily.com/map',
     method: 'POST',
     headers: (params) => ({

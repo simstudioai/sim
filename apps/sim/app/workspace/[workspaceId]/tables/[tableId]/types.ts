@@ -1,4 +1,5 @@
-import type { Filter, Sort, TableRow } from '@/lib/table'
+import type { InsertTableRowBodyInput } from '@/lib/api/contracts/tables'
+import type { SortSpec, TablePredicate, TableRow } from '@/lib/table'
 
 /**
  * Reason the inline editor completed, used to determine navigation after save
@@ -9,8 +10,8 @@ export type SaveReason = 'enter' | 'tab' | 'shift-tab' | 'blur'
  * Query options for filtering and sorting table data
  */
 export interface QueryOptions {
-  filter: Filter | null
-  sort: Sort | null
+  filter: TablePredicate | null
+  sort: SortSpec | null
 }
 
 /**
@@ -36,3 +37,9 @@ export interface EditingCell {
   columnName: string
   columnKey?: string
 }
+
+/** Where a new row goes; an empty target appends it to the end of the table. */
+export type RowInsertTarget = Pick<
+  InsertTableRowBodyInput,
+  'position' | 'afterRowId' | 'beforeRowId'
+>

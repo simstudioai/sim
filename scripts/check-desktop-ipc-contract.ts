@@ -73,7 +73,8 @@ const REQUIRED_FIELD = 'gate'
  * skipped by prefix, which would have made the check vacuous for four of the
  * six families.
  */
-const PUSH_CALL_PATTERN = /(?:\.send|broadcast)\(\s*'([^']+)'/g
+const PUSH_CALL_PATTERN =
+  /(?:(?:\.send|broadcast)\(\s*'([^']+)'|\.send(?:Browser|Terminal)\(\s*[^,\n]+,\s*'([^']+)')/g
 
 interface ChannelDecl {
   name: string
@@ -148,7 +149,10 @@ async function channelsPushedFromMain(): Promise<Set<string>> {
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.ts') || entry.name.includes('.test.')) continue
     const source = await readFile(resolve(entry.parentPath, entry.name), 'utf8')
-    for (const match of source.matchAll(PUSH_CALL_PATTERN)) pushed.add(match[1])
+    for (const match of source.matchAll(PUSH_CALL_PATTERN)) {
+      const channel = match[1] ?? match[2]
+      if (channel) pushed.add(channel)
+    }
   }
   return pushed
 }

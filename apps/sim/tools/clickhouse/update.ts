@@ -1,7 +1,7 @@
 import type { ClickHouseUpdateParams, ClickHouseUpdateResponse } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<ClickHouseUpdateParams, ClickHouseUpdateResponse> = {
+export const updateTool: InternalToolConfig<ClickHouseUpdateParams, ClickHouseUpdateResponse> = {
   id: 'clickhouse_update',
   name: 'ClickHouse Update',
   description: 'Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation',
@@ -64,13 +64,8 @@ export const updateTool: ToolConfig<ClickHouseUpdateParams, ClickHouseUpdateResp
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/update',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

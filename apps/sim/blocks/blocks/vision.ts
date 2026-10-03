@@ -2,7 +2,6 @@ import { EyeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { VisionResponse } from '@/tools/vision/types'
 
 const VISION_MODEL_OPTIONS = [
   { label: 'GPT 5.2', id: 'gpt-5.2' },
@@ -21,7 +20,11 @@ const VISION_MODEL_OPTIONS = [
   { label: 'Gemini 2.5 Flash Lite', id: 'gemini-2.5-flash-lite' },
 ]
 
-export const VisionBlock: BlockConfig<VisionResponse> = {
+const IMAGE_FIELD = ['imageFile', 'imageFileReference', 'imageUrl'] as const
+/* v2 drops the URL input, keeping only the upload/reference pair. */
+const IMAGE_V2_FIELD = ['imageFile', 'imageFileReference'] as const
+
+export const VisionBlock: BlockConfig = {
   type: 'vision',
   name: 'Vision (Legacy)',
   description: 'Analyze images with vision models',
@@ -33,6 +36,15 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#4D5FFF',
   icon: EyeIcon,
+  canvasPresentation: {
+    defaultTitle: 'Vision',
+    sentences: {
+      default: [
+        { text: 'Analyze', field: IMAGE_FIELD, core: true },
+        { text: ', asking', field: 'prompt' },
+      ],
+    },
+  },
   subBlocks: [
     // Image file upload (basic mode)
     {
@@ -103,12 +115,21 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   },
 }
 
-export const VisionV2Block: BlockConfig<VisionResponse> = {
+export const VisionV2Block: BlockConfig = {
   ...VisionBlock,
   type: 'vision_v2',
   name: 'Vision',
   description: 'Analyze images with vision models',
   hideFromToolbar: true,
+  canvasPresentation: {
+    defaultTitle: 'Vision',
+    sentences: {
+      default: [
+        { text: 'Analyze', field: IMAGE_V2_FIELD, core: true },
+        { text: ', asking', field: 'prompt' },
+      ],
+    },
+  },
   tools: {
     access: ['vision_tool_v2'],
     config: {

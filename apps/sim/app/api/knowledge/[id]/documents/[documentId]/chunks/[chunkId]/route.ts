@@ -1,195 +1,137 @@
-import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
-import { type NextRequest, NextResponse } from 'next/server'
-import { updateKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
-import { checkChunkAccess, checkChunkWriteAccess } from '@/app/api/knowledge/utils'
+import type { Principal } from '@sim/auth/principal'
+import type { NextRequest } from 'next/server'
+import {
+  deleteKnowledgeChunkContract,
+  getKnowledgeChunkContract,
+  updateKnowledgeChunkContract,
+} from '@/lib/api/contracts/knowledge'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  internalKnowledgeAuthType,
+  internalKnowledgeProvenanceUserId,
+  toInternalKnowledgeChunk,
+} from '@/lib/knowledge/api/internal-route'
+import {
+  internalKnowledgeErrorPolicies,
+  internalKnowledgeSessionOrExecutorAuth,
+} from '@/lib/knowledge/api/route-policies'
+import {
+  finalizeKnowledgePersistedResponse,
+  resolveKnowledgeWriteSecretProvenance,
+} from '@/lib/knowledge/api/secret-provenance'
+import {
+  deleteKnowledgeChunk,
+  readKnowledgeChunk,
+  updateKnowledgeChunk,
+} from '@/lib/knowledge/application/chunks'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
-const logger = createLogger('ChunkByIdAPI')
-
-export const GET = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
-  ) => {
-    const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId, documentId, chunkId } = await params
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized chunk access attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const accessCheck = await checkChunkAccess(
-        knowledgeBaseId,
-        documentId,
-        chunkId,
-        session.user.id
-      )
-
-      if (!accessCheck.hasAccess) {
-        if (accessCheck.notFound) {
-          logger.warn(
-            `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}, Chunk=${chunkId}`
-          )
-          return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${session.user.id} attempted unauthorized chunk access: ${accessCheck.reason}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      logger.info(
-        `[${requestId}] Retrieved chunk: ${chunkId} from document ${documentId} in knowledge base ${knowledgeBaseId}`
-      )
-
-      return NextResponse.json({
-        success: true,
-        data: accessCheck.chunk,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error fetching chunk`, error)
-      return NextResponse.json({ error: 'Failed to fetch chunk' }, { status: 500 })
-    }
+function resolveContentProvenance(
+  request: NextRequest,
+  principal: Principal,
+  payload: unknown,
+  workspaceId: string | undefined,
+  includeContent: boolean
+) {
+  const resolved = resolveKnowledgeWriteSecretProvenance({
+    headers: request.headers,
+    payload,
+    authType: internalKnowledgeAuthType(principal),
+    userId: internalKnowledgeProvenanceUserId(request.headers, principal, workspaceId),
+    ...(workspaceId ? { workspaceId } : {}),
+    selectionKeys: includeContent ? ['chunk-content'] : [],
+  })
+  if (!resolved.success) {
+    throw new OrchestrationError('validation', 'Invalid knowledge secret provenance')
   }
-)
+  return resolved.provenances?.[0]
+}
 
-export const PUT = withRouteHandler(
-  async (
-    req: NextRequest,
-    context: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
-  ) => {
-    const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId, documentId, chunkId } = await context.params
+export const GET = defineInternalJsonRoute({
+  contract: getKnowledgeChunkContract,
+  auth: internalKnowledgeSessionOrExecutorAuth,
+  operation: knowledgeOperations.readChunk,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal chunk-read behavior' }),
+  errorPolicy: internalKnowledgeErrorPolicies.chunks,
+  mapInput: ({ params }) => ({
+    knowledgeBaseId: params.id,
+    documentId: params.documentId,
+    chunkId: params.chunkId,
+  }),
+  useCase: readKnowledgeChunk,
+  present: ({ chunk }) => ({ success: true as const, data: toInternalKnowledgeChunk(chunk) }),
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgePersistedResponse({
+      headers: request.headers,
+      authType: internalKnowledgeAuthType(principal),
+      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
+      workspaceId: result.workspaceId,
+      body,
+      chunks: [
+        {
+          id: result.chunk.id,
+          documentId: result.documentId,
+          content: result.chunk.content,
+          value: result.chunk,
+        },
+      ],
+    }),
+})
 
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized chunk update attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+export const PUT = defineInternalJsonRoute({
+  contract: updateKnowledgeChunkContract,
+  auth: internalKnowledgeSessionOrExecutorAuth,
+  operation: knowledgeOperations.updateChunk,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal chunk-update behavior',
+  }),
+  errorPolicy: internalKnowledgeErrorPolicies.chunks,
+  mapInput: ({ params, body }, { principal, request }) => ({
+    knowledgeBaseId: params.id,
+    documentId: params.documentId,
+    chunkId: params.chunkId,
+    content: body.content,
+    enabled: body.enabled,
+    resolveContentProvenance: ({ workspaceId }: { workspaceId?: string }) =>
+      resolveContentProvenance(request, principal, body, workspaceId, body.content !== undefined),
+  }),
+  useCase: updateKnowledgeChunk,
+  present: ({ chunk }) => ({ success: true as const, data: toInternalKnowledgeChunk(chunk) }),
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgePersistedResponse({
+      headers: request.headers,
+      authType: internalKnowledgeAuthType(principal),
+      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
+      workspaceId: result.workspaceId,
+      body,
+      chunks: [
+        {
+          id: result.chunk.id,
+          documentId: result.documentId,
+          content: result.chunk.content,
+          value: result.chunk,
+        },
+      ],
+    }),
+})
 
-      const accessCheck = await checkChunkWriteAccess(
-        knowledgeBaseId,
-        documentId,
-        chunkId,
-        session.user.id
-      )
-
-      if (!accessCheck.hasAccess) {
-        if (accessCheck.notFound) {
-          logger.warn(
-            `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}, Chunk=${chunkId}`
-          )
-          return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${session.user.id} attempted unauthorized chunk update: ${accessCheck.reason}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      if (accessCheck.document?.connectorId) {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} attempted to update chunk on connector-synced document: Doc=${documentId}`
-        )
-        return NextResponse.json(
-          { error: 'Chunks from connector-synced documents are read-only' },
-          { status: 403 }
-        )
-      }
-
-      const parsed = await parseRequest(updateKnowledgeChunkContract, req, context)
-      if (!parsed.success) return parsed.response
-
-      const validatedData = parsed.data.body
-
-      const updatedChunk = await updateChunk(
-        chunkId,
-        validatedData,
-        requestId,
-        accessCheck.knowledgeBase?.workspaceId
-      )
-
-      logger.info(
-        `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`
-      )
-
-      return NextResponse.json({
-        success: true,
-        data: updatedChunk,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error updating chunk`, error)
-      return NextResponse.json({ error: 'Failed to update chunk' }, { status: 500 })
-    }
-  }
-)
-
-export const DELETE = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
-  ) => {
-    const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId, documentId, chunkId } = await params
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized chunk delete attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const accessCheck = await checkChunkWriteAccess(
-        knowledgeBaseId,
-        documentId,
-        chunkId,
-        session.user.id
-      )
-
-      if (!accessCheck.hasAccess) {
-        if (accessCheck.notFound) {
-          logger.warn(
-            `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}, Chunk=${chunkId}`
-          )
-          return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${session.user.id} attempted unauthorized chunk deletion: ${accessCheck.reason}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      if (accessCheck.document?.connectorId) {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} attempted to delete chunk on connector-synced document: Doc=${documentId}`
-        )
-        return NextResponse.json(
-          { error: 'Chunks from connector-synced documents are read-only' },
-          { status: 403 }
-        )
-      }
-
-      await deleteChunk(chunkId, documentId, requestId)
-
-      logger.info(
-        `[${requestId}] Chunk deleted: ${chunkId} from document ${documentId} in knowledge base ${knowledgeBaseId}`
-      )
-
-      return NextResponse.json({
-        success: true,
-        data: { message: 'Chunk deleted successfully' },
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error deleting chunk`, error)
-      return NextResponse.json({ error: 'Failed to delete chunk' }, { status: 500 })
-    }
-  }
-)
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteKnowledgeChunkContract,
+  auth: internalKnowledgeSessionOrExecutorAuth,
+  operation: knowledgeOperations.deleteChunk,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal chunk-delete behavior',
+  }),
+  errorPolicy: internalKnowledgeErrorPolicies.chunks,
+  mapInput: ({ params }) => ({
+    knowledgeBaseId: params.id,
+    documentId: params.documentId,
+    chunkId: params.chunkId,
+  }),
+  useCase: deleteKnowledgeChunk,
+  present: () => ({
+    success: true as const,
+    data: { message: 'Chunk deleted successfully' },
+  }),
+})

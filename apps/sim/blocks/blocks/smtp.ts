@@ -2,9 +2,8 @@ import { SmtpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { SmtpSendMailResult } from '@/tools/smtp/types'
 
-export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
+export const SmtpBlock: BlockConfig = {
   type: 'smtp',
   name: 'SMTP',
   description: 'Send emails via any SMTP mail server',
@@ -16,6 +15,15 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
   bgColor: '#2D3748',
   icon: SmtpIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'SMTP',
+    sentences: {
+      default: [
+        { text: 'Send', field: 'subject', core: true },
+        { text: 'to', field: 'to', core: true },
+      ],
+    },
+  },
 
   subBlocks: [
     {
@@ -71,6 +79,7 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
     {
       id: 'to',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'recipient@example.com',
       required: true,

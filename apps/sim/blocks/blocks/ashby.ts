@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { AshbyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 function parseStringListInput(value: unknown): string[] {
@@ -39,12 +40,107 @@ function parseSocialLinksInput(value: unknown): Array<{ type: string; url: strin
   return parsed
 }
 
+/**
+ * Parses an Ashby custom field value from the block input. Ashby custom fields
+ * are polymorphic, so structured input is decoded to give Currency, NumberRange,
+ * MultiValueSelect, Boolean, Number, and cleared fields the right wire type,
+ * while everything else passes through as a plain string, which String,
+ * LongText, Date, Url, and ValueSelect fields accept.
+ *
+ * Decoding is deliberately narrow rather than a blanket `JSON.parse`. Parsing
+ * every string that happens to be valid JSON corrupts real text: `1e999` becomes
+ * Infinity and serializes back out as `null`, which CLEARS the field; a long
+ * numeric id loses precision past 2^53; and pasted prose that starts with `{`
+ * turns into an object. So only these forms decode:
+ *
+ * - `null`, `true`, `false` - the literal keywords
+ * - text starting with `{`, `[`, or `"` - objects, arrays, and quoted strings
+ * - numbers that survive a round trip exactly, which excludes Infinity,
+ *   precision loss, and leading zeros
+ *
+ * The remaining trade-off is that the text `123` becomes the number 123. A field
+ * that needs the literal string can be quoted (`"123"`), which decodes back to it.
+ */
+function parseCustomFieldValueInput(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!trimmed) return value
+
+  if (trimmed === 'null') return null
+  if (trimmed === 'true') return true
+  if (trimmed === 'false') return false
+
+  const first = trimmed[0]
+  if (first === '{' || first === '[' || first === '"') {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return value
+    }
+  }
+
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    const asNumber = Number(trimmed)
+    if (Number.isFinite(asNumber) && String(asNumber) === trimmed) return asNumber
+  }
+
+  return value
+}
+
+function parseCustomFieldValuesInput(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in Ashby custom field values: ${getErrorMessage(error)}. Expected a JSON array like [{"fieldId":"<uuid>","fieldValue":"High"}].`
+    )
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      'Invalid Ashby custom field values: expected a JSON array like [{"fieldId":"<uuid>","fieldValue":"High"}].'
+    )
+  }
+  return parsed
+}
+
+function parseJsonArrayInput(value: unknown, label: string): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return []
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${label}: ${getErrorMessage(error)}.`)
+  }
+  throw new Error(`Invalid ${label}: expected a JSON array.`)
+}
+
+function parseJsonObjectInput(value: unknown, label: string): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed: unknown = JSON.parse(value)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch (error) {
+      throw new Error(`Invalid JSON in ${label}: ${getErrorMessage(error)}.`)
+    }
+  }
+  throw new Error(`Invalid ${label}: expected a JSON object.`)
+}
+
 export const AshbyBlock: BlockConfig = {
   type: 'ashby',
   name: 'Ashby',
   description: 'Manage candidates, jobs, and applications in Ashby',
   longDescription:
-    'Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).',
+    'Integrate Ashby into the workflow. Manage and search candidates, applications, jobs, users, and openings; transfer applications; upload resumes and candidate files; read application history and interview feedback; manage offers, notes, tags, stages, sources, and custom fields; and react to hiring lifecycle webhooks.',
   docsLink: 'https://docs.sim.ai/integrations/ashby',
   category: 'tools',
   integrationType: IntegrationType.HR,
@@ -52,16 +148,164 @@ export const AshbyBlock: BlockConfig = {
   iconColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Ashby',
+    sentences: {
+      byOperation: {
+        list_candidates: ['List candidates', { text: ', created after', field: 'createdAfter' }],
+        get_candidate: [
+          'Read candidate',
+          { text: 'by ID', field: 'candidateId' },
+          { text: 'by external mapping', field: 'externalMappingId' },
+        ],
+        create_candidate: [
+          { text: 'Create candidate', field: 'name', core: true },
+          { text: 'with email', field: 'email' },
+          { text: ', reachable at', field: 'phoneNumber' },
+        ],
+        update_candidate: [
+          { text: 'Update candidate', field: 'candidateId', core: true },
+          { text: ', renaming to', field: 'updateName' },
+          { text: ', with email', field: 'email' },
+        ],
+        search_candidates: [
+          'Search candidates',
+          { text: ', by name', field: 'searchName' },
+          { text: ', by email', field: 'searchEmail' },
+        ],
+        list_jobs: [
+          'List jobs',
+          { text: ', with status', field: 'jobStatus' },
+          { text: ', opened after', field: 'openedAfter' },
+          { text: ', opened before', field: 'openedBefore' },
+        ],
+        get_job: [{ text: 'Read job', field: 'jobId', core: true }],
+        create_note: [
+          { text: 'Add note', field: 'note', core: true },
+          { text: 'to candidate', field: 'candidateId', core: true },
+        ],
+        list_notes: [{ text: 'List notes on candidate', field: 'candidateId', core: true }],
+        list_applications: [
+          'List applications',
+          { text: ', with status', field: 'filterStatus' },
+          { text: ', for job', field: 'filterJobId' },
+          { text: ', created after', field: 'createdAfter' },
+        ],
+        get_application: [
+          'Read application',
+          { text: 'by ID', field: 'applicationId' },
+          { text: 'by submitted form', field: 'submittedFormInstanceId' },
+        ],
+        create_application: [
+          { text: 'Create an application for candidate', field: 'appCandidateId', core: true },
+          { text: 'on job', field: 'jobId' },
+        ],
+        list_offers: [
+          'List offers',
+          { text: ', for application', field: 'offerApplicationId' },
+          { text: ', created after', field: 'createdAfter' },
+        ],
+        delete_application: [{ text: 'Delete application', field: 'applicationId', core: true }],
+        change_application_stage: [
+          { text: 'Move application', field: 'applicationId', core: true },
+          { text: 'to stage', field: 'interviewStageId' },
+          { text: ', with archive reason', field: 'archiveReasonId' },
+        ],
+        change_application_source: [
+          { text: 'Attribute application', field: 'applicationId', core: true },
+          { text: 'to source', field: 'changeSourceId' },
+        ],
+        anonymize_candidate: [{ text: 'Anonymize candidate', field: 'candidateId', core: true }],
+        add_candidate_tag: [
+          { text: 'Add tag', field: 'tagId', core: true },
+          { text: 'to candidate', field: 'candidateId', core: true },
+        ],
+        remove_candidate_tag: [
+          { text: 'Remove tag', field: 'tagId', core: true },
+          { text: 'from candidate', field: 'candidateId', core: true },
+        ],
+        get_offer: [{ text: 'Read offer', field: 'offerId', core: true }],
+        list_sources: ['List candidate sources'],
+        list_candidate_tags: ['List candidate tags'],
+        list_archive_reasons: ['List archive reasons'],
+        list_custom_fields: ['List custom field definitions'],
+        set_custom_field_value: [
+          { text: 'Set custom field', field: 'fieldId', core: true },
+          { text: 'on', field: 'objectType' },
+          { text: 'to', field: 'fieldValue' },
+        ],
+        set_custom_field_values: [
+          { text: 'Set custom fields on', field: 'objectType', core: true },
+          { text: 'record', field: 'objectId', core: true },
+        ],
+        list_departments: ['List departments'],
+        list_locations: ['List locations'],
+        list_job_postings: [
+          'List job postings',
+          { text: ', in', field: 'postingLocation' },
+          { text: ', for department', field: 'postingDepartment' },
+          { text: ', on board', field: 'jobBoardId' },
+        ],
+        get_job_posting: [{ text: 'Read job posting', field: 'jobPostingId', core: true }],
+        list_openings: ['List openings', { text: ', created after', field: 'createdAfter' }],
+        list_users: ['List users'],
+        list_interviews: [
+          'List interview schedules',
+          { text: ', for application', field: 'applicationId' },
+          { text: ', at stage', field: 'interviewStageId' },
+        ],
+        list_interview_plans: ['List interview plans'],
+        list_interview_stages: [
+          'List stages in interview plan',
+          { text: '', field: 'interviewPlanId' },
+        ],
+        list_application_feedback: [
+          'List application feedback',
+          { text: ', for application', field: 'applicationId' },
+        ],
+        list_application_history: [
+          { text: 'List history for application', field: 'applicationId', core: true },
+        ],
+        search_jobs: [
+          'Search jobs',
+          { text: ', by title', field: 'searchJobTitle' },
+          { text: ', by requisition', field: 'requisitionId' },
+        ],
+        search_users: [{ text: 'Find Ashby user', field: 'userEmail', core: true }],
+        get_opening: [{ text: 'Read opening', field: 'openingId', core: true }],
+        search_openings: [{ text: 'Find opening', field: 'openingIdentifier', core: true }],
+        transfer_application: [
+          { text: 'Transfer application', field: 'applicationId', core: true },
+          { text: 'to job', field: 'jobId', core: true },
+        ],
+        upload_resume: [{ text: 'Upload resume for candidate', field: 'candidateId', core: true }],
+        upload_candidate_file: [
+          { text: 'Attach file to candidate', field: 'candidateId', core: true },
+        ],
+      },
+    },
+  },
 
   triggers: {
     enabled: true,
     available: [
       'ashby_application_submit',
+      'ashby_application_update',
       'ashby_candidate_stage_change',
       'ashby_candidate_hire',
       'ashby_candidate_delete',
+      'ashby_candidate_merge',
+      'ashby_interview_schedule_create',
+      'ashby_interview_schedule_update',
       'ashby_job_create',
+      'ashby_job_update',
+      'ashby_job_posting_update',
+      'ashby_job_posting_delete',
       'ashby_offer_create',
+      'ashby_offer_update',
+      'ashby_offer_delete',
+      'ashby_opening_create',
+      'ashby_signature_request_update',
     ],
   },
 
@@ -83,8 +327,11 @@ export const AshbyBlock: BlockConfig = {
         { label: 'List Applications', id: 'list_applications' },
         { label: 'Get Application', id: 'get_application' },
         { label: 'Create Application', id: 'create_application' },
+        { label: 'Delete Application', id: 'delete_application' },
         { label: 'List Offers', id: 'list_offers' },
         { label: 'Change Application Stage', id: 'change_application_stage' },
+        { label: 'Change Application Source', id: 'change_application_source' },
+        { label: 'Anonymize Candidate', id: 'anonymize_candidate' },
         { label: 'Add Candidate Tag', id: 'add_candidate_tag' },
         { label: 'Remove Candidate Tag', id: 'remove_candidate_tag' },
         { label: 'Get Offer', id: 'get_offer' },
@@ -92,6 +339,8 @@ export const AshbyBlock: BlockConfig = {
         { label: 'List Candidate Tags', id: 'list_candidate_tags' },
         { label: 'List Archive Reasons', id: 'list_archive_reasons' },
         { label: 'List Custom Fields', id: 'list_custom_fields' },
+        { label: 'Set Custom Field Value', id: 'set_custom_field_value' },
+        { label: 'Set Custom Field Values', id: 'set_custom_field_values' },
         { label: 'List Departments', id: 'list_departments' },
         { label: 'List Locations', id: 'list_locations' },
         { label: 'List Job Postings', id: 'list_job_postings' },
@@ -99,6 +348,17 @@ export const AshbyBlock: BlockConfig = {
         { label: 'List Openings', id: 'list_openings' },
         { label: 'List Users', id: 'list_users' },
         { label: 'List Interviews', id: 'list_interviews' },
+        { label: 'List Interview Plans', id: 'list_interview_plans' },
+        { label: 'List Interview Stages', id: 'list_interview_stages' },
+        { label: 'List Application Feedback', id: 'list_application_feedback' },
+        { label: 'List Application History', id: 'list_application_history' },
+        { label: 'Search Jobs', id: 'search_jobs' },
+        { label: 'Search Users', id: 'search_users' },
+        { label: 'Get Opening', id: 'get_opening' },
+        { label: 'Search Openings', id: 'search_openings' },
+        { label: 'Transfer Application', id: 'transfer_application' },
+        { label: 'Upload Resume', id: 'upload_resume' },
+        { label: 'Upload Candidate File', id: 'upload_candidate_file' },
       ],
       value: () => 'list_candidates',
     },
@@ -117,12 +377,14 @@ export const AshbyBlock: BlockConfig = {
       required: {
         field: 'operation',
         value: [
-          'get_candidate',
           'create_note',
           'list_notes',
           'update_candidate',
           'add_candidate_tag',
           'remove_candidate_tag',
+          'anonymize_candidate',
+          'upload_resume',
+          'upload_candidate_file',
         ],
       },
       placeholder: 'Enter candidate UUID',
@@ -135,6 +397,9 @@ export const AshbyBlock: BlockConfig = {
           'update_candidate',
           'add_candidate_tag',
           'remove_candidate_tag',
+          'anonymize_candidate',
+          'upload_resume',
+          'upload_candidate_file',
         ],
       },
     },
@@ -223,6 +488,28 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       },
     },
     {
+      id: 'candidateLocation',
+      title: 'Location',
+      type: 'code',
+      mode: 'advanced',
+      placeholder: '{"city":"San Francisco","region":"California","country":"United States"}',
+      condition: { field: 'operation', value: ['create_candidate', 'update_candidate'] },
+    },
+    {
+      id: 'clearCandidateSource',
+      title: 'Clear Candidate Source',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'update_candidate' },
+    },
+    {
+      id: 'clearCreditedToUser',
+      title: 'Clear Credited User',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'update_candidate' },
+    },
+    {
       id: 'updateName',
       title: 'Name',
       type: 'short-input',
@@ -256,9 +543,15 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       id: 'jobId',
       title: 'Job ID',
       type: 'short-input',
-      required: { field: 'operation', value: ['get_job', 'create_application'] },
+      required: {
+        field: 'operation',
+        value: ['get_job', 'create_application', 'transfer_application'],
+      },
       placeholder: 'Enter job UUID',
-      condition: { field: 'operation', value: ['get_job', 'create_application'] },
+      condition: {
+        field: 'operation',
+        value: ['get_job', 'create_application', 'transfer_application'],
+      },
     },
     {
       id: 'applicationId',
@@ -266,12 +559,27 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       type: 'short-input',
       required: {
         field: 'operation',
-        value: ['get_application', 'change_application_stage'],
+        value: [
+          'change_application_stage',
+          'change_application_source',
+          'delete_application',
+          'list_application_history',
+          'transfer_application',
+        ],
       },
       placeholder: 'Enter application UUID',
       condition: {
         field: 'operation',
-        value: ['get_application', 'change_application_stage', 'list_interviews'],
+        value: [
+          'get_application',
+          'change_application_stage',
+          'change_application_source',
+          'delete_application',
+          'list_interviews',
+          'list_application_feedback',
+          'list_application_history',
+          'transfer_application',
+        ],
       },
     },
     {
@@ -286,19 +594,28 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       id: 'interviewPlanId',
       title: 'Interview Plan ID',
       type: 'short-input',
+      required: { field: 'operation', value: ['list_interview_stages', 'transfer_application'] },
       placeholder: 'Interview plan UUID (defaults to job default)',
-      condition: { field: 'operation', value: 'create_application' },
+      condition: {
+        field: 'operation',
+        value: ['create_application', 'list_interview_stages', 'transfer_application'],
+      },
       mode: 'advanced',
     },
     {
       id: 'interviewStageId',
       title: 'Interview Stage ID',
       type: 'short-input',
-      required: { field: 'operation', value: 'change_application_stage' },
-      placeholder: 'Interview stage UUID',
+      required: { field: 'operation', value: ['change_application_stage', 'transfer_application'] },
+      placeholder: 'Stage UUID, or FirstPreInterviewScreen when creating',
       condition: {
         field: 'operation',
-        value: ['create_application', 'change_application_stage', 'list_interviews'],
+        value: [
+          'create_application',
+          'change_application_stage',
+          'list_interviews',
+          'transfer_application',
+        ],
       },
     },
     {
@@ -419,6 +736,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_offers',
           'list_openings',
           'list_interviews',
+          'list_application_feedback',
         ],
       },
       mode: 'advanced',
@@ -447,6 +765,14 @@ Output only the ISO 8601 timestamp string, nothing else.`,
 Output only the ISO 8601 timestamp string, nothing else.`,
         generationType: 'timestamp',
       },
+    },
+    {
+      id: 'createdBefore',
+      title: 'Created Before',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'e.g. 2024-12-31T23:59:59Z',
+      condition: { field: 'operation', value: ['list_candidates', 'list_applications'] },
     },
     {
       id: 'openedBefore',
@@ -525,6 +851,9 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_locations',
           'list_departments',
           'list_custom_fields',
+          'list_application_feedback',
+          'list_application_history',
+          'list_interview_plans',
         ],
       },
       mode: 'advanced',
@@ -549,6 +878,13 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_locations',
           'list_departments',
           'list_custom_fields',
+          'list_candidates',
+          'list_applications',
+          'list_openings',
+          'list_users',
+          'list_interviews',
+          'list_application_feedback',
+          'list_interview_plans',
         ],
       },
       mode: 'advanced',
@@ -563,9 +899,12 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         value: [
           'list_candidate_tags',
           'list_locations',
+          'list_interview_plans',
           'list_departments',
           'list_custom_fields',
           'list_offers',
+          'list_jobs',
+          'list_application_feedback',
         ],
       },
       mode: 'advanced',
@@ -584,6 +923,30 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       placeholder: 'Filter offers by application UUID',
       condition: { field: 'operation', value: 'list_offers' },
       mode: 'advanced',
+    },
+    {
+      id: 'offerStatus',
+      title: 'Offer Status Filters',
+      type: 'code',
+      mode: 'advanced',
+      placeholder: '["WaitingOnCandidateResponse","CandidateAccepted"]',
+      condition: { field: 'operation', value: 'list_offers' },
+    },
+    {
+      id: 'acceptanceStatus',
+      title: 'Acceptance Status Filters',
+      type: 'code',
+      mode: 'advanced',
+      placeholder: '["Pending","Accepted"]',
+      condition: { field: 'operation', value: 'list_offers' },
+    },
+    {
+      id: 'approvalStatus',
+      title: 'Approval Status Filters',
+      type: 'code',
+      mode: 'advanced',
+      placeholder: '["Approved"]',
+      condition: { field: 'operation', value: 'list_offers' },
     },
     {
       id: 'alternateEmailAddresses',
@@ -628,6 +991,7 @@ Output only the JSON array, nothing else.`,
           'list_departments',
           'list_custom_fields',
           'list_locations',
+          'list_interview_plans',
         ],
       },
       mode: 'advanced',
@@ -652,7 +1016,7 @@ Output only the JSON array, nothing else.`,
       title: 'Location Filter',
       type: 'short-input',
       placeholder: 'Filter by location name (case sensitive)',
-      condition: { field: 'operation', value: 'list_job_postings' },
+      condition: { field: 'operation', value: ['list_job_postings', 'get_job_posting'] },
       mode: 'advanced',
     },
     {
@@ -671,11 +1035,150 @@ Output only the JSON array, nothing else.`,
       mode: 'advanced',
     },
     {
+      id: 'includeUnpublishedJobPostings',
+      title: 'Include Draft Postings',
+      type: 'switch',
+      condition: { field: 'operation', value: 'list_job_postings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'objectType',
+      title: 'Object Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Job', id: 'Job' },
+        { label: 'Application', id: 'Application' },
+        { label: 'Candidate', id: 'Candidate' },
+        { label: 'Opening', id: 'Opening' },
+      ],
+      value: () => 'Job',
+      required: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'set_custom_field_values'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'set_custom_field_values'],
+      },
+    },
+    {
+      id: 'objectId',
+      title: 'Object ID',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'set_custom_field_values'],
+      },
+      placeholder: 'Enter the UUID of the job, application, candidate, or opening',
+      condition: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'set_custom_field_values'],
+      },
+    },
+    {
+      id: 'fieldId',
+      title: 'Custom Field ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'set_custom_field_value' },
+      placeholder: 'Custom field definition UUID from List Custom Fields',
+      condition: { field: 'operation', value: 'set_custom_field_value' },
+    },
+    {
+      id: 'fieldValue',
+      title: 'Custom Field Value',
+      type: 'long-input',
+      required: { field: 'operation', value: 'set_custom_field_value' },
+      placeholder: 'Plain value, or JSON for structured field types. Use null to clear.',
+      condition: { field: 'operation', value: 'set_custom_field_value' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Ashby custom field value matching the field's type.
+
+Rules:
+- Boolean: true or false
+- Number: a bare number, e.g. 42
+- String, LongText, Date, Url, ValueSelect: the plain text, e.g. Senior Engineer or 2026-03-01
+- MultiValueSelect: a JSON array of option values, e.g. ["Remote","Hybrid"]
+- Currency: {"value":150000,"currencyCode":"USD"}
+- NumberRange: {"type":"number-range","minValue":1,"maxValue":5}
+- CompensationRange: {"type":"compensation-range","minValue":120000,"maxValue":160000,"currencyCode":"USD","interval":"YEAR"}
+- Location: {"country":"United States","region":"California","city":"San Francisco"}
+- To clear the field, output exactly: null
+
+Output only the value. Do not wrap it in an object or add commentary.`,
+        placeholder: 'Describe the value to write...',
+      },
+    },
+    {
+      id: 'fieldValues',
+      title: 'Custom Field Values',
+      type: 'code',
+      required: { field: 'operation', value: 'set_custom_field_values' },
+      placeholder: '[{ "fieldId": "<uuid>", "fieldValue": "High" }]',
+      condition: { field: 'operation', value: 'set_custom_field_values' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-array',
+        prompt: `Generate a JSON array of Ashby custom field writes for one object.
+
+Each element is {"fieldId": "<custom field definition UUID>", "fieldValue": <value>}.
+fieldValue follows the field's type: boolean, number, plain string, a string array for
+MultiValueSelect, an object for Currency/NumberRange/CompensationRange/Location, or null to clear.
+
+Example:
+[{"fieldId":"11111111-1111-1111-1111-111111111111","fieldValue":"High"},{"fieldId":"22222222-2222-2222-2222-222222222222","fieldValue":true}]
+
+Output only the JSON array.`,
+        placeholder: 'Describe the fields to write...',
+      },
+    },
+    {
+      id: 'unsetSource',
+      title: 'Clear the source instead',
+      type: 'switch',
+      condition: { field: 'operation', value: 'change_application_source' },
+    },
+    {
+      /**
+       * Hidden while the clear switch is on, so the editor cannot hold a source
+       * ID and a clear request at the same time. The two are mutually exclusive
+       * intents and the tool rejects the pair rather than picking a winner.
+       */
+      id: 'changeSourceId',
+      title: 'Source ID',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: 'change_application_source',
+        and: { field: 'unsetSource', value: true, not: true },
+      },
+      placeholder: 'Source UUID from List Sources',
+      condition: {
+        field: 'operation',
+        value: 'change_application_source',
+        and: { field: 'unsetSource', value: true, not: true },
+      },
+    },
+    {
       id: 'expandJob',
       title: 'Include Job',
       type: 'switch',
       condition: { field: 'operation', value: 'get_job_posting' },
       mode: 'advanced',
+    },
+    {
+      id: 'includeUnpublishedJobPostingIds',
+      title: 'Include Draft Posting IDs',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['get_job', 'list_jobs'] },
+    },
+    {
+      id: 'excludeFormDefinition',
+      title: 'Exclude Form Definition',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_offer' },
     },
     {
       id: 'tagId',
@@ -715,26 +1218,175 @@ Output only the JSON array, nothing else.`,
       placeholder: 'Enter job posting UUID',
       condition: { field: 'operation', value: 'get_job_posting' },
     },
+    {
+      id: 'searchJobTitle',
+      title: 'Job Title',
+      type: 'short-input',
+      placeholder: 'Search by job title',
+      condition: { field: 'operation', value: 'search_jobs' },
+    },
+    {
+      id: 'externalMappingId',
+      title: 'External Mapping ID',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'External candidate mapping ID',
+      condition: { field: 'operation', value: 'get_candidate' },
+    },
+    {
+      id: 'submittedFormInstanceId',
+      title: 'Submitted Form Instance ID',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Application form submission UUID',
+      condition: { field: 'operation', value: 'get_application' },
+    },
+    {
+      id: 'applicationHistory',
+      title: 'Application History',
+      type: 'code',
+      mode: 'advanced',
+      placeholder: '[{"stageId":"<uuid>","enteredStageAt":"..."}]',
+      condition: { field: 'operation', value: 'create_application' },
+    },
+    {
+      id: 'archiveEmail',
+      title: 'Archive Email',
+      type: 'code',
+      mode: 'advanced',
+      placeholder: '{"communicationTemplateId":"<uuid>","sendAt":"2026-09-02T16:32:00Z"}',
+      condition: { field: 'operation', value: 'change_application_stage' },
+    },
+    {
+      id: 'requisitionId',
+      title: 'Requisition ID',
+      type: 'short-input',
+      placeholder: 'Search by custom requisition ID',
+      condition: { field: 'operation', value: 'search_jobs' },
+    },
+    {
+      id: 'userEmail',
+      title: 'User Email',
+      type: 'short-input',
+      required: { field: 'operation', value: 'search_users' },
+      placeholder: 'recruiter@example.com',
+      condition: { field: 'operation', value: 'search_users' },
+    },
+    {
+      id: 'openingId',
+      title: 'Opening ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'get_opening' },
+      placeholder: 'Opening UUID',
+      condition: { field: 'operation', value: 'get_opening' },
+    },
+    {
+      id: 'openingIdentifier',
+      title: 'Opening Identifier',
+      type: 'short-input',
+      required: { field: 'operation', value: 'search_openings' },
+      placeholder: 'Human-readable opening identifier',
+      condition: { field: 'operation', value: 'search_openings' },
+    },
+    {
+      id: 'startAutomaticActivities',
+      title: 'Start Automatic Activities',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'transfer_application' },
+    },
+    {
+      id: 'onBehalfOfUserId',
+      title: 'Acting Ashby User ID',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Active Ashby user UUID',
+      condition: {
+        field: 'operation',
+        value: [
+          'add_candidate_tag',
+          'anonymize_candidate',
+          'change_application_source',
+          'change_application_stage',
+          'create_application',
+          'create_candidate',
+          'create_note',
+          'delete_application',
+          'remove_candidate_tag',
+          'set_custom_field_value',
+          'set_custom_field_values',
+          'update_candidate',
+          'transfer_application',
+          'upload_resume',
+          'upload_candidate_file',
+        ],
+      },
+    },
+    {
+      id: 'candidateUpload',
+      title: 'File',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload a resume or candidate file',
+      multiple: false,
+      required: true,
+      condition: { field: 'operation', value: ['upload_resume', 'upload_candidate_file'] },
+    },
+    {
+      id: 'candidateFileReference',
+      title: 'File',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'File reference from a previous block',
+      mode: 'advanced',
+      required: true,
+      condition: { field: 'operation', value: ['upload_resume', 'upload_candidate_file'] },
+    },
+    {
+      id: 'fileName',
+      title: 'Filename Override',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'candidate-resume.pdf',
+      condition: { field: 'operation', value: ['upload_resume', 'upload_candidate_file'] },
+    },
     ...getTrigger('ashby_application_submit').subBlocks,
+    ...getTrigger('ashby_application_update').subBlocks,
     ...getTrigger('ashby_candidate_stage_change').subBlocks,
     ...getTrigger('ashby_candidate_hire').subBlocks,
     ...getTrigger('ashby_candidate_delete').subBlocks,
+    ...getTrigger('ashby_candidate_merge').subBlocks,
+    ...getTrigger('ashby_interview_schedule_create').subBlocks,
+    ...getTrigger('ashby_interview_schedule_update').subBlocks,
     ...getTrigger('ashby_job_create').subBlocks,
+    ...getTrigger('ashby_job_update').subBlocks,
+    ...getTrigger('ashby_job_posting_update').subBlocks,
+    ...getTrigger('ashby_job_posting_delete').subBlocks,
     ...getTrigger('ashby_offer_create').subBlocks,
+    ...getTrigger('ashby_offer_update').subBlocks,
+    ...getTrigger('ashby_offer_delete').subBlocks,
+    ...getTrigger('ashby_opening_create').subBlocks,
+    ...getTrigger('ashby_signature_request_update').subBlocks,
   ],
 
   tools: {
     access: [
       'ashby_add_candidate_tag',
+      'ashby_anonymize_candidate',
+      'ashby_change_application_source',
       'ashby_change_application_stage',
       'ashby_create_application',
       'ashby_create_candidate',
       'ashby_create_note',
+      'ashby_delete_application',
       'ashby_get_application',
       'ashby_get_candidate',
       'ashby_get_job',
       'ashby_get_job_posting',
       'ashby_get_offer',
+      'ashby_get_opening',
+      'ashby_list_application_feedback',
+      'ashby_list_application_history',
       'ashby_list_applications',
       'ashby_list_archive_reasons',
       'ashby_list_candidate_tags',
@@ -742,6 +1394,8 @@ Output only the JSON array, nothing else.`,
       'ashby_list_custom_fields',
       'ashby_list_departments',
       'ashby_list_interviews',
+      'ashby_list_interview_plans',
+      'ashby_list_interview_stages',
       'ashby_list_job_postings',
       'ashby_list_jobs',
       'ashby_list_locations',
@@ -752,7 +1406,15 @@ Output only the JSON array, nothing else.`,
       'ashby_list_users',
       'ashby_remove_candidate_tag',
       'ashby_search_candidates',
+      'ashby_search_jobs',
+      'ashby_search_openings',
+      'ashby_search_users',
+      'ashby_set_custom_field_value',
+      'ashby_set_custom_field_values',
       'ashby_update_candidate',
+      'ashby_transfer_application',
+      'ashby_upload_candidate_file',
+      'ashby_upload_resume',
     ],
     config: {
       tool: (params) => `ashby_${params.operation}`,
@@ -761,9 +1423,13 @@ Output only the JSON array, nothing else.`,
         if (params.perPage) result.perPage = Number(params.perPage)
         if (params.searchName) result.name = params.searchName
         if (params.searchEmail) result.email = params.searchEmail
+        if (params.searchJobTitle) result.title = params.searchJobTitle
+        if (params.requisitionId) result.requisitionId = params.requisitionId
+        if (params.userEmail) result.email = params.userEmail
+        if (params.openingIdentifier) result.identifier = params.openingIdentifier
         if (params.filterStatus) result.status = params.filterStatus
         if (params.filterJobId) result.jobId = params.filterJobId
-        if (params.jobStatus) result.status = params.jobStatus
+        if (params.jobStatus) result.status = [params.jobStatus]
         if (params.sendNotifications === 'true' || params.sendNotifications === true) {
           result.sendNotifications = true
         }
@@ -779,8 +1445,73 @@ Output only the JSON array, nothing else.`,
         if (params.listedOnly === 'true' || params.listedOnly === true) {
           result.listedOnly = true
         }
+        if (
+          params.includeUnpublishedJobPostings === 'true' ||
+          params.includeUnpublishedJobPostings === true
+        ) {
+          result.includeUnpublishedJobPostings = true
+        }
         if (params.expandJob === 'true' || params.expandJob === true) {
           result.expandJob = true
+        }
+        if (params.archiveEmail) {
+          result.archiveEmail = parseJsonObjectInput(
+            params.archiveEmail,
+            'Ashby archive email configuration'
+          )
+        }
+        if (
+          params.includeUnpublishedJobPostingIds === 'true' ||
+          params.includeUnpublishedJobPostingIds === true
+        ) {
+          if (params.operation === 'list_jobs') result.includeUnpublishedJobPostingsIds = true
+          else result.includeUnpublishedJobPostingIds = true
+        }
+        if (params.excludeFormDefinition === 'true' || params.excludeFormDefinition === true) {
+          result.excludeFormDefinition = true
+        }
+        for (const key of ['offerStatus', 'acceptanceStatus', 'approvalStatus'] as const) {
+          if (params[key]) {
+            const values = parseJsonArrayInput(params[key], `Ashby ${key}`)
+            if (values.length > 0) result[key] = values
+          }
+        }
+        if (params.applicationHistory) {
+          const applicationHistory = parseJsonArrayInput(
+            params.applicationHistory,
+            'Ashby application history'
+          )
+          if (applicationHistory.length > 0) result.applicationHistory = applicationHistory
+        }
+        if (
+          (params.operation === 'create_candidate' || params.operation === 'update_candidate') &&
+          params.candidateLocation !== undefined &&
+          params.candidateLocation !== ''
+        ) {
+          result.location =
+            params.candidateLocation === null
+              ? null
+              : parseJsonObjectInput(params.candidateLocation, 'Ashby candidate location')
+        }
+        if (params.clearCandidateSource === 'true' || params.clearCandidateSource === true) {
+          result.clearSource = true
+        }
+        if (params.clearCreditedToUser === 'true' || params.clearCreditedToUser === true) {
+          result.clearCreditedToUser = true
+        }
+        if (
+          params.startAutomaticActivities === 'true' ||
+          params.startAutomaticActivities === true
+        ) {
+          result.startAutomaticActivities = true
+        }
+        if (params.operation === 'search_jobs' || params.operation === 'search_candidates') {
+          result.limit = params.perPage ? Number(params.perPage) : undefined
+        }
+        if (params.operation === 'upload_resume' || params.operation === 'upload_candidate_file') {
+          const file = normalizeFileInput(params.file, { single: true })
+          if (!file) throw new Error('A candidate file is required.')
+          result.file = file
         }
         if (params.operation === 'create_application' && params.appCandidateId) {
           result.candidateId = params.appCandidateId
@@ -790,14 +1521,17 @@ Output only the JSON array, nothing else.`,
         }
         if (
           (params.operation === 'create_candidate' || params.operation === 'update_candidate') &&
-          params.candidateCreatedAt
+          params.candidateCreatedAt !== undefined &&
+          params.candidateCreatedAt !== ''
         ) {
           result.createdAt = params.candidateCreatedAt
         }
         if (params.operation === 'create_note' && params.noteCreatedAt) {
           result.createdAt = params.noteCreatedAt
         }
-        if (params.updateName) result.name = params.updateName
+        if (params.updateName !== undefined && params.updateName !== '') {
+          result.name = params.updateName
+        }
         if (params.website) result.website = params.website
         if (params.alternateEmail) result.alternateEmail = params.alternateEmail
         if (params.postingLocation) result.location = params.postingLocation
@@ -816,9 +1550,34 @@ Output only the JSON array, nothing else.`,
           if (alternateEmailAddresses.length > 0)
             result.alternateEmailAddresses = alternateEmailAddresses
         }
-        if (params.socialLinks) {
-          const socialLinks = parseSocialLinksInput(params.socialLinks)
-          if (socialLinks.length > 0) result.socialLinks = socialLinks
+        if (params.socialLinks !== undefined && params.socialLinks !== null) {
+          const socialLinksValue =
+            typeof params.socialLinks === 'string' ? params.socialLinks.trim() : params.socialLinks
+          if (socialLinksValue !== '') {
+            result.socialLinks = parseSocialLinksInput(socialLinksValue)
+          }
+        }
+        if (params.operation === 'set_custom_field_value') {
+          result.fieldValue = parseCustomFieldValueInput(params.fieldValue)
+        }
+        if (params.operation === 'set_custom_field_values') {
+          result.values = parseCustomFieldValuesInput(params.fieldValues)
+        }
+        if (params.operation === 'change_application_source') {
+          // sourceId is always assigned, never conditionally, because the executor
+          // merges `{ ...inputs, ...transformedParams }` and a key this mapping
+          // leaves unset simply inherits whatever was in inputs. The create-path
+          // `sourceId` subblock leaks into exactly that gap: it is mode
+          // 'advanced', and the serializer includes an advanced subblock whenever
+          // its value is non-empty without ever evaluating its condition, so a
+          // value typed while on Create Application survives into this operation.
+          // Inheriting it would attribute a source nobody asked for, or collide
+          // with a clear request and fail with no visible cause.
+          const unsetSource = params.unsetSource === 'true' || params.unsetSource === true
+          const changeSourceId =
+            typeof params.changeSourceId === 'string' ? params.changeSourceId.trim() : ''
+          result.sourceId = unsetSource || !changeSourceId ? undefined : changeSourceId
+          if (unsetSource) result.unsetSource = true
         }
         return result
       },
@@ -829,6 +1588,7 @@ Output only the JSON array, nothing else.`,
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Ashby API key' },
     candidateId: { type: 'string', description: 'Candidate UUID' },
+    externalMappingId: { type: 'string', description: 'External candidate mapping ID' },
     name: { type: 'string', description: 'Candidate full name' },
     email: { type: 'string', description: 'Email address' },
     phoneNumber: { type: 'string', description: 'Phone number' },
@@ -839,11 +1599,25 @@ Output only the JSON array, nothing else.`,
     updateName: { type: 'string', description: 'Updated full name' },
     searchName: { type: 'string', description: 'Name to search for' },
     searchEmail: { type: 'string', description: 'Email to search for' },
+    searchJobTitle: { type: 'string', description: 'Job title to search for' },
+    requisitionId: { type: 'string', description: 'Job requisition ID to search for' },
+    userEmail: { type: 'string', description: 'Ashby user email to search for' },
     jobId: { type: 'string', description: 'Job UUID' },
     applicationId: { type: 'string', description: 'Application UUID' },
+    submittedFormInstanceId: { type: 'string', description: 'Submitted form instance UUID' },
+    applicationHistory: { type: 'json', description: 'Application history entries' },
+    archiveEmail: {
+      type: 'json',
+      description: 'Archive email template UUID and optional scheduled send timestamp',
+    },
     appCandidateId: { type: 'string', description: 'Candidate UUID for application' },
     interviewPlanId: { type: 'string', description: 'Interview plan UUID' },
-    interviewStageId: { type: 'string', description: 'Interview stage UUID' },
+    interviewStageId: {
+      type: 'string',
+      description: 'Interview stage UUID or FirstPreInterviewScreen when creating an application',
+    },
+    openingId: { type: 'string', description: 'Opening UUID' },
+    openingIdentifier: { type: 'string', description: 'Opening identifier' },
     creditedToUserId: { type: 'string', description: 'User UUID credited to' },
     appCreatedAt: { type: 'string', description: 'Application creation timestamp' },
     note: { type: 'string', description: 'Note content' },
@@ -852,6 +1626,7 @@ Output only the JSON array, nothing else.`,
     filterStatus: { type: 'string', description: 'Application status filter' },
     filterJobId: { type: 'string', description: 'Job UUID filter' },
     createdAfter: { type: 'string', description: 'Filter by creation date' },
+    createdBefore: { type: 'string', description: 'Filter by creation date upper bound' },
     openedAfter: { type: 'string', description: 'Filter jobs opened after this timestamp' },
     openedBefore: { type: 'string', description: 'Filter jobs opened before this timestamp' },
     closedAfter: { type: 'string', description: 'Filter jobs closed after this timestamp' },
@@ -860,11 +1635,27 @@ Output only the JSON array, nothing else.`,
     cursor: { type: 'string', description: 'Pagination cursor' },
     perPage: { type: 'number', description: 'Results per page' },
     syncToken: { type: 'string', description: 'Sync token for incremental updates' },
+    onBehalfOfUserId: {
+      type: 'string',
+      description: 'Active Ashby user UUID for mutation attribution',
+    },
+    startAutomaticActivities: {
+      type: 'boolean',
+      description: 'Start destination-stage automatic activities',
+    },
+    file: { type: 'file', description: 'Resume or candidate file to upload' },
+    fileName: { type: 'string', description: 'Optional uploaded filename override' },
     includeArchived: { type: 'boolean', description: 'Include archived records' },
     includeDeactivated: { type: 'boolean', description: 'Include deactivated users' },
     website: { type: 'string', description: 'Personal website URL for new candidate' },
     alternateEmail: { type: 'string', description: 'Additional email to add to candidate' },
     candidateCreatedAt: { type: 'string', description: 'Candidate creation timestamp override' },
+    candidateLocation: { type: 'json', description: 'Candidate city, region, and country' },
+    clearCandidateSource: { type: 'boolean', description: 'Explicitly clear the candidate source' },
+    clearCreditedToUser: {
+      type: 'boolean',
+      description: 'Explicitly clear the candidate credited user',
+    },
     noteCreatedAt: { type: 'string', description: 'Note creation timestamp override' },
     isPrivate: { type: 'boolean', description: 'Whether the note is private' },
     postingLocation: { type: 'string', description: 'Filter job postings by location name' },
@@ -887,6 +1678,14 @@ Output only the JSON array, nothing else.`,
       type: 'string',
       description: 'Application UUID filter for list_offers',
     },
+    offerStatus: { type: 'json', description: 'Offer process statuses to include' },
+    acceptanceStatus: { type: 'json', description: 'Offer acceptance statuses to include' },
+    approvalStatus: { type: 'json', description: 'Offer approval statuses to include' },
+    includeUnpublishedJobPostingIds: {
+      type: 'boolean',
+      description: 'Include draft job posting IDs',
+    },
+    excludeFormDefinition: { type: 'boolean', description: 'Omit the offer form definition' },
     alternateEmailAddresses: {
       type: 'string',
       description: 'Alternate email addresses (comma-separated or JSON array)',
@@ -894,6 +1693,32 @@ Output only the JSON array, nothing else.`,
     socialLinks: {
       type: 'string',
       description: 'Social links as JSON array',
+    },
+    includeUnpublishedJobPostings: {
+      type: 'boolean',
+      description: 'Also return unpublished (draft) job postings',
+    },
+    objectType: {
+      type: 'string',
+      description: 'Custom field target object type (Application, Candidate, Job, or Opening)',
+    },
+    objectId: { type: 'string', description: 'UUID of the object to set custom fields on' },
+    fieldId: { type: 'string', description: 'Custom field definition UUID' },
+    fieldValue: {
+      type: 'string',
+      description: 'Custom field value (plain value, or JSON for structured types; null clears it)',
+    },
+    fieldValues: {
+      type: 'string',
+      description: 'Custom field writes as a JSON array of { fieldId, fieldValue }',
+    },
+    changeSourceId: {
+      type: 'string',
+      description: 'Source UUID to attribute an application to',
+    },
+    unsetSource: {
+      type: 'boolean',
+      description: 'Deliberately clear an application source instead of setting one',
     },
   },
 
@@ -934,7 +1759,12 @@ Output only the JSON array, nothing else.`,
     customFields: {
       type: 'json',
       description:
-        'List of custom field definitions (id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues[] {label, value, isArchived})',
+        'For List Custom Fields, the field definitions (id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues[] {label, value, isArchived}). For Set Custom Field Values, the field values written to the object (id, title, isPrivate, valueLabel, value)',
+    },
+    customField: {
+      type: 'json',
+      description:
+        'A single custom field value after a write (id, title, isPrivate, valueLabel, value)',
     },
     departments: {
       type: 'json',
@@ -966,6 +1796,16 @@ Output only the JSON array, nothing else.`,
       description:
         'List of interview schedules (id, applicationId, interviewStageId, interviewEvents[] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt)',
     },
+    interviewPlans: {
+      type: 'json',
+      description: 'Interview plans (id, title, isArchived, createdAt, updatedAt)',
+    },
+    interviewStages: { type: 'json', description: 'Ordered interview stages for a plan' },
+    feedback: {
+      type: 'json',
+      description: 'Submitted application feedback with form definitions and values',
+    },
+    history: { type: 'json', description: 'Application stage history and allowed actions' },
     tags: {
       type: 'json',
       description: 'List of candidate tags (id, title, isArchived)',
@@ -1006,9 +1846,14 @@ Output only the JSON array, nothing else.`,
     },
     isPrivate: { type: 'boolean', description: 'Whether the note is private' },
     createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
+    applicationId: { type: 'string', description: 'UUID of the deleted application' },
     moreDataAvailable: { type: 'boolean', description: 'Whether more pages exist' },
     nextCursor: { type: 'string', description: 'Pagination cursor for next page' },
-    syncToken: { type: 'string', description: 'Sync token for incremental updates' },
+    nextSyncCursor: {
+      type: 'string',
+      description:
+        "Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output",
+    },
   },
 }
 
@@ -1106,6 +1951,27 @@ export const AshbyBlockMeta = {
         'List candidates and applications by status or job in Ashby and summarize pipeline health. Use for recruiting standups and weekly reports.',
       content:
         '# Pipeline Status Report\n\nSummarize the state of an Ashby hiring pipeline.\n\n## Steps\n1. List the relevant jobs, or focus on one role.\n2. List applications, grouping candidates by current stage and status (active, hired, archived).\n3. Flag candidates stalled in a stage or awaiting feedback.\n4. Note new candidates added since the last report.\n\n## Output\nA pipeline summary: candidate counts per stage and status, stalled candidates called out by name and role, and recent additions.',
+    },
+    {
+      name: 'interview-feedback-chase',
+      description:
+        'Find scheduled interviews with missing feedback and notify the responsible interviewers. Use after interview loops to keep decisions moving.',
+      content:
+        '# Interview Feedback Chase\n\nClose feedback gaps after an interview loop.\n\n## Steps\n1. List interview schedules for the application or stage.\n2. Inspect each interview event and list the application feedback already submitted.\n3. Identify interviewers whose events are complete but have no feedback.\n4. Send each interviewer a concise reminder with the candidate, role, and feedback link.\n\n## Output\nReport the interview events checked, completed feedback, missing feedback, and reminders sent.',
+    },
+    {
+      name: 'opening-finance-reconciliation',
+      description:
+        'Reconcile Ashby headcount openings with a finance or workforce-planning table. Use for hiring-plan and budget reviews.',
+      content:
+        '# Opening Finance Reconciliation\n\nCompare approved headcount with the active recruiting plan.\n\n## Steps\n1. List or search Ashby openings and resolve their linked jobs.\n2. Compare identifier, state, target dates, hiring team, and custom fields with the planning table.\n3. Flag openings that are missing, duplicated, closed unexpectedly, or attached to the wrong job.\n4. Write a reconciliation report without changing Ashby records unless explicitly requested.\n\n## Output\nReturn matched openings, discrepancies, budget-risk flags, and the exact records that need review.',
+    },
+    {
+      name: 'offer-signature-handoff',
+      description:
+        'Coordinate the offer-to-preboarding handoff from offer and signature events. Use to prevent accepted candidates from falling into an operations gap.',
+      content:
+        '# Offer Signature Handoff\n\nTurn an accepted and signed offer into a reliable preboarding handoff.\n\n## Steps\n1. Listen for offer updates and signature-request completion.\n2. Retrieve the offer and application, then confirm the candidate, role, opening, and final status.\n3. Create the downstream People, IT, and manager tasks only when the signature is completed.\n4. Record the Ashby offer, application, and opening IDs for idempotent follow-up.\n\n## Output\nConfirm the signed offer, candidate, linked opening, downstream owners, and every task created.',
     },
   ],
 } as const satisfies BlockMeta

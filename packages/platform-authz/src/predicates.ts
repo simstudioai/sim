@@ -10,6 +10,18 @@ export const PERMISSION_RANK = { read: 1, write: 2, admin: 3 } as const satisfie
 >
 
 /**
+ * Type guard for a workspace permission level. Checks against
+ * {@link PERMISSION_RANK} rather than the DB enum so this module stays
+ * dependency-free (see {@link isOrgAdminRole}). Use it to narrow role strings that
+ * are typed `string` for legacy reasons before comparing them with
+ * {@link permissionSatisfies}, so an unrecognized value is handled explicitly
+ * instead of silently ranking below every level.
+ */
+export function isPermissionType(value: unknown): value is PermissionType {
+  return typeof value === 'string' && Object.hasOwn(PERMISSION_RANK, value)
+}
+
+/**
  * Whether an effective permission satisfies a required level under the
  * read < write < admin ordering. `null`/`undefined` (no access) never satisfies.
  * Single source of truth for permission-level comparisons across the app and the

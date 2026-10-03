@@ -2,10 +2,15 @@ import { WebflowIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { WebflowResponse } from '@/tools/webflow/types'
 import { getTrigger } from '@/triggers'
 
-export const WebflowBlock: BlockConfig<WebflowResponse> = {
+/** CMS collection, whichever mode the card is in. */
+const COLLECTION_FIELD = ['collectionSelector', 'manualCollectionId'] as const
+
+/** CMS item, whichever mode the card is in. */
+const ITEM_FIELD = ['itemSelector', 'manualItemId'] as const
+
+export const WebflowBlock: BlockConfig = {
   type: 'webflow',
   name: 'Webflow',
   description: 'Manage Webflow CMS collections',
@@ -18,6 +23,43 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
   triggerAllowed: true,
   bgColor: '#FFFFFF',
   icon: WebflowIcon,
+  canvasPresentation: {
+    defaultTitle: 'Webflow',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in', field: 'triggerSiteId', core: true },
+        { text: ', from collection', field: 'triggerCollectionId' },
+        { text: ', from form', field: 'formName' },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        list: [
+          { text: 'List items in', field: COLLECTION_FIELD, core: true },
+          { text: ', up to', field: 'limit', after: 'items' },
+        ],
+        get: [
+          { text: 'Fetch item', field: ITEM_FIELD, core: true },
+          { text: 'from', field: COLLECTION_FIELD },
+        ],
+        create: [
+          { text: 'Create an item in', field: COLLECTION_FIELD, core: true },
+          { text: ', with', field: 'fieldData' },
+        ],
+        update: [
+          { text: 'Update item', field: ITEM_FIELD, core: true },
+          { text: 'in', field: COLLECTION_FIELD },
+          { text: ', setting', field: 'fieldData' },
+        ],
+        delete: [
+          { text: 'Delete item', field: ITEM_FIELD, core: true },
+          { text: 'from', field: COLLECTION_FIELD },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

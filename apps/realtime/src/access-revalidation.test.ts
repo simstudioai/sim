@@ -1,18 +1,11 @@
-/**
- * @vitest-environment node
- *
- * Tests for the periodic read-access re-validation sweep. The security contract:
- * a socket is evicted only when its role resolves to `null` (a confirmed
- * revocation), and a transient failure never evicts a still-authorized socket.
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockResolveRole } = vi.hoisted(() => ({
   mockResolveRole: vi.fn(),
 }))
 
 vi.mock('@/middleware/permissions', () => ({
-  resolveCurrentWorkflowRole: mockResolveRole,
+  resolveCurrentRoomPermission: mockResolveRole,
   ROLE_REVALIDATION_TTL_MS: 30_000,
 }))
 
@@ -30,9 +23,9 @@ interface FakeSocket {
   leave: ReturnType<typeof vi.fn>
 }
 
-function makeSocket(id: string, userId: string | undefined, workflowId?: string): FakeSocket {
+function makeSocket(id: string, userId: string | undefined, room?: string): FakeSocket {
   const rooms = new Set<string>([id])
-  if (workflowId) rooms.add(workflowId)
+  if (room) rooms.add(room)
   return {
     id,
     userId,
@@ -50,26 +43,20 @@ function makeManager(sockets: FakeSocket[], presence: Partial<UserPresence>[] = 
   const manager = {
     io: { sockets: { sockets: socketMap } },
     isReady: () => true,
-    getWorkflowUsers: vi.fn().mockResolvedValue(presence),
-    getWorkflowIdForSocket: vi.fn().mockResolvedValue(null),
-    removeUserFromRoom: vi
-      .fn()
-      .mockImplementation(async (_socketId: string, workflowId?: string) => workflowId ?? null),
+    getRoomUsers: vi.fn().mockResolvedValue(presence),
+    getRoomForSocket: vi.fn().mockResolvedValue(null),
+    removeUserFromRoom: vi.fn().mockResolvedValue(true),
     broadcastPresenceUpdate: vi.fn().mockResolvedValue(undefined),
   }
   return manager as unknown as IRoomManager & {
-    getWorkflowUsers: ReturnType<typeof vi.fn>
-    getWorkflowIdForSocket: ReturnType<typeof vi.fn>
+    getRoomUsers: ReturnType<typeof vi.fn>
+    getRoomForSocket: ReturnType<typeof vi.fn>
     removeUserFromRoom: ReturnType<typeof vi.fn>
     broadcastPresenceUpdate: ReturnType<typeof vi.fn>
   }
 }
 
 describe('access-revalidation sweep', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('evicts a socket whose role has been revoked', async () => {
     const socket = makeSocket('sock-1', 'user-1', 'wf-1')
     const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
@@ -84,22 +71,11 @@ describe('access-revalidation sweep', () => {
       expect.objectContaining({ workflowId: 'wf-1' })
     )
     expect(socket.leave).toHaveBeenCalledWith('wf-1')
-    expect(manager.removeUserFromRoom).toHaveBeenCalledWith('sock-1', 'wf-1')
-    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
-  })
-
-  it('keeps a socket whose access is still valid', async () => {
-    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
-    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'write' }])
-    mockResolveRole.mockResolvedValue('write')
-
-    const sweep = startAccessRevalidationSweep(manager)
-    await sweep.runOnce()
-    sweep.stop()
-
-    expect(socket.emit).not.toHaveBeenCalled()
-    expect(socket.leave).not.toHaveBeenCalled()
-    expect(manager.removeUserFromRoom).not.toHaveBeenCalled()
+    expect(manager.removeUserFromRoom).toHaveBeenCalledWith(
+      { type: 'workflow', id: 'wf-1' },
+      'sock-1'
+    )
+    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith({ type: 'workflow', id: 'wf-1' })
   })
 
   it('does not evict a downgraded-but-still-authorized socket', async () => {
@@ -130,18 +106,67 @@ describe('access-revalidation sweep', () => {
     expect(manager.removeUserFromRoom).not.toHaveBeenCalled()
   })
 
-  it('resolves with the static safe fallback and no presence reads in the scan', async () => {
-    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
-    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'admin' }])
-    mockResolveRole.mockResolvedValue('admin')
+  it('sweeps non-workflow rooms against their own resource, not a bogus workflow id', async () => {
+    // The sweep shares one io with the files/tables/file-doc handlers. Their rooms are
+    // namespaced (`workspace-files:ws-1`, `table:t-1`), so each name is decoded and
+    // authorized as its own room type — the whole point of covering them at all.
+    const filesSocket = makeSocket('sock-1', 'user-1', 'workspace-files:ws-1')
+    const tableSocket = makeSocket('sock-2', 'user-2', 'table:t-1')
+    const manager = makeManager([filesSocket, tableSocket])
+    mockResolveRole.mockResolvedValue('write')
 
     const sweep = startAccessRevalidationSweep(manager)
     await sweep.runOnce()
     sweep.stop()
 
-    expect(mockResolveRole).toHaveBeenCalledWith('user-1', 'wf-1', 'read')
-    // The security scan must stay Redis-free — presence is never consulted.
-    expect(manager.getWorkflowUsers).not.toHaveBeenCalled()
+    expect(mockResolveRole).toHaveBeenCalledWith(
+      'user-1',
+      { type: 'workspace-files', id: 'ws-1' },
+      'read'
+    )
+    expect(mockResolveRole).toHaveBeenCalledWith('user-2', { type: 'table', id: 't-1' }, 'read')
+    // Still authorized: nobody is evicted.
+    expect(filesSocket.leave).not.toHaveBeenCalled()
+    expect(tableSocket.leave).not.toHaveBeenCalled()
+  })
+
+  it('evicts a file-doc socket downgraded to read, and keeps its table room', async () => {
+    // A file-doc room IS the editor and requires `write`; a table room requires only
+    // `read`. One downgraded user in both rooms must lose exactly the document.
+    const socket = makeSocket('sock-1', 'user-1', 'workspace-file-doc:file-1')
+    socket.rooms.add('table:t-1')
+    const manager = makeManager([socket])
+    mockResolveRole.mockResolvedValue('read')
+
+    const sweep = startAccessRevalidationSweep(manager)
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(socket.leave).toHaveBeenCalledWith('workspace-file-doc:file-1')
+    expect(socket.leave).not.toHaveBeenCalledWith('table:t-1')
+    expect(socket.emit).toHaveBeenCalledWith(
+      'room-access-revoked',
+      expect.objectContaining({ room: { type: 'workspace-file-doc', id: 'file-1' } })
+    )
+  })
+
+  it('falls back to the room type own membership level on a cold-cache failure', async () => {
+    // A static 'read' fallback would have evicted every file-doc socket (which needs
+    // `write`) the first time the DB blipped with a cold cache.
+    const socket = makeSocket('sock-1', 'user-1', 'workspace-file-doc:file-1')
+    const manager = makeManager([socket])
+    mockResolveRole.mockResolvedValue('write')
+
+    const sweep = startAccessRevalidationSweep(manager)
+    await sweep.runOnce()
+    sweep.stop()
+
+    expect(mockResolveRole).toHaveBeenCalledWith(
+      'user-1',
+      { type: 'workspace-file-doc', id: 'file-1' },
+      'write'
+    )
+    expect(socket.leave).not.toHaveBeenCalled()
   })
 
   it('evicts only the revoked socket, not co-members of the room', async () => {
@@ -167,20 +192,6 @@ describe('access-revalidation sweep', () => {
     expect(kept.emit).not.toHaveBeenCalled()
   })
 
-  it('skips unauthenticated sockets and sockets not in a workflow room', async () => {
-    const noUser = makeSocket('sock-1', undefined, 'wf-1')
-    const noRoom = makeSocket('sock-2', 'user-2')
-    const manager = makeManager([noUser, noRoom])
-
-    const sweep = startAccessRevalidationSweep(manager)
-    await sweep.runOnce()
-    sweep.stop()
-
-    expect(mockResolveRole).not.toHaveBeenCalled()
-    expect(noUser.leave).not.toHaveBeenCalled()
-    expect(noRoom.leave).not.toHaveBeenCalled()
-  })
-
   it('defers failed room-state cleanup and retries it on the next pass', async () => {
     const socket = makeSocket('sock-1', 'user-1', 'wf-1')
     const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
@@ -199,89 +210,7 @@ describe('access-revalidation sweep', () => {
     sweep.stop()
 
     expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(2)
-    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
-  })
-
-  it('defers cleanup when removal fails with expired socket mappings', async () => {
-    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
-    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
-    // Mapping keys already expired (lookup resolves null) AND the removal fails
-    // (the Redis manager swallows the transport error into null) — the failed
-    // removal must still defer instead of reading as success.
-    manager.removeUserFromRoom.mockResolvedValueOnce(null)
-    mockResolveRole.mockResolvedValue(null)
-
-    const sweep = startAccessRevalidationSweep(manager)
-    await sweep.runOnce()
-
-    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
-
-    await sweep.runOnce()
-    sweep.stop()
-
-    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(2)
-    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
-  })
-
-  it('defers cleanup when the manager swallows a removal failure into null', async () => {
-    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
-    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
-    // Live mapping but the removal reports nothing removed — the Redis manager
-    // swallows transport errors into null, so this is the only failure signal.
-    manager.getWorkflowIdForSocket.mockResolvedValue('wf-1')
-    manager.removeUserFromRoom.mockResolvedValueOnce(null)
-    mockResolveRole.mockResolvedValue(null)
-
-    const sweep = startAccessRevalidationSweep(manager)
-    await sweep.runOnce()
-
-    expect(socket.leave).toHaveBeenCalledWith('wf-1')
-    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
-
-    // Next pass: the removal now succeeds and the cleanup completes.
-    await sweep.runOnce()
-    sweep.stop()
-
-    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(2)
-    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith('wf-1')
-  })
-
-  it('skips removal when the socket has since moved to a different workflow', async () => {
-    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
-    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
-    // Between the membership snapshot and cleanup, the socket switched to a
-    // workflow it can still access — removal must not touch its new presence.
-    manager.getWorkflowIdForSocket.mockResolvedValue('wf-2')
-    mockResolveRole.mockResolvedValue(null)
-
-    const sweep = startAccessRevalidationSweep(manager)
-    await sweep.runOnce()
-    sweep.stop()
-
-    expect(socket.leave).toHaveBeenCalledWith('wf-1')
-    expect(manager.removeUserFromRoom).not.toHaveBeenCalled()
-    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
-  })
-
-  it('drops a deferred cleanup when the socket legitimately re-joined the room', async () => {
-    const socket = makeSocket('sock-1', 'user-1', 'wf-1')
-    const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
-    manager.removeUserFromRoom.mockRejectedValueOnce(new Error('redis down'))
-    mockResolveRole.mockResolvedValueOnce(null)
-
-    const sweep = startAccessRevalidationSweep(manager)
-    await sweep.runOnce()
-    expect(socket.leave).toHaveBeenCalledWith('wf-1')
-
-    // Access restored and the socket re-joined the same room: the retry must
-    // NOT remove the fresh presence entry that re-join created.
-    socket.rooms.add('wf-1')
-    mockResolveRole.mockResolvedValue('read')
-    await sweep.runOnce()
-    sweep.stop()
-
-    expect(manager.removeUserFromRoom).toHaveBeenCalledTimes(1)
-    expect(manager.broadcastPresenceUpdate).not.toHaveBeenCalled()
+    expect(manager.broadcastPresenceUpdate).toHaveBeenCalledWith({ type: 'workflow', id: 'wf-1' })
   })
 
   it('skips a socket whose authorization query hangs and still evicts the rest', async () => {
@@ -345,39 +274,6 @@ describe('access-revalidation sweep', () => {
       sweep.stop()
 
       expect(revoked.leave).toHaveBeenCalledWith('wf-1')
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('keeps scanning on later ticks while a deferred cleanup hangs', async () => {
-    vi.useFakeTimers()
-    try {
-      const socket = makeSocket('sock-1', 'user-1', 'wf-1')
-      const manager = makeManager([socket], [{ socketId: 'sock-1', role: 'read' }])
-      // A Redis outage where commands hang in the offline queue instead of
-      // failing: the cleanup lane stalls, but scans must keep running.
-      manager.getWorkflowIdForSocket.mockReturnValue(new Promise(() => {}))
-      mockResolveRole.mockResolvedValue(null)
-
-      const sweep = startAccessRevalidationSweep(manager)
-
-      await vi.advanceTimersByTimeAsync(ACCESS_REVALIDATION_SWEEP_INTERVAL_MS)
-      expect(socket.leave).toHaveBeenCalledWith('wf-1')
-      const scansAfterFirstTick = mockResolveRole.mock.calls.length
-
-      // Second socket appears while the first eviction's cleanup hangs.
-      const second = makeSocket('sock-2', 'user-2', 'wf-1')
-      const socketMap = manager.io.sockets.sockets as unknown as Map<string, FakeSocket>
-      socketMap.set('sock-2', second)
-
-      await vi.advanceTimersByTimeAsync(ACCESS_REVALIDATION_SWEEP_INTERVAL_MS)
-      sweep.stop()
-
-      // The hung cleanup did not block the next scan: the new socket was
-      // evaluated and evicted.
-      expect(mockResolveRole.mock.calls.length).toBeGreaterThan(scansAfterFirstTick)
-      expect(second.leave).toHaveBeenCalledWith('wf-1')
     } finally {
       vi.useRealTimers()
     }

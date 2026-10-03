@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -218,13 +218,13 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
           {!isPublicApiDisabled && (
             <ChipModalField type='custom' title='Access'>
-              <ButtonGroup
+              <ChipButtonGroup
                 value={accessMode}
                 onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
               >
-                <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
-                <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-              </ButtonGroup>
+                <ChipButtonGroupItem value='api_key'>API Key</ChipButtonGroupItem>
+                <ChipButtonGroupItem value='public'>Public</ChipButtonGroupItem>
+              </ChipButtonGroup>
               <p className='mt-1 text-[var(--text-secondary)] text-caption'>
                 {accessMode === 'public'
                   ? 'Anyone can call this API without authentication. You will be billed for all usage.'
@@ -243,7 +243,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                   >
                     <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
                       <div className='flex min-w-0 flex-1 items-center gap-2'>
-                        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+                        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
                           {field.name}
                         </span>
                         <Badge variant='type' size='sm'>

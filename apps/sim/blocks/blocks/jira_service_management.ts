@@ -2,8 +2,22 @@ import { JiraServiceManagementIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { JsmResponse } from '@/tools/jsm/types'
 import { getTrigger } from '@/triggers'
+
+/** Operations that accept Atlassian's `start`/`limit` pagination query params. */
+const PAGINATED_OPERATIONS = [
+  'get_service_desks',
+  'get_request_types',
+  'get_requests',
+  'get_comments',
+  'get_customers',
+  'get_organizations',
+  'get_queues',
+  'get_sla',
+  'get_transitions',
+  'get_participants',
+  'get_approvals',
+] as const
 
 /**
  * Coerce an optional numeric block input into an integer, returning undefined for
@@ -37,7 +51,12 @@ function parseAssetAttributes(value: unknown): unknown[] {
   throw new Error('Attributes are required')
 }
 
-export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
+/** Canonical basic/advanced pair for the service desk. */
+const SERVICE_DESK_FIELD = ['serviceDeskSelector', 'serviceDeskId'] as const
+/** Canonical basic/advanced pair for the request type. */
+const REQUEST_TYPE_FIELD = ['requestTypeSelector', 'requestTypeId'] as const
+
+export const JiraServiceManagementBlock: BlockConfig = {
   type: 'jira_service_management',
   name: 'Jira Service Management',
   description: 'Interact with Jira Service Management',
@@ -49,6 +68,179 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
   integrationType: IntegrationType.Support,
   bgColor: '#FFFFFF',
   icon: JiraServiceManagementIcon,
+  canvasPresentation: {
+    defaultTitle: 'Jira Service Management',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: ', matching', field: 'jqlFilter' },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        get_service_desks: ['List all service desks'],
+        get_request_types: [
+          { text: 'List request types in', field: SERVICE_DESK_FIELD, core: true },
+          { text: ', matching', field: 'searchQuery' },
+        ],
+        create_request: [
+          { text: 'Create request', field: 'summary', core: true },
+          { text: 'in', field: SERVICE_DESK_FIELD, core: true },
+        ],
+        get_request: [{ text: 'Read request', field: 'issueIdOrKey', core: true }],
+        get_requests: [
+          'List requests',
+          { text: 'in', field: SERVICE_DESK_FIELD },
+          { text: ', matching', field: 'searchTerm' },
+        ],
+        add_comment: [
+          { text: 'Add comment', field: 'commentBody', core: true },
+          { text: 'to request', field: 'issueIdOrKey', core: true },
+        ],
+        get_comments: [{ text: 'List comments on request', field: 'issueIdOrKey', core: true }],
+        get_customers: [
+          { text: 'List customers of', field: SERVICE_DESK_FIELD, core: true },
+          { text: ', matching', field: 'customerQuery' },
+        ],
+        add_customer: [
+          { text: 'Add customers', field: 'accountIds', core: true },
+          { text: 'to', field: SERVICE_DESK_FIELD, core: true },
+        ],
+        get_organizations: [
+          { text: 'List organizations in', field: SERVICE_DESK_FIELD, core: true },
+        ],
+        create_organization: [
+          { text: 'Create organization', field: 'organizationName', core: true },
+        ],
+        add_organization: [
+          { text: 'Add organization', field: 'organizationId', core: true },
+          { text: 'to', field: SERVICE_DESK_FIELD, core: true },
+        ],
+        get_queues: [{ text: 'List queues in', field: SERVICE_DESK_FIELD, core: true }],
+        get_sla: [{ text: 'Read the SLA metrics of request', field: 'issueIdOrKey', core: true }],
+        get_transitions: [
+          {
+            text: 'List transitions available on request',
+            field: 'issueIdOrKey',
+            core: true,
+          },
+        ],
+        transition_request: [
+          { text: 'Apply transition', field: 'transitionId', core: true },
+          { text: 'to request', field: 'issueIdOrKey', core: true },
+        ],
+        get_participants: [
+          { text: 'List participants on request', field: 'issueIdOrKey', core: true },
+        ],
+        add_participants: [
+          {
+            text: 'Add participants',
+            field: 'participantAccountIds',
+            core: true,
+          },
+          { text: 'to request', field: 'issueIdOrKey', core: true },
+        ],
+        get_approvals: [{ text: 'List approvals on request', field: 'issueIdOrKey', core: true }],
+        answer_approval: [
+          { text: 'Answer the approval on request', field: 'issueIdOrKey', core: true },
+          { text: 'with', field: 'approvalDecision' },
+        ],
+        get_request_type_fields: [
+          { text: 'Read the fields of request type', field: REQUEST_TYPE_FIELD, core: true },
+          { text: 'in', field: SERVICE_DESK_FIELD },
+        ],
+        get_form_templates: [
+          { text: 'List form templates in project', field: 'projectIdOrKey', core: true },
+        ],
+        get_form_structure: [
+          { text: 'Read the question structure of form', field: 'formId', core: true },
+          { text: 'in project', field: 'projectIdOrKey' },
+        ],
+        get_issue_forms: [
+          { text: 'List forms attached to request', field: 'issueIdOrKey', core: true },
+        ],
+        attach_form: [
+          {
+            text: 'Attach form template',
+            field: 'formTemplateId',
+            core: true,
+          },
+          { text: 'to request', field: 'issueIdOrKey', core: true },
+        ],
+        save_form_answers: [
+          { text: 'Save answers to form', field: 'formId', core: true },
+          { text: 'on request', field: 'issueIdOrKey', core: true },
+        ],
+        submit_form: [
+          { text: 'Submit form', field: 'formId', core: true },
+          { text: 'on request', field: 'issueIdOrKey', core: true },
+        ],
+        get_form: [
+          { text: 'Read form', field: 'formId', core: true },
+          { text: 'on request', field: 'issueIdOrKey', core: true },
+        ],
+        get_form_answers: [
+          { text: 'Read the answers of form', field: 'formId', core: true },
+          { text: 'on request', field: 'issueIdOrKey', core: true },
+        ],
+        reopen_form: [
+          { text: 'Reopen form', field: 'formId', core: true },
+          { text: 'on request', field: 'issueIdOrKey', core: true },
+        ],
+        delete_form: [
+          { text: 'Remove form', field: 'formId', core: true },
+          { text: 'from request', field: 'issueIdOrKey', core: true },
+        ],
+        externalise_form: [
+          { text: 'Make form', field: 'formId', core: true },
+          {
+            text: 'on request',
+            field: 'issueIdOrKey',
+            after: 'visible to customers',
+            core: true,
+          },
+        ],
+        internalise_form: [
+          { text: 'Make form', field: 'formId', core: true },
+          { text: 'on request', field: 'issueIdOrKey', after: 'internal only', core: true },
+        ],
+        copy_forms: [
+          { text: 'Copy forms from request', field: 'sourceIssueIdOrKey', core: true },
+          { text: 'to', field: 'targetIssueIdOrKey' },
+        ],
+        list_object_schemas: ['List all asset schemas'],
+        get_object_schema: [{ text: 'Read asset schema', field: 'assetSchemaId', core: true }],
+        list_object_types: [
+          {
+            text: 'List object types in asset schema',
+            field: 'assetSchemaId',
+            core: true,
+          },
+        ],
+        get_object_type_attributes: [
+          {
+            text: 'Read the attributes of asset object type',
+            field: 'assetObjectTypeId',
+            core: true,
+          },
+        ],
+        search_objects_aql: [
+          { text: 'Search asset objects matching', field: 'assetQlQuery', core: true },
+        ],
+        get_object: [{ text: 'Read asset object', field: 'assetObjectId', core: true }],
+        create_object: [
+          { text: 'Create an asset object of type', field: 'assetObjectTypeId', core: true },
+          { text: ', with', field: 'assetAttributes' },
+        ],
+        update_object: [
+          { text: 'Update asset object', field: 'assetObjectId', core: true },
+          { text: ', setting', field: 'assetAttributes' },
+        ],
+        delete_object: [{ text: 'Delete asset object', field: 'assetObjectId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -584,26 +776,20 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'answer_approval' },
     },
     {
+      id: 'startIndex',
+      title: 'Start Index',
+      type: 'short-input',
+      placeholder: 'Pagination start index (default: 0)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
+    },
+    {
       id: 'maxResults',
       title: 'Max Results',
       type: 'short-input',
       placeholder: 'Maximum results (default: 50)',
-      condition: {
-        field: 'operation',
-        value: [
-          'get_service_desks',
-          'get_request_types',
-          'get_requests',
-          'get_comments',
-          'get_customers',
-          'get_organizations',
-          'get_queues',
-          'get_sla',
-          'get_transitions',
-          'get_participants',
-          'get_approvals',
-        ],
-      },
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     {
       id: 'assetSchemaId',
@@ -946,7 +1132,8 @@ Return ONLY the comment text - no explanations.`,
           case 'get_service_desks':
             return {
               ...baseParams,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_request_types':
             if (!params.serviceDeskId) {
@@ -957,7 +1144,8 @@ Return ONLY the comment text - no explanations.`,
               serviceDeskId: params.serviceDeskId,
               searchQuery: params.searchQuery,
               groupId: params.groupId,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'create_request':
             if (!params.serviceDeskId) {
@@ -1014,7 +1202,8 @@ Return ONLY the comment text - no explanations.`,
               requestStatus: params.requestStatus,
               searchTerm: params.searchTerm,
               expand: params.expand,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'add_comment':
             if (!params.issueIdOrKey) {
@@ -1037,7 +1226,8 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
               expand: params.expand,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_customers':
             if (!params.serviceDeskId) {
@@ -1047,7 +1237,8 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
               query: params.customerQuery,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'add_customer': {
             if (!params.serviceDeskId) {
@@ -1069,7 +1260,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_queues':
             if (!params.serviceDeskId) {
@@ -1079,7 +1271,8 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
               includeCount: params.includeCount === 'true',
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_sla':
             if (!params.issueIdOrKey) {
@@ -1088,7 +1281,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_transitions':
             if (!params.issueIdOrKey) {
@@ -1097,7 +1291,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'transition_request':
             if (!params.issueIdOrKey) {
@@ -1139,7 +1334,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'add_participants':
             if (!params.issueIdOrKey) {
@@ -1160,7 +1356,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'answer_approval':
             if (!params.issueIdOrKey) {
@@ -1466,6 +1663,7 @@ Return ONLY the comment text - no explanations.`,
     requestStatus: { type: 'string', description: 'Request status filter' },
     searchTerm: { type: 'string', description: 'Search term for requests' },
     includeCount: { type: 'string', description: 'Include issue count for queues' },
+    startIndex: { type: 'string', description: 'Pagination start index' },
     maxResults: { type: 'string', description: 'Maximum results to return' },
     organizationName: { type: 'string', description: 'Organization name' },
     organizationId: { type: 'string', description: 'Organization ID' },

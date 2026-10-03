@@ -5,20 +5,20 @@ import { DEFAULTS } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { ParallelScope } from '@/executor/execution/state'
-import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
+import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
-  addSubflowErrorLog,
   buildBranchNodeId,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
-  emitSubflowSuccessEvents,
   extractBaseBlockId,
   extractBranchIndex,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
+import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
+import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow-utils'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
@@ -45,7 +45,7 @@ export class ParallelOrchestrator {
 
   constructor(
     private dag: DAG,
-    private state: BlockStateWriter,
+    private state: BlockStateController,
     private resolver: VariableResolver | null = null,
     private contextExtensions: ContextExtensions | null = null,
     private edgeManager: Pick<EdgeManager, 'clearDeactivatedEdgesForNodes'> | null = null
@@ -69,9 +69,14 @@ export class ParallelOrchestrator {
     let items: any[] | undefined
     let branchCount: number
     let isEmpty = false
+    const parentRegistry = ctx.resolvedSecretTraceRegistry
+    const resolutionRegistry = parentRegistry?.forkForInputPaths([])
+    const resolutionCtx = resolutionRegistry
+      ? { ...ctx, resolvedSecretTraceRegistry: resolutionRegistry }
+      : ctx
 
     try {
-      const resolved = await this.resolveBranchCount(ctx, parallelConfig, parallelId)
+      const resolved = await this.resolveBranchCount(resolutionCtx, parallelConfig, parallelId)
       branchCount = resolved.branchCount
       items = resolved.items
       isEmpty = resolved.isEmpty ?? false
@@ -81,7 +86,7 @@ export class ParallelOrchestrator {
         ? baseErrorMessage
         : `Parallel Items did not resolve: ${baseErrorMessage}`
       logger.error(errorMessage, { parallelId, distribution: parallelConfig.distribution })
-      await this.addParallelErrorLog(ctx, parallelId, errorMessage, {
+      await this.addParallelErrorLog(resolutionCtx, parallelId, errorMessage, {
         distribution: parallelConfig.distribution,
       })
       this.setErrorScope(ctx, parallelId, errorMessage)
@@ -95,12 +100,18 @@ export class ParallelOrchestrator {
         branchOutputs: new Map(),
         items: [],
         isEmpty: true,
+        inputResolvedSecretTraceProvenance: resolutionRegistry?.exportCommittedProvenanceForValue(
+          []
+        ),
       }
 
       if (!ctx.parallelExecutions) {
         ctx.parallelExecutions = new Map()
       }
       ctx.parallelExecutions.set(parallelId, scope)
+      if (parentRegistry && resolutionRegistry?.isComplete()) {
+        parentRegistry.mergeToolCallRegistry(resolutionRegistry)
+      }
 
       logger.info('Parallel scope initialized with empty distribution, skipping body', {
         parallelId,
@@ -121,12 +132,17 @@ export class ParallelOrchestrator {
       accumulatedOutputs: new Map(),
       branchOutputs: new Map(),
       items,
+      inputResolvedSecretTraceProvenance:
+        resolutionRegistry?.exportCommittedProvenanceForValue(items),
     }
 
     if (!ctx.parallelExecutions) {
       ctx.parallelExecutions = new Map()
     }
     ctx.parallelExecutions.set(parallelId, scope)
+    if (parentRegistry && resolutionRegistry?.isComplete()) {
+      parentRegistry.mergeToolCallRegistry(resolutionRegistry)
+    }
 
     logger.info('Parallel scope initialized', {
       parallelId,
@@ -367,8 +383,8 @@ export class ParallelOrchestrator {
     }
 
     if (this.dag.loopConfigs.has(subflowId)) {
-      nodeIds.add(buildSentinelStartId(subflowId))
-      nodeIds.add(buildSentinelEndId(subflowId))
+      nodeIds.add(buildLoopSentinelStartId(subflowId))
+      nodeIds.add(buildLoopSentinelEndId(subflowId))
       for (const childId of this.dag.loopConfigs.get(subflowId)?.nodes ?? []) {
         if (this.dag.parallelConfigs.has(childId) || this.dag.loopConfigs.has(childId)) {
           this.collectSubflowNodeIds(childId, nodeIds, visited)
@@ -413,6 +429,10 @@ export class ParallelOrchestrator {
       scope.branchOutputs.set(branchIndex, [])
     }
     scope.branchOutputs.get(branchIndex)!.push(output)
+    scope.resolvedSecretTraceProvenance = mergeSubflowSecretProvenance(
+      scope.resolvedSecretTraceProvenance,
+      this.state.getBlockState(nodeId)?.resolvedSecretTraceProvenance
+    )
   }
 
   async aggregateParallelResults(
@@ -490,7 +510,16 @@ export class ParallelOrchestrator {
       requireDurable: true,
     })
     const output = { results: compactedResults }
-    this.state.setBlockOutput(parallelId, output)
+    if (scope.resolvedSecretTraceProvenance) {
+      this.state.setBlockOutput(
+        parallelId,
+        output,
+        DEFAULTS.EXECUTION_TIME,
+        scope.resolvedSecretTraceProvenance
+      )
+    } else {
+      this.state.setBlockOutput(parallelId, output, DEFAULTS.EXECUTION_TIME)
+    }
     scope.accumulatedOutputs = new Map()
 
     await emitSubflowSuccessEvents(ctx, parallelId, 'parallel', output, this.contextExtensions)

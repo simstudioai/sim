@@ -11,15 +11,17 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, gt, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { Webhook } from 'svix'
 import {
   agentMailEnvelopeSchema,
   agentMailMessageSchema,
+  agentMailRoutingSchema,
   webhookSvixHeadersSchema,
 } from '@/lib/api/contracts/webhooks'
 import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
+import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import {
@@ -39,6 +41,20 @@ const MAX_EMAILS_PER_HOUR = 20
 
 const AGENTMAIL_BODY_LABEL = 'AgentMail webhook body'
 
+/** Svix throws on a bad signature, stale timestamp, or malformed header. */
+function verifiesAgainst(
+  secret: string,
+  rawBody: string,
+  headers: Record<string, string>
+): boolean {
+  try {
+    new Webhook(secret).verify(rawBody, headers)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * Bound the unauthenticated AgentMail webhook body before buffering it for Svix
  * signature verification, so an oversized payload cannot exhaust pod memory.
@@ -53,6 +69,11 @@ async function readAgentMailBody(req: Request): Promise<string> {
 }
 
 export const POST = withRouteHandler(async (req: Request) => {
+  const ticket = tryAdmit()
+  if (!ticket) {
+    return admissionRejectedResponse()
+  }
+
   try {
     let rawBody: string
     try {
@@ -77,38 +98,43 @@ export const POST = withRouteHandler(async (req: Request) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const webhookCandidates = await db
+    let parsedBody: unknown
+    try {
+      parsedBody = JSON.parse(rawBody)
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    /**
+     * Route to one tenant before hashing: svix HMACs the whole body synchronously,
+     * so checking every workspace secret would let one unauthenticated request cost
+     * a hash per tenant. `inbox_id` is attacker-controlled but only selects which
+     * secret to check — verification still binds the payload's inbox to the workspace.
+     */
+    const routingResult = agentMailRoutingSchema.safeParse(parsedBody)
+    if (!routingResult.success) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const inboxId = routingResult.data.message.inbox_id
+
+    const [result] = await db
       .select({
         id: workspace.id,
         inboxEnabled: workspace.inboxEnabled,
         inboxAddress: workspace.inboxAddress,
-        inboxProviderId: workspace.inboxProviderId,
         webhookSecret: mothershipInboxWebhook.secret,
       })
       .from(workspace)
-      .leftJoin(mothershipInboxWebhook, eq(mothershipInboxWebhook.workspaceId, workspace.id))
-      .where(isNotNull(mothershipInboxWebhook.secret))
+      .innerJoin(mothershipInboxWebhook, eq(mothershipInboxWebhook.workspaceId, workspace.id))
+      .where(eq(workspace.inboxProviderId, inboxId))
+      .limit(1)
 
-    let result: (typeof webhookCandidates)[number] | undefined
-    for (const candidate of webhookCandidates) {
-      if (!candidate.webhookSecret) continue
-
-      try {
-        const wh = new Webhook(candidate.webhookSecret)
-        wh.verify(rawBody, headersResult.data)
-        result = candidate
-        break
-      } catch {}
-    }
-
-    if (!result) {
-      logger.warn('Webhook signature verification failed', {
-        candidateCount: webhookCandidates.length,
-      })
+    if (!result || !verifiesAgainst(result.webhookSecret, rawBody, headersResult.data)) {
+      logger.warn('Webhook signature verification failed', { payloadInboxId: inboxId })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const envelopeResult = agentMailEnvelopeSchema.safeParse(JSON.parse(rawBody))
+    const envelopeResult = agentMailEnvelopeSchema.safeParse(parsedBody)
     if (!envelopeResult.success) {
       logger.warn('Invalid AgentMail webhook payload', {
         workspaceId: result.id,
@@ -137,15 +163,6 @@ export const POST = withRouteHandler(async (req: Request) => {
     }
 
     const message: AgentMailWebhookPayload['message'] = messageResult.data
-    const inboxId = message.inbox_id
-    if (result.inboxProviderId !== inboxId) {
-      logger.warn('Verified AgentMail payload inbox mismatch', {
-        workspaceId: result.id,
-        verifiedInboxId: result.inboxProviderId,
-        payloadInboxId: inboxId,
-      })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     if (!result.inboxEnabled) {
       logger.info('Inbox disabled, rejecting', { workspaceId: result.id })
@@ -279,6 +296,8 @@ export const POST = withRouteHandler(async (req: Request) => {
       error: getErrorMessage(error, 'Unknown error'),
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } finally {
+    ticket.release()
   }
 })
 

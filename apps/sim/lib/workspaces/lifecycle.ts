@@ -9,7 +9,6 @@ import {
   mcpServers,
   userTableDefinitions,
   workflowMcpServer,
-  workflowSchedule,
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
@@ -36,12 +35,8 @@ export async function archiveWorkspace(
     return { archived: false }
   }
 
-  if (workspaceRecord.archivedAt) {
-    await archiveWorkflowsForWorkspace(workspaceId, options)
-    return { archived: false, workspaceName: workspaceRecord.name }
-  }
-
-  const now = new Date()
+  /** Retrying deletion also archives children left active by an older or incomplete deletion. */
+  const now = workspaceRecord.archivedAt ?? new Date()
   const workflowMcpServerIds = await db
     .select({ id: workflowMcpServer.id })
     .from(workflowMcpServer)
@@ -146,23 +141,6 @@ export async function archiveWorkspace(
       .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
 
     await tx
-      .update(workflowSchedule)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        status: 'disabled',
-        nextRunAt: null,
-        lastQueuedAt: null,
-      })
-      .where(
-        and(
-          eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-          eq(workflowSchedule.sourceType, 'job'),
-          isNull(workflowSchedule.archivedAt)
-        )
-      )
-
-    await tx
       .update(workspace)
       .set({
         archivedAt: now,
@@ -187,7 +165,7 @@ export async function archiveWorkspace(
   }
 
   return {
-    archived: true,
+    archived: !workspaceRecord.archivedAt,
     workspaceName: workspaceRecord.name,
   }
 }

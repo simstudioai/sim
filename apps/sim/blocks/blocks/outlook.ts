@@ -3,10 +3,19 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { OutlookResponse } from '@/tools/outlook/types'
 import { getTrigger } from '@/triggers'
 
-export const OutlookBlock: BlockConfig<OutlookResponse> = {
+/**
+ * Canonical basic/advanced pairs referenced by the card sentences below. Every
+ * member has to be listed, because an advanced-mode user has only the manual
+ * field filled and a clause naming just the picker would silently drop.
+ */
+const READ_FOLDER_FIELD = ['folderSelector', 'manualFolder'] as const
+const MOVE_DESTINATION_FIELD = ['destinationFolder', 'manualDestinationFolder'] as const
+const COPY_DESTINATION_FIELD = ['copyDestinationFolder', 'manualCopyDestinationFolder'] as const
+const CALENDAR_FIELD = ['calendarSelector', 'manualCalendarId'] as const
+
+export const OutlookBlock: BlockConfig = {
   type: 'outlook',
   name: 'Outlook',
   description: 'Send, read, search, reply, organize, and manage Outlook email and calendar',
@@ -19,6 +28,110 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   triggerAllowed: true,
   bgColor: '#FFFFFF',
   icon: OutlookIcon,
+  canvasPresentation: {
+    defaultTitle: 'Outlook',
+    /*
+     * "filtered by" rather than "in": the folder list is read through
+     * `folderFilterBehavior`, which can invert it to EXCLUDE, so a preposition
+     * asserting membership would make the card state the opposite of what runs.
+     */
+    triggerSentences: {
+      default: ['Run on email', { text: 'filtered by', field: 'folderIds', core: true }],
+    },
+    sentences: {
+      byOperation: {
+        send_outlook: [
+          { text: 'Send', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+          { text: ', copying', field: 'cc' },
+        ],
+        draft_outlook: [
+          { text: 'Draft', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+          { text: ', copying', field: 'cc' },
+        ],
+        read_outlook: [
+          {
+            text: 'Read the latest',
+            field: 'maxResults',
+            after: 'emails',
+            core: true,
+          },
+          { text: 'from', field: READ_FOLDER_FIELD },
+        ],
+        search_outlook: [
+          { text: 'Search email for', field: 'searchQuery', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        reply_outlook: [
+          { text: 'Reply to the sender of message', field: 'actionMessageId', core: true },
+          { text: ', with', field: 'comment' },
+        ],
+        reply_all_outlook: [
+          { text: 'Reply to everyone on message', field: 'actionMessageId', core: true },
+          { text: ', with', field: 'comment' },
+        ],
+        forward_outlook: [
+          { text: 'Forward message', field: 'messageId', core: true },
+          { text: 'to', field: 'to' },
+        ],
+        move_outlook: [
+          { text: 'Move message', field: 'moveMessageId', core: true },
+          { text: 'to', field: MOVE_DESTINATION_FIELD },
+        ],
+        copy_outlook: [
+          { text: 'Copy message', field: 'copyMessageId', core: true },
+          { text: 'to', field: COPY_DESTINATION_FIELD },
+        ],
+        mark_read_outlook: [
+          { text: 'Mark message', field: 'actionMessageId', after: 'as read', core: true },
+        ],
+        mark_unread_outlook: [
+          { text: 'Mark message', field: 'actionMessageId', after: 'as unread', core: true },
+        ],
+        update_message_outlook: [
+          { text: 'Tag message', field: 'actionMessageId', core: true },
+          { text: 'with', field: 'categories' },
+          { text: ', flag set to', field: 'flagStatus' },
+        ],
+        delete_outlook: [{ text: 'Delete message', field: 'actionMessageId', core: true }],
+        list_folders_outlook: [
+          'List mail folders',
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        create_folder_outlook: [{ text: 'Create mail folder', field: 'folderName', core: true }],
+        list_attachments_outlook: [
+          { text: 'List attachments on message', field: 'actionMessageId', core: true },
+        ],
+        get_attachment_outlook: [
+          { text: 'Download attachment', field: 'attachmentId', core: true },
+          { text: 'from message', field: 'actionMessageId' },
+        ],
+        list_events_calendar: [
+          'List calendar events',
+          { text: 'in', field: CALENDAR_FIELD },
+          { text: ', from', field: 'calWindowStart' },
+          { text: 'until', field: 'calWindowEnd' },
+        ],
+        get_event_calendar: [{ text: 'Read calendar event', field: 'calEventId', core: true }],
+        create_event_calendar: [
+          { text: 'Create event', field: 'calSubject', core: true },
+          { text: 'in', field: CALENDAR_FIELD },
+          { text: ', starting', field: 'calStartDateTime' },
+        ],
+        update_event_calendar: [
+          { text: 'Update calendar event', field: 'calEventId', core: true },
+          { text: ', renaming it to', field: 'calSubject' },
+          { text: ', starting', field: 'calStartDateTime' },
+        ],
+        delete_event_calendar: [{ text: 'Delete calendar event', field: 'calEventId', core: true }],
+        respond_calendar: [
+          { text: 'Set the invite response for event', field: 'calEventId', core: true },
+          { text: 'to', field: 'calResponseType' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -74,6 +187,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     {
       id: 'to',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'Recipient email address',
       condition: {
@@ -129,7 +243,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       value: () => 'text',
       required: false,
     },
-    // File upload (basic mode)
     {
       id: 'attachmentFiles',
       title: 'Attachments',
@@ -141,7 +254,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       multiple: true,
       required: false,
     },
-    // Variable reference (advanced mode)
     {
       id: 'attachmentReference',
       title: 'Attachments',
@@ -152,7 +264,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'advanced',
       required: false,
     },
-    // Advanced Settings - Threading
     {
       id: 'replyToMessageId',
       title: 'Reply to Message ID',
@@ -162,7 +273,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'advanced',
       required: false,
     },
-    // Advanced Settings - Additional Recipients
     {
       id: 'cc',
       title: 'CC',
@@ -181,7 +291,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'advanced',
       required: false,
     },
-    // Read Email Fields - Add folder selector (basic mode)
     {
       id: 'folderSelector',
       title: 'Folder',
@@ -195,7 +304,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'basic',
       condition: { field: 'operation', value: 'read_outlook' },
     },
-    // Manual folder input (advanced mode)
     {
       id: 'manualFolder',
       title: 'Folder',
@@ -222,7 +330,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       type: 'switch',
       condition: { field: 'operation', value: 'read_outlook' },
     },
-    // Move Email Fields
     {
       id: 'moveMessageId',
       title: 'Message ID',
@@ -231,7 +338,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'move_outlook' },
       required: true,
     },
-    // Destination folder selector (basic mode)
     {
       id: 'destinationFolder',
       title: 'Move To Folder',
@@ -246,7 +352,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'move_outlook' },
       required: true,
     },
-    // Manual destination folder input (advanced mode)
     {
       id: 'manualDestinationFolder',
       title: 'Move To Folder',
@@ -258,7 +363,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'move_outlook' },
       required: true,
     },
-    // Single-message operations - Message ID field
     {
       id: 'actionMessageId',
       title: 'Message ID',
@@ -279,7 +383,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       },
       required: true,
     },
-    // Copy Email - Message ID field
     {
       id: 'copyMessageId',
       title: 'Message ID',
@@ -288,7 +391,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'copy_outlook' },
       required: true,
     },
-    // Copy Email - Destination folder selector (basic mode)
     {
       id: 'copyDestinationFolder',
       title: 'Copy To Folder',
@@ -303,7 +405,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'copy_outlook' },
       required: true,
     },
-    // Copy Email - Manual destination folder input (advanced mode)
     {
       id: 'manualCopyDestinationFolder',
       title: 'Copy To Folder',
@@ -315,7 +416,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'copy_outlook' },
       required: true,
     },
-    // Search Email - Query field
     {
       id: 'searchQuery',
       title: 'Search Query',
@@ -324,7 +424,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'search_outlook' },
       required: true,
     },
-    // List Folders - Include hidden folders toggle
     {
       id: 'includeHiddenFolders',
       title: 'Include Hidden Folders',
@@ -332,7 +431,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'list_folders_outlook' },
       mode: 'advanced',
     },
-    // Create Folder - Folder name field
     {
       id: 'folderName',
       title: 'Folder Name',
@@ -341,7 +439,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'create_folder_outlook' },
       required: true,
     },
-    // Create Folder - Hidden toggle
     {
       id: 'folderIsHidden',
       title: 'Hidden Folder',
@@ -349,7 +446,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'create_folder_outlook' },
       mode: 'advanced',
     },
-    // Get Attachment - Attachment ID field
     {
       id: 'attachmentId',
       title: 'Attachment ID',
@@ -358,7 +454,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'get_attachment_outlook' },
       required: true,
     },
-    // Set Categories & Flag - Categories field
     {
       id: 'categories',
       title: 'Categories',
@@ -367,7 +462,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'update_message_outlook' },
       required: false,
     },
-    // Set Categories & Flag - Flag status
     {
       id: 'flagStatus',
       title: 'Flag Status',
@@ -380,7 +474,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: 'update_message_outlook' },
       required: false,
     },
-    // Set Categories & Flag - Importance
     {
       id: 'importance',
       title: 'Importance',
@@ -394,8 +487,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'advanced',
       required: false,
     },
-    // Calendar - Calendar picker (basic). Only list/create are calendar-scoped: event IDs are
-    // unique per mailbox, so get/update/delete/respond address /me/events/{id} directly.
+    // Only list/create are calendar-scoped: event IDs are unique per mailbox, so
+    // get/update/delete/respond address /me/events/{id} directly.
     {
       id: 'calendarSelector',
       title: 'Calendar',
@@ -412,7 +505,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         value: ['list_events_calendar', 'create_event_calendar'],
       },
     },
-    // Calendar - Manual calendar ID (advanced)
     {
       id: 'manualCalendarId',
       title: 'Calendar',
@@ -426,7 +518,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         value: ['list_events_calendar', 'create_event_calendar'],
       },
     },
-    // Calendar - Event ID (get / update / delete / respond)
     {
       id: 'calEventId',
       title: 'Event ID',
@@ -443,7 +534,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       },
       required: true,
     },
-    // Calendar - Window start/end (list events). Required: calendarView needs both bounds.
+    // Required: calendarView needs both bounds.
     {
       id: 'calWindowStart',
       title: 'Start of Window',
@@ -486,7 +577,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Calendar - List events options
     {
       id: 'calMaxResults',
       title: 'Number of Results',
@@ -510,7 +600,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'list_events_calendar' },
       mode: 'advanced',
     },
-    // Calendar - Create event (required start/end)
     {
       id: 'calSubject',
       title: 'Subject',
@@ -560,7 +649,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Calendar - Update event (optional start/end/subject)
     {
       id: 'calSubject',
       title: 'New Subject',
@@ -609,7 +697,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Calendar - Shared create/update fields
     {
       id: 'calBody',
       title: 'Body',
@@ -648,7 +735,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: false,
     },
-    // Calendar - Attendees (create / update)
     {
       id: 'calAttendees',
       title: 'Attendees',
@@ -701,7 +787,6 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Calendar - Respond to invite
     {
       id: 'calResponseType',
       title: 'Response',
@@ -861,10 +946,8 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
         // Agent calls may deliver booleans as the strings "true"/"false"
         const toBool = (value: unknown): boolean => value === true || value === 'true'
 
-        // folder is already the canonical param - use it directly
         const effectiveFolder = folder ? String(folder).trim() : ''
 
-        // Normalize file attachments from the canonical attachments param
         const normalizedAttachments = normalizeFileInput(attachments)
         if (normalizedAttachments) {
           rest.attachments = normalizedAttachments
@@ -893,12 +976,10 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
           rest.isHidden = toBool(folderIsHidden)
         }
 
-        // Handle move operation
         if (rest.operation === 'move_outlook') {
           if (moveMessageId) {
             rest.messageId = moveMessageId
           }
-          // destinationId is already the canonical param
           const effectiveDestinationId = destinationId ? String(destinationId).trim() : ''
           if (effectiveDestinationId) {
             rest.destinationId = effectiveDestinationId
@@ -946,8 +1027,7 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
         const isSet = (value: unknown): boolean =>
           value !== undefined && value !== null && value !== ''
 
-        // calendarId is already the canonical param. Blank means the default calendar, so
-        // only forward it when the user actually picked one.
+        // Blank means the default calendar, so only forward it when the user actually picked one.
         if (['list_events_calendar', 'create_event_calendar'].includes(rest.operation)) {
           const effectiveCalendarId = calendarId ? String(calendarId).trim() : ''
           if (effectiveCalendarId) {
@@ -1017,42 +1097,32 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Outlook access token' },
-    // Send operation inputs
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
     contentType: { type: 'string', description: 'Content type (Text or HTML)' },
     attachments: { type: 'array', description: 'Files to attach (canonical param)' },
-    // Forward operation inputs
     messageId: { type: 'string', description: 'Message ID to forward' },
     comment: { type: 'string', description: 'Optional comment for forwarding' },
-    // Read operation inputs
     folder: { type: 'string', description: 'Email folder (canonical param)' },
     maxResults: { type: 'number', description: 'Maximum emails' },
     includeAttachments: { type: 'boolean', description: 'Include email attachments' },
-    // Move operation inputs
     moveMessageId: { type: 'string', description: 'Message ID to move' },
     destinationId: { type: 'string', description: 'Destination folder ID (canonical param)' },
-    // Action operation inputs
     actionMessageId: { type: 'string', description: 'Message ID for actions' },
     copyMessageId: { type: 'string', description: 'Message ID to copy' },
     copyDestinationId: {
       type: 'string',
       description: 'Destination folder ID for copy (canonical param)',
     },
-    // Search operation inputs
     searchQuery: { type: 'string', description: 'Free-text search query' },
-    // Folder operation inputs
     folderName: { type: 'string', description: 'Name of the new folder' },
     folderIsHidden: { type: 'boolean', description: 'Whether the new folder is hidden' },
     includeHiddenFolders: { type: 'boolean', description: 'Include hidden folders when listing' },
-    // Attachment operation inputs
     attachmentId: { type: 'string', description: 'ID of the attachment to retrieve' },
-    // Update message operation inputs
     categories: { type: 'string', description: 'Comma-separated category names' },
     flagStatus: { type: 'string', description: 'Follow-up flag status' },
     importance: { type: 'string', description: 'Message importance level' },
-    // Calendar operation inputs
     calendarId: {
       type: 'string',
       description: 'Calendar to read from or write to (canonical param); blank = default calendar',
@@ -1090,20 +1160,16 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
     },
   },
   outputs: {
-    // Common outputs
     message: { type: 'string', description: 'Response message' },
     results: {
       type: 'json',
       description:
         'Operation results. Calendar operations return the event(s): {id, subject, start, end, isAllDay, location, organizer, attendees, onlineMeeting, webLink, bodyPreview}',
     },
-    // Send operation specific outputs
     status: { type: 'string', description: 'Email send status (sent)' },
     timestamp: { type: 'string', description: 'Operation timestamp' },
-    // Draft operation specific outputs
     messageId: { type: 'string', description: 'Draft message ID' },
     subject: { type: 'string', description: 'Draft email subject' },
-    // Read operation specific outputs
     emailCount: { type: 'number', description: 'Number of emails retrieved' },
     emails: { type: 'json', description: 'Array of email objects' },
     emailId: { type: 'string', description: 'Individual email ID' },
@@ -1122,14 +1188,10 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
     },
     isRead: { type: 'boolean', description: 'Whether email is read' },
     importance: { type: 'string', description: 'Email importance level' },
-    // Folder operation outputs
     folders: { type: 'json', description: 'Array of mail folder objects' },
-    // Update message operation outputs
     categories: { type: 'json', description: 'Categories assigned to the message' },
     flagStatus: { type: 'string', description: 'Follow-up flag status of the message' },
-    // Calendar operation outputs
     nextLink: { type: 'string', description: 'URL for the next page of calendar events, if any' },
-    // Trigger outputs
     email: { type: 'json', description: 'Email data from trigger' },
     rawEmail: { type: 'json', description: 'Complete raw email data from Microsoft Graph API' },
   },

@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { useRouter } from 'next/navigation'
-import { requestJson } from '@/lib/api/client/request'
-import { updateUserSettingsContract } from '@/lib/api/contracts'
-import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
+import { usePathname, useRouter } from 'next/navigation'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
+  EMPTY_PINNED_WORKSPACE_IDS,
   useCreateWorkspace,
   useDeleteWorkspace,
+  useOrderedWorkspacesQuery,
+  usePinnedWorkspaceIds,
+  useRecordWorkspaceVisit,
+  useToggleWorkspacePin,
   useUpdateWorkspace,
   useWorkspaceCreationPolicy,
-  useWorkspacesQuery,
   type Workspace,
 } from '@/hooks/queries/workspace'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -20,6 +21,33 @@ const logger = createLogger('useWorkspaceManagement')
 interface UseWorkspaceManagementProps {
   workspaceId: string
   sessionUserId?: string
+}
+
+interface ResolveWorkspaceSwitchHrefParams {
+  pathname: string
+  currentWorkspaceId: string
+  targetWorkspaceId: string
+}
+
+/**
+ * Keeps the active settings section across workspace switches without carrying
+ * workspace-scoped detail IDs into the destination workspace.
+ */
+export function resolveWorkspaceSwitchHref({
+  pathname,
+  currentWorkspaceId,
+  targetWorkspaceId,
+}: ResolveWorkspaceSwitchHrefParams): string {
+  const targetWorkspaceHref = `/workspace/${targetWorkspaceId}`
+  const settingsPrefix = `/workspace/${currentWorkspaceId}/settings/`
+  if (!pathname.startsWith(settingsPrefix)) return targetWorkspaceHref
+
+  const [section] = pathname.slice(settingsPrefix.length).split('/')
+  if (!section) {
+    throw new Error(`Settings pathname is missing a section: ${pathname}`)
+  }
+
+  return `${targetWorkspaceHref}/settings/${section}`
 }
 
 /**
@@ -37,14 +65,20 @@ export function useWorkspaceManagement({
   sessionUserId,
 }: UseWorkspaceManagementProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const switchToWorkspace = useWorkflowRegistry((state) => state.switchToWorkspace)
 
-  const { data: workspaces = [], isLoading: isWorkspacesLoading } = useWorkspacesQuery(
+  const { data: workspaces = [], isLoading: isWorkspacesLoading } = useOrderedWorkspacesQuery(
     Boolean(sessionUserId)
   )
   const { data: workspaceCreationPolicy = null } = useWorkspaceCreationPolicy(
     Boolean(sessionUserId)
   )
+  const { data: pinnedWorkspaceIds = EMPTY_PINNED_WORKSPACE_IDS } = usePinnedWorkspaceIds(
+    Boolean(sessionUserId)
+  )
+  const { mutate: toggleWorkspacePinMutate } = useToggleWorkspacePin()
+  const { mutate: recordWorkspaceVisit } = useRecordWorkspaceVisit()
 
   const leaveWorkspaceMutation = useLeaveWorkspace()
   const createWorkspaceMutation = useCreateWorkspace()
@@ -54,43 +88,16 @@ export function useWorkspaceManagement({
   const workspaceIdRef = useRef<string>(workspaceId)
   const workspacesRef = useRef<Workspace[]>(workspaces)
   const routerRef = useRef<ReturnType<typeof useRouter>>(router)
-  const lastTouchedRef = useRef<string | null>(null)
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   workspaceIdRef.current = workspaceId
   workspacesRef.current = workspaces
   routerRef.current = router
 
-  const [recencySortKey, setRecencySortKey] = useState(0)
-
-  useEffect(() => {
-    return () => {
-      if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
-    }
-  }, [])
-
-  const touchRecency = useCallback((id: string) => {
-    if (lastTouchedRef.current === id) return
-    lastTouchedRef.current = id
-    WorkspaceRecencyStorage.touch(id)
-    const validIds = workspacesRef.current.map((w) => w.id)
-    if (validIds.length > 0) {
-      WorkspaceRecencyStorage.prune(new Set(validIds))
-    }
-    setRecencySortKey((k) => k + 1)
-
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
-    syncTimerRef.current = setTimeout(() => {
-      requestJson(updateUserSettingsContract, {
-        body: { lastActiveWorkspaceId: id },
-      }).catch(() => {})
-    }, 1000)
-  }, [])
-
-  const sortedWorkspaces = useMemo(
-    () => WorkspaceRecencyStorage.sortByRecency(workspaces),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workspaces, recencySortKey]
+  const toggleWorkspacePin = useCallback(
+    (workspaceId: string) => {
+      toggleWorkspacePinMutate({ workspaceId, pinned: !pinnedWorkspaceIds.has(workspaceId) })
+    },
+    [pinnedWorkspaceIds, toggleWorkspacePinMutate]
   )
 
   const activeWorkspace = useMemo(() => {
@@ -99,10 +106,8 @@ export function useWorkspaceManagement({
   }, [workspaces, workspaceId])
 
   useEffect(() => {
-    if (workspaceId) {
-      touchRecency(workspaceId)
-    }
-  }, [workspaceId, touchRecency])
+    if (workspaceId && sessionUserId) recordWorkspaceVisit(workspaceId)
+  }, [workspaceId, sessionUserId, recordWorkspaceVisit])
 
   const activeWorkspaceRef = useRef<Workspace | null>(activeWorkspace)
   activeWorkspaceRef.current = activeWorkspace
@@ -110,7 +115,7 @@ export function useWorkspaceManagement({
   const updateWorkspace = useCallback(
     async (
       workspaceId: string,
-      updates: { name?: string; logoUrl?: string | null; color?: string }
+      updates: { name?: string; logoUrl?: string | null }
     ): Promise<boolean> => {
       try {
         await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
@@ -131,15 +136,21 @@ export function useWorkspaceManagement({
         return
       }
 
+      const href = resolveWorkspaceSwitchHref({
+        pathname,
+        currentWorkspaceId: workspaceIdRef.current,
+        targetWorkspaceId: workspace.id,
+      })
+
       try {
         switchToWorkspace(workspace.id)
-        routerRef.current?.push(`/workspace/${workspace.id}/home`)
+        routerRef.current.push(href)
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {
         logger.error('Error switching workspace:', error)
       }
     },
-    [switchToWorkspace]
+    [pathname, switchToWorkspace]
   )
 
   const handleCreateWorkspace = useCallback(
@@ -169,7 +180,6 @@ export function useWorkspaceManagement({
           workspaceId: workspaceToDelete.id,
         })
 
-        WorkspaceRecencyStorage.remove(workspaceToDelete.id)
         logger.info('Workspace deleted successfully:', workspaceToDelete.id)
 
         const isDeletingCurrentWorkspace =
@@ -177,12 +187,8 @@ export function useWorkspaceManagement({
           activeWorkspaceRef.current?.id === workspaceToDelete.id
 
         if (isDeletingCurrentWorkspace) {
-          const remainingWorkspaces = WorkspaceRecencyStorage.sortByRecency(
-            workspacesRef.current.filter((w) => w.id !== workspaceToDelete.id)
-          )
-          if (remainingWorkspaces.length > 0) {
-            await switchWorkspace(remainingWorkspaces[0])
-          }
+          const nextWorkspace = workspacesRef.current.find((w) => w.id !== workspaceToDelete.id)
+          if (nextWorkspace) await switchWorkspace(nextWorkspace)
         }
       } catch (error) {
         logger.error('Error deleting workspace:', error)
@@ -207,7 +213,6 @@ export function useWorkspaceManagement({
           workspaceId: workspaceToLeave.id,
         })
 
-        WorkspaceRecencyStorage.remove(workspaceToLeave.id)
         logger.info('Left workspace successfully:', workspaceToLeave.id)
 
         const isLeavingCurrentWorkspace =
@@ -215,12 +220,8 @@ export function useWorkspaceManagement({
           activeWorkspaceRef.current?.id === workspaceToLeave.id
 
         if (isLeavingCurrentWorkspace) {
-          const remainingWorkspaces = WorkspaceRecencyStorage.sortByRecency(
-            workspacesRef.current.filter((w) => w.id !== workspaceToLeave.id)
-          )
-          if (remainingWorkspaces.length > 0) {
-            await switchWorkspace(remainingWorkspaces[0])
-          }
+          const nextWorkspace = workspacesRef.current.find((w) => w.id !== workspaceToLeave.id)
+          if (nextWorkspace) await switchWorkspace(nextWorkspace)
         }
       } catch (error) {
         logger.error('Error leaving workspace:', error)
@@ -232,7 +233,9 @@ export function useWorkspaceManagement({
   )
 
   return {
-    workspaces: sortedWorkspaces,
+    workspaces,
+    pinnedWorkspaceIds,
+    toggleWorkspacePin,
     workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,

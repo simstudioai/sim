@@ -1,7 +1,10 @@
 import type { LogsGetExecutionParams, LogsGetExecutionResponse } from '@/tools/logs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const logsGetExecutionTool: ToolConfig<LogsGetExecutionParams, LogsGetExecutionResponse> = {
+export const logsGetExecutionTool: InternalToolConfig<
+  LogsGetExecutionParams,
+  LogsGetExecutionResponse
+> = {
   id: 'logs_get_execution',
   name: 'Get Execution Details',
   description:
@@ -17,12 +20,8 @@ export const logsGetExecutionTool: ToolConfig<LogsGetExecutionParams, LogsGetExe
     },
   },
 
-  request: {
-    url: (params) => `/api/logs/execution/${encodeURIComponent(params.executionId)}`,
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
+  operation: {
+    input: (params) => ({ executionId: params.executionId }),
   },
 
   transformResponse: async (response): Promise<LogsGetExecutionResponse> => {

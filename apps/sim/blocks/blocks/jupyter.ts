@@ -1,7 +1,7 @@
 import { JupyterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 
 const PATH_OPERATIONS = [
   'jupyter_list_contents',
@@ -28,9 +28,14 @@ const KERNEL_ID_OPERATIONS = [
   'jupyter_interrupt_kernel',
 ] as const
 
-export const JupyterBlock: BlockConfig = {
+/** Both members of the `file` canonical group — advanced mode fills only `fileRef`. */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
+export const JupyterBlock = {
   type: 'jupyter',
-  name: 'Jupyter',
+  name: 'Jupyter (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'jupyter_v2' },
   description: 'Manage files, notebooks, kernels, and sessions on a Jupyter server',
   longDescription:
     'Integrate a self-hosted Jupyter server into the workflow. Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.',
@@ -39,6 +44,50 @@ export const JupyterBlock: BlockConfig = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#FFFFFF',
   icon: JupyterIcon,
+  canvasPresentation: {
+    defaultTitle: 'Jupyter',
+    sentences: {
+      byOperation: {
+        jupyter_list_contents: [
+          {
+            text: 'List contents of',
+            field: 'path',
+            core: true,
+          },
+        ],
+        jupyter_get_content: [{ text: 'Read', field: 'path', core: true }],
+        jupyter_create_file: [
+          { text: 'Create', field: 'type', core: true },
+          { text: 'at', field: 'path', core: true },
+        ],
+        jupyter_upload_file: [
+          { text: 'Upload', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'to', field: 'directory' },
+        ],
+        jupyter_rename_content: [
+          { text: 'Rename', field: 'path', core: true },
+          { text: 'to', field: 'newPath' },
+        ],
+        jupyter_delete_content: [{ text: 'Delete', field: 'path', core: true }],
+        jupyter_copy_content: [
+          { text: 'Copy', field: 'copyFromPath', core: true },
+          { text: 'into', field: 'path' },
+        ],
+        jupyter_list_kernels: ['List running kernels'],
+        jupyter_start_kernel: [{ text: 'Start kernel', field: 'kernelName', core: true }],
+        jupyter_stop_kernel: [{ text: 'Shut down kernel', field: 'kernelId', core: true }],
+        jupyter_restart_kernel: [{ text: 'Restart kernel', field: 'kernelId', core: true }],
+        jupyter_interrupt_kernel: [{ text: 'Interrupt kernel', field: 'kernelId', core: true }],
+        jupyter_list_kernelspecs: ['List available kernel specs'],
+        jupyter_list_sessions: ['List active sessions'],
+        jupyter_create_session: [
+          { text: 'Open a session on', field: 'path', core: true },
+          { text: ', running', field: 'kernelName' },
+        ],
+        jupyter_delete_session: [{ text: 'Delete session', field: 'sessionId', core: true }],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [
@@ -167,6 +216,7 @@ export const JupyterBlock: BlockConfig = {
     {
       id: 'copyFromPath',
       title: 'Copy From Path',
+      canvasNoun: 'a path',
       type: 'short-input',
       placeholder: 'notebooks/source.ipynb',
       condition: { field: 'operation', value: 'jupyter_copy_content' },
@@ -343,6 +393,33 @@ export const JupyterBlock: BlockConfig = {
     kernel: 'json',
     kernelId: 'string',
     sessionId: 'string',
+  },
+} satisfies BlockConfig
+
+const selectJupyterV2Tool = createVersionedToolSelector({
+  baseToolSelector: JupyterBlock.tools.config.tool,
+  suffix: '_v2',
+  fallbackToolId: 'jupyter_get_content_v2',
+})
+
+export const JupyterV2Block: BlockConfig = {
+  ...JupyterBlock,
+  type: 'jupyter_v2',
+  name: 'Jupyter',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...JupyterBlock.tools,
+    access: JupyterBlock.tools.access.map((toolId) =>
+      toolId === 'jupyter_get_content' ? 'jupyter_get_content_v2' : toolId
+    ),
+    config: {
+      ...JupyterBlock.tools.config,
+      tool: (params) =>
+        params.operation === 'jupyter_get_content'
+          ? selectJupyterV2Tool(params)
+          : JupyterBlock.tools.config.tool(params),
+    },
   },
 }
 

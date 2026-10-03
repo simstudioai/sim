@@ -9,6 +9,12 @@
  *
  * Response: AdminListResponse<AdminWorkspaceMember>
  *
+ * `createdAt` is the member's join time. It previously moved on every role
+ * change, because the in-app role-change endpoint replaced the permission row
+ * rather than amending it; that endpoint now updates in place, so only
+ * `updatedAt` tracks role changes. Consumers that diffed `createdAt` to detect
+ * recently-changed members must read `updatedAt` instead.
+ *
  * POST /api/v1/admin/workspaces/[id]/members
  *
  * Add a user to a workspace with a specific permission level.
@@ -55,6 +61,7 @@ import {
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
+  conflictResponse,
   internalErrorResponse,
   listResponse,
   notFoundResponse,
@@ -191,10 +198,20 @@ export const POST = withRouteHandler(
       if (existingPermission) {
         if (existingPermission.permissionType !== permissionLevel) {
           const now = new Date()
-          await db
+          /**
+           * Conditional on the row read above still existing: a concurrent
+           * removal between that read and this write would otherwise match
+           * nothing and be reported to the caller as a successful update.
+           */
+          const updated = await db
             .update(permissions)
             .set({ permissionType: permissionLevel, updatedAt: now })
             .where(eq(permissions.id, existingPermission.id))
+            .returning({ id: permissions.id })
+
+          if (updated.length === 0) {
+            return conflictResponse('Workspace member changed during the update. Retry.')
+          }
 
           logger.info(`Admin API: Updated user ${userId} permissions in workspace ${workspaceId}`, {
             previousPermissions: existingPermission.permissionType,
@@ -247,28 +264,53 @@ export const POST = withRouteHandler(
       const now = new Date()
       const permissionId = generateId()
 
-      await db.insert(permissions).values({
-        id: permissionId,
-        userId,
-        entityType: 'workspace',
-        entityId: workspaceId,
-        permissionType: permissionLevel,
-        createdAt: now,
-        updatedAt: now,
-      })
+      /**
+       * The existence read above is unlocked, so two concurrent adds for the
+       * same user both reach here. Conflicting on the uniqueness constraint
+       * settles it as the requested role instead of failing the loser with a
+       * 500 for a request that did what it asked.
+       */
+      const [written] = await db
+        .insert(permissions)
+        .values({
+          id: permissionId,
+          userId,
+          entityType: 'workspace',
+          entityId: workspaceId,
+          permissionType: permissionLevel,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [permissions.userId, permissions.entityType, permissions.entityId],
+          set: { permissionType: permissionLevel, updatedAt: now },
+        })
+        .returning({ id: permissions.id, createdAt: permissions.createdAt })
 
-      logger.info(`Admin API: Added user ${userId} to workspace ${workspaceId}`, {
-        permissions: permissionLevel,
-        permissionId,
-      })
+      /** A returned id we did not mint means the conflict branch ran. */
+      const wasCreated = written?.id === permissionId
 
+      logger.info(
+        wasCreated
+          ? `Admin API: Added user ${userId} to workspace ${workspaceId}`
+          : `Admin API: Updated user ${userId} permissions in workspace ${workspaceId}`,
+        { permissions: permissionLevel, permissionId }
+      )
+
+      /**
+       * The conflict branch amended a membership that already existed, so it is
+       * a role change rather than an addition — recording it as `MEMBER_ADDED`
+       * would put a join that never happened in the workspace's audit trail.
+       */
       recordAudit({
         workspaceId,
         actorId: 'admin-api',
-        action: AuditAction.MEMBER_ADDED,
+        action: wasCreated ? AuditAction.MEMBER_ADDED : AuditAction.MEMBER_ROLE_CHANGED,
         resourceType: AuditResourceType.WORKSPACE,
         resourceId: workspaceId,
-        description: `Admin API added member to workspace with ${permissionLevel} permissions`,
+        description: wasCreated
+          ? `Admin API added member to workspace with ${permissionLevel} permissions`
+          : `Admin API changed workspace member permissions to ${permissionLevel}`,
         metadata: { targetUserId: userId, permissions: permissionLevel },
         request,
       })
@@ -288,16 +330,16 @@ export const POST = withRouteHandler(
       }
 
       return singleResponse({
-        id: permissionId,
+        id: written?.id ?? permissionId,
         workspaceId,
         userId,
         permissions: permissionLevel,
-        createdAt: now.toISOString(),
+        createdAt: (written?.createdAt ?? now).toISOString(),
         updatedAt: now.toISOString(),
         userName: userData.name,
         userEmail: userData.email,
         userImage: userData.image,
-        action: 'created' as const,
+        action: wasCreated ? ('created' as const) : ('updated' as const),
       })
     } catch (error) {
       logger.error('Admin API: Failed to add workspace member', { error, workspaceId })

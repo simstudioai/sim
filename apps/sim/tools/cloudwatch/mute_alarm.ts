@@ -2,9 +2,12 @@ import type {
   CloudWatchMuteAlarmParams,
   CloudWatchMuteAlarmResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const muteAlarmTool: ToolConfig<CloudWatchMuteAlarmParams, CloudWatchMuteAlarmResponse> = {
+export const muteAlarmTool: InternalToolConfig<
+  CloudWatchMuteAlarmParams,
+  CloudWatchMuteAlarmResponse
+> = {
   id: 'cloudwatch_mute_alarm',
   name: 'CloudWatch Mute Alarm',
   description: 'Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration',
@@ -68,13 +71,8 @@ export const muteAlarmTool: ToolConfig<CloudWatchMuteAlarmParams, CloudWatchMute
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/mute-alarm',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

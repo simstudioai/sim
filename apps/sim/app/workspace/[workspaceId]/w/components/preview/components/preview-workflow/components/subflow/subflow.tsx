@@ -1,26 +1,33 @@
 'use client'
 
 import { memo } from 'react'
-import { Badge, cn } from '@sim/emcn'
-import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
-import { Handle, type NodeProps, Position } from 'reactflow'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { cn } from '@sim/emcn'
+import { SubflowNodeView } from '@sim/workflow-renderer'
+import type { Node, NodeProps } from '@xyflow/react'
+import { type CanvasPort, getCanvasPorts } from '@/lib/workflows/blocks/canvas-ports'
+import type { BlockDiffStatus } from '@/lib/workflows/comparison'
+import { DiffStatusLabel } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
+import { PreviewPortRows } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/port-rows/port-rows'
+import { usePreviewPortInternals } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/use-preview-port-internals'
 
 /** Execution status for subflows in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
 
-interface WorkflowPreviewSubflowData {
+interface WorkflowPreviewSubflowData extends Record<string, unknown> {
   name: string
   width?: number
   height?: number
   kind: 'loop' | 'parallel'
+  parentId?: string
   /** Whether this subflow is enabled */
   enabled?: boolean
   /** Whether this subflow is selected in preview mode */
   isPreviewSelected?: boolean
   /** Execution status for highlighting the subflow container */
   executionStatus?: ExecutionStatus
+  /** Comparison status when previewing a version diff */
+  diffStatus?: BlockDiffStatus
+  removedPorts?: CanvasPort[]
   /** Skips expensive computations for thumbnails/template previews (unused in subflow, for consistency) */
   lightweight?: boolean
 }
@@ -30,121 +37,40 @@ interface WorkflowPreviewSubflowData {
  * Renders loop/parallel containers without hooks, store subscriptions,
  * or interactive features.
  */
-function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowData>) {
-  const {
-    name,
-    width = 500,
-    height = 300,
-    kind,
-    enabled = true,
-    isPreviewSelected = false,
-    executionStatus,
-  } = data
+type WorkflowPreviewSubflowNode = Node<WorkflowPreviewSubflowData, 'subflowNode'>
 
-  const isLoop = kind === 'loop'
-  const BlockIcon = isLoop ? RepeatIcon : SplitIcon
-  const blockIconBg = isLoop ? '#2FB3FF' : '#FEE12B'
-  const blockName = name || (isLoop ? 'Loop' : 'Parallel')
-
-  const startHandleId = isLoop ? 'loop-start-source' : 'parallel-start-source'
-  const endHandleId = isLoop ? 'loop-end-source' : 'parallel-end-source'
-
-  const leftHandleClass =
-    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none'
-  const rightHandleClass =
-    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none'
-
-  const hasError = executionStatus === 'error'
-  const hasSuccess = executionStatus === 'success'
-
+function WorkflowPreviewSubflowInner({ data, id }: NodeProps<WorkflowPreviewSubflowNode>) {
+  usePreviewPortInternals(id, [
+    ...getCanvasPorts({ id, type: data.kind, subBlocks: {} }),
+    ...(data.removedPorts ?? []),
+  ])
+  const view = (
+    <SubflowNodeView
+      id={id}
+      data={{ ...data, isPreview: true }}
+      selected={false}
+      isEnabled={data.enabled ?? true}
+      isLocked={false}
+      isFocused={false}
+      diffStatus={
+        data.diffStatus === 'added' ? 'new' : data.diffStatus === 'modified' ? 'edited' : undefined
+      }
+      nestingLevel={0}
+      canEditWorkflow={false}
+      onSelect={() => undefined}
+    />
+  )
+  if (!data.diffStatus && !data.removedPorts?.length) return view
+  /* Same label as a card; a removed container fades like a removed card, its children ghost themselves. */
   return (
-    <div
-      className='relative select-none rounded-lg border border-[var(--border-1)]'
-      style={{
-        width,
-        height,
-      }}
-    >
-      {/* Selection ring overlay (takes priority over execution rings) */}
-      {isPreviewSelected && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--brand-secondary)]' />
-      )}
-      {/* Success ring overlay (only shown if not selected) */}
-      {!isPreviewSelected && hasSuccess && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--brand-accent)]' />
-      )}
-      {/* Error ring overlay (only shown if not selected) */}
-      {!isPreviewSelected && hasError && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--text-error)]' />
-      )}
-
-      {/* Target handle on left (input to the subflow) */}
-      <Handle
-        type='target'
-        position={Position.Left}
-        id='target'
-        className={leftHandleClass}
-        style={{
-          left: '-8px',
-          top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`,
-          transform: 'translateY(-50%)',
-        }}
-      />
-
-      {/* Header - matches actual subflow header structure */}
-      <div className='flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-2 pr-3 pl-2'>
-        <div className='flex min-w-0 flex-1 items-center gap-2.5'>
-          <div
-            className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
-            style={{ backgroundColor: enabled ? blockIconBg : 'var(--surface-4)' }}
-          >
-            <BlockIcon
-              className={cn(
-                'size-[16px]',
-                enabled ? getTileIconColorClass(blockIconBg) : 'text-[var(--text-icon)]'
-              )}
-            />
-          </div>
-          <span
-            className={cn('truncate font-medium text-md', !enabled && 'text-[var(--text-muted)]')}
-            title={blockName}
-          >
-            {blockName}
-          </span>
+    <div className='relative'>
+      {data.diffStatus && <DiffStatusLabel status={data.diffStatus} />}
+      <div className={cn(data.diffStatus === 'removed' && 'opacity-45')}>{view}</div>
+      {data.removedPorts?.length ? (
+        <div className='absolute right-0 bottom-0 left-0'>
+          <PreviewPortRows rows={data.removedPorts.map((row) => ({ ...row, removed: true }))} />
         </div>
-        {!enabled && <Badge variant='gray-secondary'>disabled</Badge>}
-      </div>
-
-      {/* Content area - matches workflow structure */}
-      <div
-        className='h-[calc(100%-50px)] pt-4 pr-[80px] pb-4 pl-4'
-        style={{ position: 'relative' }}
-      >
-        {/* Subflow Start - connects to first block in subflow */}
-        <div className='absolute top-4 left-[16px] flex items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)] px-3 py-1.5'>
-          <span className='font-medium text-[var(--text-primary)] text-sm'>Start</span>
-          <Handle
-            type='source'
-            position={Position.Right}
-            id={startHandleId}
-            className={rightHandleClass}
-            style={{ right: '-8px', top: '50%', transform: 'translateY(-50%)' }}
-          />
-        </div>
-      </div>
-
-      {/* End source handle on right (output from the subflow) */}
-      <Handle
-        type='source'
-        position={Position.Right}
-        id={endHandleId}
-        className={rightHandleClass}
-        style={{
-          right: '-8px',
-          top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`,
-          transform: 'translateY(-50%)',
-        }}
-      />
+      ) : null}
     </div>
   )
 }

@@ -4,5 +4,20 @@
   <dict>
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
+    <!-- Hardened Runtime blocks microphone capture without this, so the
+         composer's voice input fails with NotAllowedError in signed builds
+         even after the user grants access in System Settings. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <!-- The agent browser joins real meetings (Google Meet, Zoom web): its
+         getUserMedia grant is gated on the OS grant, and without this key the
+         Hardened Runtime denies the camera no matter what the user allowed. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    <!-- WebAuthn hybrid transport (passkey on the user's phone via QR) rides
+         Bluetooth proximity; without this the QR option silently never
+         completes in signed builds. -->
+    <key>com.apple.security.device.bluetooth</key>
+    <true/>
   </dict>
 </plist>

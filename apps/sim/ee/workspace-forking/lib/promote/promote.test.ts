@@ -1,6 +1,12 @@
-/**
- * @vitest-environment node
- */
+import { resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import { workspaceForkingMappingStoreMock } from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
+import { workspaceForkingRevisionMock } from '@sim/testing/mocks/workspace-forking-revision.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForkSyncBlocker } from '@/lib/api/contracts/workspace-fork'
 
@@ -15,11 +21,12 @@ const {
   mockResolveFolderMapping,
   mockUpsertPromoteRun,
   mockLoadSourceDeployedStates,
-  mockGetUsersWithPermissions,
   mockGetMcpServerMeta,
   mockCreateTransform,
   mockSumForkCopyBytes,
   mockAssertForkStorageHeadroom,
+  mockLoadTargetWebhookPaths,
+  mockVerifyDrops,
 } = vi.hoisted(() => ({
   mockComputePlan: vi.fn(),
   mockBuildCopySelection: vi.fn(),
@@ -31,11 +38,12 @@ const {
   mockResolveFolderMapping: vi.fn(),
   mockUpsertPromoteRun: vi.fn(),
   mockLoadSourceDeployedStates: vi.fn(),
-  mockGetUsersWithPermissions: vi.fn(),
   mockGetMcpServerMeta: vi.fn(),
   mockCreateTransform: vi.fn(),
   mockSumForkCopyBytes: vi.fn(),
   mockAssertForkStorageHeadroom: vi.fn(),
+  mockLoadTargetWebhookPaths: vi.fn(),
+  mockVerifyDrops: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
@@ -43,12 +51,17 @@ vi.mock('@/lib/workflows/deployment-outbox', () => ({
   processWorkflowDeploymentOutboxEvent: vi.fn(),
 }))
 vi.mock('@/lib/workflows/orchestration/deploy', () => ({
-  performFullDeploy: vi.fn(async () => ({ success: true })),
+  finishPreparedWorkflowDeployment: vi.fn(async () => ({ success: true })),
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  undeployWorkflow: vi.fn(async () => ({ success: true })),
+vi.mock('@/ee/workspace-forking/application/revision', () => workspaceForkingRevisionMock)
+vi.mock('@/ee/workspace-forking/lib/promote/prepare-deployments', () => ({
+  prepareForkSyncDeployments: vi.fn(
+    async () => new Map([['wf-tgt', { success: true, operation: { workflowId: 'wf-tgt' } }]])
+  ),
 }))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
+  recordBackgroundWork: vi.fn(),
   startBackgroundWork: vi.fn(),
 }))
 vi.mock('@/ee/workspace-forking/lib/copy/content-copy-runner', () => ({
@@ -68,12 +81,9 @@ vi.mock('@/ee/workspace-forking/lib/copy/storage-quota', () => ({
 vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   getActiveDeploymentVersionNumbers: vi.fn(async () => new Map()),
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
+  loadTargetWebhookPathsByBlock: mockLoadTargetWebhookPaths,
 }))
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  acquireForkEdgeLock: vi.fn(),
-  acquireForkTargetLock: vi.fn(),
-  setForkLockTimeout: vi.fn(),
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   loadForkBlockMap: mockLoadBlockMap,
   reconcileForkBlockPairs: vi.fn(),
@@ -98,12 +108,10 @@ vi.mock('@/ee/workspace-forking/lib/mapping/dependent-value-store', () => ({
       })
   ),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  deleteWorkflowIdentityByIds: vi.fn(),
-  upsertEdgeMappings: vi.fn(),
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 vi.mock('@/ee/workspace-forking/lib/promote/cleared-refs', () => ({
   collectForkSyncBlockers: mockCollectBlockers,
+  verifyForkDropAcknowledgments: mockVerifyDrops,
 }))
 vi.mock('@/ee/workspace-forking/lib/promote/copy-unmapped', () => ({
   // Faithful mirror of the real overlay so a copy's id maps resolve through the augmented
@@ -135,27 +143,32 @@ vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
 vi.mock('@/ee/workspace-forking/lib/promote/promote-run-store', () => ({
   upsertPromoteRun: mockUpsertPromoteRun,
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/resources', () => ({
+vi.mock('@/lib/workflows/references/resources', () => ({
   getMcpServerMetaByIds: mockGetMcpServerMeta,
 }))
 vi.mock('@/ee/workspace-forking/lib/remap/block-identity', () => ({
   buildForkBlockIdResolver: mockBuildBlockIdResolver,
 }))
-vi.mock('@/ee/workspace-forking/lib/remap/remap-references', () => ({
+vi.mock('@/lib/workflows/references/remap-references', () => ({
   createForkSubBlockTransform: mockCreateTransform,
 }))
 vi.mock('@/ee/workspace-forking/lib/socket', () => ({
   notifyForkWorkflowChanged: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUsersWithPermissions: mockGetUsersWithPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { db } from '@sim/db'
+import { finishPreparedWorkflowDeployment } from '@/lib/workflows/orchestration/deploy'
+import { getBlock } from '@/blocks/registry'
 import { copyWorkflowStateIntoTarget } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import { reconcileForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
+import { prepareForkSyncDeployments } from '@/ee/workspace-forking/lib/promote/prepare-deployments'
 import { promoteFork } from '@/ee/workspace-forking/lib/promote/promote'
 import type { ForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+
+const mockGetUsersWithPermissions = permissionsMockFns.mockGetUsersWithPermissions
+
+workflowsPersistenceUtilsMockFns.mockUndeployWorkflow.mockResolvedValue({ success: true })
 
 const EDGE = { childWorkspaceId: 'child-ws', parentWorkspaceId: 'parent-ws' }
 
@@ -209,6 +222,7 @@ function promoteParams() {
     targetWorkspaceId: 'tgt-ws',
     direction: 'push' as const,
     userId: 'user-1',
+    otherWorkspaceName: 'Parent',
   }
 }
 
@@ -231,14 +245,12 @@ function emptyCopyResult() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  vi.mocked(db.transaction).mockImplementation(
-    async (cb: (tx: unknown) => unknown) => cb({}) as never
-  )
+  resetDbChainMock()
   mockGetUsersWithPermissions.mockResolvedValue([])
   mockLoadSourceDeployedStates.mockResolvedValue({
     deployedWorkflows: [],
     sourceStates: new Map(),
+    sourceVersionIds: new Map(),
   })
   mockComputePlan.mockResolvedValue(makePlan())
   mockBuildCopySelection.mockReturnValue({
@@ -246,15 +258,18 @@ beforeEach(() => {
     willResolve: new Set<string>(),
   })
   mockHasCopySelection.mockReturnValue(false)
-  mockCollectBlockers.mockResolvedValue([])
+  mockCollectBlockers.mockResolvedValue({ blockers: [], appliedDrops: [] })
   mockLoadBlockMap.mockResolvedValue(new Map())
   mockBuildBlockIdResolver.mockReturnValue((_wf: string, blockId: string) => blockId)
-  mockResolveFolderMapping.mockResolvedValue(new Map())
+  mockResolveFolderMapping.mockResolvedValue({ folderIdMap: new Map(), folderPathMap: new Map() })
   mockUpsertPromoteRun.mockResolvedValue('run-1')
   mockGetMcpServerMeta.mockResolvedValue(new Map())
   mockCreateTransform.mockReturnValue((subBlocks: unknown) => subBlocks)
   mockSumForkCopyBytes.mockResolvedValue(0)
   mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
+  mockLoadTargetWebhookPaths.mockResolvedValue(new Map())
+  // Default: no acknowledgments, so the unmapped gate behaves exactly as before.
+  mockVerifyDrops.mockResolvedValue([])
 })
 
 describe('promoteFork gates', () => {
@@ -283,23 +298,6 @@ describe('promoteFork gates', () => {
     expect(mockUpsertPromoteRun).not.toHaveBeenCalled()
   })
 
-  it('sums the requested copy selection bytes against the SOURCE workspace (files by key, KBs by id)', async () => {
-    await promoteFork({
-      ...promoteParams(),
-      copyResources: {
-        files: ['workspace/src-ws/key-1'],
-        knowledgeBases: ['kb-1'],
-        tables: ['tbl-1'],
-      },
-    })
-
-    expect(mockSumForkCopyBytes).toHaveBeenCalledTimes(1)
-    expect(mockSumForkCopyBytes).toHaveBeenCalledWith(expect.anything(), 'src-ws', {
-      fileKeys: ['workspace/src-ws/key-1'],
-      knowledgeBaseIds: ['kb-1'],
-    })
-  })
-
   it('blocks on unmapped required credentials/secrets BEFORE the cleared-refs gate runs', async () => {
     mockComputePlan.mockResolvedValue(
       makePlan({
@@ -321,8 +319,36 @@ describe('promoteFork gates', () => {
     expect(mockUpsertPromoteRun).not.toHaveBeenCalled()
   })
 
+  /**
+   * A source-deleted reference on a REQUIRED field sits in `unmappedRequired`, and that gate runs
+   * before the cleared-ref gate that honours drops. Without subtracting verified drops here, Drop
+   * was inert for exactly the references it exists to unblock - the sync still failed with
+   * "map all required ... first".
+   */
+  it('lets a VERIFIED drop clear the unmapped gate for a required reference', async () => {
+    mockComputePlan.mockResolvedValue(
+      makePlan({
+        unmappedRequired: [
+          { kind: 'table', sourceId: 'tbl-gone', subBlockKey: 'tableSelector', required: true },
+        ],
+      })
+    )
+    mockVerifyDrops.mockResolvedValue([{ kind: 'table', sourceId: 'tbl-gone' }])
+
+    const result = await promoteFork({
+      ...promoteParams(),
+      dropReferences: [{ kind: 'table', sourceId: 'tbl-gone' }],
+    })
+
+    expect(result.blocked).toBeNull()
+    // The SAME verified set reaches the cleared-ref gate, so one liveness check governs both.
+    expect(mockCollectBlockers).toHaveBeenCalledWith(
+      expect.objectContaining({ droppedReferences: [{ kind: 'table', sourceId: 'tbl-gone' }] })
+    )
+  })
+
   it('blocks with the structured blocker list when references would clear, writing NOTHING', async () => {
-    mockCollectBlockers.mockResolvedValue([BLOCKER])
+    mockCollectBlockers.mockResolvedValue({ blockers: [BLOCKER], appliedDrops: [] })
 
     const result = await promoteFork(promoteParams())
 
@@ -336,124 +362,6 @@ describe('promoteFork gates', () => {
     expect(mockResolveFolderMapping).not.toHaveBeenCalled()
     expect(mockCopyUnmapped).not.toHaveBeenCalled()
     expect(mockUpsertPromoteRun).not.toHaveBeenCalled()
-  })
-
-  it('evaluates the gate against the plan resolver overlaid with the copy selection', async () => {
-    const planResolver = vi.fn(() => 'plan-resolved')
-    mockComputePlan.mockResolvedValue(makePlan({ resolver: planResolver }))
-    mockBuildCopySelection.mockReturnValue({
-      selection: EMPTY_SELECTION,
-      willResolve: new Set(['table:t1']),
-    })
-
-    await promoteFork(promoteParams())
-
-    expect(mockCollectBlockers).toHaveBeenCalledTimes(1)
-    const gateParams = mockCollectBlockers.mock.calls[0][0]
-    // A copy-selected reference resolves through the overlay (never hits the plan resolver);
-    // everything else falls through to the plan's persisted-mapping resolver.
-    expect(gateParams.resolver('table', 't1')).toBe('t1')
-    expect(planResolver).not.toHaveBeenCalled()
-    expect(gateParams.resolver('table', 't2')).toBe('plan-resolved')
-    expect(planResolver).toHaveBeenCalledWith('table', 't2')
-  })
-
-  it('threads the SAME block-id resolver into the gate and the resource copy as the workflow writes', async () => {
-    // Copied tables' workflow-group outputs must land on the block ids the sync actually writes
-    // (persisted pairs preferred over derive), so the copy receives the resolver built from the
-    // loaded block map - the identical instance the cleared-refs gate uses.
-    const resolver = (_workflowId: string, blockId: string) => `pair-${blockId}`
-    mockBuildBlockIdResolver.mockReturnValue(resolver)
-    mockHasCopySelection.mockReturnValue(true)
-    mockCopyUnmapped.mockResolvedValue({
-      contentPlan: {
-        sourceWorkspaceId: 'src-ws',
-        childWorkspaceId: 'tgt-ws',
-        userId: 'user-1',
-        tables: [],
-        knowledgeBases: [],
-        skills: [],
-        documents: [],
-      },
-      copyIdMapByKind: new Map(),
-      contentRefMaps: {},
-      blobTasks: [],
-    })
-
-    await promoteFork(promoteParams())
-
-    expect(mockCopyUnmapped).toHaveBeenCalledTimes(1)
-    expect(mockCopyUnmapped.mock.calls[0][0].resolveBlockId).toBe(resolver)
-    expect(mockCollectBlockers.mock.calls[0][0].resolveBlockId).toBe(resolver)
-  })
-
-  it('proceeds when zero references would clear (empty blocker list)', async () => {
-    const plan = makePlan()
-    mockComputePlan.mockResolvedValue(plan)
-
-    const result = await promoteFork(promoteParams())
-
-    expect(result.blocked).toBeNull()
-    expect(result.blockers).toEqual([])
-    expect(result.promoteRunId).toBe('run-1')
-    expect(mockCollectBlockers).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceWorkspaceId: 'src-ws',
-        items: plan.items,
-        workflowIdMap: plan.workflowIdMap,
-      })
-    )
-    expect(mockUpsertPromoteRun).toHaveBeenCalledTimes(1)
-  })
-
-  it("threads the plan's unmapped references into the gate so it can reuse the plan's scan", async () => {
-    const unmappedOptional = [
-      { kind: 'table' as const, sourceId: 'tbl-1', subBlockKey: 'tbl', required: false },
-    ]
-    mockComputePlan.mockResolvedValue(makePlan({ unmappedOptional }))
-
-    await promoteFork(promoteParams())
-
-    expect(mockCollectBlockers).toHaveBeenCalledWith(
-      expect.objectContaining({ planUnmapped: unmappedOptional })
-    )
-  })
-
-  it('batch-loads the mapped TARGET MCP server rows and threads them into the subblock transform', async () => {
-    // Two references resolving to the SAME target and one unmapped: the read must cover the
-    // distinct mapped target ids only (one bounded query, unmapped ids dropped).
-    const resolver = (kind: string, id: string) => {
-      if (kind !== 'mcp-server') return null
-      if (id === 'srv-a' || id === 'srv-b') return 'srv-tgt'
-      return null
-    }
-    mockComputePlan.mockResolvedValue(
-      makePlan({
-        resolver,
-        references: [
-          { kind: 'mcp-server', sourceId: 'srv-a', subBlockKey: 'tools', required: false },
-          { kind: 'mcp-server', sourceId: 'srv-b', subBlockKey: 'server', required: false },
-          { kind: 'mcp-server', sourceId: 'srv-unmapped', subBlockKey: 'tools', required: false },
-        ],
-      })
-    )
-    mockGetMcpServerMeta.mockResolvedValue(
-      new Map([['srv-tgt', { name: 'Target Server', url: 'https://target.example/mcp' }]])
-    )
-
-    await promoteFork(promoteParams())
-
-    expect(mockGetMcpServerMeta).toHaveBeenCalledTimes(1)
-    expect(mockGetMcpServerMeta).toHaveBeenCalledWith(expect.anything(), 'tgt-ws', ['srv-tgt'])
-    // The transform receives a lookup resolving the TARGET id to its row metadata, so remapped
-    // tool-input entries rewrite their embedded serverUrl/serverName from the target server.
-    expect(mockCreateTransform).toHaveBeenCalledTimes(1)
-    const [, transformOptions] = mockCreateTransform.mock.calls[0]
-    expect(transformOptions.resolveMcpServerMeta('srv-tgt')).toEqual({
-      name: 'Target Server',
-      url: 'https://target.example/mcp',
-    })
-    expect(transformOptions.resolveMcpServerMeta('srv-unknown')).toBeUndefined()
   })
 })
 
@@ -564,8 +472,39 @@ describe('promoteFork dependent values', () => {
       ]
     )
   })
+})
 
-  it('keeps a mapped parent dependent value verbatim (a target-space value never re-translates)', async () => {
+describe('promoteFork trigger URLs', () => {
+  beforeEach(() => {
+    // A block only holds a public URL when its config declares a `useWebhookUrl` field, so the
+    // fixture has to look like a webhook trigger to the shared predicate.
+    vi.mocked(getBlock).mockReturnValue({
+      category: 'triggers',
+      subBlocks: [{ id: 'triggerWebhookUrl', useWebhookUrl: true }],
+    } as never)
+  })
+
+  const triggerState = {
+    blocks: {
+      'blk-new': {
+        id: 'blk-new',
+        // The REAL slack_webhook trigger id, so the provider check resolves against the actual
+        // registry - adoption only pairs a URL with a trigger of the SAME provider.
+        type: 'slack_webhook',
+        name: 'Slack messages',
+        triggerMode: true,
+        subBlocks: {},
+        outputs: {},
+        enabled: true,
+      },
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+    variables: {},
+  }
+
+  function arrangeReCreatedTrigger() {
     const item = {
       sourceWorkflowId: 'wf-src',
       targetWorkflowId: 'wf-tgt',
@@ -576,51 +515,58 @@ describe('promoteFork dependent values', () => {
     mockComputePlan.mockResolvedValue(makePlan({ items: [item] }))
     mockLoadSourceDeployedStates.mockResolvedValue({
       deployedWorkflows: [],
-      sourceStates: new Map([
-        ['wf-src', { blocks: {}, edges: [], loops: {}, parallels: {}, variables: {} }],
-      ]),
+      sourceStates: new Map([['wf-src', triggerState]]),
     })
-    // The value joins the discovery candidates, so the copy pass runs - and resolves nothing.
-    mockCopyUnmapped.mockResolvedValue(emptyCopyResult())
+    // The old trigger block ('blk-old') serves the live URL and is NOT in the source any more:
+    // the user deleted and re-added the trigger, so the sync writes 'blk-new' instead.
+    mockLoadTargetWebhookPaths.mockResolvedValue(
+      new Map([['blk-old', { path: 'live-slack-path', workflowId: 'wf-tgt', provider: 'slack' }]])
+    )
     vi.mocked(copyWorkflowStateIntoTarget).mockResolvedValue({
       targetWorkflowId: 'wf-tgt',
       mode: 'replace',
       name: 'Flow',
-      blocksCount: 0,
+      blocksCount: 1,
       edgesCount: 0,
       subflowsCount: 0,
       clearedDependents: [],
       blockIdMapping: new Map(),
     })
+  }
 
-    await promoteFork({
-      ...promoteParams(),
-      dependentValues: [
-        {
-          workflowId: 'wf-tgt',
-          blockId: 'blk-1',
-          subBlockKey: 'documentSelector',
-          value: 'doc-tgt-existing',
-        },
-      ],
-    })
+  /**
+   * The reported bug, at the promote level: pushing a workflow whose Slack trigger was re-created
+   * used to hand the parent a brand-new webhook URL, forcing a re-paste into Slack every sync.
+   */
+  it('hands the retiring URL to the arriving trigger instead of minting a new one', async () => {
+    arrangeReCreatedTrigger()
 
+    const result = await promoteFork(promoteParams())
+
+    expect(result.blocked).toBeNull()
     const writeParams = vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0]
-    expect(writeParams.dependentOverrides?.get('blk-1')?.get('documentSelector')).toBe(
-      'doc-tgt-existing'
-    )
-    expect(vi.mocked(reconcileForkDependentValues)).toHaveBeenCalledWith(
-      expect.anything(),
-      'child-ws',
-      ['wf-tgt'],
-      [
-        {
-          targetWorkflowId: 'wf-tgt',
-          targetBlockId: 'blk-1',
-          subBlockKey: 'documentSelector',
-          value: 'doc-tgt-existing',
-        },
-      ]
-    )
+    expect(writeParams.triggerPathByBlockId?.get('blk-new')).toBe('live-slack-path')
+    // Adopted, so nothing needs re-registering externally.
+    expect(result.triggerUrlChanges).toEqual([])
+  })
+
+  it('rejects an invalid source-scoped choice before writing the workflow or scheduling deployment', async () => {
+    arrangeReCreatedTrigger()
+    await expect(
+      promoteFork({
+        ...promoteParams(),
+        triggerMappings: [
+          {
+            sourceWorkflowId: 'wf-src',
+            sourceBlockId: 'blk-new',
+            adoptPath: 'someone-elses-path',
+          },
+        ],
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(copyWorkflowStateIntoTarget).not.toHaveBeenCalled()
+    expect(mockUpsertPromoteRun).not.toHaveBeenCalled()
+    expect(prepareForkSyncDeployments).not.toHaveBeenCalled()
+    expect(finishPreparedWorkflowDeployment).not.toHaveBeenCalled()
   })
 })

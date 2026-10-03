@@ -1,8 +1,7 @@
 import { WebhookIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { RequestResponse } from '@/tools/http/types'
 
-export const WebhookRequestBlock: BlockConfig<RequestResponse> = {
+export const WebhookRequestBlock: BlockConfig = {
   type: 'webhook_request',
   name: 'Webhook',
   description: 'Send a webhook request',
@@ -12,6 +11,15 @@ export const WebhookRequestBlock: BlockConfig<RequestResponse> = {
   category: 'blocks',
   bgColor: '#10B981',
   icon: WebhookIcon,
+  canvasPresentation: {
+    defaultTitle: 'Webhook',
+    sentences: {
+      default: [
+        { text: 'Post', field: 'body', core: true },
+        { text: 'to', field: 'url', core: true },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'url',

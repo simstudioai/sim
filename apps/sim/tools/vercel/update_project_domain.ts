@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelUpdateProjectDomainParams,
   VercelUpdateProjectDomainResponse,
@@ -70,7 +71,7 @@ export const vercelUpdateProjectDomainTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v9/projects/${params.projectId.trim()}/domains/${params.domain.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v9/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/domains/${safeUrlPathSegment(params.domain, 'domain')}${qs ? `?${qs}` : ''}`
     },
     method: 'PATCH',
     headers: (params: VercelUpdateProjectDomainParams) => ({

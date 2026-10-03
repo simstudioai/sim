@@ -1,5 +1,12 @@
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { z } from 'zod'
-import { inlineFileRefQuerySchema } from '@/lib/api/contracts/primitives'
+import {
+  folderIdSchema,
+  inlineFileRefQuerySchema,
+  isCanonicalBase64,
+  workspaceFileNameSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -12,7 +19,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const workspaceFileScopeSchema = z.enum(['active', 'archived'])
 
 export const workspaceFilesParamsSchema = z.object({
-  id: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
+  id: workspaceIdSchema,
 })
 
 export const workspaceFileParamsSchema = workspaceFilesParamsSchema.extend({
@@ -38,23 +45,100 @@ export const getInlineWorkspaceFileContract = defineRouteContract({
   },
 })
 
-const workspaceFileNameSchema = z
-  .string({ error: 'Name is required' })
-  .trim()
-  .min(1, 'Name is required')
-  .refine(
-    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
-    'Name cannot contain path separators or dot segments'
-  )
-
 export const renameWorkspaceFileBodySchema = z.object({
   name: workspaceFileNameSchema,
 })
 
-export const updateWorkspaceFileContentBodySchema = z.object({
-  content: z.string(),
-  encoding: z.enum(['base64', 'utf-8']).optional(),
+export const renameWorkspaceFileErrorSchema = z.union([
+  z.object({ error: z.string() }),
+  z.object({ error: z.string(), details: z.array(z.unknown()) }),
+  z.object({ success: z.literal(false), error: z.string() }),
+])
+
+export const updateWorkspaceFileContentBodySchema = z
+  .object({
+    content: z.string().max(70_000_000, 'Content is too large'),
+    encoding: z.enum(['base64', 'utf-8']).optional(),
+    /** The content-version timestamp returned with the bytes this edit was based on. */
+    expectedUpdatedAt: z.iso.datetime().optional(),
+  })
+  .superRefine(({ content, encoding }, ctx) => {
+    if (encoding === 'base64' && !isCanonicalBase64(content)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['content'],
+        message: 'Content must be valid base64',
+      })
+    }
+  })
+
+export const createWorkspaceFileBodySchema = z
+  .object({
+    name: workspaceFileNameSchema,
+    contentType: z
+      .string()
+      .trim()
+      .min(1, 'Content type cannot be empty')
+      .max(255, 'Content type is too long')
+      .optional(),
+    folderId: folderIdSchema.optional(),
+    content: z.string().max(70_000_000, 'Content is too large').default(''),
+    encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
+  })
+  .superRefine(({ content, encoding }, ctx) => {
+    if (encoding === 'base64' && !isCanonicalBase64(content)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['content'],
+        message: 'Content must be valid base64',
+      })
+    }
+  })
+  .strict()
+
+export type CreateWorkspaceFileBody = z.input<typeof createWorkspaceFileBodySchema>
+
+export type UpdateWorkspaceFileContentBody = z.input<typeof updateWorkspaceFileContentBodySchema>
+
+export const exportWorkspaceFileSnapshotBodySchema = z.object({
+  content: z
+    .string()
+    .max(PASTE_LIMITS.RICH_MARKDOWN_BYTES, 'Markdown snapshot is too large')
+    .refine(
+      (content) =>
+        utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) <=
+        PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+      'Markdown snapshot is too large'
+    ),
 })
+
+export type ExportWorkspaceFileSnapshotBody = z.input<typeof exportWorkspaceFileSnapshotBodySchema>
+
+export const exportWorkspaceFileSnapshotContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/export',
+  params: workspaceFileParamsSchema,
+  body: exportWorkspaceFileSnapshotBodySchema,
+  response: { mode: 'binary' },
+})
+
+/** No real image approaches this; the bound rejects absurd or hostile values on the backfill path. */
+const IMAGE_DIMENSION_MAX = 100_000
+
+export const updateWorkspaceFileDimensionsBodySchema = z.object({
+  /**
+   * The storage key the client measured. The write commits only if the row still has this key — a
+   * content-version guard: the key changes on every content replacement, so a stale in-flight write for
+   * superseded bytes is rejected rather than persisting the old aspect ratio.
+   */
+  key: z.string().min(1, 'key is required'),
+  width: z.number().int().positive().max(IMAGE_DIMENSION_MAX),
+  height: z.number().int().positive().max(IMAGE_DIMENSION_MAX),
+})
+
+export type UpdateWorkspaceFileDimensionsBody = z.input<
+  typeof updateWorkspaceFileDimensionsBodySchema
+>
 
 export const workspaceFileRecordSchema = z.object({
   id: z.string(),
@@ -65,13 +149,20 @@ export const workspaceFileRecordSchema = z.object({
   url: z.string().optional(),
   size: z.number(),
   type: z.string(),
+  /** Intrinsic image dimensions (px), populated lazily; null for non-images/un-backfilled rows. */
+  width: z.number().int().positive().nullable().optional(),
+  height: z.number().int().positive().nullable().optional(),
   uploadedBy: z.string(),
   folderId: z.string().nullable(),
   folderPath: z.string().nullable().optional(),
   deletedAt: z.coerce.date().nullable().optional(),
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  /** Advances only when file bytes change; metadata edits do not invalidate text drafts. */
+  contentUpdatedAt: z.coerce.date().nullable().optional(),
+  revision: z.string().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
+  vfsNamespace: z.literal('uploads').optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 
@@ -85,6 +176,14 @@ const listWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
 
 export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
 
+export const extractWorkspaceFileResponseSchema = workspaceFileSuccessSchema.extend({
+  folderName: z.string(),
+  extractedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+})
+
+export type ExtractWorkspaceFileResponse = z.output<typeof extractWorkspaceFileResponseSchema>
+
 export const listWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/files',
@@ -93,6 +192,31 @@ export const listWorkspaceFilesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: listWorkspaceFilesResponseSchema,
+  },
+})
+
+export const createWorkspaceFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files',
+  params: workspaceFilesParamsSchema,
+  body: createWorkspaceFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileSuccessSchema.extend({
+      file: workspaceFileRecordSchema,
+    }),
+    status: 201,
+  },
+})
+
+/** Authorized file-by-id reads also admit chat attachments without listing or write access. */
+export const readWorkspaceFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileSuccessSchema.extend({ file: workspaceFileRecordSchema }),
   },
 })
 
@@ -106,6 +230,30 @@ export const renameWorkspaceFileContract = defineRouteContract({
     schema: workspaceFileSuccessSchema.extend({
       file: workspaceFileRecordSchema,
     }),
+  },
+  error: renameWorkspaceFileErrorSchema,
+})
+
+export const extractWorkspaceFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/extract',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: extractWorkspaceFileResponseSchema,
+  },
+})
+
+export const updateWorkspaceFileDimensionsContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/workspaces/[id]/files/[fileId]/dimensions',
+  params: workspaceFileParamsSchema,
+  body: updateWorkspaceFileDimensionsBodySchema,
+  response: {
+    mode: 'json',
+    // `success` reflects whether the row was actually written: false when the content-version guard
+    // rejected the write (the storage key changed since the client measured), not just on error.
+    schema: z.object({ success: z.boolean() }),
   },
 })
 
@@ -138,6 +286,22 @@ export const updateWorkspaceFileContentContract = defineRouteContract({
     mode: 'json',
     schema: workspaceFileSuccessSchema.extend({
       file: workspaceFileRecordSchema,
+    }),
+  },
+})
+
+export const downloadWorkspaceFileUrlContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/download',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      downloadUrl: z.string().min(1),
+      viewerUrl: z.string().min(1),
+      fileName: z.string().min(1),
+      expiresIn: z.null(),
     }),
   },
 })
@@ -178,95 +342,5 @@ export const workspaceFileStyleContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: documentStyleSummarySchema,
-  },
-})
-
-const compiledCheckResponseSchema = z.union([
-  z.object({ ok: z.literal(true) }),
-  z.object({ ok: z.literal(false), error: z.string(), errorName: z.string() }),
-])
-
-export const workspaceFileCompiledCheckContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]/files/[fileId]/compiled-check',
-  params: workspaceFileParamsSchema,
-  response: {
-    mode: 'json',
-    schema: compiledCheckResponseSchema,
-  },
-})
-
-export const workspacePresignedUploadBodySchema = z.object({
-  fileName: workspaceFileNameSchema,
-  contentType: z.string().min(1, 'contentType is required'),
-  fileSize: z.number().nonnegative('fileSize must be a non-negative number'),
-  folderId: z.string().nullable().optional(),
-})
-
-export type WorkspacePresignedUploadBody = z.input<typeof workspacePresignedUploadBodySchema>
-
-const workspacePresignedFileInfoSchema = z.object({
-  path: z.string(),
-  key: z.string(),
-  name: z.string(),
-  size: z.number(),
-  type: z.string(),
-})
-
-const workspacePresignedUploadResponseSchema = z.object({
-  fileName: z.string(),
-  presignedUrl: z.string(),
-  fileInfo: workspacePresignedFileInfoSchema,
-  uploadHeaders: z.record(z.string(), z.string()).optional(),
-  directUploadSupported: z.boolean(),
-})
-
-export const workspacePresignedUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workspaces/[id]/files/presigned',
-  params: workspaceFilesParamsSchema,
-  body: workspacePresignedUploadBodySchema,
-  response: {
-    mode: 'json',
-    schema: workspacePresignedUploadResponseSchema,
-  },
-})
-
-export const registerWorkspaceFileBodySchema = z.object({
-  key: z.string().min(1, 'key is required'),
-  name: workspaceFileNameSchema,
-  contentType: z.string().min(1, 'contentType is required'),
-  folderId: z.string().nullable().optional(),
-})
-
-export type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>
-
-const registeredWorkspaceFileSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  url: z.string(),
-  size: z.number(),
-  type: z.string(),
-  key: z.string(),
-  context: z.string().optional(),
-})
-
-const registerWorkspaceFileResponseSchema = z.object({
-  success: z.boolean(),
-  file: registeredWorkspaceFileSchema.optional(),
-  error: z.string().optional(),
-  isDuplicate: z.boolean().optional(),
-})
-
-export type RegisterWorkspaceFileResponse = z.output<typeof registerWorkspaceFileResponseSchema>
-
-export const registerWorkspaceFileContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workspaces/[id]/files/register',
-  params: workspaceFilesParamsSchema,
-  body: registerWorkspaceFileBodySchema,
-  response: {
-    mode: 'json',
-    schema: registerWorkspaceFileResponseSchema,
   },
 })

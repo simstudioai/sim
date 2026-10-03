@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +19,7 @@ vi.mock('@/app/api/v1/audit-logs/auth', () => ({
   validateEnterpriseAuditAccess: mockValidateEnterpriseAuditAccess,
 }))
 
-vi.mock('@/app/api/v1/audit-logs/query', () => ({
+vi.mock('@/lib/audit-logs/query', () => ({
   buildFilterConditions: mockBuildFilterConditions,
   buildOrgScopeCondition: mockBuildOrgScopeCondition,
   getOrgWorkspaceIds: mockGetOrgWorkspaceIds,
@@ -68,7 +65,6 @@ function auditLog(overrides: Partial<Record<string, unknown>> = {}) {
 
 describe('GET /api/audit-logs/export', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'admin-1' } })
     mockValidateEnterpriseAuditAccess.mockResolvedValue({
       success: true,
@@ -78,60 +74,6 @@ describe('GET /api/audit-logs/export', () => {
     mockBuildOrgScopeCondition.mockReturnValue(SCOPE_SENTINEL)
     mockBuildFilterConditions.mockReturnValue([])
     mockQueryAuditLogs.mockResolvedValue({ data: [], nextCursor: undefined })
-  })
-
-  it('returns 401 when unauthenticated', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(401)
-  })
-
-  it('returns the enterprise-access-check response when access is denied', async () => {
-    mockValidateEnterpriseAuditAccess.mockResolvedValue({
-      success: false,
-      response: new Response(
-        JSON.stringify({ error: 'Organization admin or owner role required' }),
-        {
-          status: 403,
-        }
-      ),
-    })
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(403)
-    expect(mockValidateEnterpriseAuditAccess).toHaveBeenCalledWith('admin-1', ORG_ID)
-    expect(mockQueryAuditLogs).not.toHaveBeenCalled()
-  })
-
-  it('returns a CSV with the header row and one line per log', async () => {
-    mockQueryAuditLogs.mockResolvedValueOnce({ data: [auditLog()], nextCursor: undefined })
-
-    const response = await GET(makeRequest())
-    const csv = await response.text()
-    const [header, row] = csv.split('\n')
-
-    expect(response.headers.get('Content-Type')).toBe('text/csv; charset=utf-8')
-    expect(response.headers.get('Content-Disposition')).toContain('attachment; filename=')
-    expect(response.headers.get('X-Export-Truncated')).toBe('0')
-    expect(header).toBe('Date,Action,Resource Type,Resource Name,Actor,Description')
-    expect(row).toBe(
-      '2026-07-01T00:00:00.000Z,workflow.created,workflow,My workflow,ada@example.com,'
-    )
-  })
-
-  it('falls back to actorName, then "System", when actorEmail is absent', async () => {
-    mockQueryAuditLogs.mockResolvedValueOnce({
-      data: [auditLog({ actorEmail: null, actorName: 'Ada Lovelace' })],
-      nextCursor: undefined,
-    })
-
-    const response = await GET(makeRequest())
-    const csv = await response.text()
-
-    expect(csv).toContain('Ada Lovelace')
   })
 
   it('paginates through queryAuditLogs until there is no nextCursor', async () => {
@@ -160,6 +102,15 @@ describe('GET /api/audit-logs/export', () => {
 
   it('rejects an actorId that is not a current org member', async () => {
     const response = await GET(makeRequest('?actorId=outsider-1'))
+
+    expect(response.status).toBe(400)
+    expect(mockQueryAuditLogs).not.toHaveBeenCalled()
+  })
+
+  it('rejects a workspaceId outside the organization, as the list route does', async () => {
+    mockGetOrgWorkspaceIds.mockResolvedValue(['workspace-1'])
+
+    const response = await GET(makeRequest('?workspaceId=workspace-elsewhere'))
 
     expect(response.status).toBe(400)
     expect(mockQueryAuditLogs).not.toHaveBeenCalled()

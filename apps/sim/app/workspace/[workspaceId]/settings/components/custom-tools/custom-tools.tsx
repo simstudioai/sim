@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Wrench } from '@sim/emcn/icons'
+import { Plus, Wrench } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight, Plus } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -12,13 +12,29 @@ import {
   customToolIdParam,
   customToolIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import { CustomToolDetail } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/components/custom-tool-detail'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
+
+/**
+ * The editor reaches the code-generation and tag-dropdown tooling, which pulls in the block
+ * registry. Loaded on open (or on Add-chip intent), so the list does not download it. `loading`
+ * gives it its own boundary: opening is a plain state update, and the section page has no
+ * boundary of its own.
+ */
+const loadCustomToolDetail = () =>
+  import(
+    '@/app/workspace/[workspaceId]/settings/components/custom-tools/components/custom-tool-detail'
+  )
+const CustomToolDetail = dynamic(() => loadCustomToolDetail().then((m) => m.CustomToolDetail), {
+  loading: () => null,
+})
 
 export function CustomTools() {
   const params = useParams()
@@ -66,6 +82,7 @@ export function CustomTools() {
           icon: Plus,
           variant: 'primary',
           onSelect: () => setIsCreating(true),
+          onPrefetch: () => void loadCustomToolDetail(),
           disabled: isLoading,
         },
       ]
@@ -106,32 +123,26 @@ export function CustomTools() {
       actions={actions}
     >
       {error ? (
-        <div className='flex h-full flex-col items-center justify-center gap-2'>
-          <p className='text-[var(--text-error)] text-sm leading-tight'>
-            {getErrorMessage(error, 'Failed to load tools')}
-          </p>
-        </div>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(error, 'Failed to load tools')}
+        </SettingsEmptyState>
       ) : isLoading ? null : showEmptyState ? (
         <SettingsEmptyState>
           {canEdit ? 'Click "Add tool" above to get started' : 'No custom tools configured'}
         </SettingsEmptyState>
       ) : (
-        <div className='-mx-2 flex flex-col gap-y-0.5'>
+        <div className={RESOURCE_LIST_STACK}>
           {filteredTools.map((tool) => (
-            <button
+            <SettingsResourceRow
               key={tool.id}
-              type='button'
+              icon={<Wrench className='text-[var(--text-icon)]' />}
+              iconFilled
+              title={tool.title || 'Unnamed Tool'}
+              description={tool.schema?.function?.description || undefined}
               onClick={() => void setSelectedToolId(tool.id)}
-              className='w-full rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-            >
-              <SettingsResourceRow
-                icon={<Wrench className='text-[var(--text-icon)]' />}
-                iconFilled
-                title={tool.title || 'Unnamed Tool'}
-                description={tool.schema?.function?.description || undefined}
-                trailing={<ArrowRight className='size-4 text-[var(--text-icon)]' />}
-              />
-            </button>
+              clickLabel={`Open ${tool.title || 'Unnamed Tool'}`}
+              navigable
+            />
           ))}
           {showNoResults && (
             <SettingsEmptyState variant='inline'>

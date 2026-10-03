@@ -1,4 +1,23 @@
 import { z } from 'zod'
+import {
+  nativeSearchQueriesSchema,
+  workspaceKnowledgeSearchDataSchema,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
+
+export {
+  type WorkspaceKnowledgeSearchData,
+  type WorkspaceKnowledgeSearchResult,
+  workspaceKnowledgeSearchDataSchema,
+  workspaceKnowledgeSearchResultSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
+
+import {
+  resolvedSecretTraceProvenanceSchema,
+  resourceOwnerSchema,
+} from '@/lib/api/contracts/primitives'
+import { defineRouteContract } from '@/lib/api/contracts/types'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { DEFAULT_RERANKER_MODEL, rerankerModelSchema } from '@/lib/knowledge/reranker-models'
 
 export const knowledgeSearchTagFilterSchema = z.object({
@@ -9,6 +28,19 @@ export const knowledgeSearchTagFilterSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean()]),
   valueTo: z.union([z.string(), z.number()]).optional(),
 })
+
+export const KNOWLEDGE_SEARCH_MODES = ['vector', 'hybrid'] as const
+
+/**
+ * Shared by the internal and v1 search contracts. Omitted, the workspace's
+ * default applies: `hybrid` where permission-aware knowledge is on, else
+ * `vector`. The use case resolves that, so the schema carries no default.
+ */
+export const knowledgeSearchModeSchema = z
+  .enum(KNOWLEDGE_SEARCH_MODES)
+  .optional()
+  .nullable()
+  .transform((val) => val ?? undefined)
 
 export const knowledgeSearchBodySchema = z
   .object({
@@ -34,6 +66,14 @@ export const knowledgeSearchBodySchema = z
       .optional()
       .nullable()
       .transform((val) => val || undefined),
+    /**
+     * `hybrid` runs a full-text leg alongside semantic retrieval and fuses the
+     * two by reciprocal rank, which recovers exact tokens (error codes, ticket
+     * keys, identifiers) that embeddings rank poorly. `vector` is semantic-only
+     * retrieval. Omitted, the workspace's default applies. Where that default
+     * is `hybrid`, results in either mode also get a source-recency boost.
+     */
+    searchMode: knowledgeSearchModeSchema,
     rerankerEnabled: z.boolean().optional().default(false),
     rerankerModel: rerankerModelSchema.optional().default(DEFAULT_RERANKER_MODEL),
     /**
@@ -66,3 +106,141 @@ export const knowledgeSearchBodySchema = z
     }
   )
 export type KnowledgeSearchBody = z.output<typeof knowledgeSearchBodySchema>
+
+export const internalKnowledgeSearchBodySchema = z.intersection(
+  knowledgeSearchBodySchema,
+  z.object({
+    workflowId: z.string().optional(),
+    skipUsageBilling: z.boolean().optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
+  })
+)
+
+export const internalKnowledgeSearchResultSchema = z.object({
+  documentId: z.string(),
+  documentName: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+  content: z.string(),
+  chunkIndex: z.number(),
+  metadata: z.record(z.string(), z.unknown()),
+  similarity: z
+    .number()
+    .describe(
+      'Cosine similarity between the query embedding and the chunk (1 - cosine distance), in every search mode; 1 for tag-only matches. In hybrid mode this is not the ordering key — see rankScore.'
+    ),
+  rankScore: z
+    .number()
+    .describe(
+      'The score results are ordered by, descending: the reciprocal-rank-fusion score in hybrid mode (a sum of 1/(60 + rank) per retrieval leg), the cosine similarity in vector mode, or rerankerScore when a reranker ordered the results.'
+    ),
+  rank: z.number().int().positive().describe('1-based position in the returned order.'),
+  rerankerScore: z.number().optional(),
+})
+
+export const internalKnowledgeSearchContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/search',
+  body: internalKnowledgeSearchBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      data: z.object({
+        results: z.array(internalKnowledgeSearchResultSchema),
+        query: z.string(),
+        knowledgeBaseIds: z.array(z.string()),
+        knowledgeBaseId: z.string(),
+        topK: z.number(),
+        totalResults: z.number(),
+        cost: z
+          .object({
+            input: z.number(),
+            output: z.number(),
+            total: z.number(),
+            tokens: z.object({
+              prompt: z.number(),
+              completion: z.number(),
+              total: z.number(),
+            }),
+            model: z.string(),
+            pricing: z.object({
+              input: z.number(),
+              output: z.number(),
+              updatedAt: z.string().optional(),
+            }),
+            rerankerCost: z.number().optional(),
+            rerankerModel: z.string().optional(),
+            rerankerSearchUnits: z.number().optional(),
+          })
+          .optional(),
+      }),
+    }),
+  },
+})
+
+export { workspaceSearchFiltersSchema }
+
+export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
+
+/** Chunks a search asks for at first paint, and once the reader asks for more; both within `topK`'s bound. */
+export const WORKSPACE_KNOWLEDGE_SEARCH_LIMITS = { initial: 20, expanded: 50 } as const
+export type WorkspaceKnowledgeSearchLimit =
+  (typeof WORKSPACE_KNOWLEDGE_SEARCH_LIMITS)[keyof typeof WORKSPACE_KNOWLEDGE_SEARCH_LIMITS]
+
+export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
+  .safeExtend({
+    filters: workspaceSearchFiltersSchema.optional(),
+    query: z.string().trim().max(2000, 'Query is too long').default(''),
+    topK: z.number().int().min(1).max(50).optional().default(20),
+    nativeQueries: nativeSearchQueriesSchema.optional(),
+  })
+  .superRefine((body, ctx) => {
+    const { modifiedAfter, modifiedBefore, startDate, endDate, sortBy } = body.filters ?? {}
+    if (
+      !body.query &&
+      !body.nativeQueries?.some((query) => query.query) &&
+      !startDate &&
+      !endDate &&
+      !modifiedAfter &&
+      !modifiedBefore &&
+      sortBy !== 'newest' &&
+      sortBy !== 'oldest'
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: 'A search query, native query, date bound, or newest or oldest sort is required',
+      })
+    if (startDate && endDate && Date.parse(endDate) <= Date.parse(startDate))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filters', 'endDate'],
+        message: 'endDate must be after startDate',
+      })
+    if (modifiedAfter && modifiedBefore && Date.parse(modifiedBefore) < Date.parse(modifiedAfter)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filters', 'modifiedBefore'],
+        message: 'modifiedBefore must not precede modifiedAfter',
+      })
+    }
+  })
+export type WorkspaceKnowledgeSearchBody = z.input<typeof workspaceKnowledgeSearchBodySchema>
+
+/**
+ * The search a signed-in person runs from the composer: what their own
+ * account may read across the workspace's knowledge bases, presented as
+ * documents to open rather than chunks to feed a model.
+ */
+export const searchWorkspaceKnowledgeContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/search',
+  body: workspaceKnowledgeSearchBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      data: workspaceKnowledgeSearchDataSchema,
+    }),
+  },
+})

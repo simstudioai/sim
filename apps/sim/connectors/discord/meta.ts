@@ -23,7 +23,8 @@ export const discordConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       placeholder: 'e.g. 123456789012345678',
       required: true,
-      description: 'The Discord channel ID to sync messages from',
+      description:
+        'The Discord channel ID to sync messages from. The bot must be in the server with View Channel and Read Message History permissions, and the MESSAGE_CONTENT privileged intent must be enabled — without it Discord returns every message with empty content.',
     },
     {
       id: 'maxMessages',
@@ -31,6 +32,7 @@ export const discordConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       required: false,
       placeholder: `e.g. 500 (default: ${DEFAULT_MAX_MESSAGES})`,
+      description: 'Newest messages to index, counted back from the most recent.',
     },
   ],
 

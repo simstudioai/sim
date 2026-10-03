@@ -1,57 +1,32 @@
+import { normalizeAtlassianSiteUrl, resolveAtlassianCloudId } from '@/lib/atlassian/discovery'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
-import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+
+const SITE_URL_SCHEME = 'https://'
 
 /**
- * Strips protocol and trailing slashes from a Confluence domain to produce
- * a bare host (e.g. `yoursite.atlassian.net`).
+ * Strips protocol and trailing slashes and lowercases a Confluence domain to
+ * produce a bare host (e.g. `yoursite.atlassian.net`).
+ *
+ * Derived from the canonical site-URL form rather than repeating its regexes, so
+ * the host a connector builds and the key the resolver caches under cannot drift.
  */
 export function normalizeConfluenceDomainHost(domain: string): string {
-  return domain
-    .trim()
-    .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '')
+  return normalizeAtlassianSiteUrl(domain).slice(SITE_URL_SCHEME.length)
 }
 
-export async function getConfluenceCloudId(
+/**
+ * Resolves the `cloudId` for a Confluence site. Memoized per domain by the
+ * shared Atlassian resolver, which Jira and JSM read through as well.
+ *
+ * The resolver raises non-OK statuses with the product name attached, so an
+ * upstream fault is reported as such rather than as a missing-site error.
+ */
+export function getConfluenceCloudId(
   domain: string,
   accessToken: string,
   retryOptions?: RetryOptions
 ): Promise<string> {
-  const response = await fetchWithRetry(
-    'https://api.atlassian.com/oauth/token/accessible-resources',
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    },
-    retryOptions
-  )
-
-  const resources = await response.json()
-
-  if (!Array.isArray(resources) || resources.length === 0) {
-    throw new Error('No Confluence resources found')
-  }
-
-  const normalized = `https://${normalizeConfluenceDomainHost(domain)}`.toLowerCase()
-  const match = resources.find(
-    (r: { url: string }) => r.url.toLowerCase().replace(/\/+$/, '') === normalized
-  )
-
-  if (match) {
-    return match.id
-  }
-
-  if (resources.length === 1) {
-    return resources[0].id
-  }
-
-  throw new Error(
-    `Could not match Confluence domain "${domain}" to any accessible resource. ` +
-      `Available sites: ${resources.map((r: { url: string }) => r.url).join(', ')}`
-  )
+  return resolveAtlassianCloudId({ domain, accessToken, product: 'Confluence', retryOptions })
 }
 
 function decodeHtmlEntities(text: string): string {

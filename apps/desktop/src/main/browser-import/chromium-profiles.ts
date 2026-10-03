@@ -1,7 +1,8 @@
 import { constants } from 'node:fs'
-import { access, readdir, readFile } from 'node:fs/promises'
+import { access, lstat, readdir, readFile, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { isRecordLike } from '@sim/utils/object'
 import {
   BROWSER_SOURCES,
   type BrowserSource,
@@ -20,8 +21,8 @@ import type { BrowserProfile } from '@/main/browser-import/types'
 
 /** Chromium moved the cookie database under `Network/` in M96. */
 const COOKIE_DB_RELATIVE_PATHS = [join('Network', 'Cookies'), 'Cookies']
-/** Saved passwords stayed at the profile root across that move. */
-const LOGIN_DB_RELATIVE_PATHS = ['Login Data']
+/** Saved passwords stay at the profile root and may span local and account stores. */
+const LOGIN_DB_RELATIVE_PATHS = ['Login Data', 'Login Data For Account']
 /** Site icons, used to give saved passwords a recognisable face. */
 const FAVICON_DB_RELATIVE_PATHS = ['Favicons']
 /** Page titles, read only to learn what the imported sites are called. */
@@ -56,12 +57,45 @@ function isGenericProfileName(name: string, directory: string, browserLabel: str
   )
 }
 
-async function isReadableFile(path: string): Promise<boolean> {
+async function isSafeProfileDirectory(path: string): Promise<boolean> {
   try {
-    await access(path, constants.R_OK)
-    return true
+    const info = await lstat(path)
+    return info.isDirectory() && !info.isSymbolicLink()
   } catch {
     return false
+  }
+}
+
+/**
+ * Resolves one fixed database name without following profile/database links.
+ *
+ * Browser profile discovery is read-only, but following a crafted symlink
+ * here could make selecting one profile import another profile's passwords.
+ * Canonical equality also rejects a symlink in an intermediate directory such
+ * as `Network/`. Multi-link files are refused for the same cross-profile
+ * ambiguity; Chromium creates these databases as ordinary single-link files.
+ */
+async function readableDatabasePath(
+  profileDir: string,
+  relativePath: string
+): Promise<string | null> {
+  const candidate = join(profileDir, relativePath)
+  try {
+    const [profileInfo, candidateInfo, canonicalProfile, canonicalCandidate] = await Promise.all([
+      lstat(profileDir),
+      lstat(candidate),
+      realpath(profileDir),
+      realpath(candidate),
+    ])
+    if (!profileInfo.isDirectory() || profileInfo.isSymbolicLink()) return null
+    if (!candidateInfo.isFile() || candidateInfo.isSymbolicLink() || candidateInfo.nlink !== 1) {
+      return null
+    }
+    if (canonicalCandidate !== join(canonicalProfile, relativePath)) return null
+    await access(candidate, constants.R_OK)
+    return candidate
+  } catch {
+    return null
   }
 }
 
@@ -70,10 +104,22 @@ async function resolveFirstReadable(
   relativePaths: readonly string[]
 ): Promise<string | null> {
   for (const relative of relativePaths) {
-    const candidate = join(profileDir, relative)
-    if (await isReadableFile(candidate)) return candidate
+    const candidate = await readableDatabasePath(profileDir, relative)
+    if (candidate) return candidate
   }
   return null
+}
+
+async function resolveReadableFiles(
+  profileDir: string,
+  relativePaths: readonly string[]
+): Promise<string[]> {
+  const paths: string[] = []
+  for (const relative of relativePaths) {
+    const candidate = await readableDatabasePath(profileDir, relative)
+    if (candidate) paths.push(candidate)
+  }
+  return paths
 }
 
 /**
@@ -89,7 +135,7 @@ async function readProfileDisplayNames(userDataDir: string): Promise<Map<string,
     const raw = await readFile(join(userDataDir, 'Local State'), 'utf8')
     const infoCache = (JSON.parse(raw) as { profile?: { info_cache?: unknown } }).profile
       ?.info_cache
-    if (infoCache && typeof infoCache === 'object' && !Array.isArray(infoCache)) {
+    if (isRecordLike(infoCache)) {
       for (const [dir, info] of Object.entries(infoCache as Record<string, unknown>)) {
         if (!PROFILE_DIR_PATTERN.test(dir)) continue
         const name = (info as { name?: unknown })?.name
@@ -140,11 +186,12 @@ export async function listBrowserProfiles(
     const name = displayNames.get(dir) ?? dir
     if (isInternalProfileName(name)) continue
     const profileDir = join(userDataDir, dir)
+    if (!(await isSafeProfileDirectory(profileDir))) continue
     const cookiesPath = await resolveFirstReadable(profileDir, COOKIE_DB_RELATIVE_PATHS)
-    const loginDataPath = await resolveFirstReadable(profileDir, LOGIN_DB_RELATIVE_PATHS)
+    const loginDataPaths = await resolveReadableFiles(profileDir, LOGIN_DB_RELATIVE_PATHS)
     const faviconsPath = await resolveFirstReadable(profileDir, FAVICON_DB_RELATIVE_PATHS)
     const historyPath = await resolveFirstReadable(profileDir, HISTORY_DB_RELATIVE_PATHS)
-    if (cookiesPath === null && loginDataPath === null) continue
+    if (cookiesPath === null && loginDataPaths.length === 0) continue
     profiles.push({
       id: formatProfileId(source.id, dir),
       directory: dir,
@@ -153,7 +200,7 @@ export async function listBrowserProfiles(
       label: isGenericProfileName(name, dir, source.label) ? '' : name,
       source,
       cookiesPath,
-      loginDataPath,
+      loginDataPaths,
       faviconsPath,
       historyPath,
     })

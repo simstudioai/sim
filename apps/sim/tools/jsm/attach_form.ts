@@ -1,7 +1,7 @@
 import type { JsmAttachFormParams, JsmAttachFormResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmAttachFormTool: ToolConfig<JsmAttachFormParams, JsmAttachFormResponse> = {
+export const jsmAttachFormTool: InternalToolConfig<JsmAttachFormParams, JsmAttachFormResponse> = {
   id: 'jsm_attach_form',
   name: 'JSM Attach Form',
   description: 'Attach a form template to an existing Jira issue or JSM request',
@@ -45,13 +45,8 @@ export const jsmAttachFormTool: ToolConfig<JsmAttachFormParams, JsmAttachFormRes
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/forms/attach',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

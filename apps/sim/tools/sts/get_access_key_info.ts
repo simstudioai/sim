@@ -1,7 +1,7 @@
 import type { STSGetAccessKeyInfoParams, STSGetAccessKeyInfoResponse } from '@/tools/sts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getAccessKeyInfoTool: ToolConfig<
+export const getAccessKeyInfoTool: InternalToolConfig<
   STSGetAccessKeyInfoParams,
   STSGetAccessKeyInfoResponse
 > = {
@@ -37,11 +37,8 @@ export const getAccessKeyInfoTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/sts/get-access-key-info',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

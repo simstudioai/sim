@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 
 /**
@@ -22,6 +23,42 @@ export class TokenServiceAccountValidationError extends Error {
 }
 
 const ERROR_SNIPPET_MAX_LENGTH = 500
+
+/**
+ * Narrows the optional `clientSecret` for the single-grant client-credential
+ * providers that always require one. `ClientCredentialAccountFields` makes it
+ * optional for the key-based grants (Salesforce JWT bearer), so providers with
+ * no such branch re-state the invariant here. The secret builder's
+ * required-field check already rejects a missing value at connect time; this
+ * fails loudly rather than posting `client_secret=undefined` if a future
+ * caller ever bypasses it.
+ */
+export function requireClientSecret(
+  clientSecret: string | undefined,
+  step: string,
+  serviceLabel: string
+): string {
+  if (!clientSecret) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step,
+      reason: `${serviceLabel} requires a client secret`,
+    })
+  }
+  return clientSecret
+}
+
+/**
+ * Short, stable description of a failed best-effort provider call, for callers
+ * that degrade instead of throwing. `TokenServiceAccountValidationError`'s
+ * message is only its code, so the status is appended to keep the reason
+ * diagnosable.
+ */
+export function providerFailureReason(error: unknown): string {
+  if (error instanceof TokenServiceAccountValidationError) {
+    return `${error.code} (HTTP ${error.status})`
+  }
+  return getErrorMessage(error, 'request failed')
+}
 
 /**
  * Transient statuses a provider token/verification endpoint can return that
@@ -109,9 +146,21 @@ export async function readProviderErrorSnippet(res: Response): Promise<string> {
 
 /**
  * Maps a failed provider verification response to the standard error split:
- * 401/403 mean the pasted token was rejected (`invalid_credentials`), anything
- * else non-2xx means the provider couldn't be reached or misbehaved
- * (`provider_unavailable`) — never blame the token for a provider outage.
+ * every 4xx except the transient ones is the caller's input being wrong
+ * (`invalid_credentials`), and only 5xx or a transient 4xx means the provider
+ * couldn't be reached or misbehaved (`provider_unavailable`).
+ *
+ * The 4xx half matters beyond message accuracy. `provider_unavailable` renders
+ * as `503 + Retry-After`, which tells a conforming client to come back — so
+ * classifying a permanently-wrong `domain`, `orgId`, or `clientId` as an outage
+ * makes it retry forever. A 4xx that is not 408/429 is by definition something
+ * the caller must change, so it is answered as a caller error and never
+ * advertises a retry.
+ *
+ * `invalid_credentials` covers the whole non-transient 4xx range rather than
+ * splitting further: telling a rejected token apart from a wrong host takes
+ * provider-specific knowledge, and the providers that have it (Shopify,
+ * Snowflake, Atlassian) already raise `site_not_found` before reaching here.
  */
 export async function throwForProviderResponse(
   res: Response,
@@ -120,16 +169,11 @@ export async function throwForProviderResponse(
 ): Promise<void> {
   if (res.ok) return
   const body = await readProviderErrorSnippet(res)
-  if (res.status === 401 || res.status === 403) {
-    throw new TokenServiceAccountValidationError('invalid_credentials', res.status, {
-      step,
-      body,
-      ...context,
-    })
-  }
-  throw new TokenServiceAccountValidationError('provider_unavailable', res.status, {
-    step,
-    body,
-    ...context,
-  })
+  const callerError =
+    res.status >= 400 && res.status < 500 && !isTransientProviderStatus(res.status)
+  throw new TokenServiceAccountValidationError(
+    callerError ? 'invalid_credentials' : 'provider_unavailable',
+    res.status,
+    { step, body, ...context }
+  )
 }

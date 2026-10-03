@@ -1,0 +1,568 @@
+import { environment, workspaceEnvironment } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  encryptionMock,
+  encryptionMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// vitest.setup.ts mocks this module globally; this suite tests the real one.
+vi.unmock('@/lib/environment/utils')
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+
+import {
+  getEffectiveDecryptedEnv,
+  getEffectiveEnvironmentSnapshot,
+  getEffectiveEnvironmentVariableNames,
+  getExecutionEnvironment,
+  getPersonalAndWorkspaceEnv,
+  invalidateEffectiveDecryptedEnvCache,
+  resolveEffectiveEnvironmentVariables,
+  upsertWorkspaceEnvVars,
+  WorkspaceEnvAccessError,
+} from '@/lib/environment/utils'
+
+const { mockCheckWorkspaceAccess, mockGetUserEntityPermissions } = permissionsMockFns
+const { mockGetAccessibleEnvCredentials, mockGetWorkspaceEnvKeyAdminAccess } =
+  credentialsEnvironmentMockFns
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockGetActivelyBannedUserIds = authBanMockFns.mockGetActivelyBannedUserIds
+
+describe('getEffectiveEnvironmentVariableNames', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    invalidateEffectiveDecryptedEnvCache({ userId: 'names-user' })
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: false,
+    })
+    mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    encryptionMockFns.mockDecryptSecret.mockReset()
+  })
+
+  it('lists only stored, accessible names across personal and workspace scopes without decryption', async () => {
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_workspace',
+        envKey: 'WORKSPACE_VISIBLE',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'DUPLICATE',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'MISSING_WORKSPACE',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_personal',
+        envKey: 'SHARED_PRESENT',
+        envOwnerUserId: 'owner-2',
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      },
+      {
+        type: 'env_personal',
+        envKey: 'SHARED_MISSING',
+        envOwnerUserId: 'owner-3',
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+    queueTableRows(environment, [
+      { variables: { OWN_ONLY: 'own-cipher', DUPLICATE: 'duplicate-cipher' } },
+    ])
+    queueTableRows(workspaceEnvironment, [
+      {
+        variables: {
+          WORKSPACE_VISIBLE: 'workspace-cipher',
+          DUPLICATE: 'duplicate-workspace-cipher',
+          WORKSPACE_HIDDEN: 'hidden-cipher',
+        },
+      },
+    ])
+    queueTableRows(environment, [
+      { userId: 'owner-2', variables: { SHARED_PRESENT: 'shared-cipher' } },
+      { userId: 'owner-3', variables: { UNRELATED: 'unrelated-cipher' } },
+    ])
+
+    await expect(
+      getEffectiveEnvironmentVariableNames('names-user', 'workspace-1')
+    ).resolves.toEqual(['DUPLICATE', 'OWN_ONLY', 'SHARED_PRESENT', 'WORKSPACE_VISIBLE'])
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+
+    // A later snapshot performs a fresh lookup, proving the names read did not warm its LRU.
+    queueTableRows(environment, [{ variables: { FRESH_PERSONAL: 'fresh-personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [
+      { variables: { WORKSPACE_VISIBLE: 'fresh-workspace-cipher' } },
+    ])
+    queueTableRows(environment, [
+      { userId: 'owner-2', variables: { SHARED_PRESENT: 'fresh-shared-cipher' } },
+      { userId: 'owner-3', variables: {} },
+    ])
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `plain:${encryptedValue}`,
+    }))
+
+    await expect(
+      getEffectiveEnvironmentSnapshot('names-user', 'workspace-1')
+    ).resolves.toMatchObject({
+      personalEncrypted: {
+        FRESH_PERSONAL: 'fresh-personal-cipher',
+        SHARED_PRESENT: 'fresh-shared-cipher',
+      },
+      workspaceEncrypted: { WORKSPACE_VISIBLE: 'fresh-workspace-cipher' },
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('resolveEffectiveEnvironmentVariables', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    invalidateEffectiveDecryptedEnvCache({ userId: 'resolver-user' })
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: false,
+    })
+    mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    encryptionMockFns.mockDecryptSecret.mockReset()
+  })
+
+  it('decrypts only unique requested accessible values with workspace precedence', async () => {
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_workspace',
+        envKey: 'VISIBLE_SHARED',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: true,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'HIDDEN_SHARED',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'DUPLICATE',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'BROKEN',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_personal',
+        envKey: 'SHARED_PERSONAL',
+        envOwnerUserId: 'owner-2',
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+    queueTableRows(environment, [
+      {
+        variables: {
+          OWN_PERSONAL: 'own-cipher',
+          DUPLICATE: 'personal-shadow-cipher',
+          UNREQUESTED_PERSONAL: 'unrequested-personal-cipher',
+        },
+      },
+    ])
+    queueTableRows(workspaceEnvironment, [
+      {
+        variables: {
+          VISIBLE_SHARED: 'visible-cipher',
+          HIDDEN_SHARED: 'hidden-cipher',
+          DUPLICATE: 'workspace-cipher',
+          BROKEN: 'broken-cipher',
+          INACCESSIBLE: 'inaccessible-cipher',
+          UNREQUESTED_WORKSPACE: 'unrequested-workspace-cipher',
+        },
+      },
+    ])
+    queueTableRows(environment, [
+      { userId: 'owner-2', variables: { SHARED_PERSONAL: 'shared-personal-cipher' } },
+    ])
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => {
+      if (encryptedValue === 'broken-cipher') throw new Error('cannot decrypt')
+      return { decrypted: `plain:${encryptedValue}` }
+    })
+
+    await expect(
+      resolveEffectiveEnvironmentVariables('resolver-user', 'workspace-1', [
+        'OWN_PERSONAL',
+        'SHARED_PERSONAL',
+        'VISIBLE_SHARED',
+        'HIDDEN_SHARED',
+        'DUPLICATE',
+        'DUPLICATE',
+        'BROKEN',
+        'MISSING',
+        'INACCESSIBLE',
+        'constructor',
+      ])
+    ).resolves.toEqual({
+      OWN_PERSONAL: {
+        value: 'plain:own-cipher',
+        scope: 'personal',
+        visible: true,
+      },
+      SHARED_PERSONAL: {
+        value: 'plain:shared-personal-cipher',
+        scope: 'personal',
+        visible: false,
+      },
+      VISIBLE_SHARED: {
+        value: 'plain:visible-cipher',
+        scope: 'workspace',
+        visible: true,
+      },
+      HIDDEN_SHARED: {
+        value: 'plain:hidden-cipher',
+        scope: 'workspace',
+        visible: false,
+      },
+      DUPLICATE: {
+        value: 'plain:workspace-cipher',
+        scope: 'workspace',
+        visible: false,
+      },
+    })
+    expect(encryptionMockFns.mockDecryptSecret.mock.calls.map(([value]) => value)).toEqual([
+      'own-cipher',
+      'shared-personal-cipher',
+      'visible-cipher',
+      'hidden-cipher',
+      'workspace-cipher',
+      'broken-cipher',
+    ])
+  })
+})
+
+describe('getPersonalAndWorkspaceEnv access filtering', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: false,
+    })
+    mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `plain:${encryptedValue}`,
+    }))
+  })
+
+  it('filters every workspace secret when the caller has zero credential grants', async () => {
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getPersonalAndWorkspaceEnv('user-1', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
+    expect(snapshot.workspaceDecrypted).toEqual({})
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+
+  it('preserves legacy workspace secrets without credential rows for workspace admins', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: { LEGACY_KEY: 'legacy-cipher' } }])
+
+    const snapshot = await getPersonalAndWorkspaceEnv('admin-1', 'workspace-1')
+
+    expect(snapshot.workspaceDecrypted).toEqual({ LEGACY_KEY: 'plain:legacy-cipher' })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+
+  it('collects workspaceUnredactedKeys only from flagged env_workspace credential rows', async () => {
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_workspace',
+        envKey: 'VISIBLE_KEY',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: true,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'HIDDEN_KEY',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_personal',
+        envKey: 'PERSONAL_KEY',
+        envOwnerUserId: 'user-1',
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: true,
+      },
+    ])
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [
+      { variables: { VISIBLE_KEY: 'visible-cipher', HIDDEN_KEY: 'hidden-cipher' } },
+    ])
+
+    const snapshot = await getPersonalAndWorkspaceEnv('user-1', 'workspace-1')
+
+    expect(snapshot.workspaceUnredactedKeys).toEqual(['VISIBLE_KEY'])
+  })
+
+  it('preserves shared-personal precedence when an accessible owner shares the same name', async () => {
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_personal',
+        envKey: 'SHARED_KEY',
+        envOwnerUserId: 'owner-2',
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+    queueTableRows(environment, [{ variables: { SHARED_KEY: 'own-cipher' } }])
+    queueTableRows(environment, [{ userId: 'owner-2', variables: { SHARED_KEY: 'shared-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: {} }])
+
+    const snapshot = await getPersonalAndWorkspaceEnv('user-1', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({ SHARED_KEY: 'plain:shared-cipher' })
+    expect(snapshot.personalOwners).toEqual({ SHARED_KEY: 'owner-2' })
+  })
+})
+
+describe('getExecutionEnvironment', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `plain:${encryptedValue}`,
+    }))
+  })
+
+  /** Grants workspace-admin access to one identity so the two slices diverge observably. */
+  function grantAdminTo(adminUserId: string) {
+    mockCheckWorkspaceAccess.mockImplementation(async (_workspaceId: string, userId: string) => ({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: userId === adminUserId,
+    }))
+  }
+
+  it('resolves each slice against its own identity', async () => {
+    grantAdminTo('actor-1')
+    /**
+     * Queued rows are FIFO per table, and the personal slice resolves first because
+     * it is the first element of the implementation's `Promise.all` — both accesses
+     * are now decided up front and handed in, so neither resolution awaits before
+     * issuing its queries and the order is plain argument evaluation rather than a
+     * race between interleaved awaits. Only the actor is a workspace admin, so the
+     * owner's own workspace slice resolves empty and could not be the one that lands.
+     */
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+    queueTableRows(environment, [{ variables: { ACTOR_ONLY: 'actor-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('owner-1', 'actor-1', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  it('falls back to the personal identity when the actor cannot reach the workspace', async () => {
+    mockCheckWorkspaceAccess.mockImplementation(async (_workspaceId: string, userId: string) => ({
+      exists: true,
+      hasAccess: userId === 'owner-1',
+      canWrite: true,
+      canAdmin: true,
+    }))
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('owner-1', 'departed-payer', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  /**
+   * A deployed chat, schedule, or webhook keeps running after the identity its
+   * personal-variable fallback points at leaves the workspace. That pointer is
+   * stored state, not a permission the run holds, so it must not fail the run
+   * before any block has started.
+   */
+  it('resolves workspace variables only when the personal identity cannot reach the workspace', async () => {
+    mockCheckWorkspaceAccess.mockImplementation(async (_workspaceId: string, userId: string) => ({
+      exists: true,
+      hasAccess: userId === 'actor-1',
+      canWrite: true,
+      canAdmin: true,
+    }))
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('departed-owner', 'actor-1', 'workspace-1')
+
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.personalEncrypted).toEqual({})
+    expect(snapshot.personalOwners).toEqual({})
+    expect(snapshot.conflicts).toEqual([])
+  })
+
+  /** With no reachable identity there is nobody to authorize the workspace slice against. */
+  it('raises when neither identity can reach the workspace', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: false,
+      canWrite: false,
+      canAdmin: false,
+    })
+
+    await expect(
+      getExecutionEnvironment('departed-owner', 'departed-payer', 'workspace-1')
+    ).rejects.toThrow('Access denied to workspace workspace-1')
+  })
+})
+
+describe('upsertWorkspaceEnvVars', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'cipher' })
+  })
+
+  it('refuses to overwrite an existing secret the caller does not administer', async () => {
+    // Workspace `write` is what the copilot tool checks; the route additionally
+    // requires secret-admin on the specific key. Without this the agent was the
+    // weaker path to the same write.
+    mockGetUserEntityPermissions.mockResolvedValue('write')
+    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
+      adminKeys: new Set<string>(),
+      knownKeys: new Set(['STRIPE_KEY']),
+    })
+
+    const error = await upsertWorkspaceEnvVars('ws-1', { STRIPE_KEY: 'rotated' }, 'user-1').catch(
+      (e) => e
+    )
+
+    expect(error).toBeInstanceOf(WorkspaceEnvAccessError)
+    expect(error).toMatchObject({
+      reason: 'not-secret-admin',
+      message: 'You must be an admin of these secrets to edit them',
+    })
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('refuses to add a new secret without workspace write', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
+      adminKeys: new Set<string>(),
+      knownKeys: new Set<string>(),
+    })
+
+    const error = await upsertWorkspaceEnvVars('ws-1', { NEW_KEY: 'value' }, 'user-1').catch(
+      (e) => e
+    )
+
+    expect(error).toBeInstanceOf(WorkspaceEnvAccessError)
+    // Distinct from the secret-admin denial: the route answers this case with a
+    // write-access message, and the agent surfaces whatever we throw verbatim.
+    expect(error).toMatchObject({
+      reason: 'write-access-required',
+      message: 'Write access is required to add new secrets',
+    })
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+})
+
+describe('effective environment resolution cache', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    encryptionMockFns.mockDecryptSecret.mockReset()
+    encryptionMockFns.mockEncryptSecret.mockReset()
+    invalidateEffectiveDecryptedEnvCache({ userId: 'user-1' })
+    dbChainMockFns.limit.mockResolvedValue([{ variables: { API_KEY: 'encrypted-value' } }])
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'runtime-value' })
+  })
+
+  it('shares one atomic snapshot and returns defensive clones', async () => {
+    const [decrypted, snapshot] = await Promise.all([
+      getEffectiveDecryptedEnv('user-1'),
+      getEffectiveEnvironmentSnapshot('user-1'),
+    ])
+
+    expect(decrypted).toEqual({ API_KEY: 'runtime-value' })
+    expect(snapshot).toMatchObject({
+      personalEncrypted: { API_KEY: 'encrypted-value' },
+      personalDecrypted: { API_KEY: 'runtime-value' },
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+
+    decrypted.API_KEY = 'mutated-runtime'
+    snapshot.personalEncrypted.API_KEY = 'mutated-ciphertext'
+    snapshot.personalDecrypted.API_KEY = 'mutated-snapshot'
+    snapshot.conflicts.push('MUTATED')
+
+    await expect(getEffectiveDecryptedEnv('user-1')).resolves.toEqual({
+      API_KEY: 'runtime-value',
+    })
+    await expect(getEffectiveEnvironmentSnapshot('user-1')).resolves.toMatchObject({
+      personalEncrypted: { API_KEY: 'encrypted-value' },
+      personalDecrypted: { API_KEY: 'runtime-value' },
+      conflicts: [],
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+
+  it('evicts rejected loads and retries the canonical lookup', async () => {
+    dbChainMockFns.limit.mockRejectedValueOnce(new Error('database unavailable'))
+
+    await expect(getEffectiveEnvironmentSnapshot('user-1')).rejects.toThrow('database unavailable')
+
+    dbChainMockFns.limit.mockResolvedValue([{ variables: { API_KEY: 'encrypted-value' } }])
+    await expect(getEffectiveDecryptedEnv('user-1')).resolves.toEqual({
+      API_KEY: 'runtime-value',
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+})

@@ -1,13 +1,12 @@
-import type { ListListsParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListListsParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listListsTool: ToolConfig<ListListsParams, SapConcurProxyResponse> = {
+export const listListsTool: InternalToolConfig<ListListsParams, SapConcurResponse> = {
   id: 'sap_concur_list_lists',
   name: 'SAP Concur List Lists',
   description: 'List custom lists (GET /list/v4/lists).',
@@ -77,33 +76,34 @@ export const listListsTool: ToolConfig<ListListsParams, SapConcurProxyResponse> 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by list name',
+      description:
+        'Filter by list name. Accepts an operator prefix: sw: (starts with), ew: (ends with), not:, cp: (contains) (e.g. "sw:Cost").',
     },
     categoryType: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by category type (mapped to category.type query param)',
+      description:
+        'Filter by category type (mapped to the category.type query param). Accepts an operator prefix: eq:, not:.',
     },
     isDeleted: {
-      type: 'boolean',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include deleted lists',
+      description:
+        'Filter by deletion status. Pass "true" or "false" as a string because the filter also accepts the eq operator prefix (eq:true) — eq is the only operator this filter supports.',
     },
     levelCount: {
-      type: 'number',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by number of levels',
+      description:
+        'Filter by number of levels. Accepts an operator prefix: eq:, gt:, gte:, lt:, lte: (e.g. "eq:1", "gt:2", "lte:9").',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/list/v4/lists`,
       method: 'GET',
       query: buildListQuery({
@@ -117,7 +117,7 @@ export const listListsTool: ToolConfig<ListListsParams, SapConcurProxyResponse> 
       }),
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

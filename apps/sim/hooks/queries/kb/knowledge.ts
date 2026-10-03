@@ -1,13 +1,17 @@
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
+import { contractUrl, requestJson } from '@/lib/api/client/request'
 import {
   type BulkChunkOperationData,
+  type BulkDeleteKnowledgeItemsBody,
   type BulkDocumentOperationData,
+  type BulkMoveKnowledgeItemsBody,
+  bulkDeleteKnowledgeItemsContract,
   bulkKnowledgeChunksContract,
   bulkKnowledgeDocumentsContract,
+  bulkMoveKnowledgeItemsContract,
   type ChunkData,
   type ChunksPagination,
   createKnowledgeBaseContract,
@@ -21,6 +25,7 @@ import {
   deleteKnowledgeChunkContract,
   deleteKnowledgeDocumentContract,
   deleteTagDefinitionContract,
+  exportKnowledgeBaseContract,
   getKnowledgeBaseContract,
   getKnowledgeDocumentContract,
   getTagUsageContract,
@@ -37,20 +42,36 @@ import {
   restoreKnowledgeBaseContract,
   type SaveDocumentTagDefinitionsResult,
   saveDocumentTagDefinitionsContract,
+  searchWorkspaceKnowledgeContract,
   type TagDefinitionData,
   type TagUsageData,
+  type UpdateKnowledgeBaseBody,
+  type UpdateKnowledgeDocumentResponseData,
   updateKnowledgeBaseContract,
   updateKnowledgeChunkContract,
   updateKnowledgeDocumentContract,
   updateKnowledgeDocumentTagsContract,
+  type WorkspaceKnowledgeSearchBody,
+  type WorkspaceKnowledgeSearchData,
 } from '@/lib/api/contracts/knowledge'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import type { NativeSearchQuery } from '@/lib/api/contracts/mothership-assistant-tools'
+import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { connectorKeys } from '@/hooks/queries/kb/connectors'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   KNOWLEDGE_BASE_LIST_STALE_TIME,
   type KnowledgeQueryScope,
   knowledgeKeys,
 } from '@/hooks/queries/utils/knowledge-keys'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 const logger = createLogger('KnowledgeQueries')
 
@@ -68,6 +89,7 @@ export const KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_SEARCH_STALE_TIME = 60 * 1000
+export const WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_USAGE_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
@@ -75,10 +97,11 @@ export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export async function fetchKnowledgeBases(
   workspaceId?: string,
   scope: KnowledgeQueryScope = 'active',
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeCounts = false
 ): Promise<KnowledgeBaseData[]> {
   const result = await requestJson(listKnowledgeBasesContract, {
-    query: { workspaceId, scope },
+    query: { workspaceId, scope, includeCounts },
     signal,
   })
 
@@ -215,15 +238,19 @@ export function useKnowledgeBasesQuery(
   options?: {
     enabled?: boolean
     scope?: KnowledgeQueryScope
+    /** Adds each base's `docCount` and `tokenCount`, for the one surface that renders them. */
+    includeCounts?: boolean
   }
 ) {
   const scope = options?.scope ?? 'active'
+  const includeCounts = options?.includeCounts ?? false
   return useQuery({
-    queryKey: knowledgeKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal),
+    queryKey: includeCounts
+      ? knowledgeKeys.countedList(workspaceId, scope)
+      : knowledgeKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal, includeCounts),
     enabled: options?.enabled ?? true,
     staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -242,7 +269,6 @@ export function useDocumentQuery(knowledgeBaseId?: string, documentId?: string) 
     queryFn: ({ signal }) => fetchDocument(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -273,7 +299,12 @@ export function useKnowledgeDocumentsQuery(
     queryFn: ({ signal }) => fetchKnowledgeDocuments(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId),
     staleTime: KNOWLEDGE_DOCUMENT_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .documentLists(params.knowledgeBaseId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
     refetchInterval: options?.refetchInterval ?? false,
   })
 }
@@ -300,7 +331,12 @@ export function useKnowledgeChunksQuery(
     queryFn: ({ signal }) => fetchKnowledgeChunks(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId && params.documentId),
     staleTime: KNOWLEDGE_CHUNK_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .document(params.knowledgeBaseId, params.documentId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 
@@ -321,6 +357,8 @@ async function fetchAllDocumentChunks(
   const limit = 100
 
   while (hasMore) {
+    /** Throw rather than break: a short list returned here would cache as the complete one. */
+    signal?.throwIfAborted()
     const response = await fetchKnowledgeChunks(
       {
         knowledgeBaseId,
@@ -359,7 +397,12 @@ export function useDocumentChunkSearchQuery(
       (options?.enabled ?? true) &&
       Boolean(params.knowledgeBaseId && params.documentId && params.search.trim()),
     staleTime: KNOWLEDGE_CHUNK_SEARCH_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .document(params.knowledgeBaseId, params.documentId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 
@@ -397,10 +440,11 @@ export function useUpdateChunk() {
     mutationFn: updateChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
     },
   })
@@ -429,10 +473,15 @@ export function useDeleteChunk() {
     mutationFn: deleteChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -466,10 +515,15 @@ export function useCreateChunk() {
     mutationFn: createChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -490,7 +544,7 @@ async function updateDocument({
   knowledgeBaseId,
   documentId,
   updates,
-}: UpdateDocumentParams): Promise<DocumentData> {
+}: UpdateDocumentParams): Promise<UpdateKnowledgeDocumentResponseData> {
   const result = await requestJson(updateKnowledgeDocumentContract, {
     params: { id: knowledgeBaseId, documentId },
     body: updates,
@@ -506,11 +560,14 @@ export function useUpdateDocument() {
     mutationFn: updateDocument,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
+      })
+      queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
     },
   })
 }
@@ -537,6 +594,10 @@ export function useDeleteDocument() {
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
+      })
+      /** The counted list rows carry `docCount`, so removing a document changes them too. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.countedLists(),
       })
     },
   })
@@ -572,10 +633,16 @@ export function useBulkDocumentOperation() {
 
   return useMutation({
     mutationFn: bulkDocumentOperation,
-    onSettled: (_data, _error, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, operation }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
+      /** Only a bulk delete changes the `docCount` the counted list rows render. */
+      if (operation === 'delete') {
+        queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.countedLists(),
+        })
+      }
     },
   })
 }
@@ -603,7 +670,7 @@ async function createKnowledgeBase(params: CreateKnowledgeBaseParams): Promise<K
   return result.data
 }
 
-export function useCreateKnowledgeBase(workspaceId?: string) {
+export function useCreateKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -618,13 +685,7 @@ export function useCreateKnowledgeBase(workspaceId?: string) {
 
 interface UpdateKnowledgeBaseParams {
   knowledgeBaseId: string
-  updates: {
-    name?: string
-    description?: string
-    workspaceId?: string | null
-    /** Moves the knowledge base between folders; `null` moves it to the workspace root. */
-    folderId?: string | null
-  }
+  updates: UpdateKnowledgeBaseBody
 }
 
 async function updateKnowledgeBase({
@@ -639,7 +700,7 @@ async function updateKnowledgeBase({
   return result.data
 }
 
-export function useUpdateKnowledgeBase(workspaceId?: string) {
+export function useUpdateKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -673,8 +734,11 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
+      /** `exact` for the reason {@link useBulkMoveKnowledgeBases} gives: a rename or folder
+       *  move touches the base record, never its documents or chunks. */
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -690,7 +754,26 @@ async function deleteKnowledgeBase({ knowledgeBaseId }: DeleteKnowledgeBaseParam
   })
 }
 
-export function useDeleteKnowledgeBase(workspaceId?: string) {
+/**
+ * Starts a browser download of a knowledge base's bundle archive.
+ *
+ * An anchor navigation rather than a fetch: the archive is streamed and can run
+ * to gigabytes, and the browser saving it straight to disk is what keeps it out
+ * of page memory. The session cookie authenticates the same-origin request.
+ */
+export function downloadKnowledgeBaseExport(knowledgeBaseId: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = contractUrl(exportKnowledgeBaseContract, {
+    params: { id: knowledgeBaseId },
+    query: {},
+  })
+  anchor.download = ''
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+}
+
+export function useDeleteKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -734,10 +817,15 @@ export function useBulkChunkOperation() {
     mutationFn: bulkChunkOperation,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -769,10 +857,11 @@ export function useUpdateDocumentTags() {
     mutationFn: updateDocumentTags,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
     },
   })
@@ -796,7 +885,6 @@ export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
     queryFn: ({ signal }) => fetchTagDefinitions(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
     staleTime: KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -941,7 +1029,6 @@ export function useDocumentTagDefinitionsQuery(
       fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -1000,6 +1087,7 @@ async function deleteDocumentTagDefinitions({
 }: DeleteDocumentTagDefinitionsParams): Promise<void> {
   await requestJson(deleteDocumentTagDefinitionsContract, {
     params: { id: knowledgeBaseId, documentId },
+    query: {},
   })
 }
 
@@ -1031,5 +1119,147 @@ export function useDeleteDocumentTagDefinitions() {
     onError: (error) => {
       logger.error('Failed to delete document tag definitions:', error)
     },
+  })
+}
+
+/**
+ * Move a mixed selection of knowledge bases and knowledge folders into one
+ * folder, or to the workspace root with `targetFolderId: null`.
+ *
+ * One request, one authorized operation: the Knowledge list interleaves folder
+ * and knowledge base rows in a single grid, so a selection is routinely mixed
+ * and must not be split into a resource call plus a per-folder fan-out.
+ *
+ * No optimistic patch, unlike the single-base move: a folder move re-parents
+ * rows the list renders at a different level, and the response reports per-item
+ * outcomes (`skipped`, `notFound`, `failed`) the client cannot predict.
+ */
+export function useBulkMoveKnowledgeBases(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      knowledgeBaseIds = [],
+      folderIds = [],
+      targetFolderId,
+    }: Omit<BulkMoveKnowledgeItemsBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkMoveKnowledgeItemsContract, {
+        body: { workspaceId, knowledgeBaseIds, folderIds, targetFolderId },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { knowledgeBaseIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('knowledge_base') })
+      /**
+       * `exact` because `detail` is the prefix for the base's documents, chunks, and tag
+       * queries — a move only re-parents the base record itself, so a prefix invalidation would
+       * refetch every cached document and chunk page for nothing. The sibling delete hook
+       * deliberately stays non-exact, since there the children really must go.
+       */
+      for (const knowledgeBaseId of knowledgeBaseIds) {
+        queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.detail(knowledgeBaseId),
+          exact: true,
+        })
+      }
+    },
+  })
+}
+
+/**
+ * Delete a mixed selection of knowledge bases and knowledge folders.
+ *
+ * Deleting a folder cascades to every knowledge base and subfolder inside it,
+ * so the response's `deletedItems` totals exceed the explicitly selected count.
+ */
+export function useBulkDeleteKnowledgeBases(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      knowledgeBaseIds = [],
+      folderIds = [],
+    }: Omit<BulkDeleteKnowledgeItemsBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkDeleteKnowledgeItemsContract, {
+        body: { workspaceId, knowledgeBaseIds, folderIds },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { knowledgeBaseIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('knowledge_base') })
+      for (const knowledgeBaseId of knowledgeBaseIds) {
+        queryClient.removeQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) })
+      }
+    },
+  })
+}
+
+async function searchWorkspaceKnowledge(
+  body: WorkspaceKnowledgeSearchBody,
+  signal?: AbortSignal
+): Promise<WorkspaceKnowledgeSearchData> {
+  const data = await requestJson(searchWorkspaceKnowledgeContract, { body, signal })
+  return data.data
+}
+
+interface WorkspaceKnowledgeSearchOptions {
+  nativeQueries?: NativeSearchQuery[]
+  reuseFreshResult?: boolean
+}
+
+/** Searches connected providers with the signed-in person's access. */
+export function useWorkspaceKnowledgeSearch(
+  owner: string | ResourceScope | undefined,
+  query: string,
+  filters?: WorkspaceSearchFilters,
+  topK = 20,
+  options?: WorkspaceKnowledgeSearchOptions
+) {
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+  const trimmed = query.trim()
+  const scope =
+    typeof owner === 'string'
+      ? owner
+        ? { kind: 'workspace' as const, workspaceId: owner }
+        : undefined
+      : owner
+  const scopeKey =
+    scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
+  return useQuery({
+    queryKey: [
+      ...knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId, options?.nativeQueries),
+      'live',
+    ],
+    queryFn: ({ signal }) =>
+      searchWorkspaceKnowledge(
+        {
+          ...(scope ? resourceScopeFields(scope) : {}),
+          query: trimmed,
+          filters,
+          topK,
+          ...(options?.nativeQueries ? { nativeQueries: options.nativeQueries } : {}),
+        },
+        signal
+      ),
+    enabled:
+      Boolean(scope && userId) &&
+      Boolean(
+        trimmed ||
+          filters?.startDate ||
+          filters?.endDate ||
+          filters?.modifiedAfter ||
+          filters?.modifiedBefore
+      ),
+    staleTime: options?.reuseFreshResult ? WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME : 0,
+    retry: false,
   })
 }

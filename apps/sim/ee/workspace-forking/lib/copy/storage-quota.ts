@@ -25,7 +25,7 @@ export interface ForkCopyBytesSelection {
 /**
  * Byte total a fork/sync copy selection would duplicate into the target: selected
  * workspace-file blobs plus the selected knowledge bases' stored document blobs. Sizes
- * come from the metadata rows (`workspace_files.size`, `document.file_size`) - no blob
+ * come from the metadata rows (`workspace_files.size_bytes`, `document.file_size`) - no blob
  * reads. Both sums scope to the source workspace with the same filters the copy itself
  * applies, so an id that is not actually copyable can only over-count (block), never
  * under-count.
@@ -47,8 +47,11 @@ export async function sumForkCopyBytes(
   const fileBytes =
     fileSelectors.length === 0
       ? sql<number>`0`
-      : sql<number>`(
-          SELECT coalesce(sum(${workspaceFiles.size}), 0)
+      : sql<number | null>`(
+          SELECT CASE
+            WHEN count(*) FILTER (WHERE ${workspaceFiles.sizeBytes} IS NULL) > 0 THEN NULL
+            ELSE coalesce(sum(${workspaceFiles.sizeBytes}), 0)
+          END
           FROM ${workspaceFiles}
           WHERE ${and(
             fileSelectors.length === 1 ? fileSelectors[0] : or(...fileSelectors),
@@ -74,10 +77,13 @@ export async function sumForkCopyBytes(
             isNotNull(document.storageKey)
           )}
         )`
-  const [row] = await executor.execute<{ total: number | string }>(
+  const [row] = await executor.execute<{ total: number | string | null }>(
     sql`SELECT (${fileBytes} + ${kbBytes})::bigint AS total`
   )
-  return Number(row?.total ?? 0)
+  if (row?.total == null) {
+    throw new ForkError('Storage calculation is temporarily unavailable', 503)
+  }
+  return Number(row.total)
 }
 
 type ForkCreationPayerPolicy = Pick<

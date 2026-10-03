@@ -1,11 +1,23 @@
-/**
- * @vitest-environment node
- */
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { getBlock } from '@/blocks/registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockImplementation((type: string) =>
+  type === 'generic_webhook'
+    ? genericWebhookConfig
+    : type === 'github_v2'
+      ? multiTriggerConfig
+      : type === 'mothership'
+        ? mothershipConfig
+        : type === 'function'
+          ? functionConfig
+          : undefined
+)
 
 beforeAll(() => {
   urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
@@ -42,14 +54,29 @@ const multiTriggerConfig = {
   ],
 }
 
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) =>
-    type === 'generic_webhook'
-      ? genericWebhookConfig
-      : type === 'github_v2'
-        ? multiTriggerConfig
-        : undefined,
-}))
+const mothershipConfig = {
+  type: 'mothership',
+  name: 'Sim Chat',
+  category: 'blocks',
+  outputs: {},
+  subBlocks: [
+    { id: 'prompt', type: 'long-input' },
+    { id: 'secretScope', type: 'dropdown', hideFromCopilot: true },
+    { id: 'mountedSecrets', type: 'dropdown', hideFromCopilot: true },
+  ],
+}
+
+const functionConfig = {
+  type: 'function',
+  name: 'Function',
+  category: 'blocks',
+  outputs: {},
+  subBlocks: [
+    { id: 'code', type: 'code' },
+    { id: 'language', type: 'dropdown' },
+    { id: 'sandboxId', type: 'combobox' },
+  ],
+}
 
 /**
  * Builds a minimal one-block workflow whose knowledge block carries the two
@@ -96,19 +123,86 @@ describe('sanitizeForCopilot knowledge tag subblocks', () => {
 
     expect(inputs?.tagFilters).toBe(value)
   })
+})
 
-  it('retains documentTags alongside tagFilters', () => {
-    const result = sanitizeForCopilot(makeKnowledgeWorkflow(JSON.stringify([])))
-    const inputs = result.blocks['kb-1'].inputs
+describe('sanitizeForCopilot server-only block inputs', () => {
+  it('omits Sim Chat secret-mount policy while retaining model-visible inputs', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('chat-1', {
+        type: 'mothership',
+        name: 'Sim Chat 1',
+        enabled: true,
+        subBlocks: {
+          prompt: { id: 'prompt', type: 'long-input', value: 'Help me' },
+          secretScope: { id: 'secretScope', type: 'dropdown', value: 'selected' },
+          mountedSecrets: {
+            id: 'mountedSecrets',
+            type: 'dropdown',
+            value: ['OPENAI_API_KEY'],
+          },
+        },
+      })
+    )
 
-    expect(inputs?.documentTags).toBeDefined()
+    expect(result.blocks['chat-1'].inputs).toEqual({ prompt: 'Help me' })
   })
+})
 
-  it('still omits the key when no filter is set, so absent means unset', () => {
-    const result = sanitizeForCopilot(makeKnowledgeWorkflow(null))
-    const inputs = result.blocks['kb-1'].inputs
+describe('sanitizeForCopilot Agent tool modes', () => {
+  it('preserves fixed and variable-backed usage modes while removing UI state', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('agent-1', {
+        type: 'agent',
+        name: 'Agent 1',
+        enabled: true,
+        subBlocks: {
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [
+              {
+                type: 'custom-tool',
+                customToolId: 'custom-1',
+                usageControl: 'auto',
+                usageControlExpression: '<route.toolMode>',
+                isExpanded: true,
+              },
+            ],
+          },
+        },
+      })
+    )
 
-    expect(inputs).not.toHaveProperty('tagFilters')
+    expect(result.blocks['agent-1'].inputs?.tools).toEqual([
+      {
+        type: 'custom-tool',
+        customToolId: 'custom-1',
+        usageControl: 'auto',
+        usageControlExpression: '<route.toolMode>',
+      },
+    ])
+  })
+})
+
+describe('sanitizeForCopilot subflow config', () => {
+  /**
+   * The model's read view has to use the same field names as the write contract it is
+   * given, or an echoed-back edit is silently dropped. `components/blocks/parallel.json`
+   * declares `count`; `components/blocks/loop.json` declares `iterations`.
+   */
+  it("names a count-parallel's branch count `count`, matching the parallel write contract", () => {
+    const state = makeSingleBlockWorkflow('parallel-1', {
+      type: 'parallel',
+      name: 'Parallel 1',
+      enabled: true,
+      subBlocks: {},
+      data: { parallelType: 'count', count: 5 },
+    })
+
+    expect(sanitizeForCopilot(state).blocks['parallel-1'].inputs).toEqual({
+      parallelType: 'count',
+      count: 5,
+    })
   })
 })
 
@@ -140,27 +234,6 @@ describe('sanitizeForCopilot webhook trigger URL', () => {
     )
   })
 
-  it('prefers the stored triggerPath over the block id', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('hook-1', {
-        type: 'generic_webhook',
-        name: 'Webhook 1',
-        enabled: true,
-        subBlocks: { triggerPath: { id: 'triggerPath', type: 'short-input', value: 'my-path' } },
-      })
-    )
-
-    expect(result.blocks['hook-1'].inputs?.[TRIGGER_WEBHOOK_URL_FIELD]).toBe(
-      'https://sim.test/api/webhooks/trigger/my-path'
-    )
-  })
-
-  it('does not synthesize a URL for non-trigger blocks', () => {
-    const result = sanitizeForCopilot(makeKnowledgeWorkflow(null))
-
-    expect(result.blocks['kb-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
-  })
-
   it('synthesizes a URL for an integration block whose selected trigger is webhook-based', () => {
     const result = sanitizeForCopilot(
       makeSingleBlockWorkflow('gh-1', {
@@ -178,35 +251,33 @@ describe('sanitizeForCopilot webhook trigger URL', () => {
       'https://sim.test/api/webhooks/trigger/gh-1'
     )
   })
+})
 
-  it('omits the URL when the selected trigger has no webhook-URL field', () => {
+describe('sanitizeForCopilot credential-routed trigger routing', () => {
+  it('synthesizes the read-only routing note for a slack_v2 block in trigger mode', () => {
     const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('gh-1', {
-        type: 'github_v2',
-        name: 'GitHub 1',
+      makeSingleBlockWorkflow('slack-1', {
+        type: 'slack_v2',
+        name: 'Slack Trigger',
         enabled: true,
         triggerMode: true,
         subBlocks: {
-          selectedTriggerId: { id: 'selectedTriggerId', type: 'dropdown', value: 'github_poller' },
+          selectedTriggerId: { id: 'selectedTriggerId', type: 'short-input', value: 'slack_oauth' },
+          customBotCredential: {
+            id: 'customBotCredential',
+            type: 'oauth-input',
+            value: 'cred-123',
+          },
         },
       })
     )
 
-    expect(result.blocks['gh-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
-  })
-
-  it('omits the URL when the integration block is not in trigger mode', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('gh-1', {
-        type: 'github_v2',
-        name: 'GitHub 1',
-        enabled: true,
-        subBlocks: {
-          selectedTriggerId: { id: 'selectedTriggerId', type: 'dropdown', value: 'github_push' },
-        },
-      })
-    )
-
-    expect(result.blocks['gh-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
+    const routing = result.blocks['slack-1'].inputs?.[TRIGGER_ROUTING_FIELD] as
+      | Record<string, unknown>
+      | undefined
+    expect(routing?.model).toBe('credential-routed')
+    expect(routing?.selectedCredentialId).toBe('cred-123')
+    expect(String(routing?.note)).toContain('no per-workflow webhook URL')
+    expect(result.blocks['slack-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
   })
 })

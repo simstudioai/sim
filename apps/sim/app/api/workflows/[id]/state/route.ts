@@ -1,28 +1,17 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import {
-  assertWorkflowMutable,
-  authorizeWorkflowByWorkspacePermission,
-  WorkflowLockedError,
-} from '@sim/platform-authz/workflow'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { putWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
-import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
-import {
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
-import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import { saveWorkflowNormalizedState } from '@/lib/workflows/persistence/save-normalized-state'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('WorkflowStateAPI')
 
@@ -117,164 +106,29 @@ export const PUT = withRouteHandler(
 
       const parsed = await parseRequest(putWorkflowNormalizedStateContract, request, context)
       if (!parsed.success) return parsed.response
-      const state = parsed.data.body
 
-      const authorization = await authorizeWorkflowByWorkspacePermission({
+      const result = await saveWorkflowNormalizedState({
+        requestId,
         workflowId,
         userId,
-        action: 'write',
-      })
-      const workflowData = authorization.workflow
-
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found for state update`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-
-      const canUpdate = authorization.allowed
-
-      if (!canUpdate) {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to update workflow state ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: authorization.message || 'Access denied' },
-          { status: authorization.status || 403 }
-        )
-      }
-
-      await assertWorkflowMutable(workflowId)
-
-      // Note: prior versions cross-checked that each variable's `workflowId`
-      // equalled the path param. The write contract does not carry `workflowId`
-      // per variable (the path param is the source of truth), so the check
-      // is unreachable and was removed.
-
-      const { state: preparedState, warnings: preparationWarnings } =
-        prepareWorkflowStateForPersistence({
-          blocks: state.blocks as Record<string, BlockState>,
-          edges: state.edges as WorkflowState['edges'],
-        })
-
-      const workflowState = {
-        ...preparedState,
-        lastSaved: state.lastSaved || Date.now(),
-        isDeployed: state.isDeployed || false,
-        deployedAt: state.deployedAt,
-      }
-
-      const saveResult = await db.transaction(async (tx) => {
-        await tx
-          .select({ id: workflow.id })
-          .from(workflow)
-          .where(eq(workflow.id, workflowId))
-          .limit(1)
-          .for('update')
-
-        const result = await saveWorkflowToNormalizedTables(
-          workflowId,
-          workflowState as WorkflowState,
-          tx
-        )
-
-        if (!result.success) return result
-
-        // Update workflow's lastSynced timestamp and variables if provided
-        const updateData: {
-          lastSynced: Date
-          updatedAt: Date
-          variables?: typeof state.variables
-        } = {
-          lastSynced: new Date(),
-          updatedAt: new Date(),
-        }
-
-        // If variables are provided in the state, update them in the workflow record
-        if (state.variables !== undefined) {
-          updateData.variables = state.variables
-        }
-
-        await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
-
-        return result
+        state: parsed.data.body,
       })
 
-      if (!saveResult.success) {
-        logger.error(
-          `[${requestId}] Failed to save workflow ${workflowId} state:`,
-          saveResult.error
-        )
+      if (!result.success) {
         return NextResponse.json(
-          { error: 'Failed to save workflow state', details: saveResult.error },
-          { status: 500 }
+          {
+            error: result.error,
+            ...(result.details !== undefined ? { details: result.details } : {}),
+          },
+          { status: result.status }
         )
-      }
-
-      // Extract and persist custom tools to database
-      try {
-        const workspaceId = workflowData.workspaceId
-        if (workspaceId) {
-          const { saved, errors } = await extractAndPersistCustomTools(
-            workflowState,
-            workspaceId,
-            userId
-          )
-
-          if (saved > 0) {
-            logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, {
-              workflowId,
-            })
-          }
-
-          if (errors.length > 0) {
-            logger.warn(`[${requestId}] Some custom tools failed to persist`, {
-              errors,
-              workflowId,
-            })
-          }
-        } else {
-          logger.warn(
-            `[${requestId}] Workflow has no workspaceId, skipping custom tools persistence`,
-            {
-              workflowId,
-            }
-          )
-        }
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
       }
 
       const elapsed = Date.now() - startTime
       logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
 
-      try {
-        const notifyResponse = await fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': env.INTERNAL_API_SECRET,
-          },
-          body: JSON.stringify({ workflowId }),
-        })
-
-        if (!notifyResponse.ok) {
-          logger.warn(
-            `[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} update`
-          )
-        }
-      } catch (notificationError) {
-        logger.warn(
-          `[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} update`,
-          notificationError
-        )
-      }
-
-      return NextResponse.json({ success: true, warnings: preparationWarnings }, { status: 200 })
+      return NextResponse.json({ success: true, warnings: result.warnings }, { status: 200 })
     } catch (error: any) {
-      if (error instanceof WorkflowLockedError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
-      }
-
       const elapsed = Date.now() - startTime
       logger.error(
         `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,

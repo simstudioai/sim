@@ -1,7 +1,9 @@
+import type { Principal } from '@sim/auth/principal'
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
@@ -15,18 +17,12 @@ import {
 } from '@/lib/execution/payloads/large-value-ref'
 import {
   assertUserFileContentAccess,
-  readUserFileContent,
+  readUserFileContentWithContributors,
 } from '@/lib/execution/payloads/materialization.server'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
-import {
-  type ExecutionRedisBudgetReservation,
-  getExecutionRedisBudgetKeys,
-  getExecutionRedisBudgetLimits,
-} from '@/lib/execution/redis-budget.server'
-import {
-  ExecutionResourceLimitError,
-  isExecutionResourceLimitError,
-} from '@/lib/execution/resource-errors'
+import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
@@ -58,7 +54,7 @@ if bytes and bytes > 0 then
     local user_next = redis.call('DECRBY', KEYS[4], bytes)
     if user_next <= 0 then
       redis.call('DEL', KEYS[4])
-    else
+    elseif redis.call('TTL', KEYS[4]) < 0 then
       redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
     end
   end
@@ -128,7 +124,7 @@ if #KEYS >= 4 then
       redis.call('DEL', KEYS[4])
     end
   end
-  if redis.call('EXISTS', KEYS[4]) == 1 then
+  if redis.call('EXISTS', KEYS[4]) == 1 and redis.call('TTL', KEYS[4]) < 0 then
     redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
   end
 end
@@ -164,12 +160,23 @@ export interface Base64HydrationOptions {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /**
+   * The principal behind the run. A knowledge-base file is read as them, so a
+   * document shared with only this person still hydrates; `userId` alone may
+   * be the workflow owner standing in for an actorless run and must not widen
+   * what the run can read.
+   */
+  principal?: Principal
   logger?: Logger
   maxBytes?: number
   allowUnknownSize?: boolean
   timeoutMs?: number
   cacheTtlSeconds?: number
   preserveLargeValueMetadata?: boolean
+  onServableFileContributors?: (
+    file: UserFile,
+    contributors: readonly WorkspaceFileSecretProvenanceIdentity[]
+  ) => Promise<void>
 }
 
 class InMemoryBase64Cache implements Base64Cache {
@@ -193,6 +200,24 @@ class InMemoryBase64Cache implements Base64Cache {
     const expiresAt = Date.now() + ttlSeconds * 1000
     this.entries.set(key, { value, expiresAt })
   }
+}
+
+/**
+ * The base64 cache only saves a repeat read from storage — the bytes it would have stored are
+ * already in hand by the time it is written. Exceeding a Redis budget therefore means "do not
+ * cache", never "fail the run": throwing here turned an oversized attachment into an opaque
+ * "Execution memory limit exceeded" on a request that had already read the file successfully.
+ */
+function logSkippedCacheWrite(
+  logger: Logger,
+  requestId: string | undefined,
+  file: UserFile,
+  error: ExecutionResourceLimitError
+): void {
+  logger.warn(
+    `[${requestId ?? 'unknown'}] Skipping base64 cache write for ${file.name}: ${error.message}`,
+    { resource: error.resource, attemptedBytes: error.attemptedBytes }
+  )
 }
 
 function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Base64Cache {
@@ -225,24 +250,26 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
           return
         }
 
-        const limits = getExecutionRedisBudgetLimits()
+        const limits = getRedisBudgetLimits('execution')
         if (valueBytes > limits.maxSingleWriteBytes) {
-          throw new ExecutionResourceLimitError({
-            resource: 'redis_key_bytes',
-            attemptedBytes: valueBytes,
-            limitBytes: limits.maxSingleWriteBytes,
-          })
+          logSkippedCacheWrite(
+            logger,
+            options.requestId,
+            file,
+            new ExecutionResourceLimitError({
+              resource: 'redis_key_bytes',
+              attemptedBytes: valueBytes,
+              limitBytes: limits.maxSingleWriteBytes,
+            })
+          )
+          return
         }
         const cacheTtlSeconds = Math.max(ttlSeconds, limits.ttlSeconds)
-        const budgetReservation: ExecutionRedisBudgetReservation = {
-          executionId,
+        const budgetKeys = getRedisBudgetKeys({
+          kind: 'execution',
+          id: executionId,
           userId: options.userId,
-          category: 'base64_cache',
-          operation: 'set_base64_cache',
-          bytes: valueBytes,
-          logger,
-        }
-        const budgetKeys = getExecutionRedisBudgetKeys(budgetReservation)
+        })
         const result = (await redis.eval(
           SET_BASE64_CACHE_SCRIPT,
           2 + budgetKeys.length,
@@ -254,25 +281,27 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
           getFileCacheKey(file),
           serializeBudgetEntry({ bytes: valueBytes, userId: options.userId }),
           valueBytes,
-          limits.maxExecutionBytes,
+          limits.maxOwnerBytes,
           limits.maxUserBytes,
           limits.ttlSeconds
         )) as [number, string, number | string | null]
         const [allowed, resource, current] = result
         if (allowed !== 1) {
-          throw new ExecutionResourceLimitError({
-            resource:
-              resource === 'user_redis_bytes' ? 'user_redis_bytes' : 'execution_redis_bytes',
-            attemptedBytes: valueBytes,
-            currentBytes: Number(current ?? 0),
-            limitBytes:
-              resource === 'user_redis_bytes' ? limits.maxUserBytes : limits.maxExecutionBytes,
-          })
+          logSkippedCacheWrite(
+            logger,
+            options.requestId,
+            file,
+            new ExecutionResourceLimitError({
+              resource:
+                resource === 'user_redis_bytes' ? 'user_redis_bytes' : 'execution_redis_bytes',
+              attemptedBytes: valueBytes,
+              currentBytes: Number(current ?? 0),
+              limitBytes:
+                resource === 'user_redis_bytes' ? limits.maxUserBytes : limits.maxOwnerBytes,
+            })
+          )
         }
       } catch (error) {
-        if (isExecutionResourceLimitError(error)) {
-          throw error
-        }
         logger.warn(`[${options.requestId}] Redis set failed, skipping cache`, error)
       }
     },
@@ -342,15 +371,12 @@ async function cleanupBudgetEntry(
   rawEntry: string,
   entry: Base64BudgetEntry
 ): Promise<{ claimed: boolean; deletedCount: number }> {
-  const limits = getExecutionRedisBudgetLimits()
-  const budgetReservation: ExecutionRedisBudgetReservation = {
-    executionId,
+  const limits = getRedisBudgetLimits('execution')
+  const budgetKeys = getRedisBudgetKeys({
+    kind: 'execution',
+    id: executionId,
     userId: entry.userId,
-    category: 'base64_cache',
-    operation: 'cleanup_base64_cache',
-    bytes: entry.bytes,
-  }
-  const budgetKeys = getExecutionRedisBudgetKeys(budgetReservation)
+  })
   const result = (await redis.eval(
     CLEANUP_BASE64_CACHE_ENTRY_SCRIPT,
     2 + budgetKeys.length,
@@ -374,7 +400,10 @@ async function resolveBase64(
   file: UserFile,
   options: Base64HydrationOptions,
   logger: Logger
-): Promise<string | null> {
+): Promise<{
+  base64: string | null
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+}> {
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
 
   if (file.base64) {
@@ -383,19 +412,23 @@ async function resolveBase64(
       logger.warn(
         `[${options.requestId}] Skipping existing base64 for ${file.name} (decoded ${base64Bytes} exceeds ${maxBytes})`
       )
-      return null
+      return { base64: null }
     }
-    return file.base64
+    return { base64: file.base64 }
   }
 
   const allowUnknownSize = options.allowUnknownSize ?? false
   const hasStableStorageKey = Boolean(file.key)
 
-  if (Number.isFinite(file.size) && file.size > maxBytes) {
+  if (
+    !isGeneratedDocumentSourceType(file.type) &&
+    Number.isFinite(file.size) &&
+    file.size > maxBytes
+  ) {
     logger.warn(
       `[${options.requestId}] Skipping base64 for ${file.name} (size ${file.size} exceeds ${maxBytes})`
     )
-    return null
+    return { base64: null }
   }
 
   if (
@@ -404,12 +437,12 @@ async function resolveBase64(
     !hasStableStorageKey
   ) {
     logger.warn(`[${options.requestId}] Skipping base64 for ${file.name} (unknown file size)`)
-    return null
+    return { base64: null }
   }
 
   const requestId = options.requestId ?? 'unknown'
   try {
-    return await readUserFileContent(file, {
+    const result = await readUserFileContentWithContributors(file, {
       requestId,
       workspaceId: options.workspaceId,
       workflowId: options.workflowId,
@@ -418,13 +451,20 @@ async function resolveBase64(
       fileKeys: options.fileKeys,
       allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
       userId: options.userId,
+      principal: options.principal,
       encoding: 'base64',
       maxBytes,
-      maxSourceBytes: maxBytes,
     })
+    return {
+      base64: result.content,
+      ...(result.contributingFiles ? { contributingFiles: result.contributingFiles } : {}),
+    }
   } catch (error) {
+    if (error instanceof Error && error.name === 'DocCompileUserError') {
+      throw error
+    }
     logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
-    return null
+    return { base64: null }
   }
 }
 
@@ -445,6 +485,7 @@ async function hydrateUserFile(
         fileKeys: options.fileKeys,
         allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
         userId: options.userId,
+        principal: options.principal,
         logger,
       })
     } catch (error) {
@@ -453,18 +494,28 @@ async function hydrateUserFile(
     }
   }
 
-  const cached = await state.cache.get(file)
+  const needsContributorVerification =
+    Boolean(options.onServableFileContributors) && isGeneratedDocumentSourceType(file.type)
+  const cached = needsContributorVerification ? null : await state.cache.get(file)
   if (cached) {
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
-    if (Buffer.byteLength(cached, 'base64') > maxBytes) {
+    const cachedBytes = Buffer.byteLength(cached, 'base64')
+    if (isGeneratedDocumentSourceType(file.type)) {
+      file.size = cachedBytes
+    }
+    if (cachedBytes > maxBytes) {
       return stripBase64(file)
     }
     return { ...file, base64: cached }
   }
 
-  const base64 = await resolveBase64(file, options, logger)
+  const { base64, contributingFiles } = await resolveBase64(file, options, logger)
   if (!base64) {
     return stripBase64(file)
+  }
+
+  if (contributingFiles && contributingFiles.length > 0) {
+    await options.onServableFileContributors?.(file, contributingFiles)
   }
 
   await state.cache.set(file, base64, state.cacheTtlSeconds)

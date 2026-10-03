@@ -44,7 +44,15 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.sixtyfour.ai/enrich-lead',
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        leadInfo: params.leadInfo,
+        struct: params.struct,
+        researchPlan: params.researchPlan,
+      }),
+    },
+    url: 'https://api.sixtyfour.ai/people-intelligence',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

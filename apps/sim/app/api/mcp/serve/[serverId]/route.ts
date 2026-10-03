@@ -17,6 +17,7 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
+import { isUserCredentialPrincipal, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   workflow,
@@ -26,6 +27,8 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -34,36 +37,54 @@ import {
   mcpServeRouteParamsSchema,
   mcpToolCallParamsSchema,
 } from '@/lib/api/contracts/mcp'
-import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
-import { generateInternalToken } from '@/lib/auth/internal'
+import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
+import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
+import {
+  InvalidOAuthAccessTokenError,
+  parseBearerToken,
+  verifyOAuthAccessToken,
+} from '@/lib/auth/oauth-access-token'
+import {
+  OAUTH_ACCESS_TOKEN_PREFIX,
+  OAUTH_API_READ_SCOPE,
+  OAUTH_API_WRITE_SCOPE,
+  type OAuthApiScope,
+  oauthScopeSatisfies,
+} from '@/lib/auth/oauth-provider'
 import {
   assertBillingAttributionSnapshot,
-  BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
-  serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { encodeSSE, encodeSSEComment, SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
   assertContentLengthWithinLimit,
   assertKnownSizeWithinLimit,
   isPayloadSizeLimitError,
-  readResponseTextWithLimit,
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
+import { parseCallChain, SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import {
   MAX_MCP_PARAMETER_SCHEMA_BYTES,
   MAX_MCP_TOOLS_LIST_RESPONSE_BYTES,
   MAX_MCP_TOOLS_PER_SERVER,
   MAX_MCP_WORKFLOW_RESPONSE_BYTES,
-  MCP_TOOL_BRIDGE_ACTOR_HEADER,
-  MCP_TOOL_BRIDGE_HEADER,
 } from '@/lib/mcp/constants'
+import { withWorkflowMcpAuthChallenge } from '@/lib/mcp/oauth-metadata'
+import { buildWorkflowMcpServerUrl } from '@/lib/mcp/urls'
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
+import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import {
+  isResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowMcpServeAPI')
 const MAX_MCP_SERVE_BODY_BYTES = 10 * 1024 * 1024
@@ -71,6 +92,7 @@ const MAX_MCP_WORKFLOW_REQUEST_BYTES = 10 * 1024 * 1024
 const MAX_MCP_TOOL_RESULT_TEXT_BYTES = 10 * 1024 * 1024
 const MAX_MCP_TOOLS_LIST_COUNT = MAX_MCP_TOOLS_PER_SERVER
 const MAX_MCP_TOOLS_LIST_SCHEMA_BYTES = MAX_MCP_PARAMETER_SCHEMA_BYTES
+const MCP_STREAM_KEEPALIVE_INTERVAL_MS = 15_000
 const MB = 1024 * 1024
 
 function negotiateProtocolVersion(rpcParams: unknown): string {
@@ -93,6 +115,7 @@ interface RouteParams {
 interface ExecuteAuthContext {
   userId: string
   useAuthenticatedUserAsActor: boolean
+  principal: WorkflowExecutionPrincipal
 }
 
 function createResponse(id: RequestId, result: unknown): JSONRPCResultResponse {
@@ -130,6 +153,95 @@ function callerAbortedJsonRpcResponse(
   abortSignal?: ManagedAbortSignal | null
 ): NextResponse | null {
   return abortSignal?.isCallerAborted() ? clientCancelledJsonRpcResponse(id) : null
+}
+
+function acceptsEventStream(request: NextRequest): boolean {
+  return acceptsMediaType(request.headers.get('accept'), 'text/event-stream')
+}
+
+/**
+ * Sends a Streamable HTTP response as SSE so a long tool call can keep the
+ * connection active before its terminal JSON-RPC message is available.
+ */
+function streamJsonRpcResponse(
+  id: RequestId,
+  requestSignal: AbortSignal,
+  run: (signal: AbortSignal) => Promise<NextResponse>
+): Response {
+  const executionController = new AbortController()
+  let cancelled = false
+  let keepaliveId: ReturnType<typeof setInterval> | undefined
+
+  const stopKeepalive = () => {
+    if (keepaliveId) {
+      clearInterval(keepaliveId)
+      keepaliveId = undefined
+    }
+  }
+  const abortExecution = (reason?: unknown) => {
+    if (!executionController.signal.aborted) {
+      executionController.abort(reason ?? new Error('MCP client disconnected'))
+    }
+  }
+  const abortFromRequest = () => abortExecution(requestSignal.reason)
+
+  if (requestSignal.aborted) {
+    abortFromRequest()
+  } else {
+    requestSignal.addEventListener('abort', abortFromRequest, { once: true })
+  }
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = (chunk: Uint8Array): boolean => {
+        if (cancelled) return false
+        try {
+          controller.enqueue(chunk)
+          return true
+        } catch {
+          cancelled = true
+          stopKeepalive()
+          abortExecution()
+          return false
+        }
+      }
+
+      if (send(encodeSSEComment('keepalive'))) {
+        keepaliveId = setInterval(() => {
+          send(encodeSSEComment('keepalive'))
+        }, MCP_STREAM_KEEPALIVE_INTERVAL_MS)
+      }
+
+      void run(executionController.signal)
+        .then(async (response) => {
+          const message: unknown = await response.json()
+          send(encodeSSE(message))
+        })
+        .catch((error) => {
+          logger.error('MCP response stream failed', { error: getErrorMessage(error) })
+          send(encodeSSE(createError(id, ErrorCode.InternalError, 'Internal error')))
+        })
+        .finally(() => {
+          stopKeepalive()
+          requestSignal.removeEventListener('abort', abortFromRequest)
+          if (!cancelled) controller.close()
+        })
+    },
+    cancel(reason) {
+      cancelled = true
+      stopKeepalive()
+      requestSignal.removeEventListener('abort', abortFromRequest)
+      abortExecution(reason)
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      ...SSE_HEADERS,
+      'Cache-Control': 'no-cache, no-transform',
+      Vary: 'Accept',
+    },
+  })
 }
 
 function limitMessage(label: string, maxBytes: number): string {
@@ -198,6 +310,52 @@ function serializeToolText(value: unknown): string {
   return text
 }
 
+async function projectWorkflowToolOutput(
+  value: unknown,
+  provenance: unknown,
+  scope: { userId: string; workspaceId: string }
+): Promise<unknown> {
+  /**
+   * Deliberately compares the tenant only, never the user. The executor stamps provenance with
+   * the workflow AUTHOR (`personalEnvUserId` falls back to `metadata.workflowUserId` on this
+   * non-session path) while `scope` here is the ACTING caller, and a caller who did not author
+   * the workflow is the ordinary team configuration — demanding they match refuses every such
+   * call after the workflow has already run and been billed. Restoring a user comparison here
+   * is not hardening: the registry compares both scope fields itself and marks every entry
+   * imported from another user anonymous, so a non-author already sees the opaque redaction
+   * placeholder rather than the author's secret names.
+   */
+  if (
+    !isResolvedSecretTraceProvenanceV1(provenance) ||
+    !provenance.complete ||
+    provenance.scope?.workspaceId !== scope.workspaceId
+  ) {
+    throw new Error('MCP workflow execution provenance is unavailable')
+  }
+
+  const registry = new ResolvedSecretTraceRegistry([], scope)
+  const imported = await registry.importProvenance(provenance, {
+    trusted: true,
+    origin: 'mcpServe.workflowCrossing',
+  })
+  if (!imported || !registry.isComplete()) {
+    throw new Error('MCP workflow execution provenance could not be restored')
+  }
+  const projected = projectResolvedSecretModelContent(
+    value,
+    registry,
+    MAX_MCP_TOOL_RESULT_TEXT_BYTES
+  )
+  if (!projected.safe) {
+    refuseResolvedSecretProjection({
+      site: 'mcpServe.workflowOutput',
+      message: 'MCP workflow execution output could not be safely projected',
+      registry,
+    })
+  }
+  return projected.value
+}
+
 function createJsonRpcResponseWithLimit(
   id: RequestId,
   result: unknown,
@@ -217,12 +375,9 @@ function toToolInputSchema(schema: unknown): Partial<Tool['inputSchema']> {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return {}
 
   const candidate = schema as Record<string, unknown>
-  const properties =
-    candidate.properties &&
-    typeof candidate.properties === 'object' &&
-    !Array.isArray(candidate.properties)
-      ? (candidate.properties as Tool['inputSchema']['properties'])
-      : {}
+  const properties = isRecordLike(candidate.properties)
+    ? (candidate.properties as Tool['inputSchema']['properties'])
+    : {}
   const required = Array.isArray(candidate.required)
     ? candidate.required.filter((entry): entry is string => typeof entry === 'string')
     : undefined
@@ -231,23 +386,6 @@ function toToolInputSchema(schema: unknown): Partial<Tool['inputSchema']> {
     properties,
     ...(required && required.length > 0 && { required }),
   }
-}
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
-function parseJsonValue(text: string): { success: true; value: unknown } | { success: false } {
-  if (!text) return { success: true, value: {} }
-  try {
-    return { success: true, value: JSON.parse(text) }
-  } catch {
-    return { success: false }
-  }
-}
-
-function hasResponseField(value: Record<string, unknown>, property: string): boolean {
-  return Object.hasOwn(value, property)
 }
 
 function getWorkflowErrorStatus(status: number): number {
@@ -281,21 +419,6 @@ async function getDuplicateToolName(serverId: string): Promise<string | null> {
   return duplicate?.toolName ?? null
 }
 
-async function readWorkflowExecutionResult(
-  response: Response,
-  signal: AbortSignal
-): Promise<unknown> {
-  const text = await readResponseTextWithLimit(response, {
-    maxBytes: MAX_MCP_WORKFLOW_RESPONSE_BYTES,
-    label: 'MCP workflow execution response',
-    signal,
-  })
-  const parsed = parseJsonValue(text)
-  if (parsed.success) return parsed.value
-  if (!response.ok) return { error: response.statusText || 'Workflow execution failed' }
-  throw new Error('Invalid workflow execution response')
-}
-
 async function getServer(serverId: string) {
   const [server] = await db
     .select({
@@ -304,6 +427,7 @@ async function getServer(serverId: string) {
       workspaceId: workflowMcpServer.workspaceId,
       isPublic: workflowMcpServer.isPublic,
       createdBy: workflowMcpServer.createdBy,
+      workspaceAllowsPersonalApiKeys: workspace.allowPersonalApiKeys,
     })
     .from(workflowMcpServer)
     .innerJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
@@ -338,6 +462,71 @@ async function resolveWorkflowMcpBillingAttribution(
   return attribution
 }
 
+/**
+ * A 401 that points OAuth clients at this server's protected-resource metadata,
+ * so they can discover Sim's authorization server and start the flow.
+ */
+function unauthorizedResponse(serverId: string, invalidToken = false): NextResponse {
+  return withWorkflowMcpAuthChallenge(
+    NextResponse.json(
+      { error: invalidToken ? 'Invalid access token' : 'Unauthorized' },
+      {
+        status: 401,
+        ...(invalidToken && { headers: { 'WWW-Authenticate': 'Bearer error="invalid_token"' } }),
+      }
+    ),
+    serverId
+  )
+}
+
+/**
+ * A 403 whose `insufficient_scope` challenge lets an OAuth client step up to
+ * exactly the scope the request needed.
+ */
+function insufficientScopeResponse(
+  serverId: string,
+  scope: OAuthApiScope,
+  body: unknown
+): NextResponse {
+  return withWorkflowMcpAuthChallenge(
+    NextResponse.json(body, {
+      status: 403,
+      headers: { 'WWW-Authenticate': `Bearer error="insufficient_scope", scope="${scope}"` },
+    }),
+    serverId
+  )
+}
+
+/**
+ * Authenticates a Sim OAuth access token bound to this server's URL; any other
+ * credential goes through hybrid auth. An API key wins when both are sent, as
+ * on the other MCP servers. Every method reads the server's tools, so a token
+ * needs at least `api:read` (`api:write` implies it).
+ */
+async function authenticateMcpServeRequest(
+  request: NextRequest,
+  serverId: string
+): Promise<AuthResult | 'invalid_token' | 'insufficient_scope'> {
+  const bearer = parseBearerToken(request.headers)
+  if (!bearer?.startsWith(OAUTH_ACCESS_TOKEN_PREFIX) || request.headers.has('x-api-key')) {
+    return checkHybridAuth(request, { requireWorkflowId: false })
+  }
+  try {
+    const principal = await verifyOAuthAccessToken(bearer, {
+      resource: buildWorkflowMcpServerUrl(serverId),
+    })
+    if (!oauthScopeSatisfies(principal.scopes, OAUTH_API_READ_SCOPE)) return 'insufficient_scope'
+    return { success: true, userId: principal.userId, principal }
+  } catch (error) {
+    if (!(error instanceof InvalidOAuthAccessTokenError)) throw error
+    logger.warn('Invalid OAuth access token for workflow MCP server', {
+      serverId,
+      reason: error.reason,
+    })
+    return 'invalid_token'
+  }
+}
+
 async function authorizeMcpServeRequest(
   request: NextRequest,
   server: WorkflowMcpServeServer,
@@ -345,9 +534,20 @@ async function authorizeMcpServeRequest(
 ): Promise<{ response?: NextResponse; executeAuthContext?: ExecuteAuthContext }> {
   if (server.isPublic && !options.requireAuthForPublic) return {}
 
-  const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+  const auth = await authenticateMcpServeRequest(request, server.id)
+  if (auth === 'invalid_token') return { response: unauthorizedResponse(server.id, true) }
+  if (auth === 'insufficient_scope') {
+    return {
+      response: insufficientScopeResponse(server.id, OAUTH_API_READ_SCOPE, {
+        error: `This server requires the ${OAUTH_API_READ_SCOPE} scope`,
+      }),
+    }
+  }
   if (!auth.success || !auth.userId) {
-    return { response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+    return { response: unauthorizedResponse(server.id) }
+  }
+  if (!auth.principal) {
+    throw new Error('Authenticated MCP request is missing its principal')
   }
 
   if (server.isPublic) return {}
@@ -365,21 +565,54 @@ async function authorizeMcpServeRequest(
     return { response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
+  /**
+   * The in-process execution service receives the resolved actor, not the
+   * caller's original credential type, so enforce the workspace personal-key
+   * policy at this authenticated MCP boundary. OAuth tokens are the same
+   * authorization class as personal keys.
+   */
+  const isUserCredential = isUserCredentialPrincipal(auth.principal)
+  if (isUserCredential && !server.workspaceAllowsPersonalApiKeys) {
+    return {
+      response: NextResponse.json({ error: PERSONAL_KEY_DENIED }, { status: 403 }),
+    }
+  }
+
   return {
     executeAuthContext: {
       userId: auth.userId,
-      useAuthenticatedUserAsActor:
-        auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal',
+      useAuthenticatedUserAsActor: isUserCredential,
+      principal: auth.principal,
     },
   }
 }
 
-function unsupportedSseTransportResponse(): NextResponse {
+/** Calling a tool runs a workflow, so an OAuth token needs `api:write`. */
+function insufficientToolCallScopeResponse(
+  id: RequestId,
+  serverId: string,
+  executeAuthContext: ExecuteAuthContext | null
+): NextResponse | null {
+  const principal = executeAuthContext?.principal
+  if (principal?.kind !== 'oauth_access_token') return null
+  if (oauthScopeSatisfies(principal.scopes, OAUTH_API_WRITE_SCOPE)) return null
+  return insufficientScopeResponse(
+    serverId,
+    OAUTH_API_WRITE_SCOPE,
+    createError(
+      id,
+      ErrorCode.InvalidRequest,
+      `Calling tools requires the ${OAUTH_API_WRITE_SCOPE} scope`
+    )
+  )
+}
+
+function unsupportedSseGetResponse(): NextResponse {
   return NextResponse.json(
     {
       error: {
         code: 'unsupported_transport',
-        message: 'SSE transport is not supported for workflow MCP servers',
+        message: 'Standalone SSE GET transport is not supported for workflow MCP servers',
         supportedTransports: ['streamable-http'],
         allowedMethods: ['GET', 'POST', 'DELETE'],
       },
@@ -406,8 +639,8 @@ export const GET = withRouteHandler(
       const authResult = await authorizeMcpServeRequest(request, server)
       if (authResult.response) return authResult.response
 
-      if (request.headers.get('accept')?.includes('text/event-stream')) {
-        return unsupportedSseTransportResponse()
+      if (acceptsEventStream(request)) {
+        return unsupportedSseGetResponse()
       }
 
       return NextResponse.json({
@@ -515,6 +748,9 @@ export const POST = withRouteHandler(
           return handleToolsList(id, serverId, rpcParams)
 
         case 'tools/call': {
+          const scopeResponse = insufficientToolCallScopeResponse(id, serverId, executeAuthContext)
+          if (scopeResponse) return scopeResponse
+
           const paramsValidation = mcpToolCallParamsSchema.safeParse(rpcParams)
           if (!paramsValidation.success) {
             return NextResponse.json(
@@ -525,16 +761,22 @@ export const POST = withRouteHandler(
             )
           }
 
-          return handleToolsCall(
-            id,
-            serverId,
-            server.workspaceId,
-            paramsValidation.data,
-            executeAuthContext,
-            server.isPublic ? server.createdBy : undefined,
-            request.headers.get(SIM_VIA_HEADER),
-            request.signal
-          )
+          const callTool = (signal: AbortSignal) =>
+            handleToolsCall(
+              id,
+              serverId,
+              server.workspaceId,
+              paramsValidation.data,
+              executeAuthContext,
+              server.isPublic ? server.createdBy : undefined,
+              request.headers.get(SIM_VIA_HEADER),
+              signal
+            )
+
+          if (acceptsEventStream(request)) {
+            return streamJsonRpcResponse(id, request.signal, callTool)
+          }
+          return callTool(request.signal)
         }
 
         default:
@@ -809,83 +1051,126 @@ async function handleToolsCall(
       wf.workspaceId
     )
 
-    const executeUrl = `${getInternalApiBaseUrl()}/api/workflows/${tool.workflowId}/execute`
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(billingAttribution),
-      [MCP_TOOL_BRIDGE_HEADER]: 'true',
-    }
-
     const abortedBeforeExecute = callerAbortedJsonRpcResponse(id, abortSignal)
     if (abortedBeforeExecute) return abortedBeforeExecute
 
-    const internalToken = await generateInternalToken(actorUserId)
-    headers.Authorization = `Bearer ${internalToken}`
-    if (executeAuthContext?.useAuthenticatedUserAsActor) {
-      headers[MCP_TOOL_BRIDGE_ACTOR_HEADER] = 'authenticated-user'
-    }
+    logger.info(`Executing workflow ${tool.workflowId} via MCP tool ${params.name} (in-process)`)
 
-    if (simViaHeader) {
-      headers[SIM_VIA_HEADER] = simViaHeader
-    }
-
-    logger.info(`Executing workflow ${tool.workflowId} via MCP tool ${params.name}`)
-
-    const workflowRequestBody = JSON.stringify({
-      input: params.arguments || {},
-      triggerType: 'mcp',
-      includeFileBase64: false,
-      ...(wf.deploymentVersionId ? { deploymentVersionId: wf.deploymentVersionId } : {}),
-    })
+    const workflowInput = params.arguments || {}
     assertKnownSizeWithinLimit(
-      Buffer.byteLength(workflowRequestBody, 'utf-8'),
+      Buffer.byteLength(JSON.stringify(workflowInput), 'utf-8'),
       MAX_MCP_WORKFLOW_REQUEST_BYTES,
       'MCP workflow execution request body'
     )
-    const response = await fetch(executeUrl, {
-      method: 'POST',
-      headers,
-      body: workflowRequestBody,
-      signal: abortSignal.signal,
+
+    /**
+     * In-process execution replaces the historical HTTP hop to the execute
+     * endpoint: the bridge's special needs — deployment-version pinning, MCP
+     * response-size rejection, actor override — are typed options instead of
+     * header sniffing, and billing attribution is passed as the immutable
+     * upstream snapshot exactly as the header carried it.
+     */
+    const serviceResult = await executeWorkflowService({
+      workflowId: tool.workflowId,
+      principal:
+        executeAuthContext?.principal ??
+        ({
+          kind: 'system',
+          serviceId: 'public_api',
+          workspaceId: wf.workspaceId,
+          workflowId: tool.workflowId,
+        } satisfies WorkflowExecutionPrincipal),
+      userId: actorUserId,
+      input: workflowInput,
+      triggerType: 'mcp',
+      requestId: generateRequestId(),
+      useAuthenticatedUserAsActor: executeAuthContext?.useAuthenticatedUserAsActor ?? false,
+      upstreamBillingAttribution: billingAttribution,
+      deploymentVersionId: wf.deploymentVersionId,
+      includeFileBase64: false,
+      rejectLargeInlineOutput: true,
+      callChain: simViaHeader ? parseCallChain(simViaHeader) : undefined,
+      abortSignal: abortSignal.signal,
     })
 
-    const executeResult = await readWorkflowExecutionResult(response, abortSignal.signal)
-    const executeResultObject = isJsonObject(executeResult) ? executeResult : null
-
-    if (!response.ok) {
-      const errorMessage =
-        typeof executeResultObject?.error === 'string'
-          ? executeResultObject.error
-          : 'Workflow execution failed'
-      const status = getWorkflowErrorStatus(response.status)
+    if (!serviceResult.ok) {
+      const failure = serviceResult.failure
+      const status = getWorkflowErrorStatus(failure.statusCode)
       const responseHeaders: Record<string, string> = {}
-      const retryAfter = response.headers.get('retry-after')
-      if (retryAfter) responseHeaders['Retry-After'] = retryAfter
+      if (failure.retryAfterMs !== undefined) {
+        responseHeaders['Retry-After'] = Math.max(
+          1,
+          Math.ceil(failure.retryAfterMs / 1000)
+        ).toString()
+      }
       return NextResponse.json(
         createError(
           id,
-          getWorkflowErrorCode(response.status, executeResultObject ?? {}),
-          errorMessage,
+          getWorkflowErrorCode(failure.statusCode, { code: failure.code }),
+          failure.message,
           {
-            httpStatus: response.status,
-            retryable: [408, 429, 503].includes(response.status),
-            code:
-              typeof executeResultObject?.code === 'string' ? executeResultObject.code : undefined,
+            httpStatus: failure.statusCode,
+            retryable: [408, 429, 503].includes(failure.statusCode),
+            code: failure.code,
+            ...(failure.executionId ? { executionId: failure.executionId } : {}),
           }
         ),
         { status, headers: responseHeaders }
       )
     }
 
-    const toolOutput =
-      executeResultObject?.success === false
-        ? executeResult
-        : executeResultObject && hasResponseField(executeResultObject, 'output')
-          ? executeResultObject.output
-          : executeResult
+    if ('queued' in serviceResult || 'stream' in serviceResult) {
+      // The bridge never requests async or stream modes.
+      throw new Error('Unexpected execution mode result for MCP tool call')
+    }
+
+    if (serviceResult.aborted === 'client') {
+      return NextResponse.json(
+        createError(id, ErrorCode.ConnectionClosed, 'Client cancelled request', {
+          httpStatus: 499,
+          retryable: false,
+          executionId: serviceResult.executionId,
+        }),
+        { status: 499 }
+      )
+    }
+
+    if (serviceResult.aborted === 'timeout') {
+      return NextResponse.json(
+        createError(
+          id,
+          ErrorCode.InternalError,
+          serviceResult.error?.message ?? 'Execution timed out',
+          {
+            httpStatus: 408,
+            retryable: true,
+            code: 'TIMEOUT',
+            executionId: serviceResult.executionId,
+          }
+        ),
+        { status: 408 }
+      )
+    }
+
+    const isError = serviceResult.status === 'failed' || serviceResult.status === 'cancelled'
+    const toolOutput = isError
+      ? {
+          success: false,
+          executionId: serviceResult.executionId,
+          output: serviceResult.output ?? {},
+          // Structured error: parents/clients route on `code` and hand the
+          // provider the executionId to reproduce the failure.
+          error: serviceResult.error,
+        }
+      : (serviceResult.output ?? {})
+    const projectedToolOutput = await projectWorkflowToolOutput(
+      toolOutput,
+      serviceResult.resolvedSecretTraceProvenance,
+      { userId: actorUserId, workspaceId: wf.workspaceId }
+    )
     const result: CallToolResult = {
-      content: [{ type: 'text', text: serializeToolText(toolOutput) }],
-      isError: executeResultObject?.success === false,
+      content: [{ type: 'text', text: serializeToolText(projectedToolOutput) }],
+      isError,
     }
 
     return createJsonRpcResponseWithLimit(

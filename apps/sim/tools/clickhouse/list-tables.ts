@@ -1,7 +1,10 @@
 import type { ClickHouseListTablesParams, ClickHouseRowsResponse } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listTablesTool: ToolConfig<ClickHouseListTablesParams, ClickHouseRowsResponse> = {
+export const listTablesTool: InternalToolConfig<
+  ClickHouseListTablesParams,
+  ClickHouseRowsResponse
+> = {
   id: 'clickhouse_list_tables',
   name: 'ClickHouse List Tables',
   description: 'List tables in the connected ClickHouse database',
@@ -46,13 +49,8 @@ export const listTablesTool: ToolConfig<ClickHouseListTablesParams, ClickHouseRo
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/list-tables',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

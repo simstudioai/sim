@@ -1,6 +1,12 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
+import { ApiClientError, requestJson } from '@/lib/api/client'
+import {
+  getWorkflowExecutionContract,
+  type WorkflowStateContractInput,
+} from '@/lib/api/contracts/workflows'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import type {
   BlockChildWorkflowStartedData,
@@ -26,7 +32,8 @@ const logger = createLogger('useExecutionStream')
 export class ExecutionStreamHttpError extends Error {
   constructor(
     message: string,
-    public readonly httpStatus: number
+    public readonly httpStatus: number,
+    public readonly code?: string
   ) {
     super(message)
     this.name = 'ExecutionStreamHttpError'
@@ -65,16 +72,56 @@ export class SSEStreamInterruptedError extends Error {
  * Detects errors caused by the browser killing a fetch (page refresh, navigation, tab close).
  * These should be treated as clean disconnects, not execution errors.
  */
-function isClientDisconnectError(error: any): boolean {
-  return error.name === 'AbortError'
+function isClientDisconnectError(error: unknown): boolean {
+  return isRecordLike(error) && error.name === 'AbortError'
 }
 
-function isRecoverableStreamError(error: any): boolean {
-  if (isClientDisconnectError(error)) return false
-  const msg = (error.message ?? '').toLowerCase()
+/**
+ * Messages browsers put on the TypeError a fetch or body read rejects with when
+ * the connection drops: Chrome's "network error" and "Failed to fetch",
+ * Firefox's "NetworkError when attempting to fetch resource.", and Safari's
+ * "Load failed".
+ */
+const TRANSPORT_FAILURE_MESSAGE_PATTERNS = [
+  /network\s?error/,
+  /failed to fetch/,
+  /load failed/,
+] as const
+
+/**
+ * Errors the stream layer raises itself carry their own meaning (an HTTP
+ * rejection, a handler failure, an already classified drop), so their message
+ * text must never be mistaken for a transport failure.
+ */
+function isStreamLayerError(error: unknown): boolean {
   return (
-    msg.includes('network error') || msg.includes('failed to fetch') || msg.includes('load failed')
+    error instanceof ExecutionStreamHttpError ||
+    error instanceof SSEEventHandlerError ||
+    error instanceof SSEStreamInterruptedError
   )
+}
+
+function isRecoverableStreamError(error: unknown): boolean {
+  if (!isRecordLike(error) || isClientDisconnectError(error) || isStreamLayerError(error)) {
+    return false
+  }
+  const msg = typeof error.message === 'string' ? error.message.toLowerCase() : ''
+  return TRANSPORT_FAILURE_MESSAGE_PATTERNS.some((pattern) => pattern.test(msg))
+}
+
+/**
+ * Wraps a transport failure that cut a live execution stream before its
+ * terminal event, so every consumer of a live stream classifies interruptions
+ * the same way and recovery code can rely on one error type. Returns null for
+ * client aborts and for anything that is not a transport failure.
+ */
+export function toStreamInterruptedError(
+  error: unknown,
+  executionId: string | undefined,
+  message: string
+): SSEStreamInterruptedError | null {
+  if (!isRecoverableStreamError(error)) return null
+  return new SSEStreamInterruptedError(message, executionId, error)
 }
 
 /**
@@ -196,12 +243,7 @@ export interface ExecuteStreamOptions {
   triggerType?: string
   useDraftState?: boolean
   isClientSession?: boolean
-  workflowStateOverride?: {
-    blocks: Record<string, any>
-    edges: any[]
-    loops?: Record<string, any>
-    parallels?: Record<string, any>
-  }
+  workflowStateOverride?: WorkflowStateContractInput
   stopAfterBlockId?: string
   onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
@@ -210,8 +252,12 @@ export interface ExecuteStreamOptions {
 export interface ExecuteFromBlockOptions {
   workflowId: string
   startBlockId: string
-  sourceSnapshot: SerializableExecutionState
+  sourceSnapshot?: SerializableExecutionState
+  sourceExecutionId?: string
   input?: any
+  useDraftState?: boolean
+  isClientSession?: boolean
+  workflowStateOverride?: WorkflowStateContractInput
   onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
 }
@@ -317,16 +363,17 @@ export function useExecutionStream() {
         logger.info('Execution stream disconnected (page unload or abort)')
         return
       }
-      if (isRecoverableStreamError(error)) {
+      const interrupted = toStreamInterruptedError(
+        error,
+        serverExecutionId,
+        'Execution stream interrupted before a terminal event was received'
+      )
+      if (interrupted) {
         logger.warn('Execution stream interrupted; preserving execution for reconnect', {
           executionId: serverExecutionId,
           error: error.message,
         })
-        throw new SSEStreamInterruptedError(
-          'Execution stream interrupted before a terminal event was received',
-          serverExecutionId,
-          error
-        )
+        throw interrupted
       }
       logger.error('Execution stream error:', error)
       if (!(error instanceof SSEEventHandlerError)) {
@@ -348,7 +395,11 @@ export function useExecutionStream() {
       workflowId,
       startBlockId,
       sourceSnapshot,
+      sourceExecutionId,
       input,
+      useDraftState,
+      isClientSession,
+      workflowStateOverride,
       onExecutionId,
       callbacks = {},
     } = options
@@ -370,7 +421,14 @@ export function useExecutionStream() {
         body: JSON.stringify({
           stream: true,
           input,
-          runFromBlock: { startBlockId, sourceSnapshot },
+          useDraftState,
+          isClientSession,
+          workflowStateOverride,
+          runFromBlock: {
+            startBlockId,
+            ...(sourceExecutionId ? { executionId: sourceExecutionId } : {}),
+            ...(sourceSnapshot ? { sourceSnapshot } : {}),
+          },
         }),
         signal: abortController.signal,
       })
@@ -411,16 +469,17 @@ export function useExecutionStream() {
         logger.info('Run-from-block stream disconnected (page unload or abort)')
         return
       }
-      if (isRecoverableStreamError(error)) {
+      const interrupted = toStreamInterruptedError(
+        error,
+        serverExecutionId,
+        'Run-from-block stream interrupted before a terminal event was received'
+      )
+      if (interrupted) {
         logger.warn('Run-from-block stream interrupted; preserving execution for reconnect', {
           executionId: serverExecutionId,
           error: error.message,
         })
-        throw new SSEStreamInterruptedError(
-          'Run-from-block stream interrupted before a terminal event was received',
-          serverExecutionId,
-          error
-        )
+        throw interrupted
       }
       logger.error('Run-from-block execution error:', error)
       if (!(error instanceof SSEEventHandlerError)) {
@@ -444,6 +503,13 @@ export function useExecutionStream() {
     const streamKey = reconnectStreamKey(workflowId, executionId)
     abortStream(streamKey)
     sharedAbortControllers.set(streamKey, abortController)
+    let receivedTerminal = false
+    const receiveTerminal =
+      <T>(handler: ((data: T) => void | Promise<void>) | undefined) =>
+      async (data: T) => {
+        await handler?.(data)
+        receivedTerminal = true
+      }
     try {
       // boundary-raw-fetch: execution reconnect endpoint returns an SSE stream consumed via response.body.getReader() and processSSEStream
       const response = await fetch(
@@ -455,11 +521,88 @@ export function useExecutionStream() {
       }
       if (!response.body) throw new Error('No response body')
 
-      await processSSEStream(response.body.getReader(), callbacks, 'Reconnect')
-    } catch (error: any) {
-      if (isClientDisconnectError(error)) return
-      logger.error('Reconnection stream error:', error)
-      throw error
+      try {
+        await processSSEStream(
+          response.body.getReader(),
+          {
+            ...callbacks,
+            onExecutionCompleted: receiveTerminal(callbacks.onExecutionCompleted),
+            onExecutionPaused: receiveTerminal(callbacks.onExecutionPaused),
+            onExecutionError: receiveTerminal(callbacks.onExecutionError),
+            onExecutionCancelled: receiveTerminal(callbacks.onExecutionCancelled),
+          },
+          'Reconnect'
+        )
+      } catch (error) {
+        if (receivedTerminal && !(error instanceof SSEEventHandlerError)) return
+        throw error
+      }
+      if (!receivedTerminal) {
+        throw new SSEStreamInterruptedError(
+          'Reconnect ended without a terminal event',
+          executionId,
+          undefined
+        )
+      }
+    } catch (error) {
+      if (abortController.signal.aborted) return
+      if (
+        error instanceof SSEEventHandlerError ||
+        (isExecutionStreamHttpError(error) && [401, 403].includes(error.httpStatus))
+      )
+        throw error
+
+      /** Stream retention and network delivery cannot determine an execution's outcome. */
+      let recorded
+      try {
+        recorded = await requestJson(getWorkflowExecutionContract, {
+          params: { id: workflowId, executionId },
+          query: { includeOutput: 'true' },
+          signal: abortController.signal,
+        })
+      } catch (lookupError) {
+        if (abortController.signal.aborted) return
+        if (lookupError instanceof ApiClientError) {
+          throw new ExecutionStreamHttpError(lookupError.message, lookupError.status)
+        }
+        throw lookupError
+      }
+      if (abortController.signal.aborted) return
+      const duration = recorded.totalDurationMs ?? 0
+      switch (recorded.status) {
+        case 'completed':
+          await callbacks.onExecutionCompleted?.({
+            success: true,
+            output: recorded.finalOutput,
+            duration,
+            startTime: recorded.startedAt,
+            endTime: recorded.endedAt ?? recorded.startedAt,
+          })
+          return
+        case 'failed':
+          await callbacks.onExecutionError?.({
+            error: recorded.error ?? 'Execution failed',
+            duration,
+          })
+          return
+        case 'cancelled':
+          await callbacks.onExecutionCancelled?.({ duration })
+          return
+        case 'paused':
+          await callbacks.onExecutionPaused?.({
+            output: recorded.finalOutput,
+            duration,
+            startTime: recorded.startedAt,
+            endTime: recorded.paused?.pausedAt ?? recorded.endedAt ?? recorded.startedAt,
+          })
+          return
+        default:
+          throw new SSEStreamInterruptedError(
+            'Execution is still active; live updates need reconnect',
+            executionId,
+            error
+          )
+      }
     } finally {
       if (sharedAbortControllers.get(streamKey) === abortController) {
         sharedAbortControllers.delete(streamKey)

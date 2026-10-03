@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'

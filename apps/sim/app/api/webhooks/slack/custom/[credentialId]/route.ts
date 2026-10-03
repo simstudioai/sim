@@ -1,14 +1,16 @@
-import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { findWebhooksByRoutingKey, parseWebhookBody } from '@/lib/webhooks/processor'
-import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
-import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
-import { getSlackBotCredential } from '@/app/api/auth/oauth/utils'
-
-const logger = createLogger('SlackCustomBotWebhookAPI')
+import { dispatchSlackSearch } from '@/lib/slack-search/dispatcher'
+import { parseWebhookBody } from '@/lib/webhooks/processor'
+import { handleSlackChallenge } from '@/lib/webhooks/providers/slack'
+import {
+  authenticateSlackCustomBotRequest,
+  dispatchSlackCustomBotCredential,
+  handleSlackAgentSessionStopped,
+} from '@/lib/webhooks/slack-custom-ingress'
+import { getSlackDispatchResponse } from '@/lib/webhooks/slack-dispatch'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -58,31 +60,31 @@ async function handleSlackCustomBotWebhook(
     return challenge
   }
 
-  const botCredential = await getSlackBotCredential(credentialId)
-  if (!botCredential) {
-    logger.warn(`[${requestId}] Unknown Slack bot credential ${credentialId}`)
-    return new NextResponse(null, { status: 404 })
-  }
-
-  const authError = verifySlackRequestSignature(
-    botCredential.signingSecret,
+  const authentication = await authenticateSlackCustomBotRequest({
+    credentialId,
     request,
     rawBody,
-    requestId
-  )
-  if (authError) {
-    return authError
+    requestId,
+  })
+  if (authentication instanceof Response) {
+    return authentication
   }
 
-  const webhooks = await findWebhooksByRoutingKey(credentialId, requestId, 'slack')
-  if (webhooks.length === 0) {
-    logger.info(
-      `[${requestId}] No active trigger for bot credential ${credentialId}; nothing to run`
-    )
-    return new NextResponse(null, { status: 200 })
-  }
-
-  await dispatchSlackWebhooks(webhooks, { body, request, requestId, receivedAt })
-
-  return new NextResponse(null, { status: 200 })
+  const [, dispatchResults] = await Promise.all([
+    handleSlackAgentSessionStopped(credentialId, body),
+    dispatchSlackCustomBotCredential({
+      credentialId,
+      body,
+      request,
+      requestId,
+      receivedAt,
+    }),
+    dispatchSlackSearch({
+      credentialId,
+      credentialVersion: authentication.credentialVersion,
+      body,
+      receivedAt,
+    }),
+  ])
+  return getSlackDispatchResponse(dispatchResults)
 }

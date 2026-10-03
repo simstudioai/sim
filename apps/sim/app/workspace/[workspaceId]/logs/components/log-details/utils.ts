@@ -1,7 +1,8 @@
 import type React from 'react'
+import { perceivedBrightness } from '@sim/utils/color'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
-import { perceivedBrightness } from '@/lib/colors'
+import { hasUnhandledError } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
@@ -43,10 +44,7 @@ export function hasErrorInTree(span: TraceSpan): boolean {
 }
 
 export function hasUnhandledErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error' && !span.errorHandled) return true
-  if (span.children?.length) return span.children.some(hasUnhandledErrorInTree)
-  if (span.toolCalls?.length && !span.errorHandled) return span.toolCalls.some((tc) => tc.error)
-  return false
+  return hasUnhandledError(span, { includeToolCalls: true })
 }
 
 export function getBlockIconAndColor(
@@ -87,12 +85,6 @@ export function getBlockIconAndColor(
  * `cutoff / MAX_YIQ_SUM` here.
  */
 const MAX_YIQ_SUM = 255_000
-
-/** Returns 'text-white' for dark backgrounds, dark text for light ones. */
-export function iconColorClass(bgColor: string): string {
-  const brightness = perceivedBrightness(bgColor)
-  return brightness !== null && brightness > 160_000 / MAX_YIQ_SUM ? 'text-[#111111]' : 'text-white'
-}
 
 /**
  * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).
@@ -142,22 +134,4 @@ export function getDisplayName(span: TraceSpan): string {
 
 export function formatCostAmount(value: number | undefined): string | undefined {
   return formatCreditCost(value, { emptyForZeroOrLess: true })
-}
-
-export function formatTokensSummary(tokens: TraceSpan['tokens']): string | undefined {
-  if (!tokens) return undefined
-  const parts: string[] = []
-  const input = formatTokenCount(tokens.input)
-  const output = formatTokenCount(tokens.output)
-  const total = formatTokenCount(tokens.total)
-  const cacheRead = formatTokenCount(tokens.cacheRead)
-  const cacheWrite = formatTokenCount(tokens.cacheWrite)
-  const reasoning = formatTokenCount(tokens.reasoning)
-  if (input) parts.push(`${input} in`)
-  if (cacheRead) parts.push(`${cacheRead} cached`)
-  if (cacheWrite) parts.push(`${cacheWrite} cache write`)
-  if (output) parts.push(`${output} out`)
-  if (reasoning) parts.push(`${reasoning} reasoning`)
-  if (total) parts.push(`${total} total`)
-  return parts.length > 0 ? parts.join(' · ') : undefined
 }

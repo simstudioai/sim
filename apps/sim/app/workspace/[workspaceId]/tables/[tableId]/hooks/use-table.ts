@@ -4,16 +4,17 @@ import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type {
   ColumnDefinition,
-  Filter,
   TableDefinition,
+  TablePredicate,
   TableRow,
   WorkflowGroup,
 } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
-  pruneFilterForColumns,
-  pruneViewFilterForColumns,
+  prunePredicateForColumns,
+  pruneViewPredicateForColumns,
 } from '@/lib/table/query-builder/converters'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
 import {
@@ -54,7 +55,7 @@ export interface UseTableReturn {
    * select-all run/stop/delete — must scope with THIS, not the raw filter, or
    * the action targets a predicate the grid isn't displaying.
    */
-  filter: Filter | null
+  filter: TablePredicate | null
   isLoadingRows: boolean
   refetchRows: () => void
   /**
@@ -101,9 +102,9 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   // here, above every consumer of the rows query key, so the paged helpers below
   // can't rebuild the key from the unpruned filter and drift.
   const filter = useMemo(() => {
-    const columns = tableData?.schema?.columns ?? []
-    const compatible = pruneFilterForColumns(queryOptions.filter ?? null, columns)
-    return columns.length > 0 ? pruneViewFilterForColumns(compatible, columns) : compatible
+    const columns = tableData?.schema?.columns
+    const compatible = prunePredicateForColumns(queryOptions.filter ?? null, columns ?? [])
+    return columns ? pruneViewPredicateForColumns(compatible, columns) : compatible
   }, [queryOptions.filter, tableData?.schema?.columns])
 
   const {
@@ -243,7 +244,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
       // `useWorkflowStates` only fetches the live draft, so we can only judge
       // "block missing" for live-mode groups. A deployed-mode group runs a
       // different graph we don't load client-side — don't risk a false badge.
-      const isLiveMode = group.deploymentMode !== 'deployed'
+      const isLiveMode = resolveWorkflowGroupDeploymentMode(group) === 'live'
       for (const out of group.outputs) {
         const block = blocks?.[out.blockId]
         const blockConfig = block?.type ? getBlock(block.type) : undefined

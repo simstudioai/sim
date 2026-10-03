@@ -1,7 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import type { Edge } from 'reactflow'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
+import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
+import type { Edge } from '@xyflow/react'
+import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
@@ -10,8 +16,8 @@ import {
   getCanonicalValues,
   isCanonicalPair,
   isNonEmptyValue,
-  isSubBlockFeatureEnabled,
   isSubBlockHidden,
+  isToolInputOnlySubBlock,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -19,8 +25,8 @@ import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { getTool } from '@/tools/utils'
+import { getToolParams } from '@/tools/metadata'
+import { expandSubBlockValueToParams } from '@/tools/param-shape'
 
 const logger = createLogger('Serializer')
 
@@ -51,10 +57,19 @@ function shouldSerializeSubBlock(
   canonicalIndex: ReturnType<typeof buildCanonicalIndex>,
   canonicalModeOverrides?: CanonicalModeOverrides
 ): boolean {
-  if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
+  // Only meaningful when the block is invoked as an agent tool, where the
+  // value lives on the tool entry rather than the block. Serializing it here
+  // would let a non-UI writer (copilot, YAML import) set an invisible secret
+  // scope that the executor's env inlining does not honor.
+  if (isToolInputOnlySubBlock(subBlockConfig)) return false
   if (isSubBlockHidden(subBlockConfig)) return false
 
-  if (subBlockConfig.mode === 'trigger') {
+  // `trigger-advanced` is a trigger-mode field too - the advanced twin of a
+  // `trigger` selector - so it must be excluded from tool-mode serialization for
+  // the same reason. Without this it stays a live, validated tool param: a
+  // trigger's `required` manual field then blocks running an unrelated operation
+  // that does not even render it, and the error names a hidden field.
+  if (subBlockConfig.mode === 'trigger' || subBlockConfig.mode === 'trigger-advanced') {
     if (!isTriggerContext && !isTriggerCategory) return false
   } else if (isTriggerContext && !isTriggerCategory) {
     return false
@@ -158,10 +173,6 @@ export class Serializer {
     const safeLoops = Object.keys(canonicalLoops).length > 0 ? canonicalLoops : loops || {}
     const safeParallels =
       Object.keys(canonicalParallels).length > 0 ? canonicalParallels : parallels || {}
-    if (validateRequired) {
-      this.validateSubflowsBeforeExecution(blocks, safeLoops, safeParallels)
-    }
-
     // A custom block whose definition was deleted (or is out of scope) no longer
     // resolves via `getBlock`. Treat it as a removed block — drop it and any edges
     // touching it — so the rest of the workflow still serializes and runs, instead
@@ -183,6 +194,7 @@ export class Serializer {
     return {
       version: '1.0',
       blocks: serializedBlocks,
+      /** Legacy handleless branches infer route IDs from edge order, including missing targets. */
       connections: edges
         .filter((edge) => !droppedBlockIds.has(edge.source) && !droppedBlockIds.has(edge.target))
         .map((edge) => ({
@@ -194,18 +206,6 @@ export class Serializer {
       loops: safeLoops,
       parallels: safeParallels,
     }
-  }
-
-  /**
-   * Validate loop and parallel subflows for required inputs when running in "each/collection" modes
-   */
-  private validateSubflowsBeforeExecution(
-    blocks: Record<string, BlockState>,
-    loops: Record<string, Loop>,
-    parallels: Record<string, Parallel>
-  ): void {
-    // Note: Empty collections in forEach loops and parallel collection mode are handled gracefully
-    // at runtime - the loop/parallel will simply be skipped. No build-time validation needed.
   }
 
   private serializeBlock(
@@ -237,6 +237,7 @@ export class Serializer {
       }
     }
 
+    block = migrateMcpOperationControls(block)
     const blockConfig = getBlock(block.type)
     if (!blockConfig) {
       throw new Error(`Invalid block type: ${block.type}`)
@@ -297,6 +298,8 @@ export class Serializer {
       })
     }
 
+    const retry = resolveBlockRetryConfig(block.retry)
+
     const serialized: SerializedBlock = {
       id: block.id,
       position: block.position,
@@ -316,6 +319,17 @@ export class Serializer {
         color: blockConfig.bgColor,
       },
       enabled: block.enabled,
+      ...(retry ? { retry } : {}),
+    }
+
+    const privateInputIds = new Set<string>()
+    for (const subBlock of blockConfig.subBlocks) {
+      if (!subBlock.hideFromCopilot) continue
+      privateInputIds.add(subBlock.id)
+      if (subBlock.canonicalParamId) privateInputIds.add(subBlock.canonicalParamId)
+    }
+    if (privateInputIds.size > 0) {
+      serialized.privateInputIds = [...privateInputIds]
     }
 
     if (block.data?.canonicalModes) {
@@ -399,7 +413,12 @@ export class Serializer {
       subBlocks[subBlock.id] = {
         id: subBlock.id,
         type: subBlock.type,
-        value: serializedBlock.config.params[subBlock.id] ?? null,
+        // A checkbox-list serializes to one param per OPTION, so its own id holds
+        // nothing — rebuild the record from those params to keep the round trip lossless.
+        value:
+          collectSubBlockValueFromParams(subBlock, serializedBlock.config.params) ??
+          serializedBlock.config.params[subBlock.id] ??
+          null,
       }
     })
 
@@ -420,8 +439,30 @@ export class Serializer {
         serializedBlock.config?.params?.triggerMode === true ||
         serializedBlock.metadata?.category === 'triggers',
       advancedMode: serializedBlock.config?.params?.advancedMode === true,
+      ...(serializedBlock.retry ? { retry: serializedBlock.retry } : {}),
     }
   }
+}
+
+/**
+ * The stored value of a sub-block whose params are spread across several keys, i.e. the
+ * inverse of {@link expandSubBlockValueToParams}. `undefined` for every other sub-block,
+ * which reads its value straight off its own id.
+ */
+function collectSubBlockValueFromParams(
+  subBlock: SubBlockConfig,
+  params: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  if (!expandSubBlockValueToParams(subBlock, {})) return undefined
+
+  const options = Array.isArray(subBlock.options) ? subBlock.options : []
+  const value: Record<string, unknown> = {}
+  for (const option of options) {
+    if (!option || typeof option !== 'object' || !('id' in option) || !option.id) continue
+    const optionId = String(option.id)
+    if (Object.hasOwn(params, optionId)) value[optionId] = params[optionId]
+  }
+  return Object.keys(value).length > 0 ? value : undefined
 }
 
 /** A canonical pair where the active member is empty but an inactive member holds a value that will be silently dropped. */
@@ -437,6 +478,21 @@ export interface InactiveModeValue {
 export interface BlockFieldIssues {
   missingRequiredFields: string[]
   inactiveModeValues: InactiveModeValue[]
+}
+
+/**
+ * Which required-field policy {@link collectBlockFieldIssues} applies.
+ *
+ * `execution` mirrors `serializeBlock`: a required sub-block whose tool parameter
+ * the tool itself does not mark `required` + `user-only` is deferred to the tool's
+ * own late validation, because an agent invoking that tool may supply the value
+ * at call time. `lint` reports every required, visible sub-block the tool pass
+ * did not already check — a canvas block has no LLM to fill the field, so a
+ * missing knowledge base id is as fatal there as a missing table id, and the
+ * tool-level visibility of the parameter must not decide whether lint says so.
+ */
+export interface BlockFieldIssueOptions {
+  mode?: 'execution' | 'lint'
 }
 
 /**
@@ -463,6 +519,7 @@ export function selectToolId(blockConfig: any, params: Record<string, any>): str
  * params exactly the way execution (serializeBlock) does.
  */
 export function extractBlockParams(block: BlockState): Record<string, any> {
+  block = migrateMcpOperationControls(block)
   if (block.type === 'loop' || block.type === 'parallel') {
     return {}
   }
@@ -487,6 +544,10 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
     isCustomBlock && blockConfig.subBlocks.some((config) => !RESERVED_PARAMS.has(config.id))
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
+  // The serializer filters BEFORE it resolves, which is why execution has always been correct
+  // here even unscoped — see `getCanonicalSubBlocksForSurface`.
+  // canonical-index-unscoped: `shouldSerializeSubBlock` drops the inactive surface's members, and
+  // the collapse below reads `params` (the filtered map), never `allValues`.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
   const allValues = buildSubBlockValues(block.subBlocks)
 
@@ -536,7 +597,17 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
         isLegacyAgentField ||
         isCustomBlockInputField)
     ) {
-      params[id] = subBlock.value
+      // A checkbox-list groups several boolean params behind one field, so it projects
+      // onto its option ids rather than its own id — which no tool declares.
+      const expanded = matchingConfigs.reduce<Record<string, boolean> | null>(
+        (found, config) => found ?? expandSubBlockValueToParams(config, subBlock.value),
+        null
+      )
+      if (expanded) {
+        Object.assign(params, expanded)
+      } else {
+        params[id] = subBlock.value
+      }
     }
   })
 
@@ -562,10 +633,15 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   Object.values(canonicalIndex.groupsById).forEach((group) => {
     const { basicValue, advancedValue } = getCanonicalValues(group, params)
     const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
-    const pairMode =
-      hasExplicitOverride || !legacyAdvancedMode
-        ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
-        : 'advanced'
+    // Legacy `advancedMode: true` (a block flag the editor no longer writes) means "the advanced
+    // member of a PAIR wins". A group with no advanced member has nothing for it to select, so it
+    // must resolve normally - forcing 'advanced' there leaves `chosen` undefined while the sourceIds
+    // sweep below still deletes the basic member, dropping the value the block actually holds.
+    // Mirrors the `isCanonicalPair` guard `shouldSerializeSubBlock` already applies upstream.
+    const legacyAdvancedWins = legacyAdvancedMode && !hasExplicitOverride && isCanonicalPair(group)
+    const pairMode = legacyAdvancedWins
+      ? 'advanced'
+      : resolveCanonicalMode(group, allValues, canonicalModeOverrides)
     const chosen = pairMode === 'advanced' ? advancedValue : basicValue
 
     const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
@@ -606,7 +682,8 @@ function classifyCanonicalKind(
 export function collectBlockFieldIssues(
   block: BlockState,
   blockConfig: any,
-  params: Record<string, any>
+  params: Record<string, any>,
+  options: BlockFieldIssueOptions = {}
 ): BlockFieldIssues {
   // Disabled blocks and trigger-mode blocks are not validated (mirrors runtime).
   if (block.enabled === false) {
@@ -624,6 +701,8 @@ export function collectBlockFieldIssues(
   const displayAdvancedOptions = block.advancedMode ?? false
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
+  // canonical-index-unscoped: same filter-then-resolve ordering as `extractBlockParams`, and a
+  // trigger-mode block returns above before reaching here at all.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
   const canonicalModeOverrides = block.data?.canonicalModes
   const allValues = buildSubBlockValues(block.subBlocks)
@@ -631,14 +710,16 @@ export function collectBlockFieldIssues(
   // Get the tool configuration to check parameter visibility
   const toolAccess = blockConfig.tools?.access
   const currentToolId = toolAccess?.length > 0 ? selectToolId(blockConfig, params) : null
-  const currentTool = currentToolId ? getTool(currentToolId) : null
+  const currentToolParams = currentToolId ? getToolParams(currentToolId) : undefined
 
   // Validate tool parameters (for blocks with tools).
   // Lookup contract: a tool param's value lives under its own paramId in `params`.
   // Block subBlocks align via either `id === paramId` or `canonicalParamId === paramId`.
-  if (currentTool) {
-    Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]: [string, any]) => {
+  const checkedByToolPass = new Set<string>()
+  if (currentToolParams) {
+    Object.entries(currentToolParams).forEach(([paramId, paramConfig]: [string, any]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
+        checkedByToolPass.add(paramId)
         const matchingConfigs =
           blockConfig.subBlocks?.filter(
             (sb: any) => sb.id === paramId || sb.canonicalParamId === paramId
@@ -692,8 +773,13 @@ export function collectBlockFieldIssues(
     })
   }
 
-  // Validate required subBlocks not covered by tool params (e.g., blocks with empty tools.access)
-  const validatedByTool = new Set(currentTool ? Object.keys(currentTool.params || {}) : [])
+  // Validate required subBlocks not covered by the tool pass. Execution treats every
+  // tool-declared param as the tool's to validate (see `BlockFieldIssueOptions`);
+  // lint only skips the ones the pass above actually checked.
+  const validatedByTool =
+    options.mode === 'lint'
+      ? checkedByToolPass
+      : new Set(currentToolParams ? Object.keys(currentToolParams) : [])
 
   blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
     if (validatedByTool.has(subBlockConfig.id)) {

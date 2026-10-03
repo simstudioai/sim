@@ -10,13 +10,17 @@ import {
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
 import {
+  MAX_DURABLE_LARGE_VALUE_BYTES,
+  MAX_TRACE_ARCHIVE_BYTES,
+} from '@/lib/execution/payloads/limits'
+import {
   assertDurableLargeValueSize,
   assertInlineMaterializationSize,
   assertLargeValueRefAccess,
   isValidLargeValueKey,
   readLargeValueRefFromStorage,
 } from '@/lib/execution/payloads/materialization.server'
-import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
+import { generateLargeValuePayloadKey } from '@/lib/uploads/contexts/execution/utils'
 
 const logger = createLogger('LargeExecutionPayloadStore')
 
@@ -75,10 +79,7 @@ async function persistValue(
     return undefined
   }
 
-  const key = generateExecutionFileKey(
-    { workspaceId, workflowId, executionId },
-    `large-value-${id}.json`
-  )
+  const key = generateLargeValuePayloadKey({ workspaceId, workflowId, executionId }, id)
 
   try {
     const { StorageService } = await import('@/lib/uploads')
@@ -100,7 +101,9 @@ async function persistValue(
     return fileInfo.key
   } catch (error) {
     if (context.requireDurable) {
-      throw new Error(`Failed to persist large execution value: ${toError(error).message}`)
+      throw new Error(`Failed to persist large execution value: ${toError(error).message}`, {
+        cause: error,
+      })
     }
     logger.warn('Failed to persist large execution value, keeping in memory only', {
       id,
@@ -165,7 +168,33 @@ export async function storeLargeValue(
   size: number,
   context: LargeValueStoreContext
 ): Promise<LargeValueRef> {
-  assertDurableLargeValueSize(size)
+  return persistLargeValue(value, json, size, context, MAX_DURABLE_LARGE_VALUE_BYTES)
+}
+
+/** Stores a completed execution archive with a larger cap than individual workflow values. */
+export async function storeExecutionTraceArchive(
+  value: Record<string, unknown>,
+  json: string,
+  size: number,
+  context: LargeValueStoreContext
+): Promise<LargeValueRef> {
+  return persistLargeValue(
+    value,
+    json,
+    size,
+    { ...context, requireDurable: true },
+    MAX_TRACE_ARCHIVE_BYTES
+  )
+}
+
+async function persistLargeValue(
+  value: unknown,
+  json: string,
+  size: number,
+  context: LargeValueStoreContext,
+  limitBytes: number
+): Promise<LargeValueRef> {
+  assertDurableLargeValueSize(size, limitBytes)
   const referencedKeys = collectLargeValueKeys(value)
   const id = `lv_${generateShortId(12)}`
   let key = await persistValue(id, json, context)

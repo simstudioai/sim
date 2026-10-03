@@ -1,0 +1,212 @@
+---
+title: Docker
+description: Deploy Sim with Docker Compose
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+## Quick Start
+
+```bash
+npx sim-setup
+```
+
+Open [http://localhost:3000](http://localhost:3000)
+
+The setup package creates `./sim` with a generated `.env` and the production Compose file, then
+starts published container images. Pass `--dir <path>` to choose another directory.
+
+## Production Setup
+
+### 1. Configure Environment
+
+For a new installation, create the configuration below. If you already ran the quick start, edit its generated `.env` and retain the existing secret values; do not overwrite them with new keys.
+
+```bash
+cat > .env << EOF
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+API_ENCRYPTION_KEY=$(openssl rand -hex 32)
+CRON_SECRET=$(openssl rand -hex 32)
+
+# Your public origin. BETTER_AUTH_URL is derived from this automatically.
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+
+# Database credentials. DATABASE_URL is composed from these by the compose file.
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=$(openssl rand -hex 24)
+POSTGRES_DB=simstudio
+EOF
+```
+
+<Callout type="info">
+  Do not set `DATABASE_URL` or `BETTER_AUTH_URL` in `.env` — `docker-compose.prod.yml` composes both on the service definition, and a value set here is ignored. Change `POSTGRES_*` and `NEXT_PUBLIC_APP_URL` instead.
+
+  Because `DATABASE_URL` is composed from them, keep `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` URL-safe — letters, digits, and `.` `_` `~` `-`. They are inserted into the connection string as written, so a value containing `@`, `/`, `?`, `#`, `%`, or a space can initialize the database while leaving the app and migrations unable to connect. `openssl rand -hex` output is always safe.
+</Callout>
+
+<Callout type="error">
+  Save `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` somewhere outside this server. `ENCRYPTION_KEY` encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets; `API_ENCRYPTION_KEY` encrypts user-generated Sim API keys. Neither can be regenerated — a database restore paired with a different key leaves the data it protected permanently unreadable.
+</Callout>
+
+The compose file refuses to start if `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, or `POSTGRES_PASSWORD` is missing, rather than booting with empty or well-known values. Postgres applies `POSTGRES_PASSWORD` only when it first creates the database volume — see [Postgres on Compose](/platform/self-hosting/security#postgres-on-compose) before changing it on an existing install. `CRON_SECRET` is treated more gently: without it the `cron` service prints what to set and exits, leaving the rest of the stack running — so upgrading from a compose file that predates the scheduler still works.
+
+Images track `latest` unless you pin them. For production, see [Upgrades](/platform/self-hosting/upgrades).
+
+### 2. Start Services
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Six services start:
+
+| Service | Port | Purpose |
+|---|---|---|
+| `simstudio` | 3000 | Main application (8 GB memory limit) |
+| `realtime` | 3002 | WebSocket server (1 GB memory limit) |
+| `db` | internal | PostgreSQL 17 with pgvector — not published to the host |
+| `redis` | internal | Pub/sub and shared cache — not published to the host |
+| `cron` | — | Runs the [background jobs](/platform/self-hosting/background-jobs) on a schedule |
+| `migrations` | — | Applies schema migrations once, then exits |
+
+Confirm the five long-running services are up and that `migrations` has exited cleanly (it is a one-shot job with no healthcheck):
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+```
+
+### 3. Put it behind TLS
+
+Caddy is the least-effort option — it obtains and renews certificates automatically.
+
+```
+sim.yourdomain.com {
+    request_body {
+        max_size 250MB
+    }
+
+    handle /socket.io/* {
+        reverse_proxy localhost:3002
+    }
+
+    reverse_proxy localhost:3000 {
+        flush_interval -1
+    }
+}
+```
+
+Three things in that config are Sim-specific and easy to get wrong: `/socket.io` must reach the realtime service on 3002, `flush_interval -1` stops Caddy buffering streamed agent output into one delayed block, and `max_size` has to clear the chat endpoint's 220 MB limit.
+
+For nginx, Traefik, or a cloud load balancer — and for the GKE websocket timeout — see [Networking](/platform/self-hosting/networking).
+
+## Ollama
+
+`docker-compose.ollama.yml` is a **development** stack, not a drop-in swap for `docker-compose.prod.yml`. It builds `simstudio`, `realtime`, and `migrations` from the source checkout instead of pulling published images, and it ships neither a `redis` service nor a `cron` service. Without an external Redis, pub/sub falls back to a process-local emitter and API-key login through the CLI pairing-code flow fails, since that approval store has no fallback; the idempotency store and execution progress markers do fall back to Postgres. And with no cron service, every [background job](/platform/self-hosting/background-jobs) is missing. For production with local models, keep `docker-compose.prod.yml` and point `OLLAMA_URL` at an Ollama instance, as under [External Ollama](#external-ollama) below.
+
+Always pass a server profile alongside `setup`. With `--profile setup` on its own no Ollama server starts and `model-setup` waits forever.
+
+```bash
+# With GPU
+docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
+
+# CPU only
+docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
+```
+
+The `setup` profile pulls `gemma3:4b` as a starter model. Pull additional models — the service name differs by profile:
+```bash
+# GPU profile
+docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+
+# CPU profile
+docker compose -f docker-compose.ollama.yml exec ollama-cpu ollama pull llama3.2
+```
+
+### External Ollama
+
+If Ollama runs on your host machine (not in Docker):
+
+Set it in the `.env` next to your Compose file. A one-shot shell prefix satisfies the interpolation for that command only, so the next `up -d` silently reverts to the `http://localhost:11434` default and the container points at itself:
+
+```bash
+# .env — macOS/Windows
+OLLAMA_URL=http://host.docker.internal:11434
+
+# Linux - use your host IP
+# OLLAMA_URL=http://192.168.1.100:11434
+```
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+<Callout type="warn">
+  Inside Docker, `localhost` refers to the container, not your host. Use `host.docker.internal` or your host's IP.
+</Callout>
+
+## LM Studio
+
+[LM Studio exposes an OpenAI-compatible API](https://lmstudio.ai/docs/developer/openai-compat). Start its local server, load a model, and enable **Serve on Local Network** so the Docker container can reach it. [Enable API authentication](https://lmstudio.ai/docs/developer/core/authentication), then set the endpoint and token in the `.env` file next to your Compose file:
+
+```bash
+# macOS/Windows
+VLLM_BASE_URL=http://host.docker.internal:1234
+
+# Linux - use your host IP instead
+# VLLM_BASE_URL=http://192.168.1.100:1234
+
+VLLM_API_KEY=your_lm_studio_api_token
+```
+
+Both the server root shown above and a URL ending in `/v1` are accepted. After recreating the `simstudio` service, its models appear in the model picker with a `vllm/` prefix; Sim removes that prefix before sending the model identifier to LM Studio.
+
+```bash
+# Pick the file that started your install.
+COMPOSE_FILE=docker-compose.prod.yml
+# COMPOSE_FILE=docker-compose.local.yml
+# COMPOSE_FILE=docker-compose.ollama.yml
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
+```
+
+## The `sim-setup` CLI
+
+`npx sim-setup` also manages an existing install created from the production or local-development Compose files. It does not detect or manage an Ollama-stack install. Run `doctor`, `config`, and the wizard from the directory holding your `.env` and Compose file; the lifecycle commands find a running stack wherever it was started. The table drops the `npx` prefix for brevity — keep it unless you installed the package globally.
+
+| Command | What it does |
+|---|---|
+| `sim-setup` | The setup wizard. `--quick` takes the defaults and asks only the essential questions, `--mode compose\|dev\|k8s` picks the target (`dev` and `k8s` need a source checkout) |
+| `sim-setup status` | Show what is installed and healthy |
+| `sim-setup logs` | Follow logs. On Kubernetes it follows the app deployment only; on a source checkout it prints where the logs are — the dev server streams in its own terminal — rather than following a stream |
+| `sim-setup start` / `stop` / `restart` | Bring the install up, down, or cycle it. On a source checkout this covers only the managed Postgres and Redis containers — the dev server is yours to start and stop. On Kubernetes it acts on nothing: `stop` prints the `kubectl scale` equivalents, and `start` and `restart` print the port-forward commands for reaching the release |
+| `sim-setup update` | Pull or rebuild images and apply them. Compose installs only — it refuses on source checkouts and Kubernetes, which update through git and `helm upgrade` |
+| `sim-setup down` | After a confirmation prompt, remove containers and keep the data. On a source checkout it removes only the managed Postgres and Redis containers, keeping their volume. On Kubernetes it runs `helm uninstall` on the whole release |
+| `sim-setup reset` | After a confirmation prompt, archive the env files and wipe managed data. A Compose install archives the `.env` beside its Compose file; a source checkout, a Kubernetes install, and an invocation with no install detected all archive `apps/sim/.env`, `apps/realtime/.env`, `packages/db/.env`, and the root `.env`. On Kubernetes it runs `helm uninstall`, which leaves the Postgres volumes behind — they come from a StatefulSet's `volumeClaimTemplates`, which Kubernetes never deletes. Delete those PVCs yourself to reset the data |
+| `sim-setup config` | Show configured capabilities and integrations |
+| `sim-setup doctor` | Check the setup. `--fix` repairs what it can, `--json` prints machine-readable output |
+| `sim-setup add <feature>` | Configure one capability: `email`, `storage`, `sandbox`, `jobs`, `cache`, `knowledge`, `knowledge-embeddings`, `chat`, `llm`, or `integration <slug>`. Writes to the `.env` beside your Compose file — recreate the containers that read the value to apply it, which for `cache` means `realtime` as well as `simstudio`, since both take `REDIS_URL` — or to `apps/sim/.env` on a source checkout, where `apps/realtime/.env` needs the same value. It refuses when no configuration is writable, when more than one is, and for Helm releases |
+| `sim-setup desktop` | Resolve the desktop installer for this deployment. `--url <url>` skips discovery, and is required when several detected configurations name different `NEXT_PUBLIC_APP_URL` origins. `--no-open` skips the "Download it now?" prompt — the link is printed either way |
+
+`--dir <path>` is accepted by every command, not just the wizard. On a standalone install it also scopes the lifecycle commands to that directory's install, which is how you disambiguate when more than one exists.
+
+## Commands
+
+```bash
+# Did migrations succeed?
+docker compose -f docker-compose.prod.yml logs migrations
+
+# Is the scheduler firing?
+docker compose -f docker-compose.prod.yml logs -f cron
+
+# Upgrade: bump SIM_VERSION in .env when pinned, then
+npx sim-setup update
+```
+
+<FAQ items={[
+  { question: "Do scheduled workflows work on Docker Compose?", answer: "Yes. The cron service runs the same jobs the Helm chart schedules as Kubernetes CronJobs, using the schedules in docker/crontab. It needs CRON_SECRET — without it the service prints what to set and exits, and the rest of the stack keeps running."},
+  { question: "Why is there a Redis container?", answer: "Redis backs pub/sub for live Chat task status and table events, plus shared caches. Pub/sub has no fallback that works across processes, so live status would not stream without it. The port is deliberately not published so it cannot collide with a local Redis."},
+  { question: "How do I back up and restore the database?", answer: "Back up with: docker compose -f docker-compose.prod.yml exec -T db pg_dump -U postgres simstudio > backup.sql. The -T matters — without it exec allocates a TTY and corrupts the redirected dump. Restore with: docker compose -f docker-compose.prod.yml exec -T db psql -U postgres simstudio < backup.sql. The database data is persisted in a Docker volume named postgres_data."},
+  { question: "Can I customize the PostgreSQL credentials?", answer: "Yes. Set POSTGRES_USER (default: postgres) and POSTGRES_DB (default: simstudio) in .env before the first start. POSTGRES_PASSWORD has no default — the compose file will not start without it. Postgres applies all three only when it creates the database volume, so changing them later does not change the existing database; to rotate the password, see Postgres on Compose in the security guide." },
+]} />

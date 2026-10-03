@@ -16,6 +16,17 @@ const PositionSchema = z.object({
   y: z.number(),
 })
 
+/**
+ * Shape only. Bounds are not enforced here because the batch-add and
+ * replace-state ops write the same field without passing through this schema, so
+ * the clamp that actually holds is the one applied on read at execution time.
+ */
+const BlockRetrySchema = z.object({
+  enabled: z.boolean(),
+  maxTries: z.number().int(),
+  waitBetweenTriesMs: z.number().int(),
+})
+
 const AutoConnectEdgeSchema = z.object({
   id: z.string(),
   source: z.string(),
@@ -25,6 +36,8 @@ const AutoConnectEdgeSchema = z.object({
   type: z.string().optional(),
 })
 
+const CanonicalModeSchema = z.enum(['basic', 'advanced'])
+
 export const BlockOperationSchema = z.object({
   operation: z.enum([
     BLOCK_OPERATIONS.UPDATE_POSITION,
@@ -32,6 +45,8 @@ export const BlockOperationSchema = z.object({
     BLOCK_OPERATIONS.TOGGLE_ENABLED,
     BLOCK_OPERATIONS.UPDATE_PARENT,
     BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
+    BLOCK_OPERATIONS.UPDATE_ERROR_ENABLED,
+    BLOCK_OPERATIONS.UPDATE_RETRY,
     BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE,
     BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES,
     BLOCK_OPERATIONS.TOGGLE_HANDLES,
@@ -50,9 +65,11 @@ export const BlockOperationSchema = z.object({
     extent: z.enum(['parent']).nullable().optional(),
     enabled: z.boolean().optional(),
     advancedMode: z.boolean().optional(),
+    errorEnabled: z.boolean().optional(),
+    retry: BlockRetrySchema.optional(),
     horizontalHandles: z.boolean().optional(),
     canonicalId: z.string().optional(),
-    canonicalMode: z.enum(['basic', 'advanced']).optional(),
+    canonicalMode: CanonicalModeSchema.optional(),
     triggerMode: z.boolean().optional(),
     height: z.number().optional(),
   }),
@@ -148,6 +165,24 @@ export const SubblockOperationSchema = z.object({
         expectedValue: z.any().optional(),
       })
     ),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
+/**
+ * Writes one subblock value and replaces its block's `canonicalModes` in the same transaction.
+ * A `tool-input` keys its tools' modes by array position, so a reorder or removal must persist
+ * both together or a failure between two separate writes leaves modes on the wrong tools.
+ */
+export const SubblockCanonicalModesUpdateSchema = z.object({
+  operation: z.literal(SUBBLOCK_OPERATIONS.UPDATE_WITH_CANONICAL_MODES),
+  target: z.literal(OPERATION_TARGETS.SUBBLOCK),
+  payload: z.object({
+    blockId: z.string(),
+    subblockId: z.string(),
+    value: z.any(),
+    canonicalModes: z.record(z.string(), CanonicalModeSchema),
   }),
   timestamp: z.number(),
   operationId: z.string().optional(),
@@ -270,4 +305,5 @@ export const WorkflowOperationSchema = z.union([
   VariableOperationSchema,
   WorkflowStateOperationSchema,
   SubblockOperationSchema,
+  SubblockCanonicalModesUpdateSchema,
 ])

@@ -1,7 +1,7 @@
 import type { KnowledgeUpdateChunkResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeUpdateChunkTool: ToolConfig<any, KnowledgeUpdateChunkResponse> = {
+export const knowledgeUpdateChunkTool: InternalToolConfig<any, KnowledgeUpdateChunkResponse> = {
   id: 'knowledge_update_chunk',
   name: 'Knowledge Update Chunk',
   description: 'Update the content or enabled status of a chunk in a knowledge base',
@@ -40,18 +40,21 @@ export const knowledgeUpdateChunkTool: ToolConfig<any, KnowledgeUpdateChunkRespo
     },
   },
 
-  request: {
-    url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks/${params.chunkId}`,
-    method: 'PUT',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
-      const body: Record<string, unknown> = {}
-      if (params.content !== undefined) body.content = params.content
-      if (params.enabled !== undefined) body.enabled = params.enabled
-      return body
+  operation: {
+    secretProvenance: {
+      request: (params) =>
+        params.content === undefined ? [] : [{ key: 'chunk-content', inputPaths: [['content']] }],
+      response: { incomplete: 'reject' },
+    },
+    input: (params) => {
+      const input: Record<string, unknown> = {
+        knowledgeBaseId: params.knowledgeBaseId,
+        documentId: params.documentId,
+        chunkId: params.chunkId,
+      }
+      if (params.content !== undefined) input.content = params.content
+      if (params.enabled !== undefined) input.enabled = params.enabled
+      return input
     },
   },
 

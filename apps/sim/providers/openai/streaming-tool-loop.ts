@@ -3,6 +3,12 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import {
+  bindConversationRequestContext,
+  captureProviderConversationStep,
+  getConversationRequestContext,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import { enrichLastModelSegmentFromOpenAIResponse } from '@/providers/openai/trace'
 import {
   addOpenAIUsage,
@@ -11,6 +17,7 @@ import {
   createOpenAIUsageAccumulator,
 } from '@/providers/openai/usage'
 import {
+  convertResponseOutputToInputItems,
   extractResponseText,
   extractResponseToolCalls,
   isMaxOutputTokensIncompleteResponse,
@@ -21,7 +28,9 @@ import {
   type ResponsesToolCall,
   type ResponsesToolChoice,
   responseContainsFunctionCall,
+  toOpenAIModelUsage,
 } from '@/providers/openai/utils'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
@@ -32,7 +41,6 @@ import {
 } from '@/providers/streaming-tool-loop-shared'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import { prepareToolExecution, sumToolCosts } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 export type CreateOpenAIResponsesStream = (
   input: ResponsesInputItem[],
@@ -68,6 +76,11 @@ interface OpenAIToolExecutionResult {
   toolName: string
   toolParams: Record<string, unknown>
   result: {
+    success: boolean
+    output?: Record<string, unknown>
+    error?: string
+  }
+  modelResult: {
     success: boolean
     output?: Record<string, unknown>
     error?: string
@@ -171,7 +184,8 @@ function completeToolExecution(
   toolParams: Record<string, unknown>,
   result: OpenAIToolExecutionResult['result'],
   startTime: number,
-  status: ToolCallEndStatus
+  status: ToolCallEndStatus,
+  modelResult: OpenAIToolExecutionResult['modelResult'] = result
 ): OpenAIToolExecutionResult {
   const endTime = Date.now()
   openTools.delete(toolCall.id)
@@ -186,6 +200,7 @@ function completeToolExecution(
     toolName: toolCall.name,
     toolParams,
     result,
+    modelResult,
     startTime,
     endTime,
     duration: endTime - startTime,
@@ -209,6 +224,12 @@ async function executeOpenAIToolCall(options: {
   try {
     toolArgs = parseToolArguments(toolCall.arguments, toolCall.name)
   } catch (error) {
+    await recordProviderConversationToolError(
+      request,
+      toolCall.id,
+      toolCall.name,
+      getErrorMessage(error, 'Invalid tool arguments')
+    )
     return completeToolExecution(
       controller,
       openTools,
@@ -225,6 +246,12 @@ async function executeOpenAIToolCall(options: {
 
   const tool = request.tools?.find((candidate) => candidate.id === toolCall.name)
   if (!tool) {
+    await recordProviderConversationToolError(
+      request,
+      toolCall.id,
+      toolCall.name,
+      `Tool not found: ${toolCall.name}`
+    )
     return completeToolExecution(
       controller,
       openTools,
@@ -244,18 +271,28 @@ async function executeOpenAIToolCall(options: {
       throw new DOMException('Stream aborted', 'AbortError')
     }
 
-    const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-    const result = await executeTool(toolCall.name, executionParams, {
-      signal: request.abortSignal,
-    })
+    const { toolParams, executionParams } = prepareToolExecution(
+      tool,
+      toolArgs,
+      request,
+      toolCall.id
+    )
+    const { rawResponse, modelResponse } = await executeProviderTool(
+      toolCall.name,
+      executionParams,
+      {
+        signal: request.abortSignal,
+      }
+    )
     return completeToolExecution(
       controller,
       openTools,
       toolCall,
       toolParams,
-      result,
+      rawResponse,
       startTime,
-      result.success ? 'success' : 'error'
+      rawResponse.success ? 'success' : 'error',
+      modelResponse
     )
   } catch (error) {
     if (request.abortSignal?.aborted) {
@@ -289,6 +326,12 @@ async function executeOpenAIToolCall(options: {
       throw error
     }
 
+    await recordProviderConversationToolError(
+      request,
+      toolCall.id,
+      toolCall.name,
+      getErrorMessage(error, 'Tool execution failed')
+    )
     logger.error('Error processing OpenAI tool call:', {
       error,
       toolName: toolCall.name,
@@ -340,6 +383,8 @@ export function createOpenAIResponsesStreamingToolLoopStream(
     ...request,
     abortSignal: loopAbortController.signal,
   }
+  const conversationContext = getConversationRequestContext(request)
+  if (conversationContext) bindConversationRequestContext(loopRequest, conversationContext)
 
   return new ReadableStream<AgentStreamEvent>({
     start(controller) {
@@ -434,6 +479,13 @@ export function createOpenAIResponsesStreamingToolLoopStream(
               }
             }
 
+            await captureProviderConversationStep(
+              request,
+              'responses',
+              turn.response.output,
+              turnUsage && toOpenAIModelUsage(turnUsage)
+            )
+
             const turnKind = executableTools.length > 0 ? 'intermediate' : 'final'
             content = turn.text
             controller.enqueue({ type: 'turn_end', turn: turnKind })
@@ -464,7 +516,7 @@ export function createOpenAIResponsesStreamingToolLoopStream(
               break
             }
 
-            currentInput.push(...turn.response.output)
+            currentInput.push(...convertResponseOutputToInputItems(turn.response.output))
 
             if (typeof currentToolChoice === 'object') {
               for (const toolCall of executableTools) {
@@ -497,11 +549,18 @@ export function createOpenAIResponsesStreamingToolLoopStream(
                 toolCallId: result.toolCall.id,
               })
 
-              const resultContent = result.result.success
+              const rawResultContent = result.result.success
                 ? (result.result.output ?? null)
                 : {
                     error: true,
                     message: result.result.error || 'Tool execution failed',
+                    tool: result.toolName,
+                  }
+              const modelResultContent = result.modelResult.success
+                ? (result.modelResult.output ?? null)
+                : {
+                    error: true,
+                    message: result.modelResult.error || 'Tool execution failed',
                     tool: result.toolName,
                   }
 
@@ -515,14 +574,14 @@ export function createOpenAIResponsesStreamingToolLoopStream(
                 startTime: new Date(result.startTime).toISOString(),
                 endTime: new Date(result.endTime).toISOString(),
                 duration: result.duration,
-                result: resultContent,
+                result: rawResultContent,
                 success: result.result.success,
               })
 
               currentInput.push({
                 type: 'function_call_output',
                 call_id: result.toolCall.id,
-                output: JSON.stringify(resultContent),
+                output: JSON.stringify(modelResultContent),
               })
             }
 

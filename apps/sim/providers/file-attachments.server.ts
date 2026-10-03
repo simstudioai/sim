@@ -2,15 +2,20 @@ import { FileState, GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
+import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
 import { StorageService } from '@/lib/uploads'
 import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
-import type { UserFile } from '@/executor/types'
+import type { ExecutionContext, UserFile } from '@/executor/types'
 import {
+  formatAttachmentSizes,
   getProviderAttachmentMaxBytes,
   getProviderFileStrategy,
+  INLINE_ATTACHMENT_THRESHOLD_BYTES,
   inferAttachmentMimeType,
+  LARGE_FILE_PATH_THRESHOLD_BYTES,
   shouldUseLargeFilePath,
 } from '@/providers/attachments'
 import type { Message, ProviderId, ProviderRequest } from '@/providers/types'
@@ -33,11 +38,35 @@ function* iterateRequestFiles(messages: Message[] | undefined): Generator<UserFi
 }
 
 /**
+ * The size past which base64 hydration should stop, because an upload will take over.
+ *
+ * This must track {@link shouldUseLargeFilePath}'s crossover exactly. Stopping earlier than the
+ * strategy actually switches leaves a band with neither base64 nor a handle, which fails the
+ * request outright — and `remote-url` deliberately switches later than `files-api`, so only
+ * `files-api` may use the lower threshold. A deployment without cloud storage cannot reach any
+ * upload path at all, so there base64 has to run all the way to the inline ceiling.
+ */
+export function getInlineHydrationMaxBytes(providerId: ProviderId | string): number {
+  const usesUpload =
+    getProviderFileStrategy(providerId) === 'files-api' && StorageService.hasCloudStorage()
+  return usesUpload ? LARGE_FILE_PATH_THRESHOLD_BYTES : INLINE_ATTACHMENT_THRESHOLD_BYTES
+}
+
+/**
+ * True when this deployment can actually deliver an oversized attachment through the provider's
+ * large-file path. A provider strategy alone is not enough — every large-file path reads the
+ * bytes back out of cloud object storage, so a deployment without it has to keep inlining.
+ */
+export function canUseProviderLargeFilePath(providerId: ProviderId | string): boolean {
+  return getProviderFileStrategy(providerId) !== 'inline' && StorageService.hasCloudStorage()
+}
+
+/**
  * Resolves every attachment that exceeds the inline threshold on a large-file-capable
  * provider to a short-lived signed URL on `file.remoteUrl`. `remote-url` providers send it
  * to the model directly; for `files-api` providers it marks the file for upload (the bytes
- * are read from storage at upload time). Requires cloud storage — a large file (already past
- * the inline base64 cap) cannot be sent without it, so the request fails with a clear error.
+ * are read from storage at upload time). Every large-file path needs cloud storage to read the
+ * bytes back, so without it the file is left for the inline base64 path instead.
  *
  * Runs for every request in {@link executeProviderRequest} (after the API key resolves), so
  * the server-only handle fields are first cleared on every file for every provider — a forged
@@ -45,7 +74,8 @@ function* iterateRequestFiles(messages: Message[] | undefined): Generator<UserFi
  */
 export async function attachLargeFileRemoteUrls(
   request: ProviderRequest,
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  executionContext?: ExecutionContext
 ): Promise<void> {
   for (const file of iterateRequestFiles(request.messages)) {
     file.providerFileId = undefined
@@ -62,8 +92,7 @@ export async function attachLargeFileRemoteUrls(
     if (!file.key || !shouldUseLargeFilePath(file, providerId)) continue
 
     if (Number.isFinite(file.size) && file.size > maxBytes) {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-      const maxMB = (maxBytes / (1024 * 1024)).toFixed(0)
+      const { size: sizeMB, limit: maxMB } = formatAttachmentSizes(file.size, maxBytes)
       throw new Error(
         `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
       )
@@ -71,23 +100,26 @@ export async function attachLargeFileRemoteUrls(
 
     if (!StorageService.hasCloudStorage()) {
       logger.warn(
-        `[${requestId}] "${file.name}" exceeds the inline limit for "${providerId}" but cloud storage is unavailable`
+        `[${requestId}] Sending "${file.name}" inline for "${providerId}": the large-file path needs cloud storage, which is not configured`
       )
-      throw new Error(
-        `File "${file.name}" exceeds the inline attachment limit and requires cloud file storage, which is not configured`
-      )
+      continue
     }
 
-    if (!request.userId) {
-      throw new Error(
-        `File "${file.name}" requires an authenticated user for provider "${providerId}"`
-      )
-    }
-
-    const context = resolveTrustedFileContext(file.key, file.context)
-    const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context, false)
-    if (!hasAccess) {
-      throw new Error(`File "${file.name}" is not accessible for provider "${providerId}"`)
+    let context: ReturnType<typeof resolveTrustedFileContext>
+    if (executionContext) {
+      context = resolveTrustedFileContext(file.key, file.context)
+      await assertFileAccessForUpload(file, request.userId, executionContext)
+    } else {
+      if (!request.userId) {
+        throw new Error(
+          `File "${file.name}" requires an authenticated user for provider "${providerId}"`
+        )
+      }
+      context = resolveTrustedFileContext(file.key, file.context)
+      const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context)
+      if (!hasAccess) {
+        throw new Error(`File "${file.name}" is not accessible for provider "${providerId}"`)
+      }
     }
 
     file.remoteUrl = await StorageService.generatePresignedDownloadUrl(
@@ -106,7 +138,8 @@ export async function attachLargeFileRemoteUrls(
  */
 export async function uploadLargeFilesToProvider(
   request: ProviderRequest,
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  executionContext?: ExecutionContext
 ): Promise<void> {
   if (getProviderFileStrategy(providerId) !== 'files-api') return
 
@@ -118,7 +151,7 @@ export async function uploadLargeFilesToProvider(
 
   for (const group of groups) {
     const [representative] = group
-    await assertFileAccessForUpload(representative, request.userId)
+    await assertFileAccessForUpload(representative, request.userId, executionContext)
     if (providerId === 'openai') {
       await uploadOpenAIFile(representative, request.apiKey, maxBytes, request.abortSignal)
     } else if (ai) {
@@ -138,16 +171,24 @@ export async function uploadLargeFilesToProvider(
  */
 async function assertFileAccessForUpload(
   file: UserFile,
-  userId: string | undefined
+  userId: string | undefined,
+  executionContext?: ExecutionContext
 ): Promise<void> {
   if (!file.key) {
     throw new Error(`File "${file.name}" has no storage key`)
+  }
+  if (executionContext) {
+    await assertUserFileContentAccess(
+      file,
+      await resolveExecutorFileMaterializationContext(executionContext, file)
+    )
+    return
   }
   if (!userId) {
     throw new Error(`File "${file.name}" requires an authenticated user to upload`)
   }
   const context = resolveTrustedFileContext(file.key, file.context)
-  const hasAccess = await verifyFileAccess(file.key, userId, undefined, context, false)
+  const hasAccess = await verifyFileAccess(file.key, userId, undefined, context)
   if (!hasAccess) {
     throw new Error(`File "${file.name}" is not accessible`)
   }

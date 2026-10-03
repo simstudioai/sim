@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
+import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 const logger = createLogger('SocialLoginButtons')
@@ -15,7 +16,6 @@ interface SocialLoginButtonsProps {
   googleAvailable: boolean
   microsoftAvailable: boolean
   callbackURL?: string
-  isProduction: boolean
   children?: ReactNode
 }
 
@@ -23,8 +23,7 @@ export function SocialLoginButtons({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  callbackURL = '/workspace',
-  isProduction,
+  callbackURL = DEFAULT_POST_AUTH_ROUTE,
   children,
 }: SocialLoginButtonsProps) {
   const [isGithubLoading, setIsGithubLoading] = useState(false)
@@ -73,7 +72,6 @@ export function SocialLoginButtons({
   const githubButton = (
     <Chip
       fullWidth
-      flush
       leftIcon={GithubIcon}
       className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
       disabled={!githubAvailable || isGithubLoading}
@@ -86,7 +84,6 @@ export function SocialLoginButtons({
   const googleButton = (
     <Chip
       fullWidth
-      flush
       leftIcon={GoogleIcon}
       className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
       disabled={!googleAvailable || isGoogleLoading}
@@ -99,7 +96,6 @@ export function SocialLoginButtons({
   const microsoftButton = (
     <Chip
       fullWidth
-      flush
       leftIcon={MicrosoftIcon}
       className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
       disabled={!microsoftAvailable || isMicrosoftLoading}

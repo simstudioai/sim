@@ -651,6 +651,31 @@ export const gumloopProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [{ url: 'https://docs.gumloop.com/', label: 'Gumloop docs', asOf: '2026-07-02' }],
       },
+      codeSandboxRuntime: {
+        value:
+          'No: the Run Code node executes against a fixed, Gumloop-controlled runtime. Users import from a vendor-curated preinstalled list (Python: pandas, numpy, scipy, xarray, opencv-python, scikit-image, scikit-learn, nltk, spacy, beautifulsoup4, requests, aiohttp, matplotlib, plotly, openpyxl, python-docx, librosa and others published at a Gumloop-hosted requirements.txt; JavaScript: the `ai` SDK plus @ai-sdk/openai, azure, anthropic, amazon-bedrock, google, google-vertex, mistral, cohere and groq). There is no documented way to declare npm/PyPI dependencies, install OS-level system packages, or specify CLI binaries for the runtime.',
+        detail:
+          'Gumloop docs describe importing packages only via a plain `import` (Python) or `require` (JavaScript) statement drawn from the published list, with no pip/npm install step. Custom Nodes run in what the docs call "an isolated virtual environment with a 5-minute runtime limit" but likewise document no dependency declaration. On the Gumloop forum, a staff member responding to a Run Code failure caused by unavailable libraries pointed the user back to the published list and suggested a Custom Node as a workaround rather than any package-installation path. Gumloop also ships no downloadable self-managed install of the core platform (see platform.selfHostOption), and its enterprise VPC deployment is operated by Gumloop, so no customer-supplied runtime image is documented there either.',
+        shortValue: 'No: fixed runtime, vendor-curated preinstalled packages',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/nodes/advanced/run_code',
+            label: 'Run Code - Gumloop docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.gumloop.com/nodes/custom_node_details',
+            label: 'Custom Node Builder - Gumloop docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://forum.gumloop.com/t/run-code-node-fails-with-generic-error-likely-missing-libraries/2133',
+            label: 'Gumloop forum: Run Code node missing libraries',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: flows can be triggered via REST API and a JavaScript SDK; agents embedded in a flow can be called via the same API',
@@ -950,6 +975,26 @@ export const gumloopProfile: CompetitorProfile = {
             url: 'https://docs.gumloop.com/enterprise-features/sso_saml_scim',
             label: 'SSO, SAML & SCIM - Gumloop docs',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Not publicly documented: no admin-configurable session lifetime or idle timeout appears in Gumloop\'s public documentation. The only primary-source statement is a single bullet on the Enterprise SSO page listing "Session Management: Configurable session timeouts and secure token handling." No admin setting name, configuration steps, default session lifetime, idle-timeout value, or absolute-cap value is published anywhere in Gumloop\'s docs, security page, or trust center.',
+        detail:
+          "The bullet sits in a Security & Compliance list introduced as \"Gumloop's SSO implementation follows industry security standards\", alongside SOC 2 Type II certification, SAML 2.0 and TLS 1.3 entries that are compliance assurances rather than admin-configurable settings, so it does not establish a customer-facing control. The same page documents its actual admin controls in detail, including per-direction SCIM mapping-table toggles, name-based mapping mode, and named audit events, but describes no session setting; it gates SAML and SCIM settings to the Admin organization role and an Enterprise subscription, so any such control would be Enterprise-tier. Gumloop's public security page and trust center make no mention of session lifetime, idle timeout, or forced re-authentication. Because SAML SSO is available, organizations can also inherit re-authentication frequency from their upstream IdP, but that is the IdP's policy rather than a Gumloop-enforced one.",
+        shortValue: 'Single SSO-page bullet cites configurable timeouts; no setting documented',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/enterprise-features/sso_saml_scim',
+            label: 'SSO, SAML & SCIM - Gumloop docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://www.gumloop.com/solutions/security',
+            label: 'Security and trust at Gumloop',
+            asOf: '2026-08-10',
           },
         ],
       },

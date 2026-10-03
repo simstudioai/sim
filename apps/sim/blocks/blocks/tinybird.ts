@@ -1,9 +1,8 @@
 import { TinybirdIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { TinybirdResponse } from '@/tools/tinybird/types'
 
-export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
+export const TinybirdBlock: BlockConfig = {
   type: 'tinybird',
   name: 'Tinybird',
   description: 'Send events, query data, and manage Data Sources with Tinybird',
@@ -15,6 +14,33 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
   integrationType: IntegrationType.Analytics,
   bgColor: '#2EF598',
   icon: TinybirdIcon,
+  canvasPresentation: {
+    defaultTitle: 'Tinybird',
+    sentences: {
+      byOperation: {
+        tinybird_events: [
+          { text: 'Stream events into Data Source', field: 'datasource', core: true },
+        ],
+        tinybird_query: [{ text: 'Run SQL', field: 'query', core: true }],
+        tinybird_query_pipe: [
+          { text: 'Call Pipe endpoint', field: 'pipe', core: true },
+          { text: ', with', field: 'parameters' },
+        ],
+        tinybird_append_datasource: [
+          { text: 'Append', field: 'source_url', core: true },
+          { text: 'to Data Source', field: 'datasource', core: true },
+        ],
+        tinybird_truncate_datasource: [
+          { text: 'Delete every row from Data Source', field: 'datasource', core: true },
+        ],
+        tinybird_delete_datasource_rows: [
+          { text: 'Delete rows from Data Source', field: 'datasource', core: true },
+          { text: ', where', field: 'delete_condition' },
+        ],
+        tinybird_get_job: [{ text: 'Check the status of job', field: 'job_id', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

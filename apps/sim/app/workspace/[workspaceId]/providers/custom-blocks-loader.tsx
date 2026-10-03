@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { hydrateClientCustomBlocks } from '@/blocks/custom/client-overlay'
-import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
+import { getCustomBlockTile } from '@/blocks/custom/custom-block-icon'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 
@@ -15,9 +15,13 @@ import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
  * and the Access Control "Blocks" list — sees custom blocks. Re-hydrates on
  * workspace switch (the query key changes) and on any publish/edit/unpublish.
  */
-export function CustomBlocksLoader() {
+export function CustomBlocksLoader({
+  workspaceId: scopedWorkspaceId,
+}: {
+  workspaceId?: string
+} = {}) {
   const params = useParams()
-  const workspaceId = params?.workspaceId as string | undefined
+  const workspaceId = scopedWorkspaceId ?? (params?.workspaceId as string | undefined)
   const { data } = useCustomBlocks(workspaceId)
 
   /** No-icon blocks use the access-authorized workspace host logo, then the default glyph. */
@@ -28,24 +32,23 @@ export function CustomBlocksLoader() {
       // Disabled blocks stay resolvable (so a still-placed instance renders on the
       // canvas and survives serialization instead of vanishing) but are hidden from
       // the palette so no new instance can be placed; a run fails loudly server-side.
-      (data ?? []).map((block) => {
-        const effectiveIcon = block.iconUrl || fallbackIconUrl
-        return buildCustomBlockConfig(
+      (data ?? []).map((block) =>
+        buildCustomBlockConfig(
           {
             type: block.type,
             name: block.name,
             description: block.description,
             workflowId: block.workflowId,
+            workspaceName: block.workspaceName,
             exposedOutputs: block.exposedOutputs,
           },
           block.inputFields,
           {
-            icon: getCustomBlockIcon(block.iconUrl, fallbackIconUrl),
-            bgColor: effectiveIcon ? 'transparent' : undefined,
+            ...getCustomBlockTile(block.iconUrl, fallbackIconUrl),
             hideFromToolbar: !block.enabled,
           }
         )
-      })
+      )
     )
   }, [data, fallbackIconUrl])
 

@@ -1,9 +1,8 @@
 import { GoogleAppsheetIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { GoogleAppsheetResponse } from '@/tools/google_appsheet/types'
 
-export const GoogleAppsheetBlock: BlockConfig<GoogleAppsheetResponse> = {
+export const GoogleAppsheetBlock: BlockConfig = {
   type: 'google_appsheet',
   name: 'Google AppSheet',
   description: 'Read, add, edit, and delete rows in a Google AppSheet table',
@@ -15,6 +14,29 @@ export const GoogleAppsheetBlock: BlockConfig<GoogleAppsheetResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: GoogleAppsheetIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google AppSheet',
+    sentences: {
+      byOperation: {
+        google_appsheet_find_rows: [
+          { text: 'Read rows from', field: 'tableName', core: true },
+          { text: ', matching', field: 'selector' },
+        ],
+        google_appsheet_add_rows: [
+          { text: 'Add', field: 'rows', core: true },
+          { text: 'to', field: 'tableName', core: true },
+        ],
+        google_appsheet_edit_rows: [
+          { text: 'Update', field: 'rows', core: true },
+          { text: 'in', field: 'tableName', core: true },
+        ],
+        google_appsheet_delete_rows: [
+          { text: 'Delete', field: 'rows', core: true },
+          { text: 'from', field: 'tableName', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

@@ -7,15 +7,13 @@
  * `params` never declares (`exa_search` folds `text` into `contents`, `firecrawl_search` reads
  * `limit` and `timeout`). Refactor any of those four tools and the sandbox would quietly search with
  * different parameters than the other two modes, with nothing failing. This is that failure.
- *
- * @vitest-environment node
  */
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PI_SEARCH_PROVIDERS, type PiSearchProvider } from '@/executor/handlers/pi/keys'
+import { PI_SEARCH_PROVIDERS, type PiSearchProvider } from '@/executor/handlers/pi/core/keys'
 import {
   PI_SEARCH_API_KEY_ENV_VAR,
   PI_SEARCH_EXTENSION_SOURCE,
@@ -66,7 +64,6 @@ afterAll(async () => {
 // Per test, not once: globals and env are restored between tests, and an unstubbed `fetch` here
 // would reach the real providers.
 beforeEach(() => {
-  vi.unstubAllEnvs()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })

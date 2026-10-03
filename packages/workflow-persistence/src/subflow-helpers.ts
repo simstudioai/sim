@@ -4,6 +4,7 @@ const DEFAULT_LOOP_ITERATIONS = 5
 const DEFAULT_PARALLEL_BATCH_SIZE = 20
 const MAX_PARALLEL_BATCH_SIZE = 20
 
+/** Clamps a parallel block's batch size to 1..20, defaulting to 20 when it is not a number. */
 export function clampParallelBatchSize(batchSize: unknown): number {
   const parsed = typeof batchSize === 'number' ? batchSize : Number.parseInt(String(batchSize), 10)
   if (Number.isNaN(parsed)) {
@@ -12,12 +13,26 @@ export function clampParallelBatchSize(batchSize: unknown): number {
   return Math.max(1, Math.min(MAX_PARALLEL_BATCH_SIZE, parsed))
 }
 
+/**
+ * Finds the direct children of a loop or parallel container.
+ *
+ * @param containerId - ID of the container to find children for
+ * @param blocks - Record of all blocks in the workflow
+ * @returns IDs of the blocks whose parent is this container
+ */
 export function findChildNodes(containerId: string, blocks: Record<string, BlockState>): string[] {
   return Object.values(blocks)
     .filter((block) => block.data?.parentId === containerId)
     .map((block) => block.id)
 }
 
+/**
+ * Converts a loop block into the executor's {@link Loop} format.
+ *
+ * @param loopBlockId - ID of the loop block to convert
+ * @param blocks - Record of all blocks in the workflow
+ * @returns The loop, or undefined when the block is missing or not a loop
+ */
 export function convertLoopBlockToLoop(
   loopBlockId: string,
   blocks: Record<string, BlockState>
@@ -42,6 +57,13 @@ export function convertLoopBlockToLoop(
   return loop
 }
 
+/**
+ * Converts a parallel block into the executor's {@link Parallel} format.
+ *
+ * @param parallelBlockId - ID of the parallel block to convert
+ * @param blocks - Record of all blocks in the workflow
+ * @returns The parallel, or undefined when the block is missing or not a parallel
+ */
 export function convertParallelBlockToParallel(
   parallelBlockId: string,
   blocks: Record<string, BlockState>
@@ -73,12 +95,18 @@ export function convertParallelBlockToParallel(
   }
 }
 
+/**
+ * Builds every loop in a workflow from its loop blocks.
+ *
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Loops keyed by block ID
+ */
 export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<string, Loop> {
   const loops: Record<string, Loop> = {}
 
   Object.entries(blocks)
     .filter(([_, block]) => block.type === 'loop')
-    .forEach(([id, block]) => {
+    .forEach(([id]) => {
       const loop = convertLoopBlockToLoop(id, blocks)
       if (loop) {
         loops[id] = loop
@@ -88,6 +116,12 @@ export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<s
   return loops
 }
 
+/**
+ * Builds every parallel in a workflow from its parallel blocks.
+ *
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Parallels keyed by block ID
+ */
 export function generateParallelBlocks(
   blocks: Record<string, BlockState>
 ): Record<string, Parallel> {
@@ -95,7 +129,7 @@ export function generateParallelBlocks(
 
   Object.entries(blocks)
     .filter(([_, block]) => block.type === 'parallel')
-    .forEach(([id, block]) => {
+    .forEach(([id]) => {
       const parallel = convertParallelBlockToParallel(id, blocks)
       if (parallel) {
         parallels[id] = parallel

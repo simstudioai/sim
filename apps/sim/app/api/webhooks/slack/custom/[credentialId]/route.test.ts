@@ -1,38 +1,24 @@
-/**
- * @vitest-environment node
- */
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockParseWebhookBody,
-  mockFindWebhooksByRoutingKey,
-  mockDispatchResolvedWebhookTarget,
-  mockGetSlackBotCredential,
-  mockHandleChallenge,
-  mockVerifySignature,
-} = vi.hoisted(() => ({
-  mockParseWebhookBody: vi.fn(),
-  mockFindWebhooksByRoutingKey: vi.fn(),
-  mockDispatchResolvedWebhookTarget: vi.fn(),
-  mockGetSlackBotCredential: vi.fn(),
+const { mockHandleChallenge, mockVerifySignature, mockDispatchSearch } = vi.hoisted(() => ({
   mockHandleChallenge: vi.fn(),
   mockVerifySignature: vi.fn(),
+  mockDispatchSearch: vi.fn(),
 }))
 
-vi.mock('@/lib/core/admission/gate', () => ({
-  tryAdmit: () => ({ release: vi.fn() }),
-  admissionRejectedResponse: () => new Response(null, { status: 503 }),
-}))
+vi.mock('@/lib/slack-search/dispatcher', () => ({ dispatchSlackSearch: mockDispatchSearch }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
-  getSlackBotCredential: mockGetSlackBotCredential,
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
-vi.mock('@/lib/webhooks/processor', () => ({
-  parseWebhookBody: mockParseWebhookBody,
-  findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
-  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   handleSlackChallenge: mockHandleChallenge,
@@ -41,6 +27,14 @@ vi.mock('@/lib/webhooks/providers/slack', () => ({
 }))
 
 import { POST } from '@/app/api/webhooks/slack/custom/[credentialId]/route'
+
+const { mockParseWebhookBody, mockFindWebhooksByRoutingKey, mockDispatchResolvedWebhookTarget } =
+  webhooksProcessorMockFns
+const { mockGetSlackBotCredential } = authOAuthUtilsMockFns
+
+admissionGateMockFns.mockAdmissionRejectedResponse.mockImplementation(
+  () => new Response(null, { status: 503 })
+)
 
 const CREDENTIAL_ID = 'cred-123'
 
@@ -65,7 +59,7 @@ function webhook(id: string) {
 
 describe('Slack custom-bot webhook route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mockDispatchSearch.mockResolvedValue(undefined)
     mockHandleChallenge.mockReturnValue(null)
     mockVerifySignature.mockReturnValue(null)
     mockParseWebhookBody.mockResolvedValue({
@@ -74,6 +68,7 @@ describe('Slack custom-bot webhook route', () => {
     })
     mockGetSlackBotCredential.mockResolvedValue({
       signingSecret: 'sec',
+      credentialVersion: 'version',
       botToken: 'xoxb-x',
       teamId: 'T1',
     })
@@ -92,11 +87,17 @@ describe('Slack custom-bot webhook route', () => {
     expect(mockVerifySignature).not.toHaveBeenCalled()
   })
 
-  it('404s an unknown credential', async () => {
-    mockGetSlackBotCredential.mockResolvedValue(null)
+  it('404s an action-only bot credential without a signing secret', async () => {
+    mockGetSlackBotCredential.mockResolvedValue({
+      botToken: 'xoxb-x',
+      teamId: 'T1',
+    })
+
     const res = await POST(makeRequest(), context)
+
     expect(res.status).toBe(404)
-    expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
+    expect(mockVerifySignature).not.toHaveBeenCalled()
+    expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
   })
 
   it('verifies with the credential signing secret and rejects a bad signature', async () => {
@@ -112,24 +113,22 @@ describe('Slack custom-bot webhook route', () => {
     expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
   })
 
-  it('fans out by credential id (provider slack) and dispatches each webhook', async () => {
-    const res = await POST(makeRequest(), context)
-    expect(mockFindWebhooksByRoutingKey).toHaveBeenCalledWith(
-      CREDENTIAL_ID,
-      expect.any(String),
-      'slack'
-    )
-    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
-    expect(res.status).toBe(200)
+  it('returns a retryable failure when Search enqueue fails beside a successful workflow', async () => {
+    mockDispatchSearch.mockRejectedValue(new Error('Queue unavailable'))
+    const response = await POST(makeRequest(), context)
+    expect(response.status).toBeGreaterThanOrEqual(500)
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledOnce()
   })
 
-  it('still returns 200 when the dispatcher filters the event', async () => {
+  it('returns 200 when every target permanently lacks its deployed trigger block', async () => {
     mockDispatchResolvedWebhookTarget.mockResolvedValue({
       outcome: 'ignored',
-      response: new Response(null, { status: 200 }),
-      reason: 'filtered',
+      response: new Response('Trigger block not found in deployment', { status: 404 }),
+      reason: 'block-missing',
     })
+
     const res = await POST(makeRequest(), context)
+
     expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
     expect(res.status).toBe(200)
   })

@@ -1,138 +1,102 @@
 import { existsSync } from 'fs'
 import path from 'path'
 import { createLogger } from '@sim/logger'
-import type { FileParseResult, FileParser, SupportedFileType } from '@/lib/file-parsers/types'
+import { CsvParser } from '@/lib/file-parsers/csv-parser'
+import { DocParser } from '@/lib/file-parsers/doc-parser'
+import { DocxParser } from '@/lib/file-parsers/docx-parser'
+import { FileParserError } from '@/lib/file-parsers/errors'
+import { HtmlParser } from '@/lib/file-parsers/html-parser'
+import {
+  parseJSON,
+  parseJSONBuffer,
+  parseJSONL,
+  parseJSONLBuffer,
+} from '@/lib/file-parsers/json-parser'
+import { MdParser } from '@/lib/file-parsers/md-parser'
+import { ArchiveIntegrityError } from '@/lib/file-parsers/ooxml-limits'
+import { OpenDocumentParser } from '@/lib/file-parsers/opendocument-parser'
+import { PdfParser } from '@/lib/file-parsers/pdf-parser'
+import { PptxParser } from '@/lib/file-parsers/pptx-parser'
+import { reconcileParserRoute, sniffFileKind } from '@/lib/file-parsers/sniff'
+import { TxtParser } from '@/lib/file-parsers/txt-parser'
+import type {
+  FileParseOptions,
+  FileParseResult,
+  FileParser,
+  SupportedFileType,
+} from '@/lib/file-parsers/types'
+import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
+import { parseYAML, parseYAMLBuffer } from '@/lib/file-parsers/yaml-parser'
+import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('FileParser')
 
-let parserInstances: Record<string, FileParser> | null = null
-
 /**
- * Get parser instances with lazy initialization
+ * Extension → parser. Several extensions deliberately share one parser because
+ * they are the same container:
+ *
+ * - `docm`/`dotx` are the WordprocessingML package `docx` uses; mammoth reads
+ *   `word/document.xml` without consulting the package's content type.
+ * - `xlsm`/`xlsb`/`xltx`/`xls`/`ods` are all read natively by SheetJS. `ods` is
+ *   treated as a spreadsheet rather than routed to {@link OpenDocumentParser} so
+ *   its output keeps per-sheet structure instead of one flat text run.
+ * - `pptm`/`potx` are the PresentationML package `pptx` uses. Legacy OLE `ppt`
+ *   is deliberately absent: no bundled library reads it, and registering it only
+ *   produced scraped placeholder prose, so uploads refuse it up front instead.
+ *
+ * Every parser module is imported statically and every dependency is a regular
+ * (non-optional) one, so a broken install fails loudly at import. This previously
+ * used `require()` inside per-parser `try/catch` blocks that only logged, which
+ * meant a resolution failure produced a silently **empty** registry and turned
+ * every format into `Unsupported file type` — an outcome indistinguishable from a
+ * genuinely unsupported extension. The heavy extraction libraries are still loaded
+ * on demand inside the individual parsers.
+ *
+ * A `Map` rather than an object literal: the extension is caller-supplied, and a
+ * plain object would resolve inherited keys, so `PARSERS['constructor']` would hand
+ * back `Object` and route the request to a "parser" with no parse methods.
  */
-function getParserInstances(): Record<string, FileParser> {
-  if (parserInstances === null) {
-    parserInstances = {}
+const PARSERS = new Map<string, FileParser>([
+  ['pdf', new PdfParser()],
+  ['csv', new CsvParser()],
+  ['doc', new DocParser()],
+  ['docx', new DocxParser()],
+  ['docm', new DocxParser()],
+  ['dotx', new DocxParser()],
+  ['txt', new TxtParser()],
+  ['md', new MdParser()],
+  ['xlsx', new XlsxParser()],
+  ['xls', new XlsxParser()],
+  ['xlsm', new XlsxParser()],
+  ['xlsb', new XlsxParser()],
+  ['xltx', new XlsxParser()],
+  ['ods', new XlsxParser()],
+  ['pptx', new PptxParser()],
+  ['pptm', new PptxParser()],
+  ['potx', new PptxParser()],
+  ['odt', new OpenDocumentParser()],
+  ['odp', new OpenDocumentParser()],
+  ['html', new HtmlParser()],
+  ['htm', new HtmlParser()],
+  ['json', { parseFile: parseJSON, parseBuffer: parseJSONBuffer }],
+  ['jsonl', { parseFile: parseJSONL, parseBuffer: parseJSONLBuffer }],
+  ['yaml', { parseFile: parseYAML, parseBuffer: parseYAMLBuffer }],
+  ['yml', { parseFile: parseYAML, parseBuffer: parseYAMLBuffer }],
+])
 
-    try {
-      try {
-        logger.info('Loading PDF parser...')
-        const { PdfParser } = require('@/lib/file-parsers/pdf-parser')
-        parserInstances.pdf = new PdfParser()
-        logger.info('PDF parser loaded successfully')
-      } catch (error) {
-        logger.error('Failed to load PDF parser:', error)
-      }
-
-      try {
-        const { CsvParser } = require('@/lib/file-parsers/csv-parser')
-        parserInstances.csv = new CsvParser()
-        logger.info('Loaded streaming CSV parser with csv-parse library')
-      } catch (error) {
-        logger.error('Failed to load streaming CSV parser:', error)
-      }
-
-      try {
-        const { DocxParser } = require('@/lib/file-parsers/docx-parser')
-        parserInstances.docx = new DocxParser()
-      } catch (error) {
-        logger.error('Failed to load DOCX parser:', error)
-      }
-
-      try {
-        const { DocParser } = require('@/lib/file-parsers/doc-parser')
-        parserInstances.doc = new DocParser()
-      } catch (error) {
-        logger.error('Failed to load DOC parser:', error)
-      }
-
-      try {
-        const { TxtParser } = require('@/lib/file-parsers/txt-parser')
-        parserInstances.txt = new TxtParser()
-      } catch (error) {
-        logger.error('Failed to load TXT parser:', error)
-      }
-
-      try {
-        const { MdParser } = require('@/lib/file-parsers/md-parser')
-        parserInstances.md = new MdParser()
-      } catch (error) {
-        logger.error('Failed to load MD parser:', error)
-      }
-
-      try {
-        const { XlsxParser } = require('@/lib/file-parsers/xlsx-parser')
-        parserInstances.xlsx = new XlsxParser()
-        parserInstances.xls = new XlsxParser()
-        logger.info('Loaded XLSX parser')
-      } catch (error) {
-        logger.error('Failed to load XLSX parser:', error)
-      }
-
-      try {
-        const { PptxParser } = require('@/lib/file-parsers/pptx-parser')
-        parserInstances.pptx = new PptxParser()
-        parserInstances.ppt = new PptxParser()
-      } catch (error) {
-        logger.error('Failed to load PPTX parser:', error)
-      }
-
-      try {
-        const { HtmlParser } = require('@/lib/file-parsers/html-parser')
-        parserInstances.html = new HtmlParser()
-        parserInstances.htm = new HtmlParser()
-      } catch (error) {
-        logger.error('Failed to load HTML parser:', error)
-      }
-
-      try {
-        const {
-          parseJSON,
-          parseJSONBuffer,
-          parseJSONL,
-          parseJSONLBuffer,
-        } = require('@/lib/file-parsers/json-parser')
-        parserInstances.json = {
-          parseFile: parseJSON,
-          parseBuffer: parseJSONBuffer,
-        }
-        parserInstances.jsonl = {
-          parseFile: parseJSONL,
-          parseBuffer: parseJSONLBuffer,
-        }
-        logger.info('Loaded JSON/JSONL parser')
-      } catch (error) {
-        logger.error('Failed to load JSON parser:', error)
-      }
-
-      try {
-        const { parseYAML, parseYAMLBuffer } = require('@/lib/file-parsers/yaml-parser')
-        parserInstances.yaml = {
-          parseFile: parseYAML,
-          parseBuffer: parseYAMLBuffer,
-        }
-        parserInstances.yml = {
-          parseFile: parseYAML,
-          parseBuffer: parseYAMLBuffer,
-        }
-        logger.info('Loaded YAML parser')
-      } catch (error) {
-        logger.error('Failed to load YAML parser:', error)
-      }
-    } catch (error) {
-      logger.error('Error loading file parsers:', error)
-    }
-  }
-
-  return parserInstances
-}
+/** Extensions with a registered parser, for error messages. */
+const SUPPORTED_EXTENSIONS_TEXT = [...PARSERS.keys()].join(', ')
 
 /**
  * Parse a file based on its extension
  * @param filePath Path to the file
+ * @param options Cancellation options for parsers that support them
  * @returns Parsed content and metadata
  */
-export async function parseFile(filePath: string): Promise<FileParseResult> {
+export async function parseFile(
+  filePath: string,
+  options: FileParseOptions = {}
+): Promise<FileParseResult> {
   try {
     if (!filePath) {
       throw new Error('No file path provided')
@@ -143,61 +107,101 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
     }
 
     const extension = path.extname(filePath).toLowerCase().substring(1)
-    logger.info('Attempting to parse file with extension:', extension)
+    const parser = PARSERS.get(extension)
 
-    const parsers = getParserInstances()
-
-    if (!Object.keys(parsers).includes(extension)) {
-      logger.info('No parser found for extension:', extension)
+    if (!parser) {
       throw new Error(
-        `Unsupported file type: ${extension}. Supported types are: ${Object.keys(parsers).join(', ')}`
+        `Unsupported file type: ${extension}. Supported types are: ${SUPPORTED_EXTENSIONS_TEXT}`
       )
     }
 
-    logger.info('Using parser for extension:', extension)
-    const parser = parsers[extension]
-    return await parser.parseFile(filePath)
+    return await parser.parseFile(filePath, options)
   } catch (error) {
     logger.error('File parsing error:', error)
     throw error
   }
 }
 
+function joinWarnings(...warnings: Array<string | undefined>): string | undefined {
+  const present = warnings.filter((warning): warning is string => Boolean(warning))
+  return present.length > 0 ? present.join('. ') : undefined
+}
+
 /**
  * Parse a buffer based on file extension
  * @param buffer Buffer containing the file data
  * @param extension File extension without the dot (e.g., 'pdf', 'csv')
+ * @param options Cancellation options for parsers that support them
  * @returns Parsed content and metadata
+ *
+ * The zip-bomb guard runs here for every extension, not just the OOXML ones:
+ * the extension is an attacker-controlled routing hint, and the guard no-ops
+ * for buffers that are not ZIP archives. Individual parsers still call it so a
+ * direct `parser.parseBuffer` caller is covered too. Its integrity rejection is
+ * surfaced as a typed `invalid_format` so callers never retry a corrupt archive.
+ *
+ * After the guard, the bytes are sniffed and reconciled with the extension (see
+ * {@link reconcileParserRoute}); a re-routed parse records `detectedType` and a
+ * warning in its metadata.
  */
-export async function parseBuffer(buffer: Buffer, extension: string): Promise<FileParseResult> {
+export async function parseBuffer(
+  buffer: Buffer,
+  extension: string,
+  options: FileParseOptions = {}
+): Promise<FileParseResult> {
   try {
     if (!buffer || buffer.length === 0) {
-      throw new Error('Empty buffer provided')
+      throw new FileParserError('empty_input', 'Empty buffer provided')
     }
 
     if (!extension) {
       throw new Error('No file extension provided')
     }
 
+    try {
+      assertOoxmlArchiveWithinLimits(buffer)
+    } catch (error) {
+      if (error instanceof ArchiveIntegrityError) {
+        throw new FileParserError('invalid_format', error.message, error)
+      }
+      throw error
+    }
+
     const normalizedExtension = extension.toLowerCase()
-    logger.info('Attempting to parse buffer with extension:', normalizedExtension)
-
-    const parsers = getParserInstances()
-
-    if (!Object.keys(parsers).includes(normalizedExtension)) {
-      logger.info('No parser found for extension:', normalizedExtension)
-      throw new Error(
-        `Unsupported file type: ${normalizedExtension}. Supported types are: ${Object.keys(parsers).join(', ')}`
+    if (!PARSERS.has(normalizedExtension)) {
+      throw new FileParserError(
+        'unsupported_type',
+        `Unsupported file type: ${normalizedExtension}. Supported types are: ${SUPPORTED_EXTENSIONS_TEXT}`
       )
     }
 
-    logger.info('Using parser for extension:', normalizedExtension)
-    const parser = parsers[normalizedExtension]
+    const kind = sniffFileKind(buffer, normalizedExtension)
+    const route = reconcileParserRoute(normalizedExtension, kind, options)
+    const parser = PARSERS.get(route.extension)
 
-    if (parser.parseBuffer) {
-      return await parser.parseBuffer(buffer)
+    if (!parser?.parseBuffer) {
+      throw new FileParserError(
+        'unsupported_type',
+        `Parser for ${route.extension} does not support buffer parsing`
+      )
     }
-    throw new Error(`Parser for ${normalizedExtension} does not support buffer parsing`)
+
+    const result = await parser.parseBuffer(buffer, options)
+    if (!route.detectedType) return result
+
+    logger.warn('Parsed buffer under a re-routed parser', {
+      extension: normalizedExtension,
+      detectedType: route.detectedType,
+      route: route.extension,
+    })
+    return {
+      ...result,
+      metadata: {
+        ...result.metadata,
+        detectedType: route.detectedType,
+        warning: joinWarnings(route.warning, result.metadata?.warning),
+      },
+    }
   } catch (error) {
     logger.error('Buffer parsing error:', error)
     throw error
@@ -210,12 +214,7 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
  * @returns true if supported, false otherwise
  */
 export function isSupportedFileType(extension: string): extension is SupportedFileType {
-  try {
-    return Object.keys(getParserInstances()).includes(extension.toLowerCase())
-  } catch (error) {
-    logger.error('Error checking supported file type:', error)
-    return false
-  }
+  return typeof extension === 'string' && PARSERS.has(extension.toLowerCase())
 }
 
-export type { FileParseResult, SupportedFileType }
+export type { FileParseOptions, FileParseResult, SupportedFileType }

@@ -1,11 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import { get, set } from 'idb-keyval'
-import type { ConsoleEntry } from './types'
+import type { ConsoleEntry } from '@/stores/terminal/console/types'
 
 const logger = createLogger('ConsoleStorage')
 
 const STORE_KEY = 'terminal-console-store'
 const MIGRATION_KEY = 'terminal-console-store-migrated'
+export const CONSOLE_STORAGE_VERSION = 1
 
 /**
  * Interval for persisting terminal state during active executions.
@@ -18,8 +20,14 @@ const EXECUTION_PERSIST_INTERVAL_MS = 5_000
  * Shape of terminal console data persisted to IndexedDB.
  */
 export interface PersistedConsoleData {
+  storageVersion: typeof CONSOLE_STORAGE_VERSION
   workflowEntries: Record<string, ConsoleEntry[]>
   isOpen: boolean
+}
+
+export interface ConsoleStorageMigrationResult {
+  data: PersistedConsoleData
+  migrated: boolean
 }
 
 let migrationPromise: Promise<void> | null = null
@@ -50,12 +58,63 @@ if (typeof window !== 'undefined') {
   })
 }
 
+function stripPersistedContent(entry: ConsoleEntry): ConsoleEntry {
+  return omit(entry, ['input', 'output', 'error', 'warning', 'agentStreamThinking'])
+}
+
+function stripPersistedWorkflowContent(
+  workflowEntries: Record<string, ConsoleEntry[]>
+): Record<string, ConsoleEntry[]> {
+  return Object.fromEntries(
+    Object.entries(workflowEntries).map(([workflowId, entries]) => [
+      workflowId,
+      entries.map(stripPersistedContent),
+    ])
+  )
+}
+
+/**
+ * Normalizes all historical console formats and removes content from unversioned data.
+ * Historical rows have no trusted Secrets-resolution provenance, so their structure is
+ * retained while input, output, errors, warnings, and live thinking are discarded.
+ */
+export function migratePersistedConsoleData(parsed: unknown): ConsoleStorageMigrationResult | null {
+  if (!parsed || typeof parsed !== 'object') return null
+
+  const parsedRecord = parsed as Record<string, unknown>
+  const wrappedState = parsedRecord.state
+  const data =
+    wrappedState && typeof wrappedState === 'object'
+      ? (wrappedState as Record<string, unknown>)
+      : parsedRecord
+
+  let workflowEntries: Record<string, ConsoleEntry[]> = {}
+  if (Array.isArray(data.entries) && !data.workflowEntries) {
+    for (const rawEntry of data.entries) {
+      if (!rawEntry || typeof rawEntry !== 'object') continue
+      const entry = rawEntry as ConsoleEntry
+      if (!entry.workflowId) continue
+      if (!workflowEntries[entry.workflowId]) workflowEntries[entry.workflowId] = []
+      workflowEntries[entry.workflowId].push(entry)
+    }
+  } else if (data.workflowEntries && typeof data.workflowEntries === 'object') {
+    workflowEntries = data.workflowEntries as Record<string, ConsoleEntry[]>
+  }
+
+  const migrated = data.storageVersion !== CONSOLE_STORAGE_VERSION
+  return {
+    data: {
+      storageVersion: CONSOLE_STORAGE_VERSION,
+      workflowEntries: migrated ? stripPersistedWorkflowContent(workflowEntries) : workflowEntries,
+      isOpen: Boolean(data.isOpen),
+    },
+    migrated,
+  }
+}
+
 /**
  * Loads persisted console data from IndexedDB.
- * Handles three historical storage formats:
- * 1. Zustand persist wrapper: `{ state: { entries: [...] }, version }` (original flat format)
- * 2. Zustand persist wrapper: `{ state: { workflowEntries: {...} }, version }` (refactored format)
- * 3. Raw data: `{ workflowEntries: {...}, isOpen }` (current format)
+ * Handles historical Zustand wrappers, the original flat entry array, and raw data.
  */
 export async function loadConsoleData(): Promise<PersistedConsoleData | null> {
   if (typeof window === 'undefined') return null
@@ -69,25 +128,14 @@ export async function loadConsoleData(): Promise<PersistedConsoleData | null> {
     if (!raw) return null
 
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    if (!parsed || typeof parsed !== 'object') return null
+    const result = migratePersistedConsoleData(parsed)
+    if (!result) return null
 
-    const data = parsed.state ?? parsed
-
-    if (Array.isArray(data.entries) && !data.workflowEntries) {
-      const workflowEntries: Record<string, ConsoleEntry[]> = {}
-      for (const entry of data.entries) {
-        if (!entry?.workflowId) continue
-        const wfId = entry.workflowId
-        if (!workflowEntries[wfId]) workflowEntries[wfId] = []
-        workflowEntries[wfId].push(entry)
-      }
-      return { workflowEntries, isOpen: Boolean(data.isOpen) }
+    if (result.migrated) {
+      await set(STORE_KEY, JSON.stringify(result.data))
     }
 
-    return {
-      workflowEntries: data.workflowEntries ?? {},
-      isOpen: Boolean(data.isOpen),
-    }
+    return result.data
   } catch (error) {
     logger.warn('Failed to load console data from IndexedDB', { error })
     return null
@@ -98,6 +146,12 @@ let activeWrite: Promise<void> | null = null
 
 interface PersistOptions {
   merge?: boolean
+}
+
+declare const consolePersistenceExecutionBrand: unique symbol
+
+export interface ConsolePersistenceExecution {
+  readonly [consolePersistenceExecutionBrand]: never
 }
 
 function entryTimestamp(entry: ConsoleEntry): number {
@@ -159,6 +213,7 @@ function mergePersistedConsoleData(
   }
 
   return {
+    storageVersion: CONSOLE_STORAGE_VERSION,
     workflowEntries,
     isOpen: incoming.isOpen,
   }
@@ -197,7 +252,9 @@ function writeToIndexedDB(
 class ConsolePersistenceManager {
   private dataProvider: (() => PersistedConsoleData) | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
-  private activeExecutions = 0
+  private activeExecutions = new Set<ConsolePersistenceExecution>()
+  private scopedExecutions = new Map<string, ConsolePersistenceExecution>()
+  private executionScopes = new Map<ConsolePersistenceExecution, string>()
   private needsInitialPersist = false
 
   /**
@@ -212,12 +269,32 @@ class ConsolePersistenceManager {
    * Signals that a workflow execution has started.
    * Starts the long-execution safety-net timer if this is the first active execution.
    */
-  executionStarted(): void {
-    this.activeExecutions++
+  executionStarted(): ConsolePersistenceExecution {
+    const execution = {} as ConsolePersistenceExecution
+    this.activeExecutions.add(execution)
     this.needsInitialPersist = true
-    if (this.activeExecutions === 1) {
+    if (this.activeExecutions.size === 1) {
       this.startSafetyTimer()
     }
+    return execution
+  }
+
+  /** Starts a lifecycle that another owner can recover by its stable scope. */
+  beginScopedExecution(scope: string): ConsolePersistenceExecution {
+    const existingExecution = this.scopedExecutions.get(scope)
+    if (existingExecution) {
+      this.executionEnded(existingExecution)
+    }
+
+    const execution = this.executionStarted()
+    this.scopedExecutions.set(scope, execution)
+    this.executionScopes.set(execution, scope)
+    return execution
+  }
+
+  /** Returns the active lifecycle for a stable scope without creating a new one. */
+  adoptScopedExecution(scope: string): ConsolePersistenceExecution | undefined {
+    return this.scopedExecutions.get(scope)
   }
 
   /**
@@ -235,12 +312,24 @@ class ConsolePersistenceManager {
    * Signals that a workflow execution has ended (success, error, or cancel).
    * Triggers an immediate persist and stops the safety timer if no executions remain.
    */
-  executionEnded(): void {
-    this.activeExecutions = Math.max(0, this.activeExecutions - 1)
+  executionEnded(execution: ConsolePersistenceExecution): void {
+    if (!this.activeExecutions.delete(execution)) return
+    const scope = this.executionScopes.get(execution)
+    if (scope !== undefined && this.scopedExecutions.get(scope) === execution) {
+      this.scopedExecutions.delete(scope)
+    }
+    this.executionScopes.delete(execution)
     this.persist()
-    if (this.activeExecutions === 0) {
+    if (this.activeExecutions.size === 0) {
       this.stopSafetyTimer()
     }
+  }
+
+  /** Ends a scoped lifecycle only when the caller still owns its exact token. */
+  endScopedExecution(scope: string, execution: ConsolePersistenceExecution): boolean {
+    if (this.scopedExecutions.get(scope) !== execution) return false
+    this.executionEnded(execution)
+    return true
   }
 
   /**
@@ -250,6 +339,15 @@ class ConsolePersistenceManager {
   persist(options?: PersistOptions): Promise<void> {
     if (!this.dataProvider) return Promise.resolve()
     return writeToIndexedDB(this.dataProvider(), options)
+  }
+
+  /** Stops persistence work owned by the previous authenticated session. */
+  reset(): void {
+    this.activeExecutions.clear()
+    this.scopedExecutions.clear()
+    this.executionScopes.clear()
+    this.needsInitialPersist = false
+    this.stopSafetyTimer()
   }
 
   private startSafetyTimer(): void {
@@ -317,4 +415,19 @@ export function clearExecutionPointer(workflowId: string): Promise<void> {
     return Promise.resolve()
   }
   return Promise.resolve()
+}
+
+/** Removes every reconnect pointer owned by the current browser tab. */
+export function clearAllExecutionPointers(): void {
+  if (typeof window === 'undefined') return
+  try {
+    const pointerKeys: string[] = []
+    for (let index = 0; index < window.sessionStorage.length; index++) {
+      const key = window.sessionStorage.key(index)
+      if (key?.startsWith(EXEC_POINTER_PREFIX)) pointerKeys.push(key)
+    }
+    for (const key of pointerKeys) window.sessionStorage.removeItem(key)
+  } catch {
+    return
+  }
 }

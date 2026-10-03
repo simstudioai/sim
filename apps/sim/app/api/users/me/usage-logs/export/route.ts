@@ -3,15 +3,16 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { exportUsageLogsContract } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { getUserUsageLogs } from '@/lib/billing/core/usage-log'
+import { apportionCredits } from '@/lib/billing/credits/conversion'
 import {
-  getUsageCreditsByLogId,
-  getUserUsageLogs,
-  type UsageLogSource,
-} from '@/lib/billing/core/usage-log'
+  BILLING_USAGE_LOG_SOURCE_LABELS,
+  toBillingUsageLogSource,
+  toInternalUsageLogSources,
+} from '@/lib/billing/usage-sources'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { formatCsvValue, toCsvRow } from '@/lib/table/export-format'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
-import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-labels'
 
 const logger = createLogger('UsageLogsExportAPI')
 
@@ -44,7 +45,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const dateRange = resolveDateRange(period, startDate, endDate)
   const filter = {
-    source: source as UsageLogSource | undefined,
+    source: source ? toInternalUsageLogSources(source) : undefined,
     workspaceId,
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
@@ -70,7 +71,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     cursorCreatedAt = lastRow ? new Date(lastRow.createdAt) : undefined
   }
 
-  const creditsByLogId = await getUsageCreditsByLogId(auth.userId, filter)
+  /**
+   * Apportioned over the rows this file actually contains, not over a second
+   * unbounded read of the whole filter.
+   *
+   * `getUsageCreditsByLogId` exists for the paginated list, where a row must show the
+   * same value on every page and only the full set can guarantee that. An export has
+   * no pages: it already holds every row it will print. Re-reading the filter here
+   * made {@link EXPORT_SAFETY_CAP} illusory — the loop stopped at the cap and the very
+   * next statement loaded every matching row anyway, which with `period=all` is an
+   * unbounded lifetime scan.
+   *
+   * The values are unchanged in the ordinary case, because an untruncated export's row
+   * set *is* the whole filter. When it truncates they are strictly better: the printed
+   * rows now reconcile to the printed total instead of to one that includes rows the
+   * file does not contain.
+   */
+  const creditsByLogId = apportionCredits(rows.map((log) => ({ key: log.id, dollars: log.cost })))
 
   if (truncated) {
     logger.error('Usage log export hit the safety cap — investigate this account', {
@@ -84,7 +101,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const type =
       log.source === 'workflow' && log.workflowName
         ? `Workflow: ${log.workflowName}`
-        : USAGE_LOG_SOURCE_LABELS[log.source]
+        : BILLING_USAGE_LOG_SOURCE_LABELS[toBillingUsageLogSource(log.source)]
     return toCsvRow([
       formatCsvValue(log.createdAt),
       formatCsvValue(type),

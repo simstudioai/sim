@@ -10,8 +10,10 @@ import {
   useRef,
   useState,
 } from 'react'
+import { escapeRegExp } from '@sim/utils/string'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import './code.css'
 
@@ -24,7 +26,7 @@ type PrismModule = typeof import('./prism')
 /**
  * Module-level singleton promise for the lazily-loaded Prism module.
  *
- * Prism (core + the side-effectful JS/Python/JSON grammar registrations) is kept
+ * Prism (core + the side-effectful JS/Python/JSON/Bash/TOML grammar registrations) is kept
  * out of this module's static import graph so it never lands in bundles that only
  * pull `Code` through the shared `@sim/emcn` barrel. It is loaded once per
  * session on the first highlight and cached here for all subsequent viewers.
@@ -105,10 +107,58 @@ function escapeHtml(text: string): string {
  * @param language - The language key (e.g. `json`, `javascript`, `python`)
  * @returns Highlighted HTML, or escaped plaintext as a fallback
  */
-function highlightOrEscape(prism: PrismModule | null, text: string, language: string): string {
-  if (!prism) return escapeHtml(text)
-  const grammar = prism.languages[language] || prism.languages.javascript
-  return prism.highlight(text, grammar, language)
+function highlightOrEscape(
+  prism: PrismModule | null,
+  text: string,
+  language: string,
+  highlightWorkflowReferences = false
+): string {
+  const highlightSource = (source: string) => {
+    if (!prism) return escapeHtml(source)
+    const grammar = prism.languages[language] || prism.languages.javascript
+    return prism.highlight(source, grammar, language)
+  }
+
+  return highlightWorkflowReferences
+    ? highlightCodeReferences(text, highlightSource)
+    : highlightSource(text)
+}
+
+interface CodeReferencePlaceholder {
+  original: string
+  placeholder: string
+}
+
+function highlightCodeReferences(
+  source: string,
+  highlightSource: (source: string) => string
+): string {
+  const placeholders: CodeReferencePlaceholder[] = []
+  let cursor = 0
+  let maskedSource = ''
+
+  const maskReference = (original: string) => {
+    let placeholder = `__SIM_CODE_REFERENCE_${placeholders.length}__`
+    while (source.includes(placeholder)) placeholder += '_'
+    placeholders.push({ original, placeholder })
+    return placeholder
+  }
+
+  for (const token of findWorkflowReferenceTokens(source)) {
+    maskedSource += source.slice(cursor, token.start)
+    maskedSource += maskReference(token.value)
+    cursor = token.end
+  }
+  maskedSource += source.slice(cursor)
+
+  let highlighted = highlightSource(maskedSource)
+  for (const { original, placeholder } of placeholders) {
+    highlighted = highlighted.replace(
+      placeholder,
+      () => `<span data-code-reference="">${escapeHtml(original)}</span>`
+    )
+  }
+  return highlighted
 }
 
 /**
@@ -116,6 +166,7 @@ function highlightOrEscape(prism: PrismModule | null, text: string, language: st
  * All code editors in the app should use these values for consistency.
  */
 export const CODE_LINE_HEIGHT_PX = 21
+const COMPACT_CODE_LINE_HEIGHT_PX = 20
 
 /**
  * Gutter width values based on the number of digits in line numbers.
@@ -420,7 +471,7 @@ const CollapseButton = memo(function CollapseButton({ isCollapsed, onClick }: Co
     >
       <ChevronRight
         className={cn(
-          '!h-[12px] !w-[12px] transition-transform duration-100',
+          'h-[12px]! w-[12px]! transition-transform duration-100',
           !isCollapsed && 'rotate-90'
         )}
       />
@@ -481,7 +532,7 @@ function Container({ children, className, style, onDragOver, onDrop }: CodeConta
       className={cn(
         // Base container styling
         'group relative min-h-[100px] rounded-sm border border-[var(--border-1)]',
-        'bg-[var(--surface-1)] font-medium font-mono text-sm transition-colors',
+        'bg-[var(--surface-1)] font-mono text-sm transition-colors',
         'dark:bg-[var(--code-bg)]',
         // Overflow handling for long content
         'overflow-x-auto overflow-y-auto',
@@ -544,17 +595,17 @@ export function getCodeEditorProps(options?: {
     padding: 8,
     className: cn(
       // Base editor classes
-      'bg-transparent font-[inherit] text-[inherit] font-medium',
+      'bg-transparent font-[inherit] text-[inherit]',
       'text-[var(--text-primary)] dark:text-[var(--code-foreground)]',
-      'leading-[21px] outline-none focus:outline-none',
+      'leading-[21px] outline-hidden focus:outline-hidden',
       'min-h-[106px]',
       // Streaming/disabled states
       (isStreaming || disabled) && 'cursor-not-allowed opacity-50'
     ),
     textareaClassName: cn(
       // Reset browser defaults
-      'border-none bg-transparent outline-none resize-none',
-      'focus:outline-none focus:ring-0',
+      'border-none bg-transparent outline-hidden resize-none',
+      'focus:outline-hidden focus:ring-0',
       // Selection styling - light and dark modes
       'selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)]',
       'dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
@@ -679,6 +730,8 @@ interface CodeRowProps {
   showGutter: boolean
   /** Custom styles for the gutter */
   gutterStyle?: React.CSSProperties
+  /** Visual density for read-only code. */
+  density: CodeViewerDensity
   /** Left offset for alignment */
   leftOffset: number
   /** Whether to wrap long lines */
@@ -703,6 +756,7 @@ function CodeRow({
   gutterWidth,
   showGutter,
   gutterStyle,
+  density,
   leftOffset,
   wrapText,
   showCollapseColumn,
@@ -718,7 +772,10 @@ function CodeRow({
     <div className={cn('flex', wrapText && 'overflow-hidden')} data-row-index={index}>
       {showGutter && (
         <div
-          className='flex-shrink-0 select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[var(--code-line-number)]'
+          className={cn(
+            'shrink-0 select-none pr-0.5 text-right text-[var(--text-muted)] tabular-nums dark:text-[var(--code-line-number)]',
+            density === 'compact' ? 'text-caption leading-5' : 'text-xs leading-[21px]'
+          )}
           style={{ width: gutterWidth, marginLeft: leftOffset, ...gutterStyle }}
         >
           {line.lineNumber}
@@ -726,7 +783,7 @@ function CodeRow({
       )}
       {showCollapseColumn && (
         <div
-          className='ml-1 flex flex-shrink-0 items-start justify-end'
+          className='ml-1 flex shrink-0 items-start justify-end'
           style={{ width: COLLAPSE_COLUMN_WIDTH }}
         >
           {isCollapsible && (
@@ -740,7 +797,8 @@ function CodeRow({
       )}
       <pre
         className={cn(
-          'm-0 flex-1 pr-2 pl-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]',
+          'm-0 flex-1 pr-2 pl-2 font-mono text-[var(--text-primary)] dark:text-[var(--code-foreground)]',
+          density === 'compact' ? 'text-caption leading-5' : 'text-small leading-[21px]',
           wrapText ? 'min-w-0 whitespace-pre-wrap break-words' : 'whitespace-pre'
         )}
         dangerouslySetInnerHTML={{ __html: line.html || '&nbsp;' }}
@@ -766,7 +824,7 @@ function applySearchHighlightingToLine(
 ): { html: string; matchesInLine: number } {
   if (!searchQuery.trim()) return { html, matchesInLine: 0 }
 
-  const escaped = escapeRegex(searchQuery)
+  const escaped = escapeRegExp(searchQuery)
   const regex = new RegExp(`(${escaped})`, 'gi')
   const parts = html.split(/(<[^>]+>)/g)
   let matchesInLine = 0
@@ -796,15 +854,21 @@ function applySearchHighlightingToLine(
 /**
  * Props for the Code.Viewer component (readonly code display).
  */
+type CodeViewerDensity = 'default' | 'compact'
+
 interface CodeViewerProps {
   /** Code content to display */
   code: string
   /** Whether to show line numbers gutter */
   showGutter?: boolean
   /** Language for syntax highlighting (default: 'json') */
-  language?: 'javascript' | 'json' | 'python'
+  language?: 'javascript' | 'json' | 'python' | 'bash' | 'toml'
   /** Additional CSS classes for the container */
   className?: string
+  /** Visual density for read-only code. */
+  density?: CodeViewerDensity
+  /** Highlight Sim `{{ENV}}` and `<block.output>` references with the platform accent. */
+  highlightWorkflowReferences?: boolean
   /** Left padding offset (useful for terminal alignment) */
   paddingLeft?: number
   /** Inline styles for the gutter (e.g., to override background) */
@@ -826,13 +890,6 @@ interface CodeViewerProps {
 }
 
 /**
- * Escapes special regex characters in a string.
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-/**
  * Applies search highlighting to already syntax-highlighted HTML.
  * Wraps matches in spans with appropriate highlighting classes.
  *
@@ -850,7 +907,7 @@ function applySearchHighlighting(
 ): string {
   if (!searchQuery.trim()) return html
 
-  const escaped = escapeRegex(searchQuery)
+  const escaped = escapeRegExp(searchQuery)
   const regex = new RegExp(`(${escaped})`, 'gi')
 
   // We need to be careful not to match inside HTML tags
@@ -888,9 +945,12 @@ type ViewerInnerProps = {
   /** Whether to show line numbers gutter */
   showGutter: boolean
   /** Language for syntax highlighting */
-  language: 'javascript' | 'json' | 'python'
+  language: 'javascript' | 'json' | 'python' | 'bash' | 'toml'
   /** Additional CSS classes for the container */
   className?: string
+  /** Visual density for read-only code. */
+  density: CodeViewerDensity
+  highlightWorkflowReferences: boolean
   /** Left padding offset in pixels */
   paddingLeft: number
   /** Custom styles for the gutter */
@@ -918,6 +978,8 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   showGutter,
   language,
   className,
+  density,
+  highlightWorkflowReferences,
   paddingLeft,
   gutterStyle,
   wrapText,
@@ -956,7 +1018,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
 
     const offsets: number[] = []
     let cumulative = 0
-    const escaped = escapeRegex(searchQuery)
+    const escaped = escapeRegExp(searchQuery)
     const regex = new RegExp(escaped, 'gi')
     const visibleSet = new Set(visibleLineIndices)
 
@@ -980,7 +1042,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     const hasSearch = searchQuery?.trim()
 
     return visibleLineIndices.map((idx) => {
-      let html = highlightOrEscape(prism, displayLines[idx], language)
+      let html = highlightOrEscape(prism, displayLines[idx], language, highlightWorkflowReferences)
 
       if (hasSearch && searchQuery) {
         const result = applySearchHighlightingToLine(
@@ -998,6 +1060,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     prism,
     displayLines,
     language,
+    highlightWorkflowReferences,
     visibleLineIndices,
     searchQuery,
     currentMatchIndex,
@@ -1010,15 +1073,16 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   const virtualizer = useVirtualizer({
     count: visibleLines.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => CODE_LINE_HEIGHT_PX,
+    estimateSize: () => (density === 'compact' ? COMPACT_CODE_LINE_HEIGHT_PX : CODE_LINE_HEIGHT_PX),
     overscan: 5,
   })
 
   /**
-   * Drop cached row measurements when leaving wrap mode: the measureElement
-   * refs detach with their wrapped heights still cached, and falling back to
-   * the fixed estimate is exactly correct for nowrap rows. Entering wrap needs
-   * no reset — refs re-attach and re-measure as rows render.
+   * Drop cached row measurements when leaving wrap mode or changing density:
+   * the measureElement refs detach with their wrapped heights still cached,
+   * and falling back to the current fixed estimate is exactly correct for
+   * nowrap rows. Entering wrap needs no reset — refs re-attach and re-measure
+   * as rows render.
    *
    * Deliberately NOT keyed on content (`visibleLines`): `measure()` wipes the
    * cache without re-measuring mounted rows (ResizeObserver only fires on size
@@ -1029,7 +1093,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
    */
   useEffect(() => {
     if (!wrapText) virtualizer.measure()
-  }, [wrapText, virtualizer])
+  }, [density, wrapText, virtualizer])
 
   useEffect(() => {
     if (!searchQuery?.trim() || matchCount === 0 || !scrollRef.current) return
@@ -1079,7 +1143,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
       ref={setRefs}
       className={cn(
         'code-editor-theme relative rounded-sm border border-[var(--border-1)]',
-        'bg-[var(--surface-1)] font-medium font-mono text-sm',
+        'bg-[var(--surface-1)] font-mono text-sm',
         wrapText ? 'overflow-x-hidden' : 'overflow-x-auto',
         'overflow-y-auto',
         'dark:bg-[var(--code-bg)]',
@@ -1107,6 +1171,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
                 gutterWidth={gutterWidth}
                 showGutter={showGutter}
                 gutterStyle={gutterStyle}
+                density={density}
                 leftOffset={paddingLeft}
                 wrapText={wrapText}
                 showCollapseColumn={effectiveShowCollapseColumn}
@@ -1131,6 +1196,8 @@ const ViewerInner = memo(function ViewerInner({
   showGutter,
   language,
   className,
+  density,
+  highlightWorkflowReferences,
   paddingLeft,
   gutterStyle,
   wrapText,
@@ -1164,7 +1231,7 @@ const ViewerInner = memo(function ViewerInner({
     if (!searchQuery?.trim()) return { cumulativeMatches: [0], matchCount: 0 }
 
     const cumulative: number[] = [0]
-    const escaped = escapeRegex(searchQuery)
+    const escaped = escapeRegExp(searchQuery)
     const regex = new RegExp(escaped, 'gi')
     const visibleSet = new Set(visibleLineIndices)
 
@@ -1190,12 +1257,14 @@ const ViewerInner = memo(function ViewerInner({
     if (!searchQuery?.trim()) {
       return visibleLineIndices.map((idx) => ({
         lineNumber: idx + 1,
-        html: highlightOrEscape(prism, displayLines[idx], language) || '&nbsp;',
+        html:
+          highlightOrEscape(prism, displayLines[idx], language, highlightWorkflowReferences) ||
+          '&nbsp;',
       }))
     }
 
     return visibleLineIndices.map((idx) => {
-      let html = highlightOrEscape(prism, displayLines[idx], language)
+      let html = highlightOrEscape(prism, displayLines[idx], language, highlightWorkflowReferences)
       const matchCounter = { count: cumulativeMatches[idx] }
       html = applySearchHighlighting(html, searchQuery, currentMatchIndex, matchCounter)
       return { lineNumber: idx + 1, html: html || '&nbsp;' }
@@ -1204,6 +1273,7 @@ const ViewerInner = memo(function ViewerInner({
     prism,
     displayLines,
     language,
+    highlightWorkflowReferences,
     visibleLineIndices,
     searchQuery,
     currentMatchIndex,
@@ -1213,14 +1283,22 @@ const ViewerInner = memo(function ViewerInner({
   // Pre-compute simple highlighted code (for no-gutter mode)
   const highlightedCode = useMemo(() => {
     const visibleCode = visibleLineIndices.map((idx) => displayLines[idx]).join('\n')
-    let html = highlightOrEscape(prism, visibleCode, language)
+    let html = highlightOrEscape(prism, visibleCode, language, highlightWorkflowReferences)
 
     if (searchQuery?.trim()) {
       const matchCounter = { count: 0 }
       html = applySearchHighlighting(html, searchQuery, currentMatchIndex, matchCounter)
     }
     return html
-  }, [prism, displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex])
+  }, [
+    prism,
+    displayLines,
+    language,
+    highlightWorkflowReferences,
+    visibleLineIndices,
+    searchQuery,
+    currentMatchIndex,
+  ])
 
   const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
 
@@ -1236,8 +1314,8 @@ const ViewerInner = memo(function ViewerInner({
           <div
             style={{
               paddingLeft,
-              paddingTop: '8px',
-              paddingBottom: '8px',
+              paddingTop: density === 'compact' ? '6px' : '8px',
+              paddingBottom: density === 'compact' ? '6px' : '8px',
               display: 'grid',
               gridTemplateColumns: effectiveShowCollapseColumn
                 ? `${gutterWidth}px ${collapseColumnWidth}px 1fr`
@@ -1252,7 +1330,10 @@ const ViewerInner = memo(function ViewerInner({
               return (
                 <Fragment key={idx}>
                   <div
-                    className='select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[var(--code-line-number)]'
+                    className={cn(
+                      'select-none pr-0.5 text-right text-[var(--text-muted)] tabular-nums dark:text-[var(--code-line-number)]',
+                      density === 'compact' ? 'text-caption leading-5' : 'text-xs leading-[21px]'
+                    )}
                     style={gutterStyle}
                   >
                     {lineNumber}
@@ -1270,7 +1351,10 @@ const ViewerInner = memo(function ViewerInner({
                   )}
                   <pre
                     className={cn(
-                      'm-0 min-w-0 pr-2 pl-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]',
+                      'm-0 min-w-0 pr-2 pl-2 font-mono text-[var(--text-primary)] dark:text-[var(--code-foreground)]',
+                      density === 'compact'
+                        ? 'text-caption leading-5'
+                        : 'text-small leading-[21px]',
                       whitespaceClass
                     )}
                     dangerouslySetInnerHTML={{ __html: html }}
@@ -1291,7 +1375,10 @@ const ViewerInner = memo(function ViewerInner({
         <pre
           className={cn(
             whitespaceClass,
-            'p-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]'
+            'font-mono text-[var(--text-primary)] dark:text-[var(--code-foreground)]',
+            density === 'compact'
+              ? 'px-2 py-1.5 text-caption leading-5'
+              : 'p-2 text-small leading-[21px]'
           )}
           style={{ paddingLeft: paddingLeft > 0 ? paddingLeft : undefined }}
           dangerouslySetInnerHTML={{ __html: highlightedCode }}
@@ -1330,6 +1417,8 @@ function Viewer({
   showGutter = false,
   language = 'json',
   className,
+  density = 'default',
+  highlightWorkflowReferences = false,
   paddingLeft = 0,
   gutterStyle,
   wrapText = false,
@@ -1345,6 +1434,8 @@ function Viewer({
     showGutter,
     language,
     className,
+    density,
+    highlightWorkflowReferences,
     paddingLeft,
     gutterStyle,
     wrapText,

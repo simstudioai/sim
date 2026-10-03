@@ -1,9 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import { deriveFilePreviewSession } from './apply-file-preview-phase'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
+import {
+  deriveFilePreviewSession,
+  previewHoldsFinalContent,
+} from '@/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase'
 
 const NOW = '2026-06-08T00:00:00.000Z'
 
@@ -23,115 +23,114 @@ function session(overrides: Partial<FilePreviewSession>): FilePreviewSession {
 }
 
 describe('deriveFilePreviewSession', () => {
-  it('starts a pending session keyed to the tool call', () => {
-    const next = deriveFilePreviewSession(
-      undefined,
-      { previewPhase: 'file_preview_start', toolCallId: 'tool-1', toolName: 'workspace_file' },
-      'stream-1',
-      NOW
-    )
-    expect(next.status).toBe('pending')
-    expect(next.id).toBe('tool-1')
-    expect(next.previewVersion).toBe(0)
-    expect(next.streamId).toBe('stream-1')
-  })
-
-  it('captures target identity (fileId, name, kind, operation)', () => {
-    const next = deriveFilePreviewSession(
-      session({ status: 'pending' }),
-      {
-        previewPhase: 'file_preview_target',
-        toolCallId: 'tool-1',
-        toolName: 'workspace_file',
-        operation: 'append',
-        target: { kind: 'file_id', fileId: 'file-9', fileName: 'deck.pptx' },
-      },
-      'stream-1',
-      NOW
-    )
-    expect(next.fileId).toBe('file-9')
-    expect(next.targetKind).toBe('file_id')
-    expect(next.operation).toBe('append')
-    expect(next.status).toBe('pending')
-  })
-
-  it('appends delta content and advances the version monotonically when none supplied', () => {
-    const prev = session({ previewText: 'slide one', previewVersion: 2 })
-    const next = deriveFilePreviewSession(
+  it('ignores a re-delivered delta (same version) — no double-append (the duplication bug)', () => {
+    const prev = session({ previewText: 'the story so far.', previewVersion: 7 })
+    const replay = deriveFilePreviewSession(
       prev,
       {
         previewPhase: 'file_preview_content',
         toolCallId: 'tool-1',
         toolName: 'workspace_file',
-        content: ' slide two',
+        content: ' the story so far.',
         contentMode: 'delta',
+        previewVersion: 7, // <= prev.previewVersion → a replay, must not re-append
         fileName: 'deck.pptx',
       },
       'stream-1',
       NOW
     )
-    expect(next.status).toBe('streaming')
-    expect(next.previewText).toBe('slide one slide two')
-    expect(next.previewVersion).toBe(3)
+    expect(replay.previewText).toBe('the story so far.')
+    expect(replay.previewVersion).toBe(7)
   })
 
-  it('appends delta content and uses the supplied version verbatim', () => {
-    const prev = session({ previewText: 'slide one', previewVersion: 2 })
-    const next = deriveFilePreviewSession(
+  it('ignores a replayed older snapshot — no regression of accumulated text', () => {
+    const prev = session({ previewText: 'full accumulated body', previewVersion: 12 })
+    const stale = deriveFilePreviewSession(
       prev,
       {
         previewPhase: 'file_preview_content',
         toolCallId: 'tool-1',
         toolName: 'workspace_file',
-        content: ' slide two',
-        contentMode: 'delta',
-        previewVersion: 9,
-        fileName: 'deck.pptx',
-      },
-      'stream-1',
-      NOW
-    )
-    expect(next.previewText).toBe('slide one slide two')
-    expect(next.previewVersion).toBe(9)
-  })
-
-  it('replaces text on a snapshot and carries forward prior fileId', () => {
-    const prev = session({ previewText: 'old', fileId: 'file-9', previewVersion: 4 })
-    const next = deriveFilePreviewSession(
-      prev,
-      {
-        previewPhase: 'file_preview_content',
-        toolCallId: 'tool-1',
-        toolName: 'workspace_file',
-        content: 'fresh snapshot',
+        content: 'earlier partial',
         contentMode: 'snapshot',
-        previewVersion: 5,
+        previewVersion: 5, // stale replay
         fileName: 'deck.pptx',
-      },
-      undefined,
-      NOW
-    )
-    expect(next.previewText).toBe('fresh snapshot')
-    expect(next.fileId).toBe('file-9')
-    expect(next.streamId).toBe('stream-1')
-  })
-
-  it('marks completion with completedAt and a resolved version', () => {
-    const prev = session({ previewText: 'final', previewVersion: 7, fileId: 'file-9' })
-    const next = deriveFilePreviewSession(
-      prev,
-      {
-        previewPhase: 'file_preview_complete',
-        toolCallId: 'tool-1',
-        toolName: 'workspace_file',
-        fileId: 'file-9',
       },
       'stream-1',
       NOW
     )
-    expect(next.status).toBe('complete')
-    expect(next.completedAt).toBe(NOW)
-    expect(next.previewVersion).toBe(7)
-    expect(next.fileId).toBe('file-9')
+    expect(stale.previewText).toBe('full accumulated body')
+    expect(stale.previewVersion).toBe(12)
+  })
+
+  it('re-processing the SAME delta stream N times yields the content exactly once', () => {
+    // Simulates a client re-render/re-subscribe replaying the stream: the accumulated text must be stable.
+    const deltas = [
+      { v: 1, c: 'A' },
+      { v: 2, c: 'B' },
+      { v: 3, c: 'C' },
+    ]
+    const run = (start: FilePreviewSession | undefined) =>
+      deltas.reduce<FilePreviewSession | undefined>(
+        (acc, d) =>
+          deriveFilePreviewSession(
+            acc,
+            {
+              previewPhase: 'file_preview_content',
+              toolCallId: 'tool-1',
+              toolName: 'workspace_file',
+              content: d.c,
+              contentMode: 'delta',
+              previewVersion: d.v,
+              fileName: 'deck.pptx',
+            },
+            'stream-1',
+            NOW
+          ),
+        start
+      )
+    const first = run(undefined)
+    expect(first?.previewText).toBe('ABC')
+    const second = run(first) // replay the exact same events
+    expect(second?.previewText).toBe('ABC') // NOT 'ABCABC'
+    const third = run(second)
+    expect(third?.previewText).toBe('ABC')
+  })
+})
+
+describe('previewHoldsFinalContent', () => {
+  const complete = (previewVersion?: number) => ({
+    previewPhase: 'file_preview_complete' as const,
+    toolCallId: 'tool-1',
+    toolName: 'prepare_file_edit' as const,
+    ...(previewVersion !== undefined ? { previewVersion } : {}),
+  })
+
+  it('holds the final content when the last content received is the completed version', () => {
+    const prev = session({ previewText: 'final text', previewVersion: 7 })
+
+    expect(previewHoldsFinalContent(prev, complete(7))).toBe(true)
+  })
+
+  it('does not hold it when later versions were never received, so the stored file must load', () => {
+    const prev = session({ previewText: 'an earlier draft', previewVersion: 5 })
+
+    expect(previewHoldsFinalContent(prev, complete(7))).toBe(false)
+  })
+
+  it('does not hold it when no content was received at all', () => {
+    expect(previewHoldsFinalContent(undefined, complete(7))).toBe(false)
+  })
+
+  it('does not hold it when the session exists but received no text', () => {
+    const prev = session({ previewText: '', previewVersion: 7 })
+
+    expect(previewHoldsFinalContent(prev, complete(7))).toBe(false)
+  })
+
+  it('holds the received text when the completion carries no version to compare', () => {
+    const prev = session({ previewText: 'final text', previewVersion: 3 })
+
+    expect(previewHoldsFinalContent(prev, complete())).toBe(true)
   })
 })

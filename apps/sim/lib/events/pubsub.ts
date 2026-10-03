@@ -9,8 +9,7 @@ import { EventEmitter } from 'events'
 import { createLogger } from '@sim/logger'
 import { noop } from '@sim/utils/helpers'
 import Redis, { type RedisOptions } from 'ioredis'
-import { env } from '@/lib/core/config/env'
-import { getRedisConnectionDefaults } from '@/lib/core/config/redis'
+import { getConfiguredRedisUrl, getRedisConnectionDefaults } from '@/lib/core/config/redis'
 
 const logger = createLogger('PubSub')
 
@@ -138,7 +137,7 @@ class LocalPubSubChannel<T> implements PubSubChannel<T> {
 }
 
 export function createPubSubChannel<T>(config: PubSubChannelConfig): PubSubChannel<T> {
-  const redisUrl = env.REDIS_URL
+  const redisUrl = getConfiguredRedisUrl()
   if (!redisUrl) return new LocalPubSubChannel<T>(config)
 
   // Resolve config-derived defaults outside the try so a missing
@@ -146,11 +145,6 @@ export function createPubSubChannel<T>(config: PubSubChannelConfig): PubSubChann
   // to the in-process EventEmitter — that would break cross-replica pub/sub.
   const connectionDefaults = getRedisConnectionDefaults(redisUrl)
 
-  try {
-    logger.info(`${config.label}: Using Redis`)
-    return new RedisPubSubChannel<T>(redisUrl, connectionDefaults, config)
-  } catch (err) {
-    logger.error(`Failed to create Redis ${config.label}, falling back to local:`, err)
-    return new LocalPubSubChannel<T>(config)
-  }
+  logger.info(`${config.label}: Using Redis`)
+  return new RedisPubSubChannel<T>(redisUrl, connectionDefaults, config)
 }

@@ -32,6 +32,10 @@ export const generateEmbeddingsTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ inputs: params.inputs }),
+    },
     method: 'POST',
     url: () => 'https://api.pinecone.io/embed',
     headers: (params) => ({

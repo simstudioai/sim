@@ -1,7 +1,7 @@
 import type { ElevenLabsTtsParams, ElevenLabsTtsResponse } from '@/tools/elevenlabs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsResponse> = {
+export const elevenLabsTtsTool: InternalToolConfig<ElevenLabsTtsParams, ElevenLabsTtsResponse> = {
   id: 'elevenlabs_tts',
   name: 'ElevenLabs TTS',
   description: 'Convert text to speech using ElevenLabs voices',
@@ -49,26 +49,18 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
     },
   },
 
-  request: {
-    url: '/api/tools/tts',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: ElevenLabsTtsParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ text: params.text }),
+    },
+    input: (params) => ({
       apiKey: params.apiKey,
       text: params.text,
       voiceId: params.voiceId,
       modelId: params.modelId || 'eleven_monolingual_v1',
       stability: params.stability,
       similarityBoost: params.similarityBoost,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

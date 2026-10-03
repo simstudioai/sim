@@ -1,9 +1,12 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableBatchInsertParams, TableBatchInsertResponse } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableBatchInsertRowsTool: ToolConfig<
+export const tableBatchInsertRowsTool: InternalToolConfig<
   TableBatchInsertParams,
   TableBatchInsertResponse
 > = {
@@ -14,17 +17,12 @@ export const tableBatchInsertRowsTool: ToolConfig<
 
   toolEnrichment: {
     dependsOn: 'tableId',
-    enrichTool: (tableId, schema, desc) =>
-      enrichTableToolSchema(tableId, 'table_batch_insert_rows', schema, desc),
+    enrichTool: (tableId, schema, desc, context) =>
+      enrichTableToolSchema(tableId, 'table_batch_insert_rows', schema, desc, context),
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     rows: {
       type: 'array',
       required: true,
@@ -33,19 +31,19 @@ export const tableBatchInsertRowsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params: TableBatchInsertParams) => `/api/table/${params.tableId}/rows`,
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableBatchInsertParams) => {
+  operation: {
+    secretProvenance: {
+      request: (params) => selectTableRowSecretProvenance(params.rows, 'rows'),
+      response: { incomplete: 'propagate' },
+    },
+    input: (params: TableBatchInsertParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
         rows: params.rows,
         workspaceId,
       }
@@ -56,14 +54,11 @@ export const tableBatchInsertRowsTool: ToolConfig<
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        rows: data.rows,
-        insertedCount: data.insertedCount,
-        message: data.message || 'Rows inserted successfully',
-      },
-    }
+    return tableSuccess({
+      rows: data.rows,
+      insertedCount: data.insertedCount,
+      message: data.message || 'Rows inserted successfully',
+    })
   },
 
   outputs: {

@@ -49,6 +49,10 @@ const pendingWebhookVerificationRegistrationMatchers: Record<
   grain: () => true,
   generic: (registration) => registration.metadata?.verifyTestEvents === true,
   salesforce: () => true,
+  // Zoho Desk validates the notification URL with a create-time probe that must
+  // return 200 before it will register the subscription (chicken-and-egg: the
+  // webhook row is inactive until the create succeeds).
+  zoho_desk: () => true,
 }
 
 const pendingWebhookVerificationProbeMatchers: Record<
@@ -65,6 +69,14 @@ const pendingWebhookVerificationProbeMatchers: Record<
     method === 'HEAD' ||
     (method === 'POST' && (!body || Object.keys(body).length === 0)),
   salesforce: ({ method, body }) =>
+    method === 'GET' ||
+    method === 'HEAD' ||
+    (method === 'POST' && (!body || Object.keys(body).length === 0)),
+  // Zoho Desk sends a GET reachability probe at subscription-create time.
+  // Zoho sends a GET reachability probe at subscription-create time and, if that
+  // does not return 200, falls back to a POST probe before failing the create.
+  // Match the empty-bodied POST too, as grain/generic/salesforce do.
+  zoho_desk: ({ method, body }) =>
     method === 'GET' ||
     method === 'HEAD' ||
     (method === 'POST' && (!body || Object.keys(body).length === 0)),

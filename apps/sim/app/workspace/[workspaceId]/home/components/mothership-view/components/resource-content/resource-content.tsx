@@ -1,9 +1,16 @@
 'use client'
 
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Calendar,
+  Button,
+  OverflowText,
+  PlayOutline,
+  Skeleton,
+  TabStripAction,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
+import {
   Download,
   FileX,
   Folder as FolderIcon,
@@ -14,34 +21,29 @@ import {
   WorkflowX,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { format } from 'date-fns'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { DashboardResource } from '@/components/dashboards/dashboard-resource'
 import { isApiClientError } from '@/lib/api/client/errors'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import {
-  cancelRunToolExecution,
-  markRunToolManuallyStopped,
-  reportManualRunToolStop,
-} from '@/lib/copilot/tools/client/run-tool-execution'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { triggerFileDownload } from '@/lib/uploads/client/download'
+import { prefersInPlaceNavigation } from '@/lib/desktop'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
+import { stopRunToolForExecution } from '@/lib/mothership/tools/client/run-tool-execution'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
+import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import {
   FileViewer,
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
-import { EmbeddedViewTable } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/embedded-view-table'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
-import {
-  RESOURCE_TAB_ICON_BUTTON_CLASS,
-  RESOURCE_TAB_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
@@ -49,6 +51,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,
@@ -58,14 +61,19 @@ import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
-import { useLogDetail } from '@/hooks/queries/logs'
-import { useScheduleById } from '@/hooks/queries/schedules'
-import { downloadTableExport } from '@/hooks/queries/tables'
-import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useLogByExecutionId, useLogDetail } from '@/hooks/queries/logs'
+import { exportTable } from '@/hooks/queries/tables'
+import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
+import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
+import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
+import { useAddressedWorkspaceFileRecord, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { createWorkspaceFileContentSource } from '@/hooks/use-file-content-source'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
 
@@ -77,17 +85,36 @@ const LOADING_SKELETON = (
   </div>
 )
 
+/**
+ * Opens an internal app link the way the host expects: a new browser tab on the
+ * web, and the current view in the desktop app, whose shell would otherwise turn
+ * the same-origin `window.open` into a second Sim window.
+ */
+function useOpenInternalLink() {
+  const router = useRouter()
+  return useCallback(
+    (href: string) => {
+      if (prefersInPlaceNavigation()) {
+        router.push(href)
+        return
+      }
+      window.open(href, '_blank')
+    },
+    [router]
+  )
+}
+
 interface ResourceContentProps {
   workspaceId: string
+  desktopScopeId: string
+  onTableViewContextChange?: (tableId: string, context: MothershipTableViewContext) => void
   resource: MothershipResource
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
   previewContextKey?: string
-  /** Resolved server-side by the home page — the embedded table can't read
-   *  AppConfig itself, so the flag is threaded down rather than looked up. */
-  tableViewsEnabled?: boolean
   onNotFound?: (resourceId: string) => void
   /**
    * Whether this resource is the one on screen. Only the persistent panels
@@ -96,6 +123,8 @@ interface ResourceContentProps {
    * ever rendered when active.
    */
   visible?: boolean
+  /** Registers the active browser's targeted renderer-overlay handshake. */
+  onBrowserOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
 }
 
 /**
@@ -151,16 +180,47 @@ function useAgentFileEditLock(isStreamingToFile: boolean, isAgentResponding: boo
 
 export const ResourceContent = memo(function ResourceContent({
   workspaceId,
+  desktopScopeId,
   resource,
+  downloadSourceRef,
+  onTableViewContextChange,
   previewMode,
   previewSession,
   isAgentResponding,
   genericResourceData,
   previewContextKey,
-  tableViewsEnabled,
   onNotFound,
   visible = true,
+  onBrowserOverlayControllerChange,
 }: ResourceContentProps) {
+  const observedTableViewRef = useRef<{ tableId: string; viewId?: string } | null>(null)
+
+  useEffect(() => {
+    const previous = observedTableViewRef.current
+    const next =
+      resource.type === 'table' ? { tableId: resource.id, viewId: resource.viewId } : null
+    observedTableViewRef.current = next
+    if (!next?.viewId || (previous?.tableId === next.tableId && previous.viewId === next.viewId)) {
+      return
+    }
+    /**
+     * Pinned on mount as well as on later changes. `initialViewId` alone is not
+     * enough: the table honours it only while its views query already carries
+     * that id, and a cached list from before the agent wrote the view resolves
+     * it to nothing. Adoption then settles on the default and never revisits
+     * the id, so the restored view is lost until the tab is reopened. The pin
+     * waits for the refetch instead, and costs nothing when adoption already
+     * applied the same view — the table consumes it without touching the URL.
+     */
+    useTableViewPinStore.getState().pin(next.tableId, next.viewId)
+  }, [resource.id, resource.type, resource.viewId])
+
+  const reportTableView = useCallback(
+    (context: MothershipTableViewContext) => {
+      onTableViewContextChange?.(resource.id, context)
+    },
+    [onTableViewContextChange, resource.id]
+  )
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
@@ -234,20 +294,13 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           tableId={resource.id}
           embedded
-          viewsEnabled={tableViewsEnabled}
+          initialViewId={resource.viewId}
+          onViewContextChange={reportTableView}
         />
       )
 
-    case 'view':
-      return (
-        <EmbeddedViewTable
-          key={resource.id}
-          workspaceId={workspaceId}
-          resourceId={resource.id}
-          viewsEnabled={tableViewsEnabled}
-        />
-      )
-
+    case 'dashboard':
+      return <DashboardResource key={resource.id} workspaceId={workspaceId} />
     case 'file':
       return (
         <EmbeddedFile
@@ -255,12 +308,14 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           filePath={resource.path}
+          downloadSourceRef={downloadSourceRef}
           previewMode={previewMode}
           streamingContent={
             previewSession?.fileId === resource.id ? textStreamingContent : undefined
           }
           isAgentEditing={isAgentEditing}
           streamIsIncremental={streamIsIncremental}
+          streamOperation={previewSession?.operation}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -284,21 +339,13 @@ export const ResourceContent = memo(function ResourceContent({
     case 'folder':
       return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
 
-    case 'scheduledtask':
-      return (
-        <EmbeddedScheduledTask
-          key={resource.id}
-          workspaceId={workspaceId}
-          scheduleId={resource.id}
-        />
-      )
-
     case 'log':
       return (
         <EmbeddedLog
           key={resource.id}
           workspaceId={workspaceId}
           logId={resource.id}
+          executionId={resource.executionId}
           onNotFound={onNotFound ? () => onNotFound(resource.id) : undefined}
         />
       )
@@ -309,10 +356,22 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'browser':
-      return <BrowserSession key={resource.id} visible={visible} />
+      // One panel serves every browser tab of the chat: the desktop app
+      // composites whichever page is selected, so switching tabs must not
+      // remount it.
+      return (
+        <BrowserSession
+          key={desktopScopeId}
+          scopeId={desktopScopeId}
+          visible={visible}
+          onOverlayControllerChange={onBrowserOverlayControllerChange}
+        />
+      )
 
     case 'terminal':
-      return <TerminalSession key={resource.id} visible={visible} />
+      // One panel serves every terminal tab of the chat, keeping each shell's
+      // emulator alive across tab switches.
+      return <TerminalSession key={desktopScopeId} scopeId={desktopScopeId} visible={visible} />
 
     default:
       return null
@@ -322,9 +381,14 @@ export const ResourceContent = memo(function ResourceContent({
 interface ResourceActionsProps {
   workspaceId: string
   resource: MothershipResource
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
 }
 
-export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
+export function ResourceActions({
+  workspaceId,
+  resource,
+  downloadSourceRef,
+}: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
@@ -334,26 +398,25 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
           workspaceId={workspaceId}
           fileId={resource.id}
           filePath={resource.path}
+          downloadSourceRef={downloadSourceRef}
         />
       )
     case 'knowledgebase':
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
+    case 'dashboard':
+      return <EmbeddedDashboardActions workspaceId={workspaceId} />
     case 'table':
+      return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
+    case 'log':
       return (
-        <EmbeddedTableActions
+        <EmbeddedLogActions
           workspaceId={workspaceId}
-          tableId={resource.id}
-          tableName={resource.title}
+          logId={resource.id}
+          executionId={resource.executionId}
         />
       )
-    case 'view':
-      return null
-    case 'log':
-      return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
-    case 'scheduledtask':
-      return <EmbeddedScheduledTaskActions workspaceId={workspaceId} />
     case 'folder':
     case 'generic':
     case 'browser':
@@ -370,6 +433,7 @@ interface EmbeddedWorkflowActionsProps {
 }
 
 export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+  const openInternalLink = useOpenInternalLink()
   const { navigateToSettings } = useSettingsNavigation()
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -398,10 +462,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     setActiveWorkflow(workflowId)
 
     if (isExecuting) {
-      const toolCallId = markRunToolManuallyStopped(workflowId)
-      cancelRunToolExecution(workflowId)
-      await handleCancelExecution()
-      await reportManualRunToolStop(workflowId, toolCallId)
+      const executionId = useExecutionStore.getState().getCurrentExecutionId(workflowId)
+      if (!stopRunToolForExecution(workflowId, executionId)) await handleCancelExecution()
       return
     }
 
@@ -424,21 +486,16 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   }
 
   const handleOpenWorkflow = () => {
-    window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank')
+    openInternalLink(`/workspace/${workspaceId}/w/${workflowId}`)
   }
 
   return (
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenWorkflow}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open workflow'
-          >
+          <TabStripAction variant='subtle' onClick={handleOpenWorkflow} aria-label='Open workflow'>
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Open workflow</p>
@@ -446,11 +503,10 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
       </Tooltip.Root>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
+          <TabStripAction
             variant='subtle'
             onClick={() => void handleRun()}
             disabled={isRunButtonDisabled}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
           >
             {isExecuting ? (
@@ -458,13 +514,39 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
             ) : (
               <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
             )}
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     </>
+  )
+}
+
+interface EmbeddedDashboardActionsProps {
+  workspaceId: string
+}
+
+function EmbeddedDashboardActions({ workspaceId }: EmbeddedDashboardActionsProps) {
+  const router = useRouter()
+  const dashboardsEnabled = useFeatureFlag('dashboards')
+  if (!dashboardsEnabled) return null
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <TabStripAction
+          variant='subtle'
+          onClick={() => router.push(`/workspace/${workspaceId}/dashboards`)}
+          aria-label='Open dashboard'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </TabStripAction>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open dashboard</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }
 
@@ -486,14 +568,13 @@ export function EmbeddedKnowledgeBaseActions({
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <Button
+        <TabStripAction
           variant='subtle'
           onClick={handleOpenKnowledgeBase}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
           aria-label='Open knowledge base'
         >
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
+        </TabStripAction>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
         <p>Open knowledge base</p>
@@ -507,10 +588,9 @@ const tableLogger = createLogger('EmbeddedTableActions')
 interface EmbeddedTableActionsProps {
   workspaceId: string
   tableId: string
-  tableName: string
 }
 
-function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTableActionsProps) {
+function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProps) {
   const router = useRouter()
 
   const handleOpenTable = () => {
@@ -519,7 +599,7 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
 
   const handleExport = async () => {
     try {
-      await downloadTableExport(tableId, tableName)
+      await exportTable(workspaceId, tableId)
     } catch (err) {
       tableLogger.error('Failed to export table:', err)
     }
@@ -529,14 +609,9 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenTable}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open table'
-          >
+          <TabStripAction variant='subtle' onClick={handleOpenTable} aria-label='Open table'>
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Open table</p>
@@ -544,14 +619,13 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
       </Tooltip.Root>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
+          <TabStripAction
             variant='subtle'
             onClick={() => void handleExport()}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Export table as CSV'
           >
             <Download className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Export CSV</p>
@@ -567,26 +641,33 @@ interface EmbeddedFileActionsProps {
   workspaceId: string
   fileId: string
   filePath?: string
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
 }
 
-function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
+function EmbeddedFileActions({
+  workspaceId,
+  fileId,
+  filePath,
+  downloadSourceRef,
+}: EmbeddedFileActionsProps) {
   const router = useRouter()
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
-    () =>
-      files.find(
-        (f) =>
-          f.id === fileId ||
-          (filePath &&
-            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
-      ),
-    [files, fileId, filePath]
+  const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
+  const listedFile = files.find(
+    (file) =>
+      file.id === fileId ||
+      (filePath &&
+        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === filePath)
   )
+  const detail = useAddressedWorkspaceFileRecord(workspaceId, fileId, {
+    enabled: !listedFile && !listLoading,
+  })
+  const file = listedFile ?? detail.data
+  const isUpload = file?.vfsNamespace === 'uploads'
 
   const handleDownload = async () => {
     if (!file) return
     try {
-      await triggerFileDownload(file)
+      await triggerFileDownload(file, downloadSourceRef?.current)
     } catch (err) {
       fileLogger.error('Failed to download file:', err)
     }
@@ -598,32 +679,28 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActi
 
   return (
     <>
+      {file && !isUpload && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <TabStripAction variant='subtle' onClick={handleOpenInFiles} aria-label='Open in files'>
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </TabStripAction>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open in files</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenInFiles}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open in files'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open in files</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
+          <TabStripAction
             variant='subtle'
             onClick={() => void handleDownload()}
             disabled={!file}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Download file'
           >
             <Download className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
+          </TabStripAction>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
           <p>Download</p>
@@ -639,26 +716,11 @@ interface EmbeddedWorkflowProps {
 }
 
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
-  const { data: workflowList, isPending: isWorkflowsPending } = useWorkflows(workspaceId)
-  const workflowExists = (workflowList ?? []).some((w) => w.id === workflowId)
-  const hasLoadError = useWorkflowRegistry(
-    (state) => state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
-  )
+  const { data: workflowList } = useWorkflows(workspaceId)
+  const workflowExists = (workflowList ?? []).some((workflow) => workflow.id === workflowId)
 
-  if (isWorkflowsPending) return LOADING_SKELETON
-
-  if (!workflowExists || hasLoadError) {
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This workflow may have been deleted or moved
-          </p>
-        </div>
-      </div>
-    )
+  if (!workflowExists) {
+    return <ResolveEmbeddedWorkflow workspaceId={workspaceId} workflowId={workflowId} />
   }
 
   return (
@@ -668,14 +730,74 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   )
 }
 
+/**
+ * Subscribe to canonical detail only while inventory is missing. A disabled observer on the
+ * canvas hydration query can cancel the registry's imperative fetch when StrictMode detaches it.
+ */
+function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
+  const queryClient = useQueryClient()
+  const openInternalLink = useOpenInternalLink()
+  const { data: canonical, isPending: isCanonicalPending } = useQuery({
+    queryKey: workflowKeys.state(workflowId),
+    queryFn: ({ signal }) => fetchWorkflowEnvelope(workflowId, signal),
+    staleTime: WORKFLOW_STATE_STALE_TIME,
+  })
+  useEffect(() => {
+    if (!canonical || canonical.workspaceId !== workspaceId || canonical.archivedAt) return
+    /** Only the authorized detail can seed missing sidebar metadata, including its real folder. */
+    const metadata = mapWorkflow({
+      ...canonical,
+      createdAt: canonical.createdAt.toISOString(),
+      updatedAt: canonical.updatedAt.toISOString(),
+      archivedAt: null,
+    })
+    queryClient.setQueryData<WorkflowMetadata[]>(workflowKeys.list(workspaceId), (current = []) =>
+      current.some((workflow) => workflow.id === workflowId) ? current : [...current, metadata]
+    )
+  }, [canonical, queryClient, workflowId, workspaceId])
+
+  if (isCanonicalPending) return LOADING_SKELETON
+
+  if (canonical?.workspaceId && canonical.workspaceId !== workspaceId) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
+        <WorkflowIcon className='size-[32px] text-[var(--text-icon)]' />
+        <p className='text-[var(--text-primary)]'>{canonical.name}</p>
+        <Button
+          variant='secondary'
+          onClick={() => openInternalLink(`/workspace/${canonical.workspaceId}/w/${workflowId}`)}
+        >
+          Open in its workspace
+        </Button>
+      </div>
+    )
+  }
+
+  if (canonical?.workspaceId === workspaceId && !canonical.archivedAt) return LOADING_SKELETON
+
+  return (
+    <div className='flex h-full flex-col items-center justify-center gap-3'>
+      <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
+      <div className='flex flex-col items-center gap-1'>
+        <h2 className='text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
+        <p className='text-[var(--text-body)] text-small'>
+          This workflow may have been deleted or moved
+        </p>
+      </div>
+    </div>
+  )
+}
+
 interface EmbeddedFileProps {
   workspaceId: string
   fileId: string
   filePath?: string
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   previewMode?: PreviewMode
   streamingContent?: string
   isAgentEditing?: boolean
   streamIsIncremental?: boolean
+  streamOperation?: string
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -684,34 +806,44 @@ function EmbeddedFile({
   workspaceId,
   fileId,
   filePath,
+  downloadSourceRef,
   previewMode,
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
+  streamOperation,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
-  const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
+  const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
+  const listedFile = files.find(
+    (file) =>
+      file.id === fileId ||
+      (filePath &&
+        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === filePath)
+  )
+  const detail = useAddressedWorkspaceFileRecord(workspaceId, fileId, {
+    enabled: !listedFile && !listLoading,
+  })
+  const file = listedFile ?? detail.data
+  const isUpload = file?.vfsNamespace === 'uploads'
+  const contentSource = useMemo(
     () =>
-      files.find(
-        (f) =>
-          f.id === fileId ||
-          (filePath &&
-            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
-      ),
-    [files, fileId, filePath]
+      isUpload
+        ? createWorkspaceFileContentSource(workspaceId, undefined, file?.storageContext)
+        : undefined,
+    [isUpload, workspaceId, file?.storageContext]
   )
 
-  if (isLoading || (isFetching && !file)) return LOADING_SKELETON
+  if (!file && (listLoading || detail.isFetching)) return LOADING_SKELETON
 
   if (!file) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FileX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>File not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This file may have been deleted or moved
           </p>
@@ -725,14 +857,20 @@ function EmbeddedFile({
       <FileViewer
         key={file.id}
         file={file}
+        downloadSourceRef={downloadSourceRef}
         workspaceId={workspaceId}
-        canEdit={canEdit}
+        canEdit={canEdit && !isUpload}
+        readOnly={isUpload}
+        contentSource={contentSource}
         previewMode={previewMode}
         streamingContent={streamingContent}
         isAgentEditing={isAgentEditing}
         streamIsIncremental={streamIsIncremental}
+        streamOperation={streamOperation}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
+        collaborative={!isUpload}
+        enableFind
       />
     </div>
   )
@@ -744,6 +882,7 @@ interface EmbeddedFolderProps {
 }
 
 function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
+  const openInternalLink = useOpenInternalLink()
   const { data: folderList, isPending: isFoldersPending } = useFolders(workspaceId)
   const { data: workflowList = [] } = useWorkflows(workspaceId)
 
@@ -757,7 +896,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This folder may have been deleted or moved
           </p>
@@ -768,20 +907,20 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 
   return (
     <div className='flex h-full flex-col overflow-y-auto p-6'>
-      <h2 className='mb-4 font-medium text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
+      <h2 className='mb-4 text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
       {folderWorkflows.length === 0 ? (
-        <p className='text-[13px] text-[var(--text-muted)]'>No workflows in this folder</p>
+        <p className='text-[var(--text-muted)] text-small'>No workflows in this folder</p>
       ) : (
         <div className='flex flex-col gap-1'>
           {folderWorkflows.map((w) => (
             <button
               key={w.id}
               type='button'
-              onClick={() => window.open(`/workspace/${workspaceId}/w/${w.id}`, '_blank')}
+              onClick={() => openInternalLink(`/workspace/${workspaceId}/w/${w.id}`)}
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
-              <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-              <span className='truncate text-[13px] text-[var(--text-primary)]'>{w.name}</span>
+              <WorkflowIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+              <OverflowText label={w.name} className='text-[var(--text-primary)] text-small' />
             </button>
           ))}
         </div>
@@ -790,145 +929,22 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
   )
 }
 
-const SCHEDULE_STATUS_LABEL: Record<string, string> = {
-  active: 'Active',
-  disabled: 'Paused',
-  completed: 'Completed',
-}
-
-function formatScheduleInstant(iso: string | null): string {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? '—' : format(date, "EEE, MMM d 'at' h:mm a")
-}
-
-interface ScheduledTaskFieldProps {
-  title: string
-  value: string
-}
-
-function ScheduledTaskField({ title, value }: ScheduledTaskFieldProps) {
-  return (
-    <div className='flex flex-col gap-1'>
-      <span className='text-[var(--text-muted)] text-caption'>{title}</span>
-      <span className='text-[var(--text-body)] text-small'>{value}</span>
-    </div>
-  )
-}
-
-interface EmbeddedScheduledTaskProps {
-  workspaceId: string
-  scheduleId: string
-}
-
-function EmbeddedScheduledTask({ scheduleId }: EmbeddedScheduledTaskProps) {
-  const { data: schedule, isLoading, isError } = useScheduleById(scheduleId)
-
-  if (isLoading && !schedule) return LOADING_SKELETON
-
-  if (!schedule) {
-    const heading = isError ? "Couldn't load scheduled task" : 'Scheduled task not found'
-    const detail = isError
-      ? 'Something went wrong loading this scheduled task. Try again.'
-      : 'This scheduled task may have been deleted'
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <Calendar className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{heading}</h2>
-          <p className='text-[var(--text-body)] text-small'>{detail}</p>
-        </div>
-      </div>
-    )
-  }
-
-  const title = schedule.jobTitle || schedule.prompt || 'Scheduled task'
-  const timing = schedule.cronExpression
-    ? parseCronToHumanReadable(schedule.cronExpression, schedule.timezone)
-    : 'Runs once'
-  const status = SCHEDULE_STATUS_LABEL[schedule.status] ?? schedule.status
-
-  return (
-    <div className='flex h-full flex-col gap-6 overflow-y-auto p-6'>
-      <div className='flex items-center gap-2'>
-        <Calendar className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <h2 className='truncate font-medium text-[16px] text-[var(--text-primary)]'>{title}</h2>
-      </div>
-
-      <div className='grid grid-cols-2 gap-4'>
-        <ScheduledTaskField title='Status' value={status} />
-        <ScheduledTaskField title='Schedule' value={timing} />
-        <ScheduledTaskField title='Next run' value={formatScheduleInstant(schedule.nextRunAt)} />
-        <ScheduledTaskField title='Last run' value={formatScheduleInstant(schedule.lastRanAt)} />
-      </div>
-
-      <div className='flex flex-col gap-1'>
-        <span className='text-[var(--text-muted)] text-caption'>Prompt</span>
-        <p className='whitespace-pre-wrap text-[var(--text-body)] text-small'>
-          {schedule.prompt || '—'}
-        </p>
-      </div>
-
-      {schedule.jobHistory && schedule.jobHistory.length > 0 && (
-        <div className='flex flex-col gap-2'>
-          <span className='text-[var(--text-muted)] text-caption'>Recent runs</span>
-          <div className='flex flex-col gap-2'>
-            {schedule.jobHistory.slice(0, 5).map((run, index) => (
-              <div
-                key={`${run.timestamp}-${index}`}
-                className='flex flex-col gap-1 rounded-[6px] bg-[var(--surface-4)] px-3 py-2'
-              >
-                <span className='text-[var(--text-tertiary)] text-caption'>
-                  {formatScheduleInstant(run.timestamp)}
-                </span>
-                <span className='text-[var(--text-body)] text-small'>{run.summary}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-interface EmbeddedScheduledTaskActionsProps {
-  workspaceId: string
-}
-
-function EmbeddedScheduledTaskActions({ workspaceId }: EmbeddedScheduledTaskActionsProps) {
-  const router = useRouter()
-
-  const handleOpenScheduledTasks = () => {
-    router.push(`/workspace/${workspaceId}/scheduled-tasks`)
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenScheduledTasks}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in scheduled tasks'
-        >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open in scheduled tasks</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
-  )
-}
-
 interface EmbeddedLogProps {
   workspaceId: string
   logId: string
+  executionId?: string
   onNotFound?: () => void
 }
 
-function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
-  const { data: log, isLoading, error } = useLogDetail(logId, workspaceId)
+/** A log resource may be addressed by its execution before its storage-row ID is known. */
+function useEmbeddedLog(workspaceId: string, logId: string, executionId?: string) {
+  const detail = useLogDetail(logId, workspaceId, { enabled: !executionId })
+  const execution = useLogByExecutionId(workspaceId, executionId)
+  return executionId ? execution : detail
+}
+
+function EmbeddedLog({ workspaceId, logId, executionId, onNotFound }: EmbeddedLogProps) {
+  const { data: log, isLoading, error } = useEmbeddedLog(workspaceId, logId, executionId)
 
   const onNotFoundRef = useRef(onNotFound)
   onNotFoundRef.current = onNotFound
@@ -946,7 +962,7 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <Library className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Log not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>Log not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This log may have been deleted or is no longer available
           </p>
@@ -965,11 +981,12 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
 interface EmbeddedLogActionsProps {
   workspaceId: string
   logId: string
+  executionId?: string
 }
 
-export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
+export function EmbeddedLogActions({ workspaceId, logId, executionId }: EmbeddedLogActionsProps) {
   const router = useRouter()
-  const { data: log } = useLogDetail(logId, workspaceId)
+  const { data: log } = useEmbeddedLog(workspaceId, logId, executionId)
 
   const handleOpenInLogs = () => {
     const param = log?.executionId ? `?executionId=${log.executionId}` : ''
@@ -979,14 +996,9 @@ export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsPro
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenInLogs}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in logs'
-        >
+        <TabStripAction variant='subtle' onClick={handleOpenInLogs} aria-label='Open in logs'>
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
+        </TabStripAction>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
         <p>Open in logs</p>

@@ -1,5 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
-  isRecord,
   nullableNonEmptyString,
   optionalNonEmptyString,
   readGitHubErrorMessage,
@@ -56,7 +56,7 @@ const REVIEW_RESPONSE_CONTEXT = 'GitHub review response'
 
 function parseReviewUser(value: unknown): GitHubReviewUser | null {
   if (value === null) return null
-  if (!isRecord(value)) throw new Error('GitHub review response has an invalid user')
+  if (!isRecordLike(value)) throw new Error('GitHub review response has an invalid user')
   const context = `${REVIEW_RESPONSE_CONTEXT}.user`
   return {
     login: requiredNonEmptyString(value, 'login', context),
@@ -68,7 +68,7 @@ function parseReviewUser(value: unknown): GitHubReviewUser | null {
 }
 
 function parseGitHubReview(value: unknown): GitHubReview {
-  if (!isRecord(value)) throw new Error('GitHub review response must be an object')
+  if (!isRecordLike(value)) throw new Error('GitHub review response must be an object')
   const submittedAt = optionalNonEmptyString(value, 'submitted_at', REVIEW_RESPONSE_CONTEXT)
   return {
     id: requiredNumber(value, 'id', REVIEW_RESPONSE_CONTEXT),

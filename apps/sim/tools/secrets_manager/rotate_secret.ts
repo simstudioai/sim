@@ -2,9 +2,9 @@ import type {
   SecretsManagerRotateSecretParams,
   SecretsManagerRotateSecretResponse,
 } from '@/tools/secrets_manager/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const rotateSecretTool: ToolConfig<
+export const rotateSecretTool: InternalToolConfig<
   SecretsManagerRotateSecretParams,
   SecretsManagerRotateSecretResponse
 > = {
@@ -78,11 +78,8 @@ export const rotateSecretTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/secrets_manager/rotate-secret',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

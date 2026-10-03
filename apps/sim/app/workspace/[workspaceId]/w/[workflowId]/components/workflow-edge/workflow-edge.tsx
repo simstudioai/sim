@@ -1,15 +1,24 @@
-import { memo, useMemo } from 'react'
-import { type EdgeDiffStatus, WorkflowEdgeView } from '@sim/workflow-renderer'
-import type { EdgeProps } from 'reactflow'
+import { memo, useCallback, useMemo } from 'react'
+import {
+  type EdgeDiffStatus,
+  type WorkflowEdge as WorkflowEdgeType,
+  WorkflowEdgeView,
+} from '@sim/workflow-renderer'
+import { type EdgeProps, useStore } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
-import { useLastRunEdges } from '@/stores/execution'
+import {
+  isEdgeConnectedToEditor,
+  isEdgeHighlighted,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight'
+import {
+  useIsBlockActive,
+  useIsCurrentWorkflowExecuting,
+  useLastRunEdges,
+} from '@/stores/execution'
+import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
-/** Extended edge props with optional handle identifiers */
-interface WorkflowEdgeProps extends EdgeProps {
-  sourceHandle?: string | null
-  targetHandle?: string | null
-}
+type WorkflowEdgeProps = EdgeProps<WorkflowEdgeType>
 
 /**
  * Editor container for {@link WorkflowEdgeView}.
@@ -18,7 +27,7 @@ interface WorkflowEdgeProps extends EdgeProps {
  * passes it to the pure renderer shared with the docs preview.
  */
 const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
-  const { id, data, source, target, sourceHandle, targetHandle } = props
+  const { id, data, source, target, sourceHandleId, targetHandleId } = props
 
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore(
     useShallow((state) => ({
@@ -28,6 +37,35 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     }))
   )
   const lastRunEdges = useLastRunEdges()
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isTargetActive = useIsBlockActive(target)
+  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
+  const activeTab = usePanelStore((state) => state.activeTab)
+
+  /**
+   * Match the block ring: darken edges when an endpoint is canvas-selected or
+   * open in the editor panel (same `--text-secondary` as the selection ring).
+   */
+  const isEndpointSelected = useStore(
+    useCallback(
+      (state) =>
+        Boolean(state.nodeLookup.get(source)?.selected || state.nodeLookup.get(target)?.selected),
+      [source, target]
+    )
+  )
+  const isConnectedToSelection = Boolean(
+    isEndpointSelected ||
+      (data as { isConnectedToSelection?: boolean } | undefined)?.isConnectedToSelection
+  )
+  const isConnectedToEditor = isEdgeConnectedToEditor(
+    activeTab === 'editor' ? currentBlockId : null,
+    source,
+    target
+  )
+  const shouldHighlightEdge = isEdgeHighlighted({
+    isEndpointSelected: isConnectedToSelection,
+    isConnectedToEditor,
+  })
 
   const previewExecutionStatus = (
     data as { executionStatus?: 'success' | 'error' | 'not-executed' } | undefined
@@ -38,8 +76,8 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     if (data?.isDeleted) return 'deleted'
     if (!diffAnalysis?.edge_diff || !isDiffReady) return null
 
-    const actualSourceHandle = sourceHandle || 'source'
-    const actualTargetHandle = targetHandle || 'target'
+    const actualSourceHandle = sourceHandleId || 'source'
+    const actualTargetHandle = targetHandleId || 'target'
     const edgeIdentifier = `${source}-${actualSourceHandle}-${target}-${actualTargetHandle}`
 
     if (isShowingDiff) {
@@ -56,8 +94,8 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     isShowingDiff,
     source,
     target,
-    sourceHandle,
-    targetHandle,
+    sourceHandleId,
+    targetHandleId,
   ])
 
   return (
@@ -66,6 +104,9 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
       diffStatus={diffStatus}
       runStatus={runStatus}
       isPreviewRun={Boolean(previewExecutionStatus)}
+      isWorkflowRunning={isWorkflowRunning}
+      isTargetActive={isTargetActive}
+      isConnectedToSelection={shouldHighlightEdge}
     />
   )
 }

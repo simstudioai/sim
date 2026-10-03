@@ -16,10 +16,14 @@ const RETRYABLE_DB_ERROR_CODES = new Set([
 ])
 
 const RETRYABLE_NETWORK_ERROR_CODES = new Set([
+  'DNS_TIMEOUT',
+  'EAI_AGAIN',
   'ETIMEDOUT',
   'ECONNRESET',
   'ECONNREFUSED',
   'EPIPE',
+  'ERR_STREAM_PREMATURE_CLOSE',
+  'EHOSTUNREACH',
   'ENETDOWN',
   'ENETRESET',
   'ENETUNREACH',
@@ -33,6 +37,22 @@ const RETRYABLE_APP_ERROR_CODES = new Set([
   'SERVICE_OVERLOADED',
   'RESOURCE_EXHAUSTED',
   'CONNECTION_POOL_EXHAUSTED',
+])
+
+/**
+ * postgres.js raises connection-level failures with its own `code` values
+ * rather than Node syscall codes: `CONNECT_TIMEOUT` when a connection cannot
+ * be established within `connect_timeout`, `CONNECTION_CLOSED` when the socket
+ * drops with queries pending, `CONNECTION_ENDED`/`CONNECTION_DESTROYED` when
+ * the pool is shut down or torn down underneath a query. All mean the query
+ * did not complete against a reachable server — the same class as
+ * `ECONNRESET`/`ETIMEDOUT` above.
+ */
+const RETRYABLE_PG_CLIENT_ERROR_CODES = new Set([
+  'CONNECT_TIMEOUT',
+  'CONNECTION_CLOSED',
+  'CONNECTION_ENDED',
+  'CONNECTION_DESTROYED',
 ])
 
 function getErrorChain(error: unknown): Array<Error & Record<string, unknown>> {
@@ -58,6 +78,7 @@ export function describeRetryableInfrastructureError(
       (code && RETRYABLE_DB_ERROR_CODES.has(code)) ||
       (code && RETRYABLE_NETWORK_ERROR_CODES.has(code)) ||
       (code && RETRYABLE_APP_ERROR_CODES.has(code)) ||
+      (code && RETRYABLE_PG_CLIENT_ERROR_CODES.has(code)) ||
       (errno && RETRYABLE_NETWORK_ERROR_CODES.has(errno))
     ) {
       return {
@@ -75,4 +96,44 @@ export function describeRetryableInfrastructureError(
 
 export function isRetryableInfrastructureError(error: unknown): boolean {
   return Boolean(describeRetryableInfrastructureError(error))
+}
+
+/**
+ * A network-level failure only — a dropped, refused, or timed-out socket anywhere in the
+ * cause chain. Narrower than {@link isRetryableInfrastructureError}: database and application
+ * codes are excluded, so a caller replaying a billed request never mistakes one for a socket.
+ */
+export function isRetryableNetworkError(error: unknown): boolean {
+  return getErrorChain(error).some(
+    (candidate) =>
+      (typeof candidate.code === 'string' && RETRYABLE_NETWORK_ERROR_CODES.has(candidate.code)) ||
+      (typeof candidate.errno === 'string' && RETRYABLE_NETWORK_ERROR_CODES.has(candidate.errno))
+  )
+}
+
+/**
+ * A retryable infrastructure failure raised strictly BEFORE the guarded
+ * operation performed any effect (no workflow block ran, no mutation
+ * committed). Throwing it is a contract:
+ *
+ * - the whole operation may be safely re-attempted from scratch, and
+ * - {@link IdempotencyService.executeWithIdempotency} releases the claim
+ *   instead of memoizing the failure, so a re-attempt (or a provider
+ *   redelivery) can claim and run rather than being rejected for the
+ *   result TTL.
+ *
+ * Only construct one at a point where the "no effect yet" invariant is
+ * provable — e.g. behind a `workflowCoreStarted` guard.
+ */
+export class RetryableSetupError extends Error {
+  readonly isRetryableSetup = true as const
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options)
+    this.name = 'RetryableSetupError'
+  }
+}
+
+export function isRetryableSetupError(error: unknown): error is RetryableSetupError {
+  return error instanceof Error && (error as Partial<RetryableSetupError>).isRetryableSetup === true
 }

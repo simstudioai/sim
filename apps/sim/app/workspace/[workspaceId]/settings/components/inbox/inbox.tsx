@@ -1,7 +1,6 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -10,22 +9,32 @@ import {
   InboxSettingsTab,
   InboxTaskList,
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
 import { useInboxConfig } from '@/hooks/queries/inbox'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 export function Inbox() {
   const params = useParams()
-  const { navigateToSettings } = useSettingsNavigation()
   const workspaceId = params.workspaceId as string
 
-  const { data: config, isLoading } = useInboxConfig(workspaceId)
+  const { data: config, isLoading, error } = useInboxConfig(workspaceId)
   const workspacePermissions = useUserPermissionsContext()
   const canAdmin = canMutateWorkspaceSettingsSection('inbox', workspacePermissions)
 
   if (isLoading) {
     return null
+  }
+
+  if (error && config === undefined) {
+    return (
+      <SettingsPanel>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(error, 'Failed to load Inbox settings')}
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
   }
 
   if (!config?.entitled) {
@@ -38,26 +47,11 @@ export function Inbox() {
     }
     return (
       <SettingsPanel>
-        <div className='flex flex-col items-center justify-center gap-4 py-20'>
-          <div className='text-center'>
-            <h3 className='font-medium text-[var(--text-primary)] text-md'>
-              Sim Mailer requires an active Max plan
-            </h3>
-            <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
-              Upgrade to Max and ensure billing is active to receive tasks via email and let Sim
-              work on your behalf.
-            </p>
-          </div>
-          {canAdmin && (
-            <Chip
-              variant='primary'
-              rightIcon={ArrowRight}
-              onClick={() => navigateToSettings({ section: 'billing' })}
-            >
-              Upgrade to Max
-            </Chip>
-          )}
-        </div>
+        <SettingsUpgradeNotice
+          title='Sim Mailer requires an active Max plan'
+          description='Upgrade to Max and ensure billing is active to receive tasks via email and let Sim work on your behalf.'
+          canUpgrade={canAdmin}
+        />
       </SettingsPanel>
     )
   }

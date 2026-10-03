@@ -97,6 +97,17 @@ export function createHmacVerifier({
 }
 
 /**
+ * Read a boolean `providerConfig` flag written by a `switch` subBlock.
+ *
+ * The editor writes real booleans, but workflows authored through YAML or the Copilot can put
+ * the string `'false'` there, which is truthy. Anything other than an explicit on-value reads as
+ * off, so a flag that gates new behavior stays off for every webhook deployed before it existed.
+ */
+export function isProviderConfigFlagEnabled(value: unknown): boolean {
+  return value === true || value === 'true'
+}
+
+/**
  * Verify a bearer token or custom header token using timing-safe comparison.
  * Used by generic webhooks, Google Forms, and the default handler.
  */

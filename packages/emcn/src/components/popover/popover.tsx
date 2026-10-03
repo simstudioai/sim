@@ -6,7 +6,7 @@
  * Basic usage with folders:
  * ```tsx
  * import { Popover, PopoverAnchor, PopoverBackButton, PopoverContent, PopoverFolder, PopoverItem } from '../../index'
- * import { Workflow, Bot } from 'lucide-react'
+ * import { Workflow } from '@sim/emcn/icons'
  *
  * function MyMenu() {
  *   const [workflows, setWorkflows] = useState([])
@@ -20,14 +20,14 @@
  *       <PopoverContent>
  *         <PopoverBackButton />
  *         <PopoverItem rootOnly onClick={() => console.log('Docs')}>
- *           <BookOpen className="h-3.5 w-3.5" />
+ *           <BookOpen className="size-3.5" />
  *           <span>Docs</span>
  *         </PopoverItem>
  *
  *         <PopoverFolder
  *           id="workflows"
  *           title="All workflows"
- *           icon={<Workflow className="h-3.5 w-3.5" />}
+ *           icon={<Workflow className="size-3.5" />}
  *           onOpen={async () => {
  *             const data = await fetchWorkflows()
  *             setWorkflows(data)
@@ -52,13 +52,15 @@
 import * as React from 'react'
 import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
+import { InsideModalContext } from '../modal/modal'
+import { TOOLTIP_MAX_WIDTH_PX, TOOLTIP_SURFACE_CLASS } from '../tooltip/tooltip-styles'
 
 type PopoverSize = 'sm' | 'md'
 type PopoverColorScheme = 'default' | 'inverted'
-type PopoverVariant = 'default' | 'secondary'
 
 /**
  * Style constants for popover components.
@@ -113,16 +115,16 @@ const STYLES = {
     }
   >,
 
-  /** Interactive state styles: default, secondary (brand), inverted (dark bg in light mode) */
+  /** Interactive state styles: default, and inverted (dark bg in light mode) */
   states: {
     default: {
-      active: 'bg-[var(--surface-active)]',
-      hover: 'hover-hover:bg-[var(--surface-active)]',
-    },
-    secondary: {
-      active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',
-      hover:
-        'hover-hover:bg-[var(--brand-secondary)] hover-hover:text-white hover-hover:[&_svg]:text-white',
+      /**
+       * The shared row-state pair — see {@link chipHoverSurfaceClass}.
+       * `getItemStateClasses` returns active OR hover and never both, which is
+       * what holds a checked item's surface through hover.
+       */
+      active: chipActiveSurfaceClass,
+      hover: chipHoverSurfaceClass,
     },
     inverted: {
       active:
@@ -133,21 +135,9 @@ const STYLES = {
   },
 } as const
 
-/**
- * Gets the active/hover classes for a popover item.
- * Uses variant for secondary, otherwise colorScheme determines default vs inverted.
- */
-function getItemStateClasses(
-  variant: PopoverVariant,
-  colorScheme: PopoverColorScheme,
-  isActive: boolean
-): string {
+/** Gets the active/hover classes for a popover item, keyed by colour scheme. */
+function getItemStateClasses(colorScheme: PopoverColorScheme, isActive: boolean): string {
   const state = isActive ? 'active' : 'hover'
-
-  if (variant === 'secondary') {
-    return STYLES.states.secondary[state]
-  }
-
   return colorScheme === 'inverted' ? STYLES.states.inverted[state] : STYLES.states.default[state]
 }
 
@@ -163,7 +153,6 @@ interface PopoverContextValue {
   isInFolder: boolean
   folderTitle: string | null
   onFolderSelect: (() => void) | null
-  variant: PopoverVariant
   size: PopoverSize
   colorScheme: PopoverColorScheme
   searchQuery: string
@@ -197,11 +186,6 @@ const usePopoverContext = () => {
 
 export interface PopoverProps extends PopoverPrimitive.PopoverProps {
   /**
-   * Visual variant of the popover
-   * @default 'default'
-   */
-  variant?: PopoverVariant
-  /**
    * Size variant of the popover
    * - sm: 11px text, compact spacing (for logs, notifications, context menus)
    * - md: 13px text, default spacing
@@ -222,13 +206,14 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
  */
 const Popover: React.FC<PopoverProps> = ({
   children,
-  variant = 'default',
   size = 'md',
   colorScheme = 'default',
   open,
   onOpenChange,
+  modal,
   ...props
 }) => {
+  const insideModal = React.useContext(InsideModalContext)
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
   const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
   const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
@@ -312,7 +297,6 @@ const Popover: React.FC<PopoverProps> = ({
       isInFolder: currentFolder !== null,
       folderTitle,
       onFolderSelect,
-      variant,
       size,
       colorScheme,
       searchQuery,
@@ -333,7 +317,6 @@ const Popover: React.FC<PopoverProps> = ({
       currentFolder,
       folderTitle,
       onFolderSelect,
-      variant,
       size,
       colorScheme,
       searchQuery,
@@ -349,7 +332,12 @@ const Popover: React.FC<PopoverProps> = ({
 
   return (
     <PopoverContext.Provider value={contextValue}>
-      <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange} {...props}>
+      <PopoverPrimitive.Root
+        open={open}
+        onOpenChange={handleOpenChange}
+        modal={insideModal ? true : modal}
+        {...props}
+      >
         {children}
       </PopoverPrimitive.Root>
     </PopoverContext.Provider>
@@ -383,8 +371,8 @@ interface PopoverContentProps
   disablePortal?: boolean
   /** Maximum height in pixels */
   maxHeight?: number
-  /** Maximum width in pixels. Enables text truncation when set. */
-  maxWidth?: number
+  /** Maximum width in pixels or as a CSS length. Enables text truncation when set. */
+  maxWidth?: number | string
   /** Minimum width in pixels */
   minWidth?: number
   /**
@@ -409,6 +397,11 @@ interface PopoverContentProps
    * @default false
    */
   border?: boolean
+  /**
+   * Applies a semantic platform surface treatment.
+   * @default 'default'
+   */
+  appearance?: 'default' | 'tooltip'
   /**
    * Flip to avoid viewport collisions
    * @default true
@@ -449,6 +442,7 @@ const PopoverContent = React.forwardRef<
       sideOffset,
       collisionPadding = 8,
       border = false,
+      appearance = 'default',
       avoidCollisions = true,
       showArrow = false,
       arrowClassName,
@@ -549,8 +543,16 @@ const PopoverContent = React.forwardRef<
     // management to avoid conflicts between the popover's internal selection index
     // and the component's custom navigation state.
 
+    const effectiveMaxWidth =
+      maxWidth !== undefined
+        ? typeof maxWidth === 'number'
+          ? `${maxWidth}px`
+          : maxWidth
+        : appearance === 'tooltip'
+          ? `min(${TOOLTIP_MAX_WIDTH_PX}px, calc(100vw - 2rem))`
+          : undefined
     const hasUserWidthConstraint =
-      maxWidth !== undefined ||
+      effectiveMaxWidth !== undefined ||
       minWidth !== undefined ||
       style?.minWidth !== undefined ||
       style?.maxWidth !== undefined ||
@@ -607,10 +609,11 @@ const PopoverContent = React.forwardRef<
         {...restProps}
         data-native-surface-overlay=''
         className={cn(
-          'z-[var(--z-popover)] flex flex-col outline-none',
+          'z-[var(--z-popover)] flex flex-col outline-hidden',
           showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,
+          appearance === 'tooltip' && TOOLTIP_SURFACE_CLASS,
           hasUserWidthConstraint &&
             '[&_.flex-1:not([data-popover-scroll])]:truncate [&_[data-popover-section]]:truncate',
           border && 'border border-[var(--border-1)]',
@@ -618,7 +621,7 @@ const PopoverContent = React.forwardRef<
         )}
         style={{
           maxHeight: `${maxHeight || 400}px`,
-          maxWidth: maxWidth !== undefined ? `${maxWidth}px` : 'calc(100vw - 16px)',
+          maxWidth: effectiveMaxWidth ?? 'calc(100vw - 16px)',
           minWidth:
             minWidth !== undefined
               ? `${minWidth}px`
@@ -732,7 +735,6 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
     ref
   ) => {
     const context = React.useContext(PopoverContext)
-    const variant = context?.variant || 'default'
     const size = context?.size || 'md'
     const colorScheme = context?.colorScheme || 'default'
     const itemRef = React.useRef<HTMLDivElement>(null)
@@ -794,8 +796,8 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
           STYLES.itemBase,
           STYLES.colorScheme[colorScheme].text,
           STYLES.size[size].item,
-          getItemStateClasses(variant, colorScheme, !!isActive),
-          suppressHover && 'hover-hover:!bg-transparent',
+          getItemStateClasses(colorScheme, !!isActive),
+          suppressHover && 'hover-hover:bg-transparent!',
           disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
         )}
@@ -837,7 +839,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'mt-1.5 min-w-0 font-medium first:mt-0 first:pt-0',
+          'mt-1.5 min-w-0 first:mt-0 first:pt-0',
           STYLES.colorScheme[colorScheme].section,
           STYLES.size[size].section,
           className
@@ -901,7 +903,6 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       openFolder,
       currentFolder,
       isInFolder,
-      variant,
       size,
       colorScheme,
       lastHoveredItem,
@@ -991,8 +992,8 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
             STYLES.itemBase,
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
-            getItemStateClasses(variant, colorScheme, isActive || isHoverOpen),
-            suppressHover && 'hover-hover:!bg-transparent',
+            getItemStateClasses(colorScheme, isActive || isHoverOpen),
+            suppressHover && 'hover-hover:bg-transparent!',
             className
           )}
           role='menuitem'
@@ -1054,7 +1055,7 @@ interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
   ({ className, folderTitleRef, folderTitleActive, onFolderTitleMouseEnter, ...props }, ref) => {
-    const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant, size, colorScheme } =
+    const { isInFolder, closeFolder, folderTitle, onFolderSelect, size, colorScheme } =
       usePopoverContext()
 
     if (!isInFolder) return null
@@ -1068,7 +1069,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
             STYLES.itemBase,
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
-            getItemStateClasses(variant, colorScheme, false),
+            getItemStateClasses(colorScheme, false),
             className
           )}
           role='button'
@@ -1094,8 +1095,8 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
               STYLES.itemBase,
               STYLES.colorScheme[colorScheme].text,
               STYLES.size[size].item,
-              getItemStateClasses(variant, colorScheme, !!folderTitleActive),
-              'peer-hover:!bg-transparent'
+              getItemStateClasses(colorScheme, !!folderTitleActive),
+              'peer-hover:bg-transparent!'
             )}
             role='button'
             onClick={(e) => {
@@ -1114,13 +1115,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
           </div>
         )}
         {folderTitle && !onFolderSelect && (
-          <div
-            className={cn(
-              'font-medium',
-              STYLES.colorScheme[colorScheme].section,
-              STYLES.size[size].section
-            )}
-          >
+          <div className={cn(STYLES.colorScheme[colorScheme].section, STYLES.size[size].section)}>
             {folderTitle}
           </div>
         )}
@@ -1173,7 +1168,7 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
         <input
           ref={inputRef}
           className={cn(
-            'w-full bg-transparent font-medium focus:outline-none',
+            'w-full bg-transparent focus:outline-hidden',
             STYLES.colorScheme[colorScheme].searchInput,
             size === 'sm' ? 'text-xs' : 'text-caption'
           )}

@@ -1,7 +1,7 @@
 import type { STSAssumeRoleParams, STSAssumeRoleResponse } from '@/tools/sts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleResponse> = {
+export const assumeRoleTool: InternalToolConfig<STSAssumeRoleParams, STSAssumeRoleResponse> = {
   id: 'sts_assume_role',
   name: 'STS Assume Role',
   description: 'Assume an IAM role and receive temporary security credentials',
@@ -90,11 +90,8 @@ export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleRespon
     },
   },
 
-  request: {
-    url: '/api/tools/sts/assume-role',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

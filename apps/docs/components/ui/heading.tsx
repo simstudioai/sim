@@ -1,7 +1,7 @@
 'use client'
 
 import { type ComponentPropsWithoutRef, useState } from 'react'
-import { Check, Link } from 'lucide-react'
+import { Check, Link } from '@sim/emcn/icons'
 import { cn } from '@/lib/utils'
 
 type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'

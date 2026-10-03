@@ -2,9 +2,9 @@ import type {
   SESCreateConfigurationSetParams,
   SESCreateConfigurationSetResponse,
 } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createConfigurationSetTool: ToolConfig<
+export const createConfigurationSetTool: InternalToolConfig<
   SESCreateConfigurationSetParams,
   SESCreateConfigurationSetResponse
 > = {
@@ -90,11 +90,8 @@ export const createConfigurationSetTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/create-configuration-set',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

@@ -2,9 +2,9 @@ import type {
   AgiloftRetrieveAttachmentParams,
   AgiloftRetrieveAttachmentResponse,
 } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftRetrieveAttachmentTool: ToolConfig<
+export const agiloftRetrieveAttachmentTool: InternalToolConfig<
   AgiloftRetrieveAttachmentParams,
   AgiloftRetrieveAttachmentResponse
 > = {
@@ -64,13 +64,8 @@ export const agiloftRetrieveAttachmentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/agiloft/retrieve',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,
@@ -98,12 +93,7 @@ export const agiloftRetrieveAttachmentTool: ToolConfig<
     return {
       success: true,
       output: {
-        file: {
-          name: data.output.file.name,
-          mimeType: data.output.file.mimeType,
-          data: data.output.file.data,
-          size: data.output.file.size,
-        },
+        file: data.output.file,
       },
     }
   },

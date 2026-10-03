@@ -1,6 +1,7 @@
 import { dbReplica } from '@sim/db'
 import { jobExecutionLogs } from '@sim/db/schema'
 import { and, inArray, isNotNull } from 'drizzle-orm'
+import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   decodeTimeCursor,
   encodeTimeCursor,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/data-drains/sources/cursor'
 import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 
 type JobLogRow = typeof jobExecutionLogs.$inferSelect
 
@@ -40,6 +42,16 @@ async function* pages(input: SourcePageInput): AsyncIterable<JobLogRow[]> {
       .limit(input.chunkSize)
 
     if (rows.length === 0) return
+    const displayExecutionData = await mapWithConcurrency(rows, MATERIALIZE_CONCURRENCY, (row) =>
+      materializeExecutionDataForDisplay(row.executionData as Record<string, unknown> | null, {
+        workspaceId: row.workspaceId,
+        workflowId: null,
+        executionId: row.executionId,
+      })
+    )
+    for (let index = 0; index < rows.length; index += 1) {
+      rows[index].executionData = displayExecutionData[index] as JobLogRow['executionData']
+    }
     yield rows
     const last = rows[rows.length - 1]
     cursor = { ts: last.endedAt!.toISOString(), id: last.id }

@@ -1,9 +1,8 @@
 import { AirweaveIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { AirweaveSearchResponse } from '@/tools/airweave/types'
 
-export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
+export const AirweaveBlock: BlockConfig = {
   type: 'airweave',
   name: 'Airweave',
   description: 'Search your synced data collections',
@@ -16,6 +15,15 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
   bgColor: '#6366F1',
   iconColor: '#6366F1',
   icon: AirweaveIcon,
+  canvasPresentation: {
+    defaultTitle: 'Airweave',
+    sentences: {
+      default: [
+        { text: 'Search', field: 'collectionId', core: true },
+        { text: 'for', field: 'query' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'collectionId',

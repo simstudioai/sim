@@ -6,13 +6,13 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { submitCopilotFeedbackContract } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotFeedbackAPI')
@@ -117,7 +117,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
  * GET /api/copilot/feedback
  * Get feedback records for the authenticated user
  */
-export const GET = withRouteHandler(async (req: NextRequest) => {
+export const GET = withRouteHandler(async () => {
   const tracker = createRequestTracker()
 
   try {

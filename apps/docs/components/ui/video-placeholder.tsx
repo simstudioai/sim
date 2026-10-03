@@ -16,6 +16,8 @@ interface VideoPlaceholderProps {
    * set, the play button loads the video; otherwise the card is "coming soon".
    */
   src?: string
+  /** Same-origin WebVTT captions, generated from the lesson narration. */
+  captionsSrc?: string
   className?: string
 }
 
@@ -48,6 +50,7 @@ export function VideoPlaceholder({
   eyebrow,
   label = 'Coming soon',
   src,
+  captionsSrc,
   className,
 }: VideoPlaceholderProps) {
   const hasVideo = Boolean(src)
@@ -83,6 +86,10 @@ export function VideoPlaceholder({
     }
   }, [src])
 
+  useEffect(() => {
+    if (playing) videoRef.current?.focus()
+  }, [playing])
+
   if (playing && src) {
     return (
       <div
@@ -91,12 +98,12 @@ export function VideoPlaceholder({
           className
         )}
       >
-        {/* biome-ignore lint/a11y/useMediaCaption: lesson videos have no caption track yet */}
         <video
           ref={videoRef}
           src={resolveVideoSrc(src)}
           title={title ?? 'Lesson video'}
           controls
+          tabIndex={0}
           autoPlay
           playsInline
           onLoadedMetadata={() => {
@@ -106,8 +113,16 @@ export function VideoPlaceholder({
               pendingSeek.current = null
             }
           }}
-          className='h-full w-full border-0'
-        />
+          className='size-full border-0'
+        >
+          <track
+            kind='captions'
+            src={captionsSrc}
+            srcLang='en'
+            label='English (auto-generated)'
+            default
+          />
+        </video>
       </div>
     )
   }
@@ -143,7 +158,7 @@ export function VideoPlaceholder({
 
       {/* Top-right status pill — only until a video is wired up */}
       {!hasVideo && (
-        <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[var(--border-1)] bg-[var(--surface-2)] px-4 py-2 font-medium text-[12px] text-[var(--text-secondary)] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:bg-[var(--surface-1)]'>
+        <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[var(--border-1)] bg-[var(--surface-2)] px-4 py-2 font-medium text-[var(--text-secondary)] text-caption uppercase tracking-[0.14em] md:top-8 md:right-8 dark:bg-[var(--surface-1)]'>
           <span className='size-1.5 rounded-full bg-[var(--brand-accent)]' />
           {label}
         </span>

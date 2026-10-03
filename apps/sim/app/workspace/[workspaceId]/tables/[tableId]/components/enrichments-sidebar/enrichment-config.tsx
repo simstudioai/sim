@@ -9,6 +9,7 @@ import {
   CollapsibleCard,
   FieldDivider,
   Label,
+  OverflowText,
   Switch,
   toast,
 } from '@sim/emcn'
@@ -237,20 +238,20 @@ export function EnrichmentConfig({
             variant='ghost'
             size='sm'
             onClick={onBack}
-            className='!p-1 size-7 flex-none'
+            iconPadding='sm'
+            className='size-7 flex-none'
             aria-label='Back to enrichments'
           >
             <ArrowLeft className='size-[14px]' />
           </Button>
-          <h2 className='truncate font-medium text-[var(--text-primary)] text-small'>
-            {enrichment.name}
-          </h2>
+          <OverflowText label={enrichment.name} className='text-[var(--text-primary)] text-small' />
         </div>
         <Button
           variant='ghost'
           size='sm'
           onClick={onClose}
-          className='!p-1 size-7 flex-none'
+          iconPadding='sm'
+          className='size-7 flex-none'
           aria-label='Close'
         >
           <X className='size-[14px]' />

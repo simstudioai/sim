@@ -1,3 +1,4 @@
+import { DEFAULT_NOTE_COLOR } from '@sim/workflow-renderer/note-colors'
 import { NoteIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 
@@ -14,9 +15,23 @@ export const NoteBlock: BlockConfig = {
     {
       id: 'content',
       type: 'long-input',
+      searchTextFormat: 'markdown',
       rows: 8,
       placeholder: 'Add context or instructions for collaborators...',
       description: 'Write your note using Markdown. YouTube links will display as embedded videos.',
+    },
+    {
+      /**
+       * Declared here so workflow sanitization keeps it: the realtime server
+       * writes `type: 'unknown'` for ids absent from the stored map, and
+       * `lib/workflows/sanitization/subblocks.ts` drops unknown entries the
+       * block registry does not declare. Removing this entry would silently
+       * discard every user-chosen note color on the next load.
+       */
+      id: 'color',
+      type: 'short-input',
+      defaultValue: DEFAULT_NOTE_COLOR,
+      hidden: true,
     },
   ],
   tools: { access: [] },

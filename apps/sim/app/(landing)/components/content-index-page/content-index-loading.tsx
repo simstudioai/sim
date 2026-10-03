@@ -1,4 +1,5 @@
-import { Skeleton } from '@sim/emcn'
+import { cn, Skeleton } from '@sim/emcn'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 
 const FEATURED_SKELETON_COUNT = 3
 const LIST_SKELETON_COUNT = 5
@@ -7,16 +8,16 @@ const LIST_SKELETON_COUNT = 5
 export function ContentIndexLoading() {
   return (
     <section className='bg-[var(--bg)]'>
-      <div className='mx-auto w-full max-w-[1460px]'>
-        <div className='px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+        <div className='pt-[112px] max-sm:pt-20'>
           <Skeleton className='mb-5 h-[20px] w-[60px] rounded-md bg-[var(--surface-hover)]' />
           <div className='flex flex-col gap-4 md:flex-row md:items-end md:justify-between'>
             <Skeleton className='h-[40px] w-[240px] rounded-[4px] bg-[var(--surface-hover)]' />
-            <Skeleton className='h-[18px] w-[320px] rounded-[4px] bg-[var(--surface-hover)]' />
+            <Skeleton className='h-[18px] w-[320px] max-w-full rounded-[4px] bg-[var(--surface-hover)]' />
           </div>
         </div>
 
-        <div className='mx-20 mt-8 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+        <div className='mt-8 border-[var(--border)] border-x'>
           <div className='h-px w-full bg-[var(--border)]' />
 
           <div className='flex max-sm:flex-col'>

@@ -1,14 +1,13 @@
-import { cn } from '@sim/emcn'
+import { ChipTag, cn, Lightbox, OverflowText } from '@sim/emcn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 
 function FileAttachmentPill(props: { mediaType: string; filename: string }) {
   const Icon = getDocumentIcon(props.mediaType, props.filename)
   return (
-    <div className='flex max-w-[140px] items-center gap-[5px] rounded-[10px] bg-[var(--surface-5)] px-[6px] py-[3px]'>
-      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate text-[11px] text-[var(--text-body)]'>{props.filename}</span>
-    </div>
+    <ChipTag variant='mono' leftIcon={Icon} className='max-w-[140px]'>
+      <OverflowText label={props.filename} />
+    </ChipTag>
   )
 }
 
@@ -41,7 +40,7 @@ export function ChatMessageAttachments(props: {
           return (
             <div
               key={att.id}
-              className='relative size-[56px] overflow-hidden rounded-[8px] bg-[var(--surface-5)]'
+              className='relative size-[56px] overflow-hidden rounded-lg bg-[var(--surface-5)]'
             >
               <div className='absolute inset-0 flex items-center justify-center text-[var(--text-icon)]'>
                 <Icon className='size-[18px]' />
@@ -51,15 +50,21 @@ export function ChatMessageAttachments(props: {
                 muted
                 playsInline
                 preload='metadata'
-                className='relative h-full w-full object-cover'
+                className='relative size-full object-cover'
               />
             </div>
           )
         }
         return (
-          <div key={att.id} className='size-[56px] overflow-hidden rounded-[8px]'>
-            <img src={att.previewUrl} alt={att.filename} className='h-full w-full object-cover' />
-          </div>
+          <Lightbox key={att.id} src={att.previewUrl} alt={att.filename}>
+            <button
+              type='button'
+              aria-label={`Preview ${att.filename}`}
+              className='size-[56px] cursor-pointer overflow-hidden rounded-lg'
+            >
+              <img src={att.previewUrl} alt={att.filename} className='size-full object-cover' />
+            </button>
+          </Lightbox>
         )
       })}
     </div>

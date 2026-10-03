@@ -1,12 +1,15 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
   VANTA_PERSON_OUTPUT_PROPERTIES,
 } from '@/tools/vanta/outputs'
 import type { VantaListPeopleParams, VantaListPeopleResponse } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaListPeopleTool: ToolConfig<VantaListPeopleParams, VantaListPeopleResponse> = {
+export const vantaListPeopleTool: InternalToolConfig<
+  VantaListPeopleParams,
+  VantaListPeopleResponse
+> = {
   id: 'vanta_list_people',
   name: 'Vanta List People',
   description:
@@ -85,11 +88,8 @@ export const vantaListPeopleTool: ToolConfig<VantaListPeopleParams, VantaListPeo
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_list_people',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

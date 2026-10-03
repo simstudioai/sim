@@ -14,8 +14,8 @@ import { ImportFailure } from '@/main/browser-import/types'
  * once rather than reimplemented per database.
  */
 
-/** SQLite keeps recent writes beside the main file; both are needed for a faithful copy. */
-const SQLITE_SIDECAR_SUFFIXES = ['-wal', '-shm']
+/** SQLite keeps recent writes beside the main file; sidecars are needed for a faithful copy. */
+const SQLITE_SIDECAR_SUFFIXES = ['-wal', '-shm', '-journal']
 
 async function queryCopy(databasePath: string, query: string): Promise<Record<string, unknown>[]> {
   // Imported lazily: `node:sqlite` is only needed on the import path, and this
@@ -66,7 +66,7 @@ export async function queryBrowserDatabase(
       throw new ImportFailure('profile-unreadable', 'Could not read the Chrome database.')
     }
     for (const suffix of SQLITE_SIDECAR_SUFFIXES) {
-      // Absent sidecars are normal: they only exist while a WAL is live.
+      // Absent sidecars are normal: they only exist while a transaction is live.
       await copyFile(`${sourcePath}${suffix}`, `${workingCopy}${suffix}`).catch(() => {})
     }
     return await queryCopy(workingCopy, query)

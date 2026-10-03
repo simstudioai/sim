@@ -7,18 +7,18 @@ import { DEFAULT_BILLING_CONCURRENCY_LIMITS } from '@/lib/billing/concurrency-de
 export interface PlanCredits {
   /** Formatted credits string, e.g. `"6,000 credits/mo"`. */
   credits: string
-  /** Formatted daily-refresh string, e.g. `"+50/day refresh"`. */
+  /** Formatted weekly-refresh string, e.g. `"+2,000/week refresh"`. */
   refresh: string
 }
 
 export const PRO_PLAN_CREDITS: PlanCredits = {
   credits: '6,000 credits/mo',
-  refresh: '+50/day refresh',
+  refresh: '+2,000/week refresh',
 }
 
 export const MAX_PLAN_CREDITS: PlanCredits = {
   credits: '25,000 credits/mo',
-  refresh: '+200/day refresh',
+  refresh: '+4,000/week refresh',
 }
 
 export const ENTERPRISE_PLAN_CREDITS: PlanCredits = {
@@ -37,7 +37,7 @@ export const PRO_PLAN_FEATURES: readonly string[] = [
 export const MAX_PLAN_FEATURES: readonly string[] = [
   `${DEFAULT_BILLING_CONCURRENCY_LIMITS.team.toLocaleString('en-US')} concurrent executions`,
   'Invite teammates',
-  'Sim Mailer & KB Live Sync',
+  'Sim Mailer, KB Live Sync & Sandboxes',
   'Highest rate limits',
   'Expanded storage & tables',
 ]

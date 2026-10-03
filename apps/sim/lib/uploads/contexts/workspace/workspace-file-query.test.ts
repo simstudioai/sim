@@ -1,0 +1,162 @@
+/**
+ * `queryWorkspaceFiles` — the paged, filtered, sorted read behind
+ * `GET /api/v2/files`. The assertions are on the query it builds, because the
+ * point of this function existing is that the scope filter, the name search,
+ * the ordering, and the page slice all happen in SQL rather than over a
+ * full-workspace result.
+ */
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { billingStorageMock } from '@sim/testing/mocks/billing-storage.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import { workspaceFileFoldersMock } from '@sim/testing/mocks/workspace-file-folders.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+
+vi.mock('@/lib/uploads', () => uploadsMock)
+
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
+
+import {
+  listWorkspaceFiles,
+  queryWorkspaceFiles,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+
+uploadsMockFns.mockGetServePathPrefix.mockImplementation(() => '/api/files/serve/s3/')
+
+const WS = 'workspace-1'
+
+const DEFAULTS = { sortBy: 'uploadedAt', sortOrder: 'asc', limit: 100 } as const
+
+function buildRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'wf_1',
+    key: 'workspace/ws/1-x-data.csv',
+    userId: 'user-1',
+    workspaceId: WS,
+    folderId: null,
+    context: 'workspace',
+    originalName: 'data.csv',
+    contentType: 'text/csv',
+    size: 1024,
+    sizeBytes: 1024,
+    deletedAt: null,
+    uploadedAt: new Date('2024-01-01T00:00:00Z'),
+    updatedAt: new Date('2024-01-02T00:00:00Z'),
+    contentUpdatedAt: new Date('2024-01-01T00:00:00Z'),
+    ...overrides,
+  }
+}
+
+const lastConditions = () =>
+  flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0]).filter(Boolean)
+
+describe('queryWorkspaceFiles', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('escapes LIKE wildcards in the search term', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [])
+
+    await queryWorkspaceFiles(WS, { ...DEFAULTS, search: '50%_off' })
+
+    expect(lastConditions().find((c) => c.type === 'ilike')).toMatchObject({
+      pattern: '%50\\%\\_off%',
+    })
+  })
+
+  it('bounds the page in SQL by fetching one row past the limit', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    await queryWorkspaceFiles(WS, { ...DEFAULTS, limit: 25 })
+
+    expect(dbChainMockFns.limit).toHaveBeenLastCalledWith(26)
+  })
+
+  it('reports no further keys when the page is not full, terminating pagination', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    const { files, nextKeys } = await queryWorkspaceFiles(WS, { ...DEFAULTS, limit: 10 })
+
+    expect(files).toHaveLength(1)
+    expect(nextKeys).toBeNull()
+  })
+
+  it('returns the keyset of the last row when more results exist', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [
+      buildRow(),
+      buildRow({ id: 'wf_2', originalName: 'b.csv' }),
+    ])
+
+    const { files, nextKeys } = await queryWorkspaceFiles(WS, {
+      ...DEFAULTS,
+      sortBy: 'name',
+      limit: 1,
+    })
+
+    expect(files.map((f) => f.id)).toEqual(['wf_1'])
+    expect(nextKeys).toEqual(['data.csv', 'wf_1'])
+  })
+
+  it('resumes strictly after the cursor keys, alongside the filter', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [
+      buildRow({ id: 'wf_2', originalName: 'data-2.csv' }),
+    ])
+
+    await queryWorkspaceFiles(WS, {
+      ...DEFAULTS,
+      sortBy: 'name',
+      search: 'data',
+      after: ['data.csv', 'wf_1'],
+    })
+
+    const conditions = lastConditions()
+    expect(conditions.find((c) => c.type === 'ilike')).toMatchObject({ pattern: '%data%' })
+    expect(conditions.some((c) => c.type === 'or')).toBe(true)
+  })
+
+  /**
+   * Cursor contents are caller-controlled, so a value the key cannot hold is a
+   * client error. Classified `validation` so the route renders 400, not 500.
+   */
+  it('rejects a cursor whose values do not fit the sort', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    await expect(
+      queryWorkspaceFiles(WS, { ...DEFAULTS, sortBy: 'uploadedAt', after: ['not-a-date', 'wf_1'] })
+    ).rejects.toMatchObject({ code: 'validation' })
+  })
+})
+
+/**
+ * `listWorkspaceFiles` materializes a whole scope, so what it reads per row is
+ * multiplied by the size of the workspace. These assertions pin the two ways that
+ * stays bounded: the projection, and the optional row cap its one budgeted caller
+ * (the workspace layout's server seed) uses to detect an oversized workspace.
+ */
+describe('listWorkspaceFiles', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('caps the rows read when the caller only needs to fit a budget', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    await listWorkspaceFiles(WS, { limit: 2 })
+
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+  })
+})

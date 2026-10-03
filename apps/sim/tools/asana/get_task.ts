@@ -1,7 +1,7 @@
 import type { AsanaGetTaskParams, AsanaGetTaskResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaGetTaskTool: ToolConfig<AsanaGetTaskParams, AsanaGetTaskResponse> = {
+export const asanaGetTaskTool: InternalToolConfig<AsanaGetTaskParams, AsanaGetTaskResponse> = {
   id: 'asana_get_task',
   name: 'Asana Get Task',
   description: 'Retrieve a single task by GID or get multiple tasks with filters',
@@ -47,13 +47,8 @@ export const asanaGetTaskTool: ToolConfig<AsanaGetTaskParams, AsanaGetTaskRespon
     },
   },
 
-  request: {
-    url: '/api/tools/asana/get-task',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       taskGid: params.taskGid,
       workspace: params.workspace,

@@ -1,4 +1,5 @@
 import type { WorkspaceHostContext, WorkspaceUsageGate } from '@/lib/api/contracts/workspaces'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 
 export type WorkspaceUsageLimitAction =
   | { type: 'manage-billing'; message: null }
@@ -16,6 +17,27 @@ export function canManageWorkspaceBilling(
   }
 
   return hostContext.workspace.billedAccountUserId === viewerUserId
+}
+
+/**
+ * Returns whether the Billing settings section is reachable for this viewer.
+ *
+ * Mirrors the section route's own gate, which sends a deployment running without
+ * billing back to General and 404s anyone who cannot manage the payer — on an
+ * organization-hosted workspace that is every member who is not an org admin.
+ * Menus that link to Billing drop the entry when this is false rather than
+ * offering a destination the server will refuse.
+ *
+ * Billing availability comes from the host context's server-resolved deployment
+ * shape; the reader covers a context served by an app version that predates it.
+ */
+export function canViewWorkspaceBillingSettings(
+  hostContext: WorkspaceHostContext,
+  viewerUserId?: string | null
+): boolean {
+  const billingEnabled =
+    hostContext.deployment?.billingEnabled ?? getDeploymentShape().billingEnabled
+  return billingEnabled && canManageWorkspaceBilling(hostContext, viewerUserId)
 }
 
 /**

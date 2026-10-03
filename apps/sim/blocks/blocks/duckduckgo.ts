@@ -1,9 +1,8 @@
 import { DuckDuckGoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { DuckDuckGoResponse } from '@/tools/duckduckgo/types'
 
-export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
+export const DuckDuckGoBlock: BlockConfig = {
   type: 'duckduckgo',
   name: 'DuckDuckGo',
   description: 'Search with DuckDuckGo',
@@ -14,6 +13,12 @@ export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',
   icon: DuckDuckGoIcon,
+  canvasPresentation: {
+    defaultTitle: 'DuckDuckGo',
+    sentences: {
+      default: [{ text: 'Search the web for', field: 'query', core: true }],
+    },
+  },
   subBlocks: [
     {
       id: 'query',

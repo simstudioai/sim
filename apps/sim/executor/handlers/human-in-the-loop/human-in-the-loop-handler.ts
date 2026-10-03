@@ -1,5 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import {
+  buildCanonicalIndex,
+  type CanonicalGroup,
+  isCanonicalPair,
+  scopeCanonicalModesForTool,
+} from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks/registry'
 import type { BlockOutput } from '@/blocks/types'
 import {
   BlockType,
@@ -7,6 +15,7 @@ import {
   buildResumeUiUrl,
   type FieldType,
   HTTP,
+  isHumanInTheLoopBlock,
   normalizeName,
   PAUSE_RESUME,
 } from '@/executor/constants'
@@ -18,8 +27,10 @@ import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/t
 import { collectBlockData } from '@/executor/utils/block-data'
 import { convertBuilderDataToJson, convertPropertyValue } from '@/executor/utils/builder-data'
 import { parseObjectStrings } from '@/executor/utils/json'
+import { buildBlockToolParamsTransform } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import { getTool } from '@/tools/utils'
 
 const logger = createLogger('HumanInTheLoopBlockHandler')
 
@@ -59,7 +70,7 @@ interface NotificationToolResult {
 
 export class HumanInTheLoopBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP
+    return isHumanInTheLoopBlock(block.metadata?.id)
   }
 
   async execute(
@@ -126,7 +137,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
 
       if (operation === PAUSE_RESUME.OPERATION.API) {
         const parsed = this.parseResponseData(inputs)
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (isRecordLike(parsed)) {
           responseData = {
             ...parsed,
             operation,
@@ -169,10 +180,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       }
 
       const responseDataWithResume =
-        resumeLinks &&
-        responseData &&
-        typeof responseData === 'object' &&
-        !Array.isArray(responseData)
+        resumeLinks && isRecordLike(responseData)
           ? { ...responseData, _resume: resumeLinks }
           : responseData
 
@@ -381,6 +389,67 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
     return { ...defaultHeaders, ...headerObj }
   }
 
+  /**
+   * The arguments a configured notification tool runs with.
+   *
+   * v2 applies the same pipeline every other surface uses for a block tool: canonical
+   * basic/advanced resolution, the stringified-value decode, the block's own
+   * `tools.config.params` mapping, and the `json`/`array` input parse. v1 handed the
+   * tool its stored sub-block values verbatim, so a channel picked in advanced mode
+   * arrived under `manualChannel` and the tool's declared `channel` was never set.
+   *
+   * v1 keeps that behavior deliberately — changing what an already-configured
+   * notification sends is why v2 exists as a separate block rather than a fix in place.
+   */
+  private prepareNotificationToolParams(
+    block: SerializedBlock,
+    toolConfig: any,
+    toolId: string,
+    toolIndex: number
+  ): Record<string, unknown> {
+    const storedParams = (toolConfig.params ?? {}) as Record<string, unknown>
+    const notificationBlock = toolConfig.type ? getBlock(toolConfig.type) : undefined
+
+    if (block.metadata?.id !== BlockType.HUMAN_IN_THE_LOOP_V2) {
+      return storedParams
+    }
+
+    const subBlocks = notificationBlock?.subBlocks ?? []
+    // canonical-index-unscoped: a notification tool resolves against its stored params,
+    // which only ever hold action-surface values. Pairs only, matching `transformBlockTool`
+    // — a single-member group has no inactive side to collapse away.
+    const canonicalGroups = (
+      Object.values(buildCanonicalIndex(subBlocks).groupsById) as CanonicalGroup[]
+    ).filter(isCanonicalPair)
+
+    const { paramsTransform } = buildBlockToolParamsTransform({
+      blockSubBlocks: subBlocks,
+      blockParamsFn: notificationBlock?.tools?.config?.params,
+      blockInputDefs: notificationBlock?.inputs,
+      toolParams: getTool(toolId)?.params,
+      canonicalGroups,
+      scopedCanonicalModes: scopeCanonicalModesForTool(
+        block.canonicalModes,
+        toolIndex,
+        toolConfig.type
+      ),
+    })
+
+    if (!paramsTransform) return storedParams
+
+    try {
+      return paramsTransform(storedParams)
+    } catch (error) {
+      // Mirrors `prepareToolExecution`: a transform that throws must not take the
+      // notification down with it, so the raw params still go out.
+      logger.warn('Notification tool params transform failed, using raw params', {
+        toolId,
+        error,
+      })
+      return storedParams
+    }
+  }
+
   private async executeNotificationTools(
     ctx: ExecutionContext,
     block: SerializedBlock,
@@ -443,77 +512,86 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       blockNameMappingWithPause[normalizeName(pauseBlockName)] = pauseBlockId
     }
 
-    const notificationPromises = tools.map<Promise<NotificationToolResult>>(async (toolConfig) => {
-      const startTime = Date.now()
-      try {
-        const toolId = toolConfig.toolId
-        if (!toolId) {
-          logger.warn('Notification tool missing toolId', { toolConfig })
-          return {
-            toolId: 'unknown',
-            title: toolConfig.title,
-            operation: toolConfig.operation,
-            success: false,
+    const notificationPromises = tools.map<Promise<NotificationToolResult>>(
+      async (toolConfig, index) => {
+        const startTime = Date.now()
+        try {
+          const toolId = toolConfig.toolId
+          if (!toolId) {
+            logger.warn('Notification tool missing toolId', { toolConfig })
+            return {
+              toolId: 'unknown',
+              title: toolConfig.title,
+              operation: toolConfig.operation,
+              success: false,
+            }
           }
-        }
 
-        const toolParams = {
-          ...toolConfig.params,
-          _pauseContext: {
-            resumeApiUrl: context.resumeLinks?.apiUrl,
-            resumeUiUrl: context.resumeLinks?.uiUrl,
-            executionId: context.executionId,
-            workflowId: context.workflowId,
-            contextId: context.resumeLinks?.contextId,
-            inputFormat: context.inputFormat,
-            responseStructure: context.responseStructure,
-            operation: context.operation,
-          },
-          _context: {
-            workflowId: ctx.workflowId,
-            workspaceId: ctx.workspaceId,
-            userId: ctx.userId,
-            isDeployedContext: ctx.isDeployedContext,
-            enforceCredentialAccess: ctx.enforceCredentialAccess,
-          },
-          blockData: blockDataWithPause,
-          blockNameMapping: blockNameMappingWithPause,
-        }
-
-        const result = await executeTool(toolId, toolParams, { executionContext: ctx })
-        const durationMs = Date.now() - startTime
-
-        if (!result.success) {
-          logger.warn('Notification tool execution failed', {
+          const preparedParams = this.prepareNotificationToolParams(
+            block,
+            toolConfig,
             toolId,
-            error: result.error,
-          })
+            index
+          )
+
+          const toolParams = {
+            ...preparedParams,
+            _pauseContext: {
+              resumeApiUrl: context.resumeLinks?.apiUrl,
+              resumeUiUrl: context.resumeLinks?.uiUrl,
+              executionId: context.executionId,
+              workflowId: context.workflowId,
+              contextId: context.resumeLinks?.contextId,
+              inputFormat: context.inputFormat,
+              responseStructure: context.responseStructure,
+              operation: context.operation,
+            },
+            _context: {
+              workflowId: ctx.workflowId,
+              workspaceId: ctx.workspaceId,
+              userId: ctx.userId,
+              isDeployedContext: ctx.isDeployedContext,
+              enforceCredentialAccess: ctx.enforceCredentialAccess,
+            },
+            blockData: blockDataWithPause,
+            blockNameMapping: blockNameMappingWithPause,
+          }
+
+          const result = await executeTool(toolId, toolParams, { executionContext: ctx })
+          const durationMs = Date.now() - startTime
+
+          if (!result.success) {
+            logger.warn('Notification tool execution failed', {
+              toolId,
+              error: result.error,
+            })
+            return {
+              toolId,
+              title: toolConfig.title,
+              operation: toolConfig.operation,
+              success: false,
+              durationMs,
+            }
+          }
+
           return {
             toolId,
             title: toolConfig.title,
             operation: toolConfig.operation,
-            success: false,
+            success: true,
             durationMs,
           }
-        }
-
-        return {
-          toolId,
-          title: toolConfig.title,
-          operation: toolConfig.operation,
-          success: true,
-          durationMs,
-        }
-      } catch (error) {
-        logger.error('Error executing notification tool', { error, toolConfig })
-        return {
-          toolId: toolConfig.toolId || 'unknown',
-          title: toolConfig.title,
-          operation: toolConfig.operation,
-          success: false,
+        } catch (error) {
+          logger.error('Error executing notification tool', { error, toolConfig })
+          return {
+            toolId: toolConfig.toolId || 'unknown',
+            title: toolConfig.title,
+            operation: toolConfig.operation,
+            success: false,
+          }
         }
       }
-    })
+    )
 
     return Promise.all(notificationPromises)
   }

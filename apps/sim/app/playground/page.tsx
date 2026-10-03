@@ -9,10 +9,10 @@ import {
   BubbleChatClose,
   BubbleChatPreview,
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
   Checkbox,
   ChevronDown,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipDatePicker,
   Code,
   Combobox,
@@ -74,24 +74,22 @@ import {
   type TagItem,
   Textarea,
   TimePicker,
-  ToastProvider,
   Tooltip,
   Trash,
-  Trash2,
   toast,
   Undo,
   Wrap,
   ZoomIn,
   ZoomOut,
 } from '@sim/emcn'
-import { ArrowLeft, Folder, Moon, Sun } from 'lucide-react'
+import { ArrowLeft, Folder, Moon, Sun } from '@sim/emcn/icons'
 import { notFound, useRouter } from 'next/navigation'
 import { env, isTruthy } from '@/lib/core/config/env'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className='space-y-4'>
-      <h2 className='border-[var(--border)] border-b pb-2 font-medium text-[var(--text-primary)] text-lg'>
+      <h2 className='border-[var(--border)] border-b pb-2 text-[var(--text-primary)] text-lg'>
         {title}
       </h2>
       <div className='space-y-4'>{children}</div>
@@ -164,13 +162,18 @@ export default function PlaygroundPage() {
   }
 
   return (
-    <ToastProvider>
+    <>
       <Tooltip.Provider>
         <div className='relative min-h-screen bg-[var(--bg)] p-8'>
           <div className='absolute top-8 left-8 flex items-center gap-2'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <Button variant='ghost' onClick={() => router.back()} className='size-8 p-0'>
+                <Button
+                  aria-label='Go back'
+                  variant='ghost'
+                  onClick={() => router.back()}
+                  className='size-8 p-0'
+                >
                   <ArrowLeft className='size-4' />
                 </Button>
               </Tooltip.Trigger>
@@ -180,7 +183,12 @@ export default function PlaygroundPage() {
           <div className='absolute top-8 right-8'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <Button variant='default' onClick={toggleDarkMode} className='size-8 p-0'>
+                <Button
+                  aria-label={isDarkMode ? 'Light mode' : 'Dark mode'}
+                  variant='default'
+                  onClick={toggleDarkMode}
+                  className='size-8 p-0'
+                >
                   {isDarkMode ? <Sun className='size-4' /> : <Moon className='size-4' />}
                 </Button>
               </Tooltip.Trigger>
@@ -189,9 +197,7 @@ export default function PlaygroundPage() {
           </div>
           <div className='mx-auto max-w-4xl space-y-12'>
             <div>
-              <h1 className='font-semibold text-2xl text-[var(--text-primary)]'>
-                EMCN Component Playground
-              </h1>
+              <h1 className='text-2xl text-[var(--text-primary)]'>EMCN Component Playground</h1>
               <p className='mt-2 text-[var(--text-secondary)]'>
                 All emcn UI components and their variants
               </p>
@@ -330,37 +336,36 @@ export default function PlaygroundPage() {
               </VariantRow>
             </Section>
 
-            {/* ButtonGroup */}
-            <Section title='ButtonGroup'>
+            <Section title='ChipButtonGroup'>
               <VariantRow label='default'>
-                <ButtonGroup value={buttonGroupValue} onValueChange={setButtonGroupValue}>
-                  <ButtonGroupItem value='curl'>cURL</ButtonGroupItem>
-                  <ButtonGroupItem value='python'>Python</ButtonGroupItem>
-                  <ButtonGroupItem value='javascript'>JavaScript</ButtonGroupItem>
-                </ButtonGroup>
+                <ChipButtonGroup value={buttonGroupValue} onValueChange={setButtonGroupValue}>
+                  <ChipButtonGroupItem value='curl'>cURL</ChipButtonGroupItem>
+                  <ChipButtonGroupItem value='python'>Python</ChipButtonGroupItem>
+                  <ChipButtonGroupItem value='javascript'>JavaScript</ChipButtonGroupItem>
+                </ChipButtonGroup>
               </VariantRow>
               <VariantRow label='gap none'>
-                <ButtonGroup value='opt1' gap='none'>
-                  <ButtonGroupItem value='opt1'>Option 1</ButtonGroupItem>
-                  <ButtonGroupItem value='opt2'>Option 2</ButtonGroupItem>
-                </ButtonGroup>
+                <ChipButtonGroup value='opt1' gap='none'>
+                  <ChipButtonGroupItem value='opt1'>Option 1</ChipButtonGroupItem>
+                  <ChipButtonGroupItem value='opt2'>Option 2</ChipButtonGroupItem>
+                </ChipButtonGroup>
               </VariantRow>
               <VariantRow label='gap sm'>
-                <ButtonGroup value='opt1' gap='sm'>
-                  <ButtonGroupItem value='opt1'>Option 1</ButtonGroupItem>
-                  <ButtonGroupItem value='opt2'>Option 2</ButtonGroupItem>
-                </ButtonGroup>
+                <ChipButtonGroup value='opt1' gap='sm'>
+                  <ChipButtonGroupItem value='opt1'>Option 1</ChipButtonGroupItem>
+                  <ChipButtonGroupItem value='opt2'>Option 2</ChipButtonGroupItem>
+                </ChipButtonGroup>
               </VariantRow>
               <VariantRow label='disabled'>
-                <ButtonGroup value='opt1' disabled>
-                  <ButtonGroupItem value='opt1'>Option 1</ButtonGroupItem>
-                  <ButtonGroupItem value='opt2'>Option 2</ButtonGroupItem>
-                </ButtonGroup>
+                <ChipButtonGroup value='opt1' disabled>
+                  <ChipButtonGroupItem value='opt1'>Option 1</ChipButtonGroupItem>
+                  <ChipButtonGroupItem value='opt2'>Option 2</ChipButtonGroupItem>
+                </ChipButtonGroup>
               </VariantRow>
               <VariantRow label='single item'>
-                <ButtonGroup value='only'>
-                  <ButtonGroupItem value='only'>Only Option</ButtonGroupItem>
-                </ButtonGroup>
+                <ChipButtonGroup value='only'>
+                  <ChipButtonGroupItem value='only'>Only Option</ChipButtonGroupItem>
+                </ChipButtonGroup>
               </VariantRow>
             </Section>
 
@@ -871,10 +876,10 @@ export default function PlaygroundPage() {
                   </PopoverContent>
                 </Popover>
               </VariantRow>
-              <VariantRow label='secondary variant'>
-                <Popover variant='secondary'>
+              <VariantRow label='inverted color scheme'>
+                <Popover colorScheme='inverted'>
                   <PopoverTrigger asChild>
-                    <Button variant='secondary'>Secondary Popover</Button>
+                    <Button variant='secondary'>Inverted Popover</Button>
                   </PopoverTrigger>
                   <PopoverContent>
                     <PopoverItem>Item 1</PopoverItem>
@@ -1050,7 +1055,6 @@ export default function PlaygroundPage() {
                   { Icon: Redo, name: 'Redo' },
                   { Icon: Rocket, name: 'Rocket' },
                   { Icon: Trash, name: 'Trash' },
-                  { Icon: Trash2, name: 'Trash2' },
                   { Icon: Undo, name: 'Undo' },
                   { Icon: Wrap, name: 'Wrap' },
                   { Icon: ZoomIn, name: 'ZoomIn' },
@@ -1070,6 +1074,6 @@ export default function PlaygroundPage() {
           </div>
         </div>
       </Tooltip.Provider>
-    </ToastProvider>
+    </>
   )
 }

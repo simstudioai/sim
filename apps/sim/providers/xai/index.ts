@@ -6,13 +6,26 @@ import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+  recordProviderConversationUsage,
+} from '@/providers/conversation-history'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   Message,
   ProviderConfig,
@@ -23,19 +36,30 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  checkForForcedToolUsageOpenAI,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import {
-  checkForForcedToolUsage,
-  createReadableStreamFromXAIStream,
-  createResponseFormatPayload,
-} from '@/providers/xai/utils'
-import { executeTool } from '@/tools'
+import { createResponseFormatPayload } from '@/providers/xai/utils'
 
 const logger = createLogger('XAIProvider')
 
+/**
+ * xAI's Grok models via an OpenAI-compatible chat-completions API
+ * (`api.x.ai/v1`), with these documented deviations:
+ * - `reasoning_effort` maps from `request.reasoningEffort`. Sim's `auto`
+ *   sentinel means "let the model pick its own default" and is never
+ *   forwarded — xAI rejects it outright with `Invalid reasoning effort`.
+ * - Only some Grok models accept the parameter at all; the rest reject it with
+ *   `does not support parameter reasoningEffort`. Which values each model takes
+ *   is declared per-model in `capabilities.reasoningEffort`, which is also what
+ *   gates the Agent block's effort dropdown.
+ * - Output length is capped via `max_completion_tokens`.
+ * - `tools` and `response_format` cannot be sent in the same request, so tools
+ *   run first and the schema is applied on a follow-up pass.
+ */
 export const xAIProvider: ProviderConfig = {
   id: 'xai',
   name: 'xAI',
@@ -52,6 +76,7 @@ export const xAIProvider: ProviderConfig = {
     }
 
     const xai = new OpenAI({
+      ...openAICompatTransport(),
       apiKey: request.apiKey,
       baseURL: 'https://api.x.ai/v1',
     })
@@ -99,6 +124,11 @@ export const xAIProvider: ProviderConfig = {
 
     if (request.temperature !== undefined) basePayload.temperature = request.temperature
     if (request.maxTokens != null) basePayload.max_completion_tokens = request.maxTokens
+
+    if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
+      basePayload.reasoning_effort = request.reasoningEffort
+    }
+
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (tools?.length) {
@@ -120,7 +150,7 @@ export const xAIProvider: ProviderConfig = {
         : { ...basePayload, stream: true, stream_options: { include_usage: true } }
 
       const streamResponse = await xai.chat.completions.create(
-        streamingParams,
+        await prepareConversationGeneration(request, 'chat-completions', streamingParams),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
@@ -134,24 +164,28 @@ export const xAIProvider: ProviderConfig = {
         isStreaming: true,
         streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
-          createReadableStreamFromXAIStream(streamResponse, (content, usage) => {
-            output.content = content
-            output.tokens = {
-              input: usage.prompt_tokens,
-              output: usage.completion_tokens,
-              total: usage.total_tokens,
-            }
+          createOpenAICompatibleAgentEventStream(streamResponse, {
+            providerName: 'xAI',
+            request,
+            onComplete: ({ content, usage }) => {
+              output.content = content
+              output.tokens = {
+                input: usage.prompt_tokens,
+                output: usage.completion_tokens,
+                total: usage.total_tokens,
+              }
 
-            const costResult = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
-            }
+              const costResult = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              output.cost = {
+                input: costResult.input,
+                output: costResult.output,
+                total: costResult.total,
+              }
+            },
           }),
       })
 
@@ -163,7 +197,6 @@ export const xAIProvider: ProviderConfig = {
     try {
       const initialCallTime = Date.now()
 
-      // xAI cannot use tools and response_format together in the same request
       const initialPayload = { ...basePayload }
 
       let originalToolChoice: any
@@ -185,9 +218,17 @@ export const xAIProvider: ProviderConfig = {
       }
 
       let currentResponse = await xai.chat.completions.create(
-        initialPayload,
+        await prepareConversationGeneration(request, 'chat-completions', initialPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -214,9 +255,10 @@ export const xAIProvider: ProviderConfig = {
         },
       ]
       if (originalToolChoice) {
-        const result = checkForForcedToolUsage(
+        const result = checkForForcedToolUsageOpenAI(
           currentResponse,
           originalToolChoice,
+          'xAI',
           forcedTools,
           usedForcedTools
         )
@@ -230,7 +272,8 @@ export const xAIProvider: ProviderConfig = {
             content = currentResponse.choices[0].message.content
           }
 
-          const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+          const toolCallsInResponse =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -244,6 +287,12 @@ export const xAIProvider: ProviderConfig = {
           }
 
           const toolsStartTime = Date.now()
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
           const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
             const toolCallStartTime = Date.now()
             const toolName = toolCall.function.name
@@ -253,6 +302,12 @@ export const xAIProvider: ProviderConfig = {
               const tool = request.tools?.find((t) => t.id === toolName)
 
               if (!tool) {
+                await recordProviderConversationToolError(
+                  request,
+                  toolCall.id,
+                  toolName,
+                  `Tool "${toolName}" is not available`
+                )
                 logger.warn('XAI Provider - Tool not found:', { toolName })
                 const toolCallEndTime = Date.now()
                 return {
@@ -270,17 +325,27 @@ export const xAIProvider: ProviderConfig = {
                 }
               }
 
-              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams, {
-                signal: request.abortSignal,
-              })
+              const { toolParams, executionParams } = prepareToolExecution(
+                tool,
+                toolArgs,
+                request,
+                toolCall.id
+              )
+              const { rawResponse, modelResponse } = await executeProviderTool(
+                toolName,
+                executionParams,
+                {
+                  signal: request.abortSignal,
+                }
+              )
               const toolCallEndTime = Date.now()
 
               return {
                 toolCall,
                 toolName,
                 toolParams,
-                result,
+                result: rawResponse,
+                modelResult: modelResponse,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
                 duration: toolCallEndTime - toolCallStartTime,
@@ -289,6 +354,12 @@ export const xAIProvider: ProviderConfig = {
               if (isAbortError(error) || request.abortSignal?.aborted) {
                 throw error
               }
+              await recordProviderConversationToolError(
+                request,
+                toolCall.id,
+                toolName,
+                getErrorMessage(error, 'Tool execution failed')
+              )
               const toolCallEndTime = Date.now()
               logger.error('XAI Provider - Error processing tool call:', {
                 error: toError(error).message,
@@ -326,6 +397,8 @@ export const xAIProvider: ProviderConfig = {
           for (const executionResult of executionResults) {
             const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
               executionResult
+            const modelResult =
+              'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
 
             timeSegments.push({
               type: 'tool',
@@ -352,6 +425,13 @@ export const xAIProvider: ProviderConfig = {
                 error: result.error,
               })
             }
+            const modelResultContent = modelResult.success
+              ? (modelResult.output ?? null)
+              : {
+                  error: true,
+                  message: modelResult.error || 'Tool execution failed',
+                  tool: toolName,
+                }
 
             toolCalls.push({
               name: toolName,
@@ -365,7 +445,7 @@ export const xAIProvider: ProviderConfig = {
             currentMessages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: JSON.stringify(resultContent),
+              content: JSON.stringify(modelResultContent),
             })
           }
 
@@ -428,13 +508,22 @@ export const xAIProvider: ProviderConfig = {
           const nextModelStartTime = Date.now()
 
           currentResponse = await xai.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+            await captureProviderConversationStep(
+              request,
+              'chat-completions',
+              currentResponse.choices[0]?.message,
+              getChatCompletionConversationUsage(currentResponse.usage)
+            )
+          }
           if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
-            const result = checkForForcedToolUsage(
+            const result = checkForForcedToolUsageOpenAI(
               currentResponse,
               nextPayload.tool_choice,
+              'xAI',
               forcedTools,
               usedForcedTools
             )
@@ -468,7 +557,14 @@ export const xAIProvider: ProviderConfig = {
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
-          const pendingToolCalls = currentResponse.choices[0]?.message?.tool_calls
+          if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+            await recordProviderConversationUsage(
+              request,
+              getChatCompletionConversationUsage(currentResponse.usage)
+            )
+          }
+          const pendingToolCalls =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
@@ -492,9 +588,17 @@ export const xAIProvider: ProviderConfig = {
                 }
             const finalStartTime = Date.now()
             const finalResponse = await xai.chat.completions.create(
-              finalPayload,
+              await prepareConversationGeneration(request, 'chat-completions', finalPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )
+            if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
+              await captureProviderConversationStep(
+                request,
+                'chat-completions',
+                finalResponse.choices[0]?.message,
+                getChatCompletionConversationUsage(finalResponse.usage)
+              )
+            }
             const finalEndTime = Date.now()
             const finalDuration = finalEndTime - finalStartTime
 
@@ -519,7 +623,7 @@ export const xAIProvider: ProviderConfig = {
             enrichLastModelSegmentFromChatCompletions(
               timeSegments,
               finalResponse,
-              finalResponse.choices[0]?.message?.tool_calls,
+              finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               { model: request.model, provider: 'xai' }
             )
           }
@@ -620,7 +724,11 @@ export const xAIProvider: ProviderConfig = {
         hasResponseFormat: !!request.responseFormat,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

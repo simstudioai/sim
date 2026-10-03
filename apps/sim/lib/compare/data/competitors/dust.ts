@@ -15,6 +15,35 @@ export const dustProfile: CompetitorProfile = {
   },
   oneLiner:
     'Dust is an enterprise AI agent platform where teams build no-code agents connected to company data and tools in a shared, multiplayer workspace, then deploy them to chat, Slack, and other surfaces.',
+  leadAnswer: [
+    'Dust is primarily an enterprise AI agent platform built for teams that want no-code agents connected to company data in a shared, multiplayer workspace. Sim is an open-source AI workspace built for teams that want to build, deploy, and manage agents visually, conversationally, or with code. Choose Dust when you want zero visual/flow layer and prefer building purely through forms, text, and templates guided by a conversational assistant. Sim is a stronger fit when you need a visual canvas, self-hosting, real-time multiplayer editing, or environment promotion across dev, QA, and prod.',
+  ],
+  betterThanAnswer: [
+    'Sim is the stronger fit when you need explicit control over how an agent is built, hosted, and promoted to production. Dust is the stronger fit when you want that control abstracted away, with agents assembled from forms, instructions, templates, and conversation inside a managed workspace. Choose on that axis: explicit workflow and deployment control, or a builder centered on forms and conversation.',
+  ],
+  sectionIntros: {
+    platform: [
+      'Sim offers a visual canvas, supported self-hosting, live canvas editing, and workspace promotion. Dust provides a hosted, form-based agent builder with shared conversations and Git-based configuration management.',
+    ],
+    pricing: [
+      'Sim charges for usage through credits and supports bring-your-own provider keys. Dust combines per-seat subscriptions with monthly AI credit allocations.',
+    ],
+    security: [
+      'Sim emphasizes self-hosting and configurable workspace controls, while Dust documents a broader set of managed-service compliance options. Enterprise features and deployment choices affect the exact controls available in each product.',
+    ],
+    aiCapabilities: [
+      'Sim provides explicit workflow controls for areas such as evaluation, approvals, iteration, and parallel execution. Dust centers these capabilities on conversational agents that choose among configured tools.',
+    ],
+    integrations: [
+      'Sim provides a larger workflow-oriented integration surface and supports custom code, SDKs, MCP publishing, and event triggers. Dust combines managed connections, APIs, triggers, and MCP-based tools around its conversational agent model.',
+    ],
+    observability: [
+      'Sim documents block-level traces, retries, alerts, data export, asynchronous runs, and execution limits. Dust documents workspace analytics and background triggers, but several run-level durability controls are not described publicly.',
+    ],
+    support: [
+      'Both products provide documentation and learning resources. Sim emphasizes its open-source community and an Enterprise dedicated-support option, while Dust also documents community forums and enterprise onboarding.',
+    ],
+  },
   standoutFeatures: [
     {
       title:
@@ -23,7 +52,7 @@ export const dustProfile: CompetitorProfile = {
         "Dust's Agent Builder is entirely form and text based, name, description, instructions, model, tools, knowledge, guided by a conversational 'Sidekick' assistant, with no visual canvas at all (its earlier block-based 'Dust Apps' product is deprecated). Agents deploy natively into a shared, multiplayer workspace and out to Slack, Teams, and other chat surfaces. A team that wants agents assembled purely from plain-language instructions and templates, with no drag-and-drop layer to learn or maintain, gets that directly. Teams that do want infrastructure-as-code can also define Skills and agent configurations as files in a Git repository and sync them via an official GitHub Action, with the same PR review and rollback workflow as application code.",
       shortDescription: 'No visual/flow canvas at all, only forms, text, and conversation.',
       source: {
-        url: 'https://docs.dust.tt/changelog/gitops-sync-for-skills-agent-configurations-with-github-action',
+        url: 'https://docs.dust.tt/docs/changelog#gitops-sync-for-skills-&-agent-configurations-with-github-action',
         label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
         asOf: '2026-07-02',
       },
@@ -186,7 +215,7 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.dust.tt/changelog/eu-data-hosting-option-available',
+            url: 'https://docs.dust.tt/docs/changelog#-eu-data-hosting-option-available',
             label: 'EU data hosting option available | Dust changelog',
             asOf: '2026-07-08',
           },
@@ -231,7 +260,7 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.dust.tt/changelog/gitops-sync-for-skills-agent-configurations-with-github-action',
+            url: 'https://docs.dust.tt/docs/changelog#gitops-sync-for-skills-&-agent-configurations-with-github-action',
             label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
             asOf: '2026-07-02',
           },
@@ -246,7 +275,7 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.dust.tt/changelog/prompt-version-history',
+            url: 'https://docs.dust.tt/docs/changelog#-prompt-version-history',
             label: 'Prompt version history | Dust changelog',
             asOf: '2026-07-02',
           },
@@ -645,6 +674,31 @@ export const dustProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'No: the Computer tool runs agent code inside a Dust-managed isolated environment whose runtime image and libraries Dust controls; admins configure the outbound domain allowlist and DST_*/DSEC_* environment variables, but no documented setting declares npm/PyPI packages, OS-level packages, or additional CLI binaries',
+        detail:
+          "Computer is documented as a 'controlled workbench' where an agent runs code, processes files (Excel/CSV, Word, PDF, PowerPoint), and generates artifacts, with no open internet access by default. The configurable surface is network allowlisting (exact domains such as api.openai.com, or wildcards such as *.example.com, approved permanently by a workspace admin or for one conversation by a user), non-sensitive configuration variables (DST_*), HTTPS secret placeholders substituted only on approved outbound requests (DSEC_*), and a built-in dsbx CLI. The admin setup page for Computer enumerates the admin surface as exactly two areas, network access and environment variables; no package manifest, dependency declaration, or custom-image option is documented on either page.",
+        shortValue: 'Dust-managed sandbox image; only network and env vars are configurable',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/user-documentation/admins/tools-management/computer-admin-setup.md',
+            label: 'Computer Admin Setup | Dust Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/computer',
+            label: 'Computer | Dust Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/tools',
+            label: 'Tools | Dust Docs',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: a documented Conversation API lets external applications create conversations and post messages to Dust agents programmatically, and a Developer Platform covers broader API access',
@@ -783,7 +837,7 @@ export const dustProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.dust.tt/changelog/eu-data-hosting-option-available',
+            url: 'https://docs.dust.tt/docs/changelog#-eu-data-hosting-option-available',
             label: 'EU data hosting option available | Dust changelog',
             asOf: '2026-07-02',
           },
@@ -898,6 +952,26 @@ export const dustProfile: CompetitorProfile = {
             url: 'https://dust.tt/home/enterprise',
             label: 'Dust for Enterprise',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Not publicly documented: Dust documents SAML SSO with workspace-wide enforcement and SCIM provisioning on the Enterprise plan, but no admin-configurable absolute session lifetime or idle timeout, and no fixed session length is published either',
+        detail:
+          "Dust's workspace governance docs describe the admin surface under Admin > People & Security as managing security settings, user access, identity verification, and provisioning; neither those pages nor the SSO/SAML pages describe a session-duration, idle-timeout, or forced re-authentication setting. Enforcing SSO restricts which login methods are accepted (users can no longer sign in with social accounts) rather than how long a signed-in session lasts, so session length in practice follows whatever the upstream identity provider enforces at re-authentication.",
+        shortValue: 'No documented session-lifetime or idle-timeout setting',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/user-documentation/admins/admin-governance/workspace-governance-roles-groups-and-permissions.md',
+            label: 'Workspace Governance (Roles, Groups & Permissions) | Dust Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/user-documentation/admins/admin-governance/single-sign-on-sso/saml-sso.md',
+            label: 'SAML SSO | Dust Docs',
+            asOf: '2026-08-10',
           },
         ],
       },

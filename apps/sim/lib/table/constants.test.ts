@@ -1,68 +1,69 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import {
+  getBillingDisabledTableLimits,
+  getDeleteSnapshotBatchSize,
+  getMaxRowSizeBytes,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 
-const { mockEnv } = vi.hoisted(() => ({
-  mockEnv: {} as Record<string, string | undefined>,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  envNumber: (
-    value: number | string | undefined | null,
-    fallback: number,
-    options: { min?: number; integer?: boolean } = {}
-  ) => {
-    const parsed = Number(value)
-    const min = options.min ?? 0
-    return Number.isFinite(parsed) &&
-      parsed >= min &&
-      (!options.integer || Number.isInteger(parsed))
-      ? parsed
-      : fallback
-  },
-}))
-
-/**
- * Query-suffixed import gives this file a private instance of the module under
- * test. Under `isolate: false` the worker's module graph is shared across test
- * files, so the plain specifier may already be cached with the real env binding
- * (mocks never reach an already-evaluated module) — and evaluating it here
- * under this file's mocks would poison it for later files. The suffixed id is
- * unique to this file, so it always evaluates fresh with the mock above.
- */
-declare module '@/lib/table/constants?constants-test' {
-  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
-  export * from '@/lib/table/constants'
+const UNSET_TABLE_ENV = {
+  FREE_TABLES_LIMIT: undefined,
+  FREE_TABLE_ROWS_LIMIT: undefined,
+  TABLE_MAX_ROW_SIZE_BYTES: undefined,
 }
 
-import { getBillingDisabledTableLimits } from '@/lib/table/constants?constants-test'
+afterAll(resetEnvMock)
 
 describe('getBillingDisabledTableLimits', () => {
   beforeEach(() => {
-    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
-  })
-
-  it('is unlimited when no free-tier env vars are set', () => {
-    expect(getBillingDisabledTableLimits()).toEqual({
-      maxTables: Number.MAX_SAFE_INTEGER,
-      maxRowsPerTable: Number.MAX_SAFE_INTEGER,
-    })
+    setEnv(UNSET_TABLE_ENV)
   })
 
   it('opts each cap back in independently when its env var is explicitly set', () => {
-    mockEnv.FREE_TABLES_LIMIT = '7'
+    setEnv({ FREE_TABLES_LIMIT: '7' })
 
     expect(getBillingDisabledTableLimits()).toEqual({
       maxTables: 7,
       maxRowsPerTable: Number.MAX_SAFE_INTEGER,
     })
 
-    mockEnv.FREE_TABLE_ROWS_LIMIT = '2500'
+    setEnv({ FREE_TABLE_ROWS_LIMIT: '2500' })
     expect(getBillingDisabledTableLimits()).toEqual({
       maxTables: 7,
       maxRowsPerTable: 2500,
     })
+  })
+})
+
+describe('getMaxRowSizeBytes', () => {
+  beforeEach(() => {
+    setEnv(UNSET_TABLE_ENV)
+  })
+
+  it('caps overrides at the delete snapshot byte budget', () => {
+    setEnv({ TABLE_MAX_ROW_SIZE_BYTES: String(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES * 2) })
+
+    expect(getMaxRowSizeBytes()).toBe(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES)
+  })
+})
+
+describe('getDeleteSnapshotBatchSize', () => {
+  beforeEach(() => {
+    setEnv(UNSET_TABLE_ENV)
+  })
+
+  it('derives a worst-case row cap from the delete snapshot byte budget', () => {
+    expect(getDeleteSnapshotBatchSize()).toBe(
+      Math.floor(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES / TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
+    )
+  })
+
+  it('always processes one row and never exceeds the delete row-count cap', () => {
+    setEnv({ TABLE_MAX_ROW_SIZE_BYTES: String(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES * 2) })
+    expect(getDeleteSnapshotBatchSize()).toBe(1)
+
+    setEnv({ TABLE_MAX_ROW_SIZE_BYTES: '1' })
+    expect(getDeleteSnapshotBatchSize()).toBe(TABLE_LIMITS.DELETE_BATCH_SIZE)
   })
 })

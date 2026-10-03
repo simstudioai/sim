@@ -2,13 +2,13 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { Check, ChevronDown, Circle, Square, X } from 'lucide-react'
+import { Check, ChevronDown, Circle, Square, X } from '@sim/emcn/icons'
 import type {
   AgentStreamToolCall,
   AgentStreamToolStatus,
 } from '@/components/agent-stream/tool-call-lifecycle'
 import { ShimmerText } from '@/components/ui'
-import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import { humanizeToolName } from '@/lib/mothership/tools/tool-display'
 
 /** Distance from bottom (px) within which we keep following new thinking text. */
 const STICK_TO_BOTTOM_THRESHOLD_PX = 24
@@ -113,7 +113,7 @@ export function AgentStreamThinkingChrome({
     setOverflowing(el.scrollHeight > el.clientHeight + 1)
   }
 
-  const label = isStreaming ? 'Thinking…' : 'Thought for a moment'
+  const label = isStreaming ? 'Thinking' : 'Thought for a moment'
 
   return (
     <div className='mb-3'>
@@ -129,7 +129,6 @@ export function AgentStreamThinkingChrome({
             'size-[14px] transition-transform duration-150',
             open ? 'rotate-0' : '-rotate-90'
           )}
-          strokeWidth={2}
         />
         {isStreaming ? (
           <ShimmerText
@@ -179,7 +178,7 @@ export function AgentStreamThinkingChrome({
             {open && isStreaming && overflowing && (
               <div
                 aria-hidden
-                className='pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[var(--bg)] to-transparent'
+                className='pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-[var(--bg)] to-transparent'
               />
             )}
           </div>
@@ -191,15 +190,15 @@ export function AgentStreamThinkingChrome({
 
 function ToolStatusIcon({ status }: { status: AgentStreamToolStatus }) {
   if (status === 'success') {
-    return <Check className='size-[14px] shrink-0' strokeWidth={2} aria-hidden />
+    return <Check className='size-[14px] shrink-0' aria-hidden />
   }
   if (status === 'error') {
-    return <X className='size-[14px] shrink-0' strokeWidth={2} aria-hidden />
+    return <X className='size-[14px] shrink-0' aria-hidden />
   }
   if (status === 'cancelled') {
-    return <Square className='size-3 shrink-0 fill-current' strokeWidth={0} aria-hidden />
+    return <Square className='size-3 shrink-0 fill-current' aria-hidden />
   }
-  return <Circle className='size-3 shrink-0' strokeWidth={2} aria-hidden />
+  return <Circle className='size-3 shrink-0' aria-hidden />
 }
 
 export interface AgentStreamToolCallsChromeProps {
@@ -224,7 +223,6 @@ export function AgentStreamToolCallsChrome({
       >
         <ChevronDown
           className={cn('size-[14px] transition-transform', open ? 'rotate-0' : '-rotate-90')}
-          strokeWidth={2}
         />
         <span>{isStreaming ? 'Using tools…' : 'Tools'}</span>
       </button>

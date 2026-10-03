@@ -1,12 +1,15 @@
 import { ClipboardList, Download, File, Search, Server, Wrench } from '@sim/emcn/icons'
+import { omit } from '@sim/utils/object'
 import { SshIcon, SshTerminalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SSHResponse } from '@/tools/ssh/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 
-export const SSHBlock: BlockConfig<SSHResponse> = {
+export const SSHBlock = {
   type: 'ssh',
-  name: 'SSH',
+  name: 'SSH (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ssh_v2' },
   description: 'Connect to remote servers via SSH',
   authMode: AuthMode.ApiKey,
   longDescription:
@@ -16,6 +19,65 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#000000',
   icon: SshIcon,
+  canvasPresentation: {
+    defaultTitle: 'SSH',
+    sentences: {
+      byOperation: {
+        ssh_execute_command: [
+          { text: 'Run', field: 'command', core: true },
+          { text: 'on', field: 'host' },
+          { text: ', from', field: 'workingDirectory' },
+        ],
+        ssh_execute_script: [
+          { text: 'Run a script on', field: 'host', core: true },
+          { text: ', from', field: 'scriptWorkingDirectory' },
+        ],
+        ssh_check_command_exists: [
+          { text: 'Check whether', field: 'commandName', after: 'is installed', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_upload_file: [
+          { text: 'Upload', field: 'fileName', core: true },
+          { text: 'to', field: 'remotePath', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_download_file: [
+          { text: 'Download', field: 'downloadRemotePath', core: true },
+          { text: 'from', field: 'host' },
+        ],
+        ssh_list_directory: [
+          { text: 'List files in', field: 'listPath', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_check_file_exists: [
+          { text: 'Check whether', field: 'checkPath', after: 'exists', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_create_directory: [
+          { text: 'Create directory', field: 'createPath', core: true },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_delete_file: [
+          { text: 'Delete', field: 'deletePath', core: true },
+          { text: 'from', field: 'host' },
+        ],
+        ssh_move_rename: [
+          { text: 'Move', field: 'sourcePath', core: true },
+          { text: 'to', field: 'destinationPath' },
+          { text: 'on', field: 'host' },
+        ],
+        ssh_get_system_info: [{ text: 'Read system info from', field: 'host', core: true }],
+        ssh_read_file_content: [
+          { text: 'Read', field: 'readPath', core: true },
+          { text: 'from', field: 'host' },
+        ],
+        ssh_write_file_content: [
+          { text: 'Write content to', field: 'writePath', core: true },
+          { text: 'on', field: 'host' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {
@@ -91,6 +153,7 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
       id: 'privateKey',
       title: 'Private Key',
       type: 'code',
+      password: true,
       placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
       condition: { field: 'authMethod', value: 'privateKey' },
       dependsOn: ['authMethod'],
@@ -600,6 +663,48 @@ Examples:
     hostname: { type: 'string', description: 'Server hostname' },
     os: { type: 'string', description: 'Operating system' },
     message: { type: 'string', description: 'Operation status message' },
+  },
+} satisfies BlockConfig
+
+const selectSshV2Tool = createVersionedToolSelector({
+  baseToolSelector: SSHBlock.tools.config.tool,
+  suffix: '_v2',
+  fallbackToolId: 'ssh_download_file_v2',
+})
+
+export const SSHV2Block: BlockConfig = {
+  ...SSHBlock,
+  type: 'ssh_v2',
+  name: 'SSH',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...SSHBlock.tools,
+    access: SSHBlock.tools.access.map((toolId) =>
+      toolId === 'ssh_download_file' ? 'ssh_download_file_v2' : toolId
+    ),
+    config: {
+      ...SSHBlock.tools.config,
+      tool: (params) =>
+        params.operation === 'ssh_download_file'
+          ? selectSshV2Tool(params)
+          : SSHBlock.tools.config.tool(params),
+    },
+  },
+  outputs: {
+    ...omit(SSHBlock.outputs, ['fileContent']),
+    success: {
+      ...SSHBlock.outputs.success,
+      condition: { field: 'operation', value: 'ssh_download_file', not: true },
+    },
+    message: {
+      ...SSHBlock.outputs.message,
+      condition: { field: 'operation', value: 'ssh_download_file', not: true },
+    },
+    content: {
+      ...SSHBlock.outputs.content,
+      condition: { field: 'operation', value: 'ssh_read_file_content' },
+    },
   },
 }
 

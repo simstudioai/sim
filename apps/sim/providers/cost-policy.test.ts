@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { NormalizedBlockOutput } from '@/executor/types'
@@ -123,6 +120,31 @@ describe('priceModelUsage', () => {
     expect(tripled.total).toBeCloseTo(single.total * 3, 8)
   })
 
+  it('applies the highest matching input-size tier to every token bucket', () => {
+    const cost = priceModelUsage(
+      'gpt-5.6-terra',
+      {
+        input: 100_000,
+        output: 100_000,
+        cacheRead: 100_000,
+        cacheWrites: [{ tokens: 72_001, inputRateMultiplier: 1.25 }],
+      },
+      LIST_PRICE_POLICY
+    )
+
+    expect(cost).toMatchObject({ input: 0.800005, output: 1.8, total: 2.600005 })
+  })
+
+  it('preserves zero-cost behavior for unregistered dynamic models', () => {
+    const cost = priceModelUsage(
+      'dynamic-provider/model',
+      { input: 300_000, output: 100_000 },
+      LIST_PRICE_POLICY
+    )
+
+    expect(cost).toMatchObject({ input: 0, output: 0, total: 0 })
+  })
+
   it('charges nothing when the policy is not billable', () => {
     const cost = priceModelUsage(
       PRICED_MODEL,
@@ -224,6 +246,23 @@ describe('installStreamingCostPolicy', () => {
     installStreamingCostPolicy(output, { billable: false, multiplier: 0 })
 
     expect(output.cost).toMatchObject({ input: 0, output: 0, total: 0.75, toolCost: 0.75 })
+  })
+
+  it('adds late failed Function cost once without applying the model multiplier', () => {
+    const output = {
+      cost: { input: 1, output: 2, total: 3.25, toolCost: 0.25 },
+    } as NormalizedBlockOutput
+    const failedFunctionToolCost = { total: 0 }
+    installStreamingCostPolicy(
+      output,
+      { billable: false, multiplier: 0 },
+      () => failedFunctionToolCost.total
+    )
+
+    failedFunctionToolCost.total = 0.125
+
+    expect(output.cost).toMatchObject({ input: 0, output: 0, total: 0.375, toolCost: 0.375 })
+    expect(output.cost).toMatchObject({ total: 0.375, toolCost: 0.375 })
   })
 
   it('zeroes model cost written by a provider for a model Sim does not host', () => {

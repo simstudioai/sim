@@ -1,7 +1,7 @@
 import type { RedisSetnxParams, RedisSetnxResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisSetnxTool: ToolConfig<RedisSetnxParams, RedisSetnxResponse> = {
+export const redisSetnxTool: InternalToolConfig<RedisSetnxParams, RedisSetnxResponse> = {
   id: 'redis_setnx',
   name: 'Redis SETNX',
   description: 'Set the value of a key in Redis only if the key does not already exist.',
@@ -28,11 +28,8 @@ export const redisSetnxTool: ToolConfig<RedisSetnxParams, RedisSetnxResponse> = 
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'SETNX',
       args: [params.key, params.value],

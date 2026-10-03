@@ -7,10 +7,11 @@ import {
   organization,
   workspace,
 } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import {
   getEmailSubject,
   renderBatchInvitationEmail,
@@ -18,14 +19,16 @@ import {
   renderWorkspaceAddedEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { computeInvitationExpiry } from '@/lib/invitations/core'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { computeInvitationExpiry, lockInvitationForMutation } from '@/lib/invitations/core'
+import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { getBrandConfig } from '@/ee/whitelabeling'
-
-const logger = createLogger('InvitationSend')
 
 interface WorkspaceGrantInput {
   workspaceId: string
@@ -41,45 +44,258 @@ export interface CreatePendingInvitationInput {
   role: 'admin' | 'member'
   grants: WorkspaceGrantInput[]
   expiresAt?: Date
+  /**
+   * Runs after the canonical invitation/workspace advisory locks are held and
+   * the live organization scope has been resolved, but before any invitation
+   * write. Callers use this DB-only hook to acquire organization/user locks
+   * and re-authorize stale preflight decisions.
+   */
+  validateLockedContext?: (context: {
+    tx: DbTransaction
+    organizationId: string | null
+    workspaceIds: string[]
+  }) => Promise<void>
 }
 
 export interface CreatePendingInvitationResult {
   invitationId: string
   token: string
   expiresAt: Date
+  /**
+   * False when the grants were merged into an invitation that was already
+   * pending for this (email, organization). Callers compensating for a failed
+   * send must revert only the added grants in that case — cancelling would
+   * destroy an unrelated, still-valid invitation.
+   */
+  created: boolean
+  /** Workspaces this call added; empty when every grant was already present. */
+  addedWorkspaceIds: string[]
+  /** Every workspace the invitation now grants, oldest grant first. */
+  grants: WorkspaceGrantInput[]
+  /**
+   * Optimistic revision for failed-send compensation. A workspace move,
+   * acceptance, PATCH, or other later mutation changes this timestamp, causing
+   * compensation to skip rather than undo newer state.
+   */
+  mutationUpdatedAt: Date
+  /** Scope paired with the revision so a migrated pending invite is never undone. */
+  mutationOrganizationId: string | null
 }
 
+/**
+ * Partial unique index on `invitation (email, organization_id) WHERE status =
+ * 'pending' AND organization_id IS NOT NULL` — one pending invitation per
+ * person per organization, which is what makes coalescing mandatory rather
+ * than optional.
+ */
+export const PENDING_INVITATION_UNIQUE_INDEX = 'invitation_pending_email_org_unique'
+
+/**
+ * Raised when the granted workspaces changed organization between the
+ * pre-lock lookup and the lock itself, so the invitation that would be merged
+ * into was never covered by the acquired locks. Retrying re-resolves the
+ * organization and locks the right row.
+ */
+class InvitationScopeChangedError extends Error {
+  constructor() {
+    super('Invitation organization scope changed while acquiring locks')
+    this.name = 'InvitationScopeChangedError'
+  }
+}
+
+function isPendingInvitationConflict(error: unknown): boolean {
+  return (
+    error instanceof InvitationScopeChangedError ||
+    (getPostgresErrorCode(error) === '23505' &&
+      getPostgresConstraintName(error) === PENDING_INVITATION_UNIQUE_INDEX)
+  )
+}
+
+/**
+ * The organization an invitation is stamped with. Workspace invitations derive
+ * it from the granted workspaces' live organization so a workspace that moved
+ * since the inviter loaded the page is stamped with where it actually lives.
+ */
+async function resolveInvitationOrganizationId(
+  executor: DbOrTx,
+  input: CreatePendingInvitationInput,
+  workspaceIds: string[]
+): Promise<string | null> {
+  if (input.kind !== 'workspace' || workspaceIds.length === 0) return input.organizationId
+
+  const currentScopes = await executor
+    .select({ organizationId: workspace.organizationId })
+    .from(workspace)
+    .where(inArray(workspace.id, workspaceIds))
+  const uniqueScopes = [...new Set(currentScopes.map((row) => row.organizationId))]
+  return uniqueScopes.length === 1 ? uniqueScopes[0] : input.organizationId
+}
+
+export async function findPendingOrganizationInvitation(
+  executor: DbOrTx,
+  organizationId: string,
+  email: string
+) {
+  const [row] = await executor
+    .select({
+      id: invitation.id,
+      token: invitation.token,
+      expiresAt: invitation.expiresAt,
+      role: invitation.role,
+      membershipIntent: invitation.membershipIntent,
+      updatedAt: invitation.updatedAt,
+      organizationId: invitation.organizationId,
+    })
+    .from(invitation)
+    .where(
+      and(
+        eq(invitation.organizationId, organizationId),
+        eq(invitation.email, email),
+        eq(invitation.status, 'pending')
+      )
+    )
+    .limit(1)
+  return row ?? null
+}
+
+function describeInvitationStanding(
+  membershipIntent: InvitationMembershipIntent,
+  role: string
+): string {
+  if (membershipIntent === 'external') return 'an external collaborator'
+  return isOrgAdminRole(role) ? 'an organization admin' : 'an organization member'
+}
+
+/**
+ * Thrown when new workspaces would merge into a pending invitation that grants
+ * a different standing. Adding workspaces must never quietly re-decide whether
+ * the invitee takes a seat or becomes an admin, and neither silent outcome is
+ * right — the old choice ignores what the inviter just asked for, the new one
+ * rewrites an invitation somebody else may have sent. The inviter resolves it.
+ */
+export class ConflictingPendingInvitationError extends Error {
+  constructor(params: {
+    email: string
+    existing: { membershipIntent: InvitationMembershipIntent; role: string }
+    requested: { membershipIntent: InvitationMembershipIntent; role: string }
+  }) {
+    super(
+      `${params.email} already has a pending invitation as ${describeInvitationStanding(
+        params.existing.membershipIntent,
+        params.existing.role
+      )}. Cancel it before inviting them as ${describeInvitationStanding(
+        params.requested.membershipIntent,
+        params.requested.role
+      )}.`
+    )
+    this.name = 'ConflictingPendingInvitationError'
+  }
+}
+
+/**
+ * Workspace and external invitations must grant a workspace. An internal
+ * organization invitation can instead land directly in organization Home.
+ */
+export class GrantlessInvitationError extends Error {
+  constructor() {
+    super('Workspace and external invitations must include at least one workspace.')
+    this.name = 'GrantlessInvitationError'
+  }
+}
+
+/**
+ * Creates a pending invitation, or extends the one already pending for this
+ * (email, organization) with the workspaces it does not cover yet.
+ *
+ * Coalescing is required, not a convenience: a person can hold at most one
+ * pending invitation per organization, so inviting them to a second workspace
+ * has to become another grant on the same invitation. It also gives the
+ * invitee one link that grants everything they were invited to, instead of a
+ * queue of invitations to accept one at a time.
+ *
+ * Invitations with no organization (personal-workspace invites) are never
+ * coalesced — they are scoped to their inviter, and acceptance converts *that*
+ * inviter's plan, so two inviters' invites must stay independent.
+ */
 export async function createPendingInvitation(
   input: CreatePendingInvitationInput
 ): Promise<CreatePendingInvitationResult> {
-  const invitationId = generateId()
+  if (
+    input.grants.length === 0 &&
+    (input.kind !== 'organization' ||
+      !input.organizationId ||
+      input.membershipIntent === 'external')
+  ) {
+    throw new GrantlessInvitationError()
+  }
+
+  try {
+    return await createOrExtendPendingInvitation(input)
+  } catch (error) {
+    if (!isPendingInvitationConflict(error)) throw error
+    /**
+     * A concurrent invite created the pending row, or moved a granted
+     * workspace, between the pre-lock lookup and the insert. The retry sees
+     * the committed row and merges into it.
+     */
+    return createOrExtendPendingInvitation(input)
+  }
+}
+
+async function createOrExtendPendingInvitation(
+  input: CreatePendingInvitationInput
+): Promise<CreatePendingInvitationResult> {
+  const email = normalizeEmail(input.email)
+  const workspaceIds = input.grants.map((grant) => grant.workspaceId)
+
+  /**
+   * Resolved before the transaction so the invitation being merged into can
+   * join the same sorted lock acquisition. Advisory locks must be taken in one
+   * call — invitation keys sort before workspace keys, matching the order
+   * acceptance takes them in, so the two paths cannot deadlock.
+   */
+  const scopeOrganizationId = await resolveInvitationOrganizationId(db, input, workspaceIds)
+  const knownPendingId = scopeOrganizationId
+    ? (await findPendingOrganizationInvitation(db, scopeOrganizationId, email))?.id
+    : undefined
+
+  const newInvitationId = generateId()
   const token = generateId()
   const expiresAt = input.expiresAt ?? computeInvitationExpiry()
   const now = new Date()
 
-  await db.transaction(async (tx) => {
-    const workspaceIds = input.grants.map((grant) => grant.workspaceId)
+  return db.transaction(async (tx) => {
     await acquireInvitationMutationLocks(tx, {
-      invitationIds: [invitationId],
+      invitationIds: knownPendingId ? [knownPendingId, newInvitationId] : [newInvitationId],
       workspaceIds,
     })
 
-    let organizationId = input.organizationId
-    if (input.kind === 'workspace' && workspaceIds.length > 0) {
-      const currentScopes = await tx
-        .select({ organizationId: workspace.organizationId })
-        .from(workspace)
-        .where(inArray(workspace.id, workspaceIds))
-      const uniqueScopes = [...new Set(currentScopes.map((row) => row.organizationId))]
-      if (uniqueScopes.length === 1) {
-        organizationId = uniqueScopes[0]
-      }
+    const organizationId = await resolveInvitationOrganizationId(tx, input, workspaceIds)
+    let existing = organizationId
+      ? await findPendingOrganizationInvitation(tx, organizationId, email)
+      : null
+
+    if (existing && existing.id !== knownPendingId) {
+      throw new InvitationScopeChangedError()
+    }
+
+    if (existing && existing.expiresAt.getTime() <= now.getTime()) {
+      await tx
+        .update(invitation)
+        .set({ status: 'expired', updatedAt: now })
+        .where(and(eq(invitation.id, existing.id), eq(invitation.status, 'pending')))
+      existing = null
+    }
+    await input.validateLockedContext?.({ tx, organizationId, workspaceIds })
+
+    if (existing) {
+      return extendPendingInvitation(tx, { existing, input, expiresAt, now })
     }
 
     await tx.insert(invitation).values({
-      id: invitationId,
+      id: newInvitationId,
       kind: input.kind,
-      email: normalizeEmail(input.email),
+      email,
       inviterId: input.inviterId,
       organizationId,
       membershipIntent: input.membershipIntent ?? 'internal',
@@ -94,95 +310,230 @@ export async function createPendingInvitation(
     for (const grant of input.grants) {
       await tx.insert(invitationWorkspaceGrant).values({
         id: generateId(),
-        invitationId,
+        invitationId: newInvitationId,
         workspaceId: grant.workspaceId,
         permission: grant.permission,
         createdAt: now,
         updatedAt: now,
       })
     }
+
+    return {
+      invitationId: newInvitationId,
+      token,
+      expiresAt,
+      created: true,
+      addedWorkspaceIds: workspaceIds,
+      grants: input.grants,
+      mutationUpdatedAt: now,
+      mutationOrganizationId: organizationId,
+    }
   })
-
-  return { invitationId, token, expiresAt }
 }
 
-async function countPendingInvitationsForOrganization(organizationId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(invitation)
-    .where(
-      and(
-        eq(invitation.organizationId, organizationId),
-        eq(invitation.status, 'pending'),
-        ne(invitation.membershipIntent, 'external')
-      )
-    )
-  return row?.count ?? 0
-}
+/**
+ * Adds the grants an already-pending invitation is missing. Its kind, role, and
+ * membership intent are left alone — they decide what acceptance does to the
+ * invitee's organization membership, and adding a workspace is not consent to
+ * change that — so a request for a different standing is rejected above rather
+ * than resolved silently. Permissions on grants that already exist are likewise
+ * untouched, so an invite can never downgrade access already promised.
+ */
+async function extendPendingInvitation(
+  tx: DbOrTx,
+  params: {
+    existing: {
+      id: string
+      token: string
+      expiresAt: Date
+      role: string
+      membershipIntent: InvitationMembershipIntent
+      updatedAt: Date
+      organizationId: string | null
+    }
+    input: CreatePendingInvitationInput
+    expiresAt: Date
+    now: Date
+  }
+): Promise<CreatePendingInvitationResult> {
+  const { existing, input, expiresAt, now } = params
 
-async function findPendingInvitationByOrgEmail(params: {
-  organizationId: string | null
-  email: string
-}) {
-  const normalized = normalizeEmail(params.email)
-
-  if (params.organizationId) {
-    const [row] = await db
-      .select()
-      .from(invitation)
-      .where(
-        and(
-          eq(invitation.organizationId, params.organizationId),
-          eq(invitation.email, normalized),
-          eq(invitation.status, 'pending')
-        )
-      )
-      .limit(1)
-    return row ?? null
+  const requestedIntent = input.membershipIntent ?? 'internal'
+  if (
+    existing.membershipIntent !== requestedIntent ||
+    isOrgAdminRole(existing.role) !== isOrgAdminRole(input.role)
+  ) {
+    throw new ConflictingPendingInvitationError({
+      email: normalizeEmail(input.email),
+      existing: { membershipIntent: existing.membershipIntent, role: existing.role },
+      requested: { membershipIntent: requestedIntent, role: input.role },
+    })
   }
 
-  const [row] = await db
-    .select()
-    .from(invitation)
-    .where(
-      and(
-        sql`${invitation.organizationId} IS NULL`,
-        eq(invitation.email, normalized),
-        eq(invitation.status, 'pending')
-      )
-    )
-    .limit(1)
-  return row ?? null
+  const existingGrants = await tx
+    .select({
+      workspaceId: invitationWorkspaceGrant.workspaceId,
+      permission: invitationWorkspaceGrant.permission,
+    })
+    .from(invitationWorkspaceGrant)
+    .where(eq(invitationWorkspaceGrant.invitationId, existing.id))
+    .orderBy(asc(invitationWorkspaceGrant.createdAt), asc(invitationWorkspaceGrant.id))
+
+  const grantedWorkspaceIds = new Set(existingGrants.map((grant) => grant.workspaceId))
+  const addedGrants = input.grants.filter((grant) => !grantedWorkspaceIds.has(grant.workspaceId))
+
+  for (const grant of addedGrants) {
+    await tx.insert(invitationWorkspaceGrant).values({
+      id: generateId(),
+      invitationId: existing.id,
+      workspaceId: grant.workspaceId,
+      permission: grant.permission,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  /**
+   * Extending expiry keeps a late-added workspace from riding an almost-dead
+   * link. It only ever moves the deadline out, so it needs no compensation
+   * when the send fails.
+   */
+  const nextExpiresAt = existing.expiresAt > expiresAt ? existing.expiresAt : expiresAt
+  if (addedGrants.length > 0) {
+    await tx
+      .update(invitation)
+      .set({ expiresAt: nextExpiresAt, updatedAt: now })
+      .where(eq(invitation.id, existing.id))
+  }
+
+  return {
+    invitationId: existing.id,
+    token: existing.token,
+    expiresAt: nextExpiresAt,
+    created: false,
+    addedWorkspaceIds: addedGrants.map((grant) => grant.workspaceId),
+    grants: [...existingGrants, ...addedGrants],
+    mutationUpdatedAt: addedGrants.length > 0 ? now : existing.updatedAt,
+    mutationOrganizationId: existing.organizationId,
+  }
 }
 
-export async function findPendingGrantForWorkspaceEmail(params: {
-  workspaceId: string
+/**
+ * Undoes the grants a failed send added to a pre-existing invitation. The
+ * invitation itself survives — it was valid before this call and the
+ * workspaces it already covered are unaffected.
+ */
+export async function revertPendingInvitationGrants(params: {
+  invitationId: string
+  workspaceIds: string[]
+  expectedUpdatedAt: Date
+  expectedOrganizationId: string | null
+}): Promise<boolean> {
+  if (params.workspaceIds.length === 0) return false
+
+  return db.transaction(async (tx) => {
+    const locked = await lockInvitationForMutation(tx, params.invitationId)
+    if (
+      !locked ||
+      locked.status !== 'pending' ||
+      locked.organizationId !== params.expectedOrganizationId ||
+      locked.updatedAt.getTime() !== params.expectedUpdatedAt.getTime()
+    ) {
+      return false
+    }
+
+    const now = new Date()
+    const claimed = await tx
+      .update(invitation)
+      .set({ updatedAt: now })
+      .where(
+        and(
+          eq(invitation.id, params.invitationId),
+          eq(invitation.status, 'pending'),
+          eq(invitation.updatedAt, params.expectedUpdatedAt),
+          params.expectedOrganizationId
+            ? eq(invitation.organizationId, params.expectedOrganizationId)
+            : sql`${invitation.organizationId} IS NULL`
+        )
+      )
+      .returning({ id: invitation.id })
+    if (claimed.length === 0) return false
+
+    await tx
+      .delete(invitationWorkspaceGrant)
+      .where(
+        and(
+          eq(invitationWorkspaceGrant.invitationId, params.invitationId),
+          inArray(invitationWorkspaceGrant.workspaceId, params.workspaceIds)
+        )
+      )
+    return true
+  })
+}
+
+/**
+ * Workspaces this email already holds a pending grant for, across every
+ * pending invitation. Callers use it to drop workspaces from a new invite
+ * rather than rejecting the whole thing.
+ */
+export async function findPendingGrantWorkspaceIds(params: {
+  workspaceIds: string[]
   email: string
-}) {
-  const normalized = normalizeEmail(params.email)
-  const [row] = await db
-    .select({
-      invitationId: invitation.id,
-      grantId: invitationWorkspaceGrant.id,
-    })
+}): Promise<Set<string>> {
+  if (params.workspaceIds.length === 0) return new Set()
+
+  const rows = await db
+    .select({ workspaceId: invitationWorkspaceGrant.workspaceId })
     .from(invitationWorkspaceGrant)
     .innerJoin(invitation, eq(invitation.id, invitationWorkspaceGrant.invitationId))
     .where(
       and(
-        eq(invitationWorkspaceGrant.workspaceId, params.workspaceId),
-        eq(invitation.email, normalized),
+        inArray(invitationWorkspaceGrant.workspaceId, params.workspaceIds),
+        eq(invitation.email, normalizeEmail(params.email)),
         eq(invitation.status, 'pending')
       )
     )
-    .limit(1)
-  return row ?? null
+  return new Set(rows.map((row) => row.workspaceId))
 }
 
-export async function cancelPendingInvitation(invitationId: string): Promise<void> {
-  await db
-    .update(invitation)
-    .set({ status: 'cancelled', updatedAt: new Date() })
-    .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
+export async function cancelPendingInvitation(
+  invitationId: string,
+  guard?: {
+    expectedUpdatedAt: Date
+    expectedOrganizationId: string | null
+  }
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const locked = await lockInvitationForMutation(tx, invitationId)
+    if (!locked || locked.status !== 'pending') return false
+    if (
+      guard &&
+      (locked.organizationId !== guard.expectedOrganizationId ||
+        locked.updatedAt.getTime() !== guard.expectedUpdatedAt.getTime())
+    ) {
+      return false
+    }
+
+    const cancelled = await tx
+      .update(invitation)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(
+        and(
+          eq(invitation.id, invitationId),
+          eq(invitation.status, 'pending'),
+          ...(guard
+            ? [
+                eq(invitation.updatedAt, guard.expectedUpdatedAt),
+                guard.expectedOrganizationId
+                  ? eq(invitation.organizationId, guard.expectedOrganizationId)
+                  : sql`${invitation.organizationId} IS NULL`,
+              ]
+            : [])
+        )
+      )
+      .returning({ id: invitation.id })
+    return cancelled.length > 0
+  })
 }
 
 export interface SendInvitationEmailInput {
@@ -318,7 +669,7 @@ export interface SendWorkspaceAddedEmailInput {
 export async function sendWorkspaceAddedEmail(
   input: SendWorkspaceAddedEmailInput
 ): Promise<SendInvitationEmailResult> {
-  const workspaceLink = `${getBaseUrl()}/workspace/${input.workspaceId}/home`
+  const workspaceLink = `${getBaseUrl()}/workspace/${input.workspaceId}`
   const emailHtml = await renderWorkspaceAddedEmail(
     input.inviterName,
     input.workspaceName,
@@ -338,38 +689,113 @@ export async function sendWorkspaceAddedEmail(
   return { success: true }
 }
 
-export async function prepareInvitationResend(params: {
+export interface PreparedInvitationResend {
   invitationId: string
-  rotateToken?: boolean
-  currentToken: string
-}): Promise<{ tokenForEmail: string; nextExpiresAt: Date; nextToken: string | null }> {
-  const nextExpiresAt = computeInvitationExpiry()
-  const nextToken = params.rotateToken ? generateId() : null
-  const tokenForEmail = nextToken ?? params.currentToken
-  return { tokenForEmail, nextExpiresAt, nextToken }
+  organizationId: string | null
+  tokenForEmail: string
+  nextExpiresAt: Date
+  mutationUpdatedAt: Date
+  previousToken: string
+  previousExpiresAt: Date
 }
 
-export async function persistInvitationResend(params: {
+/** Commits the resend token before delivery; stale requests never send an unsaved link. */
+export async function prepareInvitationResend(params: {
   invitationId: string
-  nextToken: string | null
-  nextExpiresAt: Date
-}): Promise<void> {
-  const [row] = await db
-    .update(invitation)
-    .set({
-      expiresAt: params.nextExpiresAt,
-      updatedAt: new Date(),
-      ...(params.nextToken ? { token: params.nextToken } : {}),
+  currentToken: string
+  expectedOrganizationId?: string
+  expectedUpdatedAt: Date
+  actorUserId: string
+}): Promise<PreparedInvitationResend> {
+  return db.transaction(async (tx) => {
+    const current = await lockInvitationForMutation(tx, params.invitationId, {
+      lockCurrentGrantWorkspaces: true,
     })
-    .where(and(eq(invitation.id, params.invitationId), eq(invitation.status, 'pending')))
-    .returning({ id: invitation.id })
+    if (
+      !current ||
+      (params.expectedOrganizationId !== undefined &&
+        current.organizationId !== params.expectedOrganizationId)
+    )
+      throw new OrchestrationError('not_found', 'Invitation not found')
+    /** Compare hydrated revisions while the row is locked; legacy timestamps retain sub-millisecond precision in SQL. */
+    if (
+      current.token !== params.currentToken ||
+      current.updatedAt.getTime() !== params.expectedUpdatedAt.getTime()
+    )
+      throw new OrchestrationError(
+        'conflict',
+        'The invitation changed before it could be resent. Refresh before resending.'
+      )
+    await lockInvitationResendPolicy(tx, current, params.actorUserId, params.expectedOrganizationId)
+    if (current.status !== 'pending' || current.expiresAt.getTime() <= Date.now())
+      throw new InvitationNotPendingError('resend')
 
-  if (!row) {
-    throw new Error(`Invitation ${params.invitationId} not found or no longer pending`)
-  }
+    const nextToken = generateId()
+    const nextExpiresAt = computeInvitationExpiry()
+    const mutationUpdatedAt = new Date()
+    const [row] = await tx
+      .update(invitation)
+      .set({ token: nextToken, expiresAt: nextExpiresAt, updatedAt: mutationUpdatedAt })
+      .where(
+        and(
+          eq(invitation.id, params.invitationId),
+          eq(invitation.status, 'pending'),
+          eq(invitation.token, params.currentToken),
+          sql`${invitation.expiresAt} > clock_timestamp()`,
+          params.expectedOrganizationId === undefined
+            ? undefined
+            : eq(invitation.organizationId, params.expectedOrganizationId)
+        )
+      )
+      .returning({ id: invitation.id })
+    if (!row)
+      throw new OrchestrationError(
+        'conflict',
+        'The invitation changed before it could be resent. Refresh before resending.'
+      )
+    return {
+      invitationId: current.id,
+      organizationId: current.organizationId,
+      tokenForEmail: nextToken,
+      nextExpiresAt,
+      mutationUpdatedAt,
+      previousToken: current.token,
+      previousExpiresAt: current.expiresAt,
+    }
+  })
+}
 
-  logger.info('Persisted invitation resend', {
-    invitationId: params.invitationId,
-    rotated: !!params.nextToken,
+/** Restores a failed resend only while its exact pending revision still owns the token. */
+export async function revertInvitationResend(prepared: PreparedInvitationResend): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const current = await lockInvitationForMutation(tx, prepared.invitationId)
+    if (
+      !current ||
+      current.status !== 'pending' ||
+      current.organizationId !== prepared.organizationId ||
+      current.token !== prepared.tokenForEmail ||
+      current.updatedAt.getTime() !== prepared.mutationUpdatedAt.getTime()
+    )
+      return false
+    const restored = await tx
+      .update(invitation)
+      .set({
+        token: prepared.previousToken,
+        expiresAt: prepared.previousExpiresAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(invitation.id, prepared.invitationId),
+          eq(invitation.status, 'pending'),
+          eq(invitation.token, prepared.tokenForEmail),
+          eq(invitation.updatedAt, prepared.mutationUpdatedAt),
+          prepared.organizationId === null
+            ? sql`${invitation.organizationId} IS NULL`
+            : eq(invitation.organizationId, prepared.organizationId)
+        )
+      )
+      .returning({ id: invitation.id })
+    return restored.length > 0
   })
 }

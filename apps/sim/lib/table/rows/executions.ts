@@ -5,11 +5,14 @@
  * directly from `@/lib/table/rows/executions`.
  */
 
-import { tableRowExecutions } from '@sim/db/schema'
+import { db } from '@sim/db'
+import { tableRowExecutions, userTableRows } from '@sim/db/schema'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import { areGroupDepsSatisfied } from '@/lib/table/deps'
+import { TableRunStateCollectionLimitExceededError } from '@/lib/table/rows/errors'
+import { normalizeBlockErrors } from '@/lib/table/rows/run-state'
 import type {
   EnrichmentRunDetail,
   RowData,
@@ -20,59 +23,117 @@ import type {
 } from '@/lib/table/types'
 
 /**
+ * Rows whose sidecar is fetched per round trip. Bounds the `IN (...)` list and,
+ * with it, the heap a single batch can materialize: `blockErrors` is unbounded
+ * jsonb, so one query over a whole page's row ids has no ceiling of its own.
+ */
+const RUN_STATE_ID_CHUNK_SIZE = 250
+
+interface LoadExecutionsOptions {
+  /**
+   * Ceiling on the serialized sidecar this call may materialize. Accumulated as
+   * the drain proceeds and enforced BEFORE the next chunk is fetched, so a
+   * refusal costs one over-budget chunk rather than the whole page — measuring
+   * an already-materialized result could only report a spike that had already
+   * happened.
+   */
+  budgetBytes?: number
+}
+
+/**
+ * Whether a table can have any run-state sidecar at all.
+ *
+ * `tableRowExecutions` is keyed by `(rowId, groupId)`, and every writer takes its `groupId` from
+ * a group on the table's own schema. Group and column deletes strip the matching sidecar rows in
+ * the same transaction that removes the group ({@link stripGroupExecutions}), so a schema that
+ * declares no group cannot have a surviving row — the sidecar read would return nothing, and the
+ * caller would fill in the same empty map it gets by skipping.
+ *
+ * Both signals are checked rather than just `workflowGroups`: a column still carrying a
+ * `workflowGroupId` means the table has group state whatever the group list looks like, so an
+ * unexpected schema shape keeps the query instead of silently dropping run state.
+ */
+export function tableMayHaveRunState(schema: TableSchema): boolean {
+  if (schema.workflowGroups && schema.workflowGroups.length > 0) return true
+  return schema.columns.some((column) => column.workflowGroupId !== undefined)
+}
+
+/**
  * Loads `tableRowExecutions` rows for the given row ids and groups them into a
  * `Map<rowId, RowExecutions>` suitable for plugging into `TableRow.executions`.
+ *
+ * Drains in bounded chunks rather than one unbounded `IN (...)`. Pass
+ * `budgetBytes` on any path that hands the sidecar to a caller; without it the
+ * drain is still chunked but will read every named row.
  */
 export async function loadExecutionsByRow(
   trx: DbOrTx,
-  rowIds: Iterable<string>
+  rowIds: Iterable<string>,
+  options?: LoadExecutionsOptions
 ): Promise<Map<string, RowExecutions>> {
   const ids = Array.from(new Set(rowIds))
   const result = new Map<string, RowExecutions>()
   if (ids.length === 0) return result
-  // Explicit column list, never `select()` — `enrichmentDetails` is large and
-  // must stay off the hot grid read path (fetched on demand via
-  // `loadEnrichmentDetail`).
-  const rows = await trx
-    .select({
-      rowId: tableRowExecutions.rowId,
-      groupId: tableRowExecutions.groupId,
-      status: tableRowExecutions.status,
-      executionId: tableRowExecutions.executionId,
-      jobId: tableRowExecutions.jobId,
-      workflowId: tableRowExecutions.workflowId,
-      error: tableRowExecutions.error,
-      runningBlockIds: tableRowExecutions.runningBlockIds,
-      blockErrors: tableRowExecutions.blockErrors,
-      cancelledAt: tableRowExecutions.cancelledAt,
-    })
-    .from(tableRowExecutions)
-    .where(inArray(tableRowExecutions.rowId, ids))
-  for (const r of rows) {
-    const existing = result.get(r.rowId) ?? {}
-    const meta: RowExecutionMetadata = {
-      status: r.status as RowExecutionMetadata['status'],
-      executionId: r.executionId ?? null,
-      jobId: r.jobId ?? null,
-      workflowId: r.workflowId,
-      error: r.error ?? null,
-      ...(r.runningBlockIds && r.runningBlockIds.length > 0
-        ? { runningBlockIds: r.runningBlockIds }
-        : {}),
-      ...(r.blockErrors && Object.keys(r.blockErrors as Record<string, string>).length > 0
-        ? { blockErrors: r.blockErrors as Record<string, string> }
-        : {}),
-      ...(r.cancelledAt ? { cancelledAt: r.cancelledAt.toISOString() } : {}),
+  const budgetBytes = options?.budgetBytes
+  let bytes = 0
+  for (let offset = 0; offset < ids.length; offset += RUN_STATE_ID_CHUNK_SIZE) {
+    if (budgetBytes !== undefined && bytes > budgetBytes) {
+      throw new TableRunStateCollectionLimitExceededError(budgetBytes)
     }
-    existing[r.groupId] = meta
-    result.set(r.rowId, existing)
+    const chunk = ids.slice(offset, offset + RUN_STATE_ID_CHUNK_SIZE)
+    // Explicit column list, never `select()` — `enrichmentDetails` is large and
+    // must stay off the hot grid read path (fetched on demand via
+    // `loadEnrichmentDetail`).
+    const rows = await trx
+      .select({
+        rowId: tableRowExecutions.rowId,
+        groupId: tableRowExecutions.groupId,
+        status: tableRowExecutions.status,
+        executionId: tableRowExecutions.executionId,
+        jobId: tableRowExecutions.jobId,
+        workflowId: tableRowExecutions.workflowId,
+        error: tableRowExecutions.error,
+        runningBlockIds: tableRowExecutions.runningBlockIds,
+        blockErrors: tableRowExecutions.blockErrors,
+        cancelledAt: tableRowExecutions.cancelledAt,
+      })
+      .from(tableRowExecutions)
+      .where(inArray(tableRowExecutions.rowId, chunk))
+    for (const r of rows) {
+      const existing = result.get(r.rowId) ?? {}
+      const blockErrors = normalizeBlockErrors(r.blockErrors)
+      const meta: RowExecutionMetadata = {
+        status: r.status as RowExecutionMetadata['status'],
+        executionId: r.executionId ?? null,
+        jobId: r.jobId ?? null,
+        workflowId: r.workflowId,
+        error: r.error ?? null,
+        ...(r.runningBlockIds && r.runningBlockIds.length > 0
+          ? { runningBlockIds: r.runningBlockIds }
+          : {}),
+        ...(blockErrors ? { blockErrors } : {}),
+        ...(r.cancelledAt ? { cancelledAt: r.cancelledAt.toISOString() } : {}),
+      }
+      if (budgetBytes !== undefined) {
+        bytes += Buffer.byteLength(JSON.stringify(meta), 'utf8')
+        if (bytes > budgetBytes) {
+          throw new TableRunStateCollectionLimitExceededError(budgetBytes)
+        }
+      }
+      existing[r.groupId] = meta
+      result.set(r.rowId, existing)
+    }
   }
   return result
 }
 
 /** Convenience: load executions for one row, returning `{}` when missing. */
-export async function loadExecutionsForRow(trx: DbOrTx, rowId: string): Promise<RowExecutions> {
-  const byRow = await loadExecutionsByRow(trx, [rowId])
+export async function loadExecutionsForRow(
+  trx: DbOrTx,
+  rowId: string,
+  options?: LoadExecutionsOptions
+): Promise<RowExecutions> {
+  const byRow = await loadExecutionsByRow(trx, [rowId], options)
   return byRow.get(rowId) ?? {}
 }
 
@@ -212,7 +273,7 @@ export function applyExecutionsPatch(
 /**
  * Writes a per-group execution patch for one row against the `tableRowExecutions`
  * sidecar. Non-null values upsert into the table; nulls delete the entry. When
- * `guard` is set, the upsert is gated to:
+ * `guard` is set, both upserts and null deletions are gated to:
  *  - reject if a `cancelled` row for the same execution already exists, and
  *  - reject if the row exists but is owned by a different executionId
  *    (with carve-outs for missing rows and null executionIds — the dispatcher's
@@ -238,10 +299,21 @@ export async function writeExecutionsPatch(
   if (entries.length === 0) return 'wrote'
 
   for (const [gid, value] of entries) {
+    const isGuarded = guard && guard.groupId === gid
     if (value === null) {
-      await trx
+      const deleteCondition = isGuarded
+        ? and(
+            eq(tableRowExecutions.rowId, rowId),
+            eq(tableRowExecutions.groupId, gid),
+            sql`${tableRowExecutions.status} <> 'cancelled'`,
+            sql`(${tableRowExecutions.executionId} IS NULL OR ${tableRowExecutions.executionId} = ${guard.executionId})`
+          )
+        : and(eq(tableRowExecutions.rowId, rowId), eq(tableRowExecutions.groupId, gid))
+      const deleted = await trx
         .delete(tableRowExecutions)
-        .where(and(eq(tableRowExecutions.rowId, rowId), eq(tableRowExecutions.groupId, gid)) as SQL)
+        .where(deleteCondition as SQL)
+        .returning({ rowId: tableRowExecutions.rowId })
+      if (isGuarded && deleted.length === 0) return 'guard-rejected'
       continue
     }
     const insertValues = {
@@ -256,11 +328,16 @@ export async function writeExecutionsPatch(
       runningBlockIds: value.runningBlockIds ?? [],
       blockErrors: value.blockErrors ?? {},
       cancelledAt: value.cancelledAt ? new Date(value.cancelledAt) : null,
+      /**
+       * Written verbatim rather than made sticky like `enrichmentDetails`: only
+       * an unclaimed pre-stamp is ever read for it, and a re-stamp by a
+       * different dispatch must not inherit the previous run's subject.
+       */
+      capabilityGovernedUserId: value.capabilityGovernedUserId ?? null,
       enrichmentDetails: value.enrichmentDetails ?? null,
       updatedAt: new Date(),
     } as const
 
-    const isGuarded = guard && guard.groupId === gid
     if (isGuarded) {
       // Gate by guard semantics. The original JSONB guard had two AND'd
       // clauses; we collapse them onto the upsert's WHERE so a non-matching
@@ -294,6 +371,7 @@ export async function writeExecutionsPatch(
             runningBlockIds: insertValues.runningBlockIds,
             blockErrors: insertValues.blockErrors,
             cancelledAt: insertValues.cancelledAt,
+            capabilityGovernedUserId: insertValues.capabilityGovernedUserId,
             // Sticky: preserve a prior cascade breakdown when this write omits
             // it (e.g. the running pickup stamp) so only an explicit detail
             // overwrites it. Re-runs delete the row first, so this never serves
@@ -322,6 +400,7 @@ export async function writeExecutionsPatch(
           runningBlockIds: insertValues.runningBlockIds,
           blockErrors: insertValues.blockErrors,
           cancelledAt: insertValues.cancelledAt,
+          capabilityGovernedUserId: insertValues.capabilityGovernedUserId,
           // Sticky: preserve a prior cascade breakdown when this write omits it
           // (e.g. the running pickup stamp) so only an explicit detail overwrites
           // it. Re-runs delete the row first, so this never serves stale detail.
@@ -335,6 +414,87 @@ export async function writeExecutionsPatch(
 }
 
 /**
+ * The governed subject persisted with a cell's dispatcher pre-stamp.
+ *
+ * Read on the drain path only — a worker taking over a `pending` marker it did
+ * not stamp — so the column stays off the hot grid read (`loadExecutionsByRow`)
+ * and never reaches a client. Returns `null` for a marker written before the
+ * column existed and for a genuinely actorless request; both mean the same
+ * thing to the gate.
+ */
+export async function readStampedCapabilitySubject(
+  rowId: string,
+  groupId: string
+): Promise<string | null> {
+  const [stamped] = await db
+    .select({ capabilityGovernedUserId: tableRowExecutions.capabilityGovernedUserId })
+    .from(tableRowExecutions)
+    .where(and(eq(tableRowExecutions.rowId, rowId), eq(tableRowExecutions.groupId, groupId)))
+    .limit(1)
+  return stamped?.capabilityGovernedUserId ?? null
+}
+
+/** One cell whose unclaimed marker {@link cancelPendingMarkersForGovernedSubject} stopped. */
+export interface CancelledCellMarker {
+  tableId: string
+  rowId: string
+  groupId: string
+}
+
+/**
+ * Terminalizes every still-unstarted cell marker stamped with `userId`, in the
+ * caller's transaction.
+ *
+ * Cancelling the departing account's `table_run_dispatches` rows is not enough
+ * on its own. A pre-stamp on `table_row_executions` is drained by whichever
+ * worker holds the row's cascade lock, and that worker's dispatch-cancel guard
+ * consults ITS OWN dispatch — so an unrelated, still-active sibling dispatch
+ * happily drains the deleted person's marker. The subject reference is
+ * `ON DELETE SET NULL`, which by then makes the marker indistinguishable from a
+ * legitimately actorless request: the drain runs it with no per-tool gate at
+ * all. Going terminal here is the same honest reading the dispatch cancel takes
+ * — a deleted person's runs stop rather than silently lose their gate.
+ *
+ * Scoped to `pending`/`queued` because those are the states a marker sits in
+ * before a worker claims it; a claimed or terminal row carries no subject to
+ * match anyway. The written state is the canonical cancel
+ * (`buildCancelledExecution`), which every drain path's `isExecCancelled` check
+ * already refuses to run.
+ *
+ * Returns what it stopped so the caller can announce it: this write is not the
+ * cancel path the UI listens to, and a collaborator watching the table would
+ * otherwise keep the cells on their in-flight pill until something else touched
+ * the row.
+ */
+export async function cancelPendingMarkersForGovernedSubject(
+  trx: DbOrTx,
+  userId: string
+): Promise<CancelledCellMarker[]> {
+  const now = new Date()
+  return trx
+    .update(tableRowExecutions)
+    .set({
+      status: 'cancelled',
+      jobId: null,
+      error: 'Cancelled',
+      runningBlockIds: [],
+      cancelledAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(tableRowExecutions.capabilityGovernedUserId, userId),
+        inArray(tableRowExecutions.status, ['pending', 'queued'])
+      )
+    )
+    .returning({
+      tableId: tableRowExecutions.tableId,
+      rowId: tableRowExecutions.rowId,
+      groupId: tableRowExecutions.groupId,
+    })
+}
+
+/**
  * Strips the given workflow group ids from every row's executions on a table —
  * used by the column / group delete paths so stale running/queued exec records
  * don't linger and inflate counters after the group is gone. The caller wraps
@@ -343,13 +503,22 @@ export async function writeExecutionsPatch(
 export async function stripGroupExecutions(
   trx: DbOrTx,
   tableId: string,
-  groupIds: Iterable<string>
+  groupIds: Iterable<string>,
+  options?: { expectedWorkspaceId?: string }
 ): Promise<void> {
   const ids = Array.from(new Set(groupIds))
   if (ids.length === 0) return
-  await trx
-    .delete(tableRowExecutions)
-    .where(
-      and(eq(tableRowExecutions.tableId, tableId), inArray(tableRowExecutions.groupId, ids)) as SQL
-    )
+  await trx.delete(tableRowExecutions).where(
+    and(
+      eq(tableRowExecutions.tableId, tableId),
+      inArray(tableRowExecutions.groupId, ids),
+      options?.expectedWorkspaceId
+        ? sql`EXISTS (
+              SELECT 1 FROM ${userTableRows}
+              WHERE ${userTableRows.id} = ${tableRowExecutions.rowId}
+                AND ${userTableRows.workspaceId} = ${options.expectedWorkspaceId}
+            )`
+        : undefined
+    ) as SQL
+  )
 }

@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -115,15 +115,17 @@ export function CreateWorkflowMcpServerModal({
         )}
         <ChipModalField type='custom' title='Access'>
           <div className='flex items-center gap-3'>
-            <ButtonGroup
+            <ChipButtonGroup
               value={formData.isPublic ? 'public' : 'private'}
               onValueChange={(value) => setFormData({ ...formData, isPublic: value === 'public' })}
             >
-              <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-              <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-            </ButtonGroup>
+              <ChipButtonGroupItem value='private'>Private</ChipButtonGroupItem>
+              <ChipButtonGroupItem value='public'>Public</ChipButtonGroupItem>
+            </ChipButtonGroup>
             {formData.isPublic && (
-              <span className='text-[var(--text-muted)] text-xs'>No authentication required</span>
+              <span className='text-[var(--text-muted)] text-caption'>
+                No authentication required
+              </span>
             )}
           </div>
         </ChipModalField>

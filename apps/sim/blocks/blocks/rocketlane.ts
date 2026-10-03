@@ -2,6 +2,27 @@ import { RocketlaneIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+/**
+ * Who a membership change targets, for the card sentences below. Rocketlane
+ * accepts either internal user IDs or the same people by email, so both are
+ * listed and the first one the user filled wins.
+ */
+const MEMBER_TARGET_FIELD = ['memberUserIds', 'memberEmailIds'] as const
+
+/** The person a placeholder assignment or a time-off is booked against. */
+const USER_TARGET_FIELD = ['userId', 'userEmail'] as const
+
+/**
+ * What a time entry is logged against. `timeEntrySource` keeps exactly one of
+ * these visible, so the first match is always the real target.
+ */
+const TIME_ENTRY_TARGET_FIELD = [
+  'timeEntryTaskId',
+  'timeEntryProjectId',
+  'timeEntryPhaseId',
+  'timeEntryActivityName',
+] as const
+
 const PROJECT_ID_REQUIRED_OPS = [
   'get_project',
   'update_project',
@@ -283,7 +304,6 @@ function includeList(params: BlockParams) {
 /** Builds the exact param set declared by the selected operation's tool. */
 function buildOperationParams(params: BlockParams): Record<string, unknown> {
   switch (params.operation) {
-    // Projects
     case 'create_project':
       return {
         projectName: toStr(params.projectName),
@@ -398,7 +418,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         placeholderId: toNumber(params.placeholderId),
       }
 
-    // Tasks
     case 'create_task':
       return {
         taskName: toStr(params.taskName),
@@ -478,7 +497,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         dependencyTaskIds: toNumberList(params.dependencyTaskIds),
       }
 
-    // Phases
     case 'create_phase':
       return {
         phaseName: toStr(params.phaseName),
@@ -512,7 +530,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'delete_phase':
       return { phaseId: toNumber(params.phaseId) }
 
-    // Fields
     case 'create_field':
       return {
         fieldLabel: toStr(params.fieldLabel),
@@ -562,7 +579,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         optionColor: toStr(params.optionColor),
       }
 
-    // Time entries
     case 'create_time_entry': {
       const source = params.timeEntrySource ?? 'task'
       return {
@@ -643,7 +659,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'list_time_entry_categories':
       return pageParams(params)
 
-    // Time-offs
     case 'create_time_off':
       return {
         userId: toNumber(params.userId),
@@ -676,7 +691,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'delete_time_off':
       return { timeOffId: toNumber(params.timeOffId) }
 
-    // Users
     case 'get_user':
       return { userId: toNumber(params.userId), ...includeCsv(params) }
     case 'list_users':
@@ -692,7 +706,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         typeEq: toStr(params.userTypeEq),
       }
 
-    // Spaces
     case 'create_space':
       return {
         projectId: toNumber(params.projectId),
@@ -718,7 +731,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'delete_space':
       return { spaceId: toNumber(params.spaceId) }
 
-    // Space documents
     case 'create_space_document':
       return {
         spaceId: toNumber(params.spaceId),
@@ -751,7 +763,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'delete_space_document':
       return { spaceDocumentId: toNumber(params.spaceDocumentId) }
 
-    // Resource allocations
     case 'list_resource_allocations':
       return {
         startDate: toStr(params.startDate),
@@ -764,7 +775,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         placeholderIdEq: toStr(params.placeholderIdEq),
       }
 
-    // Invoices
     case 'get_invoice':
       return { invoiceId: toNumber(params.invoiceId), ...includeList(params) }
     case 'list_invoices':
@@ -807,6 +817,230 @@ export const RocketlaneBlock: BlockConfig = {
   bgColor: '#000000',
   icon: RocketlaneIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Rocketlane',
+    sentences: {
+      byOperation: {
+        create_project: [
+          { text: 'Create project', field: 'projectName', core: true },
+          { text: 'for', field: 'customerCompanyName' },
+          { text: ', due', field: 'dueDate' },
+        ],
+        get_project: [{ text: 'Read project', field: 'projectId', core: true }],
+        list_projects: [
+          'List projects',
+          { text: ', matching', field: 'projectNameContains' },
+          { text: ', with status', field: 'statusEquals' },
+        ],
+        update_project: [
+          { text: 'Update project', field: 'projectId', core: true },
+          { text: ', renaming to', field: 'projectName' },
+          { text: ', with status', field: 'statusValue' },
+        ],
+        archive_project: [{ text: 'Archive project', field: 'projectId', core: true }],
+        delete_project: [{ text: 'Delete project', field: 'projectId', core: true }],
+        add_project_members: [
+          { text: 'Add', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'to project', field: 'projectId', core: true },
+        ],
+        remove_project_members: [
+          { text: 'Remove', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'from project', field: 'projectId', core: true },
+        ],
+        import_template: [
+          { text: 'Import template', field: 'templateId', core: true },
+          { text: 'into project', field: 'projectId' },
+        ],
+        list_placeholders: [
+          { text: 'List placeholders in project', field: 'projectId', core: true },
+        ],
+        assign_placeholders: [
+          { text: 'Assign placeholder', field: 'placeholderId', core: true },
+          { text: 'to', field: USER_TARGET_FIELD },
+          { text: 'in project', field: 'projectId' },
+        ],
+        unassign_placeholders: [
+          { text: 'Clear the assignee on placeholder', field: 'placeholderId', core: true },
+          { text: 'in project', field: 'projectId' },
+        ],
+        create_task: [
+          { text: 'Create task', field: 'taskName', core: true },
+          { text: 'in project', field: 'projectId' },
+          { text: ', due', field: 'dueDate' },
+        ],
+        get_task: [{ text: 'Read task', field: 'taskId', core: true }],
+        list_tasks: [
+          'List tasks',
+          { text: 'in project', field: 'projectId' },
+          { text: ', with status', field: 'taskStatus' },
+        ],
+        update_task: [
+          { text: 'Update task', field: 'taskId', core: true },
+          { text: ', renaming to', field: 'taskName' },
+          { text: ', with status', field: 'statusValue' },
+        ],
+        delete_task: [{ text: 'Delete task', field: 'taskId', core: true }],
+        move_task_to_phase: [
+          { text: 'Move task', field: 'taskId', core: true },
+          { text: 'to phase', field: 'phaseId' },
+        ],
+        add_task_assignees: [
+          { text: 'Assign', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'to task', field: 'taskId', core: true },
+        ],
+        remove_task_assignees: [
+          { text: 'Unassign', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'from task', field: 'taskId', core: true },
+        ],
+        add_task_followers: [
+          { text: 'Add', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'as followers of task', field: 'taskId', core: true },
+        ],
+        remove_task_followers: [
+          { text: 'Remove', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'from the followers of task', field: 'taskId', core: true },
+        ],
+        add_task_dependencies: [
+          { text: 'Make task', field: 'taskId', core: true },
+          { text: 'depend on', field: 'dependencyTaskIds', core: true },
+        ],
+        remove_task_dependencies: [
+          { text: 'Stop task', field: 'taskId', core: true },
+          {
+            text: 'from depending on',
+            field: 'dependencyTaskIds',
+            core: true,
+          },
+        ],
+        create_phase: [
+          { text: 'Create phase', field: 'phaseName', core: true },
+          { text: 'in project', field: 'projectId' },
+          { text: ', due', field: 'dueDate' },
+        ],
+        get_phase: [{ text: 'Read phase', field: 'phaseId', core: true }],
+        list_phases: [
+          { text: 'List phases in project', field: 'projectId', core: true },
+          { text: ', named', field: 'phaseName' },
+        ],
+        update_phase: [
+          { text: 'Update phase', field: 'phaseId', core: true },
+          { text: ', renaming to', field: 'phaseName' },
+          { text: ', with status', field: 'statusValue' },
+        ],
+        delete_phase: [{ text: 'Delete phase', field: 'phaseId', core: true }],
+        create_field: [
+          { text: 'Create field', field: 'fieldLabel', core: true },
+          { text: 'of type', field: 'fieldType' },
+          { text: 'on', field: 'objectType' },
+        ],
+        get_field: [{ text: 'Read field', field: 'fieldId', core: true }],
+        list_fields: [
+          'List custom fields',
+          { text: ', of type', field: 'fieldType' },
+          { text: ', on', field: 'objectType' },
+        ],
+        update_field: [
+          { text: 'Update field', field: 'fieldId', core: true },
+          { text: ', renaming to', field: 'fieldLabel' },
+        ],
+        delete_field: [{ text: 'Delete field', field: 'fieldId', core: true }],
+        add_field_option: [
+          { text: 'Add option', field: 'optionLabel', core: true },
+          { text: 'to field', field: 'fieldId' },
+        ],
+        update_field_option: [
+          { text: 'Update option', field: 'optionValue', core: true },
+          { text: 'on field', field: 'fieldId' },
+          { text: ', renaming to', field: 'optionLabel' },
+        ],
+        create_time_entry: [
+          { text: 'Log', field: 'minutes', after: 'minutes', core: true },
+          { text: 'against', field: TIME_ENTRY_TARGET_FIELD },
+          { text: 'on', field: 'date' },
+        ],
+        get_time_entry: [{ text: 'Read time entry', field: 'timeEntryId', core: true }],
+        list_time_entries: [
+          'List time entries',
+          { text: ', on', field: 'dateEq' },
+          { text: ', for user', field: 'userIdEq' },
+        ],
+        search_time_entries: [
+          'Search time entries',
+          { text: ', on', field: 'dateEq' },
+          { text: ', for project', field: 'projectIdEq' },
+        ],
+        update_time_entry: [
+          { text: 'Update time entry', field: 'timeEntryId', core: true },
+          { text: ', setting', field: 'minutes', after: 'minutes' },
+        ],
+        delete_time_entry: [{ text: 'Delete time entry', field: 'timeEntryId', core: true }],
+        list_time_entry_categories: ['List time entry categories'],
+        create_time_off: [
+          { text: 'Book time off for', field: USER_TARGET_FIELD, core: true },
+          { text: 'from', field: 'startDate', core: true },
+          { text: 'to', field: 'endDate', core: true },
+        ],
+        get_time_off: [{ text: 'Read time-off', field: 'timeOffId', core: true }],
+        list_time_offs: [
+          'List time-offs',
+          { text: ', for user', field: ['userIdEq', 'emailIdEq'] },
+          { text: ', of type', field: 'timeOffTypeEq' },
+        ],
+        delete_time_off: [{ text: 'Delete time-off', field: 'timeOffId', core: true }],
+        get_user: [{ text: 'Read user', field: 'userId', core: true }],
+        list_users: [
+          'List users',
+          { text: ', with email', field: ['emailEq', 'emailCn'] },
+          { text: ', with status', field: 'userStatusEq' },
+        ],
+        create_space: [
+          { text: 'Create space', field: 'spaceName', core: true },
+          { text: 'in project', field: 'projectId' },
+        ],
+        get_space: [{ text: 'Read space', field: 'spaceId', core: true }],
+        list_spaces: [
+          { text: 'List spaces in project', field: 'projectId', core: true },
+          { text: ', named', field: ['spaceNameEq', 'spaceNameCn'] },
+        ],
+        update_space: [
+          { text: 'Update space', field: 'spaceId', core: true },
+          { text: ', renaming to', field: 'spaceName' },
+        ],
+        delete_space: [{ text: 'Delete space', field: 'spaceId', core: true }],
+        create_space_document: [
+          { text: 'Create', field: 'spaceDocumentName', core: true },
+          { text: 'in space', field: 'spaceId', core: true },
+        ],
+        get_space_document: [{ text: 'Read document', field: 'spaceDocumentId', core: true }],
+        list_space_documents: [
+          { text: 'List documents in project', field: 'projectId', core: true },
+          { text: ', in space', field: 'spaceIdEq' },
+        ],
+        update_space_document: [
+          { text: 'Update document', field: 'spaceDocumentId', core: true },
+          { text: ', renaming to', field: 'spaceDocumentName' },
+        ],
+        delete_space_document: [{ text: 'Delete document', field: 'spaceDocumentId', core: true }],
+        list_resource_allocations: [
+          { text: 'List resource allocations from', field: 'startDate', core: true },
+          { text: 'to', field: 'endDate', core: true },
+          { text: ', for project', field: 'projectIdEq' },
+        ],
+        get_invoice: [{ text: 'Read invoice', field: 'invoiceId', core: true }],
+        list_invoices: [
+          'List invoices',
+          { text: ', with status', field: ['invoiceStatusEq', 'invoiceStatusOneOf'] },
+          { text: ', for company', field: ['companyIdEq', 'companyIdOneOf'] },
+        ],
+        get_invoice_line_items: [
+          { text: 'List line items on invoice', field: 'invoiceId', core: true },
+        ],
+        get_invoice_payments: [
+          { text: 'List payments recorded against invoice', field: 'invoiceId', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -814,7 +1048,6 @@ export const RocketlaneBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Projects
         { label: 'Create Project', id: 'create_project' },
         { label: 'Get Project', id: 'get_project' },
         { label: 'List Projects', id: 'list_projects' },
@@ -827,7 +1060,6 @@ export const RocketlaneBlock: BlockConfig = {
         { label: 'List Placeholders', id: 'list_placeholders' },
         { label: 'Assign Placeholder', id: 'assign_placeholders' },
         { label: 'Unassign Placeholder', id: 'unassign_placeholders' },
-        // Tasks
         { label: 'Create Task', id: 'create_task' },
         { label: 'Get Task', id: 'get_task' },
         { label: 'List Tasks', id: 'list_tasks' },
@@ -840,13 +1072,11 @@ export const RocketlaneBlock: BlockConfig = {
         { label: 'Remove Task Followers', id: 'remove_task_followers' },
         { label: 'Add Task Dependencies', id: 'add_task_dependencies' },
         { label: 'Remove Task Dependencies', id: 'remove_task_dependencies' },
-        // Phases
         { label: 'Create Phase', id: 'create_phase' },
         { label: 'Get Phase', id: 'get_phase' },
         { label: 'List Phases', id: 'list_phases' },
         { label: 'Update Phase', id: 'update_phase' },
         { label: 'Delete Phase', id: 'delete_phase' },
-        // Fields
         { label: 'Create Field', id: 'create_field' },
         { label: 'Get Field', id: 'get_field' },
         { label: 'List Fields', id: 'list_fields' },
@@ -854,7 +1084,6 @@ export const RocketlaneBlock: BlockConfig = {
         { label: 'Delete Field', id: 'delete_field' },
         { label: 'Add Field Option', id: 'add_field_option' },
         { label: 'Update Field Option', id: 'update_field_option' },
-        // Time entries
         { label: 'Create Time Entry', id: 'create_time_entry' },
         { label: 'Get Time Entry', id: 'get_time_entry' },
         { label: 'List Time Entries', id: 'list_time_entries' },
@@ -862,29 +1091,23 @@ export const RocketlaneBlock: BlockConfig = {
         { label: 'Update Time Entry', id: 'update_time_entry' },
         { label: 'Delete Time Entry', id: 'delete_time_entry' },
         { label: 'List Time Entry Categories', id: 'list_time_entry_categories' },
-        // Time-offs
         { label: 'Create Time-Off', id: 'create_time_off' },
         { label: 'Get Time-Off', id: 'get_time_off' },
         { label: 'List Time-Offs', id: 'list_time_offs' },
         { label: 'Delete Time-Off', id: 'delete_time_off' },
-        // Users
         { label: 'Get User', id: 'get_user' },
         { label: 'List Users', id: 'list_users' },
-        // Spaces
         { label: 'Create Space', id: 'create_space' },
         { label: 'Get Space', id: 'get_space' },
         { label: 'List Spaces', id: 'list_spaces' },
         { label: 'Update Space', id: 'update_space' },
         { label: 'Delete Space', id: 'delete_space' },
-        // Space documents
         { label: 'Create Space Document', id: 'create_space_document' },
         { label: 'Get Space Document', id: 'get_space_document' },
         { label: 'List Space Documents', id: 'list_space_documents' },
         { label: 'Update Space Document', id: 'update_space_document' },
         { label: 'Delete Space Document', id: 'delete_space_document' },
-        // Resource allocations
         { label: 'List Resource Allocations', id: 'list_resource_allocations' },
-        // Invoices
         { label: 'Get Invoice', id: 'get_invoice' },
         { label: 'List Invoices', id: 'list_invoices' },
         { label: 'Get Invoice Line Items', id: 'get_invoice_line_items' },
@@ -893,7 +1116,6 @@ export const RocketlaneBlock: BlockConfig = {
       value: () => 'list_projects',
     },
 
-    // Shared identifiers
     {
       id: 'projectId',
       title: 'Project ID',
@@ -996,7 +1218,6 @@ export const RocketlaneBlock: BlockConfig = {
       },
     },
 
-    // Project fields
     {
       id: 'projectName',
       title: 'Project Name',
@@ -1282,7 +1503,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_project' },
     },
 
-    // Members / assignees / followers / dependencies
     {
       id: 'memberUserIds',
       title: 'Member User IDs',
@@ -1313,7 +1533,6 @@ export const RocketlaneBlock: BlockConfig = {
       },
     },
 
-    // Task fields
     {
       id: 'taskName',
       title: 'Task Name',
@@ -1421,7 +1640,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: EXTERNAL_REFERENCE_OPS },
     },
 
-    // Phase fields
     {
       id: 'phaseName',
       title: 'Phase Name',
@@ -1431,7 +1649,6 @@ export const RocketlaneBlock: BlockConfig = {
       required: { field: 'operation', value: 'create_phase' },
     },
 
-    // Field (custom field) configuration
     {
       id: 'fieldLabel',
       title: 'Field Label',
@@ -1573,7 +1790,6 @@ export const RocketlaneBlock: BlockConfig = {
       required: { field: 'operation', value: 'update_field_option' },
     },
 
-    // Template import
     {
       id: 'templateId',
       title: 'Template ID',
@@ -1591,7 +1807,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'import_template' },
     },
 
-    // Dates
     {
       id: 'startDate',
       title: 'Start Date',
@@ -1625,7 +1840,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: STATUS_VALUE_OPS },
     },
 
-    // Time entry fields
     {
       id: 'date',
       title: 'Date',
@@ -1750,7 +1964,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry'] },
     },
 
-    // Time-off fields
     {
       id: 'timeOffType',
       title: 'Time-Off Type',
@@ -1811,7 +2024,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_time_off' },
     },
 
-    // Space fields
     {
       id: 'spaceName',
       title: 'Space Name',
@@ -1821,7 +2033,6 @@ export const RocketlaneBlock: BlockConfig = {
       required: { field: 'operation', value: 'create_space' },
     },
 
-    // Space document fields
     {
       id: 'spaceDocumentType',
       title: 'Document Type',
@@ -1857,7 +2068,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_space_document' },
     },
 
-    // List filters — projects
     {
       id: 'projectNameContains',
       title: 'Project Name Contains',
@@ -1973,7 +2183,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_projects' },
     },
 
-    // List filters — tasks
     {
       id: 'taskNameContains',
       title: 'Task Name Contains',
@@ -2029,7 +2238,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_tasks' },
     },
 
-    // List filters — time entries (shared with search)
     {
       id: 'dateEq',
       title: 'Date Equals',
@@ -2205,7 +2413,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: CREATED_UPDATED_AT_OPS },
     },
 
-    // List filters — time-offs
     {
       id: 'startDateGe',
       title: 'Start Date On or After',
@@ -2253,7 +2460,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_time_offs' },
     },
 
-    // List filters — users
     {
       id: 'firstNameCn',
       title: 'First Name Contains',
@@ -2314,7 +2520,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_users' },
     },
 
-    // List filters — spaces / space documents
     {
       id: 'spaceNameEq',
       title: 'Space Name Equals',
@@ -2352,7 +2557,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_space_documents' },
     },
 
-    // List filters — resource allocations
     {
       id: 'memberIdEq',
       title: 'Member ID Filter',
@@ -2370,7 +2574,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_resource_allocations' },
     },
 
-    // List filters — invoices
     {
       id: 'invoiceStatusEq',
       title: 'Invoice Status',
@@ -2473,7 +2676,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_invoices' },
     },
 
-    // Shared list controls
     {
       id: 'sortBy',
       title: 'Sort By',
@@ -2540,7 +2742,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: PAGINATED_OPS },
     },
 
-    // Credential
     {
       id: 'apiKey',
       title: 'API Key',

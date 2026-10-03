@@ -24,6 +24,19 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{/*
+Create a CronJob name that leaves room for the Job controller's generated suffix.
+Long names retain a stable hash so independently configured jobs cannot collide.
+*/}}
+{{- define "sim.cronjobName" -}}
+{{- $name := printf "%s-%s" (include "sim.fullname" .root) .jobName -}}
+{{- if gt (len $name) 52 -}}
+{{- printf "%s-%s" ($name | trunc 43 | trimSuffix "-") ($name | sha256sum | trunc 8) -}}
+{{- else -}}
+{{- $name -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "sim.chart" -}}
@@ -83,6 +96,11 @@ Realtime selector labels
 {{- define "sim.realtime.selectorLabels" -}}
 {{ include "sim.selectorLabels" . }}
 app.kubernetes.io/component: realtime
+{{- end }}
+
+{{- define "sim.redis.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
+app.kubernetes.io/component: redis
 {{- end }}
 
 {{/*
@@ -457,6 +475,22 @@ PII (Presidio) service URL
 {{- else }}
 {{- .Values.app.env.PII_URL | default "http://localhost:5001" }}
 {{- end }}
+{{- end }}
+
+{{/*
+Whether the chart owns Redis for this release.
+
+False only when the operator points app.env.REDIS_URL at their own instance —
+then deploying a bundled one would leave an unused pod. Secret-manager modes do
+NOT suppress it: the bundled URL ships as a ConfigMap listed before the app
+Secret in envFrom, so any operator-supplied REDIS_URL (chart Secret, pre-created
+Secret, or ESO-synced) overrides it without the chart needing to see the value.
+See templates/configmap-redis.yaml.
+*/}}
+{{- define "sim.chartManagesRedis" -}}
+{{- if and .Values.redis.enabled (not (.Values.app.env.REDIS_URL | default "")) -}}
+true
+{{- end -}}
 {{- end }}
 
 {{/*

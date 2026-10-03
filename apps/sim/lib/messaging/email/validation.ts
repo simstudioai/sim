@@ -1,3 +1,5 @@
+import { isValidEmailSyntax } from '@sim/utils/string'
+
 export interface EmailValidationResult {
   isValid: boolean
   reason?: string
@@ -39,15 +41,6 @@ const DISPOSABLE_DOMAINS = new Set([
 ])
 
 /**
- * Validates email syntax using RFC 5322 compliant regex
- */
-function validateEmailSyntax(email: string): boolean {
-  const emailRegex =
-    /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
-  return emailRegex.test(email) && email.length <= 254
-}
-
-/**
  * Checks if email is from a known disposable email provider
  */
 function isDisposableEmail(email: string): boolean {
@@ -78,7 +71,7 @@ export function quickValidateEmail(email: string): EmailValidationResult {
     disposable: false,
   }
 
-  checks.syntax = validateEmailSyntax(email)
+  checks.syntax = isValidEmailSyntax(email)
   if (!checks.syntax) {
     return {
       isValid: false,
@@ -132,4 +125,18 @@ export function quickValidateEmail(email: string): EmailValidationResult {
     confidence: 'medium',
     checks,
   }
+}
+
+/**
+ * App-level policy for a single access-allowlist entry, applied on top of the
+ * caller's format gate. A bare `@domain` entry carries no local part, so the
+ * address-level checks (disposable providers, suspicious patterns) only apply
+ * to full addresses.
+ *
+ * @returns the rejection reason, or `null` when the entry is accepted.
+ */
+export function validateAllowlistEntry(entry: string): string | null {
+  if (entry.startsWith('@')) return null
+  const result = quickValidateEmail(entry)
+  return result.isValid ? null : (result.reason ?? 'Invalid email')
 }

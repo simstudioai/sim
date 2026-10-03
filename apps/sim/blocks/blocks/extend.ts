@@ -7,9 +7,11 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { ExtendParserOutput } from '@/tools/extend/types'
 
-export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
+const EXTEND_DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
+const EXTEND_V2_FILE_FIELD = ['fileUpload', 'fileReference'] as const
+
+export const ExtendBlock: BlockConfig = {
   type: 'extend',
   name: 'Extend',
   description: 'Parse and extract content from documents',
@@ -23,6 +25,15 @@ export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
   integrationType: IntegrationType.AI,
   bgColor: '#000000',
   icon: ExtendIcon,
+  canvasPresentation: {
+    defaultTitle: 'Extend',
+    sentences: {
+      default: [
+        { text: 'Parse', field: EXTEND_DOCUMENT_FIELD, core: true },
+        { text: 'into', field: 'outputFormat' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'fileUpload',
@@ -164,7 +175,7 @@ const extendV2SubBlocks = (ExtendBlock.subBlocks || []).flatMap((subBlock) => {
   return [subBlock]
 })
 
-export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
+export const ExtendV2Block: BlockConfig = {
   ...ExtendBlock,
   sunset: undefined,
   type: 'extend_v2',
@@ -172,6 +183,15 @@ export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
   hideFromToolbar: false,
   longDescription:
     'Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.',
+  canvasPresentation: {
+    defaultTitle: 'Extend',
+    sentences: {
+      default: [
+        { text: 'Parse', field: EXTEND_V2_FILE_FIELD, core: true },
+        { text: 'into', field: 'outputFormat' },
+      ],
+    },
+  },
   subBlocks: extendV2SubBlocks,
   tools: {
     access: ['extend_parser_v2'],

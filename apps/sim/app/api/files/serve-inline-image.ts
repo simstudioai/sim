@@ -2,14 +2,17 @@ import { createLogger } from '@sim/logger'
 import type { NextResponse } from 'next/server'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import type { ResolvedInlineImage } from '@/lib/uploads/server/inline-image'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { createFileResponse, FileNotFoundError } from '@/app/api/files/utils'
 
 const logger = createLogger('InlineImageServe')
 
 /**
- * A shared/edited/deleted file must never serve stale bytes from its fixed inline URL, so every inline
- * image revalidates on each request.
+ * An embedded image is authenticated content served from a fixed inline URL, and the file behind it can
+ * be DELETED or its access REVOKED at any time — so it always revalidates, letting each request re-run the
+ * server-side deletion/authorization check rather than serving a stale (possibly no-longer-authorized)
+ * image from cache. Private so no shared cache/CDN ever stores it.
  */
 const INLINE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
 
@@ -23,7 +26,11 @@ export async function serveInlineImage(
   image: ResolvedInlineImage,
   { sniff }: { sniff: boolean }
 ): Promise<NextResponse> {
-  const buffer = await downloadFile({ key: image.key, context: 'workspace' })
+  const buffer = await downloadFile({
+    key: image.key,
+    context: 'workspace',
+    maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+  })
 
   let contentType = image.contentType
   if (sniff) {

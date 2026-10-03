@@ -49,6 +49,10 @@ export const reactTool: ToolConfig<DSPyReActParams, DSPyReActResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ task: params.task, context: params.context }),
+    },
     method: 'POST',
     url: (params) => {
       const baseUrl = params.baseUrl.replace(/\/$/, '')

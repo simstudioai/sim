@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -21,7 +21,7 @@ const logger = createLogger('CreateApiKeyModal')
 interface CreateApiKeyModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  workspaceId?: string
   existingKeyNames?: string[]
   allowPersonalApiKeys?: boolean
   canManageWorkspaceKeys?: boolean
@@ -54,9 +54,35 @@ export function CreateApiKeyModal({
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
 
+  /**
+   * The form is seeded when the modal OPENS, not when this component mounts.
+   *
+   * It mounts with its host page, and on the settings page `defaultKeyType` is
+   * computed from a permission-group policy that is still loading at that
+   * moment — so it starts as the fail-closed `'workspace'` and only becomes
+   * `'personal'` once the query answers. Seeding once at mount left a non-admin
+   * holding `'workspace'`, which they may not create, with no type selector
+   * rendered to change it and Create permanently disabled.
+   *
+   * Adjusting during render off the previous `open` rather than in an effect:
+   * there is no external system to synchronize with, only a prop transition.
+   */
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setKeyName('')
+      setKeyType(defaultKeyType)
+      setCreateError(null)
+    }
+  }
+
+  const canCreateKeyType =
+    keyType === 'personal' ? allowPersonalApiKeys : canManageWorkspaceKeys && Boolean(workspaceId)
+
   const handleCreateKey = async () => {
     const trimmedName = keyName.trim()
-    if (!trimmedName) return
+    if (!trimmedName || !canCreateKeyType || createApiKeyMutation.isPending) return
 
     const isDuplicate = existingKeyNames.some(
       (name) => name.toLowerCase() === trimmedName.toLowerCase()
@@ -72,18 +98,20 @@ export function CreateApiKeyModal({
 
     setCreateError(null)
     try {
-      const data = await createApiKeyMutation.mutateAsync({
-        workspaceId,
-        name: trimmedName,
-        keyType,
-        source,
-      })
+      if (keyType === 'workspace' && !workspaceId) return
+      const data = await createApiKeyMutation.mutateAsync(
+        keyType === 'workspace' && workspaceId
+          ? {
+              workspaceId,
+              name: trimmedName,
+              keyType,
+              source,
+            }
+          : { keyType: 'personal', name: trimmedName, source }
+      )
 
       setNewKey(data.key)
       setShowNewKeyDialog(true)
-      setKeyName('')
-      setKeyType(defaultKeyType)
-      setCreateError(null)
       onOpenChange(false)
       onKeyCreated?.(data.key)
     } catch (error: unknown) {
@@ -98,37 +126,40 @@ export function CreateApiKeyModal({
   }
 
   const handleClose = () => {
-    onOpenChange(false)
-    setKeyName('')
-    setKeyType(defaultKeyType)
-    setCreateError(null)
+    if (!createApiKeyMutation.isPending) onOpenChange(false)
   }
 
   return (
     <>
-      {/* Create API Key Dialog */}
-      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create new API key'>
+      <ChipModal
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!createApiKeyMutation.isPending) onOpenChange(nextOpen)
+        }}
+        dismissDisabled={createApiKeyMutation.isPending}
+        srTitle='Create new API key'
+      >
         <ChipModalHeader onClose={handleClose}>Create new API key</ChipModalHeader>
         <ChipModalBody>
           {canManageWorkspaceKeys && (
-            <ChipModalField type='custom' title='API Key Type'>
-              <ButtonGroup
+            <ChipModalField type='custom' title='Key type'>
+              <ChipButtonGroup
                 value={keyType}
                 onValueChange={(value) => {
                   setKeyType(value as 'personal' | 'workspace')
                   if (createError) setCreateError(null)
                 }}
               >
-                <ButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
+                <ChipButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
                   Personal
-                </ButtonGroupItem>
-                <ButtonGroupItem value='workspace'>Workspace</ButtonGroupItem>
-              </ButtonGroup>
+                </ChipButtonGroupItem>
+                <ChipButtonGroupItem value='workspace'>Workspace</ChipButtonGroupItem>
+              </ChipButtonGroup>
             </ChipModalField>
           )}
           <ChipModalField
             type='input'
-            title='Enter a name for your API key to help you identify it later.'
+            title='Name'
             value={keyName}
             onChange={(value) => {
               setKeyName(value)
@@ -144,12 +175,7 @@ export function CreateApiKeyModal({
             name='fakeusernameremembered'
             autoComplete='username'
             aria-hidden='true'
-            style={{
-              position: 'absolute',
-              left: '-9999px',
-              opacity: 0,
-              pointerEvents: 'none',
-            }}
+            className='-left-[9999px] pointer-events-none absolute opacity-0'
             tabIndex={-1}
             readOnly
           />
@@ -160,15 +186,11 @@ export function CreateApiKeyModal({
           primaryAction={{
             label: createApiKeyMutation.isPending ? 'Creating...' : 'Create',
             onClick: handleCreateKey,
-            disabled:
-              !keyName.trim() ||
-              createApiKeyMutation.isPending ||
-              (keyType === 'workspace' && !canManageWorkspaceKeys),
+            disabled: !keyName.trim() || createApiKeyMutation.isPending || !canCreateKeyType,
           }}
         />
       </ChipModal>
 
-      {/* New API Key Dialog - shows the created key */}
       <ChipModal
         open={showNewKeyDialog}
         onOpenChange={(dialogOpen: boolean) => {

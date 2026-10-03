@@ -9,7 +9,8 @@
  * holds the two request paths together.
  */
 
-import type { PiSearchProvider } from '@/executor/handlers/pi/keys'
+import { isRecordLike } from '@sim/utils/object'
+import type { PiSearchProvider } from '@/executor/handlers/pi/core/keys'
 
 /** The tool name Pi sees, in every mode. */
 export const PI_SEARCH_TOOL_NAME = 'web_search'
@@ -169,14 +170,10 @@ export function buildPiSearchProviderArgs(
     case 'serper':
       return { query, num: numResults }
     case 'parallel':
-      return { objective: query, max_results: numResults }
+      return { search_queries: [query], objective: query, max_results: numResults }
     case 'firecrawl':
       return { query, limit: numResults }
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function asText(value: unknown): string {
@@ -258,7 +255,7 @@ export function buildPiSearchResult(fields: {
  */
 function firecrawlRecords(data: unknown): unknown[] {
   if (Array.isArray(data)) return data
-  if (!isRecord(data)) return []
+  if (!isRecordLike(data)) return []
   return Object.values(data).flatMap((value) => (Array.isArray(value) ? value : []))
 }
 
@@ -276,7 +273,7 @@ export function normalizePiSearchRecords(
 
   for (const record of records) {
     if (results.length >= limit) break
-    if (!isRecord(record)) continue
+    if (!isRecordLike(record)) continue
 
     let built: PiSearchResult | undefined
     switch (provider) {
@@ -328,7 +325,7 @@ export function normalizePiSearchRecords(
 
 /** Extracts the provider's result records from a normalized-or-raw response payload. */
 export function extractPiSearchRecords(provider: PiSearchProvider, payload: unknown): unknown[] {
-  if (!isRecord(payload)) return []
+  if (!isRecordLike(payload)) return []
   switch (provider) {
     case 'exa':
       return Array.isArray(payload.results) ? payload.results : []

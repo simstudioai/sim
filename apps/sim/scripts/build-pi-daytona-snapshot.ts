@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 
 /**
- * Builds the Daytona snapshot used by Create PR and Review Code — the failover
- * counterpart of `build-pi-e2b-template.ts`.
+ * Builds the Daytona snapshot used by Create PR (including its optional Babysit
+ * continuation) and Review Code — the failover counterpart of
+ * `build-pi-e2b-template.ts`.
  *
  * Both renderers consume `pi-sandbox-packages.ts`, so the two providers cannot
  * drift apart.
@@ -27,21 +28,33 @@ import { Daytona, Image } from '@daytona/sdk'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   PI_APT,
+  PI_BUN_VERSION_ASSERT,
+  PI_GLOBAL_NPM_PACKAGES,
   PI_NODE_MAJOR,
   PI_NODE_VERSION_ASSERT,
-  PI_NPM,
+  PI_SANDBOX_CPU_COUNT,
+  PI_SANDBOX_MEMORY_GB,
 } from '@/scripts/pi-sandbox-packages'
 
 /** Matches E2B's base: Debian 13 (trixie) with Python 3.13 installed to /usr/local. */
 const BASE_IMAGE = 'python:3.13-slim-trixie'
 
 /**
- * `daytona-large` sizing. 10 GB is a HARD per-sandbox disk cap — the API rejects
- * anything larger ("Disk request 20GB exceeds maximum allowed per sandbox
- * (10GB)"), regardless of plan tier, and raising it requires contacting Daytona.
- * That is the binding constraint on how large a repo Pi can clone here.
+ * CPU and memory come from the shared module so the two providers cannot drift
+ * apart on sizing the way they already had — see {@link PI_SANDBOX_CPU_COUNT}.
+ *
+ * Disk stays local because it is not shareable: 10 GB is a HARD per-sandbox cap
+ * here — the API rejects anything larger ("Disk request 20GB exceeds maximum
+ * allowed per sandbox (10GB)"), regardless of plan tier, and raising it requires
+ * contacting Daytona. E2B allows 20 GB, so this is the binding constraint on how
+ * large a repo Pi can clone on the failover provider, and the one dimension where
+ * the two images legitimately differ.
  */
-const RESOURCES = { cpu: 4, memory: 8, disk: 10 } as const
+const RESOURCES = {
+  cpu: PI_SANDBOX_CPU_COUNT,
+  memory: PI_SANDBOX_MEMORY_GB,
+  disk: 10,
+} as const
 
 const APT_PREFIX = 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends'
 
@@ -51,7 +64,8 @@ export const piImage = Image.base(BASE_IMAGE).runCommands(
   // ships an older Node fails here rather than at the first agent run.
   `apt-get update && curl -fsSL https://deb.nodesource.com/setup_${PI_NODE_MAJOR}.x | bash - && ${APT_PREFIX} nodejs && rm -rf /var/lib/apt/lists/* && ${PI_NODE_VERSION_ASSERT}`,
   `apt-get update && ${APT_PREFIX} ${PI_APT.join(' ')} && rm -rf /var/lib/apt/lists/*`,
-  `npm install -g ${PI_NPM.join(' ')}`,
+  `npm install -g ${PI_GLOBAL_NPM_PACKAGES.join(' ')}`,
+  PI_BUN_VERSION_ASSERT,
   // The clone target. E2B's base ships a world-writable /code; Pi writes to
   // /workspace (cloud-review-tools.ts:14), so create it explicitly.
   'mkdir -p /workspace'

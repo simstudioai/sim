@@ -201,6 +201,229 @@ export const RipplingBlock: BlockConfig = {
   bgColor: '#502D3C',
   icon: RipplingIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Rippling',
+    sentences: {
+      byOperation: {
+        list_workers: [
+          'List workers',
+          { text: ', matching', field: 'filter' },
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_worker: [{ text: 'Fetch worker', field: 'id', core: true }],
+        list_users: ['List users', { text: ', sorted by', field: 'orderBy' }],
+        get_user: [{ text: 'Fetch user', field: 'id', core: true }],
+        list_companies: ['List companies', { text: ', sorted by', field: 'orderBy' }],
+        get_current_user: ['Read SSO details for the current user'],
+        list_entitlements: ['List entitlements'],
+        list_departments: ['List departments', { text: ', sorted by', field: 'orderBy' }],
+        get_department: [{ text: 'Fetch department', field: 'id', core: true }],
+        create_department: [
+          { text: 'Create department', field: 'name', core: true },
+          { text: ', under parent', field: 'parentId' },
+        ],
+        update_department: [
+          { text: 'Update department', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', under parent', field: 'parentId' },
+        ],
+        list_teams: ['List teams', { text: ', sorted by', field: 'orderBy' }],
+        get_team: [{ text: 'Fetch team', field: 'id', core: true }],
+        list_employment_types: ['List employment types', { text: ', sorted by', field: 'orderBy' }],
+        get_employment_type: [{ text: 'Fetch employment type', field: 'id', core: true }],
+        list_titles: ['List job titles', { text: ', sorted by', field: 'orderBy' }],
+        get_title: [{ text: 'Fetch job title', field: 'id', core: true }],
+        create_title: [{ text: 'Create job title', field: 'name', core: true }],
+        update_title: [
+          { text: 'Update job title', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_title: [{ text: 'Delete job title', field: 'id', core: true }],
+        list_custom_fields: ['List custom fields', { text: ', sorted by', field: 'orderBy' }],
+        list_job_functions: ['List job functions', { text: ', sorted by', field: 'orderBy' }],
+        get_job_function: [{ text: 'Fetch job function', field: 'id', core: true }],
+        list_work_locations: ['List work locations', { text: ', sorted by', field: 'orderBy' }],
+        get_work_location: [{ text: 'Fetch work location', field: 'id', core: true }],
+        create_work_location: [
+          { text: 'Create work location', field: 'name', core: true },
+          { text: 'at', field: 'streetAddress' },
+          { text: 'in', field: 'locality' },
+        ],
+        update_work_location: [
+          { text: 'Update work location', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', at', field: 'streetAddress' },
+        ],
+        delete_work_location: [{ text: 'Delete work location', field: 'id', core: true }],
+        list_business_partners: [
+          'List business partners',
+          { text: ', matching', field: 'filter' },
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_business_partner: [{ text: 'Fetch business partner', field: 'id', core: true }],
+        create_business_partner: [
+          { text: 'Make worker', field: 'workerId', core: true },
+          { text: 'a business partner in group', field: 'businessPartnerGroupId' },
+        ],
+        delete_business_partner: [{ text: 'Delete business partner', field: 'id', core: true }],
+        list_business_partner_groups: [
+          'List business partner groups',
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_business_partner_group: [
+          { text: 'Fetch business partner group', field: 'id', core: true },
+        ],
+        create_business_partner_group: [
+          { text: 'Create business partner group', field: 'name', core: true },
+          { text: ', for domain', field: 'domain' },
+        ],
+        delete_business_partner_group: [
+          { text: 'Delete business partner group', field: 'id', core: true },
+        ],
+        list_supergroups: [
+          'List supergroups',
+          { text: ', matching', field: 'filter' },
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_supergroup: [{ text: 'Fetch supergroup', field: 'id', core: true }],
+        list_supergroup_members: [{ text: 'List members of supergroup', field: 'id', core: true }],
+        list_supergroup_inclusion_members: [
+          { text: 'List inclusion members of supergroup', field: 'id', core: true },
+        ],
+        list_supergroup_exclusion_members: [
+          { text: 'List exclusion members of supergroup', field: 'id', core: true },
+        ],
+        update_supergroup_inclusion_members: [
+          { text: 'Update inclusion members of supergroup', field: 'id', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        update_supergroup_exclusion_members: [
+          { text: 'Update exclusion members of supergroup', field: 'id', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        list_custom_objects: ['List custom objects'],
+        get_custom_object: [{ text: 'Fetch custom object', field: 'id', core: true }],
+        create_custom_object: [
+          { text: 'Create custom object', field: 'name', core: true },
+          { text: ', in category', field: 'category' },
+        ],
+        update_custom_object: [
+          { text: 'Update custom object', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', in category', field: 'category' },
+        ],
+        delete_custom_object: [{ text: 'Delete custom object', field: 'id', core: true }],
+        list_custom_object_fields: [
+          { text: 'List fields of custom object', field: 'customObjectId', core: true },
+        ],
+        get_custom_object_field: [
+          { text: 'Fetch field', field: 'id', core: true },
+          { text: 'of custom object', field: 'customObjectId' },
+        ],
+        create_custom_object_field: [
+          { text: 'Create field', field: 'name', core: true },
+          { text: 'on custom object', field: 'customObjectId' },
+        ],
+        update_custom_object_field: [
+          { text: 'Update field', field: 'id', core: true },
+          { text: 'on custom object', field: 'customObjectId' },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_custom_object_field: [
+          { text: 'Delete field', field: 'id', core: true },
+          { text: 'from custom object', field: 'customObjectId' },
+        ],
+        list_custom_object_records: [
+          { text: 'List records of custom object', field: 'customObjectId', core: true },
+        ],
+        get_custom_object_record: [
+          { text: 'Fetch record', field: 'id', core: true },
+          { text: 'from custom object', field: 'customObjectId' },
+        ],
+        get_custom_object_record_by_external_id: [
+          { text: 'Fetch the record with external ID', field: 'externalId', core: true },
+          { text: 'from custom object', field: 'customObjectId' },
+        ],
+        query_custom_object_records: [
+          { text: 'Query records of custom object', field: 'customObjectId', core: true },
+          { text: ', where', field: 'query' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_custom_object_record: [
+          { text: 'Create a record in custom object', field: 'customObjectId', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        update_custom_object_record: [
+          { text: 'Update record', field: 'id', core: true },
+          { text: 'in custom object', field: 'customObjectId' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete_custom_object_record: [
+          { text: 'Delete record', field: 'id', core: true },
+          { text: 'from custom object', field: 'customObjectId' },
+        ],
+        bulk_create_custom_object_records: [
+          { text: 'Bulk create', field: 'records', core: true },
+          { text: 'in custom object', field: 'customObjectId', core: true },
+        ],
+        bulk_update_custom_object_records: [
+          { text: 'Bulk update', field: 'records', core: true },
+          { text: 'in custom object', field: 'customObjectId', core: true },
+        ],
+        bulk_delete_custom_object_records: [
+          { text: 'Bulk delete', field: 'records', core: true },
+          { text: 'from custom object', field: 'customObjectId', core: true },
+        ],
+        list_custom_apps: ['List custom apps'],
+        get_custom_app: [{ text: 'Fetch custom app', field: 'id', core: true }],
+        create_custom_app: [
+          { text: 'Create custom app', field: 'name', core: true },
+          { text: ', with API name', field: 'apiName' },
+        ],
+        update_custom_app: [
+          { text: 'Update custom app', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_custom_app: [{ text: 'Delete custom app', field: 'id', core: true }],
+        list_custom_pages: ['List custom pages'],
+        get_custom_page: [{ text: 'Fetch custom page', field: 'id', core: true }],
+        create_custom_page: [{ text: 'Create custom page', field: 'name', core: true }],
+        update_custom_page: [
+          { text: 'Update custom page', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_custom_page: [{ text: 'Delete custom page', field: 'id', core: true }],
+        list_custom_settings: ['List custom settings', { text: ', sorted by', field: 'orderBy' }],
+        get_custom_setting: [{ text: 'Fetch custom setting', field: 'id', core: true }],
+        create_custom_setting: [
+          { text: 'Create custom setting', field: 'displayName', core: true },
+          { text: ', of type', field: 'settingDataType' },
+        ],
+        update_custom_setting: [
+          { text: 'Update custom setting', field: 'id', core: true },
+          { text: ', renaming to', field: 'displayName' },
+        ],
+        delete_custom_setting: [{ text: 'Delete custom setting', field: 'id', core: true }],
+        list_object_categories: ['List object categories'],
+        get_object_category: [{ text: 'Fetch object category', field: 'id', core: true }],
+        create_object_category: [
+          { text: 'Create object category', field: 'name', core: true },
+          { text: ', described as', field: 'description' },
+        ],
+        update_object_category: [
+          { text: 'Update object category', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_object_category: [{ text: 'Delete object category', field: 'id', core: true }],
+        get_report_run: [{ text: 'Fetch report run', field: 'id', core: true }],
+        trigger_report_run: [
+          { text: 'Run report', field: 'id', core: true },
+          { text: ', output as', field: 'outputType' },
+        ],
+        create_draft_hires: [{ text: 'Create draft hires from', field: 'data', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -208,57 +431,42 @@ export const RipplingBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Workers
         { label: 'List Workers', id: 'list_workers' },
         { label: 'Get Worker', id: 'get_worker' },
-        // Users
         { label: 'List Users', id: 'list_users' },
         { label: 'Get User', id: 'get_user' },
-        // Companies
         { label: 'List Companies', id: 'list_companies' },
-        // Current User
         { label: 'Get Current User', id: 'get_current_user' },
-        // Entitlements
         { label: 'List Entitlements', id: 'list_entitlements' },
-        // Departments
         { label: 'List Departments', id: 'list_departments' },
         { label: 'Get Department', id: 'get_department' },
         { label: 'Create Department', id: 'create_department' },
         { label: 'Update Department', id: 'update_department' },
-        // Teams
         { label: 'List Teams', id: 'list_teams' },
         { label: 'Get Team', id: 'get_team' },
-        // Employment Types
         { label: 'List Employment Types', id: 'list_employment_types' },
         { label: 'Get Employment Type', id: 'get_employment_type' },
-        // Titles
         { label: 'List Titles', id: 'list_titles' },
         { label: 'Get Title', id: 'get_title' },
         { label: 'Create Title', id: 'create_title' },
         { label: 'Update Title', id: 'update_title' },
         { label: 'Delete Title', id: 'delete_title' },
-        // Custom Fields
         { label: 'List Custom Fields', id: 'list_custom_fields' },
-        // Job Functions
         { label: 'List Job Functions', id: 'list_job_functions' },
         { label: 'Get Job Function', id: 'get_job_function' },
-        // Work Locations
         { label: 'List Work Locations', id: 'list_work_locations' },
         { label: 'Get Work Location', id: 'get_work_location' },
         { label: 'Create Work Location', id: 'create_work_location' },
         { label: 'Update Work Location', id: 'update_work_location' },
         { label: 'Delete Work Location', id: 'delete_work_location' },
-        // Business Partners
         { label: 'List Business Partners', id: 'list_business_partners' },
         { label: 'Get Business Partner', id: 'get_business_partner' },
         { label: 'Create Business Partner', id: 'create_business_partner' },
         { label: 'Delete Business Partner', id: 'delete_business_partner' },
-        // Business Partner Groups
         { label: 'List Business Partner Groups', id: 'list_business_partner_groups' },
         { label: 'Get Business Partner Group', id: 'get_business_partner_group' },
         { label: 'Create Business Partner Group', id: 'create_business_partner_group' },
         { label: 'Delete Business Partner Group', id: 'delete_business_partner_group' },
-        // Supergroups
         { label: 'List Supergroups', id: 'list_supergroups' },
         { label: 'Get Supergroup', id: 'get_supergroup' },
         { label: 'List Supergroup Members', id: 'list_supergroup_members' },
@@ -272,19 +480,16 @@ export const RipplingBlock: BlockConfig = {
           label: 'Update Supergroup Exclusion Members',
           id: 'update_supergroup_exclusion_members',
         },
-        // Custom Objects
         { label: 'List Custom Objects', id: 'list_custom_objects' },
         { label: 'Get Custom Object', id: 'get_custom_object' },
         { label: 'Create Custom Object', id: 'create_custom_object' },
         { label: 'Update Custom Object', id: 'update_custom_object' },
         { label: 'Delete Custom Object', id: 'delete_custom_object' },
-        // Custom Object Fields
         { label: 'List Custom Object Fields', id: 'list_custom_object_fields' },
         { label: 'Get Custom Object Field', id: 'get_custom_object_field' },
         { label: 'Create Custom Object Field', id: 'create_custom_object_field' },
         { label: 'Update Custom Object Field', id: 'update_custom_object_field' },
         { label: 'Delete Custom Object Field', id: 'delete_custom_object_field' },
-        // Custom Object Records
         { label: 'List Custom Object Records', id: 'list_custom_object_records' },
         { label: 'Get Custom Object Record', id: 'get_custom_object_record' },
         {
@@ -307,34 +512,28 @@ export const RipplingBlock: BlockConfig = {
           label: 'Bulk Delete Custom Object Records',
           id: 'bulk_delete_custom_object_records',
         },
-        // Custom Apps
         { label: 'List Custom Apps', id: 'list_custom_apps' },
         { label: 'Get Custom App', id: 'get_custom_app' },
         { label: 'Create Custom App', id: 'create_custom_app' },
         { label: 'Update Custom App', id: 'update_custom_app' },
         { label: 'Delete Custom App', id: 'delete_custom_app' },
-        // Custom Pages
         { label: 'List Custom Pages', id: 'list_custom_pages' },
         { label: 'Get Custom Page', id: 'get_custom_page' },
         { label: 'Create Custom Page', id: 'create_custom_page' },
         { label: 'Update Custom Page', id: 'update_custom_page' },
         { label: 'Delete Custom Page', id: 'delete_custom_page' },
-        // Custom Settings
         { label: 'List Custom Settings', id: 'list_custom_settings' },
         { label: 'Get Custom Setting', id: 'get_custom_setting' },
         { label: 'Create Custom Setting', id: 'create_custom_setting' },
         { label: 'Update Custom Setting', id: 'update_custom_setting' },
         { label: 'Delete Custom Setting', id: 'delete_custom_setting' },
-        // Object Categories
         { label: 'List Object Categories', id: 'list_object_categories' },
         { label: 'Get Object Category', id: 'get_object_category' },
         { label: 'Create Object Category', id: 'create_object_category' },
         { label: 'Update Object Category', id: 'update_object_category' },
         { label: 'Delete Object Category', id: 'delete_object_category' },
-        // Report Runs
         { label: 'Get Report Run', id: 'get_report_run' },
         { label: 'Trigger Report Run', id: 'trigger_report_run' },
-        // Draft Hires
         { label: 'Create Draft Hires', id: 'create_draft_hires' },
       ],
       value: () => 'list_workers',
@@ -391,7 +590,6 @@ export const RipplingBlock: BlockConfig = {
         ],
       },
     },
-    // Department fields
     {
       id: 'parentId',
       title: 'Parent ID',
@@ -414,7 +612,6 @@ export const RipplingBlock: BlockConfig = {
         value: ['create_department', 'update_department'],
       },
     },
-    // Description (shared across many create/update operations)
     {
       id: 'description',
       title: 'Description',
@@ -423,7 +620,6 @@ export const RipplingBlock: BlockConfig = {
       mode: 'advanced',
       condition: { field: 'operation', value: [...DESCRIPTION_OPS] },
     },
-    // Custom App fields
     {
       id: 'apiName',
       title: 'API Name',
@@ -432,7 +628,6 @@ export const RipplingBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_custom_app', 'update_custom_app'] },
       required: { field: 'operation', value: 'create_custom_app' },
     },
-    // Business Partner fields
     {
       id: 'businessPartnerGroupId',
       title: 'Business Partner Group ID',
@@ -449,7 +644,6 @@ export const RipplingBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_business_partner' },
       required: { field: 'operation', value: 'create_business_partner' },
     },
-    // Business Partner Group fields
     {
       id: 'domain',
       title: 'Domain',
@@ -472,7 +666,6 @@ export const RipplingBlock: BlockConfig = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_business_partner_group' },
     },
-    // Work Location address fields
     {
       id: 'streetAddress',
       title: 'Street Address',
@@ -525,7 +718,6 @@ export const RipplingBlock: BlockConfig = {
       mode: 'advanced',
       condition: { field: 'operation', value: [...WORK_LOCATION_WRITE_OPS] },
     },
-    // Custom Object fields
     {
       id: 'category',
       title: 'Category',
@@ -550,7 +742,6 @@ export const RipplingBlock: BlockConfig = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'update_custom_object' },
     },
-    // Custom Object Field configuration
     {
       id: 'dataType',
       title: 'Data Type',
@@ -652,7 +843,6 @@ Return ONLY the JSON - no explanations, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'update_custom_object_field' },
     },
-    // Custom Setting fields
     {
       id: 'displayName',
       title: 'Display Name',
@@ -711,7 +901,6 @@ Return ONLY the JSON - no explanations, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: [...CUSTOM_SETTING_WRITE_OPS] },
     },
-    // Report Run fields
     {
       id: 'includeObjectIds',
       title: 'Include Object IDs',
@@ -761,10 +950,10 @@ Return ONLY the JSON - no explanations, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'trigger_report_run' },
     },
-    // Data JSON - only for passthrough operations (custom object records, draft hires, supergroup ops)
     {
       id: 'data',
       title: 'Data',
+      canvasNoun: 'a payload',
       type: 'long-input',
       placeholder: '{ "key": "value" }',
       condition: { field: 'operation', value: [...DATA_PASSTHROUGH_OPS] },
@@ -787,7 +976,6 @@ Return ONLY the JSON - no explanations, no extra text.`,
         ],
       },
     },
-    // Records JSON for bulk operations
     {
       id: 'records',
       title: 'Records',
@@ -829,7 +1017,6 @@ Return ONLY the JSON - no explanations, no extra text.`,
         ],
       },
     },
-    // Query fields for custom object record queries
     {
       id: 'query',
       title: 'Query',
@@ -852,7 +1039,6 @@ Return ONLY the query expression - no explanations, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'query_custom_object_records' },
     },
-    // Common query parameters
     {
       id: 'filter',
       title: 'Filter',
@@ -913,7 +1099,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: [...CURSOR_OPS] },
     },
-    // API Key
     {
       id: 'apiKey',
       title: 'API Key',
@@ -926,57 +1111,42 @@ Return ONLY the sort expression - no explanations, no extra text.`,
 
   tools: {
     access: [
-      // Workers
       'rippling_list_workers',
       'rippling_get_worker',
-      // Users
       'rippling_list_users',
       'rippling_get_user',
-      // Companies
       'rippling_list_companies',
-      // Current User
       'rippling_get_current_user',
-      // Entitlements
       'rippling_list_entitlements',
-      // Departments
       'rippling_list_departments',
       'rippling_get_department',
       'rippling_create_department',
       'rippling_update_department',
-      // Teams
       'rippling_list_teams',
       'rippling_get_team',
-      // Employment Types
       'rippling_list_employment_types',
       'rippling_get_employment_type',
-      // Titles
       'rippling_list_titles',
       'rippling_get_title',
       'rippling_create_title',
       'rippling_update_title',
       'rippling_delete_title',
-      // Custom Fields
       'rippling_list_custom_fields',
-      // Job Functions
       'rippling_list_job_functions',
       'rippling_get_job_function',
-      // Work Locations
       'rippling_list_work_locations',
       'rippling_get_work_location',
       'rippling_create_work_location',
       'rippling_update_work_location',
       'rippling_delete_work_location',
-      // Business Partners
       'rippling_list_business_partners',
       'rippling_get_business_partner',
       'rippling_create_business_partner',
       'rippling_delete_business_partner',
-      // Business Partner Groups
       'rippling_list_business_partner_groups',
       'rippling_get_business_partner_group',
       'rippling_create_business_partner_group',
       'rippling_delete_business_partner_group',
-      // Supergroups
       'rippling_list_supergroups',
       'rippling_get_supergroup',
       'rippling_list_supergroup_members',
@@ -984,19 +1154,16 @@ Return ONLY the sort expression - no explanations, no extra text.`,
       'rippling_list_supergroup_exclusion_members',
       'rippling_update_supergroup_inclusion_members',
       'rippling_update_supergroup_exclusion_members',
-      // Custom Objects
       'rippling_list_custom_objects',
       'rippling_get_custom_object',
       'rippling_create_custom_object',
       'rippling_update_custom_object',
       'rippling_delete_custom_object',
-      // Custom Object Fields
       'rippling_list_custom_object_fields',
       'rippling_get_custom_object_field',
       'rippling_create_custom_object_field',
       'rippling_update_custom_object_field',
       'rippling_delete_custom_object_field',
-      // Custom Object Records
       'rippling_list_custom_object_records',
       'rippling_get_custom_object_record',
       'rippling_get_custom_object_record_by_external_id',
@@ -1007,34 +1174,28 @@ Return ONLY the sort expression - no explanations, no extra text.`,
       'rippling_bulk_create_custom_object_records',
       'rippling_bulk_update_custom_object_records',
       'rippling_bulk_delete_custom_object_records',
-      // Custom Apps
       'rippling_list_custom_apps',
       'rippling_get_custom_app',
       'rippling_create_custom_app',
       'rippling_update_custom_app',
       'rippling_delete_custom_app',
-      // Custom Pages
       'rippling_list_custom_pages',
       'rippling_get_custom_page',
       'rippling_create_custom_page',
       'rippling_update_custom_page',
       'rippling_delete_custom_page',
-      // Custom Settings
       'rippling_list_custom_settings',
       'rippling_get_custom_setting',
       'rippling_create_custom_setting',
       'rippling_update_custom_setting',
       'rippling_delete_custom_setting',
-      // Object Categories
       'rippling_list_object_categories',
       'rippling_get_object_category',
       'rippling_create_object_category',
       'rippling_update_object_category',
       'rippling_delete_object_category',
-      // Report Runs
       'rippling_get_report_run',
       'rippling_trigger_report_run',
-      // Draft Hires
       'rippling_create_draft_hires',
     ],
     config: {
@@ -1045,7 +1206,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         }
         const op = params.operation as string
 
-        // Common fields
         if (params.id != null && params.id !== '') mapped.id = params.id
         if (params.customObjectId != null && params.customObjectId !== '')
           mapped.customObjectId = params.customObjectId
@@ -1059,17 +1219,14 @@ Return ONLY the sort expression - no explanations, no extra text.`,
           mapped.description = params.description
         if (params.apiName != null && params.apiName !== '') mapped.apiName = params.apiName
 
-        // Business Partner fields
         if (params.businessPartnerGroupId != null && params.businessPartnerGroupId !== '')
           mapped.businessPartnerGroupId = params.businessPartnerGroupId
         if (params.workerId != null && params.workerId !== '') mapped.workerId = params.workerId
 
-        // Business Partner Group fields
         if (params.domain != null && params.domain !== '') mapped.domain = params.domain
         if (params.defaultBusinessPartnerId != null && params.defaultBusinessPartnerId !== '')
           mapped.defaultBusinessPartnerId = params.defaultBusinessPartnerId
 
-        // Work Location address fields
         if (params.streetAddress != null && params.streetAddress !== '')
           mapped.streetAddress = params.streetAddress
         if (params.locality != null && params.locality !== '') mapped.locality = params.locality
@@ -1081,13 +1238,11 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         if (params.addressType != null && params.addressType !== '')
           mapped.addressType = params.addressType
 
-        // Custom Object fields
         if (params.category != null && params.category !== '') mapped.category = params.category
         if (params.pluralLabel != null && params.pluralLabel !== '')
           mapped.pluralLabel = params.pluralLabel
         if (params.ownerRole != null && params.ownerRole !== '') mapped.ownerRole = params.ownerRole
 
-        // Custom Object Field configuration
         if (params.dataType != null && params.dataType !== '') {
           try {
             mapped.dataType =
@@ -1165,7 +1320,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
           }
         }
 
-        // Custom Setting fields
         if (params.displayName != null && params.displayName !== '')
           mapped.displayName = params.displayName
         if (params.settingApiName != null && params.settingApiName !== '')
@@ -1181,7 +1335,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         if (params.settingBooleanValue != null && params.settingBooleanValue !== '')
           mapped.booleanValue = params.settingBooleanValue === 'true'
 
-        // Report Run fields
         if (
           params.includeObjectIds != null &&
           params.includeObjectIds !== '' &&
@@ -1217,7 +1370,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         if (params.outputType != null && params.outputType !== '')
           mapped.outputType = params.outputType
 
-        // All Or Nothing for bulk operations
         if (
           params.allOrNothing != null &&
           params.allOrNothing !== '' &&
@@ -1225,17 +1377,14 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         )
           mapped.allOrNothing = params.allOrNothing === 'true'
 
-        // Common query parameters
         if (params.filter != null && params.filter !== '') mapped.filter = params.filter
         if (params.expand != null && params.expand !== '') mapped.expand = params.expand
         if (params.orderBy != null && params.orderBy !== '') mapped.orderBy = params.orderBy
         if (params.cursor != null && params.cursor !== '') mapped.cursor = params.cursor
 
-        // Query and limit for custom object record queries
         if (params.query != null && params.query !== '') mapped.query = params.query
         if (params.limit != null && params.limit !== '') mapped.limit = Number(params.limit)
 
-        // Data JSON - only for passthrough operations
         if (params.data != null && params.data !== '') {
           try {
             mapped.data = typeof params.data === 'string' ? JSON.parse(params.data) : params.data
@@ -1244,7 +1393,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
           }
         }
 
-        // Records JSON for bulk operations
         if (params.records != null && params.records !== '') {
           try {
             mapped.records =
@@ -1253,8 +1401,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
             throw new Error('Invalid JSON in "Records (JSON)" field.')
           }
         }
-
-        // --- ID remapping ---
 
         // Custom object tools expect customObjectApiName, not customObjectId
         if (mapped.customObjectId != null) {
@@ -1314,7 +1460,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
           }
         }
 
-        // Report run tools
         if (op === 'get_report_run') {
           if (mapped.id != null) {
             mapped.runId = mapped.id
@@ -1328,7 +1473,6 @@ Return ONLY the sort expression - no explanations, no extra text.`,
           }
         }
 
-        // Bulk operations: map records to specific param names
         if (op === 'bulk_create_custom_object_records' && mapped.records != null) {
           mapped.rowsToWrite = mapped.records
           mapped.records = undefined
@@ -1342,13 +1486,11 @@ Return ONLY the sort expression - no explanations, no extra text.`,
           mapped.records = undefined
         }
 
-        // Draft hires: map data to draftHires
         if (op === 'create_draft_hires' && mapped.data != null) {
           mapped.draftHires = mapped.data
           mapped.data = undefined
         }
 
-        // Supergroup member updates: map data to operations
         if (
           ['update_supergroup_inclusion_members', 'update_supergroup_exclusion_members'].includes(
             op

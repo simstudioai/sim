@@ -82,6 +82,10 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => (params.queryFanout ? { query: params.query } : {}),
+    },
     method: 'POST',
     url: () => `${CONTEXT_DEV_BASE_URL}/web/search`,
     headers: (params) => contextDevJsonHeaders(params.apiKey),

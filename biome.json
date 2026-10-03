@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0-beta.5/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.0.6/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": false },
   "files": {
     "ignoreUnknown": false,
@@ -8,9 +8,13 @@
       "!**/.next",
       "!**/.next",
       "!**/next-env.d.ts",
-      "!**/out",
+      "!out",
+      "!apps/*/out",
+      "!packages/*/out",
       "!**/dist",
-      "!**/build",
+      "!build",
+      "!apps/*/build",
+      "!packages/*/build",
       "!**/node_modules",
       "!**/.bun",
       "!**/.cache",
@@ -26,11 +30,14 @@
       "!**/public/workbox-*.js",
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
+      "!**/apps/sim/tools/generated",
+      "!**/apps/sim/lib/mothership/generated/**",
       "!**/apps/docs/.source",
       "!**/apps/desktop/release",
       "!**/venv",
       "!**/.venv",
-      "!**/uploads",
+      "!uploads",
+      "!apps/*/uploads",
       "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs",
       "!**/test-results",
       "!**/playwright-report"
@@ -60,7 +67,7 @@
               "@/lib/**",
               "@/app/**",
               ":ALIAS:",
-              ":RELATIVE:"
+              ":PATH:"
             ]
           }
         }
@@ -93,12 +100,17 @@
         "noControlCharactersInRegex": "off",
         "noThenProperty": "off",
         "noAssignInExpressions": "off",
-        "noDocumentCookie": "off"
+        "noDocumentCookie": "off",
+        "noConsole": { "level": "error", "fix": "none" }
       },
       "correctness": {
         "useExhaustiveDependencies": "off",
-        "noUnusedFunctionParameters": "off",
-        "noUnusedVariables": "off"
+        "noUnusedFunctionParameters": { "level": "error", "fix": "none" },
+        "noUnusedVariables": {
+          "level": "error",
+          "fix": "none",
+          "options": { "ignoreRestSiblings": true }
+        }
       },
       "security": {
         "noDangerouslySetInnerHtml": "off"
@@ -133,12 +145,37 @@
         "noStaticOnlyClass": "off"
       },
       "performance": {
-        "noAccumulatingSpread": "off",
+        "noAccumulatingSpread": "error",
         "noDelete": "error",
         "noImgElement": "off"
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["apps/sim/app/_styles/tailwind.css"],
+      "linter": { "enabled": false },
+      "formatter": { "enabled": false }
+    },
+    {
+      "includes": [
+        "**/scripts/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.integration.ts",
+        "**/*.spec.ts",
+        "apps/desktop/e2e/**",
+        "apps/sim/vitest.setup.ts",
+        "packages/cli/**",
+        "packages/sim-cli/**",
+        "packages/sim-setup/**",
+        "packages/db/script-migrations/**",
+        "packages/logger/src/**",
+        "packages/ts-sdk/examples/**"
+      ],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+    }
+  ],
   "javascript": {
     "formatter": {
       "jsxQuoteStyle": "single",

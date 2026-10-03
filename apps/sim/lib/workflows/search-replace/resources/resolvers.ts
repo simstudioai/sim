@@ -1,3 +1,4 @@
+import { foldSearchWhitespace } from '@sim/utils/string'
 import type {
   WorkflowSearchMatch,
   WorkflowSearchMatchKind,
@@ -5,9 +6,13 @@ import type {
   WorkflowSearchResourceMeta,
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
 
-const OVERLAPPING_MATCH_KIND_PRIORITY: Record<WorkflowSearchMatchKind, number> = {
+/**
+ * Which kind wins when two matches cover the same span. Exported so the
+ * equivalence tests can share it instead of hand-copying the values, which
+ * silently drifted once already.
+ */
+export const OVERLAPPING_MATCH_KIND_PRIORITY: Record<WorkflowSearchMatchKind, number> = {
   text: 0,
   environment: 1,
   'workflow-reference': 2,
@@ -59,16 +64,6 @@ export function getWorkflowSearchMatchResourceGroupKey(match: WorkflowSearchMatc
       selectorKey: match.resource?.selectorKey,
       selectorContext: match.resource?.selectorContext,
     })
-  )
-}
-
-export function selectorContextMatches(
-  left: SelectorContext | undefined,
-  right: SelectorContext | undefined
-): boolean {
-  return (
-    stableStringifyWorkflowSearchValue(left ?? {}) ===
-    stableStringifyWorkflowSearchValue(right ?? {})
   )
 }
 
@@ -141,31 +136,97 @@ function shouldPreferOverlappingMatch(
   return false
 }
 
+/** Kept indices for one overlap scope, plus an upper bound on their `range.end`. */
+interface RangeMatchScopeBucket {
+  indices: number[]
+  maxEnd: number
+}
+
+function widenScopeBucket(bucket: RangeMatchScopeBucket, end: number): void {
+  if (!Number.isNaN(end)) bucket.maxEnd = Math.max(bucket.maxEnd, end)
+}
+
+/**
+ * Overlap resolution is scoped to one value inside one subblock, so candidates
+ * are bucketed by that scope rather than rescanned. The previous `findIndex`
+ * over the whole accumulated list recomputed every candidate's scope key on
+ * every iteration - O(n^2) string builds, which cost ~1.4s on a workflow
+ * producing ~500 matches and froze the search field while typing.
+ *
+ * A bucket only ever holds entries that have both a scope key and a range, and
+ * those are exactly the entries the old predicate could match. Buckets keep
+ * insertion order and the scan stops at the first overlap, so this picks the
+ * same candidate the linear scan did.
+ *
+ * `maxEnd` is a monotonic high-water mark, not the exact current maximum: a
+ * replacement can swap in a range that ends earlier without lowering it. Only
+ * the upper bound is load-bearing. A match starting at or after it cannot
+ * overlap anything in the bucket, so the scan is skipped; a bound left too high
+ * only costs a scan that would have been skipped, never a wrong answer.
+ *
+ * Recomputing the exact maximum on every shrinking replacement is a net loss -
+ * it walks the bucket, which is the cost this is here to avoid, and staleness
+ * is capped at one token length because every range spans a matched token
+ * (`query.length`, or a reference's `rawValue.length`) rather than the field.
+ * Measured on the realistic overlap shape at 10k matches: 23ms as written,
+ * 45ms with the recompute, against 1010ms for the scan this replaced.
+ *
+ * The bound keeps a field full of disjoint hits linear instead of quadratic
+ * within its own bucket, to the extent its matches arrive in ascending offset
+ * order; out-of-order producers just fall back to scanning.
+ *
+ * It must be refreshed on the replacement path too, not only on append:
+ * `shouldPreferOverlappingMatch` prefers the SHORTER range, and a shorter range
+ * can still end further right than the one it evicts. Leaving `maxEnd` stale
+ * there let the short-circuit skip genuine overlaps and leak duplicates.
+ *
+ * Only `NaN` ends are ignored. `Math.max` with `NaN` would pin `maxEnd` at
+ * `NaN`, and since every comparison against `NaN` is false that would silently
+ * switch dedupe off for the rest of the scope. A `NaN`-ended range cannot
+ * overlap anything anyway, while positive infinity is an unbounded end that
+ * can overlap later ranges and therefore must widen the high-water mark.
+ */
 export function dedupeOverlappingWorkflowSearchMatches<T extends WorkflowSearchMatch>(
   matches: T[]
 ): T[] {
   const deduped: T[] = []
+  const bucketsByScopeKey = new Map<string, RangeMatchScopeBucket>()
 
   for (const match of matches) {
     const scopeKey = getRangeMatchScopeKey(match)
     const matchRange = match.range
-    const existingIndex =
-      scopeKey && matchRange
-        ? deduped.findIndex(
-            (candidate) =>
-              getRangeMatchScopeKey(candidate) === scopeKey &&
-              candidate.range &&
-              rangesOverlap(candidate.range, matchRange)
-          )
-        : -1
+    const bucket = scopeKey && matchRange ? bucketsByScopeKey.get(scopeKey) : undefined
+
+    let existingIndex = -1
+    if (bucket && matchRange && matchRange.start < bucket.maxEnd) {
+      for (const index of bucket.indices) {
+        const candidate = deduped[index]
+        if (candidate.range && rangesOverlap(candidate.range, matchRange)) {
+          existingIndex = index
+          break
+        }
+      }
+    }
 
     if (existingIndex === -1) {
+      if (scopeKey && matchRange) {
+        if (bucket) {
+          bucket.indices.push(deduped.length)
+          widenScopeBucket(bucket, matchRange.end)
+        } else {
+          bucketsByScopeKey.set(scopeKey, {
+            indices: [deduped.length],
+            maxEnd: Number.isNaN(matchRange.end) ? Number.NEGATIVE_INFINITY : matchRange.end,
+          })
+        }
+      }
       deduped.push(match)
       continue
     }
 
     if (shouldPreferOverlappingMatch(match, deduped[existingIndex])) {
       deduped[existingIndex] = match
+      if (bucket && matchRange) widenScopeBucket(bucket, matchRange.end)
     }
   }
 
@@ -181,7 +242,10 @@ export function workflowSearchMatchMatchesQuery(
   if (!trimmedQuery) return false
   if (match.kind === 'text') return true
 
-  const normalize = (value: string) => (caseSensitive ? value : value.toLowerCase())
+  const normalize = (value: string) => {
+    const folded = foldSearchWhitespace(value)
+    return caseSensitive ? folded : folded.toLowerCase()
+  }
   const searchable =
     match.resource?.kind === 'workflow-reference' || match.resource?.kind === 'environment'
       ? [match.displayLabel, match.rawValue, match.searchText]

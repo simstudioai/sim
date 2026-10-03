@@ -1,7 +1,6 @@
 import { TriggerDevIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { TriggerDevResponse } from '@/tools/trigger_dev/types'
 
 const TASK_IDENTIFIER_OPERATIONS = ['trigger_dev_trigger_task', 'trigger_dev_batch_trigger_task']
 const RUN_ID_OPERATIONS = [
@@ -72,7 +71,7 @@ const CURSOR_PAGE_OPERATIONS = [
 const PAGE_BEFORE_OPERATIONS = ['trigger_dev_list_runs', 'trigger_dev_list_waitpoint_tokens']
 const NUMBERED_PAGE_OPERATIONS = ['trigger_dev_list_schedules', 'trigger_dev_list_queues']
 
-export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
+export const TriggerDevBlock: BlockConfig = {
   type: 'trigger_dev',
   name: 'Trigger.dev',
   description: 'Trigger tasks and manage runs and schedules',
@@ -84,6 +83,144 @@ export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#000000',
   icon: TriggerDevIcon,
+  canvasPresentation: {
+    defaultTitle: 'Trigger.dev',
+    sentences: {
+      byOperation: {
+        trigger_dev_trigger_task: [
+          { text: 'Trigger task', field: 'taskIdentifier', core: true },
+          { text: 'with', field: 'payload' },
+          { text: ', delayed by', field: 'delay' },
+        ],
+        trigger_dev_batch_trigger_task: [
+          { text: 'Batch trigger task', field: 'taskIdentifier', core: true },
+          { text: 'with', field: 'items' },
+        ],
+        trigger_dev_get_batch: [{ text: 'Read batch', field: 'batchId', core: true }],
+        trigger_dev_get_batch_results: [
+          { text: 'Read the run results of batch', field: 'batchId', core: true },
+        ],
+        trigger_dev_get_run: [{ text: 'Read run', field: 'runId', core: true }],
+        trigger_dev_get_run_result: [
+          { text: 'Read the outcome of run', field: 'runId', core: true },
+        ],
+        trigger_dev_get_run_events: [
+          { text: 'Read the log events of run', field: 'runId', core: true },
+        ],
+        trigger_dev_get_run_trace: [
+          { text: 'Read the trace spans of run', field: 'runId', core: true },
+        ],
+        trigger_dev_list_runs: [
+          'List runs',
+          { text: 'of task', field: 'filterTaskIdentifier' },
+          { text: ', with status', field: 'status' },
+          { text: ', from the last', field: 'period' },
+        ],
+        trigger_dev_cancel_run: [{ text: 'Cancel run', field: 'runId', core: true }],
+        trigger_dev_replay_run: [{ text: 'Replay run', field: 'runId', core: true }],
+        trigger_dev_reschedule_run: [
+          { text: 'Reschedule run', field: 'runId', core: true },
+          { text: 'to start after', field: 'rescheduleDelay' },
+        ],
+        trigger_dev_add_run_tags: [
+          { text: 'Add tags', field: 'runTags', core: true },
+          { text: 'to run', field: 'runId', core: true },
+        ],
+        trigger_dev_update_run_metadata: [
+          { text: 'Replace the metadata of run', field: 'runId', core: true },
+          { text: 'with', field: 'metadata' },
+        ],
+        trigger_dev_create_schedule: [
+          { text: 'Schedule task', field: 'task', core: true },
+          { text: 'on cron', field: 'cron' },
+        ],
+        trigger_dev_get_schedule: [{ text: 'Read schedule', field: 'scheduleId', core: true }],
+        trigger_dev_list_schedules: ['List all schedules'],
+        trigger_dev_update_schedule: [
+          { text: 'Update schedule', field: 'scheduleId', core: true },
+          { text: 'to run task', field: 'task' },
+          { text: 'on cron', field: 'cron' },
+        ],
+        trigger_dev_delete_schedule: [{ text: 'Delete schedule', field: 'scheduleId', core: true }],
+        trigger_dev_activate_schedule: [
+          { text: 'Activate schedule', field: 'scheduleId', core: true },
+        ],
+        trigger_dev_deactivate_schedule: [
+          { text: 'Deactivate schedule', field: 'scheduleId', core: true },
+        ],
+        trigger_dev_list_env_vars: [
+          { text: 'List env vars of project', field: 'projectRef', core: true },
+          { text: 'in', field: 'environment' },
+        ],
+        trigger_dev_create_env_var: [
+          { text: 'Create env var', field: 'name', core: true },
+          { text: 'in', field: 'environment' },
+        ],
+        trigger_dev_get_env_var: [
+          { text: 'Read env var', field: 'name', core: true },
+          { text: 'from', field: 'environment' },
+        ],
+        trigger_dev_update_env_var: [
+          { text: 'Update env var', field: 'name', core: true },
+          { text: 'in', field: 'environment' },
+        ],
+        trigger_dev_delete_env_var: [
+          { text: 'Delete env var', field: 'name', core: true },
+          { text: 'from', field: 'environment' },
+        ],
+        trigger_dev_import_env_vars: [
+          { text: 'Import env vars into project', field: 'projectRef', core: true },
+          { text: 'in', field: 'environment' },
+        ],
+        trigger_dev_get_queue: [{ text: 'Read queue', field: 'queueName', core: true }],
+        trigger_dev_list_queues: ['List all queues'],
+        trigger_dev_pause_queue: [{ text: 'Pause queue', field: 'queueName', core: true }],
+        trigger_dev_resume_queue: [{ text: 'Resume queue', field: 'queueName', core: true }],
+        trigger_dev_override_queue_concurrency: [
+          { text: 'Set the concurrency limit of queue', field: 'queueName', core: true },
+          { text: 'to', field: 'concurrencyLimit' },
+        ],
+        trigger_dev_reset_queue_concurrency: [
+          { text: 'Clear the concurrency override on queue', field: 'queueName', core: true },
+        ],
+        trigger_dev_list_deployments: [
+          'List deployments',
+          { text: 'with status', field: 'deploymentStatus' },
+          { text: ', from the last', field: 'period' },
+        ],
+        trigger_dev_get_deployment: [
+          { text: 'Read deployment', field: 'deploymentId', core: true },
+        ],
+        trigger_dev_get_latest_deployment: ['Read the latest deployment'],
+        trigger_dev_promote_deployment: [
+          { text: 'Promote deployment version', field: 'deploymentVersion', core: true },
+        ],
+        trigger_dev_execute_query: [
+          { text: 'Run TRQL query', field: 'query', core: true },
+          { text: ', over the last', field: 'period' },
+        ],
+        trigger_dev_get_query_schema: ['Read the TRQL query schema'],
+        trigger_dev_create_waitpoint_token: [
+          'Create a waitpoint token',
+          { text: ', timing out after', field: 'timeout' },
+          { text: ', tagged', field: 'tags' },
+        ],
+        trigger_dev_complete_waitpoint_token: [
+          { text: 'Complete waitpoint token', field: 'waitpointId', core: true },
+          { text: 'with', field: 'waitpointData' },
+        ],
+        trigger_dev_get_waitpoint_token: [
+          { text: 'Read waitpoint token', field: 'waitpointId', core: true },
+        ],
+        trigger_dev_list_waitpoint_tokens: [
+          'List waitpoint tokens',
+          { text: 'with status', field: 'waitpointStatus' },
+          { text: ', tagged', field: 'waitpointTags' },
+        ],
+        trigger_dev_list_timezones: ['List the timezones supported by schedules'],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -146,7 +283,6 @@ export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
       placeholder: 'Enter your Trigger.dev secret API key (tr_...)',
       required: true,
     },
-    // Trigger Task fields
     {
       id: 'taskIdentifier',
       title: 'Task Identifier',
@@ -247,7 +383,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       mode: 'advanced',
       condition: { field: 'operation', value: TAGS_OPERATIONS },
     },
-    // Batch Trigger Task fields
     {
       id: 'items',
       title: 'Batch Items',
@@ -276,7 +411,6 @@ Return ONLY the valid JSON array - no explanations, no markdown.`,
         generationType: 'json-object',
       },
     },
-    // Batch fields
     {
       id: 'batchId',
       title: 'Batch ID',
@@ -285,7 +419,6 @@ Return ONLY the valid JSON array - no explanations, no markdown.`,
       condition: { field: 'operation', value: BATCH_ID_OPERATIONS },
       required: { field: 'operation', value: BATCH_ID_OPERATIONS },
     },
-    // Run fields
     {
       id: 'runId',
       title: 'Run ID',
@@ -334,7 +467,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         generationType: 'json-object',
       },
     },
-    // List Runs filters
     {
       id: 'status',
       title: 'Status Filter',
@@ -456,7 +588,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: PAGE_BEFORE_OPERATIONS },
     },
-    // Schedule fields
     {
       id: 'scheduleId',
       title: 'Schedule ID',
@@ -505,7 +636,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'trigger_dev_create_schedule' },
       required: { field: 'operation', value: 'trigger_dev_create_schedule' },
     },
-    // List Schedules / List Queues pagination
     {
       id: 'page',
       title: 'Page',
@@ -522,7 +652,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: NUMBERED_PAGE_OPERATIONS },
     },
-    // Environment variable fields
     {
       id: 'projectRef',
       title: 'Project Ref',
@@ -582,7 +711,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'trigger_dev_import_env_vars' },
     },
-    // Queue fields
     {
       id: 'queueName',
       title: 'Queue',
@@ -611,7 +739,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'trigger_dev_override_queue_concurrency' },
       required: { field: 'operation', value: 'trigger_dev_override_queue_concurrency' },
     },
-    // Deployment fields
     {
       id: 'deploymentId',
       title: 'Deployment ID',
@@ -646,7 +773,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'trigger_dev_list_deployments' },
     },
-    // Query fields
     {
       id: 'query',
       title: 'TRQL Query',
@@ -698,7 +824,6 @@ Return ONLY the TRQL query - no explanations, no markdown.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'trigger_dev_execute_query' },
     },
-    // Waitpoint fields
     {
       id: 'waitpointId',
       title: 'Waitpoint ID',
@@ -774,7 +899,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'trigger_dev_list_waitpoint_tokens' },
     },
-    // Timezone fields
     {
       id: 'excludeUtc',
       title: 'Exclude UTC',
@@ -893,7 +1017,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Trigger.dev secret API key' },
-    // Trigger Task
     taskIdentifier: { type: 'string', description: 'Identifier of the task to trigger' },
     payload: { type: 'json', description: 'JSON payload passed to the task run' },
     idempotencyKey: { type: 'string', description: 'Idempotency key to deduplicate triggers' },
@@ -903,13 +1026,11 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     ttl: { type: 'string', description: 'Time-to-live before an unstarted run expires' },
     machine: { type: 'string', description: 'Machine preset for the run' },
     tags: { type: 'string', description: 'Comma-separated tags to attach to the run' },
-    // Batch Trigger Task
     items: {
       type: 'json',
       description: 'JSON array of batch items, each with a payload and optional options',
     },
     batchId: { type: 'string', description: 'Batch ID (starts with batch_)' },
-    // Runs
     runId: { type: 'string', description: 'Run ID (starts with run_)' },
     rescheduleDelay: { type: 'string', description: 'New delay for a delayed run' },
     runTags: { type: 'string', description: 'Comma-separated tags to add to a run' },
@@ -929,7 +1050,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     pageSize: { type: 'number', description: 'Number of runs per page (max 100)' },
     pageAfter: { type: 'string', description: 'Run ID to start the page after' },
     pageBefore: { type: 'string', description: 'Run ID to start the page before' },
-    // Schedules
     scheduleId: { type: 'string', description: 'Schedule ID (starts with sched_)' },
     task: { type: 'string', description: 'Identifier of the task the schedule triggers' },
     cron: { type: 'string', description: 'Cron expression defining when the task runs' },
@@ -938,7 +1058,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     deduplicationKey: { type: 'string', description: 'Key to prevent duplicate schedules' },
     page: { type: 'number', description: 'Page number for listing schedules' },
     perPage: { type: 'number', description: 'Number of schedules per page' },
-    // Environment variables
     projectRef: { type: 'string', description: 'Project ref (starts with proj_)' },
     environment: { type: 'string', description: 'Project environment (dev, staging, or prod)' },
     name: { type: 'string', description: 'Name of the environment variable' },
@@ -951,7 +1070,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       type: 'string',
       description: 'Whether to override existing variables on import ("true" or "false")',
     },
-    // Queues
     queueName: {
       type: 'string',
       description: 'Queue ID, task identifier, or custom queue name',
@@ -964,18 +1082,15 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       type: 'number',
       description: 'New concurrency limit for the queue (0 to 100000)',
     },
-    // Deployments
     deploymentId: { type: 'string', description: 'ID of the deployment to retrieve' },
     deploymentVersion: { type: 'string', description: 'Deployment version to promote' },
     deploymentStatus: { type: 'string', description: 'Deployment status to filter by' },
-    // Query
     query: { type: 'string', description: 'TRQL query to execute' },
     scope: {
       type: 'string',
       description: 'Scope of data to query (environment, project, or organization)',
     },
     format: { type: 'string', description: 'Query response format (json or csv)' },
-    // Waitpoints
     waitpointId: { type: 'string', description: 'Waitpoint token ID (starts with waitpoint_)' },
     waitpointData: {
       type: 'json',
@@ -998,7 +1113,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       type: 'string',
       description: 'Comma-separated tags to filter waitpoint tokens by',
     },
-    // Timezones
     excludeUtc: {
       type: 'string',
       description: 'Whether to exclude UTC from the timezones ("true" or "false")',
@@ -1006,9 +1120,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
   },
 
   outputs: {
-    // Trigger Task / Cancel Run / Replay Run / schedule operations
     id: { type: 'string', description: 'Run, schedule, or queue ID' },
-    // Batches
     batchId: { type: 'string', description: 'Batch ID (Batch Trigger Task)' },
     runIds: { type: 'json', description: 'Run IDs in the batch (batch operations)' },
     runCount: { type: 'number', description: 'Total number of runs in the batch (Get Batch)' },
@@ -1025,7 +1137,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       type: 'json',
       description: 'Execution results for each run in the batch (Get Batch Results)',
     },
-    // Get Run
     status: { type: 'string', description: 'Run status (Get Run)' },
     taskIdentifier: { type: 'string', description: 'Task identifier of the run (Get Run)' },
     createdAt: { type: 'string', description: 'When the run was created (Get Run)' },
@@ -1049,11 +1160,9 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     events: { type: 'json', description: 'Log and span events of the run (Get Run Events)' },
     traceId: { type: 'string', description: 'OpenTelemetry trace ID (Get Run Trace)' },
     rootSpan: { type: 'json', description: 'Root span of the run trace (Get Run Trace)' },
-    // List Runs / List Schedules
     runs: { type: 'json', description: 'Runs matching the filters (List Runs)' },
     schedules: { type: 'json', description: 'Schedules in the project (List Schedules)' },
     pagination: { type: 'json', description: 'Pagination details (list operations)' },
-    // Schedules
     task: { type: 'string', description: 'Task the schedule triggers (schedule operations)' },
     active: {
       type: 'boolean',
@@ -1071,7 +1180,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       description: 'Environments the schedule runs in (schedule operations)',
     },
     deleted: { type: 'boolean', description: 'Whether the schedule was deleted (Delete Schedule)' },
-    // Environment variables
     variables: {
       type: 'json',
       description: 'Environment variables in the project environment (List Env Vars)',
@@ -1089,7 +1197,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       type: 'number',
       description: 'Number of environment variables submitted (Import Env Vars)',
     },
-    // Queues
     queues: { type: 'json', description: 'Queues in the environment (List Queues)' },
     running: { type: 'number', description: 'Runs currently executing (queue operations)' },
     queued: { type: 'number', description: 'Runs waiting in the queue (queue operations)' },
@@ -1102,7 +1209,6 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       type: 'json',
       description: 'Concurrency details of the queue (queue operations)',
     },
-    // Deployments
     deployments: {
       type: 'json',
       description: 'Deployments matching the filters (List Deployments)',
@@ -1113,18 +1219,15 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       type: 'json',
       description: 'Tasks registered by the deployed worker (deployment operations)',
     },
-    // Query
     format: { type: 'string', description: 'Format of the query results (Execute Query)' },
     results: { type: 'json', description: 'Query results (Execute Query)' },
     tables: { type: 'json', description: 'Queryable TRQL tables and columns (Get Query Schema)' },
-    // Waitpoints
     tokens: { type: 'json', description: 'Waitpoint tokens (List Waitpoint Tokens)' },
     url: { type: 'string', description: 'Waitpoint callback URL (waitpoint operations)' },
     isCached: {
       type: 'boolean',
       description: 'Whether an existing token was returned (Create Waitpoint Token)',
     },
-    // Timezones
     timezones: { type: 'json', description: 'Supported IANA timezones (List Timezones)' },
   },
 }

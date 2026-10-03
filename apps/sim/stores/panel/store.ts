@@ -1,12 +1,16 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+// client-boundary-allow: the default tab is picked at module init, before any surface
+// seeds the deployment shape; moving it to the reader is a product call
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { PANEL_WIDTH } from '@/stores/constants'
 import type { PanelState, PanelTab } from '@/stores/panel/types'
 
 /**
- * Default panel tab
+ * Default panel tab. Falls back to the toolbar when Chat is disabled, since the
+ * copilot tab is not rendered then and would leave the panel body empty.
  */
-const DEFAULT_TAB: PanelTab = 'copilot'
+const DEFAULT_TAB: PanelTab = isChatEnabled ? 'copilot' : 'toolbar'
 
 export const usePanelStore = create<PanelState>()(
   persist(

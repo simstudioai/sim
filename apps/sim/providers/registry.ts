@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureAnthropicProvider } from '@/providers/azure-anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
@@ -10,6 +9,7 @@ import { deepseekProvider } from '@/providers/deepseek'
 import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { kieProvider } from '@/providers/kie'
 import { kimiProvider } from '@/providers/kimi'
 import { litellmProvider } from '@/providers/litellm'
 import { metaProvider } from '@/providers/meta'
@@ -22,6 +22,7 @@ import { openRouterProvider } from '@/providers/openrouter'
 import { sakanaProvider } from '@/providers/sakana'
 import { togetherProvider } from '@/providers/together'
 import type { ProviderConfig, ProviderId } from '@/providers/types'
+import { typesafeProvider } from '@/providers/typesafe'
 import { vertexProvider } from '@/providers/vertex'
 import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
@@ -40,10 +41,12 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   cerebras: cerebrasProvider,
   groq: groqProvider,
   sakana: sakanaProvider,
+  typesafe: typesafeProvider,
   nvidia: nvidiaProvider,
   meta: metaProvider,
   zai: zaiProvider,
   kimi: kimiProvider,
+  kie: kieProvider,
   vllm: vllmProvider,
   litellm: litellmProvider,
   mistral: mistralProvider,
@@ -66,19 +69,4 @@ export async function getProviderExecutor(
     return undefined
   }
   return provider
-}
-
-export async function initializeProviders(): Promise<void> {
-  for (const [id, provider] of Object.entries(providerRegistry)) {
-    if (provider.initialize) {
-      try {
-        await provider.initialize()
-        logger.info(`Initialized provider: ${id}`)
-      } catch (error) {
-        logger.error(`Failed to initialize ${id} provider`, {
-          error: getErrorMessage(error, 'Unknown error'),
-        })
-      }
-    }
-  }
 }

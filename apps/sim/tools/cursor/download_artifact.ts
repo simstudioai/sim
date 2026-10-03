@@ -3,7 +3,7 @@ import type {
   DownloadArtifactResponse,
   DownloadArtifactV2Response,
 } from '@/tools/cursor/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 const downloadArtifactBase = {
   params: {
@@ -26,21 +26,22 @@ const downloadArtifactBase = {
       description: 'Absolute path of the artifact to download (e.g., /src/index.ts)',
     },
   },
-  request: {
-    url: '/api/tools/cursor/download-artifact',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: DownloadArtifactParams) => ({
+  operation: {
+    input: (params: DownloadArtifactParams) => ({
       apiKey: params.apiKey,
       agentId: params.agentId?.trim(),
       path: params.path?.trim(),
     }),
   },
-} satisfies Pick<ToolConfig<DownloadArtifactParams, any>, 'params' | 'request'>
+} satisfies Pick<
+  InternalToolConfig<DownloadArtifactParams, DownloadArtifactResponse>,
+  'params' | 'operation'
+>
 
-export const downloadArtifactTool: ToolConfig<DownloadArtifactParams, DownloadArtifactResponse> = {
+export const downloadArtifactTool: InternalToolConfig<
+  DownloadArtifactParams,
+  DownloadArtifactResponse
+> = {
   id: 'cursor_download_artifact',
   name: 'Cursor Download Artifact',
   description: 'Download a generated artifact file from a cloud agent.',
@@ -84,7 +85,7 @@ export const downloadArtifactTool: ToolConfig<DownloadArtifactParams, DownloadAr
   },
 }
 
-export const downloadArtifactV2Tool: ToolConfig<
+export const downloadArtifactV2Tool: InternalToolConfig<
   DownloadArtifactParams,
   DownloadArtifactV2Response
 > = {

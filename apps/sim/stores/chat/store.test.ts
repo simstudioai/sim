@@ -3,6 +3,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockSaveBlob } = vi.hoisted(() => ({
+  mockSaveBlob: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/client/download', () => ({
+  saveBlob: mockSaveBlob,
+}))
+
 vi.hoisted(() => {
   const legacyNewestFirst = {
     state: {
@@ -30,14 +38,25 @@ vi.hoisted(() => {
 
 import { useChatStore } from '@/stores/chat/store'
 
+const migratedMessageIds = useChatStore.getState().messages.map((message) => message.id)
+
+function readBlob(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(String(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsText(blob)
+  })
+}
+
 describe('chat store message ordering', () => {
   it('migrates v0 persisted messages from newest-first to insertion order', () => {
-    const messages = useChatStore.getState().messages
-    expect(messages.map((m) => m.id)).toEqual(['msg-1', 'msg-2'])
+    expect(migratedMessageIds).toEqual(['msg-1', 'msg-2'])
   })
 
   describe('addMessage', () => {
     beforeEach(() => {
+      mockSaveBlob.mockClear()
       useChatStore.setState({ messages: [] })
     })
 
@@ -63,6 +82,64 @@ describe('chat store message ordering', () => {
       expect(messages).toHaveLength(50)
       expect(messages[0].content).toBe('m5')
       expect(messages[messages.length - 1].content).toBe('m54')
+    })
+  })
+
+  it('resets persisted identity and transient UI state', () => {
+    useChatStore.setState({
+      isChatOpen: true,
+      chatPosition: { x: 10, y: 20 },
+      chatWidth: 500,
+      chatHeight: 400,
+      messages: [
+        {
+          id: 'message-a',
+          content: 'private response',
+          workflowId: 'workflow-a',
+          type: 'workflow',
+          timestamp: '2026-08-31T00:00:00.000Z',
+        },
+      ],
+      selectedWorkflowOutputs: { 'workflow-a': ['output-a'] },
+      conversationIds: { 'workflow-a': 'conversation-a' },
+    })
+
+    useChatStore.getState().reset()
+
+    expect(useChatStore.getState()).toMatchObject({
+      isChatOpen: false,
+      chatPosition: null,
+      chatWidth: 305,
+      chatHeight: 286,
+      messages: [],
+      selectedWorkflowOutputs: {},
+      conversationIds: {},
+    })
+  })
+
+  describe('exportChatCSV', () => {
+    beforeEach(() => {
+      mockSaveBlob.mockClear()
+      useChatStore.setState({
+        messages: [
+          {
+            id: 'msg-formula',
+            content: '=1+1',
+            workflowId: 'wf-1',
+            type: 'workflow',
+            timestamp: '2026-08-22T12:00:00.000Z',
+          },
+        ],
+      })
+    })
+
+    it('neutralizes formula-leading message content', async () => {
+      useChatStore.getState().exportChatCSV('wf-1')
+
+      expect(mockSaveBlob).toHaveBeenCalledOnce()
+      const [blob, filename] = mockSaveBlob.mock.calls[0] as [Blob, string]
+      expect(filename).toMatch(/^chat-wf-1-.*\.csv$/)
+      await expect(readBlob(blob)).resolves.toContain("workflow,'=1+1")
     })
   })
 })

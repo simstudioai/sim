@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 /**
- * Table icon component - displays a grid table
+ * Table icon component - rounded frame with a header row and a column divider
  * @param props - SVG properties including className, fill, etc.
  */
 export function Table(props: SVGProps<SVGSVGElement>) {
@@ -22,7 +22,7 @@ export function Table(props: SVGProps<SVGSVGElement>) {
       <path d='M0.75 3.25C0.75 1.87 1.87 0.75 3.25 0.75H17.25C18.63 0.75 19.75 1.87 19.75 3.25V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V3.25Z' />
       <path d='M0.75 6.75H19.75' />
       <path d='M0.75 12.75H19.75' />
-      <path d='M10.25 0.75V18.75' />
+      <path d='M10.25 6.75V18.75' />
     </svg>
   )
 }

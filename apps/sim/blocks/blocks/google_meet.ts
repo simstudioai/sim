@@ -3,9 +3,8 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleMeetResponse } from '@/tools/google_meet/types'
 
-export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
+export const GoogleMeetBlock: BlockConfig = {
   type: 'google_meet',
   name: 'Google Meet',
   description: 'Create and manage Google Meet meetings',
@@ -17,6 +16,33 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
   bgColor: '#FFFFFF',
   icon: GoogleMeetIcon,
   authMode: AuthMode.OAuth,
+  canvasPresentation: {
+    defaultTitle: 'Google Meet',
+    sentences: {
+      byOperation: {
+        create_space: ['Create a meeting space', { text: ', with access', field: 'accessType' }],
+        get_space: [{ text: 'Read details of meeting space', field: 'spaceName', core: true }],
+        end_conference: [
+          { text: 'End the active conference in space', field: 'spaceName', core: true },
+        ],
+        list_conference_records: [
+          'List conference records',
+          { text: ', matching', field: 'filter' },
+        ],
+        get_conference_record: [
+          { text: 'Read details of conference record', field: 'conferenceName', core: true },
+        ],
+        list_participants: [
+          {
+            text: 'List participants of conference record',
+            field: 'conferenceName',
+            core: true,
+          },
+          { text: ', matching', field: 'filter' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

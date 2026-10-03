@@ -1,17 +1,50 @@
 import type {
   CloudflareGetZoneSettingsParams,
   CloudflareGetZoneSettingsResponse,
+  CloudflareRawZoneSetting,
 } from '@/tools/cloudflare/types'
-import type { ToolConfig } from '@/tools/types'
+import { DEFAULT_ZONE_SETTING_IDS, MAX_ZONE_SETTING_IDS } from '@/tools/cloudflare/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getZoneSettingsTool: ToolConfig<
+function encodePathSegment(value: string, label: string): string {
+  const normalized = value.trim()
+  if (!normalized || normalized === '.' || normalized === '..') {
+    throw new Error(`${label} must identify a resource`)
+  }
+  return encodeURIComponent(normalized)
+}
+
+/** Builds the per-setting endpoint Cloudflare directs integrations at. */
+export function zoneSettingUrl(zoneId: string, settingId: string): string {
+  return `https://api.cloudflare.com/client/v4/zones/${encodePathSegment(zoneId, 'Cloudflare zone ID')}/settings/${encodePathSegment(settingId, 'Cloudflare setting ID')}`
+}
+
+/**
+ * Flattens one setting onto the output shape. Cloudflare returns complex values
+ * (minify, security header, NEL) as objects, so those are JSON-stringified to
+ * keep every entry in the list a string.
+ */
+export function mapZoneSetting(settingId: string, setting: CloudflareRawZoneSetting | undefined) {
+  return {
+    id: setting?.id ?? settingId,
+    value:
+      typeof setting?.value === 'object' && setting.value !== null
+        ? JSON.stringify(setting.value)
+        : String(setting?.value ?? ''),
+    editable: setting?.editable ?? false,
+    modified_on: setting?.modified_on ?? '',
+    ...(setting?.time_remaining != null ? { time_remaining: setting.time_remaining } : {}),
+  }
+}
+
+export const getZoneSettingsTool: InternalToolConfig<
   CloudflareGetZoneSettingsParams,
   CloudflareGetZoneSettingsResponse
 > = {
   id: 'cloudflare_get_zone_settings',
   name: 'Cloudflare Get Zone Settings',
-  description:
-    'Gets all settings for a zone including SSL mode, caching level, and security settings.',
+  description: `Reads zone settings such as SSL mode, minimum TLS version, security level, and caching level. Cloudflare retired the endpoint that read every setting in one request, so each setting is read individually — name the ones you need to keep the read small. Defaults to ${DEFAULT_ZONE_SETTING_IDS.join(', ')}.`,
   version: '1.0.0',
 
   params: {
@@ -21,6 +54,12 @@ export const getZoneSettingsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The zone ID to get settings for',
     },
+    settingIds: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `Comma-separated setting IDs to read, e.g. "ssl,min_tls_version,security_level". Leave blank to read the default set (${DEFAULT_ZONE_SETTING_IDS.join(', ')}). At most ${MAX_ZONE_SETTING_IDS} settings per call.`,
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -29,50 +68,14 @@ export const getZoneSettingsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/settings`,
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
-  },
-
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { settings: [] },
-        error: data.errors?.[0]?.message ?? 'Failed to get zone settings',
-      }
-    }
-
-    return {
-      success: true,
-      output: {
-        settings:
-          data.result?.map((setting: Record<string, unknown>) => ({
-            id: (setting.id as string) ?? '',
-            value:
-              typeof setting.value === 'object' && setting.value !== null
-                ? JSON.stringify(setting.value)
-                : String(setting.value ?? ''),
-            editable: (setting.editable as boolean) ?? false,
-            modified_on: (setting.modified_on as string) ?? '',
-            ...(setting.time_remaining != null
-              ? { time_remaining: setting.time_remaining as number }
-              : {}),
-          })) ?? [],
-      },
-    }
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {
     settings: {
       type: 'array',
-      description: 'List of zone settings',
+      description: 'The zone settings that were readable',
       items: {
         type: 'object',
         properties: {
@@ -83,8 +86,7 @@ export const getZoneSettingsTool: ToolConfig<
           },
           value: {
             type: 'string',
-            description:
-              'Setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified (e.g., \'{"css":"on","html":"on","js":"on"}\').',
+            description: `Setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified (e.g., {"css":"on","html":"on","js":"on"}).`,
           },
           editable: {
             type: 'boolean',
@@ -97,9 +99,21 @@ export const getZoneSettingsTool: ToolConfig<
           time_remaining: {
             type: 'number',
             description:
-              'Seconds remaining until the setting can be modified again (only present for rate-limited settings)',
+              'Development mode countdown, in seconds. Cloudflare documents this only on the zones_development_mode setting, where it is the interval from when development mode expires (positive) or last expired (negative)',
             optional: true,
           },
+        },
+      },
+    },
+    unreadable: {
+      type: 'array',
+      description:
+        'Requested settings Cloudflare refused, typically because the zone plan does not expose them or the setting ID does not exist',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'The requested setting identifier' },
+          error: { type: 'string', description: 'Why Cloudflare would not return the setting' },
         },
       },
     },

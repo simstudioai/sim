@@ -9,12 +9,9 @@ import type { PlaceholderInfo } from '../model/nodes/base-node'
 import type { TextBody } from '../model/nodes/shape-node'
 import { angleToDeg, emuToPx, pctToDecimal } from '../parser/units'
 import { SafeXmlNode } from '../parser/xml-parser'
+import { cssFontStack } from '../utils/font-stack'
 import type { RenderContext } from './render-context'
 import { resolveColor, resolveColorToCss } from './style-resolver'
-
-// ---------------------------------------------------------------------------
-// Style Inheritance Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Find paragraph properties at a specific indent level from a list style node.
@@ -27,7 +24,6 @@ function findStyleAtLevel(styleNode: SafeXmlNode | undefined, level: number): Sa
   // Try level-specific style (lvl1pPr, lvl2pPr, etc.)
   const lvlNode = styleNode.child(`lvl${level + 1}pPr`)
   if (lvlNode.exists()) return lvlNode
-  // Fall back to default
   return styleNode.child('defPPr')
 }
 
@@ -62,7 +58,6 @@ function findPlaceholderNode(
   info: PlaceholderInfo
 ): SafeXmlNode | undefined {
   for (const ph of placeholders) {
-    // Navigate to the ph element to read its attributes
     let phEl: SafeXmlNode | undefined
     const nvSpPr = ph.child('nvSpPr')
     if (nvSpPr.exists()) {
@@ -134,7 +129,6 @@ function mergeParagraphProps(target: MergedParagraphStyle, pPr: SafeXmlNode): vo
   const indent = pPr.numAttr('indent')
   if (indent !== undefined) target.textIndent = emuToPx(indent)
 
-  // Line spacing
   // OOXML spcPct: 100000 = "single spacing" = 1.0× the font's line height.
   // IMPORTANT: We must use UNITLESS CSS line-height values (e.g., 1.0, 1.2)
   // instead of percentages (e.g., 100%, 120%). CSS percentage line-height is
@@ -163,7 +157,6 @@ function mergeParagraphProps(target: MergedParagraphStyle, pPr: SafeXmlNode): vo
     }
   }
 
-  // Space before
   const spcBef = pPr.child('spcBef')
   if (spcBef.exists()) {
     const spcPts = spcBef.child('spcPts')
@@ -178,7 +171,6 @@ function mergeParagraphProps(target: MergedParagraphStyle, pPr: SafeXmlNode): vo
     }
   }
 
-  // Space after
   const spcAft = pPr.child('spcAft')
   if (spcAft.exists()) {
     const spcPts = spcAft.child('spcPts')
@@ -193,7 +185,6 @@ function mergeParagraphProps(target: MergedParagraphStyle, pPr: SafeXmlNode): vo
     }
   }
 
-  // Bullets
   const buChar = pPr.child('buChar')
   if (buChar.exists()) {
     target.bulletChar = buChar.attr('char') || ''
@@ -226,10 +217,6 @@ function mergeParagraphProps(target: MergedParagraphStyle, pPr: SafeXmlNode): vo
     target.defRPr = defRPr
   }
 }
-
-// ---------------------------------------------------------------------------
-// Run Style Resolution
-// ---------------------------------------------------------------------------
 
 interface MergedRunStyle {
   fontSize?: number
@@ -280,7 +267,6 @@ function mergeRunProps(target: MergedRunStyle, rPr: SafeXmlNode, ctx: RenderCont
   if (strike !== undefined && strike !== 'noStrike') target.strikethrough = true
   if (strike === 'noStrike') target.strikethrough = false
 
-  // Color from solidFill or gradFill child
   const solidFill = rPr.child('solidFill')
   if (solidFill.exists()) {
     const { color, alpha } = resolveColor(solidFill, ctx)
@@ -298,7 +284,6 @@ function mergeRunProps(target: MergedRunStyle, rPr: SafeXmlNode, ctx: RenderCont
     if (css) target.textGradientCss = css
   }
 
-  // Font family
   const latin = rPr.child('latin')
   if (latin.exists()) {
     const typeface = latin.attr('typeface')
@@ -325,7 +310,6 @@ function mergeRunProps(target: MergedRunStyle, rPr: SafeXmlNode, ctx: RenderCont
     }
   }
 
-  // Hyperlink
   const hlinkClick = rPr.child('hlinkClick')
   if (hlinkClick.exists()) {
     // The actual URL is in the slide rels, referenced by r:id
@@ -420,10 +404,6 @@ function resolveGradientForText(gradFill: SafeXmlNode, ctx: RenderContext): stri
   return `linear-gradient(180deg, ${stopsStr})`
 }
 
-// ---------------------------------------------------------------------------
-// Bullet Generation
-// ---------------------------------------------------------------------------
-
 function generateAutoNumber(type: string, index: number): string {
   const num = index + 1
   switch (type) {
@@ -465,10 +445,6 @@ function toRoman(num: number): string {
   }
   return result
 }
-
-// ---------------------------------------------------------------------------
-// Main Render Function
-// ---------------------------------------------------------------------------
 
 /**
  * Render a text body into the provided container element.
@@ -523,7 +499,7 @@ export function renderTextBody(
     const paraDiv = document.createElement('div')
     const level = paragraph.level
 
-    // ---- Build merged paragraph style (7-level inheritance) ----
+    // Build merged paragraph style (7-level inheritance)
     const merged: MergedParagraphStyle = {}
 
     // Level 1: master defaultTextStyle
@@ -567,7 +543,6 @@ export function renderTextBody(
       mergeParagraphProps(merged, paragraph.properties)
     }
 
-    // ---- Apply paragraph styles ----
     if (merged.align) {
       const alignMap: Record<string, string> = {
         l: 'left',
@@ -622,7 +597,6 @@ export function renderTextBody(
       paraDiv.style.marginBottom = `${merged.spaceAfterPct * effectiveFontSize}pt`
     }
 
-    // ---- Bullets ----
     // Suppress bullets for metadata placeholders (slide number, date, footer)
     // Also suppress for empty paragraphs (no visible runs) — PowerPoint never shows bullets for them
     const hasVisibleRuns = paragraph.runs.some((r) => r.text != null && r.text.length > 0)
@@ -648,7 +622,7 @@ export function renderTextBody(
       const bulletSpan = document.createElement('span')
       bulletSpan.textContent = `${bulletPrefix} `
       if (merged.bulletFont) {
-        bulletSpan.style.fontFamily = merged.bulletFont
+        bulletSpan.style.fontFamily = cssFontStack(merged.bulletFont)
       }
       // Bullet color: 1) explicit buClr from list style, 2) paragraph defRPr, 3) first run's color (so bullet matches text), 4) cell/fallback
       let bulletColor: string | undefined
@@ -685,7 +659,6 @@ export function renderTextBody(
       paraDiv.appendChild(bulletSpan)
     }
 
-    // ---- Render runs ----
     if (paragraph.runs.length === 0) {
       // Empty paragraph — still need to maintain spacing
       paraDiv.appendChild(document.createElement('br'))
@@ -714,7 +687,6 @@ export function renderTextBody(
     for (const run of paragraph.runs) {
       if (run.text === '\n') {
         if (useLineWrappers) {
-          // Close current line div and start a new one
           currentLineDiv = document.createElement('div')
           currentLineDiv.style.height = effectiveLineHeight!
           currentLineDiv.style.overflow = 'visible'
@@ -725,7 +697,6 @@ export function renderTextBody(
         continue
       }
 
-      // Build merged run style
       const runStyle: MergedRunStyle = {}
 
       // Apply default run properties from merged paragraph defRPr
@@ -755,7 +726,6 @@ export function renderTextBody(
         }
       }
 
-      // Determine if this should be a link
       let element: HTMLElement
       if (runStyle.hlinkClick) {
         const a = document.createElement('a')
@@ -899,12 +869,11 @@ export function renderTextBody(
         ? runStyle.fontFamily
         : (options?.cellTextFontFamily ?? runStyle.fontFamily)
       if (effectiveFont) {
-        element.style.fontFamily = `"${effectiveFont}"`
+        element.style.fontFamily = cssFontStack(effectiveFont)
       } else {
-        // Fallback to theme minor font
         const fallback = ctx.theme.minorFont.latin || ctx.theme.minorFont.ea
         if (fallback) {
-          element.style.fontFamily = `"${fallback}"`
+          element.style.fontFamily = cssFontStack(fallback)
         }
       }
 
@@ -925,12 +894,10 @@ export function renderTextBody(
         element.style.fontVariant = 'small-caps'
       }
 
-      // Baseline shift (superscript/subscript)
       if (runStyle.baseline !== undefined && runStyle.baseline !== 0) {
         // OOXML baseline is in 1000ths of percent; positive = superscript, negative = subscript
         const shiftPct = runStyle.baseline / 1000
         element.style.verticalAlign = `${shiftPct}%`
-        // Reduce font size for super/subscript
         if (Math.abs(shiftPct) >= 20) {
           element.style.fontSize = `${fontSize * fontScale * 0.65}pt`
         }

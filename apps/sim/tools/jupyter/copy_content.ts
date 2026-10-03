@@ -1,12 +1,12 @@
-import type { JupyterCopyContentParams, JupyterCopyContentResponse } from '@/tools/jupyter/types'
 import {
   assertSafeJupyterPath,
   encodeJupyterPath,
   parseJupyterContentModel,
-} from '@/tools/jupyter/utils'
-import type { ToolConfig } from '@/tools/types'
+} from '@/lib/internal/jupyter/protocol'
+import type { JupyterCopyContentParams, JupyterCopyContentResponse } from '@/tools/jupyter/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterCopyContentTool: ToolConfig<
+export const jupyterCopyContentTool: InternalToolConfig<
   JupyterCopyContentParams,
   JupyterCopyContentResponse
 > = {
@@ -42,11 +42,8 @@ export const jupyterCopyContentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'POST',

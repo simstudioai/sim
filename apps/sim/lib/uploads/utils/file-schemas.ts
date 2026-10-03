@@ -49,6 +49,21 @@ export const RawFileInputSchema = z
 
 export type RawFileInput = z.infer<typeof RawFileInputSchema>
 
+/** Parses a resolved file object, including the JSON string produced by advanced-mode inputs. */
+export function parseRawFileInput(value: unknown): RawFileInput | null {
+  let candidate = value
+  if (typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate)
+    } catch {
+      return null
+    }
+  }
+
+  const parsed = RawFileInputSchema.safeParse(candidate)
+  return parsed.success ? parsed.data : null
+}
+
 export const RawFileInputArraySchema = z.array(RawFileInputSchema)
 
 export const FileInputSchema = z.union([RawFileInputSchema, z.string()])

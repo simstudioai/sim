@@ -17,7 +17,7 @@ export function CreditUsageLoading({ backHref }: CreditUsageLoadingProps) {
   return (
     <SettingsPanel
       back={{
-        text: 'Billing',
+        text: 'Subscription',
         icon: ArrowLeft,
         onSelect: () => router.push(backHref),
       }}

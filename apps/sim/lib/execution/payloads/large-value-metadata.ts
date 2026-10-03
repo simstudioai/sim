@@ -3,12 +3,16 @@ import {
   executionLargeValueDependencies,
   executionLargeValueReferences,
   executionLargeValues,
+  memory,
+  memoryArtifact,
   pausedExecutions,
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
-import { chunkArray } from '@/lib/cleanup/batch-delete'
+import { consumeRowBudget } from '@/lib/cleanup/batch-delete'
+import type { CleanupBudgets } from '@/lib/cleanup/limits'
 import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 
 const logger = createLogger('LargeValueMetadata')
@@ -50,6 +54,7 @@ export interface LargeValueMetadataPruneResult {
 }
 
 interface PruneLargeValueMetadataOptions {
+  budgets?: CleanupBudgets
   workspaceIds: string[]
   tombstonesDeletedBefore: Date
   batchSize?: number
@@ -227,22 +232,6 @@ export async function registerLargeValueOwner(
   return true
 }
 
-export async function replaceLargeValueReferencesWithClient(
-  client: LargeValueMetadataClient,
-  scope: LargeValueReferenceScope,
-  value: unknown
-): Promise<void> {
-  if (!scope.workspaceId || !scope.executionId) {
-    return
-  }
-
-  await replaceLargeValueReferenceKeysWithClient(
-    client,
-    scope,
-    collectLargeValueReferenceKeys(value, scope.workspaceId)
-  )
-}
-
 export async function replaceLargeValueReferenceKeysWithClient(
   client: LargeValueMetadataClient,
   scope: LargeValueReferenceScope,
@@ -357,18 +346,6 @@ export async function addLargeValueReference(
       source,
     })
     .onConflictDoNothing()
-}
-
-export async function replaceLargeValueReferences(
-  scope: LargeValueReferenceScope,
-  value: unknown
-): Promise<void> {
-  const referenceKeys = scope.workspaceId
-    ? collectLargeValueReferenceKeys(value, scope.workspaceId)
-    : []
-  await dbFor('exec').transaction(async (tx) => {
-    await replaceLargeValueReferenceKeysWithClient(tx, scope, referenceKeys)
-  })
 }
 
 export async function markLargeValuesDeleted(
@@ -501,6 +478,7 @@ async function pruneDeletedLargeValueTombstones(
 export async function pruneLargeValueMetadata({
   workspaceIds,
   tombstonesDeletedBefore,
+  budgets,
   batchSize = LARGE_VALUE_METADATA_PRUNE_BATCH_SIZE,
   maxRowsPerTable = LARGE_VALUE_METADATA_PRUNE_MAX_ROWS_PER_TABLE,
   dbClient = db,
@@ -516,32 +494,47 @@ export async function pruneLargeValueMetadata({
     workspaceIds,
     LARGE_VALUE_METADATA_WORKSPACE_CHUNK_SIZE
   )) {
-    const referencesRemaining = maxRowsPerTable - result.referencesDeleted
+    const referencesRemaining = Math.min(
+      maxRowsPerTable - result.referencesDeleted,
+      budgets?.staleReferences.remaining ?? maxRowsPerTable
+    )
     if (referencesRemaining > 0) {
-      result.referencesDeleted += await pruneStaleReferences(
+      const deleted = await pruneStaleReferences(
         workspaceChunk,
         Math.min(batchSize, referencesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.staleReferences, deleted)
+      result.referencesDeleted += deleted
     }
 
-    const dependenciesRemaining = maxRowsPerTable - result.dependenciesDeleted
+    const dependenciesRemaining = Math.min(
+      maxRowsPerTable - result.dependenciesDeleted,
+      budgets?.staleDependencies.remaining ?? maxRowsPerTable
+    )
     if (dependenciesRemaining > 0) {
-      result.dependenciesDeleted += await pruneDeletedParentDependencies(
+      const deleted = await pruneDeletedParentDependencies(
         workspaceChunk,
         Math.min(batchSize, dependenciesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.staleDependencies, deleted)
+      result.dependenciesDeleted += deleted
     }
 
-    const tombstonesRemaining = maxRowsPerTable - result.tombstonesDeleted
+    const tombstonesRemaining = Math.min(
+      maxRowsPerTable - result.tombstonesDeleted,
+      budgets?.largeValueTombstones.remaining ?? maxRowsPerTable
+    )
     if (tombstonesRemaining > 0) {
-      result.tombstonesDeleted += await pruneDeletedLargeValueTombstones(
+      const deleted = await pruneDeletedLargeValueTombstones(
         workspaceChunk,
         tombstonesDeletedBefore,
         Math.min(batchSize, tombstonesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.largeValueTombstones, deleted)
+      result.tombstonesDeleted += deleted
     }
 
     if (
@@ -558,6 +551,15 @@ export async function pruneLargeValueMetadata({
 
 export function unreferencedLargeValuePredicate() {
   return sql`
+    NOT EXISTS (
+      SELECT 1
+      FROM ${memoryArtifact} AS memory_artifact
+      INNER JOIN ${memory} AS conversation ON conversation.id = memory_artifact.memory_id
+      WHERE memory_artifact.key = ${executionLargeValues.key}
+        AND conversation.workspace_id = ${executionLargeValues.workspaceId}
+        AND conversation.deleted_at IS NULL
+    )
+    AND
     NOT EXISTS (
       SELECT 1
       FROM ${executionLargeValueReferences} AS elvr
@@ -602,6 +604,16 @@ export function unreferencedLargeValuePredicate() {
       WHERE dependency.workspace_id = ${executionLargeValues.workspaceId}
         AND dependency.child_key = ${executionLargeValues.key}
         AND (
+          EXISTS (
+            SELECT 1
+            FROM ${memoryArtifact} AS parent_memory_artifact
+            INNER JOIN ${memory} AS parent_conversation
+              ON parent_conversation.id = parent_memory_artifact.memory_id
+            WHERE parent_memory_artifact.key = parent_value.key
+              AND parent_conversation.workspace_id = parent_value.workspace_id
+              AND parent_conversation.deleted_at IS NULL
+          )
+          OR
           EXISTS (
             SELECT 1
             FROM ${workflowExecutionLogs} AS parent_owner_wel

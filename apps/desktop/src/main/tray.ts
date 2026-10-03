@@ -1,6 +1,5 @@
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
 import { truncate } from '@sim/utils/string'
 import type { MenuItemConstructorOptions, NativeImage } from 'electron'
 import { app, Menu, nativeImage, session, Tray } from 'electron'
@@ -17,10 +16,10 @@ const UNREAD_DOT_COLOR = { r: 0x33, g: 0xc4, b: 0x82 } // green: finished, not y
 const RECENT_CHATS_INLINE = 5
 /** Total chats kept (inline + the "More" hover submenu). */
 const RECENT_CHATS_TOTAL = 30
-// Generous: the refresh is async (a click always pops the cached menu
-// immediately), so a slow dev-server compile just delays the NEXT open's
-// recents instead of dropping them.
+// Generous: refreshes are detached from the native menu, so a slow dev-server
+// compile only delays the next cached recents update.
 const CHATS_FETCH_TIMEOUT_MS = 5000
+const CHATS_REFRESH_INTERVAL_MS = 60_000
 const TRAY_ICON_SCALE_FACTOR = 2
 const TRAY_SUBSCRIPT_WIDTH = 5
 const TRAY_SUBSCRIPT_HEIGHT = 7
@@ -337,8 +336,12 @@ export interface TrayDeps {
 
 function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOptions {
   const icon = statusDotImage(chat.status)
+  const statusLabel =
+    chat.status === 'active' ? 'running' : chat.status === 'unread' ? 'unread' : ''
+  const label = truncate(chat.title, 57, '…')
   return {
-    label: truncate(chat.title, 57, '…'),
+    label,
+    accessibilityLabel: statusLabel ? `${label}, ${statusLabel}` : label,
     ...(icon ? { icon } : {}),
     click: () => deps.openMainWindow(chatRoute(chat)),
   }
@@ -382,20 +385,17 @@ export function buildTrayMenuTemplate(
 export interface TrayHandle {
   /**
    * Drops the cached chat titles. Called from the sign-out teardown: the titles
-   * are the previous user's data and must not outlive their session, and the
-   * menu pops from cache before it refreshes, so waiting for the next fetch
-   * would show them one more time.
+   * are the previous user's data and must not outlive their session.
    */
   clearRecentChats(): void
   destroy(): void
 }
 
 /**
- * The macOS status item. No static context menu is attached — macOS shows an
- * attached menu synchronously without emitting 'click', which would freeze
- * the recent-chats section at creation time. Instead each click fetches the
- * chat list (bounded by a short timeout, falling back to the last good list)
- * and pops the freshly built menu.
+ * The macOS status item owns an attached native menu, so macOS handles its
+ * selected/open state and a second icon click closes it normally. Recent chats
+ * refresh independently; each result swaps the attached menu for the next
+ * open without putting network or menu construction on the click path.
  */
 export function installTray(deps: TrayDeps): TrayHandle | null {
   const iconPath = join(app.getAppPath(), 'static', 'tray', 'simTemplate.png')
@@ -410,11 +410,12 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
   icon.setTemplateImage(true)
 
   const tray = new Tray(icon)
+  tray.setIgnoreDoubleClickEvents(true)
   tray.setToolTip(APP_NAME_FOR_CHANNEL[channel])
 
-  let cachedChats: RecentChat[] = []
-  let refreshing = false
+  let refreshPromise: Promise<boolean> | null = null
   let cacheGeneration = 0
+  tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate(deps, [])))
 
   const fetchRecentChats = async (): Promise<RecentChat[]> => {
     const ses = session.fromPartition(deps.partition())
@@ -434,51 +435,45 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
     return parseRecentChats(await response.json())
   }
 
-  /** Update the cached chat list for the NEXT open; never blocks a click. */
-  const refreshChats = async () => {
-    if (refreshing) return
-    refreshing = true
-    const generation = cacheGeneration
-    try {
-      const chats = await fetchRecentChats()
-      // A sign-out while this was in flight invalidates the result — it was
-      // read with the previous user's cookie.
-      if (generation === cacheGeneration) {
-        cachedChats = chats
-      }
-    } catch (error) {
-      // Offline or an older server: keep the last good list rather than
-      // blanking a menu that is still correct.
-      logger.info('Recent chats unavailable for tray menu', { error })
-    } finally {
-      refreshing = false
+  const replaceCachedChats = (chats: RecentChat[]) => {
+    if (!tray.isDestroyed()) {
+      tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate(deps, chats)))
     }
   }
 
-  /**
-   * Pop the menu from the cached chat list so the click feels instant, then
-   * refresh the cache in the background for the next open. One exception: when
-   * the cache is EMPTY (failed launch warm-up, fresh sign-in) the menu would
-   * pop without a Recent section and stay wrong until the next click — so wait
-   * briefly for a refresh, popping no later than the grace period either way.
-   */
-  const EMPTY_CACHE_POP_GRACE_MS = 600
-  const popMenu = async () => {
-    if (cachedChats.length === 0) {
-      await Promise.race([refreshChats(), sleep(EMPTY_CACHE_POP_GRACE_MS)])
-    }
-    if (tray.isDestroyed()) return
-    tray.popUpContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate(deps, cachedChats)))
-    void refreshChats()
+  /** Update the cached menu for the next open while sharing one in-flight request. */
+  const refreshChats = (): Promise<boolean> => {
+    if (refreshPromise) return refreshPromise
+    const generation = cacheGeneration
+    refreshPromise = (async () => {
+      try {
+        const chats = await fetchRecentChats()
+        // A sign-out while this was in flight invalidates the result — it was
+        // read with the previous user's cookie.
+        if (generation === cacheGeneration) {
+          replaceCachedChats(chats)
+        }
+        return true
+      } catch (error) {
+        // Offline or an older server: keep the last good list rather than
+        // blanking a menu that is still correct.
+        logger.info('Recent chats unavailable for tray menu', { error })
+        return false
+      } finally {
+        refreshPromise = null
+      }
+    })()
+    return refreshPromise
   }
 
   // Warm the cache with retries: at launch the first fetch races the server
   // (dev recompiles, app cold start), and a single failed warm-up would leave
-  // the first tray open without recents until a second click.
+  // recents stale until the periodic refresh.
   const WARM_UP_BACKOFF_MS = [2_000, 5_000, 10_000, 20_000]
   const warmUp = async (attempt = 0) => {
-    await refreshChats()
-    if (cachedChats.length === 0 && attempt < WARM_UP_BACKOFF_MS.length && !tray.isDestroyed()) {
+    if (tray.isDestroyed()) return
+    const refreshed = await refreshChats()
+    if (!refreshed && attempt < WARM_UP_BACKOFF_MS.length && !tray.isDestroyed()) {
       setTimeout(() => void warmUp(attempt + 1), WARM_UP_BACKOFF_MS[attempt]).unref?.()
     }
   }
@@ -486,16 +481,13 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
 
   // Keep the cache (and the status dots) current even when the tray hasn't
   // been clicked in a while.
-  const refreshTimer = setInterval(() => void refreshChats(), 60_000)
+  const refreshTimer = setInterval(() => void refreshChats(), CHATS_REFRESH_INTERVAL_MS)
   refreshTimer.unref?.()
-
-  tray.on('click', () => void popMenu())
-  tray.on('right-click', () => void popMenu())
 
   return {
     clearRecentChats() {
       cacheGeneration += 1
-      cachedChats = []
+      replaceCachedChats([])
     },
     destroy() {
       clearInterval(refreshTimer)

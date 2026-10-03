@@ -1,15 +1,19 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { readyEventTypesQuery } from '@/lib/core/outbox/queries'
 
 const logger = createLogger('OutboxService')
 
 const DEFAULT_MAX_ATTEMPTS = 10
+/** Most events one {@link enqueueOutboxEvents} call may insert. */
+export const MAX_BULK_ENQUEUE_EVENTS = 1_000
 const MAX_PERSISTED_ERROR_LENGTH = 500
+const MAX_REAPED_EVENTS = 1_000
 
 /**
  * Bounds a handler failure before persisting it to `last_error`. Driver
@@ -23,12 +27,8 @@ function toPersistedHandlerError(error: unknown): string {
 const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
 const MAX_BACKOFF_MS = 60 * 60 * 1000 // 1 hour
 const BASE_BACKOFF_MS = 1000 // 1 second, doubled per attempt
-// Kept below the serverless route `maxDuration` (120s) so our in-process
-// timeout fires before the platform kills the invocation and leaves the
-// row stranded in `processing` for the 10-minute reaper window. Also well
-// under `STUCK_PROCESSING_THRESHOLD_MS` so the reaper cannot steal a row
-// a worker is still actively processing.
-const DEFAULT_HANDLER_TIMEOUT_MS = 90 * 1000 // 90 seconds
+/** Ordinary handlers keep a short window; longer handlers explicitly opt in below the stale-lease limit. */
+const DEFAULT_HANDLER_TIMEOUT_MS = 90 * 1000
 
 class OutboxHandlerTimeoutError extends Error {
   constructor(timeoutMs: number) {
@@ -56,6 +56,8 @@ export interface OutboxEventContext {
    * External-operation handlers must stop before performing another side effect.
    */
   signal: AbortSignal
+  /** Hard deadline for this handler invocation, including handlers with a longer execution window. */
+  deadlineAt?: number
   /**
    * Durably shallow-merge fields into this event's JSON payload while the
    * current processing lease is still held. Long-running handlers can
@@ -74,7 +76,63 @@ export interface OutboxEventContext {
  * Throwing bumps `attempts` and schedules a retry via exponential
  * backoff; a successful return transitions the event to `completed`.
  */
-export type OutboxHandler<T = unknown> = (payload: T, context: OutboxEventContext) => Promise<void>
+export interface DeferredOutboxHandlerResult {
+  outcome: 'deferred'
+  reason: string
+  minimumBackoffMs?: number
+  /**
+   * Defaults to true for an external acknowledgement with a finite retry
+   * budget. False is reserved for waits on an internal dependency whose own
+   * outbox row independently reaches completed or dead-letter, and for
+   * bounded continuation after durable progress (`continueOutboxHandler`),
+   * or external polling with a separately persisted, finite poll allowance.
+   */
+  consumeAttempt?: boolean
+}
+
+export function deferOutboxHandler(
+  reason: string,
+  minimumBackoffMs?: number,
+  consumeAttempt = true
+): DeferredOutboxHandlerResult {
+  return {
+    outcome: 'deferred',
+    reason,
+    ...(minimumBackoffMs !== undefined ? { minimumBackoffMs } : {}),
+    ...(consumeAttempt ? {} : { consumeAttempt: false }),
+  }
+}
+
+/**
+ * Yields after durable progress so the worker re-runs the event without
+ * spending an attempt. For bounded batches whose remaining work shrinks on
+ * every run; a run that made no progress must throw or `deferOutboxHandler`
+ * instead, or the event never reaches a terminal state.
+ */
+export function continueOutboxHandler(
+  reason: string,
+  minimumBackoffMs?: number
+): DeferredOutboxHandlerResult {
+  return deferOutboxHandler(reason, minimumBackoffMs, false)
+}
+
+export type OutboxHandler<T = unknown> = ((
+  payload: T,
+  context: OutboxEventContext
+) => Promise<undefined | DeferredOutboxHandlerResult> | Promise<void>) & {
+  readonly timeoutMs?: number
+}
+
+/** Opts a handler into a bounded execution window that expires before the stale-lease reaper. */
+export function withOutboxHandlerTimeout<T>(
+  handler: OutboxHandler<T>,
+  timeoutMs: number
+): OutboxHandler<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 550_000) {
+    throw new Error('Outbox handler timeout must be between 1 and 550000 milliseconds')
+  }
+  return Object.assign(handler, { timeoutMs })
+}
 
 /**
  * Map of `eventType` → handler. Register all handlers in one place
@@ -83,6 +141,8 @@ export type OutboxHandler<T = unknown> = (payload: T, context: OutboxEventContex
 export type OutboxHandlerRegistry = Record<string, OutboxHandler>
 
 export interface EnqueueOptions {
+  /** Caller-owned idempotency key. Defaults to a generated UUID. */
+  id?: string
   /** Total attempts before the event moves to `dead_letter`. Default 10. */
   maxAttempts?: number
   /** Earliest time a worker may pick up this event. Default now. */
@@ -131,7 +191,7 @@ export async function enqueueOutboxEvent<T>(
   payload: T,
   options: EnqueueOptions = {}
 ): Promise<string> {
-  const id = generateId()
+  const id = options.id ?? generateId()
   await executor.insert(outboxEvent).values({
     id,
     eventType,
@@ -141,6 +201,105 @@ export async function enqueueOutboxEvent<T>(
   })
   logger.info('Enqueued outbox event', { id, eventType })
   return id
+}
+
+export async function enqueueOutboxEvents<T>(
+  executor: Pick<typeof db, 'insert'>,
+  eventType: string,
+  payloads: readonly T[],
+  options: EnqueueOptions = {}
+): Promise<string[]> {
+  if (payloads.length === 0) return []
+  if (payloads.length > MAX_BULK_ENQUEUE_EVENTS) {
+    throw new Error(`Cannot enqueue more than ${MAX_BULK_ENQUEUE_EVENTS} outbox events at once`)
+  }
+
+  const availableAt = options.availableAt ?? new Date()
+  const rows = payloads.map((payload) => ({
+    id: generateId(),
+    eventType,
+    payload: payload as never,
+    maxAttempts: options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+    availableAt,
+  }))
+  await executor.insert(outboxEvent).values(rows)
+  logger.info('Enqueued outbox event batch', { eventType, count: rows.length })
+  return rows.map((row) => row.id)
+}
+
+export interface CoalescedOutboxEnqueueOptions extends EnqueueOptions {
+  /**
+   * One scalar payload field that identifies the subject of this event.
+   *
+   * Callers must already serialize writers for this subject with their domain
+   * lock. The helper row-locks an existing pending event against the worker,
+   * then extends its delivery deadline instead of creating another row.
+   */
+  coalesceOn: {
+    payloadKey: string
+    payloadValue: string
+  }
+}
+
+/**
+ * Enqueues an outbox event or extends the settle window of the pending event
+ * for the same subject.
+ *
+ * This is for coalescing a burst of transactional mutations into one eventual
+ * side effect (for example, several workspace moves that all update the same
+ * surviving invitation). It intentionally coalesces only `pending` rows:
+ * processing/completed work already crossed the external-side-effect boundary
+ * and must not be rewritten.
+ *
+ * Concurrency between domain writers is supplied by the caller's existing
+ * subject lock. `FOR UPDATE` covers the outbox-worker race so a due row cannot
+ * be claimed while its `availableAt` is being extended.
+ */
+export async function enqueueOrReschedulePendingOutboxEvent<T>(
+  executor: Pick<typeof db, 'select' | 'insert' | 'update'>,
+  eventType: string,
+  payload: T,
+  options: CoalescedOutboxEnqueueOptions
+): Promise<string> {
+  const [existing] = await executor
+    .select({ id: outboxEvent.id, availableAt: outboxEvent.availableAt })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, eventType),
+        eq(outboxEvent.status, 'pending'),
+        sql`${outboxEvent.payload} ->> ${options.coalesceOn.payloadKey} = ${options.coalesceOn.payloadValue}`
+      )
+    )
+    .orderBy(desc(outboxEvent.createdAt), desc(outboxEvent.id))
+    .for('update')
+    .limit(1)
+
+  if (!existing) {
+    return enqueueOutboxEvent(executor, eventType, payload, options)
+  }
+
+  const requestedAvailableAt = options.availableAt ?? new Date()
+  const availableAt =
+    existing.availableAt > requestedAvailableAt ? existing.availableAt : requestedAvailableAt
+  const [rescheduled] = await executor
+    .update(outboxEvent)
+    .set({ availableAt })
+    .where(and(eq(outboxEvent.id, existing.id), eq(outboxEvent.status, 'pending')))
+    .returning({ id: outboxEvent.id })
+
+  if (rescheduled) {
+    logger.info('Rescheduled pending outbox event', {
+      id: rescheduled.id,
+      eventType,
+      availableAt,
+    })
+    return rescheduled.id
+  }
+
+  // A worker won the status transition before this row lock was acquired.
+  // Preserve the requested side effect with a fresh event rather than losing it.
+  return enqueueOutboxEvent(executor, eventType, payload, options)
 }
 
 /**
@@ -163,6 +322,55 @@ export async function patchOutboxEventPayload(
     .where(eq(outboxEvent.id, eventId))
     .returning({ id: outboxEvent.id })
   return result.length > 0
+}
+
+/**
+ * Adds a durable parent-operation correlation to an outbox event without
+ * replacing correlations already attached by another coalesced mutation.
+ */
+export async function addOutboxEventSourceOperationId(
+  executor: Pick<typeof db, 'update'>,
+  eventId: string,
+  operationId: string
+): Promise<boolean> {
+  const result = await executor
+    .update(outboxEvent)
+    .set({
+      payload: sql`jsonb_set(
+        coalesce(${outboxEvent.payload}::jsonb, '{}'::jsonb),
+        '{sourceOperationIds}',
+        case
+          when coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+            @> jsonb_build_array(${operationId}::text)
+          then coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+          else coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+            || jsonb_build_array(${operationId}::text)
+        end,
+        true
+      )::json`,
+    })
+    .where(eq(outboxEvent.id, eventId))
+    .returning({ id: outboxEvent.id })
+  return result.length > 0
+}
+
+/** Matches both ordinary single-parent events and coalesced multi-parent events. */
+export function outboxEventHasSourceOperationId(operationId: string) {
+  return sql<boolean>`(
+    ${outboxEvent.payload} ->> 'sourceOperationId' = ${operationId}
+    or coalesce(${outboxEvent.payload}::jsonb -> 'sourceOperationIds', '[]'::jsonb)
+      @> jsonb_build_array(${operationId}::text)
+  )`
+}
+
+/** Runtime equivalent of `outboxEventHasSourceOperationId` for locked-row checks. */
+export function outboxPayloadHasSourceOperationId(payload: unknown, operationId: string): boolean {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const record = payload as Record<string, unknown>
+  return (
+    record.sourceOperationId === operationId ||
+    (Array.isArray(record.sourceOperationIds) && record.sourceOperationIds.includes(operationId))
+  )
 }
 
 /** Cap on how many dead-lettered rows a single reconciler scan materializes. */
@@ -211,38 +419,81 @@ export async function hasInflightOutboxEvent(
 }
 
 /**
- * Process one batch of outbox events. Safe to call concurrently from
- * multiple workers — `SELECT FOR UPDATE SKIP LOCKED` serializes claims.
+ * Process a bounded batch, serving each ready event type once per round so
+ * bulk maintenance cannot monopolize delivery. Each type serves its earliest
+ * available events first. Safe to call concurrently from multiple workers —
+ * `SELECT FOR UPDATE SKIP LOCKED` serializes claims.
  */
 export async function processOutboxEvents(
   handlers: OutboxHandlerRegistry,
   options: { batchSize?: number; maxRuntimeMs?: number; minRemainingMs?: number } = {}
 ): Promise<ProcessOutboxResult> {
+  const startedAt = Date.now()
   const batchSize = options.batchSize ?? 10
-  const deadline = options.maxRuntimeMs ? Date.now() + options.maxRuntimeMs : undefined
+  const deadline = options.maxRuntimeMs ? startedAt + options.maxRuntimeMs : undefined
   const minRemainingMs = options.minRemainingMs ?? DEFAULT_HANDLER_TIMEOUT_MS + 5000
-
-  const reaped = await reapStuckProcessingRows()
-
+  let phase = 'reap'
+  let reaped = 0
   let processed = 0
   let retried = 0
   let deadLettered = 0
   let leaseLost = 0
 
-  for (let i = 0; i < batchSize; i++) {
-    if (deadline && Date.now() + minRemainingMs > deadline) break
+  try {
+    reaped = await reapStuckProcessingRows()
+    phase = 'discover'
+    const readyTypes = await db.execute<{ eventType: string }>(readyEventTypesQuery(new Date()))
+    const eligibleTypes = readyTypes.map(({ eventType }) => eventType)
+    let cursor = 0
+    let claimed = 0
 
-    const [event] = await claimBatch(1)
-    if (!event) break
+    while (claimed < batchSize && eligibleTypes.length > 0) {
+      if (deadline && Date.now() + minRemainingMs > deadline) break
+      if (cursor >= eligibleTypes.length) cursor = 0
 
-    const result = await runHandler(event, handlers)
-    if (result === 'completed') processed++
-    else if (result === 'dead_letter') deadLettered++
-    else if (result === 'lease_lost') leaseLost++
-    else retried++
+      const eventType = eligibleTypes[cursor]
+      const handlerTimeout = handlers[eventType]?.timeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS
+      if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+
+      phase = 'claim'
+      const [event] = await claimBatch(1, eventType)
+      if (!event) {
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+      claimed++
+      if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
+        phase = 'release'
+        await updateIfLeaseHeld(event, { status: 'pending', lockedAt: null })
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+      cursor++
+      phase = 'handle'
+      const result = await runHandler(event, handlers)
+      if (result === 'completed') processed++
+      else if (result === 'dead_letter') deadLettered++
+      else if (result === 'lease_lost') leaseLost++
+      else retried++
+    }
+
+    return { processed, retried, deadLettered, leaseLost, reaped }
+  } catch (error) {
+    logger.error('Outbox processing failed', {
+      phase,
+      durationMs: Date.now() - startedAt,
+      processed,
+      retried,
+      deadLettered,
+      leaseLost,
+      reaped,
+      error: describeError(error),
+    })
+    throw error
   }
-
-  return { processed, retried, deadLettered, leaseLost, reaped }
 }
 
 /**
@@ -299,10 +550,17 @@ export async function processOutboxEventById(
  */
 async function reapStuckProcessingRows(): Promise<number> {
   const stuckBefore = new Date(Date.now() - STUCK_PROCESSING_THRESHOLD_MS)
+  const stuckRows = db
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(and(eq(outboxEvent.status, 'processing'), lte(outboxEvent.lockedAt, stuckBefore)))
+    .orderBy(asc(outboxEvent.lockedAt), asc(outboxEvent.id))
+    .limit(MAX_REAPED_EVENTS)
+    .for('update', { skipLocked: true })
   const result = await db
     .update(outboxEvent)
     .set({ status: 'pending', lockedAt: null })
-    .where(and(eq(outboxEvent.status, 'processing'), lte(outboxEvent.lockedAt, stuckBefore)))
+    .where(inArray(outboxEvent.id, stuckRows))
     .returning({ id: outboxEvent.id })
 
   if (result.length > 0) {
@@ -322,14 +580,23 @@ async function reapStuckProcessingRows(): Promise<number> {
  * `processing` inside the same tx so the claim survives the lock
  * release — the status change becomes the out-of-band mutual exclusion.
  */
-async function claimBatch(batchSize: number): Promise<(typeof outboxEvent.$inferSelect)[]> {
+async function claimBatch(
+  batchSize: number,
+  eventType: string
+): Promise<(typeof outboxEvent.$inferSelect)[]> {
   const now = new Date()
   return db.transaction(async (tx) => {
     const rows = await tx
       .select()
       .from(outboxEvent)
-      .where(and(eq(outboxEvent.status, 'pending'), lte(outboxEvent.availableAt, now)))
-      .orderBy(asc(outboxEvent.createdAt))
+      .where(
+        and(
+          eq(outboxEvent.status, 'pending'),
+          lte(outboxEvent.availableAt, now),
+          eq(outboxEvent.eventType, eventType)
+        )
+      )
+      .orderBy(asc(outboxEvent.availableAt), asc(outboxEvent.createdAt), asc(outboxEvent.id))
       .limit(batchSize)
       .for('update', { skipLocked: true })
 
@@ -375,21 +642,22 @@ async function runHandler(
   const handler = handlers[event.eventType]
 
   if (!handler) {
-    logger.error('No handler registered for outbox event type', {
+    const reason = `No handler registered for event type '${event.eventType}'`
+    logger.warn('No handler registered for outbox event type; scheduling a bounded retry', {
       eventId: event.id,
       eventType: event.eventType,
     })
-    await updateIfLeaseHeld(event, {
-      status: 'dead_letter',
-      lastError: `No handler registered for event type '${event.eventType}'`,
-      processedAt: new Date(),
-      lockedAt: null,
+    return scheduleDeferred(event, {
+      outcome: 'deferred',
+      reason,
     })
-    return 'dead_letter'
   }
 
   try {
-    await runHandlerWithTimeout(handler, event)
+    const handlerResult = await runHandlerWithTimeout(handler, event)
+    if (handlerResult?.outcome === 'deferred') {
+      return scheduleDeferred(event, handlerResult)
+    }
     const updated = await updateIfLeaseHeld(event, {
       status: 'completed',
       lastError: null,
@@ -550,6 +818,52 @@ async function scheduleRetry(
   return 'pending'
 }
 
+async function scheduleDeferred(
+  event: typeof outboxEvent.$inferSelect,
+  result: DeferredOutboxHandlerResult
+): Promise<'pending' | 'dead_letter' | 'lease_lost'> {
+  const nextAttempts = event.attempts + (result.consumeAttempt === false ? 0 : 1)
+  if (result.consumeAttempt !== false && nextAttempts >= event.maxAttempts) {
+    const updated = await updateIfLeaseHeld(event, {
+      attempts: nextAttempts,
+      status: 'dead_letter',
+      lastError: result.reason,
+      processedAt: new Date(),
+      lockedAt: null,
+    })
+    if (!updated) return 'lease_lost'
+    logger.error('Outbox event dead-lettered while awaiting external acknowledgement', {
+      eventId: event.id,
+      eventType: event.eventType,
+      attempts: nextAttempts,
+      reason: result.reason,
+    })
+    return 'dead_letter'
+  }
+
+  const backoffMs = Math.max(
+    result.minimumBackoffMs ?? 0,
+    Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** nextAttempts)
+  )
+  const nextAvailableAt = new Date(Date.now() + backoffMs)
+  const updated = await updateIfLeaseHeld(event, {
+    attempts: nextAttempts,
+    status: 'pending',
+    lastError: null,
+    availableAt: nextAvailableAt,
+    lockedAt: null,
+  })
+  if (!updated) return 'lease_lost'
+  logger.info('Outbox event is awaiting external acknowledgement', {
+    eventId: event.id,
+    eventType: event.eventType,
+    attempts: nextAttempts,
+    backoffMs,
+    nextAvailableAt: nextAvailableAt.toISOString(),
+  })
+  return 'pending'
+}
+
 async function updateProcessingIfLeaseHeld(
   event: typeof outboxEvent.$inferSelect,
   patch: {
@@ -575,8 +889,8 @@ async function updateProcessingIfLeaseHeld(
 function runHandlerWithTimeout(
   handler: OutboxHandler,
   event: typeof outboxEvent.$inferSelect,
-  timeoutMs: number = DEFAULT_HANDLER_TIMEOUT_MS
-): Promise<void> {
+  timeoutMs: number = handler.timeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS
+): Promise<undefined | DeferredOutboxHandlerResult> {
   const controller = new AbortController()
   const context: OutboxEventContext = {
     eventId: event.id,
@@ -584,6 +898,7 @@ function runHandlerWithTimeout(
     attempts: event.attempts,
     maxAttempts: event.maxAttempts,
     signal: controller.signal,
+    deadlineAt: Date.now() + timeoutMs,
     checkpointPayload: async (patch) => {
       controller.signal.throwIfAborted()
       const updated = await mergePayloadIfLeaseHeld(event, patch)
@@ -607,7 +922,7 @@ function runHandlerWithTimeout(
     handler(event.payload, context)
       .then((value) => {
         clearTimeout(timeout)
-        resolve(value)
+        resolve(value ?? undefined)
       })
       .catch((err) => {
         clearTimeout(timeout)

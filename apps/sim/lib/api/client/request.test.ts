@@ -1,9 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { requestJson } from '@/lib/api/client/request'
+import { CLIENT_ID_HEADER } from '@/lib/api/client-id'
 import { listKnowledgeDocumentsContract } from '@/lib/api/contracts/knowledge'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -24,10 +22,6 @@ function mockFetchReturning(body: unknown) {
 }
 
 describe('requestJson query serialization', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('serializes a JSON-string query param verbatim (regression: tagFilters)', async () => {
     const fetchMock = mockFetchReturning({
       success: true,
@@ -54,18 +48,62 @@ describe('requestJson query serialization', () => {
     expect(calledUrl).not.toContain('[object Object]')
   })
 
-  it('throws instead of silently corrupting an array-of-objects query param', async () => {
-    mockFetchReturning({ ok: true })
+  it('JSON-encodes an array-of-objects query param instead of corrupting or throwing', async () => {
+    // A SortSpec ([{field, direction}]) is the everyday case: repeat-append
+    // would send "[object Object]", so the whole array travels as ONE JSON
+    // string param, mirroring plain objects; the server contract decodes it.
+    const fetchMock = mockFetchReturning({ ok: true })
 
-    const badContract = defineRouteContract({
+    const contract = defineRouteContract({
       method: 'GET',
       path: '/api/test',
       query: z.object({ items: z.array(z.object({ a: z.string() })) }),
       response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
     })
 
-    await expect(requestJson(badContract, { query: { items: [{ a: 'x' }] } })).rejects.toThrow(
-      /arrays of objects are not URL-safe/
-    )
+    await requestJson(contract, { query: { items: [{ a: 'x' }] } })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(decodeURIComponent(url)).toContain('items=[{"a":"x"}]')
+  })
+
+  it('keeps repeat-append for scalar arrays', async () => {
+    const fetchMock = mockFetchReturning({ ok: true })
+
+    const contract = defineRouteContract({
+      method: 'GET',
+      path: '/api/test',
+      query: z.object({ tags: z.array(z.string()) }),
+      response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
+    })
+
+    await requestJson(contract, { query: { tags: ['a', 'b'] } })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('tags=a&tags=b')
+  })
+})
+
+/**
+ * The tab id rides on every request so a broadcast raised by one can be attributed back to the tab
+ * that caused it. Asserted here rather than on the reader, because the header being *sent* is the
+ * half that silently does nothing if it regresses.
+ */
+describe('requestJson client id header', () => {
+  const contract = defineRouteContract({
+    method: 'GET',
+    path: '/api/test',
+    response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
+  })
+
+  function sentHeaders(fetchMock: ReturnType<typeof mockFetchReturning>): Record<string, string> {
+    return (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>
+  }
+
+  it('sends the tab id in the browser', async () => {
+    vi.stubGlobal('window', {})
+    const fetchMock = mockFetchReturning({ ok: true })
+
+    await requestJson(contract, {})
+
+    expect(sentHeaders(fetchMock)[CLIENT_ID_HEADER]).toEqual(expect.any(String))
   })
 })

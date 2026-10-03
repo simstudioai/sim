@@ -1,27 +1,49 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
-import type { SidebarState } from './types'
+import type { SidebarState } from '@/stores/sidebar/types'
 
 /**
- * Clamps an expanded sidebar width into the valid range for the current
- * viewport. The upper bound can never drop below {@link SIDEBAR_WIDTH.MIN}, so a
- * narrow window (where `innerWidth * MAX_PERCENTAGE < MIN`) still yields a width
- * at or above the minimum instead of collapsing the sidebar to nothing.
+ * The widest the expanded sidebar may be at a given viewport width: 30% of the
+ * viewport, capped at {@link SIDEBAR_WIDTH.MAX}. It can never drop below
+ * {@link SIDEBAR_WIDTH.MIN}, so a narrow window (where the percentage falls under
+ * the minimum) still yields a usable rail instead of collapsing it to nothing.
+ *
+ * The one definition of the ceiling — the resize handle reads it, and the
+ * pre-paint script in `app/layout.tsx` mirrors it inline (it cannot import).
  */
-function clampSidebarWidth(width: number): number {
-  if (!Number.isFinite(width)) return SIDEBAR_WIDTH.DEFAULT
-  const max =
-    typeof window === 'undefined'
-      ? Number.POSITIVE_INFINITY
-      : Math.max(SIDEBAR_WIDTH.MIN, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
-  return Math.min(Math.max(width, SIDEBAR_WIDTH.MIN), max)
+export function getMaxSidebarWidth(viewportWidth: number): number {
+  return Math.max(
+    SIDEBAR_WIDTH.MIN,
+    Math.min(SIDEBAR_WIDTH.MAX, viewportWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+  )
 }
 
-function applySidebarWidth(width: number) {
+/** Clamps an expanded sidebar width into the valid range for the current viewport. */
+function clampSidebarWidth(width: number): number {
+  const target = Number.isFinite(width) ? width : SIDEBAR_WIDTH.DEFAULT
+  const max =
+    typeof window === 'undefined' ? Number.POSITIVE_INFINITY : getMaxSidebarWidth(window.innerWidth)
+  return Math.min(Math.max(target, SIDEBAR_WIDTH.MIN), max)
+}
+
+/**
+ * Publishes both sidebar widths, owning the collapsed mapping so callers don't repeat it.
+ *
+ * `--sidebar-width` is the width the rail currently occupies (the collapsed width while
+ * collapsed), whereas `--sidebar-expanded-width` always holds the width to restore to.
+ * The desktop hover-peek needs the latter: it renders the sidebar at full width while
+ * the rail itself is still collapsed to zero.
+ */
+function applySidebarWidths(expandedWidth: number, collapsed: boolean) {
   if (typeof window === 'undefined') return
-  const value = Number.isFinite(width) ? width : SIDEBAR_WIDTH.DEFAULT
-  document.documentElement.style.setProperty('--sidebar-width', `${value}px`)
+  const expanded = Number.isFinite(expandedWidth) ? expandedWidth : SIDEBAR_WIDTH.DEFAULT
+  const root = document.documentElement
+  root.style.setProperty('--sidebar-expanded-width', `${expanded}px`)
+  root.style.setProperty(
+    '--sidebar-width',
+    `${collapsed ? getCollapsedSidebarWidth() : expanded}px`
+  )
 }
 
 /** Reads the host-specific collapsed width established by the pre-paint layout script. */
@@ -63,26 +85,21 @@ export const useSidebarStore = create<SidebarState>()(
         if (get().isCollapsed) return
         const clampedWidth = clampSidebarWidth(width)
         set({ sidebarWidth: clampedWidth })
-        applySidebarWidth(clampedWidth)
+        applySidebarWidths(clampedWidth, false)
       },
       toggleCollapsed: () => {
         const { isCollapsed, sidebarWidth } = get()
         const nextCollapsed = !isCollapsed
-        set({ isCollapsed: nextCollapsed })
+        const expandedWidth = clampSidebarWidth(sidebarWidth)
+        set({ isCollapsed: nextCollapsed, sidebarWidth: expandedWidth })
         applyCollapsedCookie(nextCollapsed)
-        applySidebarWidth(
-          nextCollapsed ? getCollapsedSidebarWidth() : clampSidebarWidth(sidebarWidth)
-        )
+        applySidebarWidths(expandedWidth, nextCollapsed)
       },
       syncWidth: () => {
         const { isCollapsed, sidebarWidth } = get()
-        if (isCollapsed) {
-          applySidebarWidth(getCollapsedSidebarWidth())
-          return
-        }
         const clampedWidth = clampSidebarWidth(sidebarWidth)
-        if (clampedWidth !== sidebarWidth) set({ sidebarWidth: clampedWidth })
-        applySidebarWidth(clampedWidth)
+        if (!isCollapsed && clampedWidth !== sidebarWidth) set({ sidebarWidth: clampedWidth })
+        applySidebarWidths(clampedWidth, isCollapsed)
       },
       setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
     }),
@@ -99,10 +116,7 @@ export const useSidebarStore = create<SidebarState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.setHasHydrated(true)
-          const width = state.isCollapsed
-            ? getCollapsedSidebarWidth()
-            : clampSidebarWidth(state.sidebarWidth)
-          applySidebarWidth(width)
+          state.syncWidth()
         }
       },
       /** Only width is persisted; collapse lives in the cookie. */

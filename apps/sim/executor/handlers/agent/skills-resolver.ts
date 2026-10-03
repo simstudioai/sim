@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getBuiltinSkillById, getBuiltinSkillByName } from '@/lib/workflows/skills/builtin-skills'
 import type { SkillInput } from '@/executor/handlers/agent/types'
@@ -51,7 +52,11 @@ export async function resolveSkillMetadata(
 
     return [...metadata, ...rows.map((row) => ({ name: row.name, description: row.description }))]
   } catch (error) {
-    logger.error('Failed to resolve skill metadata', { error, dbSkillIds, workspaceId })
+    logger.error('Failed to resolve skill metadata', {
+      errorName: toError(error).name,
+      requestedSkillCount: dbSkillIds.length,
+      workspaceId,
+    })
     return metadata
   }
 }
@@ -77,13 +82,17 @@ export async function resolveSkillContent(
       .limit(1)
 
     if (rows.length === 0) {
-      logger.warn('Skill not found', { skillName, workspaceId })
+      logger.warn('Skill not found', { hasSkillName: skillName.length > 0, workspaceId })
       return null
     }
 
     return rows[0].content
   } catch (error) {
-    logger.error('Failed to resolve skill content', { error, skillName, workspaceId })
+    logger.error('Failed to resolve skill content', {
+      errorName: toError(error).name,
+      hasSkillName: skillName.length > 0,
+      workspaceId,
+    })
     return null
   }
 }
@@ -105,13 +114,17 @@ export async function resolveSkillContentById(
       .limit(1)
 
     if (rows.length === 0) {
-      logger.warn('Skill not found', { skillId, workspaceId })
+      logger.warn('Skill not found', { hasSkillId: skillId.length > 0, workspaceId })
       return null
     }
 
     return { name: rows[0].name, content: rows[0].content }
   } catch (error) {
-    logger.error('Failed to resolve skill content', { error, skillId, workspaceId })
+    logger.error('Failed to resolve skill content', {
+      errorName: toError(error).name,
+      hasSkillId: skillId.length > 0,
+      workspaceId,
+    })
     return null
   }
 }
@@ -147,7 +160,6 @@ export function buildSkillsSystemPromptSection(skills: SkillMetadata[]): string 
 export function buildLoadSkillTool(skillNames: string[]) {
   return {
     id: 'load_skill',
-    name: 'load_skill',
     description: `Load a skill to get specialized instructions. Available skills: ${skillNames.join(', ')}`,
     params: {},
     parameters: {

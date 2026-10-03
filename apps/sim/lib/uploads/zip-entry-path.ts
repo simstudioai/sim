@@ -1,5 +1,8 @@
+import { ensureFileNameExtension } from '@/lib/uploads/utils/file-utils'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+
 /** Characters that are illegal in file names on common desktop platforms. */
-const ILLEGAL_ENTRY_CHARS = /[<>:"\\|?*\x00-\x1f]/g
+const ILLEGAL_ENTRY_CHARS = /[<>:"/\\|?*\x00-\x1f]/g
 
 /** A workspace file to place inside an archive. */
 export interface ZipEntrySource {
@@ -7,6 +10,8 @@ export interface ZipEntrySource {
   name: string
   /** Workspace-root-relative folder path holding the file, or null when it sits at the root. */
   folderPath?: string | null
+  /** Stored content type; supplies the extension when the name carries none. */
+  contentType?: string | null
 }
 
 export interface BuildZipEntryPathsOptions {
@@ -19,7 +24,7 @@ export interface BuildZipEntryPathsOptions {
 
 /** Split a folder path into non-empty segments. */
 function toSegments(folderPath?: string | null): string[] {
-  return folderPath ? folderPath.split('/').filter(Boolean) : []
+  return folderPath ? parseWorkspaceFileFolderDisplayPath(folderPath) : []
 }
 
 /**
@@ -34,19 +39,23 @@ function toLeafName(name: string): string {
 }
 
 /**
- * Sanitize a `/`-joined entry path segment by segment: strips characters that are
+ * Sanitize entry path segments before joining them: strips characters that are
  * illegal on common desktop platforms, neutralizes `.`/`..` traversal segments, and
  * drops empty segments. Returns `''` when no usable segment remains.
  */
-function safeEntryPath(path: string): string {
-  return path
-    .split('/')
+function safeEntryPath(segments: string[]): string {
+  return segments
     .map((segment) => {
       const cleaned = segment.trim().replace(ILLEGAL_ENTRY_CHARS, '_')
       return cleaned === '.' || cleaned === '..' ? '_' : cleaned
     })
     .filter(Boolean)
     .join('/')
+}
+
+/** One archive-safe leaf name for `name`, with its directory and illegal characters dropped. */
+export function safeZipLeafName(name: string): string {
+  return safeEntryPath([toLeafName(name)])
 }
 
 /**
@@ -108,9 +117,9 @@ export function buildZipEntryPaths(
   const usedPaths = new Set<string>()
 
   return sources.map((source) => {
-    const leafName = toLeafName(source.name)
+    const leafName = ensureFileNameExtension(toLeafName(source.name), source.contentType)
     const folderSegments = toSegments(source.folderPath).slice(rebaseLength)
-    const basePath = safeEntryPath([...folderSegments, leafName].join('/')) || leafName
+    const basePath = safeEntryPath([...folderSegments, leafName]) || leafName
 
     let candidate = basePath
     let suffix = 1

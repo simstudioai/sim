@@ -11,11 +11,70 @@ export const GoogleGroupsBlock: BlockConfig = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Connect to Google Workspace to create, update, and manage groups and their members using the Admin SDK Directory API.',
-  docsLink: 'https://developers.google.com/admin-sdk/directory/v1/guides/manage-groups',
+  docsLink: 'https://docs.sim.ai/integrations/google_groups',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#E8F0FE',
   icon: GoogleGroupsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Groups',
+    sentences: {
+      byOperation: {
+        list_groups: [
+          'List groups',
+          { text: 'in', field: 'domain' },
+          { text: ', matching', field: 'query' },
+        ],
+        get_group: [{ text: 'Read group', field: 'groupKey', core: true }],
+        create_group: [
+          { text: 'Create group', field: 'name', core: true },
+          { text: 'at', field: 'email' },
+        ],
+        update_group: [
+          { text: 'Update group', field: 'groupKey', core: true },
+          { text: ', renaming it to', field: 'newName' },
+        ],
+        delete_group: [{ text: 'Delete group', field: 'groupKey', core: true }],
+        list_members: [
+          { text: 'List members of', field: 'groupKey', core: true },
+          { text: ', with role', field: 'roles' },
+        ],
+        get_member: [
+          { text: 'Read member', field: 'memberKey', core: true },
+          { text: 'of', field: 'groupKey' },
+        ],
+        add_member: [
+          { text: 'Add', field: 'memberEmail', core: true },
+          { text: 'to', field: 'groupKey', core: true },
+          { text: 'as', field: 'role' },
+        ],
+        update_member: [
+          { text: 'Set role of', field: 'memberKey', core: true },
+          { text: 'in', field: 'groupKey', core: true },
+          { text: 'to', field: 'role' },
+        ],
+        remove_member: [
+          { text: 'Remove', field: 'memberKey', core: true },
+          { text: 'from', field: 'groupKey', core: true },
+        ],
+        has_member: [
+          { text: 'Check whether', field: 'memberKey', core: true },
+          { text: 'belongs to', field: 'groupKey', core: true },
+        ],
+        list_aliases: [{ text: 'List aliases of', field: 'groupKey', core: true }],
+        add_alias: [
+          { text: 'Add alias', field: 'alias', core: true },
+          { text: 'to', field: 'groupKey', core: true },
+        ],
+        remove_alias: [
+          { text: 'Remove alias', field: 'alias', core: true },
+          { text: 'from', field: 'groupKey', core: true },
+        ],
+        get_settings: [{ text: 'Read settings of', field: 'groupEmail', core: true }],
+        update_settings: [{ text: 'Update settings of', field: 'groupEmail', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

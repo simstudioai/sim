@@ -1,10 +1,7 @@
 import { PerplexityIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { PerplexityChatResponse, PerplexitySearchResponse } from '@/tools/perplexity/types'
 
-type PerplexityResponse = PerplexityChatResponse | PerplexitySearchResponse
-
-export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
+export const PerplexityBlock: BlockConfig = {
   type: 'perplexity',
   name: 'Perplexity',
   description: 'Use Perplexity AI for chat and search',
@@ -17,6 +14,22 @@ export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
   bgColor: '#20808D', // Perplexity turquoise color
   iconColor: '#20808D',
   icon: PerplexityIcon,
+  canvasPresentation: {
+    defaultTitle: 'Perplexity',
+    sentences: {
+      byOperation: {
+        perplexity_chat: [
+          { text: 'Answer', field: 'content', core: true },
+          { text: 'using', field: 'model' },
+        ],
+        perplexity_search: [
+          { text: 'Search the web for', field: 'query', core: true },
+          { text: 'within', field: 'search_domain_filter' },
+          { text: ', from the', field: 'search_recency_filter' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

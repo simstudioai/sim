@@ -42,7 +42,29 @@ tools/{service}/
 
 ## Tool Configuration Structure
 
-Every tool MUST follow this exact structure:
+### Choose the execution boundary first
+
+Every tool must use exactly one of these configurations:
+
+- **In-process operation (preferred):** use `InternalToolConfig` when the executor and the
+  implementation run in the same Sim process/trust/runtime plane. Materialize typed
+  `operation.input`, implement the handler under `apps/sim/lib/internal/{service}/execute-tool.ts`,
+  and register every tool ID in `apps/sim/lib/internal/tool-operations/registry.server.ts`.
+- **External provider request:** use `ToolConfig.request` only when the URL is an absolute external
+  HTTP(S) provider endpoint.
+
+Never set a tool URL to `/api/...`, construct an absolute URL back to Sim, declare
+`request.internal`, add a `directExecution` property (it fails `bun run check:tool-request-boundary`), import a route module, or create an API route merely to normalize files,
+authorize access, or reuse server code. A real browser/API route may remain as a thin adapter, but
+the route and the tool must call the same operation directly. A true cross-process/capability
+boundary uses an explicit server client and is not disguised as a tool self-hop.
+
+For protected Sim resources, the internal handler calls the domain's authorized application use
+case with trusted execution context; use the `migrate-application-operation` skill.
+
+### External provider request
+
+Use this structure only for an absolute external provider API:
 
 ```typescript
 import type { {ServiceName}{Action}Params } from '@/tools/{service}/types'
@@ -71,7 +93,7 @@ export const {serviceName}{Action}Tool: ToolConfig<
   },
 
   params: {
-    // Hidden params (system-injected, only use hidden for oauth accessToken)
+    // Hidden params (system-injected, e.g. the OAuth accessToken)
     accessToken: {
       type: 'string',
       required: true,
@@ -126,12 +148,47 @@ export const {serviceName}{Action}Tool: ToolConfig<
 }
 ```
 
+### In-process operation
+
+```typescript
+import type { InternalToolConfig } from '@/tools/types'
+
+export const {serviceName}{Action}Tool: InternalToolConfig<
+  {ServiceName}{Action}Params,
+  {ServiceName}{Action}Response
+> = {
+  id: '{service}_{action}',
+  name: '{Service} {Action}',
+  description: 'Brief description',
+  version: '1.0.0',
+  params: {
+    // Same canonical metadata as an external tool.
+  },
+  operation: {
+    input: (params) => ({
+      // Map resolved tool params into the typed semantic operation input.
+    }),
+  },
+  outputs: {
+    // Define each output field.
+  },
+}
+```
+
+The registered handler accepts `InternalToolOperationCall`, validates `request.input`, uses only
+trusted `request.context` for authority, forwards `request.signal`, and returns the same bounded
+`Response` contract expected by the tool executor. It has no URL, method, request headers, fetch
+fallback, or caller-controlled `_context` authority.
+
 ## Critical Rules for Parameters
 
 ### Visibility Options
 - `'hidden'` - System-injected (OAuth tokens, internal params). User never sees.
 - `'user-only'` - User must provide (credentials, api keys, account-specific IDs)
 - `'user-or-llm'` - User provides OR LLM can compute (search queries, content, filters, most fall into this category)
+- `'llm-only'` - Computed by the LLM only; never shown as a user field
+
+A required `'hidden'` param needs an `oauth` declaration or `hosting.apiKeyParam` to supply it (`bun run check:tool-param-reachability`).
 
 ### Parameter Types
 - `'string'` - Text values
@@ -145,13 +202,110 @@ export const {serviceName}{Action}Tool: ToolConfig<
 - Always explicitly set `required: true` or `required: false`
 - Optional params should have `required: false`
 
+## Resolved Secrets and Provenance Boundaries
+
+Classify every request field before implementing the tool.
+
+This is opt-in, not a blanket integration migration. Add a model-input declaration only when the
+service's official documentation or an unambiguous local execution path proves that the exact
+field is consumed by an AI model. If that cannot be established, preserve existing tool behavior
+and leave the field unannotated.
+
+- **Ordinary provider/API input:** leave it unchanged. Explicit `{{...}}` references resolve and are
+  sent with their normal request semantics. A URL, domain, resource ID, control field, or opaque
+  payload is not model-visible merely because the provider is AI-backed or may process the
+  referenced resource later.
+- **Text or structured content consumed by an AI model:** declare `request.modelInput` for an
+  external provider request or `operation.modelInput` for an in-process operation, with
+  `mode: 'project'` and select only the exact model-visible fields. The shared executor replaces
+  activated Sim secrets with canonical `{{NAME}}` labels before request formatting. For nested or
+  JSON-string fields, use a small shared selector plus `applyProjected`; verify that selecting the
+  rebuilt params reproduces the projected selection.
+- **Serialized model content sent directly to an external provider:** include the serialized
+  top-level param in `request.modelInput`. Project the private copy before the existing request
+  formatter parses it; keep formatter behavior deterministic when a whole-value placeholder is not
+  valid in the serialized grammar. Do not introduce a second hard-rejection path.
+- **Opaque model input owned by an in-process operation** such as inline audio, image, video, or
+  document bytes: add `privateInputPaths` to the `mode: 'project'` operation model-input
+  declaration, or use `mode: 'private-provenance'` with `inputPaths` when there is no textual
+  projection (see the `modelInput` union in `apps/sim/tools/types.ts`). Do not select storage keys,
+  paths, signed URLs, or ordinary remote URLs as byte provenance; the owning operation must
+  authorize stored bytes independently at model egress. The operation must call
+  `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
+  apply the workspace-file provenance guard before reading a persisted workspace file.
+- **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
+  (table cells, Agent memory, knowledge documents/chunks, workspace-file contents, or child-workflow
+  input): transport encrypted field-scoped provenance with `operation.secretProvenance`. The
+  operation validates the exact selection and trusted scope, then persists, imports, or propagates
+  it at the owning boundary. Preserve shared legacy behavior for rows/files whose provenance marker
+  is `NULL`; never invent a tool-local migration rule.
+
+Hard rules:
+
+- Never substitute secret plaintext into source or serialize plaintext provenance.
+- Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
+  transport and strips private metadata from functional results.
+- Never attach private provenance to an external URL. Project proven
+  model-visible external fields with `request.modelInput`; otherwise preserve ordinary request
+  semantics. Use a registered in-process operation when encrypted provenance must cross the
+  boundary.
+- Never sanitize arbitrary third-party tool results. Projection applies only to secrets activated
+  by Sim's resolved-secret provenance for that execution/tool call.
+- Do not add provenance merely because a value is persisted, returned by a tool, or appears in a
+  filename. Require a concrete Sim `{{...}}` resolution path and a later model/log boundary. If an
+  unsupported field can resolve a secret but does not justify durable tracking (for example a
+  `file_write` path), reject it at that exact ingress.
+- At diagnostic boundaries, project only values carrying execution-scoped provenance. Ordinary
+  provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
+  secret into them.
+
+Run the `test-audit` authoring gate, then cover these risks at the boundary that owns them: named projection, ordinary identical text without provenance, nested and
+serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
+failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
+For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,
+stale/missing sidecars, and scope isolation.
+
 ## Critical Rules for Outputs
+
+### File Downloads and Generated Files
+
+Internal operations return `createInternalToolFileResult` / `createInternalToolFilesResult` from
+`lib/internal/tool-operations/file-result.ts` with bounded Buffers and a callback that places the
+stored descriptors in the response. Their handlers preserve this result through dispatch, using
+`InternalToolOperationHandler<InternalToolOperationResult>`. Do not serialize file bytes as base64
+JSON: the executor's 10 MiB response cap runs before ordinary file postprocessing or large-value
+externalization. The shared executor stores files using trusted run or Copilot ownership.
+
+External endpoints that return raw binary files explicitly declare `request.responseType: 'binary'`
+and return `output.file` with `{ name, mimeType, data: buffer, size }` from `transformResponse`.
+The executor applies the bounded file-transfer budget and persists the descriptor. This opt-in is
+for raw binary responses, not provider JSON containing base64 or tools that fetch attachments later.
+Keep provider-specific limits and bounded reads; a file declaration is not permission to enlarge
+arbitrary JSON responses.
+
+Attachment readers that download files inside `transformResponse` need their own bounded reads:
+the first response cap does not cover subsequent fetches. Accept `ToolResponseContext` as the third
+transform argument, forward its `signal`, and share one `AttachmentDownloadBudget` across sequential
+downloads. Prefer raw provider endpoints over base64 metadata. Return the same file object in the
+declared `file` / `file[]` output and nested message associations; `FileToolProcessor` stores it once
+and replaces every alias with the same `UserFile` in both workflow and Copilot execution.
+
+When a transform receives an already-stored `UserFile`, return it unchanged (keep `id`, `key`, `url`,
+`context`, `type`, `name`, `size`). Building a new `{ name, mimeType, data, size }` object from it
+discards the stored reference; that shape is only for fresh raw-binary responses. File outputs do not
+need duplicate inline text/base64 aliases; the file system handles content materialization. When
+an existing tool explicitly exposes content aliases in its contract, preserve its legacy version and
+use the existing block/tool version pattern for a file-only output. Test a file over 10 MiB through
+executor admission, single persistence, trusted ownership, and the unchanged JSON cap. Avoid adding
+top-level filename, size, MIME type, URL, or success fields that merely repeat the canonical file or
+tool result; keep additional provider fields only when they convey distinct information.
 
 ### Output Types
 - `'string'`, `'number'`, `'boolean'` - Primitives
 - `'json'` - Complex objects (use this, NOT 'object')
 - `'array'` - Arrays with `items` property
 - `'object'` - Objects with `properties` property
+- `'file'` / `'file[]'` - Stored files; the executor persists them (see File Downloads above)
 
 ### Optional Outputs
 Add `optional: true` for fields that may not exist in the response:
@@ -201,9 +355,7 @@ items: {
 },
 ```
 
-Only use bare `type: 'json'` without `properties` when the shape is truly dynamic or unknown.
-
-If the response shape is unknown because the docs do not provide it, you MUST tell the user and stop. Unknown is not the same as dynamic. Never guess outputs.
+Only use bare `type: 'json'` without `properties` when the shape is truly dynamic. Unknown is not the same as dynamic — see the Hard Rule above.
 
 ## Critical Rules for transformResponse
 
@@ -296,6 +448,17 @@ export const tools = {
 }
 ```
 
+3. Regenerate the tool metadata artifacts:
+
+```bash
+bun run tool-metadata:generate
+```
+
+Client code reads a tool's `params`/`outputs` from generated metadata rather than
+importing the registry, so a tool you add, change or remove is invisible to the UI until
+these are regenerated — and CI fails on stale artifacts. Commit the result. See
+`.agents/skills/tool-registry-boundary/SKILL.md`.
+
 ## Wiring Tools into the Block (Required)
 
 After registering in `tools/registry.ts`, you MUST also update the block definition at `apps/sim/blocks/blocks/{service}.ts`. This is not optional — tools are only usable from the UI if they are wired into the block.
@@ -380,10 +543,13 @@ Add any type coercions needed for new params (runs at execution time, after vari
 params: (params) => {
   const result: Record<string, unknown> = {}
   if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
-  if (params.newParamName) result.toolParamName = params.newParamName  // rename if IDs differ
   return result
 },
 ```
+
+Name each subBlock (or its `canonicalParamId`) exactly after the tool param it fills. A required
+`user-only` param that is only renamed in `tools.config.params` fails
+`bun run apps/sim/scripts/check-block-registry.ts origin/staging`; remap only optional or `user-or-llm` params.
 
 ### 6. Add new outputs
 
@@ -428,13 +594,14 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 - Version: `'2.0.0'`
 - Outputs: Flat, API-aligned (no content/metadata wrapper)
 
-## Naming Convention
-
-All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`, `slack_send_message`). Never use camelCase or PascalCase for tool IDs.
-
 ## Checklist Before Finishing
 
 - [ ] All tool IDs use snake_case
+- [ ] Chose exactly one boundary: registered `InternalToolConfig.operation` or absolute external
+      HTTP(S) `ToolConfig.request`
+- [ ] No tool request points to `/api/...`, constructs a URL back to Sim, or declares
+      `request.internal`
+- [ ] No tool declares `directExecution`; in-process work uses a registered operation
 - [ ] All params have explicit `required: true` or `required: false`
 - [ ] All params have appropriate `visibility`
 - [ ] All nullable response fields use `?? null`
@@ -443,18 +610,27 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
 - [ ] Tools registered in `tools/registry.ts`
+- [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
+- [ ] `bun run scripts/generate-docs.ts` run and the refreshed docs committed — the integration's
+      docs page is rendered from each tool's description, params, and outputs, and CI's
+      `bun run docs:check` fails on stale pages
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
+- [ ] Model, durable-storage, and internal-execution boundaries use the shared provenance mechanisms
+      only where a concrete Sim `{{...}}` resolution path requires them
+- [ ] Ordinary third-party inputs/results remain unchanged and private metadata never leaves Sim
 
 ## Final Validation (Required)
 
-After creating all tools, you MUST validate every tool before finishing:
+Before finishing, validate each tool file against the API docs:
 
-1. **Read every tool file** you created — do not skip any
+1. **Re-read each tool file** you created
 2. **Cross-reference with the API docs** to verify:
    - All required params are marked `required: true`
    - All optional params are marked `required: false`
    - Param types match the API (string, number, boolean, json)
-   - Request URL, method, headers, and body match the API spec
+   - For external tools, request URL, method, headers, and body match the provider API spec
+   - For internal tools, `operation.input` matches the handler schema and the handler is registered
+     with no HTTP fallback
    - `transformResponse` extracts the correct fields from the API response
    - All output fields match what the API actually returns
    - No fields are missing from outputs that the API provides

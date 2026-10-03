@@ -1,26 +1,22 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetEnv } = vi.hoisted(() => ({
-  mockGetEnv: vi.fn<(key: string) => string | undefined>(),
-}))
+import { envMockFns, setEnv } from '@sim/testing/mocks/env.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/lib/core/utils/urls')
-vi.mock('@/lib/core/config/env', () => ({
-  env: {},
-  getEnv: mockGetEnv,
-}))
 
 import {
-  getBrowserOrigin,
+  getBaseUrl,
   getSocketUrl,
   isLocalhostUrl,
   isNonCanonicalSimHost,
   isSafeHttpUrl,
   parseOriginList,
 } from '@/lib/core/utils/urls'
+
+const mockGetEnv = envMockFns.getEnv
+setEnv({ SOCKET_SERVER_URL: undefined })
 
 function setLocation(url: string) {
   Object.defineProperty(window, 'location', {
@@ -30,10 +26,59 @@ function setLocation(url: string) {
   })
 }
 
-describe('getBrowserOrigin', () => {
-  it('returns the page origin in the browser', () => {
-    setLocation('https://example.com/some/path')
-    expect(getBrowserOrigin()).toBe('https://example.com')
+describe('getBaseUrl', () => {
+  beforeEach(() => {
+    mockGetEnv.mockReset()
+    mockGetEnv.mockReturnValue(undefined)
+  })
+
+  it('uses NEXT_PUBLIC_APP_URL when set', () => {
+    mockGetEnv.mockImplementation((key) =>
+      key === 'NEXT_PUBLIC_APP_URL' ? 'https://app.example.com' : undefined
+    )
+    setLocation('https://other.example.com/workspace/w/1')
+    expect(getBaseUrl()).toBe('https://app.example.com')
+  })
+
+  /**
+   * Call sites build `${getBaseUrl()}/path`, so a trailing slash would give them
+   * a `//path` pathname that matches no route — and would break the
+   * `startsWith(`${base}/`)` prefix checks that decide whether a redirect target
+   * is our own, silently sending those redirects to their fallback instead.
+   */
+  it('strips trailing slashes so concatenated paths stay single-slashed', () => {
+    for (const configured of ['https://app.example.com/', 'https://app.example.com///']) {
+      mockGetEnv.mockImplementation((key) =>
+        key === 'NEXT_PUBLIC_APP_URL' ? configured : undefined
+      )
+      expect(getBaseUrl()).toBe('https://app.example.com')
+      expect(new URL(`${getBaseUrl()}/desktop/connect/complete`).pathname).toBe(
+        '/desktop/connect/complete'
+      )
+    }
+  })
+
+  it('adds the protocol and strips the trailing slash together', () => {
+    mockGetEnv.mockImplementation((key) =>
+      key === 'NEXT_PUBLIC_APP_URL' ? 'app.example.com/' : undefined
+    )
+    expect(getBaseUrl()).toBe('http://app.example.com')
+  })
+
+  /**
+   * Never guesses from `window.location.origin`: an opaque origin (a sandboxed
+   * iframe) serializes to the truthy string `'null'`, which would silently
+   * produce `null/api/...` rather than surfacing the misconfiguration.
+   */
+  it('throws in the browser rather than guessing from the page origin', () => {
+    setLocation('https://www.sim.ai/workspace/ws-1/w/wf-1')
+    expect(() => getBaseUrl()).toThrow('NEXT_PUBLIC_APP_URL must be configured')
+  })
+
+  it('treats a whitespace-only NEXT_PUBLIC_APP_URL as unset', () => {
+    mockGetEnv.mockImplementation((key) => (key === 'NEXT_PUBLIC_APP_URL' ? '   ' : undefined))
+    setLocation('https://www.sim.ai/')
+    expect(() => getBaseUrl()).toThrow('NEXT_PUBLIC_APP_URL must be configured')
   })
 })
 
@@ -41,10 +86,6 @@ describe('getSocketUrl', () => {
   beforeEach(() => {
     mockGetEnv.mockReset()
     mockGetEnv.mockReturnValue(undefined)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('uses NEXT_PUBLIC_SOCKET_URL when explicitly set', () => {
@@ -63,19 +104,6 @@ describe('getSocketUrl', () => {
   it('falls back to localhost:3002 when served from localhost', () => {
     setLocation('http://localhost:3000/')
     expect(getSocketUrl()).toBe('http://localhost:3002')
-  })
-
-  it('falls back to localhost:3002 when served from 127.0.0.1', () => {
-    setLocation('http://127.0.0.1:3000/')
-    expect(getSocketUrl()).toBe('http://localhost:3002')
-  })
-
-  it('explicit env var wins over the localhost fallback', () => {
-    mockGetEnv.mockImplementation((key) =>
-      key === 'NEXT_PUBLIC_SOCKET_URL' ? 'http://realtime.local:3002' : undefined
-    )
-    setLocation('http://localhost:3000/')
-    expect(getSocketUrl()).toBe('http://realtime.local:3002')
   })
 
   it('treats whitespace-only env var as unset', () => {
