@@ -25,6 +25,7 @@ import type {
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { isSoleOwnerOfPaidOrganization } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import { appendTableEvent, type TableEvent } from '@/lib/table/events'
 import {
   type CancelledCellMarker,
@@ -681,6 +682,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   let cancelledMarkers: CancelledCellMarker[] = []
 
   await db.transaction(async (tx) => {
+    await prepareProjectsForAccountDeletion(tx, userId, doomedWorkspaceIds)
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that

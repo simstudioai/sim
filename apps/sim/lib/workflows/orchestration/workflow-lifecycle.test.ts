@@ -2,7 +2,9 @@ import {
   auditMock,
   dbChainMockFns,
   posthogServerMock,
+  queueTableRows,
   resetDbChainMock,
+  schemaMock,
   workflowAuthzMockFns,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
@@ -45,6 +47,9 @@ const createParams = {
 describe('performCreateWorkflowTransition unique-violation handling', () => {
   beforeEach(() => {
     resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      { archivedAt: null, forkSyncNewWorkflowsExcluded: false },
+    ])
     workflowAuthzMockFns.mockIsFolderInWorkspace.mockResolvedValue(true)
     workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables.mockResolvedValue({
       success: true,

@@ -669,6 +669,7 @@ export const env = createEnv({
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
+    PROJECT_API_ENABLED:                  z.boolean().optional(),                 // Expose Projects after backfill and contract enforcement
     SCIM_ENABLED:                          z.boolean().optional(),                 // Enable SCIM directory provisioning
     USAGE_MONITORING_ENABLED:              z.boolean().optional(),                 // Enable organization usage monitoring on self-hosted (bypasses hosted requirements)
     SSO_PROVIDER_TYPE:                     z.enum(['oidc', 'saml']).optional(),    // [REQUIRED] SSO provider type

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workspace } from '@sim/db/schema'
+import { permissions, projectWorkspace, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -7,6 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { requireForkProject } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -231,6 +232,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         409
       )
     }
+    const parentProject = await requireForkProject(tx, source.id)
     if (admission) {
       await lockForkRevision(tx, { sourceWorkspaceId: source.id })
       await assertForkPreviewFresh(tx, { sourceWorkspaceId: source.id }, admission)
@@ -248,6 +250,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     const [currentSource] = await tx
       .select({
         organizationId: workspace.organizationId,
+        archivedAt: workspace.archivedAt,
         forkSyncNewWorkflowsExcluded: workspace.forkSyncNewWorkflowsExcluded,
       })
       .from(workspace)
@@ -284,8 +287,8 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
        */
       .for('no key update')
       .limit(1)
-    if (!currentSource) {
-      throw new ForkError('Source workspace no longer exists', 404)
+    if (!currentSource || currentSource.archivedAt) {
+      throw new ForkError('Source workspace is missing or archived', 404)
     }
     if ((currentSource.organizationId ?? null) !== (policy.organizationId ?? null)) {
       throw new ForkError(
@@ -310,6 +313,11 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       createdAt: now,
       updatedAt: now,
     })
+
+    if (parentProject)
+      await tx
+        .insert(projectWorkspace)
+        .values({ projectId: parentProject.id, workspaceId: childWorkspaceId })
 
     const sourcePermissions = await tx
       .select({ userId: permissions.userId, permissionType: permissions.permissionType })

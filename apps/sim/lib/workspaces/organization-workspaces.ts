@@ -14,6 +14,7 @@ import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-tr
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
@@ -351,6 +352,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     }
   }
 
+  await transferWorkspaceProjects(tx, ownedWorkspaceIds, organizationId)
   const now = new Date()
   await changeWorkspaceStoragePayersInTx(
     tx,
@@ -492,6 +494,7 @@ export async function detachOrganizationWorkspacesTx(
     const workspaceIds = organizationWorkspaces
       .map((organizationWorkspace) => organizationWorkspace.id)
       .sort()
+    await transferWorkspaceProjects(tx, workspaceIds, null, organizationOwnerId ?? undefined)
     await lockWorkspaceRowsForPayerChanges(tx, workspaceIds)
     const payerChanges = organizationWorkspaces.map((organizationWorkspace) => ({
       workspaceId: organizationWorkspace.id,

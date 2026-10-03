@@ -506,6 +506,11 @@ export const PERMISSION_GROUP_FIELDS = {
     category: 'Knowledge Base',
     hint: 'Prevent downloading a whole knowledge base as an archive.',
   }),
+  deniedPartialAccessProjectIssues: denylist(
+    z.string().min(1).max(255),
+    'capability',
+    'Issues in the listed Projects are unavailable to teammates without access to every active environment.'
+  ),
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS

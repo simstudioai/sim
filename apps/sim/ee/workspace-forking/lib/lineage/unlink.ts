@@ -9,6 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { splitForkProject } from '@/lib/projects/membership'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import {
   acquireForkEdgeLock,
@@ -28,8 +29,7 @@ export interface UnlinkForkResult {
 /**
  * Permanently dissolve a fork edge: null the child's `forkedFromWorkspaceId` (the
  * edge's single source of truth) and purge the edge's fork state — resource map,
- * block map, dependent values, and promote-run undo points. Both workspaces are
- * left untouched; only the association and its metadata are removed.
+ * block map, dependent values, and promote-run undo points. Both workspaces remain; the detached subtree moves into its own Project.
  *
  * Runs in one transaction under the lineage and edge advisory locks. Every promote and
  * rollback on the edge holds the edge lock, so an in-flight sync either finishes before
@@ -62,6 +62,14 @@ export async function unlinkForkEdge(
       throw new ForkError('The fork lineage changed while disconnecting. Try again.', 409)
     }
     await acquireForkEdgeLock(tx, childWorkspaceId)
+
+    const [currentEdge] = await tx
+      .select({ parentId: workspace.forkedFromWorkspaceId })
+      .from(workspace)
+      .where(eq(workspace.id, childWorkspaceId))
+      .limit(1)
+    if (currentEdge?.parentId !== parentWorkspaceId) return false
+    await splitForkProject(tx, childWorkspaceId)
 
     const updated = await tx
       .update(workspace)
