@@ -200,7 +200,7 @@ export const imapPollingHandler: PollingProviderHandler = {
         } catch {}
         throw innerError
       }
-    } catch (error) {
+    } catch {
       logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}`)
       await markWebhookFailed(webhookId, logger)
       return 'failure'

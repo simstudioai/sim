@@ -11,22 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Grafana](https://grafana.com/) is a leading open-source platform for monitoring, observability, and visualization. It allows users to query, visualize, alert on, and analyze data from a variety of sources, making it an essential tool for infrastructure and application monitoring.
-
-With Grafana, you can:
-
-- **Visualize data**: Build and customize dashboards to display metrics, logs, and traces in real time
-- **Monitor health and status**: Check the health of your Grafana instance and connected data sources
-- **Manage alerts and annotations**: Set up alert rules, manage notifications, and annotate dashboards with important events
-- **Organize content**: Organize dashboards and data sources into folders for better access management
-
-In Sim, the Grafana integration empowers your agents to interact directly with your Grafana instance via API, enabling actions such as:
-
-- Checking the Grafana server, database, and data source health status
-- Retrieving, listing, and managing dashboards, alert rules, annotations, data sources, and folders
-- Automating the monitoring of your infrastructure by integrating Grafana data and alerts into your workflow automations
-
-These capabilities enable Sim agents to monitor systems, proactively respond to alerts, and help ensure the reliability and visibility of your services — all as part of your automated workflows.
+Use [Grafana](https://grafana.com/) to manage dashboards, alert rules, contact points, annotations, and folders. Query data sources or check their health and the Grafana server's status from a workflow.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -47,7 +32,7 @@ Get a dashboard by its UID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `dashboardUid` | string | Yes | The UID of the dashboard to retrieve \(e.g., abc123def\) |
 
@@ -67,7 +52,7 @@ Search and list all dashboards
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `query` | string | No | Search query to filter dashboards by title |
 | `tag` | string | No | Filter by tag \(comma-separated for multiple tags\) |
@@ -98,7 +83,7 @@ Create a new dashboard
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `title` | string | Yes | The title of the new dashboard |
 | `folderUid` | string | No | The UID of the folder to create the dashboard in \(e.g., folder-abc123\) |
@@ -129,7 +114,7 @@ Update an existing dashboard. Fetches the current dashboard and merges your chan
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `dashboardUid` | string | Yes | The UID of the dashboard to update \(e.g., abc123def\) |
 | `title` | string | No | New title for the dashboard |
@@ -161,7 +146,7 @@ Delete a dashboard by its UID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `dashboardUid` | string | Yes | The UID of the dashboard to delete \(e.g., abc123def\) |
 
@@ -182,7 +167,7 @@ List all alert rules in the Grafana instance
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 
 #### Output
@@ -220,7 +205,7 @@ Get a specific alert rule by its UID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `alertRuleUid` | string | Yes | The UID of the alert rule to retrieve |
 
@@ -258,7 +243,7 @@ Create a new alert rule
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `title` | string | Yes | The title of the alert rule |
 | `folderUid` | string | Yes | The UID of the folder to create the alert in \(e.g., folder-abc123\) |
@@ -312,7 +297,7 @@ Update an existing alert rule. Fetches the current rule and merges your changes.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `alertRuleUid` | string | Yes | The UID of the alert rule to update |
 | `title` | string | No | New title for the alert rule |
@@ -366,7 +351,7 @@ Delete an alert rule by its UID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `alertRuleUid` | string | Yes | The UID of the alert rule to delete |
 
@@ -385,7 +370,7 @@ List all alert notification contact points
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `name` | string | No | Filter contact points by exact name match |
 
@@ -410,7 +395,7 @@ Create a notification contact point (e.g., Slack, email, PagerDuty)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `name` | string | Yes | Name of the contact point \(groups receivers shown in the UI\) |
 | `type` | string | Yes | Receiver type \(e.g., slack, email, pagerduty, webhook\) |
@@ -438,7 +423,7 @@ Create an annotation on a dashboard or as a global annotation
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `text` | string | Yes | The text content of the annotation |
 | `tags` | string | No | Comma-separated list of tags |
@@ -463,7 +448,7 @@ Query annotations by time range, dashboard, or tags
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `from` | number | No | Start time in epoch milliseconds \(e.g., 1704067200000\) |
 | `to` | number | No | End time in epoch milliseconds \(e.g., 1704153600000\) |
@@ -506,7 +491,7 @@ Update an existing annotation
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `annotationId` | number | Yes | The ID of the annotation to update |
 | `text` | string | No | New text content for the annotation \(PATCH supports partial updates\) |
@@ -530,7 +515,7 @@ Delete an annotation by its ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `annotationId` | number | Yes | The ID of the annotation to delete |
 
@@ -549,7 +534,7 @@ List all data sources configured in Grafana
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 
 #### Output
@@ -585,7 +570,7 @@ Get a data source by its ID or UID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `dataSourceId` | string | Yes | The UID of the data source to retrieve \(e.g., P1234AB5678\). Numeric ids are not supported — Grafana serves those only behind a disabled-by-default feature toggle |
 
@@ -621,7 +606,7 @@ Test connectivity to a data source by its UID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `dataSourceUid` | string | Yes | The UID of the data source to health-check \(e.g., P1234AB5678\) |
 
@@ -642,7 +627,7 @@ List all folders in Grafana
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `limit` | number | No | Maximum number of folders to return |
 | `page` | number | No | Page number for pagination |
@@ -678,7 +663,7 @@ Create a new folder in Grafana
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `title` | string | Yes | The title of the new folder |
 | `uid` | string | No | Optional UID for the folder \(auto-generated if not provided\) |
@@ -713,7 +698,7 @@ Get a folder by its UID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `folderUid` | string | Yes | The UID of the folder to retrieve \(e.g., folder-abc123\) |
 
@@ -746,7 +731,7 @@ Update (rename) a folder. Fetches the current folder and merges your changes.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `folderUid` | string | Yes | The UID of the folder to update \(e.g., folder-abc123\) |
 | `title` | string | Yes | New title for the folder |
@@ -780,7 +765,7 @@ Delete a folder by its UID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `folderUid` | string | Yes | The UID of the folder to delete \(e.g., folder-abc123\) |
 | `forceDeleteRules` | boolean | No | Delete any alert rules stored in the folder along with it \(default false\) |
@@ -802,7 +787,7 @@ Check the health of the Grafana instance (version, database status)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 
 #### Output
@@ -822,12 +807,12 @@ Replace a contact point by its UID. Grafana has no partial update for contact po
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `contactPointUid` | string | Yes | UID of the contact point to replace |
 | `name` | string | Yes | Contact point name. Grafana groups receivers that share a name |
 | `type` | string | Yes | Receiver type, e.g. slack, email, pagerduty, webhook, opsgenie, teams, discord, telegram |
-| `settings` | string | Yes | JSON object of receiver settings for this type, e.g. \{"url":"https://hooks.slack.com/..."\} for slack |
+| `settings` | string | Yes | JSON object of receiver settings for this type, e.g. \{ "url": "https://hooks.slack.com/..." \} for slack |
 | `disableResolveMessage` | boolean | No | Suppress the resolved notification. Omitting this resets it to false |
 | `disableProvenance` | boolean | No | Send X-Disable-Provenance. Use only on a contact point whose provenance is already empty \(UI-created, or created by Sim with this on\) — sending it against an API-provisioned contact point is rejected with 403 |
 
@@ -847,7 +832,7 @@ Permanently delete a contact point by its UID. Grafana refuses the delete while 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `contactPointUid` | string | Yes | UID of the contact point to delete |
 
@@ -867,7 +852,7 @@ Move a folder under a different parent folder, or to the root by leaving the par
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `folderUid` | string | Yes | UID of the folder to move |
 | `parentUid` | string | No | UID of the new parent folder. Leave empty to move the folder to the root |
@@ -901,7 +886,7 @@ Read an alert rule group: its evaluation interval and every rule in it. The inte
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `folderUid` | string | Yes | UID of the folder holding the rule group |
 | `ruleGroup` | string | Yes | Name of the rule group |
@@ -944,7 +929,7 @@ Run one or more queries against a Grafana data source that has a backend impleme
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
-| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `queries` | string | Yes | JSON array of at least one query. Each needs a datasource.uid and a refId, plus the fields that data source expects — expr for Prometheus, rawSql for SQL. Example: \[\{"refId":"A","datasource":\{"uid":"P123"\},"expr":"up","format":"time_series"\}\] |
 | `from` | string | No | Start of the time range, either epoch milliseconds or Grafana relative time \(e.g., now-5m\). Defaults to now-1h |

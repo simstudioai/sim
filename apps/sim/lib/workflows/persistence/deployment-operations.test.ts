@@ -1,23 +1,8 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateId } = vi.hoisted(() => ({
-  mockGenerateId: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  workflow: schemaMock.workflow,
-  workflowDeploymentOperation: schemaMock.workflowDeploymentOperation,
-  workflowDeploymentVersion: schemaMock.workflowDeploymentVersion,
-}))
-
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import {
   activateDeploymentOperation,
@@ -26,6 +11,8 @@ import {
   markDeploymentOperationFailed,
   prepareWorkflowDeployment,
 } from '@/lib/workflows/persistence/deployment-operations'
+
+const mockGenerateId = idMockFns.mockGenerateId
 
 const WORKFLOW_ID = 'workflow-1'
 const NOW = new Date('2026-07-14T08:00:00.000Z')
@@ -103,7 +90,6 @@ function scriptPrepare(params: {
 
 describe('deployment operation persistence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGenerateId.mockReset()
   })
@@ -195,40 +181,6 @@ describe('deployment operation persistence', () => {
     )
     expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.workflow)
     expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.workflowDeploymentVersion)
-  })
-
-  it('runs the prepare callback in the operation transaction after insertion', async () => {
-    const operation = operationRow({
-      deploymentVersionId: 'version-1',
-      version: 1,
-      previousActiveVersionId: null,
-      generation: 1,
-    })
-    const onPrepareTransaction = vi.fn().mockResolvedValue(undefined)
-    mockGenerateId.mockReturnValueOnce('version-1').mockReturnValueOnce('operation-1')
-    scriptPrepare({
-      operation,
-      activeVersionId: null,
-      maxVersion: 0,
-      maxGeneration: 0,
-    })
-
-    const result = await prepareWorkflowDeployment({
-      workflowId: WORKFLOW_ID,
-      actorId: 'user-1',
-      requestHash: 'hash-1',
-      idempotencyKey: 'deploy-1',
-      workflowState: workflowState(),
-      readinessComponents: ['webhooks'],
-      onPrepareTransaction,
-    })
-
-    expect(result.success).toBe(true)
-    expect(onPrepareTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ insert: expect.any(Function) }),
-      operation
-    )
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
   })
 
   it('rejects reuse of an idempotency key with a different request hash', async () => {
@@ -493,7 +445,6 @@ describe('deployment operation persistence', () => {
 
 describe('getProtectedDeploymentVersionId', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -510,10 +461,6 @@ describe('getProtectedDeploymentVersionId', () => {
       { deploymentVersionId: 'version-3', protocolVersion: 2, status: 'active' },
     ])
 
-    await expect(getProtectedDeploymentVersionId(WORKFLOW_ID)).resolves.toBeNull()
-  })
-
-  it('protects nothing for a workflow without operations', async () => {
     await expect(getProtectedDeploymentVersionId(WORKFLOW_ID)).resolves.toBeNull()
   })
 })

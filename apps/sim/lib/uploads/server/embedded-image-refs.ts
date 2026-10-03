@@ -4,10 +4,15 @@
  * Lives under `server/` rather than beside its pure sibling in `lib/uploads/utils` so that `marked`
  * stays out of the client bundles that import the single-`src` grammar.
  */
+import { Parser } from 'htmlparser2'
 import { Marked, type Token } from 'marked'
-import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
+import {
+  type EmbeddedFileRef,
+  extractEmbeddedFileRef,
+  storedFileId,
+} from '@/lib/uploads/utils/embedded-image-ref'
 
-/** Hard cap on embedded images resolved from one document — bounds export bundles and the share cascade. */
+/** Hard cap on embedded images collected for a bulk export bundle. */
 export const MAX_EMBEDDED_IMAGES = 50
 
 /**
@@ -41,40 +46,77 @@ function childrenOf(token: Token): Token[] {
 export function extractEmbeddedFileRefs(content: string): { keys: string[]; ids: string[] } {
   const keys = new Set<string>()
   const ids = new Set<string>()
-  const atCap = () => keys.size + ids.size >= MAX_EMBEDDED_IMAGES
-
-  const record = (src: string) => {
-    if (atCap()) return
-    const ref = extractEmbeddedFileRef(src)
-    if (!ref) return
+  visitEmbeddedFileRefs(content, (ref) => {
     if ('key' in ref) keys.add(ref.key)
     else ids.add(ref.fileId)
+    return keys.size + ids.size >= MAX_EMBEDDED_IMAGES
+  })
+  return { keys: [...keys], ids: [...ids] }
+}
+
+/** Matches one stored image reference without imposing a bulk export's asset-count limit. */
+export function hasEmbeddedFileRef(content: string, target: NonNullable<EmbeddedFileRef>): boolean {
+  return visitEmbeddedFileRefs(content, (ref) =>
+    'fileId' in target
+      ? 'fileId' in ref && storedFileId(ref.fileId) === target.fileId
+      : 'key' in ref && ref.key === target.key
+  )
+}
+
+/** Stops at the first accepted reference; callers bound document bytes before parsing. */
+function visitEmbeddedFileRefs(
+  content: string,
+  visit: (ref: NonNullable<EmbeddedFileRef>) => boolean
+): boolean {
+  const record = (src: string) => {
+    const ref = extractEmbeddedFileRef(src)
+    return ref !== null && visit(ref)
   }
 
   let tokens: Token[]
   try {
     tokens = markdown.lexer(content)
   } catch {
-    // Best effort: a document that fails to lex must never block an export or a share.
-    return { keys: [], ids: [] }
+    return false
   }
 
-  // Walked explicitly rather than with `marked.walkTokens`, which concatenates its callback's return
-  // value into an accumulator once per token and so costs O(n²): a 254 KB document measured 5.4s of
-  // blocked event loop versus 14ms here, on a path anonymous share traffic reaches.
+  let sourceDepth = 0
+  let matched = false
+  /** A single streaming parser preserves raw HTML context across inline Markdown tokens. */
+  const htmlParser = new Parser({
+    onopentag(name, attributes) {
+      if (
+        sourceDepth > 0 ||
+        name === 'pre' ||
+        name === 'code' ||
+        name === 'kbd' ||
+        name === 'script' ||
+        name === 'style'
+      ) {
+        sourceDepth++
+      } else if (name === 'img' && attributes.src && record(attributes.src)) {
+        matched = true
+        htmlParser.pause()
+      }
+    },
+    onclosetag() {
+      if (sourceDepth > 0) sourceDepth--
+    },
+  })
+
+  /** An explicit stack avoids marked.walkTokens' accumulating result array. */
   const stack = [...tokens].reverse()
-  while (stack.length > 0 && !atCap()) {
+  while (stack.length > 0) {
     const token = stack.pop() as Token
-    if (token.type === 'image') record(token.href)
-    else if (token.type === 'html') {
-      // `<pre>`/`<script>`/`<style>` contents are shown as source, not rendered. A block tag marks
-      // that with `pre`, an inline one with `inRawBlock`.
-      const shownAsSource = 'pre' in token ? token.pre : token.inRawBlock
-      if (!shownAsSource) for (const src of extractImgSrcs(token.text)) record(src)
+    if (token.type === 'image' && sourceDepth === 0 && record(token.href)) return true
+    if (token.type === 'html') {
+      htmlParser.write(token.text)
+      if (matched) return true
     }
     const children = childrenOf(token)
     for (let i = children.length - 1; i >= 0; i--) stack.push(children[i])
   }
 
-  return { keys: [...keys], ids: [...ids] }
+  htmlParser.end()
+  return matched
 }

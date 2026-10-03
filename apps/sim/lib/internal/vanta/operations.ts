@@ -5,6 +5,10 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
+import {
   fetchVantaWithAuth,
   getVantaBaseUrl,
   VANTA_DOCUMENT_UPLOAD_SCOPE,
@@ -511,7 +515,7 @@ export async function executeVantaUploadDocumentFile(
 export async function executeVantaDownloadDocumentFile(
   input: VantaDownloadDocumentFileInput,
   context: VantaFileOperationContext
-): Promise<Record<string, unknown>> {
+): Promise<InternalToolFileResult> {
   context.signal?.throwIfAborted()
   const mediaUrl = buildVantaUrl(
     getVantaBaseUrl(input.region),
@@ -565,13 +569,8 @@ export async function executeVantaDownloadDocumentFile(
   const name =
     fileNameFromContentDisposition(response.headers.get('content-disposition')) ||
     `vanta-document-file-${input.uploadedFileId}`
-  return {
+  return createInternalToolFileResult({ buffer, name, mimeType }, (file) => ({
     success: true,
-    output: {
-      file: { name, mimeType, data: buffer.toString('base64'), size: buffer.length },
-      name,
-      mimeType,
-      size: buffer.length,
-    },
-  }
+    output: { file, name, mimeType, size: file.size },
+  }))
 }

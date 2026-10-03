@@ -16,6 +16,7 @@ import {
 } from '@sim/emcn'
 import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
 import {
   FIELD_TYPE_LABELS,
@@ -23,7 +24,6 @@ import {
   SUPPORTED_FIELD_TYPES,
   TAG_SLOT_CONFIG,
 } from '@/lib/knowledge/constants'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
@@ -293,6 +293,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                     </span>
                     <div className='flex shrink-0 items-center gap-1'>
                       <Button
+                        aria-label='Delete Tag'
                         variant='ghost'
                         onClick={(e) => {
                           e.stopPropagation()

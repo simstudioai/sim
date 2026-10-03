@@ -15,6 +15,7 @@ import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
+import { lockLiveTableSchema, refitRowToSchema, withLiveSchema } from '@/lib/table/rows/live-schema'
 import {
   acquireRowOrderLock,
   guardBatch,
@@ -25,6 +26,7 @@ import {
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
+import { lockUniqueColumns } from '@/lib/table/rows/unique-locks'
 import { addTableColumnsWithTx, auditTableColumnsAdded, getTableById } from '@/lib/table/service'
 import type {
   ReplaceRowsResult,
@@ -58,12 +60,15 @@ export interface BulkImportBatch {
  * Inserts one batch of rows for an async import in a single committed statement.
  *
  * Differs from {@link batchInsertRowsWithTx} for the bulk-load case: caller-supplied
- * contiguous order keys (no `acquireRowOrderLock` scan — an
- * import owns its hidden table as the sole writer), no `RETURNING`, and **no
- * `fireTableTrigger` / `runWorkflowColumn`** (a 1M-row import must not dispatch a
- * workflow run per row). `row_count` is maintained set-based by the statement-level
- * trigger. There is no surrounding transaction and no rollback: each batch commits on
- * its own, so committed batches persist even if a later batch fails.
+ * contiguous order keys (no `acquireRowOrderLock` scan; the caller threads each batch's
+ * anchor from the previous one), no `RETURNING`, and **no `fireTableTrigger` /
+ * `runWorkflowColumn`** (a 1M-row import must not dispatch a workflow run per row).
+ * Append and replace imports run this against the live table, so other writers can
+ * race it: the batch holds the table's unique columns exclusively while it checks and
+ * inserts, and checks the rows against the schema it reads under the schema lock, which
+ * may have changed since the job resolved the table. `row_count` is maintained set-based
+ * by the statement-level trigger. There is no surrounding transaction and no rollback:
+ * each batch commits on its own, so committed batches persist even if a later batch fails.
  *
  * Throws on row-size/schema/unique violations or if the statement-level trigger rejects
  * the batch for crossing `max_rows`; the caller marks the import failed.
@@ -79,6 +84,7 @@ export async function bulkInsertImportBatch(
   // the caller's snapshot too would reject a since-cleared lock.
   if (!revalidate) assertRowInsert(table)
 
+  const rawRows = data.rows.map((row) => ({ ...row }))
   for (let i = 0; i < data.rows.length; i++) {
     const sizeValidation = validateRowSize(data.rows[i])
     if (!sizeValidation.valid) {
@@ -99,25 +105,9 @@ export async function bulkInsertImportBatch(
     }
   }
 
-  const uniqueColumns = getUniqueColumns(table.schema)
-  if (uniqueColumns.length > 0) {
-    const uniqueResult = await checkBatchUniqueConstraintsDb(
-      data.tableId,
-      data.rows,
-      table.schema,
-      db
-    )
-    if (!uniqueResult.valid) {
-      throw new OrchestrationError(
-        'validation',
-        uniqueResult.errors.map((e) => `Row ${e.row + 1}: ${e.errors.join(', ')}`).join('; ')
-      )
-    }
-  }
-
   const now = new Date()
-  // Import worker is the table's sole writer; append keys after the anchor the caller threads
-  // from the previous batch's last key — no per-batch max(order_key) scan over a growing table.
+  // Append keys after the anchor the caller threads from the previous batch's last key — no
+  // per-batch max(order_key) scan over a growing table.
   const orderKeys = nKeysBetween(data.afterOrderKey ?? null, null, data.rows.length)
   const rowsToInsert = data.rows.map((rowData, i) => ({
     id: `row_${generateId().replace(/-/g, '')}`,
@@ -132,7 +122,32 @@ export async function bulkInsertImportBatch(
   }))
 
   const inserted = await db.transaction(async (trx) => {
-    await guardBatch(trx, data.tableId, revalidate)
+    const fresh = await guardBatch(trx, data.tableId, revalidate)
+    const live = fresh ? withLiveSchema(table, fresh.schema) : await lockLiveTableSchema(trx, table)
+    if (live !== table) {
+      for (let i = 0; i < data.rows.length; i++) {
+        const refit = refitRowToSchema(data.rows[i], rawRows[i], table.schema, live.schema, 'null')
+        if (!refit.valid) {
+          throw new OrchestrationError('validation', `Row ${i + 1}: ${refit.errors.join(', ')}`)
+        }
+      }
+    }
+    if (getUniqueColumns(live.schema).length > 0) {
+      // The whole-table unique lock, not per-value: a batch is far more values than the value-lock cap.
+      await lockUniqueColumns(trx, live)
+      const uniqueResult = await checkBatchUniqueConstraintsDb(
+        data.tableId,
+        data.rows,
+        live.schema,
+        trx
+      )
+      if (!uniqueResult.valid) {
+        throw new OrchestrationError(
+          'validation',
+          uniqueResult.errors.map((e) => `Row ${e.row + 1}: ${e.errors.join(', ')}`).join('; ')
+        )
+      }
+    }
     return mutateTableRowsWithSecretProvenance(trx, {
       rows: rowsToInsert.map((row) => ({
         rowId: row.id,
@@ -282,6 +297,9 @@ export async function importAppendRows(
   })
   const result = await db.transaction(async (trx) => {
     let working = await refreshUnderLock(trx, table)
+    // Lock the unique columns whole, ahead of the row-order lock: per-value locks for every row of
+    // an import would flood the server's lock table.
+    await lockUniqueColumns(trx, working)
     if (additions.length > 0) {
       // Take the row-order lock before creating columns so this path uses the
       // same rows_pos → user_table_definitions order as plain inserts. Creating
@@ -305,9 +323,10 @@ export async function importAppendRows(
           secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
         },
         working,
-        generateId().slice(0, 8)
+        generateId().slice(0, 8),
+        { uniqueColumnsLocked: true }
       )
-      inserted.push(...batchInserted)
+      inserted.push(...batchInserted.rows)
     }
     return { inserted, table: working }
   })
@@ -347,6 +366,7 @@ export async function importReplaceRows(
   })
   const result = await db.transaction(async (trx) => {
     let working = await refreshUnderLock(trx, table)
+    await lockUniqueColumns(trx, working)
     if (additions.length > 0) {
       await acquireRowOrderLock(trx, table.id)
       working = await addTableColumnsWithTx(trx, working, additions, requestId)

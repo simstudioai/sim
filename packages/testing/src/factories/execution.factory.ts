@@ -4,7 +4,7 @@ import type { ExecutionContext } from '../types'
 /**
  * Options for creating a mock execution context.
  */
-export interface ExecutionContextFactoryOptions {
+interface ExecutionContextFactoryOptions {
   workflowId?: string
   executionId?: string
   blockStates?: Map<string, any>
@@ -59,56 +59,4 @@ export function createExecutionContext(
     activeExecutionPath: new Set(),
     abortSignal: options.abortSignal,
   }
-}
-
-/**
- * Creates an execution context with pre-populated block states.
- *
- * @example
- * ```ts
- * const ctx = createExecutionContextWithStates({
- *   'block-1': { output: 'hello' },
- *   'block-2': { output: 'world' },
- * })
- * ```
- */
-export function createExecutionContextWithStates(
-  blockStates: Record<string, any>,
-  options: Omit<ExecutionContextFactoryOptions, 'blockStates'> = {}
-): ExecutionContext {
-  const stateMap = new Map(Object.entries(blockStates))
-  return createExecutionContext({
-    ...options,
-    blockStates: stateMap,
-  })
-}
-
-/**
- * Creates an execution context that is already cancelled.
- */
-export function createCancelledExecutionContext(
-  options: Omit<ExecutionContextFactoryOptions, 'abortSignal'> = {}
-): ExecutionContext {
-  return createExecutionContext({
-    ...options,
-    abortSignal: AbortSignal.abort(),
-  })
-}
-
-/**
- * Creates an execution context with a timeout.
- *
- * @example
- * ```ts
- * const ctx = createTimedExecutionContext(5000) // 5 second timeout
- * ```
- */
-export function createTimedExecutionContext(
-  timeoutMs: number,
-  options: Omit<ExecutionContextFactoryOptions, 'abortSignal'> = {}
-): ExecutionContext {
-  return createExecutionContext({
-    ...options,
-    abortSignal: AbortSignal.timeout(timeoutMs),
-  })
 }

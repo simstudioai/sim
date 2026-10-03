@@ -14,6 +14,7 @@ const PROVIDER_PREFIXES: Record<string, string[]> = {
   baseten: ['baseten/'],
   'ollama-cloud': ['ollama-cloud/'],
   groq: ['groq/'],
+  kie: ['kie/'],
   openrouter: ['openrouter/'],
   vllm: ['vllm/'],
 }
@@ -577,6 +578,10 @@ function assertUniqueGeneratedRoutes(providers: CatalogProvider[]): void {
 assertUniqueGeneratedRoutes(rawProviders)
 
 export const MODEL_CATALOG_PROVIDERS: CatalogProvider[] = rawProviders
+/** Every provider with a page: those with a model catalog, resellers included. */
+export const MODEL_PROVIDERS_WITH_MODELS = MODEL_CATALOG_PROVIDERS.filter(
+  (provider) => provider.models.length > 0
+)
 export const MODEL_PROVIDERS_WITH_CATALOGS = MODEL_CATALOG_PROVIDERS.filter(
   (provider) => provider.models.length > 0 && !provider.isReseller
 )

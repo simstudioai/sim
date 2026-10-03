@@ -1,4 +1,6 @@
-const OBJECT_NOT_FOUND_LABELS = new Set(['NotFound', 'NoSuchKey', 'BlobNotFound'])
+import { findCause } from '@sim/utils/errors'
+
+const OBJECT_NOT_FOUND_LABELS = new Set(['NotFound', 'NoSuchKey', 'BlobNotFound', 'ENOENT'])
 
 /**
  * A missing bucket or container is a misconfiguration, not an absent object, and
@@ -19,13 +21,13 @@ function readLabels(error: unknown): string[] | null {
 }
 
 /**
- * True when a storage provider reports that an object does not exist.
+ * True when a cloud or local storage provider reports that an object does not exist.
  *
  * Call this only from code that has just performed an object-level operation, so a
  * bare 404 can be attributed to that object. A bare 404 is otherwise ambiguous —
  * GCS answers a missing object and a missing bucket identically (`code: 404`,
  * `errors[].reason: 'notFound'`), separable only by a human-readable message — and
- * every caller here is a provider client that knows exactly what it asked for.
+ * callers must know which object they requested. Local file reads use ENOENT.
  *
  * Absence is an expected outcome of a lookup, so callers turn it into an empty
  * result rather than propagating it.
@@ -44,4 +46,12 @@ export function isObjectNotFoundError(error: unknown): boolean {
     $metadata?: { httpStatusCode?: unknown }
   }
   return code === 404 || statusCode === 404 || $metadata?.httpStatusCode === 404
+}
+
+/**
+ * True when `error`, or any error it wraps as its `cause`, reports a missing object. For callers
+ * that read an object through a layer which re-wraps storage failures but keeps the original.
+ */
+export function hasObjectNotFoundCause(error: unknown): boolean {
+  return findCause(error, (value): value is unknown => isObjectNotFoundError(value)) !== undefined
 }

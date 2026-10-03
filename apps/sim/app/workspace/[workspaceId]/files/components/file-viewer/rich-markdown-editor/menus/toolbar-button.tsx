@@ -33,10 +33,10 @@ export function ToolbarButton({
           aria-label={label}
           aria-pressed={isActive}
           disabled={disabled}
-          onMouseDown={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.preventDefault()}
           onClick={onClick}
           className={cn(
-            'size-[28px] focus-visible:bg-[var(--surface-hover)]',
+            'size-10 focus-visible:bg-[var(--surface-hover)] sm:size-[28px]',
             !isActive && 'hover-hover:bg-[var(--surface-hover)]'
           )}
         >
@@ -52,5 +52,5 @@ export function ToolbarButton({
 
 /** Thin vertical separator between groups of {@link ToolbarButton}s. */
 export function ToolbarDivider() {
-  return <div className='mx-0.5 h-[18px] w-px bg-[var(--border)]' />
+  return <div className='mx-0.5 h-6 w-px bg-[var(--border)] sm:h-[18px]' />
 }

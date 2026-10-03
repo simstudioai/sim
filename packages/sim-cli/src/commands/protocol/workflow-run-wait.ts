@@ -1,10 +1,13 @@
-import chalk from 'chalk'
+import { sleep } from '@sim/utils/helpers'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { type Command, Option } from 'commander'
+import { printError, writeStderr } from '#sim-cli/output/io'
+import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import type { CommandSpec } from '../../contract/types'
+import { setSoftExitCode } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
-import { sleep } from '../../helpers'
 import { resolvePath, SimApiError } from '../../http/client'
 import { renderResult } from '../../runtime/result'
 
@@ -85,10 +88,6 @@ interface RunSnapshot {
   contextId: string | null
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null
 }
@@ -100,12 +99,17 @@ function optionalString(value: unknown): string | null {
  * record — what a self-hosted deployment behind an unwrapping proxy hands back —
  * still polls, rather than refusing to find a status that is right there.
  */
+/** The run itself: v2 answers `{ data: run }` and the renderer prints exactly what it is handed. */
+function runData(raw: unknown): unknown {
+  return isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : raw
+}
+
 function readRun(raw: unknown): RunSnapshot {
-  const run = isRecord(raw) && isRecord(raw.data) ? raw.data : raw
-  if (!isRecord(run) || typeof run.status !== 'string') {
+  const run = isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : raw
+  if (!isRecordLike(run) || typeof run.status !== 'string') {
     throw new SimApiError('Run status response carried no status.', 0)
   }
-  const paused = isRecord(run.paused) ? run.paused : null
+  const paused = toRecordOrNull(run.paused)
   return {
     status: run.status,
     pauseKind: paused ? optionalString(paused.pauseKind) : null,
@@ -154,10 +158,10 @@ function waitProgress(): WaitProgress {
   let reported = false
   return {
     advance: (status, elapsedMs) => {
-      if (!process.stderr.isTTY) return
+      if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(
-        `\r${chalk.dim(`${status} — waiting ${Math.round(elapsedMs / 1000)}s…`)}\u001b[K`
+      writeStderr(
+        `\r${styles().dim(`${status} — waiting ${Math.round(elapsedMs / 1000)}s…`)}\u001b[K`
       )
     },
     // Idempotent: the loop clears the line before printing a result, and the
@@ -166,7 +170,7 @@ function waitProgress(): WaitProgress {
     finish: () => {
       if (!reported) return
       reported = false
-      process.stderr.write('\r\u001b[K')
+      writeStderr('\r\u001b[K')
     },
   }
 }
@@ -253,25 +257,25 @@ export function attachWorkflowRunWait(runs: Command): void {
 
             if (outcome) {
               progress.finish()
-              renderResult('getWorkflowRun', profile.output, raw, runSpec())
+              renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
               const message = explain(outcome, runId, options.workflow, snapshot)
-              if (message) console.error(chalk.red(message))
-              process.exitCode = WAIT_EXIT_CODES[outcome]
+              if (message) printError(styles().red(message))
+              setSoftExitCode(WAIT_EXIT_CODES[outcome])
               return
             }
 
             const remainingMs = deadline - Date.now()
             if (remainingMs <= 0) {
               progress.finish()
-              renderResult('getWorkflowRun', profile.output, raw, runSpec())
-              console.error(
-                chalk.red(
+              renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
+              printError(
+                styles().red(
                   `Timed out after ${timeoutSeconds}s waiting for run ${runId} (status: ${snapshot.status}${
                     snapshot.resumeAt ? `, resuming at ${snapshot.resumeAt}` : ''
                   }). Raise ${WAIT_TIMEOUT_FLAG}, or set it to 0 to wait indefinitely.`
                 )
               )
-              process.exitCode = WAIT_EXIT_CODES.timeout
+              setSoftExitCode(WAIT_EXIT_CODES.timeout)
               return
             }
 

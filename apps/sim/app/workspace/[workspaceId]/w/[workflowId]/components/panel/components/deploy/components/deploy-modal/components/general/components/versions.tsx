@@ -13,7 +13,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
-import { FileText, MoreVertical, Pencil, RefreshCw, SendToBack } from '@sim/emcn/icons'
+import { Columns2, FileText, MoreVertical, Pencil, RefreshCw, SendToBack } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
@@ -40,6 +40,7 @@ interface VersionsProps {
   onSelectVersion: (version: number | null) => void
   onPromoteToLive: (version: number) => void
   onLoadDeployment: (version: number) => void
+  onCompare: (version: number) => void
 }
 
 /**
@@ -55,6 +56,7 @@ export function Versions({
   onSelectVersion,
   onPromoteToLive,
   onLoadDeployment,
+  onCompare,
 }: VersionsProps) {
   const [editingVersion, setEditingVersion] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -127,6 +129,11 @@ export function Versions({
   const handleLoadDeployment = (version: number) => {
     setOpenDropdown(null)
     onLoadDeployment(version)
+  }
+
+  const handleCompare = (version: number) => {
+    setOpenDropdown(null)
+    onCompare(version)
   }
 
   const handleOpenDescriptionModal = (version: number) => {
@@ -328,9 +335,10 @@ export function Versions({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label={v.description ? 'Edit description' : 'Add description'}
                       variant='ghost'
+                      iconPadding='sm'
                       className={cn(
-                        'p-1!',
                         !v.description &&
                           'text-[var(--text-quaternary)] hover-hover:text-[var(--text-tertiary)]'
                       )}
@@ -356,8 +364,9 @@ export function Versions({
                 >
                   <PopoverTrigger asChild>
                     <Button
+                      aria-label='Version actions'
                       variant='ghost'
-                      className='p-1!'
+                      iconPadding='sm'
                       disabled={isPromotingVersion}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -372,6 +381,10 @@ export function Versions({
                     <PopoverItem onClick={() => handleOpenDescriptionModal(v.version)}>
                       <FileText className='size-3' />
                       <span>{v.description ? 'Edit description' : 'Add description'}</span>
+                    </PopoverItem>
+                    <PopoverItem onClick={() => handleCompare(v.version)}>
+                      <Columns2 className='size-3' />
+                      <span>Compare</span>
                     </PopoverItem>
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>

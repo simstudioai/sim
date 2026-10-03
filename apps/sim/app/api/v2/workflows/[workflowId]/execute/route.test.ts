@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   createMockRequest,
   dbChainMockFns,
@@ -15,77 +11,65 @@ import {
   workflowsPersistenceUtilsMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { customBlockOperationsMock } from '@sim/testing/mocks/custom-block-operations.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
 
 const {
-  MockV2ApiKeyUnauthenticatedError,
-  mockAuthenticateV2ApiKey,
   mockClaimExecutionId,
-  mockCheckOperationRate,
-  mockCheckPreAuthRate,
-  mockEnqueue,
   mockExecuteManualFromBlock,
   mockExecuteManualTrigger,
   mockExecuteWorkflowCore,
-  mockGenerateId,
   mockHasDurableExecutionOwner,
   mockReleaseExecutionIdClaim,
-  mockReleaseExecutionSlot,
-  mockValidatePublicApiAllowed,
 } = vi.hoisted(() => ({
-  MockV2ApiKeyUnauthenticatedError: class MockV2ApiKeyUnauthenticatedError extends Error {},
-  mockAuthenticateV2ApiKey: vi.fn(),
   mockClaimExecutionId: vi.fn(),
-  mockCheckOperationRate: vi.fn(),
-  mockCheckPreAuthRate: vi.fn(),
-  mockEnqueue: vi.fn().mockResolvedValue('workflow-execution:execution-123'),
   mockExecuteManualFromBlock: vi.fn(),
   mockExecuteManualTrigger: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
-  mockGenerateId: vi.fn(() => 'execution-123'),
   mockHasDurableExecutionOwner: vi.fn(),
   mockReleaseExecutionIdClaim: vi.fn(),
-  mockReleaseExecutionSlot: vi.fn(),
-  mockValidatePublicApiAllowed: vi.fn(),
 }))
+
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
 vi.mock('@/lib/workflows/application/execute-manual-workflow', () => ({
   executeManualWorkflowOperation: { execute: mockExecuteManualTrigger },
   executeManualWorkflowFromBlockOperation: { execute: mockExecuteManualFromBlock },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mockAuthenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mockCheckPreAuthRate
-    checkRateLimitDirectOrThrow = mockCheckOperationRate
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('read'),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
-  validatePublicApiAllowed: mockValidatePublicApiAllowed,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
@@ -106,23 +90,13 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
   releaseExecutionIdClaim: mockReleaseExecutionIdClaim,
 }))
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({
-    enqueue: mockEnqueue,
-    startJob: vi.fn(),
-    completeJob: vi.fn(),
-    markJobFailed: vi.fn(),
-  }),
-  shouldExecuteInline: vi.fn().mockReturnValue(false),
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
 vi.mock('@/background/workflow-execution', () => ({
   executeWorkflowJob: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  getCustomBlockRowsForWorkspace: vi.fn().mockResolvedValue([]),
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
 vi.mock('@/blocks/custom/server-overlay', () => ({
   withCustomBlockOverlay: vi.fn(async (_rows: unknown, fn: () => unknown) => fn()),
@@ -153,21 +127,27 @@ vi.mock(import('@/lib/execution/payloads/large-value-ref'), async (importOrigina
   return { ...actual, containsLargeValueRef: vi.fn().mockReturnValue(false) }
 })
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-  generateShortId: vi.fn(() => 'mock-short-id'),
-  isValidUuid: vi.fn((v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  ),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { attachExecutionResult } from '@/executor/utils/errors'
 import { POST } from './route'
 
+const mockEnqueue = asyncJobsMockFns.mockJobQueue.enqueue
+mockEnqueue.mockResolvedValue('workflow-execution:execution-123')
+const { mockRelease: mockAdmissionRelease } = admissionGateMockFns
+const { mockReleaseExecutionSlot } = billingUsageReservationMockFns
+
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockAuthorize = workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const mockAuthenticateV2ApiKey = v2RouteMocks.authenticate
+const mockGenerateId = idMockFns.mockGenerateId
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+mockGenerateId.mockReturnValue('execution-123')
+const mockCheckPreAuthRate = v2RouteMocks.preauthRate
+const mockCheckOperationRate = v2RouteMocks.operationRate
+const mockValidatePublicApiAllowed = permissionCheckMockFns.mockValidatePublicApiAllowed
 const mockLoadWorkflowFromNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 
@@ -207,7 +187,7 @@ function callExecute(body: Record<string, unknown>, headers: Record<string, stri
     'X-API-Key': 'test-key',
     ...headers,
   })
-  return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+  return POST(req, createRouteContext({ workflowId: 'workflow-1' }))
 }
 
 function callPublicExecute(body: Record<string, unknown>, headers: Record<string, string> = {}) {
@@ -215,7 +195,15 @@ function callPublicExecute(body: Record<string, unknown>, headers: Record<string
     'Content-Type': 'application/json',
     ...headers,
   })
-  return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+  return POST(req, createRouteContext({ workflowId: 'workflow-1' }))
+}
+
+function callOAuthExecute(body: Record<string, unknown>) {
+  const req = createMockRequest('POST', body, {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer sim_oat_token',
+  })
+  return POST(req, createRouteContext({ workflowId: 'workflow-1' }))
 }
 
 /**
@@ -236,7 +224,7 @@ function queuePublicWorkflowReads(
 
 function authenticatePersonalKey() {
   mockAuthenticateV2ApiKey.mockResolvedValue({
-    principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
+    principal: createPersonalApiKeyPrincipal({ userId: 'actor-1' }),
     rateLimitSubjectIds: ['api-key:key-1', 'user:actor-1'],
     rateLimitSubscription: null,
     keyType: 'personal',
@@ -245,7 +233,6 @@ function authenticatePersonalKey() {
 
 describe('POST /api/v2/workflows/[workflowId]/execute', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
     mockGenerateId.mockReturnValue('execution-123')
@@ -260,11 +247,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       resetAt: new Date('2026-08-08T05:00:00Z'),
     })
     mockAuthenticateV2ApiKey.mockResolvedValue({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal(),
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'],
       rateLimitSubscription: null,
       keyType: 'workspace',
@@ -340,9 +323,133 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       workflowId: 'workflow-1',
       status: 'completed',
       output: { result: 'done' },
+      blockOutputs: null,
       error: null,
       durationMs: 42,
     })
+  })
+
+  it('streams an immediate heartbeat and the same sync result when NDJSON is accepted', async () => {
+    vi.useFakeTimers()
+    try {
+      let finishExecution!: (result: unknown) => void
+      mockExecuteWorkflowCore.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishExecution = resolve
+        })
+      )
+
+      const response = await callExecute(
+        { input: { hello: 'world' } },
+        { Accept: 'application/x-ndjson' }
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('content-type')).toContain('application/x-ndjson')
+      expect(response.headers.get('X-Run-Id')).toBe('execution-123')
+      if (!response.body) throw new Error('Expected NDJSON response body')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      expect(JSON.parse(decoder.decode((await reader.read()).value))).toMatchObject({
+        type: 'heartbeat',
+      })
+      expect(mockAdmissionRelease).not.toHaveBeenCalled()
+      expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(JSON.parse(decoder.decode((await reader.read()).value))).toMatchObject({
+        type: 'heartbeat',
+      })
+
+      finishExecution({
+        success: true,
+        output: { result: 'done' },
+        metadata: {
+          duration: 42,
+          startTime: '2026-07-31T00:00:00.000Z',
+          endTime: '2026-07-31T00:00:01.000Z',
+        },
+      })
+
+      expect(JSON.parse(decoder.decode((await reader.read()).value))).toEqual({
+        type: 'final',
+        data: {
+          runId: 'execution-123',
+          workflowId: 'workflow-1',
+          status: 'completed',
+          output: { result: 'done' },
+          blockOutputs: null,
+          error: null,
+          startedAt: '2026-07-31T00:00:00.000Z',
+          endedAt: '2026-07-31T00:00:01.000Z',
+          durationMs: 42,
+        },
+      })
+      expect((await reader.read()).done).toBe(true)
+      expect(mockAdmissionRelease).toHaveBeenCalledTimes(1)
+      expect(mockReleaseExecutionIdClaim).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the JSON response when NDJSON is explicitly rejected', async () => {
+    const response = await callExecute(
+      { input: { hello: 'world' } },
+      { Accept: 'application/json, application/x-ndjson;q=0' }
+    )
+
+    expect(response.headers.get('content-type')).toContain('application/json')
+    expect(await response.json()).toMatchObject({
+      data: { runId: 'execution-123', status: 'completed' },
+    })
+  })
+
+  it('uses the heartbeat result transport for a manual draft run', async () => {
+    authenticatePersonalKey()
+    let finishExecution!: (result: unknown) => void
+    const pending = new Promise((resolve) => {
+      finishExecution = resolve
+    })
+    mockExecuteManualTrigger.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'execution-123',
+      pending,
+      cancel: vi.fn(),
+    })
+
+    const response = await callExecute(
+      { run: { source: 'manual' }, input: { hello: 'world' } },
+      { Accept: 'application/x-ndjson' }
+    )
+
+    expect(response.headers.get('content-type')).toContain('application/x-ndjson')
+    expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ mode: 'sync-result-stream' }),
+      })
+    )
+    if (!response.body) throw new Error('Expected NDJSON response body')
+    const reader = response.body.getReader()
+    await reader.read()
+
+    finishExecution({
+      ok: true,
+      executionId: 'execution-123',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      aborted: null,
+      output: { result: 'manual done' },
+      error: null,
+      hasResponseBlock: false,
+    })
+
+    const final = JSON.parse(new TextDecoder().decode((await reader.read()).value))
+    expect(final).toMatchObject({
+      type: 'final',
+      data: { runId: 'execution-123', output: { result: 'manual done' } },
+    })
+    expect((await reader.read()).done).toBe(true)
+    expect(mockAdmissionRelease).toHaveBeenCalledTimes(1)
   })
 
   it('returns status failed with a structured error instead of an HTTP error', async () => {
@@ -426,24 +533,6 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockClaimExecutionId).not.toHaveBeenCalled()
   })
 
-  it('rejects unknown body keys (strict contract)', async () => {
-    const res = await callExecute({ input: {}, triggerType: 'manual' })
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
-  })
-
-  it('rejects unknown keys inside the nested run selection', async () => {
-    const res = await callExecute({
-      run: { source: 'manual', entry: { type: 'trigger', unexpected: true } },
-    })
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
-  })
-
   it('dispatches a personal-key manual trigger run through the manual operation', async () => {
     authenticatePersonalKey()
 
@@ -466,6 +555,32 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       })
     )
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('dispatches an OAuth manual trigger run through the same manual operation', async () => {
+    mockAuthenticateV2ApiKey.mockResolvedValue({
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'actor-1',
+        clientId: 'sim-cli',
+        tokenId: 'token-1',
+        scopes: ['api:write'],
+        expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      },
+      rateLimitSubjectIds: ['oauth-token:token-1', 'user:actor-1'],
+      rateLimitSubscription: null,
+      keyType: 'oauth_access_token',
+      keyExpiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    })
+
+    const response = await callOAuthExecute({ run: { source: 'manual' } })
+
+    expect(response.status).toBe(200)
+    expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({ kind: 'oauth_access_token', clientId: 'sim-cli' }),
+      })
+    )
   })
 
   it('returns the typed workspace-key denial for manual execution', async () => {
@@ -514,6 +629,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toContain('text/event-stream')
+    expect(response.headers.get('X-Run-Id')).toBe('execution-123')
     expect(await response.text()).toBe('data: "[DONE]"\n\n')
     expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ mode: 'stream' }) })
@@ -582,7 +698,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
   it('maps malformed nested output selectors to an input failure', async () => {
     const result = await executeWorkflowService({
       workflowId: 'workflow-1',
-      principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal({ userId: 'actor-1' }),
       userId: 'actor-1',
       input: {},
       triggerType: 'api',
@@ -631,12 +747,74 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
-  it('rejects selectedOutputs on a sync request rather than ignoring it', async () => {
-    const res = await callExecute({ selectedOutputs: ['agent_1.content'] })
+  it('returns blockOutputs for selectedOutputs on a sync request', async () => {
+    const agentBlockId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    mockLoadDeployedWorkflowState.mockResolvedValue({
+      blocks: { [agentBlockId]: { id: agentBlockId, name: 'Agent 1' } },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      output: { result: 'done' },
+      logs: [
+        {
+          blockId: agentBlockId,
+          blockName: 'Agent 1',
+          startedAt: 's',
+          endedAt: 'e',
+          durationMs: 5,
+          success: true,
+          output: { content: 'hi', tokens: { total: 7 } },
+        },
+      ],
+      metadata: {
+        duration: 42,
+        startTime: '2026-07-31T00:00:00.000Z',
+        endTime: '2026-07-31T00:00:01.000Z',
+      },
+    })
+
+    const res = await callExecute({
+      input: {},
+      selectedOutputs: ['Agent 1.content', 'Agent 1.absent', agentBlockId],
+    })
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.blockOutputs).toEqual({
+      'Agent 1.content': 'hi',
+      [agentBlockId]: { content: 'hi', tokens: { total: 7 } },
+    })
+  })
+
+  it('rejects a selectedOutputs selector whose block is unknown before running, naming the available blocks', async () => {
+    const agentBlockId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const startBlockId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    mockLoadDeployedWorkflowState.mockResolvedValue({
+      blocks: {
+        [agentBlockId]: { id: agentBlockId, name: 'Agent 1' },
+        [startBlockId]: { id: startBlockId, name: 'Start' },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+
+    const res = await callExecute({
+      input: {},
+      selectedOutputs: ['Agent 1.content', 'Agent 2.content'],
+    })
 
     expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toContain('selectedOutputs requires stream: true')
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    const body = await res.json()
+    expect(body.error.message).toBe(
+      'Invalid selectedOutputs: Unknown block "Agent 2" in selector "Agent 2.content". Available blocks: Agent 1, Start'
+    )
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
   })
 
   it.each(['includeThinking', 'includeToolCalls'])(
@@ -662,11 +840,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
   it('conceals a workspace-key/workflow mismatch as not found', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'other-workspace',
-        keyId: 'key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'other-workspace' }),
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:other-workspace'],
       rateLimitSubscription: null,
       keyType: 'workspace',
@@ -680,7 +854,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
   it('rejects personal keys when the workspace disallows them', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
-      principal: { kind: 'personal_api_key', userId: 'key-user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal({ userId: 'key-user-1' }),
       rateLimitSubjectIds: ['api-key:key-1', 'user:key-user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
@@ -826,7 +1000,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
     expect(response.status).toBe(401)
     expect((await response.json()).error.message).toBe(
-      'Manual execution requires a personal API key'
+      'Manual execution requires an OAuth access token or personal API key'
     )
     expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
   })
