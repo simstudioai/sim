@@ -1,13 +1,19 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector, knowledgeConnectorMemberSyncLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  resolveSystemBillingAttribution,
+  resolveSystemOrganizationBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'
 import { sweepStaleMemberObservations } from '@/lib/knowledge/connectors/member-observations'
 import {
   dispatchMemberSync,
@@ -20,6 +26,7 @@ import {
   MAX_CONSECUTIVE_FAILURES,
   MEMBER_SYNC_STALE_LOCK_TTL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
+import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +56,18 @@ function reclaimedError(message: string): SQL {
 
 function reclaimedNextMemberSyncAt(): SQL {
   return sql`CASE WHEN ${reclaimedFailureCount()} >= ${MAX_CONSECUTIVE_FAILURES} THEN NULL ELSE now() + LEAST(${reclaimedFailureCount()} * ${CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES}, ${CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES}) * INTERVAL '1 minute' END`
+}
+
+/**
+ * Only the member engine takes the member lease, and only on a members-mode connector, which a
+ * mode switch cannot leave while the lease is held; so both reclaims match `access_mode` too, the
+ * predicate `kc_member_sync_due_idx` is partial on, and read that index instead of the table.
+ */
+function reclaimableMemberSync(status: 'running' | 'pending'): SQL | undefined {
+  return and(
+    eq(knowledgeConnector.accessMode, 'members'),
+    eq(knowledgeConnector.memberSyncStatus, status)
+  )
 }
 
 /**
@@ -101,7 +120,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .set(reclaimPayload(STALE_LOCK_ERROR_MESSAGE))
         .where(
           and(
-            eq(knowledgeConnector.memberSyncStatus, 'running'),
+            reclaimableMemberSync('running'),
             sql`${memberSyncLockLease()} <= ${sql.param(staleCutoff, knowledgeConnector.memberSyncLockLeaseAt)}`,
             isNull(knowledgeConnector.archivedAt),
             isNull(knowledgeConnector.deletedAt)
@@ -113,7 +132,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .set(reclaimPayload(LOST_DISPATCH_ERROR_MESSAGE))
         .where(
           and(
-            eq(knowledgeConnector.memberSyncStatus, 'pending'),
+            reclaimableMemberSync('pending'),
             sql`${memberSyncLockLease()} <= ${sql.param(staleCutoff, knowledgeConnector.memberSyncLockLeaseAt)}`,
             isNull(knowledgeConnector.archivedAt),
             isNull(knowledgeConnector.deletedAt)
@@ -152,9 +171,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       logger.warn(`[${requestId}] Closed ${closedLogs.length} orphaned member sync log(s)`)
     }
 
-    const sweep = await sweepStaleMemberObservations(now)
-    if (sweep.members > 0) {
-      logger.warn(`[${requestId}] Swept observations of ${sweep.members} stale member(s)`, sweep)
+    /** Observation hygiene never holds back dispatch; an unfinished sweep resumes next tick. */
+    try {
+      const sweep = await sweepStaleMemberObservations(now)
+      if (sweep.members > 0) {
+        logger.warn(`[${requestId}] Swept observations of ${sweep.members} stale member(s)`, sweep)
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Stale member observation sweep failed`, {
+        error: getErrorMessage(error),
+      })
     }
 
     const dueConnectors = await db
@@ -162,17 +188,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         id: knowledgeConnector.id,
         nextMemberSyncAt: knowledgeConnector.nextMemberSyncAt,
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
       })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
       .where(
         and(
           eq(knowledgeConnector.accessMode, 'members'),
-          inArray(knowledgeConnector.status, ['active', 'error']),
+          inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
           inArray(knowledgeConnector.memberSyncStatus, QUEUEABLE_MEMBER_SYNC_STATUSES),
           lte(knowledgeConnector.nextMemberSyncAt, now),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),
+          connectorIndexingCondition(),
           isNull(knowledgeBase.deletedAt)
         )
       )
@@ -191,10 +219,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     await mapWithConcurrency(dueConnectors, DISPATCH_CONCURRENCY, async (connector) => {
       try {
-        if (!connector.workspaceId) {
-          throw new Error(`Connector ${connector.id} is missing workspace billing context`)
-        }
-        const billingAttribution = await resolveSystemBillingAttribution(connector.workspaceId)
+        const scope = resourceScopeFromOwner(connector)
+        const billingAttribution =
+          scope.kind === 'organization'
+            ? await resolveSystemOrganizationBillingAttribution(scope.organizationId)
+            : await resolveSystemBillingAttribution(scope.workspaceId)
         await dispatchMemberSync(connector.id, {
           billingAttribution,
           expectedNextMemberSyncAt: connector.nextMemberSyncAt ?? undefined,

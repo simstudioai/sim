@@ -12,10 +12,8 @@
 
 import { parseXml, type SafeXmlNode } from '../parser/xml-parser'
 
-// UUID → (styleName, accent) map — 74 entries across 11 style groups
-
+/** Style UUID → `[styleName, accent]` for all 74 predefined styles across 11 groups. */
 const styleIdMap = new Map<string, [string, string]>([
-  // Themed-Style-1
   ['{2D5ABB26-0587-4C30-8999-92F81FD0307C}', ['Themed-Style-1', '']],
   ['{3C2FFA5D-87B4-456A-9821-1D502468CF0F}', ['Themed-Style-1', 'accent1']],
   ['{284E427A-3D55-4303-BF80-6455036E1DE7}', ['Themed-Style-1', 'accent2']],
@@ -24,7 +22,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{35758FB7-9AC5-4552-8A53-C91805E547FA}', ['Themed-Style-1', 'accent5']],
   ['{08FB837D-C827-4EFA-A057-4D05807E0F7C}', ['Themed-Style-1', 'accent6']],
 
-  // Themed-Style-2
   ['{5940675A-B579-460E-94D1-54222C63F5DA}', ['Themed-Style-2', '']],
   ['{D113A9D2-9D6B-4929-AA2D-F23B5EE8CBE7}', ['Themed-Style-2', 'accent1']],
   ['{18603FDC-E32A-4AB5-989C-0864C3EAD2B8}', ['Themed-Style-2', 'accent2']],
@@ -33,7 +30,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{327F97BB-C833-4FB7-BDE5-3F7075034690}', ['Themed-Style-2', 'accent5']],
   ['{638B1855-1B75-4FBE-930C-398BA8C253C6}', ['Themed-Style-2', 'accent6']],
 
-  // Light-Style-1
   ['{9D7B26C5-4107-4FEC-AEDC-1716B250A1EF}', ['Light-Style-1', '']],
   ['{3B4B98B0-60AC-42C2-AFA5-B58CD77FA1E5}', ['Light-Style-1', 'accent1']],
   ['{0E3FDE45-AF77-4B5C-9715-49D594BDF05E}', ['Light-Style-1', 'accent2']],
@@ -42,7 +38,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{5FD0F851-EC5A-4D38-B0AD-8093EC10F338}', ['Light-Style-1', 'accent5']],
   ['{68D230F3-CF80-4859-8CE7-A43EE81993B5}', ['Light-Style-1', 'accent6']],
 
-  // Light-Style-2
   ['{7E9639D4-E3E2-4D34-9284-5A2195B3D0D7}', ['Light-Style-2', '']],
   ['{69012ECD-51FC-41F1-AA8D-1B2483CD663E}', ['Light-Style-2', 'accent1']],
   ['{72833802-FEF1-4C79-8D5D-14CF1EAF98D9}', ['Light-Style-2', 'accent2']],
@@ -51,7 +46,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{5A111915-BE36-4E01-A7E5-04B1672EAD32}', ['Light-Style-2', 'accent5']],
   ['{912C8C85-51F0-491E-9774-3900AFEF0FD7}', ['Light-Style-2', 'accent6']],
 
-  // Light-Style-3
   ['{616DA210-FB5B-4158-B5E0-FEB733F419BA}', ['Light-Style-3', '']],
   ['{BC89EF96-8CEA-46FF-86C4-4CE0E7609802}', ['Light-Style-3', 'accent1']],
   ['{5DA37D80-6434-44D0-A028-1B22A696006F}', ['Light-Style-3', 'accent2']],
@@ -60,7 +54,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{BDBED569-4797-4DF1-A0F4-6AAB3CD982D8}', ['Light-Style-3', 'accent5']],
   ['{E8B1032C-EA38-4F05-BA0D-38AFFFC7BED3}', ['Light-Style-3', 'accent6']],
 
-  // Medium-Style-1
   ['{793D81CF-94F2-401A-BA57-92F5A7B2D0C5}', ['Medium-Style-1', '']],
   ['{B301B821-A1FF-4177-AEE7-76D212191A09}', ['Medium-Style-1', 'accent1']],
   ['{9DCAF9ED-07DC-4A11-8D7F-57B35C25682E}', ['Medium-Style-1', 'accent2']],
@@ -69,7 +62,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{FABFCF23-3B69-468F-B69F-88F6DE6A72F2}', ['Medium-Style-1', 'accent5']],
   ['{10A1B5D5-9B99-4C35-A422-299274C87663}', ['Medium-Style-1', 'accent6']],
 
-  // Medium-Style-2
   ['{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}', ['Medium-Style-2', '']],
   ['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}', ['Medium-Style-2', 'accent1']],
   ['{21E4AEA4-8DFA-4A89-87EB-49C32662AFE0}', ['Medium-Style-2', 'accent2']],
@@ -78,7 +70,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{7DF18680-E054-41AD-8BC1-D1AEF772440D}', ['Medium-Style-2', 'accent5']],
   ['{93296810-A885-4BE3-A3E7-6D5BEEA58F35}', ['Medium-Style-2', 'accent6']],
 
-  // Medium-Style-3
   ['{8EC20E35-A176-4012-BC5E-935CFFF8708E}', ['Medium-Style-3', '']],
   ['{6E25E649-3F16-4E02-A733-19D2CDBF48F0}', ['Medium-Style-3', 'accent1']],
   ['{85BE263C-DBD7-4A20-BB59-AAB30ACAA65A}', ['Medium-Style-3', 'accent2']],
@@ -87,7 +78,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{74C1A8A3-306A-4EB7-A6B1-4F7E0EB9C5D6}', ['Medium-Style-3', 'accent5']],
   ['{2A488322-F2BA-4B5B-9748-0D474271808F}', ['Medium-Style-3', 'accent6']],
 
-  // Medium-Style-4
   ['{D7AC3CCA-C797-4891-BE02-D94E43425B78}', ['Medium-Style-4', '']],
   ['{69CF1AB2-1976-4502-BF36-3FF5EA218861}', ['Medium-Style-4', 'accent1']],
   ['{8A107856-5554-42FB-B03E-39F5DBC370BA}', ['Medium-Style-4', 'accent2']],
@@ -96,7 +86,6 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{22838BEF-8BB2-4498-84A7-C5851F593DF1}', ['Medium-Style-4', 'accent5']],
   ['{16D9F66E-5EB9-4882-86FB-DCBF35E3C3E4}', ['Medium-Style-4', 'accent6']],
 
-  // Dark-Style-1
   ['{E8034E78-7F5D-4C2E-B375-FC64B27BC917}', ['Dark-Style-1', '']],
   ['{125E5076-3810-47DD-B79F-674D7AD40C01}', ['Dark-Style-1', 'accent1']],
   ['{37CE84F3-28C3-443E-9E96-99CF82512B78}', ['Dark-Style-1', 'accent2']],
@@ -105,14 +94,11 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{8FD4443E-F989-4FC4-A0C8-D5A2AF1F390B}', ['Dark-Style-1', 'accent5']],
   ['{AF606853-7671-496A-8E4F-DF71F8EC918B}', ['Dark-Style-1', 'accent6']],
 
-  // Dark-Style-2 (only 4 variants)
   ['{5202B0CA-FC54-4496-8BCA-5EF66A818D29}', ['Dark-Style-2', '']],
   ['{0660B408-B3CF-4A94-85FC-2B1E0A45F4A2}', ['Dark-Style-2', 'accent1']],
   ['{91EBBBCC-DAD2-459C-BE2E-F6DE35CF9A28}', ['Dark-Style-2', 'accent3']],
   ['{46F890A9-2807-4EBB-B81D-B2AA78EC7F39}', ['Dark-Style-2', 'accent5']],
 ])
-
-// XML helpers — reduce boilerplate in style generators
 
 const NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
 
@@ -161,8 +147,6 @@ function stylePart(
   parts.push(`</a:${tag}>`)
   return parts.join('')
 }
-
-// Style group XML generators
 
 function themedStyle1(accent: string, styleId: string): string {
   const hasAccent = accent !== ''
@@ -241,7 +225,6 @@ function themedStyle2(accent: string, styleId: string): string {
 
   if (hasAccent) {
     const accentVal = accent
-    // tblBg: accent fill
     const tblBg = `<a:tblBg><a:fillRef idx="1"><a:schemeClr val="${accentVal}"/></a:fillRef></a:tblBg>`
 
     // wholeTbl: text=lt1, outer borders=accent+tint(50000)
@@ -262,11 +245,8 @@ function themedStyle2(accent: string, styleId: string): string {
     parts.push(
       stylePart('firstRow', { textColor: 'lt1', bold: true, borders: { bottom: borderLn('lt1') } })
     )
-    // lastRow: bold, top border=lt1
     parts.push(stylePart('lastRow', { bold: true, borders: { top: borderLn('lt1') } }))
-    // firstCol: bold, right border=lt1
     parts.push(stylePart('firstCol', { bold: true, borders: { right: borderLn('lt1') } }))
-    // lastCol: bold, left border=lt1
     parts.push(stylePart('lastCol', { bold: true, borders: { left: borderLn('lt1') } }))
 
     return wrapTblStyle(styleId, 'Themed-Style-2', tblBg + parts.join(''))
@@ -318,12 +298,9 @@ function lightStyle1(accent: string, styleId: string): string {
     })
   )
 
-  // lastRow: bold, top border
   parts.push(stylePart('lastRow', { bold: true, borders: { top: borderLn(accentVal) } }))
 
-  // firstCol: bold text
   parts.push(stylePart('firstCol', { textColor: 'tx1', bold: true }))
-  // lastCol: bold text
   parts.push(stylePart('lastCol', { textColor: 'tx1', bold: true }))
 
   return wrapTblStyle(styleId, 'Light-Style-1', parts.join(''))
@@ -368,15 +345,11 @@ function lightStyle2(accent: string, styleId: string): string {
     })
   )
 
-  // firstRow: text=bg1, bold, fill=accent
   parts.push(stylePart('firstRow', { textColor: 'bg1', bold: true, fill: fillSolid(accentVal) }))
 
-  // lastRow: bold, top border
   parts.push(stylePart('lastRow', { bold: true, borders: { top: borderLn(accentVal) } }))
 
-  // firstCol: bold
   parts.push(stylePart('firstCol', { bold: true }))
-  // lastCol: bold
   parts.push(stylePart('lastCol', { bold: true }))
 
   return wrapTblStyle(styleId, 'Light-Style-2', parts.join(''))
@@ -415,12 +388,9 @@ function lightStyle3(accent: string, styleId: string): string {
     })
   )
 
-  // lastRow: bold, top border
   parts.push(stylePart('lastRow', { bold: true, borders: { top: borderLn(accentVal) } }))
 
-  // firstCol: bold
   parts.push(stylePart('firstCol', { bold: true }))
-  // lastCol: bold
   parts.push(stylePart('lastCol', { bold: true }))
 
   return wrapTblStyle(styleId, 'Light-Style-3', parts.join(''))
@@ -450,7 +420,6 @@ function mediumStyle1(accent: string, styleId: string): string {
   parts.push(stylePart('band1H', { fill: bandFill }))
   parts.push(stylePart('band1V', { fill: bandFill }))
 
-  // firstRow: text=lt1, bold, fill=accent
   parts.push(stylePart('firstRow', { textColor: 'lt1', bold: true, fill: fillSolid(accentVal) }))
 
   // lastRow: bold, fill=lt1, top border
@@ -462,9 +431,7 @@ function mediumStyle1(accent: string, styleId: string): string {
     })
   )
 
-  // firstCol: bold
   parts.push(stylePart('firstCol', { bold: true }))
-  // lastCol: bold
   parts.push(stylePart('lastCol', { bold: true }))
 
   return wrapTblStyle(styleId, 'Medium-Style-1', parts.join(''))
@@ -515,10 +482,8 @@ function mediumStyle2(accent: string, styleId: string): string {
     })
   )
 
-  // firstCol: text=lt1, bold, fill=accent
   parts.push(stylePart('firstCol', { textColor: 'lt1', bold: true, fill: fillSolid(accentVal) }))
 
-  // lastCol: text=lt1, bold, fill=accent
   parts.push(stylePart('lastCol', { textColor: 'lt1', bold: true, fill: fillSolid(accentVal) }))
 
   return wrapTblStyle(styleId, 'Medium-Style-2', parts.join(''))
@@ -564,10 +529,8 @@ function mediumStyle3(accent: string, styleId: string): string {
     })
   )
 
-  // firstCol: text=lt1, bold, fill=accent
   parts.push(stylePart('firstCol', { textColor: 'lt1', bold: true, fill: fillSolid(accentVal) }))
 
-  // lastCol: text=lt1, bold, fill=accent
   parts.push(stylePart('lastCol', { textColor: 'lt1', bold: true, fill: fillSolid(accentVal) }))
 
   return wrapTblStyle(styleId, 'Medium-Style-3', parts.join(''))
@@ -616,9 +579,7 @@ function mediumStyle4(accent: string, styleId: string): string {
     })
   )
 
-  // firstCol: bold
   parts.push(stylePart('firstCol', { bold: true }))
-  // lastCol: bold
   parts.push(stylePart('lastCol', { bold: true }))
 
   return wrapTblStyle(styleId, 'Medium-Style-4', parts.join(''))
@@ -726,21 +687,15 @@ function darkStyle2(accent: string, styleId: string): string {
     })
   )
 
-  // firstCol: bold
   parts.push(stylePart('firstCol', { bold: true }))
-  // lastCol: bold
   parts.push(stylePart('lastCol', { bold: true }))
 
   return wrapTblStyle(styleId, 'Dark-Style-2', parts.join(''))
 }
 
-// XML wrapper
-
 function wrapTblStyle(styleId: string, styleName: string, innerXml: string): string {
   return `<a:tblStyle ${NS} styleId="${styleId}" styleName="${styleName}">${innerXml}</a:tblStyle>`
 }
-
-// Style generator dispatch
 
 const styleGenerators: Record<string, (accent: string, styleId: string) => string> = {
   'Themed-Style-1': themedStyle1,
@@ -755,8 +710,6 @@ const styleGenerators: Record<string, (accent: string, styleId: string) => strin
   'Dark-Style-1': darkStyle1,
   'Dark-Style-2': darkStyle2,
 }
-
-// Module-level cache & public API
 
 const cache = new Map<string, SafeXmlNode>()
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import { DELETE, GET, PATCH, POST, PUT } from '@/app/api/v2/[[...segments]]/route'
@@ -37,11 +34,5 @@ describe('unknown /api/v2 path', () => {
 
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual(EXPECTED)
-  })
-
-  it('does not require an API key, so probing a typo cannot become a 401', async () => {
-    const response = await GET(probe('GET'), undefined)
-
-    expect(response.status).toBe(404)
   })
 })

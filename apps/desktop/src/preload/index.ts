@@ -28,6 +28,8 @@ import type {
   BrowserToolbarCommand,
   DesktopAppearanceTheme,
   DesktopCommand,
+  DesktopLocalFileRequest,
+  DesktopLocalFileResponse,
   DesktopNotificationPayload,
   DesktopOAuthConnectResult,
   DesktopOAuthConnectScope,
@@ -49,11 +51,14 @@ import {
   type ScopedTerminalTabsState,
   TERMINAL_TOOL_NAME,
   type TerminalOperation,
-  type TerminalStartOptions,
   type TerminalToolArgs,
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { contextBridge, ipcRenderer } from 'electron'
+import { exposeShellTheme, observeAppTheme } from '@/preload/shell-theme'
+
+exposeShellTheme()
+observeAppTheme()
 
 const VERSION_ARG_PREFIX = '--sim-desktop-version='
 
@@ -122,6 +127,12 @@ const api: SimDesktopApi = {
     : {}),
   beginOAuthConnect: (providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean> =>
     ipcRenderer.invoke('desktop:oauth-connect', providerId, scope),
+  prepareSourceConnect: (): Promise<string | null> =>
+    ipcRenderer.invoke('desktop:source-connect-prepare'),
+  beginSourceConnect: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke('desktop:source-connect', requestId),
+  cancelSourceConnect: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke('desktop:source-connect-cancel', requestId),
   onOAuthConnectComplete: (callback: (result: DesktopOAuthConnectResult) => void): (() => void) => {
     const listener = (_event: unknown, result: DesktopOAuthConnectResult) => callback(result)
     ipcRenderer.on('desktop:oauth-connect-complete', listener)
@@ -143,6 +154,8 @@ const api: SimDesktopApi = {
   },
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),
+  localFiles: (request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse> =>
+    ipcRenderer.invoke('desktop:local-files', request),
   onCommand: (callback: (command: DesktopCommand) => void): (() => void) => {
     const listener = (_event: unknown, command: DesktopCommand) => callback(command)
     ipcRenderer.on('desktop:command', listener)
@@ -197,9 +210,6 @@ const api: SimDesktopApi = {
   },
   browserAgent: {
     supportsAtomicPanelOcclusion: true,
-    registerSitePermissionPromptSupport: (): void => {
-      ipcRenderer.send('browser-agent:register-site-permission-prompt-support')
-    },
     executeTool: (
       toolCallId: string,
       tool: BrowserToolName,
@@ -228,12 +238,6 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-agent:dispose-scope', scopeId),
     suspendScope: (scopeId: string): Promise<boolean> =>
       ipcRenderer.invoke('browser-agent:suspend-scope', scopeId),
-    setTabPinned: (tabId: string, pinned: boolean, scopeId: string): void => {
-      ipcRenderer.send('browser-agent:set-tab-pinned', tabId, pinned, scopeId)
-    },
-    showTabContextMenu: (tabId: string, scopeId: string): void => {
-      ipcRenderer.send('browser-agent:show-tab-context-menu', tabId, scopeId)
-    },
     reorderTab: (tabId: string, targetIndex: number, scopeId: string): void => {
       ipcRenderer.send('browser-agent:reorder-tab', tabId, targetIndex, scopeId)
     },
@@ -425,20 +429,8 @@ const api: SimDesktopApi = {
     onFillAvailability: subscribeFillAvailability,
   },
   terminal: {
-    start: async (
-      options: TerminalStartOptions,
-      scopeId: string
-    ): Promise<ScopedTerminalTabsState> => {
-      const response = (await ipcRenderer.invoke('terminal:start', options, scopeId)) as
-        | { ok: true; tabs: ScopedTerminalTabsState }
-        | { ok: false; code?: string; error?: string }
-      if (!response?.ok) {
-        const failure = new Error(response?.error ?? 'Could not open a terminal.')
-        failure.name = response?.code ?? 'SPAWN_FAILED'
-        throw failure
-      }
-      return response.tabs
-    },
+    restoreScope: (scopeId: string): Promise<ScopedTerminalTabsState> =>
+      ipcRenderer.invoke('terminal:restore-scope', scopeId),
     // The tool name rides alongside the call because the main process
     // re-fetches the server's authorized arguments by tool call id and uses
     // those, not these — what the renderer passes is only a request.
@@ -468,8 +460,12 @@ const api: SimDesktopApi = {
     },
     openTerminal: (cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState> =>
       ipcRenderer.invoke('terminal:open', cwd, scopeId),
-    switchTerminal: (terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState> =>
-      ipcRenderer.invoke('terminal:switch', terminalId, scopeId),
+    switchTerminal: (
+      terminalId: string,
+      scopeId: string,
+      options?: { claim?: boolean }
+    ): Promise<ScopedTerminalTabsState> =>
+      ipcRenderer.invoke('terminal:switch', terminalId, scopeId, options),
     reorderTerminal: (
       terminalId: string,
       targetIndex: number,

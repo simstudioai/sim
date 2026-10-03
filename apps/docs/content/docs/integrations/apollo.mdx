@@ -11,23 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Apollo.io](https://apollo.io/) is a leading sales intelligence and engagement platform that empowers users to find, enrich, and engage contacts and companies at scale. Apollo.io combines an extensive contact database with robust enrichment and workflow automation tools, assisting sales, marketing, and recruiting teams to accelerate growth.
-
-With Apollo.io, you can:
-
-- **Search millions of contacts and companies**: Find precise leads using advanced filters
-- **Enrich leads and accounts**: Fill in missing details with verified data and up-to-date information
-- **Manage and organize CRM records**: Keep your people and company data accurate and actionable
-- **Automate outreach**: Add contacts to sequences and create follow-up tasks directly from Apollo.io
-
-In Sim, the Apollo.io integration allows your agents to perform core Apollo operations programmatically:
-
-- **Search people and companies**: Use `apollo_people_search` to discover new leads using flexible filters.
-- **Enrich people data**: Use `apollo_people_enrich` to augment contacts with verified information.
-- **Enrich people in bulk**: Use `apollo_people_bulk_enrich` for large-scale enrichment of multiple contacts at once.
-- **Search and enrich companies**: Use `apollo_company_search` and `apollo_company_enrich` to discover and update key company information.
-
-This enables your agents to build powerful workflows for prospecting, CRM enrichment, and automation without manual data entry or switching tabs. Integrate Apollo.io as a dynamic data source and CRM engine — empowering your agents to identify, qualify, and reach out to leads seamlessly as part of their daily operations.
+Use [Apollo.io](https://apollo.io/) in Sim to search and enrich people and companies, manage CRM contacts and accounts, add contacts to sequences, and create follow-up tasks. Single-record and bulk enrichment operations are documented below.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -207,7 +191,7 @@ Create a new contact in your Apollo database
 | `account_id` | string | No | Apollo account ID to associate with \(e.g., "acc_abc123"\) |
 | `owner_id` | string | No | User ID of the contact owner \(accepted by Apollo but not officially documented for POST /contacts\) |
 | `organization_name` | string | No | Name of the contact's employer \(e.g., "Apollo"\) |
-| `website_url` | string | No | Corporate website URL \(e.g., "https://www.apollo.io/"\) |
+| `website_url` | string | No | Corporate website URL \(e.g., "https://www.apollo.io/") |
 | `label_names` | array | No | Lists/labels to add the contact to \(e.g., \["Prospects"\]\) |
 | `contact_stage_id` | string | No | Apollo ID for the contact stage |
 | `present_raw_address` | string | No | Personal location for the contact \(e.g., "Atlanta, United States"\) |
@@ -243,7 +227,7 @@ Update an existing contact in your Apollo database
 | `account_id` | string | No | Apollo account ID \(e.g., "acc_abc123"\) |
 | `owner_id` | string | No | User ID of the contact owner \(accepted by Apollo but not officially documented for PATCH /contacts/\{id\}\) |
 | `organization_name` | string | No | Name of the contact's employer \(e.g., "Apollo"\) |
-| `website_url` | string | No | Corporate website URL \(e.g., "https://www.apollo.io/"\) |
+| `website_url` | string | No | Corporate website URL \(e.g., "https://www.apollo.io/") |
 | `label_names` | array | No | Lists/labels to add the contact to \(e.g., \["Prospects"\]\) |
 | `contact_stage_id` | string | No | Apollo ID for the contact stage |
 | `present_raw_address` | string | No | Personal location for the contact \(e.g., "Atlanta, United States"\) |

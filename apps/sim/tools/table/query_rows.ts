@@ -1,4 +1,6 @@
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -15,12 +17,7 @@ export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQu
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     filter: {
       type: 'object',
       required: false,
@@ -72,17 +69,14 @@ export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQu
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        rows: data.rows,
-        rowCount: data.rowCount,
-        totalCount: data.totalCount,
-        limit: data.limit,
-        offset: data.offset,
-        nextCursor: data.nextCursor ?? null,
-      },
-    }
+    return tableSuccess({
+      rows: data.rows,
+      rowCount: data.rowCount,
+      totalCount: data.totalCount,
+      limit: data.limit,
+      offset: data.offset,
+      nextCursor: data.nextCursor ?? null,
+    })
   },
 
   outputs: {

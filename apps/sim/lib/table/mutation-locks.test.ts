@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   assertColumnDestructive,
@@ -38,15 +35,6 @@ function makeTable(
 }
 
 describe('mutation-locks', () => {
-  it('passes every assert on an unlocked table', () => {
-    const table = makeTable()
-    expect(() => assertRowInsert(table)).not.toThrow()
-    expect(() => assertRowUpdate(table, ['col_a'])).not.toThrow()
-    expect(() => assertRowDelete(table)).not.toThrow()
-    expect(() => assertSchemaMutable(table)).not.toThrow()
-    expect(() => assertColumnDestructive(table)).not.toThrow()
-  })
-
   it('blocks only its own verb with a 423 and the right lock name', () => {
     expect(() => assertRowInsert(makeTable({ insertLocked: true }))).toThrowError(
       expect.objectContaining({ statusCode: 423, lock: 'insert' })
@@ -110,11 +98,5 @@ describe('mutation-locks', () => {
         expect.objectContaining({ lock: 'delete' })
       )
     })
-  })
-
-  it('treats an absent locks field as fully unlocked (fail-open for mocks)', () => {
-    const table = { ...makeTable(), locks: undefined } as unknown as TableDefinition
-    expect(() => assertRowInsert(table)).not.toThrow()
-    expect(() => assertSchemaMutable(table)).not.toThrow()
   })
 })

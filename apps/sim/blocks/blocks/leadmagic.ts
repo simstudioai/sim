@@ -1,6 +1,5 @@
 import { LeadMagicIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { LeadMagicResponse } from '@/tools/leadmagic/types'
 
 /*
  * Mutually exclusive company identifiers, and the two email kinds a reverse
@@ -11,7 +10,7 @@ const FIND_EMAIL_COMPANY_FIELD = ['fe_domain', 'fe_company_name'] as const
 const ROLE_COMPANY_FIELD = ['rf_company_domain', 'rf_company_name'] as const
 const COMPANY_SEARCH_FIELD = ['cs_company_domain', 'cs_profile_url', 'cs_company_name'] as const
 
-export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
+export const LeadMagicBlock: BlockConfig = {
   type: 'leadmagic',
   name: 'LeadMagic',
   description: 'Find and enrich B2B contacts, emails, mobile numbers, and company data',
@@ -84,7 +83,6 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       value: () => 'leadmagic_find_email',
     },
 
-    // --- Find Email ---
     {
       id: 'fe_full_name',
       title: 'Full Name',
@@ -108,7 +106,6 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       mode: 'advanced',
     },
 
-    // --- Validate Email ---
     {
       id: 've_email',
       title: 'Email Address',
@@ -118,7 +115,6 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       condition: { field: 'operation', value: 'leadmagic_validate_email' },
     },
 
-    // --- Find Mobile ---
     {
       id: 'fm_profile_url',
       title: 'LinkedIn Profile URL',
@@ -135,7 +131,6 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       mode: 'advanced',
     },
 
-    // --- Profile Search ---
     {
       id: 'ps_profile_url',
       title: 'LinkedIn Profile URL',
@@ -157,7 +152,6 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       mode: 'advanced',
     },
 
-    // --- Profile to Email ---
     {
       id: 'pte_profile_url',
       title: 'LinkedIn Profile URL',
@@ -167,7 +161,6 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       condition: { field: 'operation', value: 'leadmagic_profile_to_email' },
     },
 
-    // --- Email to Profile ---
     {
       id: 'etp_work_email',
       title: 'Work Email',
@@ -184,7 +177,6 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       mode: 'advanced',
     },
 
-    // --- Company Search ---
     {
       id: 'cs_company_domain',
       title: 'Company Domain',
@@ -209,7 +201,6 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       mode: 'advanced',
     },
 
-    // --- Role Finder ---
     {
       id: 'rf_job_title',
       title: 'Job Title',
@@ -296,27 +287,19 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
         const { operation: _operation, ...rest } = params
 
         const idToParam: Record<string, string> = {
-          // Find Email
           fe_full_name: 'full_name',
           fe_domain: 'domain',
           fe_company_name: 'company_name',
-          // Validate Email
           ve_email: 'email',
-          // Find Mobile
           fm_profile_url: 'profile_url',
           fm_work_email: 'work_email',
-          // Profile Search
           ps_profile_url: 'profile_url',
-          // Profile to Email
           pte_profile_url: 'profile_url',
-          // Email to Profile
           etp_work_email: 'work_email',
           etp_personal_email: 'personal_email',
-          // Company Search
           cs_company_domain: 'company_domain',
           cs_profile_url: 'profile_url',
           cs_company_name: 'company_name',
-          // Role Finder
           rf_job_title: 'job_title',
           rf_company_domain: 'company_domain',
           rf_company_name: 'company_name',
@@ -340,38 +323,28 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'LeadMagic API key' },
-    // Find Email
     fe_full_name: { type: 'string', description: 'Full name (find email)' },
     fe_domain: { type: 'string', description: 'Company domain (find email)' },
     fe_company_name: { type: 'string', description: 'Company name (find email)' },
-    // Validate Email
     ve_email: { type: 'string', description: 'Email address to validate' },
-    // Find Mobile
     fm_profile_url: { type: 'string', description: 'LinkedIn profile URL (find mobile)' },
     fm_work_email: { type: 'string', description: 'Work email (find mobile)' },
-    // Profile Search
     ps_profile_url: { type: 'string', description: 'LinkedIn profile URL (profile search)' },
     extended_response: { type: 'boolean', description: 'Include profile image URL' },
-    // Profile to Email
     pte_profile_url: { type: 'string', description: 'LinkedIn profile URL (profile to email)' },
-    // Email to Profile
     etp_work_email: { type: 'string', description: 'Work email (email to profile)' },
     etp_personal_email: { type: 'string', description: 'Personal email (email to profile)' },
-    // Company Search
     cs_company_domain: { type: 'string', description: 'Company domain (company search)' },
     cs_profile_url: { type: 'string', description: 'LinkedIn company URL (company search)' },
     cs_company_name: { type: 'string', description: 'Company name (company search)' },
-    // Role Finder
     rf_job_title: { type: 'string', description: 'Job title to find (role finder)' },
     rf_company_domain: { type: 'string', description: 'Company domain (role finder)' },
     rf_company_name: { type: 'string', description: 'Company name (role finder)' },
   },
 
   outputs: {
-    // Shared
     credits_consumed: { type: 'number', description: 'Credits charged for this request' },
     message: { type: 'string', description: 'Human-readable status message' },
-    // Validate Email
     email_status: {
       type: 'string',
       description: 'Validation result: valid, invalid, or unknown',
@@ -384,14 +357,11 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
       type: 'boolean',
       description: 'Whether the domain uses a security gateway',
     },
-    // Find Email / Profile To Email / Validate
     email: { type: 'string', description: 'Email address' },
     employment_verified: { type: 'boolean', description: 'Whether employment was verified' },
     has_mx: { type: 'boolean', description: 'Whether the domain has a valid MX record' },
     company_profile_url: { type: 'string', description: 'Company B2B profile URL' },
-    // Find Mobile
     mobile_number: { type: 'string', description: 'Direct mobile phone number' },
-    // Profile Search
     first_name: { type: 'string', description: 'First name' },
     last_name: { type: 'string', description: 'Last name' },
     full_name: { type: 'string', description: 'Full name' },
@@ -408,9 +378,7 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
     work_experience: { type: 'array', description: 'Work history entries' },
     education: { type: 'array', description: 'Education history entries' },
     certifications: { type: 'array', description: 'Professional certifications' },
-    // Email to Profile
     profile_url: { type: 'string', description: 'LinkedIn profile URL' },
-    // Company Search
     companyName: { type: 'string', description: 'Company name' },
     companyId: { type: 'number', description: 'Internal company ID' },
     industry: { type: 'string', description: 'Industry classification' },
@@ -428,9 +396,7 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
     facebook_url: { type: 'string', description: 'Facebook page URL' },
     b2b_profile_url: { type: 'string', description: 'LinkedIn company profile URL' },
     logo_url: { type: 'string', description: 'Company logo URL' },
-    // Role Finder
     job_title: { type: 'string', description: 'Verified job title at the company' },
-    // Get Credits
     credits: { type: 'number', description: 'Remaining credit balance' },
   },
 }

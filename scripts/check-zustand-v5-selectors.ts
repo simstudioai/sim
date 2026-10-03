@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { parse } from '@babel/parser'
+import { getErrorMessage } from '@sim/utils/errors'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const APP_DIR = path.join(ROOT, 'apps/sim')
@@ -294,6 +296,185 @@ function auditFile(file: string, source: string): Violation[] {
   return violations
 }
 
+/** The local name `persist` is imported under from `zustand/middleware`, including an alias. */
+const PERSIST_IMPORT =
+  /import\s*\{[^}]*\bpersist\b(?:\s+as\s+(\w+))?[^}]*\}\s*from\s*'zustand\/middleware'/
+
+/** A Babel AST node, read structurally rather than through `@babel/types`. */
+interface SyntaxNode extends Record<string, unknown> {
+  type: string
+  start: number
+  end: number
+}
+
+function isSyntaxNode(value: unknown): value is SyntaxNode {
+  return (
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
+  )
+}
+
+/** Visits `node` and every node beneath it, depth first; `visit` returning false skips a subtree. */
+function walkNodes(node: SyntaxNode, visit: (node: SyntaxNode) => boolean | undefined): void {
+  if (visit(node) === false) return
+  for (const value of Object.values(node)) {
+    if (isSyntaxNode(value)) walkNodes(value, visit)
+    else if (Array.isArray(value))
+      for (const item of value) if (isSyntaxNode(item)) walkNodes(item, visit)
+  }
+}
+
+/** Strips the type-only wrappers (`as`, `satisfies`, `!`) around an expression. */
+function unwrapExpression(node: unknown): unknown {
+  let current = node
+  while (
+    isSyntaxNode(current) &&
+    (current.type === 'TSAsExpression' ||
+      current.type === 'TSSatisfiesExpression' ||
+      current.type === 'TSNonNullExpression')
+  ) {
+    current = current.expression
+  }
+  return current
+}
+
+function isIdentifierNamed(node: unknown, name: string): boolean {
+  const unwrapped = unwrapExpression(node)
+  return isSyntaxNode(unwrapped) && unwrapped.type === 'Identifier' && unwrapped.name === name
+}
+
+/** `name` itself, or an object literal that spreads `...name` (extra keys still carry everything). */
+function isWholeBinding(node: unknown, name: string): boolean {
+  if (isIdentifierNamed(node, name)) return true
+  const unwrapped = unwrapExpression(node)
+  // `state || {}`, `state ?? {}`, and `cond ? state : {}` can each return the whole state;
+  // `a && b` returns `a` only when it is falsy, which a state object never is.
+  if (isSyntaxNode(unwrapped) && unwrapped.type === 'LogicalExpression') {
+    if (isWholeBinding(unwrapped.right, name)) return true
+    return unwrapped.operator !== '&&' && isWholeBinding(unwrapped.left, name)
+  }
+  if (isSyntaxNode(unwrapped) && unwrapped.type === 'ConditionalExpression') {
+    return isWholeBinding(unwrapped.consequent, name) || isWholeBinding(unwrapped.alternate, name)
+  }
+  if (!isSyntaxNode(unwrapped) || unwrapped.type !== 'ObjectExpression') return false
+  const properties = Array.isArray(unwrapped.properties) ? unwrapped.properties : []
+  return properties.some(
+    (property) =>
+      isSyntaxNode(property) &&
+      property.type === 'SpreadElement' &&
+      isIdentifierNamed(property.argument, name)
+  )
+}
+
+/** The expressions a function returns: its expression body, or every `return` in its own block. */
+function returnedExpressions(fn: SyntaxNode): unknown[] {
+  if (!isSyntaxNode(fn.body)) return []
+  if (fn.body.type !== 'BlockStatement') return [fn.body]
+  const returned: unknown[] = []
+  walkNodes(fn.body, (node) => {
+    if (node.type === 'ReturnStatement') returned.push(node.argument)
+    return !/Function|ObjectMethod|ClassMethod/.test(node.type)
+  })
+  return returned
+}
+
+/**
+ * The parameter binding that holds every state field: `s` in `(s) => …`, or `rest` in
+ * `({ a, ...rest }) => …`, which holds every field but the ones named (a deny-list).
+ */
+function wholeStateBinding(rawParam: unknown): { name: string; reason: string } | null {
+  // A default (`(state = {} as State) => …`) binds the same value.
+  const param =
+    isSyntaxNode(rawParam) && rawParam.type === 'AssignmentPattern' ? rawParam.left : rawParam
+  if (!isSyntaxNode(param)) return null
+  if (param.type === 'Identifier' && typeof param.name === 'string') {
+    return { name: param.name, reason: 'persist partialize spreads the whole state' }
+  }
+  if (param.type !== 'ObjectPattern' || !Array.isArray(param.properties)) return null
+  const rest = param.properties.find(
+    (property): property is SyntaxNode => isSyntaxNode(property) && property.type === 'RestElement'
+  )
+  if (!rest || !isSyntaxNode(rest.argument) || typeof rest.argument.name !== 'string') return null
+  return {
+    name: rest.argument.name,
+    reason: 'persist partialize persists everything but the fields it names (a deny-list)',
+  }
+}
+
+/**
+ * Why an inline `partialize` persists more than a whitelist, or null when it returns one:
+ * any return of the whole-state binding itself or of `{ ...binding }`.
+ */
+function partializeLeak(fn: SyntaxNode): string | null {
+  const binding = wholeStateBinding(Array.isArray(fn.params) ? fn.params[0] : undefined)
+  if (!binding) return null
+  return returnedExpressions(fn).some((expression) => isWholeBinding(expression, binding.name))
+    ? `${binding.reason}; return an explicit whitelist of durable fields`
+    : null
+}
+
+/** The top-level `partialize` of a persist options object literal, or null when it has none. */
+function findPartialize(options: SyntaxNode): SyntaxNode | null {
+  const properties = Array.isArray(options.properties) ? options.properties : []
+  for (const property of properties) {
+    if (!isSyntaxNode(property) || property.computed === true) continue
+    if (property.type !== 'ObjectProperty' && property.type !== 'ObjectMethod') continue
+    const key = property.key
+    const keyName = isSyntaxNode(key) ? (key.type === 'Identifier' ? key.name : key.value) : null
+    if (keyName !== 'partialize') continue
+    if (property.type === 'ObjectMethod') return property
+    // A cast such as `((s) => s) as Partialize<S>` still hands zustand the inner function.
+    const value = unwrapExpression(property.value)
+    return isSyntaxNode(value) ? value : null
+  }
+  return null
+}
+
+/**
+ * `.claude/rules/sim-stores.md`: every `persist` names its durable fields in `partialize`.
+ * Without one, zustand writes the whole state — transient flags, drag state, `_hasHydrated` —
+ * to storage and rehydrates it on the next load.
+ */
+function auditPersist(file: string, source: string): Violation[] {
+  const persistImport = PERSIST_IMPORT.exec(source)
+  if (!persistImport) return []
+  const local = persistImport[1] ?? 'persist'
+  let program: unknown
+  try {
+    program = parse(source, {
+      sourceType: 'module',
+      plugins: ['typescript', ...(/\.[jt]sx$/.test(file) ? (['jsx'] as const) : [])],
+      errorRecovery: true,
+    }).program
+  } catch (error) {
+    throw new Error(`Cannot parse ${file} to audit its persist calls: ${getErrorMessage(error)}`)
+  }
+  if (!isSyntaxNode(program)) return []
+
+  const violations: Violation[] = []
+  walkNodes(program, (node) => {
+    if (node.type !== 'CallExpression' || !isIdentifierNamed(node.callee, local)) return
+    if (hasSafeAnnotation(source, node.start)) return
+    const args = Array.isArray(node.arguments) ? node.arguments : []
+    const options = args.length > 1 ? unwrapExpression(args[args.length - 1]) : null
+    const partialize =
+      isSyntaxNode(options) && options.type === 'ObjectExpression' ? findPartialize(options) : null
+    const isInlineFunction =
+      partialize !== null &&
+      /^(?:ArrowFunctionExpression|FunctionExpression|ObjectMethod)$/.test(partialize.type)
+    const leak = partialize && isInlineFunction ? partializeLeak(partialize) : null
+    if (partialize && !leak) return
+    violations.push({
+      file,
+      line: lineNumberAt(source, node.start),
+      description:
+        leak ??
+        `persist has no partialize; add \`partialize: (state) => ({ <durable fields> })\` (sim-stores.md). If the options object is hoisted into a variable that has one, mark the call // ${SAFE_ANNOTATION} <where>`,
+      snippet: oneLineSnippet(source, node.start, Math.min(node.end, node.start + 180)),
+    })
+  })
+  return violations
+}
+
 function returnsPrimitiveDerivedValue(selector: string): boolean {
   return (
     /\bObject\.(?:keys|values|entries)\s*\([^)]*\)\s*\.\s*(?:length|some|every)\b/.test(selector) ||
@@ -351,16 +532,17 @@ async function main() {
     const source = await readFile(file, 'utf8')
     const relativeFile = path.relative(ROOT, file)
     violations.push(...auditFile(relativeFile, source))
+    violations.push(...auditPersist(relativeFile, source))
   }
 
   if (violations.length === 0) {
-    console.log('✅ Zustand v5 selector audit OK')
+    console.log('✅ Zustand store audit OK (selectors, persist partialize)')
     return
   }
 
-  console.error('❌ Zustand v5 selector hazards found:')
+  console.error('❌ Zustand store hazards found:')
   console.error(
-    `Add useShallow/useStoreWithEqualityFn, split into primitive selectors, or document intentional exceptions with // ${SAFE_ANNOTATION} <reason>.`
+    `Fix each as described, or document an intentional exception with // ${SAFE_ANNOTATION} <reason>.`
   )
   for (const violation of violations) {
     console.error(

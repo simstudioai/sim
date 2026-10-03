@@ -10,6 +10,8 @@ import type {
   SharePointDownloadFileInput,
   SharePointUploadFileInput,
 } from '@/lib/internal/sharepoint/schema'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type { InternalToolOperationResult } from '@/lib/internal/tool-operations/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
@@ -47,7 +49,7 @@ function uploadedFile(data: SharePointUploadedItem): SharePointUploadedItem {
 export async function executeSharePointDownloadFile(
   input: SharePointDownloadFileInput,
   context: SharePointOperationContext
-): Promise<Response> {
+): Promise<InternalToolOperationResult> {
   context.signal?.throwIfAborted()
   try {
     const client = new SharePointClient(input.accessToken, context.signal)
@@ -61,17 +63,10 @@ export async function executeSharePointDownloadFile(
     const mimeType = metadata.file?.mimeType || 'application/octet-stream'
     const buffer = await client.download(input.driveId, input.itemId)
     context.signal?.throwIfAborted()
-    return Response.json({
-      success: true,
-      output: {
-        file: {
-          name: input.fileName || metadata.name || 'download',
-          mimeType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
-        },
-      },
-    })
+    return createInternalToolFileResult(
+      { buffer, name: input.fileName || metadata.name || 'download', mimeType },
+      (file) => ({ success: true, output: { file } })
+    )
   } catch (error) {
     context.signal?.throwIfAborted()
     if (error instanceof SharePointGraphError) {

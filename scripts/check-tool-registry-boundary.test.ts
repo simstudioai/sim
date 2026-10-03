@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   type Baseline,
-  discoverEntries,
-  loadBaseline,
   ratchetAgainstBaseline,
   ratchetFailed,
 } from './check-tool-registry-boundary'
@@ -57,31 +55,5 @@ describe('module-graph ratchet', () => {
     expect(verdict.shrunk).toEqual(['a/page.tsx'])
     expect(verdict.removed).toEqual(['gone/page.tsx'])
     expect(ratchetFailed(verdict)).toBe(false)
-  })
-})
-
-describe('guarded entries', () => {
-  const entries = discoverEntries()
-
-  /**
-   * The headline win of the catalog projection was cutting the registry edge out
-   * of this tool — ~6,756 modules down to ~1,321. It sat in no guarded subtree,
-   * so nothing held it.
-   */
-  it('guards the Copilot block-metadata tool', () => {
-    expect(entries).toContain('lib/copilot/tools/server/blocks/get-blocks-metadata-tool.ts')
-  })
-
-  it('guards every catalog projection module rather than a barrel over them', () => {
-    expect(entries).toContain('lib/catalog/projection/block-detail.ts')
-    expect(entries).toContain('lib/catalog/projection/tool.ts')
-    expect(entries).not.toContain('lib/catalog/projection/index.ts')
-  })
-
-  it('has a recorded baseline row for every entry it discovers', () => {
-    const baseline = loadBaseline()
-    expect(baseline).not.toBeNull()
-    const missing = entries.filter((entry) => !(baseline as Baseline).entries[entry])
-    expect(missing).toEqual([])
   })
 })

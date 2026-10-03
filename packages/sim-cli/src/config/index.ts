@@ -1,6 +1,7 @@
-export { configDir, configPath, credentialsPath } from './paths'
+export { configDir, configPath, credentialsPath, telemetryStatePath } from './paths'
 export {
   DEFAULT_ENDPOINT,
+  DEFAULT_OUTPUT_FORMAT,
   DEFAULT_PROFILE,
   deleteProfile,
   FORBIDDEN_IN_VALUE,
@@ -10,16 +11,23 @@ export {
   normalizeWorkspaceId,
   OUTPUT_FORMATS,
   type OutputFormat,
+  oauthIssuerForEndpoint,
   PROFILE_NAME_PATTERN,
   ProfileConfigError,
   type ProfileOverrides,
   type ResolvedProfile,
   readConfigProfile,
   readCredentialsProfile,
+  readStoredCredential,
+  readStoredOAuth,
   resolveAuthenticationProfileName,
   resolveProfile,
   type SettingSource,
+  type StoredCredential,
+  type StoredOAuthCredential,
   validateProfileName,
+  withCredentialsLock,
+  withProfileLoginLease,
   writeConfigProfile,
   writeCredentialsProfile,
 } from './profile'

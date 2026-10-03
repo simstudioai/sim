@@ -11,34 +11,48 @@ import {
 } from '@/lib/api/contracts/tools/microsoft'
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import { OutlookOperationError } from '@/lib/internal/outlook/errors'
+import { outlookGetAttachmentInputSchema } from '@/lib/internal/outlook/get-attachment-input'
 import {
   executeOutlookCopy,
   executeOutlookDelete,
   executeOutlookDraft,
+  executeOutlookGetAttachment,
   executeOutlookMarkRead,
   executeOutlookMarkUnread,
   executeOutlookMove,
   executeOutlookSend,
   type OutlookMailOperationContext,
 } from '@/lib/internal/outlook/operations'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import { parseInternalOperationInput } from '@/lib/internal/tool-operations/parse-contract-input'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 async function executeOperation<C extends AnyApiRouteContract>(
   contract: C,
   input: unknown,
   execute: (input: ContractBody<C>) => Promise<unknown>,
   signal?: AbortSignal
-): Promise<Response> {
+): Promise<InternalToolOperationResult> {
   signal?.throwIfAborted()
   const parsed = parseInternalToolInput(contract, input, {
     maxInputBytes: DEFAULT_MAX_JSON_BODY_BYTES,
   })
   if (!parsed.success) return parsed.response
+  return executeAndPresent(() => execute(parsed.data), signal)
+}
+
+async function executeAndPresent(
+  execute: () => Promise<unknown>,
+  signal?: AbortSignal
+): Promise<InternalToolOperationResult> {
   try {
-    const result = await execute(parsed.data)
+    const result = await execute()
     signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     signal?.throwIfAborted()
     if (error instanceof OutlookOperationError) {
@@ -51,14 +65,24 @@ async function executeOperation<C extends AnyApiRouteContract>(
   }
 }
 
-export const executeOutlookTool: InternalToolOperationHandler = async (request) => {
+export const executeOutlookTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   const { input, context, requestId, signal, toolId } = request
+  signal?.throwIfAborted()
   const mailContext: OutlookMailOperationContext = {
     requestId,
     signal,
     userId: context.userId,
   }
   switch (toolId) {
+    case 'outlook_get_attachment': {
+      const parsed = parseInternalOperationInput({ body: outlookGetAttachmentInputSchema }, input, {
+        maxInputBytes: DEFAULT_MAX_JSON_BODY_BYTES,
+      })
+      if (!parsed.success) return parsed.response
+      return executeAndPresent(() => executeOutlookGetAttachment(parsed.data.body, signal), signal)
+    }
     case 'outlook_copy':
       return executeOperation(
         outlookCopyContract,

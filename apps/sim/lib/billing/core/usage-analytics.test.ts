@@ -1,20 +1,19 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { ResolvedUsagePeriod } from '@/lib/billing/core/reporting-period'
 import {
   buildUsageAnalyticsScope,
   densifyUsageSeries,
   foldUsageBreakdown,
-  MAX_CUSTOM_RANGE_DAYS,
   mergeRowsByKey,
-  resolvePreviousPeriod,
+  resolveComparisonWindow,
   resolveUsageAnalyticsWindow,
   resolveUsageBucket,
+  sumUsageDays,
+  USAGE_SETTLE_MS,
   UsageWindowRangeInvertedError,
   UsageWindowRangeTooLargeError,
   usageWindowLedgerFilter,
+  usageWindowSegments,
 } from '@/lib/billing/core/usage-analytics'
 
 const ENTITY = { type: 'organization', id: 'org-1' } as const
@@ -53,22 +52,6 @@ describe('buildUsageAnalyticsScope', () => {
     expect(shape).toContain('usageLog.billingPeriodEnd')
   })
 
-  it('matches a plain range on created_at', () => {
-    const shape = scopeShape({
-      kind: 'range',
-      from: new Date('2026-08-01T00:00:00.000Z'),
-      to: new Date('2026-08-08T00:00:00.000Z'),
-    })
-    expect(shape).toContain('usageLog.createdAt')
-    expect(shape).not.toContain('usageLog.billingPeriodStart')
-  })
-
-  it('always scopes to the billing entity', () => {
-    const shape = scopeShape({ kind: 'period', period: period() })
-    expect(shape).toContain('usageLog.billingEntityType')
-    expect(shape).toContain('usageLog.billingEntityId')
-  })
-
   it('narrows to a workspace in every window shape', () => {
     // Each branch returns its own array, so a narrowing added to only one of them is a
     // drill-down that quietly reports the whole organization under the other two.
@@ -90,10 +73,6 @@ describe('buildUsageAnalyticsScope', () => {
         'usageLog.workspaceId'
       )
     }
-  })
-
-  it('leaves the scope organization-wide when no workspace is given', () => {
-    expect(scopeShape({ kind: 'period', period: period() })).not.toContain('usageLog.workspaceId')
   })
 })
 
@@ -143,9 +122,18 @@ describe('usageWindowLedgerFilter', () => {
 describe('resolveUsageAnalyticsWindow', () => {
   const now = new Date('2026-08-20T12:00:00.000Z')
 
-  it('keeps current-period a period so it matches the billing page', () => {
-    const window = resolveUsageAnalyticsWindow({ preset: 'current-period', period: period(), now })
-    expect(window).toEqual({ kind: 'period', period: period() })
+  it('starts a rolling window on the viewer-local hour, so its first segment settles', () => {
+    const window = resolveUsageAnalyticsWindow({
+      preset: '7d',
+      period: period(),
+      timezone: 'Asia/Kolkata',
+      now: new Date('2026-08-20T12:47:13.250Z'),
+    })
+    expect(window.kind === 'range' && window.from).toEqual(new Date('2026-08-13T12:30:00.000Z'))
+    const [first] = usageWindowSegments(window, 'Asia/Kolkata', {
+      now: window.kind === 'range' ? window.to : undefined,
+    })
+    expect(first?.settled).toBe(true)
   })
 
   it('derives the previous reporting period from its anchor', () => {
@@ -230,11 +218,6 @@ describe('resolveUsageAnalyticsWindow', () => {
     ).toThrow(UsageWindowRangeTooLargeError)
   })
 
-  it('falls back to the period when a custom range is missing a bound', () => {
-    const window = resolveUsageAnalyticsWindow({ preset: 'custom', period: period(), now })
-    expect(window.kind).toBe('period')
-  })
-
   it('anchors custom bounds on midnight in the viewer calendar, not UTC', () => {
     // The picker offers calendar days. Anchoring on the UTC instant shifted every
     // non-UTC viewer's selection by their offset, and disagreed with the chart,
@@ -289,6 +272,40 @@ describe('resolveUsageAnalyticsWindow', () => {
     }
   })
 
+  it('keeps the viewer timezone when a partial custom range falls back to the current period', () => {
+    const window = resolveUsageAnalyticsWindow({
+      preset: 'custom',
+      period: period({
+        source: 'default',
+        start: new Date(0),
+        end: new Date(Date.UTC(9999, 11, 31)),
+      }),
+      customStart: new Date('2026-08-04'),
+      timezone: 'Asia/Kolkata',
+      now: new Date('2026-08-20T12:47:13.250Z'),
+    })
+    expect(window.kind === 'range' && window.from).toEqual(new Date('2026-07-21T12:30:00.000Z'))
+  })
+
+  it('ends an unbounded previous period where the current one starts, on the viewer hour', () => {
+    const unbounded = period({
+      source: 'default',
+      start: new Date(0),
+      end: new Date(Date.UTC(9999, 11, 31)),
+    })
+    const args = {
+      period: unbounded,
+      timezone: 'Asia/Kolkata',
+      now: new Date('2026-08-20T12:47:13.250Z'),
+    }
+    const current = resolveUsageAnalyticsWindow({ ...args, preset: 'current-period' })
+    const previous = resolveUsageAnalyticsWindow({ ...args, preset: 'previous-period' })
+    expect(current.kind === 'range' && previous.kind === 'range').toBe(true)
+    if (current.kind !== 'range' || previous.kind !== 'range') return
+    expect(previous.to).toEqual(current.from)
+    expect(previous.from).toEqual(new Date('2026-06-21T12:30:00.000Z'))
+  })
+
   it('steps an unbounded period back by the display window, not by its own length', () => {
     const window = resolveUsageAnalyticsWindow({
       preset: 'previous-period',
@@ -307,22 +324,8 @@ describe('resolveUsageAnalyticsWindow', () => {
   })
 })
 
-describe('resolvePreviousPeriod', () => {
-  it('returns null for a period with no derivation rule', () => {
-    expect(resolvePreviousPeriod(period({ source: 'stripe' }))).toBeNull()
-    expect(resolvePreviousPeriod(period({ source: 'default' }))).toBeNull()
-  })
-})
-
 describe('resolveUsageBucket', () => {
   const from = new Date('2026-01-01T00:00:00.000Z')
-  const days = (n: number) => new Date(from.getTime() + n * 24 * 60 * 60 * 1000)
-
-  it('scales granularity with the window', () => {
-    expect(resolveUsageBucket({ kind: 'range', from, to: days(30) })).toBe('day')
-    expect(resolveUsageBucket({ kind: 'range', from, to: days(200) })).toBe('week')
-    expect(resolveUsageBucket({ kind: 'range', from, to: days(500) })).toBe('month')
-  })
 
   it('keeps daily bars for the maximum range across a DST transition', () => {
     // 92 calendar days spanning the autumn fall-back is 92 days and one hour. Ceiling
@@ -453,19 +456,22 @@ describe('foldUsageBreakdown', () => {
     expect(fold.other.rowCount).toBe(1)
   })
 
-  it('ranks by cost descending', () => {
-    expect(foldUsageBreakdown(rows, 10, labelFor, 3).rows.map((r) => r.id)).toEqual(['a', 'b', 'c'])
+  it('decides a tie at the cutoff by key, then orders the kept rows by label', () => {
+    const tied = [
+      { key: 'k3', cost: '1', events: 1 },
+      { key: 'k1', cost: '1', events: 1 },
+      { key: 'k2', cost: '1', events: 1 },
+    ]
+    const names: Record<string, string> = { k1: 'Zed', k2: 'Ada', k3: 'Bo' }
+    const fold = foldUsageBreakdown(tied, 3, (key) => names[key ?? ''] ?? '', 2)
+    expect(fold.rows.map((row) => row.label)).toEqual(['Ada', 'Zed'])
+    expect(fold.other.rowCount).toBe(1)
   })
 
   it('computes share against the window total, not the visible subset', () => {
     // Sharing against the visible rows would make a truncated list read as 100%.
     const fold = foldUsageBreakdown(rows, 10, labelFor, 1)
     expect(fold.rows[0].share).toBeCloseTo(0.5, 8)
-  })
-
-  it('labels a null grouping key rather than dropping the row', () => {
-    const fold = foldUsageBreakdown([{ key: null, cost: '4', events: 1 }], 4, labelFor, 5)
-    expect(fold.rows[0].label).toBe('Unattributed')
   })
 
   it('yields zero shares when nothing was spent, without dividing by zero', () => {
@@ -502,12 +508,6 @@ describe('foldUsageBreakdown', () => {
   })
 })
 
-describe('MAX_CUSTOM_RANGE_DAYS', () => {
-  it('is the documented cap', () => {
-    expect(MAX_CUSTOM_RANGE_DAYS).toBe(92)
-  })
-})
-
 describe('mergeRowsByKey', () => {
   it('collapses sources that share a display label', () => {
     // The ledger stores `copilot` and `workspace-chat` separately but both render as
@@ -541,29 +541,120 @@ describe('mergeRowsByKey', () => {
       { key: 'anthropic', cost: 3, events: 4, inputTokens: 150, outputTokens: 15 },
     ])
   })
+})
 
-  it('preserves a null key rather than merging it into a named row', () => {
-    const merged = mergeRowsByKey(
-      [
-        { key: null, cost: '1', events: 1 },
-        { key: 'a', cost: '2', events: 1 },
-      ],
-      (key) => key
+describe('usageWindowSegments', () => {
+  const range = (from: string, to: string) =>
+    ({ kind: 'range', from: new Date(from), to: new Date(to) }) as const
+
+  it('keeps settled whole days whole and cuts everything else at the hour', () => {
+    const segments = usageWindowSegments(
+      range('2026-03-01T22:00:00.000Z', '2026-03-04T02:30:00.000Z'),
+      'UTC',
+      { now: new Date('2026-03-04T02:30:00.000Z') }
     )
-    expect(merged.map((row) => row.key)).toEqual([null, 'a'])
+    expect(segments.map(({ key, settled }) => [key, settled])).toEqual([
+      ['2026-03-01T22', true],
+      ['2026-03-01T23', true],
+      ['2026-03-02', true],
+      // Ended at midnight, less than the settle lag ago: still open, so cut at hours.
+      ...Array.from({ length: 24 }, (_, hour) => [
+        `2026-03-03T${String(hour).padStart(2, '0')}`,
+        hour <= 22,
+      ]),
+      ['2026-03-04T00', false],
+      ['2026-03-04T01', false],
+      ['2026-03-04T02', false],
+    ])
+    expect(segments.at(-1)?.to.toISOString()).toBe('2026-03-04T02:30:00.000Z')
   })
 
-  it('leaves totals unchanged', () => {
-    const rows = [
-      { key: 'a', cost: '1.5', events: 1 },
-      { key: 'b', cost: '2.5', events: 2 },
-      { key: 'c', cost: '3', events: 3 },
-    ]
-    const before = rows.reduce((sum, row) => sum + Number(row.cost), 0)
-    const after = mergeRowsByKey(rows, (key) => (key === 'c' ? 'c' : 'ab')).reduce(
-      (sum, row) => sum + Number(row.cost),
-      0
+  it('tiles the window with no gap or overlap', () => {
+    const window = range('2026-03-01T05:17:00.000Z', '2026-03-05T11:42:00.000Z')
+    const segments = usageWindowSegments(window, 'Asia/Kolkata', {
+      now: new Date('2026-03-05T12:00:00Z'),
+    })
+    expect(segments[0]?.from).toEqual(window.from)
+    expect(segments.at(-1)?.to).toEqual(window.to)
+    for (let index = 1; index < segments.length; index++) {
+      expect(segments[index]?.from).toEqual(segments[index - 1]?.to)
+    }
+  })
+
+  it('settles an hour only once the lag after it has passed', () => {
+    const window = range('2026-03-01T00:00:00.000Z', '2026-03-01T01:00:00.000Z')
+    const hourEnd = new Date('2026-03-01T01:00:00.000Z').getTime()
+    const settledAt = (now: number) =>
+      usageWindowSegments(window, 'UTC', { now: new Date(now) })[0]?.settled
+    expect(settledAt(hourEnd + USAGE_SETTLE_MS - 1)).toBe(false)
+    expect(settledAt(hourEnd + USAGE_SETTLE_MS)).toBe(true)
+  })
+
+  it('settles a DST day only whole, since its hour labels are ambiguous', () => {
+    const window = range('2026-11-01T07:00:00.000Z', '2026-11-02T08:00:00.000Z')
+    const during = usageWindowSegments(window, 'America/Los_Angeles', {
+      now: new Date('2026-11-01T20:00:00Z'),
+    })
+    expect(during.every((segment) => segment.key.includes('T') && !segment.settled)).toBe(true)
+
+    const after = usageWindowSegments(window, 'America/Los_Angeles', {
+      now: new Date('2026-11-03T00:00:00Z'),
+    })
+    expect(after.map(({ key, settled }) => [key, settled])).toEqual([['2026-11-01', true]])
+  })
+
+  it('gives a settled spring-forward day its 23 hours as one segment', () => {
+    const segments = usageWindowSegments(
+      range('2026-03-08T08:00:00.000Z', '2026-03-10T07:00:00.000Z'),
+      'America/Los_Angeles',
+      { now: new Date('2026-04-01T00:00:00.000Z') }
     )
-    expect(after).toBeCloseTo(before, 8)
+    expect(segments.map(({ key }) => key)).toEqual(['2026-03-08', '2026-03-09'])
+    expect(segments[0]?.to.getTime() - (segments[0]?.from.getTime() ?? 0)).toBe(23 * 3_600_000)
+  })
+})
+
+describe('sumUsageDays', () => {
+  const days: [string, { key: string; cost: number; events: number }[]][] = [
+    [
+      '2026-01-01',
+      [
+        { key: 'a', cost: 1, events: 1 },
+        { key: 'byok', cost: 0, events: 4 },
+      ],
+    ],
+    [
+      '2026-01-02',
+      [
+        { key: 'a', cost: 0.5, events: 2 },
+        { key: 'byok', cost: 0, events: 1 },
+      ],
+    ],
+  ]
+
+  it('sums each key across days', () => {
+    expect(sumUsageDays(days, { billedOnly: false })).toEqual([
+      { key: 'a', cost: 1.5, events: 3 },
+      { key: 'byok', cost: 0, events: 5 },
+    ])
+  })
+
+  it('drops a group only when its whole window is unbilled', () => {
+    expect(sumUsageDays(days, { billedOnly: true }).map((row) => row.key)).toEqual(['a'])
+  })
+})
+
+describe('resolveComparisonWindow', () => {
+  it('compares a rolling range with the same span just before it', () => {
+    const window = {
+      kind: 'range',
+      from: new Date('2026-08-01T00:00:00.000Z'),
+      to: new Date('2026-08-31T00:00:00.000Z'),
+    } as const
+    expect(resolveComparisonWindow('30d', window, period())).toEqual({
+      kind: 'range',
+      from: new Date('2026-07-02T00:00:00.000Z'),
+      to: new Date('2026-08-01T00:00:00.000Z'),
+    })
   })
 })

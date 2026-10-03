@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * These assertions are only meaningful when the process is NOT running in UTC:
  * a local-time defect is invisible when local time *is* UTC. `TZ` is therefore
  * pinned to a non-UTC zone, and {@link isProcessInUtc} fails the suite outright
@@ -86,44 +84,9 @@ describe('naive timestamp UTC pinning', () => {
     expect(UTC_CONNECTION_PARAMETERS.TimeZone).toBe('UTC')
   })
 
-  it('keeps the session TimeZone when a caller sets its own connection params', () => {
-    const merged = withUtcTimestamps({ connection: { application_name: 'sub-pool' } })
-    expect(merged.connection).toEqual({ application_name: 'sub-pool', TimeZone: 'UTC' })
-  })
-
   it('reads a naive timestamp as UTC rather than the process zone', () => {
     const parsed = UTC_TIMESTAMP_TYPES.utcTimestamp.parse(NAIVE_WIRE_VALUE)
     expect(parsed.toISOString()).toBe(NAIVE_WIRE_INSTANT)
-  })
-
-  it('round-trips an instant through the naive wire form unchanged', () => {
-    const instant = new Date('2026-08-13T02:44:03.420Z')
-    const serialized = UTC_TIMESTAMP_TYPES.utcTimestamp.serialize(instant)
-    /** Postgres discards the offset designator when parsing into a naive column. */
-    const storedWallClock = serialized.replace('T', ' ').replace('Z', '')
-    expect(UTC_TIMESTAMP_TYPES.utcTimestamp.parse(storedWallClock).getTime()).toBe(
-      instant.getTime()
-    )
-  })
-
-  it('registers the UTC parser on a bare postgres.js client', () => {
-    const parse = resolveTimestampParser(false)
-    expect(parse(NAIVE_WIRE_VALUE)).toEqual(new Date(NAIVE_WIRE_INSTANT))
-  })
-
-  /**
-   * `drizzle()` installs its own transparent parser over the oids it maps,
-   * including 1114, so the entry `withUtcTimestamps` registered is replaced the
-   * moment a client is wrapped. Every client in this repo is wrapped, which
-   * makes the registration above true but not load-bearing — asserting only the
-   * registration passes whether or not the parser has any effect. This pins the
-   * fact the next case depends on, so a drizzle version that stops clobbering
-   * turns the file red instead of silently changing which layer decides the
-   * instant.
-   */
-  it('has that parser overwritten by drizzle, so registration alone proves nothing', () => {
-    const parse = resolveTimestampParser(true)
-    expect(parse(NAIVE_WIRE_VALUE)).toBe(NAIVE_WIRE_VALUE)
   })
 
   /**

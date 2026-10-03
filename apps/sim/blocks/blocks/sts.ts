@@ -1,9 +1,8 @@
 import { STSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { STSBaseResponse } from '@/tools/sts/types'
 
-export const STSBlock: BlockConfig<STSBaseResponse> = {
+export const STSBlock: BlockConfig = {
   type: 'sts',
   name: 'AWS STS',
   description: 'Connect to AWS Security Token Service',

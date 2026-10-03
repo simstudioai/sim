@@ -131,7 +131,7 @@ export function SubflowEditor({
             data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
             className='rounded-md'
           >
-            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+            <Label className='mb-[6.5px] block pl-0.5 text-small'>
               {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
             <Combobox
@@ -150,7 +150,7 @@ export function SubflowEditor({
             data-workflow-search-canonical-id={configSearchFieldId}
             className='rounded-md'
           >
-            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+            <Label className='mb-[6.5px] block pl-0.5 text-small'>
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
@@ -223,9 +223,7 @@ export function SubflowEditor({
               data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
               className='relative mt-4 rounded-md'
             >
-              <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-                Parallel Batch Size
-              </Label>
+              <Label className='mb-[6.5px] block pl-0.5 text-small'>Parallel Batch Size</Label>
               <Input
                 type='text'
                 value={batchSizeValue}
@@ -250,7 +248,7 @@ export function SubflowEditor({
       {hasIncomingConnections && (
         <div
           className={
-            'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
+            'connections-section flex shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
             (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
           }
           style={{ height: `${connectionsHeight}px` }}
@@ -265,7 +263,7 @@ export function SubflowEditor({
           </div>
 
           <div
-            className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
+            className='flex shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
             onClick={toggleConnectionsCollapsed}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -287,7 +285,7 @@ export function SubflowEditor({
           </div>
 
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
-            <ConnectionBlocks connections={incomingConnections} currentBlockId={currentBlock.id} />
+            <ConnectionBlocks connections={incomingConnections} />
           </div>
         </div>
       )}

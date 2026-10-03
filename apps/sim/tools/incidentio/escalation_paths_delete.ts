@@ -37,7 +37,7 @@ export const escalationPathsDeleteTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

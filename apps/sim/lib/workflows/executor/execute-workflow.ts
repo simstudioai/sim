@@ -44,7 +44,7 @@ export interface ExecuteWorkflowOptions {
     blockType: string,
     executionOrder: number
   ) => Promise<void>
-  onBlockComplete?: (blockId: string, output: unknown, outputBlockId?: string) => Promise<void>
+  onBlockComplete?: (blockId: string, data: BlockCompletionCallbackData) => Promise<void>
   /** Transfers post-execution logging ownership to the streaming caller after execution succeeds. */
   skipLoggingComplete?: boolean
   includeFileBase64?: boolean
@@ -63,6 +63,8 @@ export interface ExecuteWorkflowOptions {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId?: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
+    variableInputs?: Record<string, unknown>
   }
   /** Trusted encrypted provenance supplied by a server-only caller before execution starts. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
@@ -212,7 +214,7 @@ export async function executeWorkflow(
               _blockType: string,
               data: BlockCompletionCallbackData
             ) => {
-              await streamConfig.onBlockComplete!(blockId, data.output, data.outputBlockId)
+              await streamConfig.onBlockComplete!(blockId, data)
             }
           : undefined,
       },

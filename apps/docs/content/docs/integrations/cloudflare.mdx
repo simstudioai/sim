@@ -11,18 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Cloudflare](https://cloudflare.com/) is a global cloud platform that provides content delivery, domain management, cybersecurity, and performance services for websites and applications.
-
-In Sim, the Cloudflare integration empowers your agents to automate the management of DNS records, SSL/TLS certificates, domains (zones), cache, zone settings, and more through easy-to-use API tools. Agents can securely list and edit domains, update DNS records, monitor analytics, and manage security and performance—all as part of your automated workflows.
-
-With Cloudflare, you can:
-
-- **Manage DNS and Domains**: List all your domains (zones), view zone details, and fully control DNS records from your automated agent workflows.
-- **Handle SSL/TLS Certificates and Settings**: Issue, renew, or list certificates and adjust security and performance settings for your sites.
-- **Purge Cache and Analyze Traffic**: Instantly purge edge cache and review real-time DNS analytics directly within your Sim agent processes.
-- **Automate Security and Operations**: Use agents to programmatically manage zones, update settings, and streamline repetitive Cloudflare tasks.
-
-This integration enables streamlined, secure management of your site's infrastructure from within Sim. Your agents can integrate Cloudflare operations directly into processes—keeping DNS records up-to-date, responding to security events, improving site performance, and automating large-scale site and account administration.
+Use [Cloudflare](https://cloudflare.com/) in Sim to manage zones, DNS records, cache, zone settings, WAF rules, rate limits, and Cloudflare Access. The actions also list SSL/TLS certificates and inspect R2 buckets, Workers, and Tunnels.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -1080,7 +1069,7 @@ Creates a Cloudflare Access (Zero Trust) application that puts an identity check
 | `logoUrl` | string | No | Logo image URL shown in the dashboard and App Launcher |
 | `tags` | string | No | Comma-separated tag names categorizing the application |
 | `policies` | string | No | JSON array of policies to attach. Entries may be reusable policy IDs or inline policy objects, e.g. \["&lt;POLICY_ID&gt;"\] |
-| `saasApp` | string | No | JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. \{"auth_type":"saml","consumer_service_url":"https://example.com/acs","sp_entity_id":"https://example.com"\}; OIDC, e.g. \{"auth_type":"oidc","client_id":"...","redirect_uris":\["https://example.com/callback"\]\} |
+| `saasApp` | string | No | JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. \{ "auth_type": "saml", "consumer_service_url": "https://example.com/acs", "sp_entity_id": "https://example.com" \}; OIDC, e.g. \{ "auth_type": "oidc", "client_id": "...", "redirect_uris": \[ "https://example.com/callback" \] \} |
 | `targetCriteria` | string | No | JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. \[\{"port":22,"protocol":"SSH","target_attributes":\{"hostname":\["production"\]\}\}\] |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
@@ -1126,7 +1115,7 @@ Updates a Cloudflare Access (Zero Trust) application. Cloudflare does not docume
 | `customDenyUrl` | string | No | URL denied users are redirected to |
 | `logoUrl` | string | No | Logo image URL shown in the dashboard and App Launcher |
 | `tags` | string | No | Comma-separated tag names categorizing the application |
-| `saasApp` | string | No | JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. \{"auth_type":"saml","consumer_service_url":"https://example.com/acs","sp_entity_id":"https://example.com"\}; OIDC, e.g. \{"auth_type":"oidc","client_id":"...","redirect_uris":\["https://example.com/callback"\]\} |
+| `saasApp` | string | No | JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. \{ "auth_type": "saml", "consumer_service_url": "https://example.com/acs", "sp_entity_id": "https://example.com" \}; OIDC, e.g. \{ "auth_type": "oidc", "client_id": "...", "redirect_uris": \[ "https://example.com/callback" \] \} |
 | `targetCriteria` | string | No | JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. \[\{"port":22,"protocol":"SSH","target_attributes":\{"hostname":\["production"\]\}\}\] |
 | `policies` | string | No | JSON array of policies to attach. Entries may be reusable policy IDs or inline policy objects |
 | `apiKey` | string | Yes | Cloudflare API Token |

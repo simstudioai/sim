@@ -11,7 +11,6 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@sim/emcn'
-import { createLogger } from '@sim/logger'
 import {
   CODE_PLACEHOLDER,
   type SchemaParameter,
@@ -26,8 +25,6 @@ import {
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { CodeEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/code-editor/code-editor'
-
-const logger = createLogger('CustomToolCodeField')
 
 interface CustomToolCodeFieldProps {
   value: string
@@ -284,7 +281,6 @@ export function CustomToolCodeField({
             }}
             className='w-64'
             style={{
-              position: 'absolute',
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
             }}
@@ -309,7 +305,6 @@ export function CustomToolCodeField({
             }}
             className='w-64'
             style={{
-              position: 'absolute',
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
             }}

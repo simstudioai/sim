@@ -4,6 +4,10 @@ import type {
   PromoteCopyResources,
 } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
+import type {
+  ForkReferenceResolver,
+  ForkRemapKind,
+} from '@/lib/workflows/references/remap-references'
 import {
   type SerializableForkContentRefMaps,
   serializeContentRefMaps,
@@ -21,10 +25,6 @@ import {
   resourceTypeToForkKind,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
-import type {
-  ForkReferenceResolver,
-  ForkRemapKind,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
 
 /**
  * The source ids selected for copy at promote, validated against the plan's copyable
@@ -168,7 +168,6 @@ export async function copyPromoteUnmappedResources(params: {
   edge: ForkEdge
   sourceWorkspaceId: string
   targetWorkspaceId: string
-  direction: 'push' | 'pull'
   userId: string
   now: Date
   selection: PromoteCopySelection
@@ -200,7 +199,6 @@ export async function copyPromoteUnmappedResources(params: {
     edge,
     sourceWorkspaceId,
     targetWorkspaceId,
-    direction,
     userId,
     now,
     selection,
@@ -235,7 +233,7 @@ export async function copyPromoteUnmappedResources(params: {
     resolveBlockId,
     documentMappingContext: {
       edgeChildWorkspaceId: edge.childWorkspaceId,
-      sourceIsParent: direction === 'pull',
+      sourceIsParent: sourceWorkspaceId === edge.parentWorkspaceId,
     },
   })
 
@@ -285,7 +283,7 @@ export async function copyPromoteUnmappedResources(params: {
     executor: tx,
     edgeChildWorkspaceId: edge.childWorkspaceId,
     userId,
-    sourceIsParent: direction === 'pull',
+    sourceIsParent: sourceWorkspaceId === edge.parentWorkspaceId,
     entries: [...result.mappingEntries, ...fileMappingEntries, ...mappedKbDocs.mappingEntries],
   })
 

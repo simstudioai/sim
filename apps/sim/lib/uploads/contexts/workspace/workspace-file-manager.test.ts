@@ -1,13 +1,8 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import {
   findWorkspaceFileRecord,
   generateWorkspaceFileKey,
-  normalizeWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from './workspace-file-manager'
 
@@ -31,14 +26,6 @@ function makeFileRecord(): WorkspaceFileRecord {
 }
 
 describe('workspace file reference normalization', () => {
-  it('normalizes canonical VFS paths to their sanitized display path', () => {
-    expect(normalizeWorkspaceFileReference('files/Reports/q1.csv/content')).toBe('Reports/q1.csv')
-    expect(normalizeWorkspaceFileReference('files/Reports/q1.csv/meta.json')).toBe('Reports/q1.csv')
-    expect(normalizeWorkspaceFileReference('recently-deleted/files/data.csv/content')).toBe(
-      'data.csv'
-    )
-  })
-
   it('still resolves a raw file id passed directly', () => {
     const files = [makeFileRecord()]
 

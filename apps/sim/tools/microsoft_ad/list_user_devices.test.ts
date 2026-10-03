@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { listUserDevicesTool } from '@/tools/microsoft_ad/list_user_devices'
 

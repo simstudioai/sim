@@ -1,37 +1,36 @@
-import { db } from '@sim/db'
-import { dataDrainRuns } from '@sim/db/schema'
-import { desc, eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
 import { listDataDrainRunsContract } from '@/lib/api/contracts/data-drains'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeDrainAccess, loadDrain } from '@/lib/data-drains/access'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { dataDrainOperations } from '@/lib/data-drains/application/operations'
+import {
+  authorizeDataDrainOperation,
+  listDataDrainRuns,
+} from '@/lib/data-drains/application/use-cases'
+import { dataDrainRouteErrorPolicy } from '@/lib/data-drains/route-policy'
 import { serializeDrainRun } from '@/lib/data-drains/serializers'
 
-const DEFAULT_LIMIT = 25
-
-type RouteContext = { params: Promise<{ id: string; drainId: string }> }
-
-export const GET = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const { id: organizationId, drainId } = await context.params
-  const access = await authorizeDrainAccess(organizationId, { requireMutating: false })
-  if (!access.ok) return access.response
-
-  const parsed = await parseRequest(listDataDrainRunsContract, request, context)
-  if (!parsed.success) return parsed.response
-
-  const drain = await loadDrain(organizationId, drainId)
-  if (!drain) {
-    return NextResponse.json({ error: 'Data drain not found' }, { status: 404 })
-  }
-
-  const limit = parsed.data.query?.limit ?? DEFAULT_LIMIT
-  const runs = await db
-    .select()
-    .from(dataDrainRuns)
-    .where(eq(dataDrainRuns.drainId, drainId))
-    .orderBy(desc(dataDrainRuns.startedAt))
-    .limit(limit)
-
-  return NextResponse.json({ runs: runs.map(serializeDrainRun) })
+export const GET = defineInternalJsonRoute({
+  contract: listDataDrainRunsContract,
+  auth: internalSessionAuth,
+  operation: dataDrainOperations.runs,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserves existing organization-admin data-drain route policy',
+  }),
+  errorPolicy: dataDrainRouteErrorPolicy,
+  beforeParse: async ({ principal, params }) => {
+    if (typeof params.id === 'string')
+      await authorizeDataDrainOperation(principal, dataDrainOperations.runs, {
+        organizationId: params.id,
+      })
+  },
+  mapInput: ({ params, query }) => ({
+    organizationId: params.id,
+    drainId: params.drainId,
+    limit: query?.limit,
+  }),
+  useCase: listDataDrainRuns,
+  present: (rows) => ({ runs: rows.map(serializeDrainRun) }),
 })

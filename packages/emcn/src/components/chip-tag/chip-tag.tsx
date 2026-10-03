@@ -54,6 +54,8 @@ import { cn } from '../../lib/cn'
  * - `brand` — a provider-owned integration colour supplied through
  *   `brandColor`. Pair with `brandForeground` so both the icon and label use
  *   the same contrast rule as integration tiles elsewhere in the product.
+ *   `brandStrokeColor` adds an optional inset outline without changing the
+ *   tag's canonical dimensions.
  * - `invite` — recipient pill used in invite/sharing flows. Borrows the chip
  *   family's icon gap (`gap-1.5`), `--text-body` label, and `--text-icon`
  *   leading/trailing icons; pairs with the `invalid` boolean to flip to an
@@ -140,6 +142,8 @@ export interface ChipTagProps
   children: ReactNode
   /** Dynamic provider fill used by the `brand` variant. */
   brandColor?: CSSProperties['background']
+  /** Optional inset outline used by the `brand` variant. */
+  brandStrokeColor?: CSSProperties['color']
   /** Icon component rendered before the label. Non-interactive. */
   leftIcon?: ChipTagIcon
   /**
@@ -178,6 +182,7 @@ export function ChipTag({
   tone,
   brandForeground,
   brandColor,
+  brandStrokeColor,
   className,
   children,
   style,
@@ -192,11 +197,18 @@ export function ChipTag({
      `--text-icon` gray is tuned for this component's light surfaces and would
      all but disappear on a tone's deep fill. */
   const iconClass = cn(
-    'size-[14px] flex-shrink-0',
+    'size-[14px] shrink-0',
     !invalid && variant !== 'workflow' && variant !== 'brand' && 'text-[var(--text-icon)]'
   )
   const interactive = RightIcon != null && onRightIconClick != null
-  const resolvedStyle = variant === 'brand' ? { ...style, background: brandColor } : style
+  const resolvedStyle =
+    variant === 'brand'
+      ? {
+          ...style,
+          background: brandColor,
+          ...(brandStrokeColor ? { boxShadow: `inset 0 0 0 1px ${brandStrokeColor}` } : {}),
+        }
+      : style
 
   return (
     <span
@@ -213,7 +225,7 @@ export function ChipTag({
             onClick={onRightIconClick}
             disabled={rightIconDisabled}
             aria-label={rightIconLabel}
-            className='relative flex flex-shrink-0 items-center opacity-80 transition-opacity before:absolute before:inset-[-8px] before:content-[""] hover-hover:opacity-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+            className='relative flex shrink-0 items-center opacity-80 transition-opacity before:absolute before:inset-[-8px] before:content-[""] hover-hover:opacity-100 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50'
           >
             <RightIcon className={iconClass} />
           </button>

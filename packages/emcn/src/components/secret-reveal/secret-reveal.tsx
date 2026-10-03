@@ -60,7 +60,7 @@ export function SecretReveal({ value, className, redacted = false }: SecretRevea
         {isHidden ? REDACTED_DOTS : value}
       </code>
       {!isHidden && (
-        <Button variant='ghost' size='icon' className='flex-shrink-0' onClick={handleCopy}>
+        <Button variant='ghost' size='icon' className='shrink-0' onClick={handleCopy}>
           {copied ? <Check className='size-[14px]' /> : <Duplicate className='size-[14px]' />}
           <span className='sr-only'>Copy to clipboard</span>
         </Button>

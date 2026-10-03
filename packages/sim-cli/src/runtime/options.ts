@@ -12,7 +12,39 @@ import {
 } from './request'
 import type { OperationSpec } from './types'
 
-export const DEFAULT_LIMIT = 100
+export const DEFAULT_PAGE_SIZE = 100
+
+/** Resource inventories fetch all pages; data and history commands retain a bounded default. */
+const COMPLETE_LIST_OPERATIONS: ReadonlySet<V2OperationName> = new Set([
+  'listBlocks',
+  'listChatDeployments',
+  'listCredentials',
+  'listCustomTools',
+  'listPermissionGroups',
+  'listPermissionGroupMembers',
+  'listOrganizations',
+  'listOrganizationMembers',
+  'listOrganizationWorkspaces',
+  'listFiles',
+  'listKnowledgeBases',
+  'listKnowledgeConnectors',
+  'listMcpServers',
+  'listSandboxes',
+  'listSecrets',
+  'listSkillEditors',
+  'listSkills',
+  'listTables',
+  'listTools',
+  'listWorkflowMcpServers',
+  'listWorkflows',
+  'listWorkspaceMembers',
+  'listWorkspaces',
+])
+
+/** Zero fetches every page. Unclassified operations keep the bounded default. */
+export function defaultListLimit(operation: V2OperationName): number {
+  return COMPLETE_LIST_OPERATIONS.has(operation) ? 0 : 100
+}
 
 /**
  * Help text for one flag, best source first.
@@ -95,7 +127,14 @@ function addFieldOption(
   paginates: boolean,
   capsAFilter: boolean
 ): void {
-  if (field === PROFILE_INJECTED_FIELD || field === 'cursor') return
+  if (field === PROFILE_INJECTED_FIELD) return
+
+  if (field === 'cursor') {
+    if (paginates && defaultListLimit(operation) > 0) {
+      command.option('--cursor <value>', 'Continue from nextCursor returned by a previous result')
+    }
+    return
+  }
 
   const flag = flagSpecFor(operation, field)
   if (flag.omit) return
@@ -115,7 +154,7 @@ function addFieldOption(
     command.option(
       '--limit <n>',
       'Maximum items to return (0 for everything)',
-      String(DEFAULT_LIMIT)
+      String(defaultListLimit(operation))
     )
     return
   }
@@ -147,6 +186,11 @@ function addFieldOption(
     if (!flag.boolean || flag.negatable) {
       command.option(`--no-${name}`, `Send --${name} as false`)
     }
+    for (const previous of flag.renamedFrom ?? []) {
+      command.addOption(new Option(`--${previous}`).hideHelp())
+      if (!flag.boolean || flag.negatable)
+        command.addOption(new Option(`--no-${previous}`).hideHelp())
+    }
     return
   }
 
@@ -158,16 +202,20 @@ function addFieldOption(
       ? '<n>'
       : wantsJson
         ? '<json|@file>'
-        : '<value>'
+        : descriptor.nullable
+          ? '<number|null>'
+          : '<value>'
   const choices = flag.choices ?? descriptor.values
   /**
    * Only a body field reaches the wire as JSON, and only a plain scalar flag is
    * stuck with the literal: a `<json|@file>` flag parses `null` into the value.
    */
-  const literalNull = slot === 'body' && !takesList && !wantsJson
+  const literalNull = slot === 'body' && !takesList && !wantsJson && !descriptor.nullable
   const describe = `${documented}${
     takesList
-      ? ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
+      ? flag.manifest
+        ? ' (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @)'
+        : ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
         : ''
@@ -231,7 +279,7 @@ export function addOperationOptions(
   if (commandSpec.allWorkspaces) {
     command.option(
       '--all-workspaces',
-      'Do not filter to the configured workspace (personal API key required for account-wide access)'
+      'Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access)'
     )
   }
 
@@ -256,6 +304,17 @@ export function addOperationOptions(
         'Request body as JSON (or @path / @- to read a file or stdin) (required)'
       )
     }
+  }
+
+  if (commandSpec.workspaceOperation) {
+    command.option(
+      '--wait',
+      'Wait for the committed operation to finish; missing configuration and failure exit nonzero'
+    )
+    command.option(
+      '--wait-timeout <seconds>',
+      'Maximum operation wait in seconds (default 3600; 0 waits indefinitely)'
+    )
   }
 
   if (commandSpec.confirm) {

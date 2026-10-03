@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
@@ -9,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
 
+import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { queryChunks } from '@/lib/knowledge/chunks/service'
@@ -54,7 +52,6 @@ const ENABLED_CASE = 'case when "embedding"."enabled" then 1 else 0 end'
 
 describe('chunk list generated SQL', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -105,6 +102,21 @@ describe('chunk list generated SQL', () => {
 
     const where = render(dbChainMockFns.where.mock.calls[0]?.[0])
     expect(where.sql).toContain('"document"."acl" && ARRAY[$2, $3]::text[]')
-    expect(where.params).toEqual(['document-1', 'pub', 'ws'])
+    expect(where.sql).toContain('required_clause.tokens ?| ARRAY[$4, $5]::text[]')
+    expect(where.sql).toContain(
+      '"knowledge_connector_member"."subject_token" = ANY(ARRAY[$8, $9]::text[])'
+    )
+    expect(where.params).toEqual([
+      'document-1',
+      'pub',
+      'ws',
+      'pub',
+      'ws',
+      'github-app-installation',
+      SOURCE_ACL_MAX_AGE_MS,
+      'pub',
+      'ws',
+      SOURCE_ACL_MAX_AGE_MS,
+    ])
   })
 })

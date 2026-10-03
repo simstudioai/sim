@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { hmacSha256Hex } from '@sim/security/hmac'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import type {
@@ -206,7 +206,7 @@ async function handleWhatsAppVerification(
 
     for (const row of webhooks) {
       const wh = row.webhook
-      const providerConfig = (wh.providerConfig as Record<string, unknown>) || {}
+      const providerConfig = toRecord(wh.providerConfig)
       const verificationToken = providerConfig.verificationToken
 
       if (!verificationToken) {
