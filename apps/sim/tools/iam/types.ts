@@ -67,12 +67,18 @@ export interface IAMDetachRolePolicyParams extends IAMConnectionConfig {
   policyArn: string
 }
 
+export type IAMPolicyScope = 'All' | 'AWS' | 'Local'
+
 export interface IAMListPoliciesParams extends IAMConnectionConfig {
-  scope?: string | null
+  scope?: IAMPolicyScope | null
   onlyAttached?: boolean | null
   pathPrefix?: string | null
   maxItems?: number | null
   marker?: string | null
+}
+
+export interface IAMGetPolicyParams extends IAMConnectionConfig {
+  policyArn: string
 }
 
 export interface IAMCreateAccessKeyParams extends IAMConnectionConfig {
@@ -81,6 +87,21 @@ export interface IAMCreateAccessKeyParams extends IAMConnectionConfig {
 
 export interface IAMDeleteAccessKeyParams extends IAMConnectionConfig {
   accessKeyIdToDelete: string
+  userName?: string | null
+}
+
+export interface IAMListAccessKeysParams extends IAMConnectionConfig {
+  userName?: string | null
+  maxItems?: number | null
+  marker?: string | null
+}
+
+/** AWS accepts `Expired` on the wire, but only `Active`/`Inactive` are settable. */
+export type IAMAccessKeyStatus = 'Active' | 'Inactive'
+
+export interface IAMUpdateAccessKeyParams extends IAMConnectionConfig {
+  accessKeyIdToUpdate: string
+  status: IAMAccessKeyStatus
   userName?: string | null
 }
 
@@ -225,7 +246,6 @@ export interface IAMListPoliciesResponse extends ToolResponse {
       isAttachable: boolean
       createDate: string | null
       updateDate: string | null
-      description: string | null
       defaultVersionId: string | null
       permissionsBoundaryUsageCount: number
     }>
@@ -288,10 +308,32 @@ export interface IAMListAttachedUserPoliciesParams extends IAMConnectionConfig {
   marker?: string | null
 }
 
+export type IAMContextKeyType =
+  | 'binary'
+  | 'binaryList'
+  | 'boolean'
+  | 'booleanList'
+  | 'date'
+  | 'dateList'
+  | 'ip'
+  | 'ipList'
+  | 'numeric'
+  | 'numericList'
+  | 'string'
+  | 'stringList'
+
+/** One condition context key supplied to a simulation, e.g. `aws:SourceIp`. */
+export interface IAMSimulateContextEntry {
+  contextKeyName: string
+  contextKeyValues: string[]
+  contextKeyType: IAMContextKeyType
+}
+
 export interface IAMSimulatePrincipalPolicyParams extends IAMConnectionConfig {
   policySourceArn: string
   actionNames: string
   resourceArns?: string | null
+  contextEntries?: IAMSimulateContextEntry[] | null
   maxResults?: number | null
   marker?: string | null
 }
@@ -309,18 +351,80 @@ export interface IAMListAttachedPoliciesResponse extends ToolResponse {
   error?: string
 }
 
+export interface IAMSimulateMatchedStatement {
+  sourcePolicyId: string
+  sourcePolicyType: string
+}
+
+/**
+ * The decision for one concrete resource ARN. AWS returns a single evaluation result per
+ * action regardless of how many resource ARNs were simulated, so this is the only place
+ * a per-ARN decision is reported.
+ */
+export interface IAMSimulateResourceSpecificResult {
+  evalResourceName: string
+  evalResourceDecision: string
+  matchedStatements: IAMSimulateMatchedStatement[]
+  missingContextValues: string[]
+  permissionsBoundaryAllowed: boolean | null
+}
+
+export interface IAMSimulateEvaluationResult {
+  evalActionName: string
+  /** The resource-type ARN template AWS echoes back, not a customer resource ARN. */
+  evalResourceName: string
+  /** The aggregate, most-restrictive decision across every simulated resource. */
+  evalDecision: string
+  matchedStatements: IAMSimulateMatchedStatement[]
+  missingContextValues: string[]
+  permissionsBoundaryAllowed: boolean | null
+  resourceSpecificResults: IAMSimulateResourceSpecificResult[]
+}
+
 export interface IAMSimulatePrincipalPolicyResponse extends ToolResponse {
   output: {
-    evaluationResults: Array<{
-      evalActionName: string
-      evalResourceName: string
-      evalDecision: string
-      matchedStatements: Array<{ sourcePolicyId: string; sourcePolicyType: string }>
-      missingContextValues: string[]
+    evaluationResults: IAMSimulateEvaluationResult[]
+    isTruncated: boolean
+    marker: string | null
+    count: number
+  }
+  error?: string
+}
+
+export interface IAMGetPolicyResponse extends ToolResponse {
+  output: {
+    policyName: string
+    policyId: string
+    arn: string
+    path: string
+    attachmentCount: number
+    isAttachable: boolean
+    createDate: string | null
+    updateDate: string | null
+    description: string | null
+    defaultVersionId: string | null
+    permissionsBoundaryUsageCount: number
+    tags: Array<{ key: string; value: string }>
+  }
+  error?: string
+}
+
+export interface IAMListAccessKeysResponse extends ToolResponse {
+  output: {
+    accessKeys: Array<{
+      accessKeyId: string
+      userName: string
+      status: string
+      createDate: string | null
     }>
     isTruncated: boolean
     marker: string | null
     count: number
   }
+  error?: string
+}
+
+export interface IAMUpdateAccessKeyResponse extends ToolResponse {
+  output: { message: string }
   error?: string
 }

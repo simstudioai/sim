@@ -1,15 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetBlock } = vi.hoisted(() => ({
-  mockGetBlock: vi.fn(),
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: mockGetBlock,
-  getAllBlocks: vi.fn(() => ({})),
-}))
-
+import type { Mock } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
+import { getAllBlocks, getBlock } from '@/blocks/registry'
+
+const mockGetBlock = getBlock as Mock
+const mockGetAllBlocks = getAllBlocks as Mock
+mockGetAllBlocks.mockImplementation(() => ({}))
 
 describe('getBlockReferenceTags', () => {
   beforeEach(() => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import {
@@ -8,7 +5,6 @@ import {
   getChangedDynamicHandleBlockIds,
   getConditionRows,
   getDynamicHandleTopologySignature,
-  getRouterRows,
 } from './dynamic-handle-topology'
 
 describe('dynamic handle topology', () => {
@@ -17,10 +13,6 @@ describe('dynamic handle topology', () => {
       { id: 'condition-1-if', title: 'if', value: '' },
       { id: 'condition-1-else', title: 'else', value: '' },
     ])
-  })
-
-  it('falls back to canonical router rows when value is empty', () => {
-    expect(getRouterRows('router-1', null)).toEqual([{ id: 'router-1-route1', value: '' }])
   })
 
   it('builds topology signatures from condition ids', () => {

@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -16,7 +15,7 @@ const CHAT_FIELD = ['chatSelector', 'manualChatId'] as const
 const CHANNEL_FIELD = ['channelSelector', 'manualChannelId'] as const
 const ATTACHMENT_FIELD = ['attachmentFiles', 'fileReferences'] as const
 
-export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
+export const MicrosoftTeamsBlock: BlockConfig = {
   type: 'microsoft_teams',
   name: 'Microsoft Teams',
   description: 'Manage messages, reactions, and members in Teams',

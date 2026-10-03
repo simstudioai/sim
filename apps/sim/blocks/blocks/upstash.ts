@@ -1,44 +1,8 @@
 import { UpstashIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  UpstashRedisCommandResponse,
-  UpstashRedisDeleteResponse,
-  UpstashRedisExistsResponse,
-  UpstashRedisExpireResponse,
-  UpstashRedisGetResponse,
-  UpstashRedisHGetAllResponse,
-  UpstashRedisHGetResponse,
-  UpstashRedisHSetResponse,
-  UpstashRedisIncrbyResponse,
-  UpstashRedisIncrResponse,
-  UpstashRedisKeysResponse,
-  UpstashRedisLPushResponse,
-  UpstashRedisLRangeResponse,
-  UpstashRedisSetnxResponse,
-  UpstashRedisSetResponse,
-  UpstashRedisTtlResponse,
-} from '@/tools/upstash/types'
 
-type UpstashResponse =
-  | UpstashRedisGetResponse
-  | UpstashRedisSetResponse
-  | UpstashRedisDeleteResponse
-  | UpstashRedisKeysResponse
-  | UpstashRedisCommandResponse
-  | UpstashRedisHSetResponse
-  | UpstashRedisHGetResponse
-  | UpstashRedisHGetAllResponse
-  | UpstashRedisIncrResponse
-  | UpstashRedisIncrbyResponse
-  | UpstashRedisExpireResponse
-  | UpstashRedisTtlResponse
-  | UpstashRedisLPushResponse
-  | UpstashRedisLRangeResponse
-  | UpstashRedisExistsResponse
-  | UpstashRedisSetnxResponse
-
-export const UpstashBlock: BlockConfig<UpstashResponse> = {
+export const UpstashBlock: BlockConfig = {
   type: 'upstash',
   name: 'Upstash',
   description: 'Serverless Redis with Upstash',

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Custom-block lifecycle behavior in the serializer:
  *  - a deleted custom block (its type no longer resolves) is dropped like a removed
  *    block, with its edges, instead of throwing `Invalid block type` (Bug 2);
@@ -8,7 +6,7 @@
  *    the child `inputMapping` (Bug 1).
  */
 import { toolsMetadataMock, toolsUtilsMock } from '@sim/testing/mocks'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 // Build the custom-block configs INSIDE the factory (hoisted) so no top-level
 // variable is referenced before initialization. `custom_block_live` declares one
@@ -33,9 +31,12 @@ vi.mock('@/blocks', async () => {
   return { getBlock, getAllBlocks: () => Object.values(mockBlockConfigs) }
 })
 vi.mock('@/tools/utils', () => toolsUtilsMock)
-vi.mock('@/tools/metadata', () => toolsMetadataMock)
 
 import { extractBlockParams, Serializer } from '@/serializer/index'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
+vi.mocked(getToolParams).mockImplementation(toolsMetadataMock.getToolParams)
 
 function customBlockState(type: string, fieldValues: Record<string, unknown>) {
   return {
@@ -57,8 +58,6 @@ function customBlockState(type: string, fieldValues: Record<string, unknown>) {
 }
 
 describe('custom-block serializer lifecycle', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   describe('Bug 1: deleted input does not leak into inputMapping', () => {
     it('drops a stored value whose input was removed from a config that declares its inputs', () => {
       const params = extractBlockParams(

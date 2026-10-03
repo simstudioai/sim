@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
@@ -116,6 +116,74 @@ function projectQueueJob(
     error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
     finalOutput:
       input.includeOutput && status === 'completed' ? extractJobFinalOutput(job.output) : null,
+    blockOutputs: null,
+  }
+}
+
+interface ResumeAttemptRow {
+  id: string
+  parentExecutionId: string
+  status: string
+  queuedAt: Date
+  claimedAt: Date | null
+  completedAt: Date | null
+  failureReason: string | null
+}
+
+type SettledResumeAttemptRow = ResumeAttemptRow & { status: 'completed' | 'failed' }
+
+function isSettledResumeAttempt(
+  attempt: ResumeAttemptRow | undefined
+): attempt is SettledResumeAttemptRow {
+  return attempt?.status === 'completed' || attempt?.status === 'failed'
+}
+
+/**
+ * Projects a finished resume attempt as its own run resource.
+ *
+ * A resume never writes a log row of its own: it continues the paused run and
+ * records under the parent's execution ID, so once its queue entry settles the
+ * run it continued is the only durable record of what it did. The attempt
+ * keeps its own ID and timings, and borrows the rest from that run.
+ *
+ * A `completed` attempt is one whose segment ran to its end — the workflow
+ * finished, failed, or paused again — so the run's state is the answer,
+ * including when a later resume has since moved the run on (which is why an
+ * active run reports no end time). A `failed` attempt never finished its
+ * segment and may have left the run paused for another attempt; it reads as
+ * failed with its recorded reason unless the run itself was cancelled or failed
+ * with a more specific error.
+ */
+function projectSettledResumeAttempt(
+  executionId: string,
+  attempt: SettledResumeAttemptRow,
+  run: WorkflowExecutionStatusResponse
+): WorkflowExecutionStatusResponse {
+  const startedAt = attempt.claimedAt ?? attempt.queuedAt
+  const continuesInRun =
+    attempt.status === 'completed' && (run.status === 'queued' || run.status === 'running')
+  const endedAt = continuesInRun ? null : attempt.completedAt
+  const resource: WorkflowExecutionStatusResponse = {
+    ...run,
+    executionId,
+    startedAt: startedAt.toISOString(),
+    endedAt: endedAt?.toISOString() ?? null,
+    totalDurationMs: endedAt ? Math.max(0, endedAt.getTime() - startedAt.getTime()) : null,
+  }
+  if (attempt.status === 'completed') return resource
+
+  const cancelled = run.status === 'cancelled'
+  return {
+    ...resource,
+    status: cancelled ? 'cancelled' : 'failed',
+    level: cancelled ? 'info' : 'error',
+    paused: null,
+    error: cancelled
+      ? null
+      : ((run.status === 'failed' ? run.error : null) ??
+        attempt.failureReason ??
+        'Resume execution failed'),
+    finalOutput: null,
     blockOutputs: null,
   }
 }
@@ -246,24 +314,28 @@ async function readWorkflowExecutionStatus(
     )
     .limit(1)
 
-  const [activeResume] = await db
+  const [resumeAttempt] = await db
     .select({
       id: resumeQueue.id,
+      parentExecutionId: resumeQueue.parentExecutionId,
       status: resumeQueue.status,
       queuedAt: resumeQueue.queuedAt,
       claimedAt: resumeQueue.claimedAt,
+      completedAt: resumeQueue.completedAt,
+      failureReason: resumeQueue.failureReason,
     })
     .from(resumeQueue)
     .innerJoin(pausedExecutions, eq(resumeQueue.pausedExecutionId, pausedExecutions.id))
     .where(
-      and(
-        eq(resumeQueue.newExecutionId, executionId),
-        eq(pausedExecutions.workflowId, workflowId),
-        inArray(resumeQueue.status, ['pending', 'claimed'] as const)
-      )
+      and(eq(resumeQueue.newExecutionId, executionId), eq(pausedExecutions.workflowId, workflowId))
     )
-    .orderBy(sql`case when ${resumeQueue.status} = 'claimed' then 0 else 1 end`)
+    .orderBy(sql`case ${resumeQueue.status} when 'claimed' then 0 when 'pending' then 1 else 2 end`)
     .limit(1)
+
+  const activeResume =
+    resumeAttempt?.status === 'pending' || resumeAttempt?.status === 'claimed'
+      ? resumeAttempt
+      : undefined
 
   const hasTerminalLog =
     logRow?.status === 'completed' || logRow?.status === 'failed' || logRow?.status === 'cancelled'
@@ -304,7 +376,14 @@ async function readWorkflowExecutionStatus(
     }
   }
 
-  if (!logRow) return null
+  if (!logRow) {
+    if (!isSettledResumeAttempt(resumeAttempt)) return null
+    const run = await readWorkflowExecutionStatus({
+      ...input,
+      executionId: resumeAttempt.parentExecutionId,
+    })
+    return run ? projectSettledResumeAttempt(executionId, resumeAttempt, run) : null
+  }
 
   const [pausedRow] = await db
     .select({

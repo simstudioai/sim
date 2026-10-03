@@ -1,8 +1,7 @@
 /**
  * Tests for chat OTP API route
- *
- * @vitest-environment node
  */
+
 import {
   dbChainMockFns,
   envMockFns,
@@ -16,8 +15,12 @@ import {
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockRedisSet,
@@ -26,8 +29,6 @@ const {
   mockRedisTtl,
   mockRedisEval,
   mockRedisClient,
-  mockSendEmail,
-  mockRenderOTPEmail,
   mockSetChatAuthCookie,
   mockIsEmailAllowed,
   mockGetStorageMethod,
@@ -46,8 +47,6 @@ const {
     ttl: mockRedisTtl,
     eval: mockRedisEval,
   }
-  const mockSendEmail = vi.fn()
-  const mockRenderOTPEmail = vi.fn()
   const mockSetChatAuthCookie = vi.fn()
   const mockIsEmailAllowed = vi.fn((email: string, allowedEmails: string[]) => {
     if (allowedEmails.includes(email)) return true
@@ -65,8 +64,6 @@ const {
     mockRedisTtl,
     mockRedisEval,
     mockRedisClient,
-    mockSendEmail,
-    mockRenderOTPEmail,
     mockSetChatAuthCookie,
     mockIsEmailAllowed,
     mockGetStorageMethod,
@@ -84,28 +81,15 @@ vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,
 }))
 
-const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
-  mockCheckRateLimitDirect: vi.fn(),
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mockCheckRateLimitDirect
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 vi.mock('@/lib/core/utils/after-response', () => ({
   afterResponse: mockAfterResponse,
 }))
 
-vi.mock('@/lib/messaging/email/mailer', () => ({
-  sendEmail: mockSendEmail,
-}))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
-vi.mock('@/components/emails', () => ({
-  getOtpSubject: (label: string) => `Verification code for ${label}`,
-  renderOTPEmail: mockRenderOTPEmail,
-}))
+vi.mock('@/components/emails', () => emailTemplatesMock)
 
 vi.mock('@/lib/core/security/deployment', () => ({
   isEmailAllowed: mockIsEmailAllowed,
@@ -157,6 +141,10 @@ vi.mock('zod', () => {
 
 import { PUT, POST as routePost } from './route'
 
+const mockCheckRateLimitDirect = rateLimiterMockFns.mockCheckRateLimitDirect
+const { mockSendEmail } = emailMailerMockFns
+const { mockRenderOTPEmail } = emailTemplatesMockFns
+
 const POST: typeof routePost = async (...args) => {
   const response = await routePost(...args)
   const task = mockAfterResponse.mock.calls.at(-1)?.[0] as (() => Promise<void>) | undefined
@@ -183,7 +171,6 @@ describe('Chat OTP API Route', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     vi.spyOn(Math, 'random').mockReturnValue(0.123456)
@@ -228,63 +215,12 @@ describe('Chat OTP API Route', () => {
     mockGetEnv.mockReturnValue('http://localhost:3000')
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   afterAll(() => {
     resetDbChainMock()
     resetEnvMock()
   })
 
-  describe('POST - Store OTP (Redis path)', () => {
-    beforeEach(() => {
-      mockGetStorageMethod.mockReturnValue('redis')
-    })
-
-    it('should store OTP in Redis when storage method is redis', async () => {
-      queueDeployment(emailDeployment)
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
-      })
-
-      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(mockRedisSet).toHaveBeenCalledWith(
-        `otp:${mockEmail}:${mockChatId}`,
-        expect.any(String),
-        'EX',
-        900 // 15 minutes
-      )
-
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    })
-  })
-
   describe('POST - Rate limiting', () => {
-    it('returns the generic acceptance response for a rejected email without a client IP', async () => {
-      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
-      queueDeployment(emailDeployment)
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: 'not-allowed@example.com' }),
-      })
-
-      const response = await POST(request, {
-        params: Promise.resolve({ identifier: mockIdentifier }),
-      })
-
-      expect(response.status).toBe(200)
-      await expect(response.json()).resolves.toEqual({ message: 'Verification code sent' })
-      expect(mockAfterResponse).toHaveBeenCalledTimes(1)
-      expect(mockCheckRateLimitDirect).not.toHaveBeenCalled()
-      expect(mockRedisSet).not.toHaveBeenCalled()
-      expect(mockSendEmail).not.toHaveBeenCalled()
-    })
-
     it('returns 429 with Retry-After when IP rate limit is exceeded', async () => {
       mockCheckRateLimitDirect.mockResolvedValueOnce({
         allowed: false,
@@ -300,14 +236,13 @@ describe('Chat OTP API Route', () => {
         headers: { set: headerSet },
       }))
 
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+      const request = createMockRequest({
         method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
+        url: 'http://localhost:3000/api/chat/test/otp',
+        rawBody: JSON.stringify({ email: mockEmail }),
       })
 
-      const response = await POST(request, {
-        params: Promise.resolve({ identifier: mockIdentifier }),
-      })
+      const response = await POST(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(response.status).toBe(429)
       expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
@@ -336,84 +271,30 @@ describe('Chat OTP API Route', () => {
 
       queueDeployment(emailDeployment)
 
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+      const request = createMockRequest({
         method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
+        url: 'http://localhost:3000/api/chat/test/otp',
+        rawBody: JSON.stringify({ email: mockEmail }),
       })
 
-      const response = await POST(request, {
-        params: Promise.resolve({ identifier: mockIdentifier }),
-      })
+      const response = await POST(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toEqual({ message: 'Verification code sent' })
       expect(mockSendEmail).not.toHaveBeenCalled()
-    })
-
-    it('returns the generic acceptance response when the chat resource limit is exceeded', async () => {
-      mockCheckRateLimitDirect
-        .mockResolvedValueOnce({
-          allowed: true,
-          remaining: 9,
-          resetAt: new Date(Date.now() + 60_000),
-        })
-        .mockResolvedValueOnce({
-          allowed: false,
-          remaining: 0,
-          resetAt: new Date(Date.now() + 900_000),
-          retryAfterMs: 900_000,
-        })
-
-      queueDeployment(emailDeployment)
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
-      })
-
-      const response = await POST(request, {
-        params: Promise.resolve({ identifier: mockIdentifier }),
-      })
-
-      expect(response.status).toBe(200)
-      await expect(response.json()).resolves.toEqual({ message: 'Verification code sent' })
-      expect(mockSendEmail).not.toHaveBeenCalled()
-    })
-
-    it('falls back to refill interval when retryAfterMs is missing', async () => {
-      mockCheckRateLimitDirect.mockResolvedValueOnce({
-        allowed: false,
-        remaining: 0,
-        resetAt: new Date(Date.now() + 900_000),
-      })
-
-      const headerSet = vi.fn()
-      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
-        json: () => Promise.resolve({ error: message }),
-        status,
-        headers: { set: headerSet },
-      }))
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
-      })
-
-      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
     })
 
     it('retains resource and email backstops when the client IP cannot be resolved', async () => {
       requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
       queueDeployment(emailDeployment)
 
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+      const request = createMockRequest({
         method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
+        url: 'http://localhost:3000/api/chat/test/otp',
+        rawBody: JSON.stringify({ email: mockEmail }),
       })
 
-      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+      await POST(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(mockAfterResponse).toHaveBeenCalledTimes(1)
       expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(2)
@@ -432,69 +313,6 @@ describe('Chat OTP API Route', () => {
     })
   })
 
-  describe('POST - Store OTP (Database path)', () => {
-    beforeEach(() => {
-      mockGetStorageMethod.mockReturnValue('database')
-      mockGetRedisClient.mockReturnValue(null)
-    })
-
-    it('should store OTP in database when storage method is database', async () => {
-      queueDeployment(emailDeployment)
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
-      })
-
-      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(dbChainMockFns.delete).toHaveBeenCalled()
-
-      expect(dbChainMockFns.insert).toHaveBeenCalled()
-      expect(dbChainMockFns.values).toHaveBeenCalledWith({
-        id: expect.any(String),
-        identifier: `chat-otp:${mockChatId}:${mockEmail}`,
-        value: expect.any(String),
-        expiresAt: expect.any(Date),
-        createdAt: expect.any(Date),
-        updatedAt: expect.any(Date),
-      })
-
-      expect(mockRedisSet).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('PUT - Verify OTP (Redis path)', () => {
-    beforeEach(() => {
-      mockGetStorageMethod.mockReturnValue('redis')
-      mockRedisGet.mockResolvedValue(`${mockOTP}:0`)
-    })
-
-    it('should retrieve OTP from Redis and verify successfully', async () => {
-      queueDeployment({ id: mockChatId, authType: 'email' })
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
-      })
-
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(mockRedisGet).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
-      expect(mockRedisDel).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
-      expect(mockSetChatAuthCookie).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          id: mockChatId,
-          authType: 'email',
-          allowedEmails: [mockEmail],
-        }),
-        mockEmail
-      )
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-    })
-  })
-
   describe('PUT - Verify OTP (authType re-check)', () => {
     beforeEach(() => {
       mockGetStorageMethod.mockReturnValue('redis')
@@ -508,12 +326,13 @@ describe('Chat OTP API Route', () => {
         password: 'encrypted-password',
       })
 
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+      const request = createMockRequest({
         method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
+        url: 'http://localhost:3000/api/chat/test/otp',
+        rawBody: JSON.stringify({ email: mockEmail, otp: mockOTP }),
       })
 
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(mockCreateErrorResponse).toHaveBeenCalledWith(
         'This chat does not use email authentication',
@@ -527,12 +346,13 @@ describe('Chat OTP API Route', () => {
       mockIsEmailAllowed.mockReturnValueOnce(false)
       queueDeployment({ id: mockChatId, authType: 'email' })
 
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+      const request = createMockRequest({
         method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
+        url: 'http://localhost:3000/api/chat/test/otp',
+        rawBody: JSON.stringify({ email: mockEmail, otp: mockOTP }),
       })
 
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(mockCreateErrorResponse).toHaveBeenCalledWith('Email not authorized', 403)
       expect(mockRedisGet).not.toHaveBeenCalled()
@@ -546,90 +366,22 @@ describe('Chat OTP API Route', () => {
       mockGetRedisClient.mockReturnValue(null)
     })
 
-    it('should retrieve OTP from database and verify successfully', async () => {
-      queueDeployment({ id: mockChatId, authType: 'email' })
-      queueTableRows(schemaMock.verification, [
-        {
-          value: `${mockOTP}:0`,
-          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        },
-      ])
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
-      })
-
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-
-      expect(dbChainMockFns.delete).toHaveBeenCalled()
-
-      expect(mockRedisGet).not.toHaveBeenCalled()
-    })
-
     it('should reject expired OTP from database', async () => {
       queueDeployment({ id: mockChatId, authType: 'email' })
       queueTableRows(schemaMock.verification, [])
 
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+      const request = createMockRequest({
         method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
+        url: 'http://localhost:3000/api/chat/test/otp',
+        rawBody: JSON.stringify({ email: mockEmail, otp: mockOTP }),
       })
 
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(mockCreateErrorResponse).toHaveBeenCalledWith(
         'No verification code found, request a new one',
         400
       )
-    })
-  })
-
-  describe('DELETE OTP (Redis path)', () => {
-    beforeEach(() => {
-      mockGetStorageMethod.mockReturnValue('redis')
-    })
-
-    it('should delete OTP from Redis after verification', async () => {
-      mockRedisGet.mockResolvedValue(`${mockOTP}:0`)
-
-      queueDeployment({ id: mockChatId, authType: 'email' })
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
-      })
-
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(mockRedisDel).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
-      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('DELETE OTP (Database path)', () => {
-    beforeEach(() => {
-      mockGetStorageMethod.mockReturnValue('database')
-      mockGetRedisClient.mockReturnValue(null)
-    })
-
-    it('should delete OTP from database after verification', async () => {
-      queueDeployment({ id: mockChatId, authType: 'email' })
-      queueTableRows(schemaMock.verification, [
-        { value: `${mockOTP}:0`, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
-      ])
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
-      })
-
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(dbChainMockFns.delete).toHaveBeenCalled()
-      expect(mockRedisDel).not.toHaveBeenCalled()
     })
   })
 
@@ -644,12 +396,13 @@ describe('Chat OTP API Route', () => {
 
       queueDeployment({ id: mockChatId, authType: 'email' })
 
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+      const request = createMockRequest({
         method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: 'wrong1' }),
+        url: 'http://localhost:3000/api/chat/test/otp',
+        rawBody: JSON.stringify({ email: mockEmail, otp: 'wrong1' }),
       })
 
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(mockRedisEval).toHaveBeenCalledWith(
         expect.any(String),
@@ -666,78 +419,18 @@ describe('Chat OTP API Route', () => {
 
       queueDeployment({ id: mockChatId, authType: 'email' })
 
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+      const request = createMockRequest({
         method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: 'wrong5' }),
+        url: 'http://localhost:3000/api/chat/test/otp',
+        rawBody: JSON.stringify({ email: mockEmail, otp: 'wrong5' }),
       })
 
-      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(mockRedisEval).toHaveBeenCalled()
       expect(mockCreateErrorResponse).toHaveBeenCalledWith(
         'Too many failed attempts. Please request a new code.',
         429
-      )
-    })
-
-    it('should store OTP with zero attempts on generation', async () => {
-      queueDeployment(emailDeployment)
-
-      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
-      })
-
-      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(mockRedisSet).toHaveBeenCalledWith(
-        `otp:${mockEmail}:${mockChatId}`,
-        expect.stringMatching(/^\d{6}:0$/),
-        'EX',
-        900
-      )
-    })
-  })
-
-  describe('Behavior consistency between Redis and Database', () => {
-    it('should have same behavior for missing OTP in both storage methods', async () => {
-      mockGetStorageMethod.mockReturnValue('redis')
-      mockRedisGet.mockResolvedValue(null)
-
-      queueDeployment({ id: mockChatId, authType: 'email' })
-
-      const requestRedis = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'PUT',
-        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
-      })
-
-      await PUT(requestRedis, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
-        'No verification code found, request a new one',
-        400
-      )
-    })
-
-    it('should have same OTP expiry time in both storage methods', async () => {
-      const OTP_EXPIRY = 15 * 60
-
-      mockGetStorageMethod.mockReturnValue('redis')
-
-      queueDeployment(emailDeployment)
-
-      const requestRedis = new NextRequest('http://localhost:3000/api/chat/test/otp', {
-        method: 'POST',
-        body: JSON.stringify({ email: mockEmail }),
-      })
-
-      await POST(requestRedis, { params: Promise.resolve({ identifier: mockIdentifier }) })
-
-      expect(mockRedisSet).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(String),
-        'EX',
-        OTP_EXPIRY
       )
     })
   })

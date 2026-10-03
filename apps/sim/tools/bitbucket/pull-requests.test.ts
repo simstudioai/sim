@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeBitbucketGetPullRequestDiffOperation } from '@/lib/internal/bitbucket/operations/get-pull-request-diff'
 import { executeBitbucketGetPullRequestDiffstatOperation } from '@/lib/internal/bitbucket/operations/get-pull-request-diffstat'

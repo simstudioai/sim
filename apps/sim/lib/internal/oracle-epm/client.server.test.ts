@@ -1,31 +1,31 @@
 /** @vitest-environment node */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AsyncValidationResult } from '@/lib/core/security/input-validation.server'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
-const { mockSecureFetch, mockValidateUrl } = vi.hoisted(() => ({
-  mockSecureFetch: vi.fn(),
-  mockValidateUrl: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  DEFAULT_MAX_RESPONSE_BYTES: 100 * 1024 * 1024,
-  secureFetchWithPinnedIP: mockSecureFetch,
-  validateUrlWithDNS: mockValidateUrl,
-}))
+const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockValidateUrl = inputValidationMockFns.mockValidateUrlWithDNS
 
-import { createOracleEpmClient } from '@/lib/internal/oracle-epm/client.server'
 import {
+  createOracleEpmClient,
+  defineOracleEpmRouteSpace,
+  type OracleEpmClient,
+  type OracleEpmClientResponse,
+  type OracleEpmEndpointDeclaration,
+  OracleEpmError,
+  type OracleEpmRequestInput,
+  type OracleEpmReturnedLinkPolicyDeclaration,
+  type OracleEpmValidatedLink,
   oracleEpmLiteral,
   oracleEpmPathParameter,
   oracleEpmQuery,
-} from '@/lib/internal/oracle-epm/endpoint'
-import { OracleEpmError } from '@/lib/internal/oracle-epm/errors'
-import { defineOracleEpmRouteSpace } from '@/lib/internal/oracle-epm/route-space'
-import type {
-  OracleEpmEndpointDeclaration,
-  OracleEpmValidatedLink,
-} from '@/lib/internal/oracle-epm/types'
+} from '@/lib/internal/oracle-epm'
 
 const routes = defineOracleEpmRouteSpace({
   context: ['SyntheticAlpha', 'rest'],
@@ -75,13 +75,20 @@ function secureResponse(input: {
 
 describe('Oracle EPM guarded client', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(new DOMException('deadline', 'TimeoutError')), milliseconds)
+      return controller.signal
+    })
     mockValidateUrl.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
     mockSecureFetch.mockResolvedValue(secureResponse({}))
   })
 
+  afterEach(() => vi.useRealTimers())
+
   it('binds an encoded request to the credential origin and gateway path', async () => {
-    const client = createOracleEpmClient({
+    const client: OracleEpmClient = createOracleEpmClient({
       instanceUrl: 'https://epm.example.com/gateway/acme',
       accessToken: Buffer.from('user:password').toString('base64'),
     })
@@ -116,14 +123,17 @@ describe('Oracle EPM guarded client', () => {
     { pathParams: { jobId: 'ok' }, query: { unknown: 'value' } },
     { pathParams: { jobId: 'ok' }, query: { limit: 101 } },
     { pathParams: { jobId: 'ok' }, headers: { Authorization: 'forged' } },
-  ])('rejects undeclared or out-of-bounds request input', async (input) => {
-    const client = createOracleEpmClient({
-      instanceUrl: 'https://epm.example.com/base',
-      accessToken: Buffer.from('user:password').toString('base64'),
-    })
-    await expect(client.request(getJob, input)).rejects.toBeInstanceOf(OracleEpmError)
-    expect(mockSecureFetch).not.toHaveBeenCalled()
-  })
+  ] satisfies OracleEpmRequestInput[])(
+    'rejects undeclared or out-of-bounds request input',
+    async (input) => {
+      const client = createOracleEpmClient({
+        instanceUrl: 'https://epm.example.com/base',
+        accessToken: Buffer.from('user:password').toString('base64'),
+      })
+      await expect(client.request(getJob, input)).rejects.toBeInstanceOf(OracleEpmError)
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    }
+  )
 
   it('encodes already-encoded traversal text as one inert path segment', async () => {
     const client = createOracleEpmClient({
@@ -268,7 +278,9 @@ describe('Oracle EPM guarded client', () => {
       instanceUrl: 'https://epm.example.com',
       accessToken: Buffer.from('u:p').toString('base64'),
     })
-    await expect(client.request(endpoint)).resolves.toMatchObject({ data: { ready: true } })
+    const request: Promise<OracleEpmClientResponse> = client.request(endpoint)
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(request).resolves.toMatchObject({ data: { ready: true } })
     expect(mockSecureFetch).toHaveBeenCalledTimes(2)
   })
 
@@ -346,8 +358,6 @@ describe('Oracle EPM guarded client', () => {
   })
 
   describe('DNS cancellation', () => {
-    afterEach(() => vi.restoreAllMocks())
-
     it.each(['deadline', 'caller'] as const)(
       'ends on %s cancellation even when DNS never settles',
       async (source) => {
@@ -368,11 +378,8 @@ describe('Oracle EPM guarded client', () => {
         if (source === 'deadline') deadline.abort(new DOMException('deadline', 'TimeoutError'))
         else caller.abort(callerReason)
 
-        await vi.waitFor(() => expect(rejected).toHaveBeenCalledTimes(1), {
-          interval: 1,
-          timeout: 100,
-        })
         await request
+        expect(rejected).toHaveBeenCalledTimes(1)
         expect(timeout).toHaveBeenCalledWith(5_000)
         expect(rejected).toHaveBeenCalledWith(
           source === 'deadline'
@@ -399,11 +406,8 @@ describe('Oracle EPM guarded client', () => {
           .request(getJob, { pathParams: { jobId: '42' }, signal: controller.signal })
           .catch(rejected)
         controller.abort(new DOMException('caller cancelled', 'AbortError'))
-        await vi.waitFor(() => expect(rejected).toHaveBeenCalledTimes(1), {
-          interval: 1,
-          timeout: 100,
-        })
         await request
+        expect(rejected).toHaveBeenCalledTimes(1)
 
         if (settlement === 'resolve') {
           dns.resolve({
@@ -443,7 +447,7 @@ describe('Oracle EPM guarded client', () => {
         method: 'GET',
         endpoint: getJob,
         preserveGatewayBasePath: true,
-      })
+      } satisfies OracleEpmReturnedLinkPolicyDeclaration)
       const client = createOracleEpmClient({
         instanceUrl: 'https://epm.example.com/gateway',
         accessToken: Buffer.from('u:p').toString('base64'),

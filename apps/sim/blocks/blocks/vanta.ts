@@ -2,7 +2,6 @@ import { VantaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { ToolResponse } from '@/tools/types'
 
 const LIST_OPERATIONS = [
   'list_frameworks',
@@ -56,7 +55,7 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }
 
-export const VantaBlock: BlockConfig<ToolResponse> = {
+export const VantaBlock: BlockConfig = {
   type: 'vanta',
   name: 'Vanta',
   description: 'Query compliance status and manage evidence in Vanta',

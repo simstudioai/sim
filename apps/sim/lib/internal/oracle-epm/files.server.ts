@@ -69,7 +69,9 @@ export async function openOracleEpmSourceFile(input: {
   }
   assertKnownSizeWithinLimit(file.size, maxBytes, 'Oracle EPM source file')
   const context = resolveTrustedFileContext(file.key, file.context)
-  const allowed = await verifyFileAccess(file.key, userId, undefined, context, false)
+  const allowed = await verifyFileAccess(file.key, userId, undefined, context, {
+    requireWrite: false,
+  })
   if (!allowed) throw new Error('Oracle EPM source file was not found')
   signal?.throwIfAborted()
 

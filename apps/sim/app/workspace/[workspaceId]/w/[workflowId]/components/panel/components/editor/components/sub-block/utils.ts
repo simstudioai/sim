@@ -1,3 +1,4 @@
+import { toArray } from '@sim/utils/object'
 /**
  * Extracts the raw value from a preview context entry.
  *
@@ -41,5 +42,5 @@ export function parseJsonArrayValue<T>(value: unknown): T[] {
       return []
     }
   }
-  return Array.isArray(parsed) ? (parsed as T[]) : []
+  return toArray<T>(parsed)
 }

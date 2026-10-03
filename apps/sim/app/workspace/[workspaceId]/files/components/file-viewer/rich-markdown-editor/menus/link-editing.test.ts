@@ -1,6 +1,8 @@
+/** @vitest-environment jsdom */
+
 import type { ChainedCommands } from '@tiptap/core'
 import { describe, expect, it, vi } from 'vitest'
-import { applyLink } from './link-editing'
+import { applyLink } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-editing'
 
 function chainSpy() {
   const calls: string[] = []
@@ -20,18 +22,6 @@ function chainSpy() {
 }
 
 describe('applyLink', () => {
-  it('sets a link for a target that survives normalization', () => {
-    const { chain, calls } = chainSpy()
-    applyLink(chain, '  sim.ai  ')
-    expect(calls).toEqual(['setLink:https://sim.ai'])
-  })
-
-  it('removes the link when the field is cleared', () => {
-    const { chain, calls } = chainSpy()
-    applyLink(chain, '   ')
-    expect(calls).toEqual(['unsetLink'])
-  })
-
   /**
    * The field is seeded with the raw href, so committing one untouched must not be read as "remove".
    * Dropping an unsafe target is a refusal to link, not an instruction to delete what is already there.

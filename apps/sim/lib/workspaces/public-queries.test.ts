@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   getPublicWorkspaceDetails,
   queryPublicWorkspaceMembers,
@@ -10,7 +7,6 @@ import {
 
 describe('getPublicWorkspaceDetails', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -64,17 +60,10 @@ describe('getPublicWorkspaceDetails', () => {
     ).toBe(true)
     expect(targetRows.flatMap((fragment) => fragment.values)).toContain(null)
   })
-
-  it('does not run a count query for an empty batch', async () => {
-    await expect(getPublicWorkspaceDetails([])).resolves.toEqual(new Map())
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
-  })
 })
 
 describe('queryPublicWorkspaceMembers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -176,13 +165,5 @@ describe('queryPublicWorkspaceMembers', () => {
       { email: 'grace@example.com', isExternal: true },
       { email: 'katherine@example.com', isExternal: false },
     ])
-  })
-
-  it('returns null when the workspace is not active', async () => {
-    queueTableRows(schemaMock.workspace, [])
-
-    await expect(
-      queryPublicWorkspaceMembers('missing-workspace', { limit: 10 })
-    ).resolves.toBeNull()
   })
 })

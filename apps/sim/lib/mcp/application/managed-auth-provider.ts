@@ -1,6 +1,10 @@
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import { resourceScopeFields } from '@/lib/core/resource-scope'
+import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
 import {
   loadManagedMcpRuntimeCredential,
+  ManagedMcpCredentialError,
+  type ManagedMcpRuntimeCredential,
   saveManagedMcpRuntimeTokens,
 } from '@/lib/credentials/managed-mcp'
 import { getOrCreateOauthRow, loadPreregisteredClient } from '@/lib/mcp/oauth'
@@ -12,11 +16,33 @@ export async function loadManagedMcpAuthProvider(
   workspaceId: string
 ): Promise<OAuthClientProvider> {
   const current = await loadManagedMcpRuntimeCredential(credentialId, workspaceId)
+  if (current.scope.kind === 'organization') {
+    await requireOrganizationAccountsWorkspaceAccess(
+      {
+        workspaceId,
+        workspaceOrganizationId: current.scope.organizationId,
+        organizationId: current.scope.organizationId,
+        credentialGroupId: current.credentialGroupId,
+      },
+      current.credentialType
+    )
+  }
+  return createManagedMcpAuthProvider(current)
+}
+
+export async function createManagedMcpAuthProvider(
+  current: Omit<ManagedMcpRuntimeCredential, 'workspaceId'>
+): Promise<OAuthClientProvider> {
   const clientRow = await getOrCreateOauthRow({
     mcpServerId: current.mcpServerId,
-    workspaceId: current.workspaceId,
+    ...resourceScopeFields(current.scope),
   })
   const preregistered = await loadPreregisteredClient(current.mcpServerId)
+  if (current.configurationFingerprint !== preregistered?.configurationFingerprint)
+    throw new ManagedMcpCredentialError(
+      'Managed MCP credential needs authorization after app configuration changed',
+      401
+    )
   let tokenVersion: string | null = current.tokenVersion
   return new ManagedMcpOauthProvider({
     clientRow,

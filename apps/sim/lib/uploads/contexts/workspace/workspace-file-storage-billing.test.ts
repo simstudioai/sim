@@ -1,54 +1,41 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockIncrementStorageUsageForBillingContextInTx,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-  mockResolveWorkspaceFileFolderTarget,
-  mockUploadFile,
-} = vi.hoisted(() => ({
-  mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockResolveWorkspaceFileFolderTarget: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContextInTx: vi.fn(),
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads', () => ({
-  getServePathPrefix: vi.fn(() => '/api/files/serve/s3/'),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-  downloadFile: vi.fn(),
-  hasCloudStorage: vi.fn(() => false),
-  headObject: vi.fn(),
-  uploadFile: mockUploadFile,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  assertWorkspaceFileFolderTarget: vi.fn(async () => null),
-  buildWorkspaceFileFolderPathMap: vi.fn(() => new Map()),
-  fileNameExistsInWorkspaceFolder: vi.fn(async () => false),
-  findWorkspaceFileFolderIdByPath: vi.fn(),
-  getWorkspaceFileFolderPath: vi.fn(),
-  listWorkspaceFileFolders: vi.fn(async () => []),
-  normalizeWorkspaceFileItemName: vi.fn((name: string) => name),
-  resolveWorkspaceFileFolderTarget: mockResolveWorkspaceFileFolderTarget,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+const mockIncrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockMaybeNotifyStorageLimitForBillingContext =
+  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
+const mockResolveWorkspaceFileFolderTarget =
+  workspaceFileFoldersMockFns.mockResolveWorkspaceFileFolderTarget
+
+workspaceFileFoldersMockFns.mockBuildWorkspaceFileFolderPathMap.mockImplementation(() => new Map())
+workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementation(
+  (name: string) => name
+)
+
+uploadsMockFns.mockGetServePathPrefix.mockImplementation(() => '/api/files/serve/s3/')
 
 const STORAGE_CONTEXT = {
   workspaceId: 'workspace-1',
@@ -60,7 +47,6 @@ const STORAGE_CONTEXT = {
 
 describe('workspace file storage attribution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
     mockResolveWorkspaceFileFolderTarget.mockResolvedValue(null)

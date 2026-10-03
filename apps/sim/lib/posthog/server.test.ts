@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { loggerMock } from '@sim/testing'
 import type { MockInstance } from 'vitest'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
@@ -17,44 +15,59 @@ import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
  * exists — without that the whole suite would pass on a disabled no-op.
  */
 describe('captureServerEvent', () => {
+  let client: NonNullable<ReturnType<typeof getPostHogClient>>
   let captureSpy: MockInstance
 
   beforeAll(() => {
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test')
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_ENABLED', 'true')
 
-    const client = getPostHogClient()
-    if (!client) throw new Error('expected an enabled PostHog client to spy on')
-    captureSpy = vi.spyOn(client, 'capture').mockImplementation(() => {})
+    const enabledClient = getPostHogClient()
+    if (!enabledClient) throw new Error('expected an enabled PostHog client to spy on')
+    client = enabledClient
   })
 
   beforeEach(() => {
-    captureSpy.mockClear()
-    captureSpy.mockImplementation(() => {})
+    captureSpy = vi.spyOn(client, 'capture').mockImplementation(() => {})
+    vi.mocked(loggerMock.getRequestContext).mockReturnValue(undefined)
   })
 
-  it('swallows a failing client instead of propagating to the caller', () => {
-    captureSpy.mockImplementation(() => {
-      throw new Error('PostHog unreachable')
+  it('stamps the resolved client from the request context onto every event', () => {
+    vi.mocked(loggerMock.getRequestContext).mockReturnValue({
+      requestId: 'req-1',
+      client: { surface: 'cli', version: '2.1.2', agent: 'claude-code', source: 'header' },
     })
 
-    expect(() =>
-      captureServerEvent('user-1', 'workflow_deployed', {
-        workflow_id: 'workflow-1',
-        workspace_id: 'workspace-1',
-      })
-    ).not.toThrow()
-    expect(captureSpy).toHaveBeenCalledTimes(1)
-  })
-
-  it('captures synchronously, so a caller cannot await delivery', () => {
-    const result = captureServerEvent('user-1', 'workflow_deployed', {
+    captureServerEvent('user-1', 'workflow_deployed', {
       workflow_id: 'workflow-1',
       workspace_id: 'workspace-1',
     })
 
-    expect(result).toBeUndefined()
-    expect(captureSpy).toHaveBeenCalledTimes(1)
+    expect(captureSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        properties: expect.objectContaining({
+          request_id: 'req-1',
+          surface: 'cli',
+          client_version: '2.1.2',
+          coding_agent: 'claude-code',
+        }),
+      })
+    )
+  })
+
+  it('never overwrites attribution a caller set explicitly', () => {
+    vi.mocked(loggerMock.getRequestContext).mockReturnValue({
+      requestId: 'req-1',
+      client: { surface: 'web', source: 'fetch_metadata' },
+    })
+
+    captureServerEvent('user-1', 'search_result_selected', {
+      surface: 'copilot',
+    } as never)
+
+    expect(captureSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ properties: expect.objectContaining({ surface: 'copilot' }) })
+    )
   })
 
   it('forwards insertId as $insert_id so outbox retries collapse', () => {

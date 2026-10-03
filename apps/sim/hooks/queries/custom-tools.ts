@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   deleteCustomToolContract,
@@ -125,8 +131,8 @@ async function fetchCustomTools(
     }
 
     const functionSchema = tool.schema.function
-    const parameters = isRecordLike(functionSchema.parameters) ? functionSchema.parameters : {}
-    const properties = isRecordLike(parameters.properties) ? parameters.properties : {}
+    const parameters = toRecord(functionSchema.parameters)
+    const properties = toRecord(parameters.properties)
     const required = Array.isArray(parameters.required)
       ? parameters.required.filter((value): value is string => typeof value === 'string')
       : undefined
@@ -164,15 +170,23 @@ async function fetchCustomTools(
   return normalizedTools
 }
 
+/** A workspace's custom tools list, shared by {@link useCustomTools} and the settings intent warmer. */
+export function customToolsQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: customToolsKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchCustomTools(workspaceId, signal),
+    staleTime: CUSTOM_TOOL_LIST_STALE_TIME,
+    retryOnMount: true,
+  })
+}
+
 /**
  * Hook to fetch custom tools
  */
 export function useCustomTools(workspaceId: string) {
-  return useQuery<CustomToolDefinition[]>({
-    queryKey: customToolsKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchCustomTools(workspaceId, signal),
+  return useQuery({
+    ...customToolsQueryOptions(workspaceId),
     enabled: !!workspaceId,
-    staleTime: CUSTOM_TOOL_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

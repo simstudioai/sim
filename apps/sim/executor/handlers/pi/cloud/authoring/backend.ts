@@ -322,9 +322,7 @@ function mergeChangedFiles(
  */
 function mergePhaseDiffs(createDiff: string | undefined, babysitDiff: string | undefined): string {
   const merged = [createDiff, babysitDiff].filter((diff): diff is string => !!diff).join('\n')
-  return merged.length > MAX_DIFF_BYTES
-    ? `${merged.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]`
-    : merged
+  return truncate(merged, MAX_DIFF_BYTES, '\n[diff truncated]')
 }
 
 function combineAuthoringAndBabysit(
@@ -554,8 +552,7 @@ async function runCloudAuthoringPi(
       let diff: string | undefined
       try {
         const raw = await runner.readFile(DIFF_PATH)
-        diff =
-          raw.length > MAX_DIFF_BYTES ? `${raw.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]` : raw
+        diff = truncate(raw, MAX_DIFF_BYTES, '\n[diff truncated]')
       } catch {
         diff = undefined
       }

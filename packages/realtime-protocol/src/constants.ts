@@ -7,6 +7,11 @@ export const BLOCK_OPERATIONS = {
   UPDATE_ERROR_ENABLED: 'update-error-enabled',
   UPDATE_RETRY: 'update-retry',
   UPDATE_CANONICAL_MODE: 'update-canonical-mode',
+  /**
+   * No longer sent by the editor, which persists tool reindexing with
+   * `SUBBLOCK_OPERATIONS.UPDATE_WITH_CANONICAL_MODES`. Still accepted and applied so tabs loaded
+   * before that change keep saving and syncing across a rolling deploy.
+   */
   REPLACE_CANONICAL_MODES: 'replace-canonical-modes',
   TOGGLE_HANDLES: 'toggle-handles',
 } as const
@@ -62,6 +67,7 @@ export type WorkflowOperation = (typeof WORKFLOW_OPERATIONS)[keyof typeof WORKFL
 export const SUBBLOCK_OPERATIONS = {
   UPDATE: 'subblock-update',
   BATCH_UPDATE: 'subblock-batch-update',
+  UPDATE_WITH_CANONICAL_MODES: 'subblock-update-with-canonical-modes',
 } as const
 
 export type SubblockOperation = (typeof SUBBLOCK_OPERATIONS)[keyof typeof SUBBLOCK_OPERATIONS]

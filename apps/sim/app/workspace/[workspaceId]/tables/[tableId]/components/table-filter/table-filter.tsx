@@ -59,7 +59,8 @@ export function TableFilter({
   onClose,
 }: TableFilterProps) {
   const lastAppliedFilterRef = useRef<string | undefined>(undefined)
-  const deferredAppliedRulesRef = useRef<Map<string, FilterRule>>(new Map())
+  const deferredAppliedRulesRef = useRef<Map<string, FilterRule> | null>(null)
+  const deferredAppliedRules = (deferredAppliedRulesRef.current ??= new Map())
   const [rules, setRules] = useState<FilterRule[]>(() => {
     const fromFilter = predicateToFilterRules(filter)
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
@@ -86,23 +87,22 @@ export function TableFilter({
       if (deferredRule && !isCompleteRule(deferredRule)) {
         const previouslyAppliedRule = currentRules.find((rule) => rule.id === deferredRule.id)
         if (previouslyAppliedRule && isCompleteRule(previouslyAppliedRule)) {
-          const deferredRules = deferredAppliedRulesRef.current
-          if (!deferredRules.has(deferredRule.id)) {
-            deferredRules.set(deferredRule.id, previouslyAppliedRule)
+          if (!deferredAppliedRules.has(deferredRule.id)) {
+            deferredAppliedRules.set(deferredRule.id, previouslyAppliedRule)
           }
         }
       }
 
       const nextRulesById = new Map(nextRules.map((rule) => [rule.id, rule]))
-      for (const [id] of deferredAppliedRulesRef.current) {
+      for (const [id] of deferredAppliedRules) {
         const nextRule = nextRulesById.get(id)
         if (!nextRule || isCompleteRule(nextRule)) {
-          deferredAppliedRulesRef.current.delete(id)
+          deferredAppliedRules.delete(id)
         }
       }
 
       const appliedRules = nextRules.map((rule) => {
-        const deferredRule = deferredAppliedRulesRef.current.get(rule.id)
+        const deferredRule = deferredAppliedRules.get(rule.id)
         return deferredRule && !isCompleteRule(rule)
           ? { ...deferredRule, logicalOperator: rule.logicalOperator }
           : rule
@@ -243,24 +243,14 @@ export function TableFilter({
         ))}
 
         <div className={cn('mt-1 flex items-center', !autoApply && 'justify-between')}>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={handleAdd}
-            className='px-2 py-1 text-[var(--text-secondary)] text-xs'
-          >
+          <Button variant='ghost' size='sm' onClick={handleAdd} className='px-2 text-xs'>
             <Plus className='mr-1 size-[10px]' />
             Add filter
           </Button>
           {!autoApply && (
             <div className='flex items-center gap-1.5'>
               {filter !== null && (
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={handleClear}
-                  className='px-2 py-1 text-[var(--text-secondary)] text-xs'
-                >
+                <Button variant='ghost' size='sm' onClick={handleClear} className='px-2 text-xs'>
                   Clear filters
                 </Button>
               )}
@@ -392,7 +382,8 @@ const FilterRuleRow = memo(function FilterRuleRow({
         variant='ghost'
         size='sm'
         onClick={() => onRemove(rule.id)}
-        className='size-7 shrink-0 p-1!'
+        iconPadding='sm'
+        className='size-7 shrink-0'
         aria-label='Remove filter'
       >
         <X className='size-[12px]' />

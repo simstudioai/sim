@@ -9,7 +9,8 @@ import { VideoChapters } from '@/components/ui/video-chapters'
 import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, TABLE_ENRICH_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Tables" title="Tables" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/tables.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Tables" title="Tables" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/tables.mp4"
+  captionsSrc="/captions/academy/tables.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -28,7 +29,7 @@ A **table** stores structured data: columns are the types, rows are the entries.
     },
     {
       title: 'Scale with workflow columns',
-      body: 'Workflow columns run an operation across every row in parallel, making a table a surface for automation at scale.',
+      body: 'Workflow columns run a workflow for each selected row and write the results into output columns.',
     },
   ]}
 />
@@ -70,15 +71,13 @@ A surprising amount of real business work decomposes into a few operations over 
 
 Once you see a use case that way, building it in Sim is mostly wiring those operations together.
 
-## A surface for scale
+## Run workflows from rows
 
-Tables aren't only storage, they're a working surface for your AI systems. **Workflow columns** let you run an operation across every row at once, in parallel, so a table becomes the place you launch and track work in bulk.
-
-That makes a table a powerful interface for automation: the place you manage and operate agentic processes at scale.
+[Workflow columns](/academy/tables/workflow-columns) map row values to workflow inputs and write results to output columns. Run selected rows, inspect their traces, and enable auto-run when new or changed rows should trigger the workflow.
 
 <FAQ items={[
   { question: "How is a Sim table different from a spreadsheet?", answer: "Every column has a declared type, so records keep a reliable shape: numbers sort as numbers, dates as dates, and booleans render as real checkboxes. It behaves like a lightweight database inside your workspace." },
-  { question: "What column types are available?", answer: "Text, Number, Boolean, Date, and JSON, plus workflow columns, which are filled by a workflow you attach rather than typed in." },
+  { question: "What column types are available?", answer: "Choose a column type from the table header to define how values are stored and edited. Workflow columns are filled from a workflow output. See the Tables overview for the available types." },
   { question: "Can I add columns after the table has data?", answer: "Yes. New columns are added from the table header at any time, and existing rows simply gain the new field." },
   { question: "What do teams use tables for?", answer: "Leads, support tickets, orders, inventory, evaluation scores: any structured record your workflows read from or write to. Tables are the working memory of an automated workspace." },
 ]} />

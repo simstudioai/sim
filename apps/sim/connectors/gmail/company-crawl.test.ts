@@ -1,0 +1,309 @@
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
+
+const { fetchProvider, listUsers, getUser } = vi.hoisted(() => ({
+  fetchProvider: vi.fn(),
+  listUsers: vi.fn(),
+  getUser: vi.fn(),
+}))
+
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
+vi.mock('@/connectors/google-workspace/users', () => ({
+  GOOGLE_WORKSPACE_USERS_PAGE_SIZE: 100,
+  listGoogleWorkspaceUsers: listUsers,
+  getGoogleWorkspaceUser: getUser,
+  selectedGoogleWorkspaceUsers: (value: unknown) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((email) => email.trim())
+          .filter(Boolean)
+      : [],
+}))
+
+import { gmailConnector } from '@/connectors/gmail/gmail'
+
+knowledgeSecureFetchMockFns.mockFetchWithRetry.mockImplementation(
+  (url: string, init: RequestInit, options?: RetryOptions) =>
+    options?.fetcher ? options.fetcher(url, init, fetchProvider) : fetchProvider(url, init)
+)
+
+const ALICE = {
+  id: 'directory-alice',
+  email: 'alice@example.com',
+  customerId: 'customer-1',
+  active: true,
+}
+const BOB = {
+  id: 'directory-bob',
+  email: 'bob@example.com',
+  customerId: 'customer-1',
+  active: true,
+}
+const ADMIN = {
+  id: 'directory-admin',
+  email: 'admin@example.com',
+  customerId: 'customer-1',
+  active: true,
+}
+const CONFIG = { adminEmail: ADMIN.email, dateRange: '6m' }
+
+function centralContext() {
+  return {
+    mirrorsSourceAcls: true,
+    getDelegatedAccessToken: vi.fn(async (email: string) => `delegated:${email}`),
+  }
+}
+
+function providerResponse(url: string, init?: RequestInit): Response {
+  const parsed = new URL(url)
+  const token = new Headers(init?.headers).get('Authorization')
+  const mailbox = token?.includes(BOB.email) ? 'Bob' : 'Alice'
+  if (parsed.pathname.endsWith('/profile'))
+    return Response.json({
+      emailAddress: mailbox === 'Bob' ? BOB.email : ALICE.email,
+      historyId: '100',
+    })
+  if (parsed.pathname.endsWith('/labels')) {
+    return Response.json({ labels: [{ id: 'Label_7', name: `${mailbox} label` }] })
+  }
+  if (parsed.pathname.endsWith('/threads')) {
+    return Response.json({ threads: [{ id: 'same-thread', historyId: '10' }] })
+  }
+  return Response.json({
+    id: 'same-thread',
+    historyId: '10',
+    messages: [
+      {
+        id: 'message-1',
+        threadId: 'same-thread',
+        labelIds: ['Label_7'],
+        payload: {
+          mimeType: 'text/plain',
+          headers: [
+            { name: 'Subject', value: `${mailbox} private thread` },
+            { name: 'From', value: 'someone-else@example.com' },
+            { name: 'To', value: 'entire-company@example.com' },
+          ],
+          body: { data: Buffer.from(`${mailbox} private body`).toString('base64url') },
+        },
+      },
+    ],
+  })
+}
+
+beforeEach(() => {
+  listUsers.mockResolvedValue({ users: [ALICE, BOB] })
+  getUser.mockImplementation(
+    async (_token: string, key: string) =>
+      [ALICE, BOB, ADMIN].find((user) => user.id === key || user.email === key) ?? null
+  )
+  fetchProvider.mockImplementation(async (url: string, init?: RequestInit) =>
+    providerResponse(url, init)
+  )
+})
+
+afterEach(() => vi.useRealTimers())
+
+describe('company-wide Gmail indexing', () => {
+  it('bounds thread-list response bytes and page length instead of accepting a truncated corpus', async () => {
+    fetchProvider.mockResolvedValueOnce(
+      new Response('untrusted', { headers: { 'Content-Length': String(9 * 1024 * 1024) } })
+    )
+    await expect(
+      gmailConnector.listDocuments('directory-token', CONFIG, undefined, centralContext())
+    ).rejects.toThrow('maximum size')
+    fetchProvider.mockResolvedValueOnce(
+      Response.json({
+        threads: Array.from({ length: 101 }, (_, index) => ({
+          id: `thread-${index}`,
+          historyId: '10',
+        })),
+      })
+    )
+    await expect(
+      gmailConnector.listDocuments('directory-token', CONFIG, undefined, centralContext())
+    ).rejects.toThrow('malformed thread listing')
+  })
+
+  it('keeps identical thread IDs, bodies, label caches, and owner ACLs separate', async () => {
+    const context = centralContext()
+    const first = await gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
+    const alice = first.documents[0]
+    expect(new URL(alice.sourceUrl!).searchParams.get('Email')).toBe(ALICE.email)
+    const aliceBody = await gmailConnector.getDocument(
+      'directory-token',
+      CONFIG,
+      alice.externalId,
+      context
+    )
+    const second = await gmailConnector.listDocuments(
+      'directory-token',
+      CONFIG,
+      first.nextCursor,
+      context
+    )
+    const bob = second.documents[0]
+    expect(new URL(bob.sourceUrl!).searchParams.get('Email')).toBe(BOB.email)
+    const bobBody = await gmailConnector.getDocument(
+      'directory-token',
+      CONFIG,
+      bob.externalId,
+      context
+    )
+
+    expect(first.hasMore).toBe(true)
+    expect(second.hasMore).toBe(false)
+    expect(alice.externalId).not.toBe(bob.externalId)
+    expect(alice.externalId).toContain(encodeURIComponent(ALICE.id))
+    expect(bob.externalId).toContain(encodeURIComponent(BOB.id))
+    expect(alice.acl).toEqual([`u:${ALICE.email}`])
+    expect(bob.acl).toEqual([`u:${BOB.email}`])
+    expect(aliceBody).toMatchObject({
+      acl: [`u:${ALICE.email}`],
+      contentHash: alice.contentHash,
+      metadata: { labels: ['Alice label'] },
+    })
+    expect(bobBody).toMatchObject({
+      acl: [`u:${BOB.email}`],
+      contentHash: bob.contentHash,
+      metadata: { labels: ['Bob label'] },
+    })
+    expect(aliceBody?.content).toContain('Alice private body')
+    expect(bobBody?.content).toContain('Bob private body')
+    expect(context.getDelegatedAccessToken.mock.calls.map(([email]) => email)).toEqual([
+      ALICE.email,
+      BOB.email,
+    ])
+    for (const [, init] of fetchProvider.mock.calls) {
+      expect(new Headers(init?.headers).get('Authorization')).not.toBe('Bearer directory-token')
+    }
+  })
+
+  it('rejects hydration without its listed page and after advancing to another mailbox', async () => {
+    const context = centralContext()
+    const first = await gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
+    const externalId = first.documents[0].externalId
+    const callsBefore = fetchProvider.mock.calls.length
+    await expect(
+      gmailConnector.getDocument('directory-token', CONFIG, externalId, centralContext())
+    ).rejects.toThrow()
+    expect(fetchProvider).toHaveBeenCalledTimes(callsBefore)
+    await gmailConnector.listDocuments('directory-token', CONFIG, first.nextCursor, context)
+    const callsAfter = fetchProvider.mock.calls.length
+    await expect(
+      gmailConnector.getDocument('directory-token', CONFIG, externalId, context)
+    ).rejects.toThrow()
+    await expect(
+      gmailConnector.getDocument('directory-token', CONFIG, 'same-thread', context)
+    ).rejects.toThrow()
+    expect(fetchProvider).toHaveBeenCalledTimes(callsAfter)
+  })
+
+  it('does not advance to the next mailbox until all thread pages are exhausted', async () => {
+    fetchProvider.mockImplementation(async (url: string, init?: RequestInit) => {
+      const parsed = new URL(url)
+      const token = new Headers(init?.headers).get('Authorization')
+      if (
+        parsed.pathname.endsWith('/threads') &&
+        token?.includes(ALICE.email) &&
+        !parsed.searchParams.has('pageToken')
+      ) {
+        return Response.json({ threads: [], nextPageToken: 'alice-next' })
+      }
+      return providerResponse(url, init)
+    })
+    const context = centralContext()
+    const first = await gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
+    expect(first.documents).toEqual([])
+    expect(first.hasMore).toBe(true)
+    const next = await gmailConnector.listDocuments(
+      'directory-token',
+      CONFIG,
+      first.nextCursor,
+      context
+    )
+    expect(next.documents[0].acl).toEqual([`u:${ALICE.email}`])
+    expect(new URL(fetchProvider.mock.calls[1][0]).searchParams.get('pageToken')).toBe('alice-next')
+    const last = await gmailConnector.listDocuments(
+      'directory-token',
+      CONFIG,
+      next.nextCursor,
+      context
+    )
+    expect(last.documents[0].acl).toEqual([`u:${BOB.email}`])
+  })
+
+  it('excludes a user suspended between directory discovery and crawl', async () => {
+    getUser.mockImplementation(async (_token: string, key: string) =>
+      key === ALICE.id ? { ...ALICE, active: false } : BOB
+    )
+    const context = centralContext()
+    const first = await gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
+    expect(first.documents).toEqual([])
+    expect(first.hasMore).toBe(true)
+    expect(context.getDelegatedAccessToken).not.toHaveBeenCalled()
+    const next = await gmailConnector.listDocuments(
+      'directory-token',
+      CONFIG,
+      first.nextCursor,
+      context
+    )
+    expect(next.documents[0].acl).toEqual([`u:${BOB.email}`])
+  })
+
+  it('does not fall back to the administrator when delegation is revoked', async () => {
+    const context = centralContext()
+    context.getDelegatedAccessToken.mockRejectedValue(new Error('Delegation revoked'))
+    await expect(
+      gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)
+    ).rejects.toThrow('Delegation revoked')
+    expect(fetchProvider).not.toHaveBeenCalled()
+  })
+
+  it('fails an unreadable mailbox instead of reporting a complete empty corpus', async () => {
+    fetchProvider.mockResolvedValue(new Response(null, { status: 403 }))
+    await expect(
+      gmailConnector.listDocuments('directory-token', CONFIG, undefined, centralContext())
+    ).rejects.toThrow('403')
+  })
+
+  it('rejects an OAuth-only context and an invalid company cursor before Gmail reads', async () => {
+    await expect(
+      gmailConnector.listDocuments('oauth-token', CONFIG, undefined, { mirrorsSourceAcls: true })
+    ).rejects.toThrow('service account')
+    let failure: unknown
+    try {
+      await gmailConnector.listDocuments(
+        'directory-token',
+        CONFIG,
+        'other-mailbox-cursor',
+        centralContext()
+      )
+    } catch (error) {
+      failure = error
+    }
+    expect(gmailConnector.isListingCursorInvalidError?.(failure)).toBe(true)
+    expect(fetchProvider).not.toHaveBeenCalled()
+  })
+
+  it.each([{ maxThreads: 25 }, { label: ['Label_7'] }])(
+    'rejects unsafe central settings before provider reads: %o',
+    async (extra) => {
+      await expect(
+        gmailConnector.listDocuments(
+          'directory-token',
+          { ...CONFIG, ...extra },
+          undefined,
+          centralContext()
+        )
+      ).rejects.toThrow()
+      expect(listUsers).not.toHaveBeenCalled()
+      expect(fetchProvider).not.toHaveBeenCalled()
+    }
+  )
+})

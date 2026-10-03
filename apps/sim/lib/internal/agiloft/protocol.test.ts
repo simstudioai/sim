@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Every fixture below is quoted from Agiloft's own REST documentation so the
  * parser is pinned to the published response format rather than to a shape we
  * assumed.
@@ -29,17 +27,6 @@ EWREST_id_2 = '325';`
 
 /** REST - Select: the documented empty result. */
 const SELECT_EMPTY_BODY = "EWREST_id_length = '0';"
-
-/** REST - Search, Example 2: two requested fields across four records. */
-const SEARCH_BODY = `EWREST_length = '4';
-EWREST_summary_0='Here is a new service request with some tasks';
-EWREST_priority_0='High';
-EWREST_summary_1='New Employee Setup for Patricia Smith';
-EWREST_priority_1='High';
-EWREST_summary_2='Upgrading Our Software';
-EWREST_priority_2='High';
-EWREST_summary_3='Need New Wireless Card for Laptop';
-EWREST_priority_3='High';`
 
 describe('parseEwRest', () => {
   it('reads the field assignments EWRead returns', () => {

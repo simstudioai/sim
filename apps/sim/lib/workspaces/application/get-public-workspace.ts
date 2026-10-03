@@ -22,7 +22,7 @@ export const getPublicWorkspace = defineAuthorizedWorkspaceUseCase({
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: { delegation: { audience: 'sim:workspaces', isWithinScope: () => true } },
   execute: async ({ context }): Promise<GetPublicWorkspaceResult> => {
     const workspace = await getPublicWorkspaceDetail(context.workspaceId)
     if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
