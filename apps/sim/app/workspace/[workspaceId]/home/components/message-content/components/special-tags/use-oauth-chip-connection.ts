@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
-import { useParams } from 'next/navigation'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
   buildOAuthChatCompleteAuthorizeUrl,
@@ -21,8 +20,10 @@ import {
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
+import { isAppSurfacePath } from '@/lib/navigation/paths'
 import type { OAuthProvider } from '@/lib/oauth/types'
 import { parseProvider, providerIdsForService } from '@/lib/oauth/utils'
+import { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
 const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'
@@ -38,12 +39,21 @@ const OAUTH_POPUP_POLL_INTERVAL_MS = 400
 const OAUTH_POPUP_UNOBSERVABLE_TIMEOUT_MS = 10 * 60 * 1000
 
 /**
- * Same-origin pages an OAuth flow can die on without reaching the return leg —
  * Better Auth sends pre-state failures (usually a denied consent) to its global
- * error page, and the custom-provider callbacks exit to the workspace root.
- * Neither publishes a verdict, so a popup sitting on one is finished.
+ * error page, which publishes no verdict.
  */
-const OAUTH_POPUP_TERMINAL_PATHS = new Set(['/oauth-error', '/workspace'])
+const OAUTH_ERROR_PATH = '/oauth-error'
+
+/**
+ * Same-origin pages an OAuth flow can die on without reaching the return leg —
+ * the Better Auth error page, or anywhere in the signed-in app, which is where the
+ * custom-provider callbacks exit to. The app entry forwards on the server to the
+ * organization or a workspace, so any app surface counts, not just the entry
+ * itself. None of them publishes a verdict, so a popup sitting on one is finished.
+ */
+function isOAuthPopupTerminalPath(pathname: string): boolean {
+  return pathname === OAUTH_ERROR_PATH || isAppSurfacePath(pathname)
+}
 
 /**
  * What the opener can actually prove about a popup it launched. `ended` needs
@@ -64,7 +74,7 @@ function observePopup(popup: { window: Window } | null): PopupObservation {
   if (closed) return 'unobservable'
   try {
     const { origin, pathname } = popup.window.location
-    if (origin === window.location.origin && OAUTH_POPUP_TERMINAL_PATHS.has(pathname)) {
+    if (origin === window.location.origin && isOAuthPopupTerminalPath(pathname)) {
       return 'ended'
     }
   } catch {
@@ -167,7 +177,7 @@ export function useOAuthChipConnection({
   controlId,
   onConnected,
 }: UseOAuthChipConnectionParams): OAuthChipConnection {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
 
   // A connect URL carrying a credentialId re-authorizes that existing
   // credential in place (reconnect) rather than creating a new one.

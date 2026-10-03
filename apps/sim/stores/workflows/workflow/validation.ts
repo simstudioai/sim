@@ -1,6 +1,9 @@
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 export interface NormalizationResult {
   state: WorkflowState

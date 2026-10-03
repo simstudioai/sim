@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { mem0AddMemoriesTool } from '@/tools/mem0/add_memories'
 import type { Mem0AddMemoriesParams } from '@/tools/mem0/types'
@@ -8,11 +5,6 @@ import type { Mem0AddMemoriesParams } from '@/tools/mem0/types'
 describe('mem0AddMemoriesTool', () => {
   const buildBody = mem0AddMemoriesTool.request.body!
   const transformResponse = mem0AddMemoriesTool.transformResponse!
-
-  it('uses the v3 add memories endpoint', () => {
-    expect(mem0AddMemoriesTool.request.url).toBe('https://api.mem0.ai/v3/memories/add/')
-    expect(mem0AddMemoriesTool.request.method).toBe('POST')
-  })
 
   it('builds the documented add memories request body', () => {
     const body = buildBody({

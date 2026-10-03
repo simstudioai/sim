@@ -30,3 +30,16 @@ export async function resolveMcpServerContext(
   if (!server) throw new OrchestrationError('not_found', 'MCP server not found')
   return { ...workspace, server }
 }
+
+/** Resolve a selected organization server by canonical ID without enumerating unrelated servers. */
+export async function resolveOrganizationMcpServerContext(
+  organizationId: string,
+  serverId: string
+): Promise<McpServerContext> {
+  const server = await getWorkspaceMcpServer({ serverId })
+  if (!server?.workspaceId) throw new OrchestrationError('not_found', 'MCP server not found')
+  const workspace = await resolveMcpWorkspaceContext(server.workspaceId)
+  if (workspace.workspaceOrganizationId !== organizationId)
+    throw new OrchestrationError('not_found', 'MCP server not found')
+  return { ...workspace, server }
+}

@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteCopilotApiKeyQuerySchema } from '@/lib/api/contracts'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   CopilotApiKeyError,
   deleteCopilotApiKey,
   listCopilotApiKeys,
-} from '@/lib/copilot/server/api-keys'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/server/api-keys'
 
 function errorResponse(error: unknown, fallback: string): NextResponse {
   const status = error instanceof CopilotApiKeyError ? error.upstreamStatus : undefined

@@ -8,7 +8,7 @@ import {
   type AgentStreamToolTerminalStatus,
   settleRunningToolCallList,
 } from '@/components/agent-stream/tool-call-lifecycle'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -161,7 +161,6 @@ function cloneWorkflowEntries(
 }
 
 function removeWorkflowIndexes(
-  workflowId: string,
   entries: ConsoleEntry[],
   entryIdsByBlockExecution: Record<string, string[]>,
   entryLocationById: Record<string, ConsoleEntryLocation>
@@ -222,7 +221,7 @@ function replaceWorkflowEntries(
   const entryLocationById = { ...state.entryLocationById }
   const previousEntries = workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
 
-  removeWorkflowIndexes(workflowId, previousEntries, entryIdsByBlockExecution, entryLocationById)
+  removeWorkflowIndexes(previousEntries, entryIdsByBlockExecution, entryLocationById)
 
   if (nextEntries.length === 0) {
     delete workflowEntries[workflowId]
@@ -250,7 +249,7 @@ function appendWorkflowEntry(
   const survivingIds = new Set(trimmedEntries.map((e) => e.id))
   const droppedEntries = previousEntries.filter((e) => !survivingIds.has(e.id))
   if (droppedEntries.length > 0) {
-    removeWorkflowIndexes(workflowId, droppedEntries, entryIdsByBlockExecution, entryLocationById)
+    removeWorkflowIndexes(droppedEntries, entryIdsByBlockExecution, entryLocationById)
   }
 
   trimmedEntries.forEach((entry, index) => {
@@ -317,7 +316,7 @@ const notifyBlockError = ({
 
     toast.error(displayName, {
       description: errorMessage,
-      action: isChatEnabled
+      action: getDeploymentShape().chatEnabled
         ? {
             label: 'Fix in Chat',
             onClick: () => sendMothershipMessage(copilotMessage),

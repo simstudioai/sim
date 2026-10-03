@@ -12,18 +12,27 @@ export interface TextEditorContentState {
    * agent's write advancing past the baseline (which would finalize the editor to stale content).
    */
   hasBaseline: boolean
+  /** Content-version token paired with the accepted immutable storage object. */
+  savedVersion?: string
+  acceptedBaselineContent?: string
+  /** Remote conflict metadata; the local draft remains in `content`. */
+  conflict?: { version?: string; streamInterrupted?: true }
 }
 
 export interface SyncTextEditorContentStateOptions {
   canReconcileToFetchedContent: boolean
   fetchedContent?: string
   streamingContent?: string
+  fetchedVersion?: string
 }
 
 export type TextEditorContentAction =
   | ({ type: 'sync-external' } & SyncTextEditorContentStateOptions)
   | { type: 'edit'; content: string }
-  | { type: 'save-success'; content: string }
+  | { type: 'save-success'; content: string; version?: string }
+  | { type: 'save-conflict' }
+  | { type: 'restore-conflicting-draft'; content: string }
+  | { type: 'reload'; content: string; version: string }
 
 export const INITIAL_TEXT_EDITOR_CONTENT_STATE: TextEditorContentState = {
   phase: 'uninitialized',
@@ -103,7 +112,7 @@ function moveTextEditorContentStateToReconcile(
   }
 }
 
-export function syncTextEditorContentState(
+function syncUnversionedTextEditorContentState(
   state: TextEditorContentState,
   options: SyncTextEditorContentStateOptions
 ): TextEditorContentState {
@@ -179,6 +188,64 @@ export function syncTextEditorContentState(
   return state
 }
 
+/** Keeps local drafts and their original compare-and-swap token when remote bytes advance. */
+export function syncTextEditorContentState(
+  state: TextEditorContentState,
+  options: SyncTextEditorContentStateOptions
+): TextEditorContentState {
+  const isStaleSnapshot =
+    options.fetchedVersion &&
+    ((state.savedVersion && Date.parse(options.fetchedVersion) < Date.parse(state.savedVersion)) ||
+      (state.conflict?.version &&
+        Date.parse(options.fetchedVersion) < Date.parse(state.conflict.version)))
+  const currentOptions = isStaleSnapshot
+    ? { ...options, fetchedContent: undefined, fetchedVersion: undefined }
+    : options
+  const { fetchedContent, fetchedVersion, streamingContent } = currentOptions
+
+  if (state.conflict) {
+    const conflict =
+      streamingContent !== undefined
+        ? { ...state.conflict, streamInterrupted: true as const }
+        : state.conflict
+    if (
+      fetchedContent === undefined ||
+      fetchedVersion === undefined ||
+      fetchedVersion === conflict.version
+    )
+      return conflict === state.conflict ? state : { ...state, conflict }
+    return { ...state, conflict: { ...conflict, version: fetchedVersion } }
+  }
+
+  if (
+    state.phase === 'ready' &&
+    state.content !== state.savedContent &&
+    (streamingContent !== undefined ||
+      (fetchedContent !== undefined && fetchedContent !== state.savedContent))
+  )
+    return {
+      ...state,
+      conflict: {
+        version: fetchedVersion,
+        ...(streamingContent !== undefined ? { streamInterrupted: true as const } : {}),
+      },
+    }
+
+  const next = syncUnversionedTextEditorContentState(state, currentOptions)
+  if (fetchedContent !== undefined && fetchedVersion && next.savedContent === fetchedContent) {
+    if (next.savedVersion === fetchedVersion && next.acceptedBaselineContent === fetchedContent)
+      return next
+    return { ...next, savedVersion: fetchedVersion, acceptedBaselineContent: fetchedContent }
+  }
+  return next === state
+    ? state
+    : {
+        ...next,
+        savedVersion: state.savedVersion,
+        acceptedBaselineContent: state.acceptedBaselineContent,
+      }
+}
+
 export function textEditorContentReducer(
   state: TextEditorContentState,
   action: TextEditorContentAction
@@ -195,6 +262,12 @@ export function textEditorContentReducer(
         content: action.content,
       }
     case 'save-success':
+      if (
+        action.version &&
+        state.savedVersion &&
+        Date.parse(action.version) < Date.parse(state.savedVersion)
+      )
+        return state
       // Advance only the saved baseline. Never roll `content` back to the saved snapshot: a
       // keystroke landing while the save was in flight makes `content` newer than `action.content`,
       // and overwriting it would silently drop that edit (and leave the doc looking clean so it's
@@ -202,7 +275,8 @@ export function textEditorContentReducer(
       if (
         state.phase === 'ready' &&
         state.savedContent === action.content &&
-        state.lastStreamedContent === null
+        state.lastStreamedContent === null &&
+        (!action.version || state.savedVersion === action.version)
       ) {
         return state
       }
@@ -212,6 +286,33 @@ export function textEditorContentReducer(
         savedContent: action.content,
         lastStreamedContent: null,
         hasBaseline: true,
+        savedVersion: action.version ?? state.savedVersion,
+        conflict:
+          state.conflict &&
+          (state.conflict.streamInterrupted ||
+            !state.conflict.version ||
+            !action.version ||
+            Date.parse(state.conflict.version) > Date.parse(action.version))
+            ? state.conflict
+            : undefined,
+      }
+    case 'save-conflict':
+      return state.conflict ? state : { ...state, conflict: {} }
+    case 'restore-conflicting-draft':
+      return {
+        ...state,
+        content: action.content,
+        conflict: { version: state.savedVersion },
+      }
+    case 'reload':
+      return {
+        phase: 'ready',
+        content: action.content,
+        savedContent: action.content,
+        savedVersion: action.version,
+        acceptedBaselineContent: action.content,
+        hasBaseline: true,
+        lastStreamedContent: null,
       }
     default:
       return state

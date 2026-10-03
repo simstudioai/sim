@@ -35,7 +35,7 @@ const SECRET_SCOPE_OPTIONS = [
   { value: 'selected', label: 'Selected secrets' },
 ]
 
-const DROPDOWN_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
+const DROPDOWN_TRIGGER_CLASS = 'w-[240px] shrink-0'
 
 export function InboxSettingsTab() {
   const params = useParams()
@@ -295,6 +295,11 @@ export function InboxSettingsTab() {
                   />
                 </div>
               </div>
+            )}
+            {updateSecretPolicy.error && (
+              <p role='alert' className='text-[var(--text-error)] text-caption'>
+                {getErrorMessage(updateSecretPolicy.error, 'Failed to update secret access')}
+              </p>
             )}
           </div>
         </SettingsSection>

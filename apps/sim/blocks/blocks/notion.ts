@@ -4,7 +4,6 @@ import { NotionIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
-import type { NotionResponse } from '@/tools/notion/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -100,7 +99,7 @@ const NOTION_SENTENCES = {
 } as const
 
 // Legacy block - hidden from toolbar
-export const NotionBlock: BlockConfig<NotionResponse> = {
+export const NotionBlock: BlockConfig = {
   type: 'notion',
   name: 'Notion (Legacy)',
   hideFromToolbar: true,
@@ -946,7 +945,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
 
 // V2 Block with API-aligned outputs
 
-export const NotionV2Block: BlockConfig<any> = {
+export const NotionV2Block: BlockConfig = {
   type: 'notion_v2',
   name: 'Notion',
   description: 'Manage Notion pages',

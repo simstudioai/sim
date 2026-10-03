@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { bindPreviewWheelZoom, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sanitizeRenderedHyperlinks, stripEmbeddedFrames } from '@/lib/core/security/url-safety'
@@ -9,7 +9,6 @@ import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { PREVIEW_LOADING_OVERLAY, PreviewError, resolvePreviewError } from './preview-shared'
 import { PreviewToolbar } from './preview-toolbar'
-import { bindPreviewWheelZoom } from './preview-wheel-zoom'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 const logger = createLogger('DocxPreview')

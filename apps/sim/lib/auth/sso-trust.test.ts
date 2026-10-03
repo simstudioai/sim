@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Locks the SSO linking trust model. Better Auth's account-link gate is
  * `!isTrustedProvider && !userInfo.emailVerified`, so a truthy
  * `trustEmailVerified` lets any registered IdP assert an out-of-domain address

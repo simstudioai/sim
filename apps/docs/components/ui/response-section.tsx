@@ -1,19 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { ChevronDown } from '@sim/emcn/icons'
-import { cn } from '@/lib/utils'
+import { useEffect, useId, useRef, useState } from 'react'
+import {
+  ChipChevronDown,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  chipGeometryClass,
+  chipHoverSurfaceClass,
+  cn,
+} from '@sim/emcn'
 
 interface ResponseSectionProps {
   children: React.ReactNode
 }
 
 export function ResponseSection({ children }: ResponseSectionProps) {
+  const id = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const [statusCodes, setStatusCodes] = useState<string[]>([])
   const [selectedCode, setSelectedCode] = useState<string>('')
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   function getAccordionItems() {
     const root = containerRef.current?.querySelector('[data-orientation="vertical"]')
@@ -44,12 +49,7 @@ export function ResponseSection({ children }: ResponseSectionProps) {
     }
   }
 
-  /**
-   * Detect when the fumadocs accordion children mount via MutationObserver,
-   * then extract status codes and show the first one.
-   * Replaces the previous approach that used `children` as a dependency
-   * (which triggered on every render since children is a new object each time).
-   */
+  /** Waits for the dependency's response accordion to mount before selecting a status. */
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -60,7 +60,6 @@ export function ResponseSection({ children }: ResponseSectionProps) {
 
       const codes: string[] = []
       const seen = new Set<string>()
-
       for (const item of items) {
         const triggerBtn = item.querySelector('h3 button')
         if (triggerBtn) {
@@ -72,7 +71,6 @@ export function ResponseSection({ children }: ResponseSectionProps) {
           }
         }
       }
-
       if (codes.length > 0) {
         setStatusCodes(codes)
         setSelectedCode(codes[0])
@@ -83,41 +81,17 @@ export function ResponseSection({ children }: ResponseSectionProps) {
     }
 
     if (initialize()) return
-
     const observer = new MutationObserver(() => {
-      if (initialize()) {
-        observer.disconnect()
-      }
+      if (initialize()) observer.disconnect()
     })
     observer.observe(container, { childList: true, subtree: true })
-
     return () => observer.disconnect()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleSelectCode(code: string) {
     setSelectedCode(code)
-    setIsOpen(false)
     showStatusCode(code)
   }
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [])
 
   return (
     <div ref={containerRef} className='response-section-wrapper'>
@@ -125,53 +99,29 @@ export function ResponseSection({ children }: ResponseSectionProps) {
         <div className='response-section-header'>
           <h2 className='response-section-title'>Response</h2>
           <div className='response-section-meta'>
-            <div ref={dropdownRef} className='response-section-dropdown-wrapper'>
-              <button
-                type='button'
-                className='response-section-dropdown-trigger'
-                aria-haspopup='listbox'
-                aria-expanded={isOpen}
-                aria-label={`Response status code, currently ${selectedCode}`}
-                onClick={() => setIsOpen(!isOpen)}
+            <div className='relative'>
+              <label htmlFor={id} className='sr-only'>
+                Response status code
+              </label>
+              <select
+                id={id}
+                value={selectedCode}
+                onChange={(event) => handleSelectCode(event.target.value)}
+                className={cn(
+                  chipGeometryClass,
+                  chipFieldSurfaceClass,
+                  chipFieldTextClass,
+                  chipHoverSurfaceClass,
+                  'appearance-none pe-8'
+                )}
               >
-                <span>{selectedCode}</span>
-                <ChevronDown
-                  className={cn(
-                    'response-section-chevron',
-                    isOpen && 'response-section-chevron-open'
-                  )}
-                />
-              </button>
-              {isOpen && (
-                <div className='response-section-dropdown-menu' role='listbox'>
-                  {statusCodes.map((code) => (
-                    <button
-                      key={code}
-                      type='button'
-                      role='option'
-                      aria-selected={code === selectedCode}
-                      className={cn(
-                        'response-section-dropdown-item',
-                        code === selectedCode && 'response-section-dropdown-item-selected'
-                      )}
-                      onClick={() => handleSelectCode(code)}
-                    >
-                      <span>{code}</span>
-                      {code === selectedCode && (
-                        <svg
-                          className='response-section-check'
-                          viewBox='0 0 24 24'
-                          fill='none'
-                          stroke='currentColor'
-                          strokeWidth='2'
-                        >
-                          <polyline points='20 6 9 17 4 12' />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+                {statusCodes.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+              <ChipChevronDown className='-translate-y-1/2 pointer-events-none absolute end-2 top-1/2' />
             </div>
             <span className='response-section-content-type'>application/json</span>
           </div>

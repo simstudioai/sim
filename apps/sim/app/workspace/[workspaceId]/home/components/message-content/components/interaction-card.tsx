@@ -5,7 +5,7 @@ export const INTERACTION_CARD_ROW_CLASSES =
   'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors'
 
 export const INTERACTION_CARD_TEXT_INPUT_CLASSES =
-  'min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed'
+  'min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed'
 
 export interface InteractionCardRecapItem {
   label: string
@@ -27,6 +27,7 @@ interface InteractionCardProps {
 export function InteractionCard({ children, title, actions, className }: InteractionCardProps) {
   return (
     <div
+      data-interaction-card
       className={cn(
         'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
         className
@@ -90,6 +91,8 @@ export const InteractionCardInputRow = forwardRef<HTMLInputElement, InteractionC
 InteractionCardInputRow.displayName = 'InteractionCardInputRow'
 
 interface InteractionCardActionRowProps {
+  divided?: boolean
+  trailing?: ReactNode
   label: string
   leading?: ReactNode
   disabled?: boolean
@@ -100,6 +103,8 @@ interface InteractionCardActionRowProps {
 export function InteractionCardActionRow({
   label,
   leading,
+  divided = true,
+  trailing,
   disabled = false,
   onClick,
 }: InteractionCardActionRowProps) {
@@ -110,7 +115,8 @@ export function InteractionCardActionRow({
       onClick={onClick}
       className={cn(
         INTERACTION_CARD_ROW_CLASSES,
-        'border-t',
+        'w-full',
+        divided && 'border-t',
         disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]'
       )}
     >
@@ -123,7 +129,7 @@ export function InteractionCardActionRow({
       >
         {label}
       </span>
-      <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      {trailing ?? <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
     </button>
   )
 }

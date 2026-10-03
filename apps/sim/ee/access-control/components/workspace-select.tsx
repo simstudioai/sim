@@ -1,8 +1,12 @@
 'use client'
 
-import { ChipDropdown } from '@sim/emcn'
+import { ChipDropdown, type ChipDropdownProps } from '@sim/emcn'
 
-interface WorkspaceSelectProps {
+interface WorkspaceSelectProps
+  extends Pick<
+    ChipDropdownProps,
+    'id' | 'aria-label' | 'aria-labelledby' | 'aria-describedby' | 'aria-required' | 'aria-invalid'
+  > {
   workspaceIds: string[]
   onChange: (ids: string[]) => void
   options: { value: string; label: string }[]
@@ -31,9 +35,11 @@ export function WorkspaceSelect({
   fullWidth = false,
   className,
   allowAllWorkspaces = true,
+  ...fieldAria
 }: WorkspaceSelectProps) {
   return (
     <ChipDropdown
+      {...fieldAria}
       multiple
       searchable
       align={fullWidth ? 'start' : 'end'}

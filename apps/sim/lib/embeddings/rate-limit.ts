@@ -60,6 +60,7 @@ export function parseGoDurationMs(value: string): number | null {
 
 /** Paired remaining/reset headers, per rate-limited dimension. */
 const OPENAI_LIMIT_DIMENSIONS = [
+  { remaining: 'x-ratelimit-remaining-project-tokens', reset: 'x-ratelimit-reset-project-tokens' },
   { remaining: 'x-ratelimit-remaining-tokens', reset: 'x-ratelimit-reset-tokens' },
   { remaining: 'x-ratelimit-remaining-requests', reset: 'x-ratelimit-reset-requests' },
 ] as const

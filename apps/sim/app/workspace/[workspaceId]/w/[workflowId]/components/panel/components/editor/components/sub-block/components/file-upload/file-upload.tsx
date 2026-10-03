@@ -22,6 +22,7 @@ import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection
 import { findSelectedWorkspaceFile } from '@/lib/workspace-files/selection'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useActiveCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
 import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -56,7 +57,7 @@ interface FileUploadProps {
    * A sibling folder field that narrows what this picker offers, and the switch
    * saying whether that scope descends. See `SubBlockConfig.folderScope`.
    */
-  folderScope?: { fieldId: string; manualFieldId?: string; recursiveFieldId?: string }
+  folderScope?: { fieldId: string; recursiveFieldId?: string }
   /**
    * Controlled value. When `onValueChange` is provided the component reads from
    * this prop and writes through `onValueChange` instead of the subblock store,
@@ -127,13 +128,11 @@ interface SingleFileSelectorProps {
   file: UploadedFile
   options: Array<{ label: string; value: string; disabled?: boolean }>
   selectedValue: string
-  inputValue: string
   onInputChange: (value: string) => void
   onClear: (e: React.MouseEvent) => void
   onOpenChange: (open: boolean) => void
   disabled: boolean
   isLoading: boolean
-  formatFileSize: (bytes: number) => string
   truncateMiddle: (text: string, start?: number, end?: number) => string
   isDeleting: boolean
   workflowSearchHighlight?: ReturnType<typeof getWorkflowSearchLabelHighlight>
@@ -148,13 +147,11 @@ function SingleFileSelector({
   file,
   options,
   selectedValue,
-  inputValue,
   onInputChange,
   onClear,
   onOpenChange,
   disabled,
   isLoading,
-  formatFileSize,
   truncateMiddle,
   isDeleting,
   workflowSearchHighlight,
@@ -208,6 +205,7 @@ function SingleFileSelector({
         }
       />
       <Button
+        aria-label='Remove file'
         type='button'
         variant='ghost'
         className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'
@@ -353,20 +351,19 @@ export function FileUpload({
    * a picker with no folder scope; its own value is never a folder path, so the
    * scope reads as absent.
    */
-  const [folderScopeValue] = useSubBlockValue<unknown>(blockId, folderScope?.fieldId ?? subBlockId)
-  /*
-   * Through `readFolderPaths` rather than a string check so current arrays and
-   * legacy serialized arrays resolve to the same canonical scopes.
-   */
-  const [manualFolderScopeValue] = useSubBlockValue<unknown>(
+  const folderScopeValue = useActiveCanonicalSubBlockValue<unknown>(
     blockId,
-    folderScope?.manualFieldId ?? folderScope?.fieldId ?? subBlockId
+    folderScope?.fieldId ?? subBlockId
   )
-  const folderScopePaths = useMemo(() => {
-    if (!folderScope) return []
-    const selectedPaths = readFolderPaths(folderScopeValue)
-    return selectedPaths.length > 0 ? selectedPaths : readFolderPaths(manualFolderScopeValue)
-  }, [folderScope, folderScopeValue, manualFolderScopeValue])
+  /*
+   * Through `readFolderPaths` rather than a string check so a picked array, a
+   * legacy serialized array, and a typed comma-separated list all resolve to
+   * the same canonical scopes.
+   */
+  const folderScopePaths = useMemo(
+    () => (folderScope ? readFolderPaths(folderScopeValue) : []),
+    [folderScope, folderScopeValue]
+  )
 
   const [folderScopeRecursive] = useSubBlockValue<unknown>(
     blockId,
@@ -762,6 +759,7 @@ export function FileUpload({
           </span>
         </div>
         <Button
+          aria-label='Remove file'
           type='button'
           variant='ghost'
           className='-translate-y-1/2 absolute top-1/2 right-[4px] size-6 p-0'
@@ -962,7 +960,6 @@ export function FileUpload({
           file={filesArray[0]}
           options={singleFileOptions}
           selectedValue={selectedFileId}
-          inputValue={inputValue}
           onInputChange={handleComboboxChange}
           onClear={(e) => handleRemoveFile(filesArray[0], e)}
           onOpenChange={(open) => {
@@ -970,7 +967,6 @@ export function FileUpload({
           }}
           disabled={disabled}
           isLoading={loadingWorkspaceFiles}
-          formatFileSize={formatFileSize}
           truncateMiddle={truncateMiddle}
           isDeleting={deletingFiles[filesArray[0]?.path || '']}
           workflowSearchHighlight={getWorkflowSearchLabelHighlight({

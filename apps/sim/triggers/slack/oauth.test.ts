@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { getSlackTriggerCredentialSubBlock, slackOAuthTrigger } from '@/triggers/slack/oauth'
 import { SIM_SUBSCRIBED_EVENTS, SLACK_EVENT_CATALOG } from '@/triggers/slack/shared'
@@ -44,60 +41,17 @@ describe('Slack trigger extended-scope capability', () => {
     expect(SIM_SUBSCRIBED_EVENTS).not.toEqual(expect.arrayContaining(agentEvents))
   })
 
-  it('offers a command filter for custom-bot slash command triggers', () => {
-    const commandFilter = slackOAuthTrigger.subBlocks.find(
-      (subBlock) => subBlock.id === 'commandFilter'
-    )
-
-    expect(commandFilter).toMatchObject({
-      title: 'Command',
-      condition: { field: 'eventType', value: ['slash_command'] },
-      required: false,
-      mode: 'trigger',
-    })
-  })
-})
-
-describe('Slack response streaming fields', () => {
-  it('labels response streaming as an agent session', () => {
-    const agentSession = slackOAuthTrigger.subBlocks.find(
-      (subBlock) => subBlock.id === 'streamResponse'
-    )
-
-    expect(agentSession?.title).toBe('Enable agent session')
-  })
-
-  it('keeps the response controls together after channel and thread filters', () => {
-    const ids = slackOAuthTrigger.subBlocks.map((subBlock) => subBlock.id)
-    const streamStart = ids.indexOf('streamResponse')
-
-    expect(ids.indexOf('channelFilter')).toBeLessThan(streamStart)
-    expect(ids.indexOf('threads')).toBe(streamStart - 1)
-    expect(ids.slice(streamStart, streamStart + 6)).toEqual([
-      'streamResponse',
-      'streamOutputs',
-      'streamTaskTitle',
-      'streamTaskDisplayMode',
-      'streamIncludeThinking',
-      'streamIncludeToolCalls',
-    ])
-    expect(
-      slackOAuthTrigger.subBlocks
-        .filter((subBlock) => subBlock.id.startsWith('stream'))
-        .map((subBlock) => subBlock.mode)
-    ).toEqual(['trigger', 'trigger', 'trigger', 'trigger', 'trigger', 'trigger'])
-  })
-
-  it('makes the response status label optional with a visible default', () => {
-    const statusLabel = slackOAuthTrigger.subBlocks.find(
-      (subBlock) => subBlock.id === 'streamTaskTitle'
-    )
-
-    expect(statusLabel).toMatchObject({
-      required: false,
-      placeholder: 'Running (default)',
-      mode: 'trigger',
-    })
-    expect(statusLabel?.value).toBeUndefined()
+  it('gates legacy Assistant choices to native OAuth while keeping Agent View events available', () => {
+    const field = slackOAuthTrigger.subBlocks.find(({ id }) => id === 'eventType')!
+    const options = field.options
+    if (!Array.isArray(options)) throw new Error('Expected event options')
+    for (const id of ['assistant_thread_started', 'assistant_thread_context_changed']) {
+      expect(options.find((option) => option.id === id)).toMatchObject({
+        reactiveCondition: { watchFields: ['customBotCredential'], requiredType: 'oauth' },
+      })
+      expect(SIM_SUBSCRIBED_EVENTS).toContain(id)
+    }
+    for (const id of ['app_home_opened', 'app_context_changed'])
+      expect(options.find((option) => option.id === id)?.hidden).not.toBe(true)
   })
 })

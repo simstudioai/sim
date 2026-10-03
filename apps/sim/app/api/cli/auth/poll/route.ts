@@ -8,10 +8,10 @@ import {
 } from '@/lib/api-key/orchestration'
 import type { ApprovalGrant } from '@/lib/cli-auth/approval-store'
 import { completeApproval, pollApproval, releaseMint } from '@/lib/cli-auth/approval-store'
-import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/copilot/server/api-keys'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/mothership/server/api-keys'
 
 const logger = createLogger('CliAuthPollAPI')
 

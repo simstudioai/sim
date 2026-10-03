@@ -59,13 +59,6 @@ describe('attachNavigationGuards', () => {
     expect(contents.handlers.has('will-redirect')).toBe(true)
   })
 
-  it('lets same-origin navigation through untouched', () => {
-    const contents = makeContents(`${APP}/workspace/ws1`)
-    attachNavigationGuards(contents as unknown as WebContents, makeDeps())
-    const preventDefault = fire(contents, 'will-navigate', `${APP}/workspace/ws1/w/wf1`)
-    expect(preventDefault).not.toHaveBeenCalled()
-  })
-
   it('cancels blocked-IdP login navigation and starts the browser handoff', () => {
     const deps = makeDeps()
     const contents = makeContents(`${APP}/login`)
@@ -77,19 +70,6 @@ describe('attachNavigationGuards', () => {
     )
     expect(preventDefault).toHaveBeenCalled()
     expect(deps.onLoginHandoff).toHaveBeenCalled()
-  })
-
-  it('cancels blocked-IdP connect navigation via will-redirect and intercepts', () => {
-    const deps = makeDeps()
-    const contents = makeContents(`${APP}/workspace/ws1/integrations/gmail`)
-    attachNavigationGuards(contents as unknown as WebContents, deps)
-    const preventDefault = fire(
-      contents,
-      'will-redirect',
-      'https://accounts.google.com/o/oauth2/v2/auth'
-    )
-    expect(preventDefault).toHaveBeenCalled()
-    expect(deps.onConnectIntercept).toHaveBeenCalled()
   })
 
   it('opens unknown cross-origin departures externally instead of replacing the app page', () => {

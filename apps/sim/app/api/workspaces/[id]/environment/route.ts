@@ -124,7 +124,7 @@ async function maskPersonalEnvForViewer({
 }
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const workspaceId = (await params).id
 

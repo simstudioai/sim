@@ -18,11 +18,16 @@ export interface ReadWorkspaceFileRecordResult {
   file: WorkspaceFileRecord
 }
 
+/**
+ * Record reads by id admit chat uploads: the sandbox mount reloads an `uploads/<name>`
+ * upload through here before presigning it. Listings never surface chat uploads and
+ * writes never resolve them.
+ */
 function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(operation: O) {
   return defineAuthorizedWorkspaceFileUseCase({
     operation,
     resolveContext: ({ input }: { input: ReadWorkspaceFileRecordInput }) =>
-      resolveActiveWorkspaceFileContext(input),
+      resolveActiveWorkspaceFileContext({ ...input, includeChatUploads: true }),
     async execute({
       context,
     }: AuthorizedWorkspaceUseCaseContext<
@@ -32,6 +37,7 @@ function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(opera
     >): Promise<ReadWorkspaceFileRecordResult> {
       const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
         throwOnError: true,
+        includeChatUploads: true,
       })
       if (!file) throw new OrchestrationError('not_found', 'File not found')
       return { file }

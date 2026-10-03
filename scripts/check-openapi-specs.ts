@@ -161,7 +161,11 @@ function listContractFiles(dir: string): string[] {
     if (entry.isDirectory()) {
       if (entry.name === '__tests__') continue
       files.push(...listContractFiles(full))
-    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+    } else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.endsWith('.test.ts') &&
+      entry.name !== 'test-utils.ts'
+    ) {
       files.push(full)
     }
   }
@@ -1078,6 +1082,10 @@ for (const [legacyOperationId, replacement] of Object.entries(LEGACY_CORE_REPLAC
 }
 
 const workflowMetaGroups = [
+  {
+    tag: 'Workspace Sync',
+    file: 'content/docs/api-reference/(generated)/workspace-sync/meta.json',
+  },
   {
     tag: 'Workflows',
     file: 'content/docs/api-reference/(generated)/workflows/meta.json',

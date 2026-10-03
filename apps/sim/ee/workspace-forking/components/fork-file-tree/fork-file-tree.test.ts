@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { groupForkFilesIntoFolders } from '@/ee/workspace-forking/components/fork-file-tree/fork-file-tree'
 

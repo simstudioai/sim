@@ -1,0 +1,77 @@
+---
+title: Slack
+description: Search Slack live with your own account and use Sim Search from Slack
+---
+
+Slack uses **Member accounts**. Search calls Slack's real-time search API with the connected member's user token. There is no live Slack service-account mode, admin channel selection, or background message indexing.
+
+The Slack source and the Sim Search bot are separate connections: the source grants access to a person's messages; the bot lets that person ask Sim questions from Slack.
+
+## Add Slack as a source
+
+1. An organization admin adds **Slack** in **Settings → Sources**.
+2. Complete the organization's Slack app configuration if required. Use the official Sim Search app when available, or a custom app configured for this Sim deployment.
+3. Each member opens **Integrations → Slack → Connect** and authorizes their own Slack account.
+4. Search for a message that account can access. There is no channel setup or initial sync after authorization.
+
+Slack app installation does not add people to your Sim organization or authorize their personal accounts. Invite teammates through **Settings → Members** or SSO when needed. App and workspace approval policies still apply.
+
+## How search and reads work
+
+Sim sends the query to `assistant.search.context` with the member's user token. Public channels, private channels, DMs, group DMs, and files are available only to the extent permitted by that account and its granted scopes. Member mode does not add an organization filter to those permissions.
+
+A question can use Slack search modifiers to narrow its scope. Relevance search can use Slack's semantic matching where available; date ordering uses keyword retrieval and timestamp ordering. The adapter follows provider continuation cursors and reports rate-limit, scope, and retrieval failures.
+
+Reading a message uses the same member's thread access. File reads return Slack's available preview and a link to the source, not an unrestricted download of every attachment. Retention, provider search freshness, and API limits affect coverage.
+
+## Use Sim Search in Slack
+
+An admin opens **Settings → Sim Search in Slack** and installs or connects the bot for the target workspace. Members still connect their source accounts in Integrations. The bot uses the same live Search assistant and authorization as the web experience and Search MCP.
+
+- DM **Sim Search**, or mention it in a channel it has joined.
+- Use **/query [question]** to start a private DM thread. Channel invocations keep personalized answers and account details in DMs.
+- Use **/connect [provider]**, or **Home → Connect sources**, to open your personal Integrations in Sim. OAuth starts when you select Connect there.
+- Follow the returned source links. Use Slack's Stop control to cancel an active answer and queued follow-ups.
+
+Installing the bot alone does not give it every employee's source access. Removing a bot binding is separate from disconnecting the personal Slack source.
+
+## Custom app and self-hosted setup
+
+Use the setup flow's generated manifest for your deployment. Keep its OAuth callbacks, events, interactivity URL, and required bot/user permissions together; do not copy credentials from a different environment. Slack must be able to reach the app's HTTPS event endpoint. Local browser flows can run on localhost, but inbound Slack events need a publicly reachable callback.
+
+The organization uses one configured Slack app and workspace for member connections. Changing the app or required scopes requires affected members to reconnect. Slack's real-time search capability must be available to that app, such as an eligible internal or approved app.
+
+The live user grant includes these real-time search scopes:
+
+```text
+search:read.public
+search:read.private
+search:read.im
+search:read.mpim
+search:read.files
+files:read
+```
+
+The shared configuration also retains identity and conversation-read scopes used to identify the connected account and read message threads. Bot permissions are separate and let Sim receive and answer Slack questions. Use the generated manifest rather than replacing its full scope set with only this live-search subset.
+
+The configured redirect URLs use your Sim origin:
+
+```text
+https://<your-sim-domain>/api/knowledge/slack/oauth/callback
+https://<your-sim-domain>/api/credential-groups/slack-managed-users/callback
+https://<your-sim-domain>/api/credential-groups/oauth/slack/callback
+```
+
+See Slack's [real-time search method](https://docs.slack.dev/reference/methods/assistant.search.context/) and [app manifest reference](https://docs.slack.dev/reference/app-manifest/).
+
+## Troubleshooting
+
+| Problem | Next step |
+| --- | --- |
+| Integrations shows Not configured | An admin must finish the organization's Slack app configuration. |
+| Missing real-time search scope | Update the app's user permissions, obtain approval/reinstall as Slack requires, and reconnect the member. |
+| Real-time search is unavailable to the app | Check Slack's app eligibility; a working bot installation alone does not establish search access. |
+| Private channel or DM is absent | Confirm the connected member can access it and granted the required scope. |
+| Bot cannot answer | Check its organization binding, the member's Sim membership, and their source connections. |
+| Localhost receives no bot events | Slack cannot reach a private localhost event endpoint; use the deployment's reachable callback. |
+| Results are incomplete | Check provider limits and retention, narrow the query, or continue the provider page. There is no Sim indexing status to clear. |

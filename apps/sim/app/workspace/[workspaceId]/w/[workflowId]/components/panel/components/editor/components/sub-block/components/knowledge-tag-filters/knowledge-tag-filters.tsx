@@ -303,7 +303,6 @@ export function KnowledgeTagFilters({
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       cellKey,
-      fieldValue,
       (newValue) => handleTagDropdownSelection(filter.id, field, newValue)
     )
 
@@ -411,7 +410,7 @@ export function KnowledgeTagFilters({
           {isBetween ? (
             <div className='flex items-center gap-2'>
               <div className='flex-1'>{renderValueInput(filter, 'tagValue')}</div>
-              <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
+              <span className='shrink-0 text-muted-foreground text-xs'>to</span>
               <div className='flex-1'>{renderValueInput(filter, 'valueTo')}</div>
             </div>
           ) : (

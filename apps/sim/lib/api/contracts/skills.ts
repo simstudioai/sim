@@ -30,7 +30,7 @@ export const skillEditorSchema = z.object({
   userId: z.string(),
   userName: z.string().nullable(),
   userEmail: z.string().nullable(),
-  userImage: z.string().nullable().optional(),
+  userImage: z.string().nullable(),
   isWorkspaceAdmin: z.boolean(),
 })
 

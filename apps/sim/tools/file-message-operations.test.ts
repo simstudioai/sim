@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -172,7 +169,6 @@ describe('file and message operation declarations', () => {
 
 describe('file and message direct handlers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     for (const operation of Object.values(operations)) {
       operation.mockResolvedValue({ success: true, output: {} })
     }

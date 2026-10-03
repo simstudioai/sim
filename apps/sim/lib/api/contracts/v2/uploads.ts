@@ -38,7 +38,7 @@ export const v2OptionalUploadTokenHeadersSchema = z.object({
  * contract.
  */
 const TRANSFER_STEP_CONTRACT =
-  'Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim\'s own data plane: success is `204` with an empty body, and a failure is the same `{ "error": { "code", "message" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider\'s own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider\'s error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON.'
+  'Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML.'
 
 export const v2PutUploadTransferSchema = z
   .object({
@@ -104,7 +104,7 @@ export const v2UploadPartUrlSchema = z
       .string()
       .url()
       .describe(
-        `Signed URL for this upload part. ${TRANSFER_STEP_CONTRACT}\n\nYou do not need to retain the \`ETag\` each part upload returns. Unlike a raw S3 multipart flow, completion takes no request body: Sim lists the uploaded parts from the provider itself and reads their entity tags there, so \`POST .../complete\` only has to happen after every part has been sent.`
+        `Signed URL for this upload part. ${TRANSFER_STEP_CONTRACT} Do not retain part \`ETag\` values; after every part succeeds, call the completion endpoint without a request body.`
       ),
     headers: z
       .record(z.string(), z.string())

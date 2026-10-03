@@ -123,7 +123,7 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
                     onChange={(e) => setEditValue(e.target.value)}
                     onBlur={commitEdit}
                     onKeyDown={handleKeyDown}
-                    className='w-full min-w-[60px] bg-transparent outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
+                    className='w-full min-w-[60px] bg-transparent outline-hidden ring-1 ring-[var(--brand-secondary)] ring-inset'
                   />
                 ) : (
                   String(header ?? '')
@@ -150,7 +150,7 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
                       onChange={(e) => setEditValue(e.target.value)}
                       onBlur={commitEdit}
                       onKeyDown={handleKeyDown}
-                      className='w-full min-w-[60px] bg-transparent outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
+                      className='w-full min-w-[60px] bg-transparent outline-hidden ring-1 ring-[var(--brand-secondary)] ring-inset'
                     />
                   ) : (
                     String(row[ci] ?? '')

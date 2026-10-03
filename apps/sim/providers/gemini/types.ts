@@ -17,14 +17,6 @@ export interface GeminiUsage {
 }
 
 /**
- * Parsed function call from Gemini response
- */
-interface ParsedFunctionCall {
-  name: string
-  args: Record<string, unknown>
-}
-
-/**
  * Accumulated state during tool execution loop
  */
 export interface ExecutionState {
@@ -40,29 +32,6 @@ export interface ExecutionState {
   timeSegments: TimeSegment[]
   usedForcedTools: string[]
   currentToolConfig: ToolConfig | undefined
-}
-
-/**
- * Result from forced tool usage check
- */
-interface ForcedToolResult {
-  hasUsedForcedTool: boolean
-  usedForcedTools: string[]
-  nextToolConfig: ToolConfig | undefined
-}
-
-/**
- * Configuration for creating a Gemini client
- */
-interface GeminiClientConfig {
-  /** For Google Gemini API */
-  apiKey?: string
-  /** For Vertex AI */
-  vertexai?: boolean
-  project?: string
-  location?: string
-  /** OAuth access token for Vertex AI */
-  accessToken?: string
 }
 
 /**

@@ -128,7 +128,7 @@ function extractAllReferencesFromSubBlocks(
         }
       }
 
-      const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+      const envMatches = value.match(/\{\{([^{}]+)\}\}/g)
       if (envMatches) {
         envMatches.forEach((match) => envVars.add(match))
       }
@@ -317,7 +317,7 @@ function ConnectionsSection({
   return (
     <div
       className={cn(
-        'flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t',
+        'flex shrink-0 flex-col overflow-hidden border-[var(--border)] border-t',
         !isResizing && 'transition-[height] duration-100 ease-out'
       )}
       style={{ height: `${height}px` }}
@@ -334,7 +334,7 @@ function ConnectionsSection({
 
       {/* Header with Chevron */}
       <div
-        className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
+        className='flex shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
         onClick={onToggleCollapsed}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -384,7 +384,7 @@ function ConnectionsSection({
                 {hasFields && (
                   <ChevronDown
                     className={cn(
-                      'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                      'size-3.5 shrink-0 transition-transform duration-100',
                       'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                       isExpanded && 'rotate-180'
                     )}
@@ -404,7 +404,7 @@ function ConnectionsSection({
                     >
                       <span
                         className={cn(
-                          'flex-shrink-0',
+                          'shrink-0',
                           'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                         )}
                       >
@@ -434,7 +434,7 @@ function ConnectionsSection({
                 handleKeyboardActivation(event, () => setExpandedVariables(!expandedVariables))
               }
             >
-              <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
+              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-violet-500'>
                 <span className='text-[9px] text-white'>V</span>
               </div>
               <OverflowText
@@ -444,7 +444,7 @@ function ConnectionsSection({
               />
               <ChevronDown
                 className={cn(
-                  'size-[14px] flex-shrink-0 transition-transform duration-100',
+                  'size-[14px] shrink-0 transition-transform duration-100',
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                   expandedVariables && 'rotate-180'
                 )}
@@ -459,7 +459,7 @@ function ConnectionsSection({
                     className='group flex min-h-[26px] flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-1.5 py-1 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                     onContextMenu={(e) => handleValueContextMenu(e, v.value)}
                   >
-                    <span className='flex-shrink-0 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
+                    <span className='shrink-0 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
                       {v.name}
                     </span>
                     <span className='min-w-0 break-all text-[var(--text-tertiary)]'>{v.value}</span>
@@ -483,7 +483,7 @@ function ConnectionsSection({
                 handleKeyboardActivation(event, () => setExpandedEnvVars(!expandedEnvVars))
               }
             >
-              <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
+              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-cool-gray-500'>
                 <span className='text-[9px] text-white'>E</span>
               </div>
               <OverflowText
@@ -493,7 +493,7 @@ function ConnectionsSection({
               />
               <ChevronDown
                 className={cn(
-                  'size-[14px] flex-shrink-0 transition-transform duration-100',
+                  'size-[14px] shrink-0 transition-transform duration-100',
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                   expandedEnvVars && 'rotate-180'
                 )}
@@ -507,7 +507,7 @@ function ConnectionsSection({
                     key={v.ref}
                     className='group flex min-h-[26px] flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-1.5 py-1 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                   >
-                    <span className='flex-shrink-0 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
+                    <span className='shrink-0 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
                       {v.name}
                     </span>
                     <span className='min-w-0 break-all text-[var(--text-tertiary)]'>{v.value}</span>
@@ -605,7 +605,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
         <Combobox
@@ -622,9 +622,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
       {/* Configuration - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          {getConfigLabel()}
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>{getConfigLabel()}</Label>
 
         {isCountMode ? (
           <div>
@@ -1062,13 +1060,19 @@ function PreviewEditorContent({
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
     return (
-      <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='relative flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
-        <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <BlockTile blockType={block.type} size='lg' />
           <OverflowText label={subflowName} className='flex-1 text-[var(--text-primary)] text-sm' />
           {onClose && (
-            <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
+            <Button
+              aria-label='Close preview'
+              variant='ghost'
+              iconPadding='sm'
+              className='shrink-0'
+              onClick={onClose}
+            >
               <X className='size-[14px]' />
             </Button>
           )}
@@ -1089,7 +1093,7 @@ function PreviewEditorContent({
 
   if (!blockConfig) {
     return (
-      <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='text-[var(--text-primary)] text-sm'>
@@ -1146,16 +1150,22 @@ function PreviewEditorContent({
         : 'gray'
 
   return (
-    <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+    <div className='relative flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
-      <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+      <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
         <OverflowText
           label={block.name || blockConfig.name}
           className='flex-1 text-[var(--text-primary)] text-sm'
         />
         {onClose && (
-          <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
+          <Button
+            aria-label='Close preview'
+            variant='ghost'
+            iconPadding='sm'
+            className='shrink-0'
+            onClick={onClose}
+          >
             <X className='size-[14px]' />
           </Button>
         )}
@@ -1212,7 +1222,7 @@ function PreviewEditorContent({
                   <Code.Viewer
                     code={formatValueAsJson(executionData.input)}
                     language='json'
-                    className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]'
+                    className='max-h-[300px] min-h-0 max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!'
                     wrapText={wrapText}
                     searchQuery={isSearchActive ? searchQuery : undefined}
                     currentMatchIndex={currentMatchIndex}
@@ -1224,13 +1234,14 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label={copiedSection === 'input' ? 'Copied' : 'Copy'}
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.input), 'input')
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
+                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'input' ? (
                               <Check className='size-[10px] text-[var(--text-success)]' />
@@ -1246,13 +1257,14 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label='Search'
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
+                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='size-[10px]' />
                           </Button>
@@ -1282,7 +1294,7 @@ function PreviewEditorContent({
                     code={formatValueAsJson(executionData.output)}
                     language='json'
                     className={cn(
-                      '!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]',
+                      'max-h-[300px] min-h-0 max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!',
                       executionData.status === 'error' && 'text-[var(--text-error)]'
                     )}
                     wrapText={wrapText}
@@ -1296,13 +1308,14 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label={copiedSection === 'output' ? 'Copied' : 'Copy'}
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.output), 'output')
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
+                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'output' ? (
                               <Check className='size-[10px] text-[var(--text-success)]' />
@@ -1318,13 +1331,14 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label='Search'
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
+                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='size-[10px]' />
                           </Button>
@@ -1360,7 +1374,7 @@ function PreviewEditorContent({
                       </div>
                     ) : resolvedChildWorkflowState ? (
                       <>
-                        <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
+                        <div className='[&_.react-flow__handle]:hidden! size-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                           <PreviewWorkflow
                             workflowState={resolvedChildWorkflowState}
                             height={160}
@@ -1374,6 +1388,11 @@ function PreviewEditorContent({
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button
+                              aria-label={
+                                isExecutionMode && onDrillDown
+                                  ? 'Expand workflow'
+                                  : 'Open in new tab'
+                              }
                               type='button'
                               variant='ghost'
                               onClick={handleExpandChildWorkflow}
@@ -1424,6 +1443,10 @@ function PreviewEditorContent({
                         config={subBlockConfig}
                         isPreview={true}
                         subBlockValues={subBlockValues}
+                        dependencyContext={{
+                          ...subBlockValues,
+                          __canonicalModes: canonicalModeOverrides,
+                        }}
                         disabled={true}
                       />
                       {index < visibleSubBlocks.length - 1 && (
@@ -1472,7 +1495,7 @@ function PreviewEditorContent({
       {isSearchActive && (
         <div
           role='presentation'
-          className='absolute top-10 right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
+          className='absolute top-10 right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-xs'
           onClick={(e) => e.stopPropagation()}
         >
           <Input
@@ -1493,7 +1516,7 @@ function PreviewEditorContent({
           </span>
           <Button
             variant='ghost'
-            className='!p-1'
+            iconPadding='sm'
             onClick={goToPreviousMatch}
             disabled={matchCount === 0}
             aria-label='Previous match'
@@ -1502,14 +1525,14 @@ function PreviewEditorContent({
           </Button>
           <Button
             variant='ghost'
-            className='!p-1'
+            iconPadding='sm'
             onClick={goToNextMatch}
             disabled={matchCount === 0}
             aria-label='Next match'
           >
             <ArrowDown className='size-[12px]' />
           </Button>
-          <Button variant='ghost' className='!p-1' onClick={closeSearch} aria-label='Close search'>
+          <Button variant='ghost' iconPadding='sm' onClick={closeSearch} aria-label='Close search'>
             <X className='size-[12px]' />
           </Button>
         </div>

@@ -30,7 +30,7 @@ export function Text({ blockId, subBlockId, content, className }: TextProps) {
     return (
       <div
         id={`${blockId}-${subBlockId}`}
-        className={`rounded-md border bg-[var(--surface-2)] p-4 shadow-sm ${className || ''}`}
+        className={`rounded-md border bg-[var(--surface-2)] p-4 shadow-xs ${className || ''}`}
       >
         <div
           className='max-w-none break-words text-[var(--text-secondary)] text-sm [&_a]:text-[var(--brand-secondary)] [&_a]:underline [&_a]:underline-offset-2 [&_a]:hover-hover:brightness-110 [&_code]:rounded [&_code]:bg-[var(--surface-5)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[var(--text-tertiary)] [&_code]:text-xs [&_strong]:font-medium [&_strong]:text-[var(--text-primary)] [&_ul]:ml-5 [&_ul]:list-disc [&_ul]:marker:text-[var(--text-muted)]'
@@ -43,7 +43,7 @@ export function Text({ blockId, subBlockId, content, className }: TextProps) {
   return (
     <div
       id={`${blockId}-${subBlockId}`}
-      className={`whitespace-pre-wrap break-words rounded-md border bg-[var(--surface-2)] p-4 text-[var(--text-secondary)] text-sm shadow-sm ${className || ''}`}
+      className={`whitespace-pre-wrap break-words rounded-md border bg-[var(--surface-2)] p-4 text-[var(--text-secondary)] text-sm shadow-xs ${className || ''}`}
     >
       {content}
     </div>

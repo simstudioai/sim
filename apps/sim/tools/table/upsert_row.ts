@@ -1,5 +1,7 @@
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableRowInsertParams, TableUpsertResponse } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -17,12 +19,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     data: {
       type: 'object',
       required: true,
@@ -62,14 +59,11 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        row: data.row,
-        operation: data.operation,
-        message: data.message || 'Row upserted successfully',
-      },
-    }
+    return tableSuccess({
+      row: data.row,
+      operation: data.operation,
+      message: data.message || 'Row upserted successfully',
+    })
   },
 
   outputs: {
