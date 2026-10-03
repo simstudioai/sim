@@ -1,13 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { generateShortId } from '@sim/utils/id'
-import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   isSimRuleEventType,
   SIM_RULE_COOLDOWN_HOURS,
   SIM_TRIGGER_PROVIDER,
 } from '@/lib/workspace-events/constants'
 import {
+  buildAgentToolErrorEventPayload,
   buildDeployEventPayload,
   buildExecutionEventPayload,
   buildUndeployEventPayload,
@@ -23,6 +24,7 @@ import type {
   SimEventPayload,
   SimSubscription,
   SimSubscriptionConfig,
+  SimToolError,
 } from '@/lib/workspace-events/types'
 
 const logger = createLogger('WorkspaceEventEmitter')
@@ -77,6 +79,33 @@ function matchesWorkflowScope(config: SimSubscriptionConfig, sourceWorkflowId: s
   return config.workflowIds.includes(sourceWorkflowId)
 }
 
+/** Collects canonical failed tool spans belonging directly to Agent blocks. */
+function collectAgentToolErrors(spans: TraceSpan[]): SimToolError[] {
+  const toolErrors: SimToolError[] = []
+
+  const visit = (span: TraceSpan): void => {
+    if (span.type === 'agent') {
+      for (const child of span.children ?? []) {
+        if (child.type !== 'tool' || child.status !== 'error' || !child.errorMessage) continue
+        toolErrors.push({
+          agentBlockId: span.blockId ?? span.id,
+          agentBlockName: span.name,
+          toolName: child.name,
+          toolCallId: child.toolCallId ?? null,
+          errorMessage: child.errorMessage,
+          durationMs: child.duration,
+          recovered: span.status === 'success',
+        })
+      }
+    }
+
+    for (const child of span.children ?? []) visit(child)
+  }
+
+  for (const span of spans) visit(span)
+  return toolErrors
+}
+
 /**
  * Emits workspace events for a completed workflow execution.
  *
@@ -96,6 +125,7 @@ export async function emitExecutionCompletedEvent(log: WorkflowExecutionLog): Pr
     if (subscriptions.length === 0) return
 
     const executionData = (log.executionData ?? {}) as Record<string, unknown>
+    const toolErrors = collectAgentToolErrors(log.executionData.traceSpans ?? [])
     const context: ExecutionEventContext = {
       workflowId: log.workflowId,
       executionId: log.executionId,
@@ -116,6 +146,21 @@ export async function emitExecutionCompletedEvent(log: WorkflowExecutionLog): Pr
 
       if (subscription.webhook.workflowId === log.workflowId) continue
       if (!matchesWorkflowScope(config, log.workflowId)) continue
+
+      if (config.eventType === 'agent_tool_error') {
+        for (const toolError of toolErrors) {
+          await dispatchSimEvent(
+            subscription,
+            buildAgentToolErrorEventPayload({
+              workflowId: log.workflowId,
+              workflowName: workflowContext.workflow.name,
+              runId: log.executionId,
+              toolError,
+            })
+          )
+        }
+        continue
+      }
 
       if (config.eventType === 'execution_success' && context.status !== 'success') continue
       if (config.eventType === 'execution_error' && context.status !== 'error') continue

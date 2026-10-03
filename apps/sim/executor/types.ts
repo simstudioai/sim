@@ -191,6 +191,8 @@ export interface BlockTokens {
 /** A single tool invocation recorded by an agent-type block. */
 export interface BlockToolCall {
   name: string
+  success?: boolean
+  status?: string
   duration?: number
   startTime?: string
   endTime?: string

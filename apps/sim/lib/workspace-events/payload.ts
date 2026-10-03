@@ -10,6 +10,7 @@ import type {
   ExecutionEventContext,
   SimEventPayload,
   SimRunSummary,
+  SimToolError,
 } from '@/lib/workspace-events/types'
 
 /**
@@ -46,7 +47,26 @@ function basePayload(params: {
     cost: null,
     finalOutput: null,
     triggeringRun: null,
+    toolError: null,
     version: null,
+  }
+}
+
+/** Payload for one failed Agent tool invocation discovered at run completion. */
+export function buildAgentToolErrorEventPayload(params: {
+  workflowId: string
+  workflowName: string
+  runId: string
+  toolError: SimToolError
+}): SimEventPayload {
+  return {
+    ...basePayload({
+      event: 'agent_tool_error',
+      workflowId: params.workflowId,
+      workflowName: params.workflowName,
+    }),
+    runId: params.runId,
+    toolError: params.toolError,
   }
 }
 
@@ -67,7 +87,9 @@ function summarizeRun(context: ExecutionEventContext): SimRunSummary {
  * the condition that fired, so it nests under `triggeringRun`.
  */
 export function buildExecutionEventPayload(params: {
-  event: Exclude<SimPlainEventType, 'workflow_deployed' | 'workflow_undeployed'> | SimRuleEventType
+  event:
+    | Exclude<SimPlainEventType, 'agent_tool_error' | 'workflow_deployed' | 'workflow_undeployed'>
+    | SimRuleEventType
   workflowName: string
   context: ExecutionEventContext
 }): SimEventPayload {
