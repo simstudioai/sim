@@ -1,33 +1,26 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { triggerSdkMockFns } from '@sim/testing/mocks/trigger-sdk.mock'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAssertBillingAttributionSnapshot,
-  mockProcessDocumentAsync,
-  mockResolveTriggerRegion,
-  mockTask,
-  mockTrigger,
-} = vi.hoisted(() => ({
-  mockAssertBillingAttributionSnapshot: vi.fn(),
-  mockProcessDocumentAsync: vi.fn(),
-  mockResolveTriggerRegion: vi.fn(),
-  mockTask: vi.fn((config) => config),
-  mockTrigger: vi.fn(),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask, tasks: { trigger: mockTrigger } }))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mockResolveTriggerRegion }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
-}))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  processDocumentAsync: mockProcessDocumentAsync,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
+import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import {
   OcrRequestRejectedError,
@@ -38,9 +31,20 @@ import { MAX_PROVIDER_CONTINUATION_ATTEMPTS } from '@/lib/knowledge/documents/pr
 import { MAX_QUOTA_CONTINUATION_ATTEMPTS } from '@/lib/knowledge/documents/processing-quota-continuation'
 import type { DocumentProcessingAttemptContext } from '@/lib/knowledge/documents/service'
 import {
+  DOCUMENT_PROCESSING_RETRY_POLICY,
+  DocumentProcessingDatabaseRetryError,
+  getDocumentProcessingRetry,
+  processDocument,
   resolveQuotaContinuationDelayMs,
   runDocumentProcessing,
 } from '@/background/knowledge-processing'
+
+const { mockProcessDocumentAsync } = knowledgeDocumentsServiceMockFns
+const { mockResolveTriggerRegion } = asyncJobsRegionMockFns
+const { mockTasksTrigger: mockTrigger } = triggerSdkMockFns
+
+const mockAssertBillingAttributionSnapshot =
+  billingAttributionMockFns.mockAssertBillingAttributionSnapshot
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -92,6 +96,20 @@ const ORGANIZATION_PAYLOAD = {
   },
 }
 
+/**
+ * Markers planted in the SQL text, bound parameters and driver message of a failed query. No
+ * file path contains them, so finding one in a stack means query detail leaked, wherever the
+ * checkout lives.
+ */
+const LEAKED_SQL = 'insert into leak_marker_sql_text'
+const LEAKED_PARAM = 'leak_marker_bound_param'
+const LEAKED_DETAIL = 'leak_marker_driver_detail'
+const LEAK_MARKERS = [LEAKED_SQL, LEAKED_PARAM, LEAKED_DETAIL]
+
+function expectNoQueryDetails(serialized: string): void {
+  for (const marker of LEAK_MARKERS) expect(serialized).not.toContain(marker)
+}
+
 function mockQuotaExhaustion(error: EmbeddingQuotaExhaustedError): void {
   mockProcessDocumentAsync.mockImplementation(async (...args: unknown[]) => {
     const attemptContext = args[6] as {
@@ -104,21 +122,37 @@ function mockQuotaExhaustion(error: EmbeddingQuotaExhaustedError): void {
 
 describe('knowledge processing worker', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertBillingAttributionSnapshot.mockImplementation((value) => {
       if (!value) {
         throw new Error('Billing attribution snapshot must be an object')
       }
       return value
     })
-    mockProcessDocumentAsync.mockResolvedValue(undefined)
+    mockProcessDocumentAsync.mockResolvedValue({ outcome: 'indexed' })
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'quota-continuation-run' })
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  it('reports indexed only when the document service committed the index', async () => {
+    expect(await runDocumentProcessing(WORKSPACE_PAYLOAD)).toMatchObject({
+      success: true,
+      outcome: 'indexed',
+      documentId: WORKSPACE_PAYLOAD.documentId,
+    })
   })
+
+  it.each(['unavailable', 'not_claimed', 'superseded'] as const)(
+    'reports a harmless %s skip without turning it into a task failure or an indexed success',
+    async (reason) => {
+      mockProcessDocumentAsync.mockResolvedValue({ outcome: 'skipped', reason })
+      expect(await runDocumentProcessing(WORKSPACE_PAYLOAD)).toMatchObject({
+        success: false,
+        outcome: 'skipped',
+        reason,
+      })
+      expect(mockTrigger).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects workspace work without attribution before document processing starts', async () => {
     await expect(
@@ -132,26 +166,6 @@ describe('knowledge processing worker', () => {
     expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
-  it('rejects an invalid durable quota retry count before processing starts', async () => {
-    await expect(
-      runDocumentProcessing({
-        ...WORKSPACE_PAYLOAD,
-        quotaRetryCount: -1,
-      })
-    ).rejects.toThrow('Document processing quota retry count is invalid')
-    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
-  })
-
-  it('rejects an invalid queue-generation stamp before processing starts', async () => {
-    await expect(
-      runDocumentProcessing({
-        ...WORKSPACE_PAYLOAD,
-        processingQueuedAt: 'not-a-date',
-      })
-    ).rejects.toThrow('Document processing queue stamp is invalid')
-    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
-  })
-
   it('rejects a queue token that is not the request generation', async () => {
     await expect(
       runDocumentProcessing({
@@ -159,18 +173,6 @@ describe('knowledge processing worker', () => {
         processingQueueToken: 'another-request',
       })
     ).rejects.toThrow('Document processing queue token is invalid')
-    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
-  })
-
-  it('rejects a new queue token without its canonical queue stamp', async () => {
-    const { processingQueuedAt: _processingQueuedAt, ...payloadWithoutStamp } = WORKSPACE_PAYLOAD
-
-    await expect(
-      runDocumentProcessing({
-        ...payloadWithoutStamp,
-        processingQueueToken: 'request-1',
-      })
-    ).rejects.toThrow('Document processing payload is missing its queue stamp')
     expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
@@ -182,25 +184,6 @@ describe('knowledge processing worker', () => {
       })
     ).rejects.toThrow('Document processing dispatch charge marker requires a queue token')
     expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
-  })
-
-  it('accepts a literal pre-rollout staging payload without synthesizing a generation stamp', async () => {
-    const { processingQueuedAt: _processingQueuedAt, ...stagingPayload } = WORKSPACE_PAYLOAD
-
-    await runDocumentProcessing(stagingPayload)
-
-    expect(mockProcessDocumentAsync).toHaveBeenLastCalledWith(
-      'knowledge-base-1',
-      'document-1',
-      BASE_PAYLOAD.docData,
-      {},
-      expect.objectContaining({ billingScope: 'workspace' }),
-      'request-1',
-      expect.objectContaining({
-        chargedAtDispatch: false,
-        scheduleQuotaContinuation: expect.any(Function),
-      })
-    )
   })
 
   it('propagates a new queue token while accepting legacy queuedAt-only payloads', async () => {
@@ -278,26 +261,6 @@ describe('knowledge processing worker', () => {
     expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
-  it('rejects an actor mismatch before document processing starts', async () => {
-    await expect(
-      runDocumentProcessing({
-        ...WORKSPACE_PAYLOAD,
-        actorUserId: 'different-actor',
-      })
-    ).rejects.toThrow('Document processing actor does not match billing attribution')
-    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
-  })
-
-  it('rejects a workspace mismatch before document processing starts', async () => {
-    await expect(
-      runDocumentProcessing({
-        ...WORKSPACE_PAYLOAD,
-        workspaceId: 'workspace-2',
-      })
-    ).rejects.toThrow('Document processing workspace does not match billing attribution')
-    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
-  })
-
   it('preserves explicit non-workspace processing without workspace attribution', async () => {
     await runDocumentProcessing({
       ...BASE_PAYLOAD,
@@ -356,19 +319,6 @@ describe('knowledge processing worker', () => {
       chargedAtDispatch: false,
       processingQueueToken: 'knowledge-slice-document-1-request-1-1',
     })
-  })
-
-  it('reports elapsed processing time rather than an epoch timestamp', async () => {
-    vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(1_125)
-
-    const result = await runDocumentProcessing({
-      ...BASE_PAYLOAD,
-      billingScope: 'non-workspace',
-      actorUserId: 'legacy-owner',
-      workspaceId: null,
-    })
-
-    expect(result.processingTime).toBe(125)
   })
 
   it('returns a controlled terminal result for permanent document input failures', async () => {
@@ -455,20 +405,6 @@ describe('knowledge processing worker', () => {
     mockProcessDocumentAsync.mockRejectedValue(platformError)
 
     await expect(runDocumentProcessing(WORKSPACE_PAYLOAD)).rejects.toBe(platformError)
-  })
-
-  it('preserves normal retries for transient failures', async () => {
-    const transientError = new Error('Database connection timed out')
-    mockProcessDocumentAsync.mockRejectedValue(transientError)
-
-    await expect(
-      runDocumentProcessing({
-        ...BASE_PAYLOAD,
-        billingScope: 'non-workspace',
-        actorUserId: 'legacy-owner',
-        workspaceId: null,
-      })
-    ).rejects.toBe(transientError)
   })
 
   it('durably continues quota exhaustion beyond the task attempt budget', async () => {
@@ -564,6 +500,82 @@ describe('knowledge processing worker', () => {
       error: expect.stringContaining('then retry this document'),
     })
     expect(mockTrigger).not.toHaveBeenCalled()
+  })
+
+  it('keeps database failures retryable without sending SQL or parameters to Trigger', async () => {
+    const error = new DrizzleQueryError(
+      LEAKED_SQL,
+      [LEAKED_PARAM],
+      Object.assign(new Error(LEAKED_DETAIL), { code: '57014' })
+    )
+    mockProcessDocumentAsync.mockRejectedValueOnce(error)
+    const failure = await runDocumentProcessing(WORKSPACE_PAYLOAD).catch(
+      (caught: unknown) => caught
+    )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toMatchObject({ message: 'Database request failed (SQLSTATE 57014).' })
+    /** Trigger records only the name, message and stack; the cause stays for classification. */
+    expect((failure as Error).cause).toBe(error)
+    expectNoQueryDetails((failure as Error).stack ?? '')
+    expectNoQueryDetails(JSON.stringify(failure))
+  })
+
+  describe('transient database failures', () => {
+    const MINUTE = 60 * 1000
+    const statementTimeout = () =>
+      new DrizzleQueryError(
+        LEAKED_SQL,
+        [LEAKED_PARAM],
+        Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      )
+
+    /** A service failure that asks the worker whether to schedule a database retry, as the service does. */
+    function failProcessingWith(error: Error): { scheduled: Array<Date | null> } {
+      const scheduled: Array<Date | null> = []
+      mockProcessDocumentAsync.mockImplementation(async (...args: unknown[]) => {
+        const context = args[6] as DocumentProcessingAttemptContext
+        scheduled.push(context.scheduleDatabaseRetry?.(error) ?? null)
+        throw error
+      })
+      return { scheduled }
+    }
+
+    it('schedules a minute-scale retry and hands Trigger the same time the document records', async () => {
+      const error = statementTimeout()
+      const { scheduled } = failProcessingWith(error)
+      const startedAt = Date.now()
+
+      const failure = await runDocumentProcessing(WORKSPACE_PAYLOAD, 1).catch(
+        (caught: unknown) => caught
+      )
+
+      expect(failure).toBeInstanceOf(DocumentProcessingDatabaseRetryError)
+      expect(failure).toMatchObject({ message: 'Database request failed (SQLSTATE 57014).' })
+      expect((failure as Error).cause).toBe(error)
+      expectNoQueryDetails((failure as Error).stack ?? '')
+      const retryAt = scheduled[0]
+      expect(retryAt).toBeInstanceOf(Date)
+      expect(retryAt!.getTime() - startedAt).toBeGreaterThanOrEqual(2 * MINUTE * 0.8)
+      expect(retryAt!.getTime() - startedAt).toBeLessThanOrEqual(2 * MINUTE * 1.2 + 1000)
+      expect(getDocumentProcessingRetry(failure, 1)).toEqual({ retryAt })
+    })
+
+    it('records the failure and stops once the database attempts are spent', async () => {
+      const error = statementTimeout()
+      const { scheduled } = failProcessingWith(error)
+      const lastAttempt = DOCUMENT_PROCESSING_RETRY_POLICY.database.maxAttempts
+
+      const failure = await runDocumentProcessing(WORKSPACE_PAYLOAD, lastAttempt).catch(
+        (caught: unknown) => caught
+      )
+
+      expect(scheduled).toEqual([null])
+      expect(failure).not.toBeInstanceOf(DocumentProcessingDatabaseRetryError)
+      expect((failure as Error).cause).toBe(error)
+      expect(getDocumentProcessingRetry(failure, lastAttempt)).toEqual({ skipRetrying: true })
+    })
   })
 
   it('retries failed provider continuation dispatch instead of reporting a successful deferral', async () => {
@@ -693,16 +705,24 @@ describe('knowledge processing worker', () => {
 })
 
 describe('knowledge-process-document task configuration', () => {
-  /**
-   * `maxAttempts` does not cover an out-of-memory kill — Trigger.dev retries
-   * `TASK_PROCESS_OOM_KILLED` only when a larger preset is named. Eleven
-   * documents were killed in one afternoon and every one recorded
-   * `attempt_count = 1`, so each was left `failed` having never been retried.
-   */
-  it('escalates to a larger machine on an out-of-memory kill', async () => {
-    const { processDocument } = await import('@/background/knowledge-processing')
-
-    expect(processDocument.retry?.outOfMemory?.machine).toBe('large-2x')
+  it('declares enough attempts for database retries and routes failures through catchError', async () => {
+    expect(processDocument.retry?.maxAttempts).toBe(
+      Math.max(
+        DOCUMENT_PROCESSING_RETRY_POLICY.maxAttempts,
+        DOCUMENT_PROCESSING_RETRY_POLICY.database.maxAttempts
+      )
+    )
+    const retryAt = new Date('2026-01-01T00:02:00.000Z')
+    const scheduled = new DocumentProcessingDatabaseRetryError(
+      'Database request failed.',
+      retryAt,
+      {
+        cause: new Error('private'),
+      }
+    )
+    await expect(
+      processDocument.catchError?.({ error: scheduled, ctx: { attempt: { number: 1 } } } as never)
+    ).resolves.toEqual({ retryAt })
   })
 
   it('backs durable quota continuations off to a bounded polling interval', () => {

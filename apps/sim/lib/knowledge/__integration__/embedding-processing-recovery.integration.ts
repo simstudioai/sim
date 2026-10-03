@@ -63,7 +63,7 @@ describe('embedding progress survives a processing slice', () => {
       .where(eq(outboxEvent.eventType, EMBEDDING_CHECKPOINT_CLEANUP_EVENT))
       .limit(5000))
       priorCheckpointIds.add(row.id)
-    await seedKnowledgeAclFixture(ids)
+    await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
   })
   afterAll(async () => {
     vi.restoreAllMocks()
@@ -91,7 +91,7 @@ describe('embedding progress survives a processing slice', () => {
     const file = await addDocument(
       ids.knowledgeBaseId,
       ids.connectorId,
-      'confluence',
+      'google_drive',
       {
         externalId: 'large-text',
         title: 'Synthetic operations.txt',
@@ -174,7 +174,14 @@ describe('embedding progress survives a processing slice', () => {
       })
     })
     expect(
-      await processDocumentsWithQueue([file], ids.knowledgeBaseId, {}, requestId, billing)
+      await processDocumentsWithQueue(
+        [file],
+        ids.knowledgeBaseId,
+        {},
+        requestId,
+        billing,
+        'interactive'
+      )
     ).toMatchObject({ accepted: 1, failed: 0 })
     const [deferred] = await db.select().from(document).where(eq(document.id, file.documentId))
     expect(deferred).toMatchObject({

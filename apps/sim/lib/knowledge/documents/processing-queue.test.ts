@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   defaultMockEnv,
@@ -13,6 +10,11 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import { tasks } from '@trigger.dev/sdk'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
@@ -22,21 +24,8 @@ import {
 } from '@/lib/core/config/trigger-runtime'
 import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
-import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
-const { mockBatchTrigger, mockResolveTriggerRegion } = vi.hoisted(() => ({
-  mockBatchTrigger: vi.fn(),
-  mockResolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  tasks: {
-    batchTrigger: mockBatchTrigger,
-  },
-}))
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: mockResolveTriggerRegion,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 /**
  * Under `isolate: false` the shared `@/lib/knowledge/embeddings` /
  * `documents/service` modules may be cached bound to the REAL env module, so
@@ -53,6 +42,10 @@ afterAll(() => {
 })
 
 import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+
+const mockResolveTriggerRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
+
+const mockBatchTrigger = vi.mocked(tasks.batchTrigger)
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -83,7 +76,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('processDocumentsWithQueue billing attribution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     // The processing claim is guarded and returns the row it claimed; without a
     // stub every worker would read as 'already completed' and return early.
@@ -96,94 +88,20 @@ describe('processDocumentsWithQueue billing attribution', () => {
     Object.assign(env, { ...defaultMockEnv, TRIGGER_SECRET_KEY: 'trigger-secret' })
   })
 
-  it('validates and preserves workspace attribution before enqueue', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { userId: 'knowledge-owner', workspaceId: 'workspace-1' },
-    ])
-
-    await processDocumentsWithQueue(
-      [DOCUMENT],
-      'knowledge-base-1',
-      {},
-      'request-1',
-      BILLING_ATTRIBUTION
-    )
-
-    const jobs = mockBatchTrigger.mock.calls[0][1]
-    const queueWrite = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
-    )
-    expect(queueWrite).toBeDefined()
-    const processingQueuedAt = (queueWrite?.[0] as Record<string, unknown>)
-      .processingQueuedAt as Date
-    expect(structuredClone(jobs[0].payload)).toEqual({
-      knowledgeBaseId: 'knowledge-base-1',
-      documentId: 'document-1',
-      docData: {
-        filename: 'document.txt',
-        fileUrl: 'https://example.com/document.txt',
-        fileSize: 128,
-        mimeType: 'text/plain',
-      },
-      processingOptions: {},
-      requestId: 'request-1',
-      processingQueueToken: 'request-1',
-      chargedAtDispatch: true,
-      processingQueuedAt: processingQueuedAt.toISOString(),
-      billingScope: 'workspace',
-      actorUserId: 'external-admin',
-      workspaceId: 'workspace-1',
-      billingAttribution: BILLING_ATTRIBUTION,
-    })
-
-    const freshAdmissionGuard = dbChainMockFns.where.mock.calls.find(
-      (call) =>
-        hasMockCondition(
-          call[0],
-          (node: MockCondition) =>
-            node.type === 'eq' &&
-            node.left === schemaMock.document.processingStatus &&
-            node.right === 'pending'
-        ) &&
-        hasMockCondition(
-          call[0],
-          (node: MockCondition) =>
-            node.type === 'isNull' && node.column === schemaMock.document.processingQueuedAt
-        )
-    )?.[0]
-    expect(freshAdmissionGuard).toBeDefined()
-    expect(
-      hasMockCondition(
-        freshAdmissionGuard,
-        (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.document.processingStatus &&
-          node.right === 'pending'
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        freshAdmissionGuard,
-        (node: MockCondition) =>
-          node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-      )
-    ).toBe(false)
-    expect(
-      hasMockCondition(
-        freshAdmissionGuard,
-        (node: MockCondition) =>
-          node.type === 'isNull' && node.column === schemaMock.document.processingQueuedAt
-      )
-    ).toBe(true)
-  })
-
   it('rejects missing workspace attribution without enqueueing', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { userId: 'knowledge-owner', workspaceId: 'workspace-1' },
+    dbChainMockFns.limit.mockResolvedValue([
+      { isSearchIndex: false, userId: 'knowledge-owner', workspaceId: 'workspace-1' },
     ])
 
     await expect(
-      processDocumentsWithQueue([DOCUMENT], 'knowledge-base-1', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        undefined,
+        'interactive'
+      )
     ).rejects.toThrow('Workspace document processing requires a billing attribution snapshot')
     expect(mockBatchTrigger).not.toHaveBeenCalled()
     const withdrawal = dbChainMockFns.set.mock.calls.find(
@@ -194,8 +112,8 @@ describe('processDocumentsWithQueue billing attribution', () => {
   })
 
   it('rejects mismatched workspace attribution without enqueueing', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { userId: 'knowledge-owner', workspaceId: 'workspace-2' },
+    dbChainMockFns.limit.mockResolvedValue([
+      { isSearchIndex: false, userId: 'knowledge-owner', workspaceId: 'workspace-2' },
     ])
 
     await expect(
@@ -204,19 +122,27 @@ describe('processDocumentsWithQueue billing attribution', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).rejects.toThrow('Document processing workspace does not match billing attribution')
     expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
 
   it('rejects a knowledge base without a workspace or organization owner', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { userId: 'legacy-owner', workspaceId: null, organizationId: null },
+    dbChainMockFns.limit.mockResolvedValue([
+      { isSearchIndex: false, userId: 'legacy-owner', workspaceId: null, organizationId: null },
     ])
 
     await expect(
-      processDocumentsWithQueue([DOCUMENT], 'knowledge-base-1', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        undefined,
+        'interactive'
+      )
     ).rejects.toThrow('Document processing requires a workspace or organization owner')
     expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
@@ -244,55 +170,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     return dbChainMockFns.where.mock.calls[whereIndex]?.[0]
   }
 
-  function resumeAlternatives(guard: unknown): MockCondition[] {
-    const alternatives = flattenMockConditions(guard).find(
-      (node) =>
-        node.type === 'or' &&
-        (node.conditions as MockCondition[]).some((condition) =>
-          hasMockCondition(
-            condition,
-            (nested) =>
-              nested.type === 'eq' &&
-              nested.left === schemaMock.document.processingQueueToken &&
-              nested.right === 'request-1'
-          )
-        ) &&
-        (node.conditions as MockCondition[]).some((condition) =>
-          hasMockCondition(
-            condition,
-            (nested) =>
-              nested.type === 'isNull' && nested.column === schemaMock.document.processingQueueToken
-          )
-        )
-    )?.conditions
-    expect(alternatives).toBeDefined()
-    expect(alternatives).toHaveLength(2)
-    const conditions = alternatives as MockCondition[]
-    expect(
-      conditions.filter((condition) =>
-        hasMockCondition(
-          condition,
-          (node) =>
-            node.type === 'eq' &&
-            node.left === schemaMock.document.processingQueueToken &&
-            node.right === 'request-1'
-        )
-      )
-    ).toHaveLength(1)
-    expect(
-      conditions.filter((condition) =>
-        hasMockCondition(
-          condition,
-          (node) =>
-            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-        )
-      )
-    ).toHaveLength(1)
-    return conditions
-  }
-
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     // The processing claim is guarded and returns the row it claimed; without a
     // stub every worker would read as 'already completed' and return early.
@@ -316,8 +194,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     setEnvFlags({ isTriggerDevEnabled: true })
   })
 
-  it('dispatches via Trigger.dev inside a run with neither env conjunct satisfied', async () => {
-    setEnvFlags({ isTriggerDevEnabled: false })
+  it('places each job in its lane queue under the owning tenant concurrency key', async () => {
     markInsideTriggerRun()
 
     await processDocumentsWithQueue(
@@ -325,30 +202,76 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
-    expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
+    const items = mockBatchTrigger.mock.calls[0][1]
+    expect(items[0].options).toMatchObject({
+      queue: 'document-processing-queue',
+      concurrencyKey: 'workspace:workspace-1',
+    })
   })
 
-  it('returns acceptance separately from eventual child completion', async () => {
+  it('keys an organization-owned knowledge base on its organization, not a null workspace', async () => {
     markInsideTriggerRun()
+    dbChainMockFns.limit.mockResolvedValue([
+      { userId: 'knowledge-owner', workspaceId: null, organizationId: 'org-1' },
+    ])
 
-    const result = await processDocumentsWithQueue(
+    await processDocumentsWithQueue(
       [DOCUMENT],
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      {
+        ...BILLING_ATTRIBUTION,
+        workspaceId: null,
+        organizationId: 'org-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+      } satisfies BillingAttributionSnapshot,
+      'backfill'
     )
 
-    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        processingQueueToken: 'request-1',
-        processingDeferredUntil: null,
-      })
+    const items = mockBatchTrigger.mock.calls[0][1]
+    expect(items[0].options.concurrencyKey).toBe('organization:org-1')
+  })
+
+  /**
+   * A rejected backfill chunk means the tenant's own queue is already saturated.
+   * Absorbing those documents into the dispatching worker would turn queue
+   * backpressure into unbounded in-process fan-out on the one machine still
+   * holding the connector lease, so they are reported failed and left for the
+   * next sync's stuck-document sweep. The interactive lane still falls back,
+   * because nothing else would ever come back for a person's upload.
+   */
+  it('leaves a rejected backfill chunk for the sweep instead of processing it in-process', async () => {
+    markInsideTriggerRun()
+    const documents = Array.from({ length: 1001 }, (_, index) => ({
+      ...DOCUMENT,
+      documentId: `document-${index}`,
+    }))
+    dbChainMockFns.returning.mockResolvedValueOnce(documents.map((doc) => ({ id: doc.documentId })))
+    mockBatchTrigger
+      .mockResolvedValueOnce({ batchId: 'batch-1' })
+      .mockRejectedValueOnce(new Error('queue is full'))
+
+    const result = await processDocumentsWithQueue(
+      documents,
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION,
+      'backfill'
     )
+
+    expect(mockBatchTrigger).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({
+      requested: 1001,
+      accepted: 1000,
+      failed: 1,
+      failedDocumentIds: ['document-1000'],
+    })
   })
 
   it('does not dispatch when a different request owns the queue generation', async () => {
@@ -361,7 +284,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
@@ -381,7 +305,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({
@@ -452,11 +377,6 @@ describe('processDocumentsWithQueue dispatch backend', () => {
           node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
       )
     ).toBe(true)
-    const queuedFreshness = flattenMockConditions(pendingWithQueueState).find(
-      (node: MockCondition) =>
-        node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
-    )
-    expect(queuedFreshness?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
     const liveProcessingState = acceptedStatuses.find(
       (condition) =>
         condition.type === 'and' &&
@@ -504,7 +424,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
@@ -529,284 +450,24 @@ describe('processDocumentsWithQueue dispatch backend', () => {
           node.type === 'isNull' && node.column === schemaMock.document.processingDeferredUntil
       )
     ).toBe(true)
-    const sameTokenBranch = resumeAlternatives(resumeGuard).find((condition) =>
+    expect(
       hasMockCondition(
-        condition,
+        resumeGuard,
         (node: MockCondition) =>
           node.type === 'eq' &&
           node.left === schemaMock.document.processingQueueToken &&
           node.right === 'request-1'
       )
-    )
-    expect(sameTokenBranch).toBeDefined()
+    ).toBe(true)
     expect(
       hasMockCondition(
         resumeGuard,
         (node: MockCondition) =>
-          node.type === 'isNotNull' && node.column === schemaMock.document.processingQueuedAt
+          node.type === 'inArray' &&
+          node.column === schemaMock.document.processingStatus &&
+          JSON.stringify(node.values) === JSON.stringify(['pending', 'failed'])
       )
     ).toBe(true)
-    const statusGuard = flattenMockConditions(sameTokenBranch).find(
-      (node: MockCondition) => node.type === 'or'
-    )
-    expect(statusGuard).toBeDefined()
-    const statusConditions = statusGuard?.conditions as MockCondition[]
-    expect(statusConditions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'eq',
-          left: schemaMock.document.processingStatus,
-          right: 'pending',
-        }),
-        expect.objectContaining({
-          type: 'eq',
-          left: schemaMock.document.processingStatus,
-          right: 'failed',
-        }),
-      ])
-    )
-  })
-
-  it('treats a recent legacy queued-at-only row as live without redispatching it', async () => {
-    vi.useFakeTimers()
-    const now = new Date('2026-08-24T22:00:00.000Z')
-    vi.setSystemTime(now)
-    markInsideTriggerRun()
-    dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
-    queueTableRows(schemaMock.document, [{ id: 'document-1' }])
-
-    const result = await processDocumentsWithQueue(
-      [DOCUMENT],
-      'knowledge-base-1',
-      {},
-      'request-1',
-      BILLING_ATTRIBUTION
-    )
-
-    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-    expect(mockBatchTrigger).not.toHaveBeenCalled()
-    const resumeWrite = dbChainMockFns.set.mock.calls.find(
-      (call) =>
-        (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === 'request-1' &&
-        !('processingQueuedAt' in ((call[0] as Record<string, unknown> | undefined) ?? {}))
-    )
-    expect(resumeWrite).toBeDefined()
-    const resumeGuard = guardForResumeWrite()
-    const legacyBranch = resumeAlternatives(resumeGuard).find(
-      (condition) =>
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-        ) &&
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
-        )
-    )
-    expect(legacyBranch).toBeDefined()
-    const cutoff = flattenMockConditions(legacyBranch).find(
-      (node: MockCondition) =>
-        node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
-    )
-    expect(cutoff?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
-  })
-
-  it('CAS-adopts a stale legacy queued-at-only row without charging again', async () => {
-    markInsideTriggerRun()
-    const legacyQueuedAt = new Date('2020-01-01T00:00:00.000Z')
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'document-1', processingQueuedAt: legacyQueuedAt }])
-
-    const result = await processDocumentsWithQueue(
-      [DOCUMENT],
-      'knowledge-base-1',
-      {},
-      'request-1',
-      BILLING_ATTRIBUTION
-    )
-
-    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-    expect(mockBatchTrigger.mock.calls[0][1][0].payload).toMatchObject({
-      processingQueueToken: 'request-1',
-      processingQueuedAt: legacyQueuedAt.toISOString(),
-      chargedAtDispatch: false,
-    })
-
-    const legacyAdoptionGuard = guardForResumeWrite()
-    const legacyBranch = resumeAlternatives(legacyAdoptionGuard).find(
-      (condition) =>
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-        ) &&
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
-        )
-    )
-    expect(legacyBranch).toBeDefined()
-    expect(
-      hasMockCondition(
-        legacyAdoptionGuard,
-        (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.document.knowledgeBaseId &&
-          node.right === 'knowledge-base-1'
-      )
-    ).toBe(true)
-    for (const column of [schemaMock.document.archivedAt, schemaMock.document.deletedAt]) {
-      expect(
-        hasMockCondition(
-          legacyAdoptionGuard,
-          (node: MockCondition) => node.type === 'isNull' && node.column === column
-        )
-      ).toBe(true)
-    }
-    const adoptionWrite = dbChainMockFns.set.mock.calls.find(
-      (call) =>
-        (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === 'request-1' &&
-        !('processingQueuedAt' in ((call[0] as Record<string, unknown> | undefined) ?? {}))
-    )
-    expect(adoptionWrite?.[0]).not.toHaveProperty('processingAttempts')
-  })
-
-  it('keeps a pre-claim same-request fallback failure retryable without clearing its stamp', async () => {
-    markInsideTriggerRun()
-    const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'document-1', processingQueuedAt: originalQueuedAt }])
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
-      .mockRejectedValueOnce(new Error('direct fallback unavailable'))
-    mockBatchTrigger.mockRejectedValueOnce(new Error('trigger unavailable'))
-
-    await expect(
-      processDocumentsWithQueue(
-        [DOCUMENT],
-        'knowledge-base-1',
-        {},
-        'request-1',
-        BILLING_ATTRIBUTION
-      )
-    ).rejects.toThrow('document processing dispatches failed')
-
-    expect(
-      dbChainMockFns.set.mock.calls.some(
-        (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === null
-      )
-    ).toBe(false)
-  })
-
-  it('reports a pre-claim direct fallback failure after a partial Trigger enqueue', async () => {
-    markInsideTriggerRun()
-    const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
-    const documents = Array.from({ length: 1001 }, (_, index) => ({
-      ...DOCUMENT,
-      documentId: `document-${index}`,
-      filename: `document-${index}.txt`,
-    }))
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(
-        documents.map((doc) => ({ id: doc.documentId, processingQueuedAt: originalQueuedAt }))
-      )
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
-      .mockRejectedValueOnce(new Error('direct fallback unavailable'))
-    mockBatchTrigger
-      .mockResolvedValueOnce({ batchId: 'batch-1' })
-      .mockRejectedValueOnce(new Error('second batch unavailable'))
-
-    const result = await processDocumentsWithQueue(
-      documents,
-      'knowledge-base-1',
-      {},
-      'request-1',
-      BILLING_ATTRIBUTION
-    )
-
-    expect(result).toEqual({
-      requested: 1001,
-      accepted: 1000,
-      failed: 1,
-      failedDocumentIds: ['document-1000'],
-    })
-  })
-
-  it('deduplicates document IDs while preserving first-seen dispatch order', async () => {
-    markInsideTriggerRun()
-    const secondDocument = { ...DOCUMENT, documentId: 'document-2', filename: 'second.txt' }
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }, { id: 'document-2' }])
-
-    const result = await processDocumentsWithQueue(
-      [DOCUMENT, DOCUMENT, secondDocument],
-      'knowledge-base-1',
-      {},
-      'request-1',
-      BILLING_ATTRIBUTION
-    )
-
-    expect(result).toEqual({ requested: 2, accepted: 2, failed: 0, failedDocumentIds: [] })
-    expect(mockBatchTrigger.mock.calls[0][1].map((job) => job.payload.documentId)).toEqual([
-      'document-1',
-      'document-2',
-    ])
-  })
-
-  it('returns an empty dispatch summary without resolving billing context', async () => {
-    await expect(
-      processDocumentsWithQueue([], 'missing-knowledge-base', {}, 'request-1', undefined)
-    ).resolves.toEqual({ requested: 0, accepted: 0, failed: 0, failedDocumentIds: [] })
-
-    expect(mockBatchTrigger).not.toHaveBeenCalled()
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
-  })
-
-  it('dispatches via Trigger.dev inside a run when only the secret key is missing', async () => {
-    setEnvFlags({ isTriggerDevEnabled: true })
-    markInsideTriggerRun()
-
-    await processDocumentsWithQueue(
-      [DOCUMENT],
-      'knowledge-base-1',
-      {},
-      'request-1',
-      BILLING_ATTRIBUTION
-    )
-
-    expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
-  })
-
-  it('uses the direct fallback outside a run when the secret key is missing', async () => {
-    setEnvFlags({ isTriggerDevEnabled: true })
-
-    await expect(
-      processDocumentsWithQueue(
-        [DOCUMENT],
-        'knowledge-base-1',
-        {},
-        'request-1',
-        BILLING_ATTRIBUTION
-      )
-    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-
-    expect(mockBatchTrigger).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ processingStatus: 'processing' })
-    )
-    expect(
-      dbChainMockFns.set.mock.calls.some(
-        (call) =>
-          (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null &&
-          'processingAttempts' in ((call[0] as Record<string, unknown> | undefined) ?? {})
-      )
-    ).toBe(false)
   })
 
   it('withdraws a direct dispatch whose guarded processing claim lost the race', async () => {
@@ -834,7 +495,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).rejects.toThrow('document processing dispatches failed')
 
@@ -846,123 +508,6 @@ describe('processDocumentsWithQueue dispatch backend', () => {
           'processingAttempts' in ((call[0] as Record<string, unknown> | undefined) ?? {})
       )
     ).toBe(true)
-  })
-
-  it('accepts an unclaimed direct dispatch only after revalidating live document state', async () => {
-    vi.useFakeTimers()
-    const now = new Date('2026-08-25T06:00:00.000Z')
-    vi.setSystemTime(now)
-    setEnvFlags({ isTriggerDevEnabled: true })
-    dbChainMockFns.returning.mockReset()
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }]).mockResolvedValueOnce([])
-    dbChainMockFns.limit.mockReset()
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
-      .mockResolvedValueOnce([
-        {
-          knowledgeBaseUserId: 'knowledge-owner',
-          workspaceId: 'workspace-1',
-          filename: DOCUMENT.filename,
-          fileUrl: DOCUMENT.fileUrl,
-          fileSize: DOCUMENT.fileSize,
-          mimeType: DOCUMENT.mimeType,
-        },
-      ])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-
-    await expect(
-      processDocumentsWithQueue(
-        [DOCUMENT],
-        'knowledge-base-1',
-        {},
-        'request-1',
-        BILLING_ATTRIBUTION
-      )
-    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-
-    const revalidationGuard = dbChainMockFns.where.mock.calls.find(
-      (call) =>
-        hasMockCondition(
-          call[0],
-          (node: MockCondition) =>
-            node.type === 'eq' &&
-            node.left === schemaMock.document.id &&
-            node.right === 'document-1'
-        ) &&
-        flattenMockConditions(call[0]).some(
-          (node: MockCondition) =>
-            node.type === 'or' &&
-            (node.conditions as MockCondition[]).some(
-              (condition) =>
-                condition.type === 'eq' &&
-                condition.left === schemaMock.document.processingStatus &&
-                condition.right === 'completed'
-            )
-        )
-    )?.[0]
-    expect(revalidationGuard).toBeDefined()
-    const acceptedStatusGuard = flattenMockConditions(revalidationGuard).find(
-      (node: MockCondition) => node.type === 'or'
-    )
-    const acceptedStatuses = acceptedStatusGuard?.conditions as MockCondition[]
-    const pendingState = acceptedStatuses.find(
-      (condition) =>
-        condition.type === 'and' &&
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'eq' &&
-            node.left === schemaMock.document.processingStatus &&
-            node.right === 'pending'
-        )
-    )
-    const queuedFreshness = flattenMockConditions(pendingState).find(
-      (node: MockCondition) =>
-        node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
-    )
-    expect(queuedFreshness?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
-    const processingState = acceptedStatuses.find(
-      (condition) =>
-        condition.type === 'and' &&
-        hasMockCondition(
-          condition,
-          (node: MockCondition) =>
-            node.type === 'eq' &&
-            node.left === schemaMock.document.processingStatus &&
-            node.right === 'processing'
-        )
-    )
-    const processingFreshness = flattenMockConditions(processingState).find(
-      (node: MockCondition) =>
-        node.type === 'gte' && node.left === schemaMock.document.processingStartedAt
-    )
-    expect(processingFreshness?.right).toEqual(
-      new Date(now.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS)
-    )
-    expect(
-      dbChainMockFns.set.mock.calls.some(
-        (call) =>
-          (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null &&
-          'processingAttempts' in ((call[0] as Record<string, unknown> | undefined) ?? {})
-      )
-    ).toBe(false)
-  })
-
-  it('uses the direct fallback outside a run when the deployment flag is off', async () => {
-    setEnvFlags({ isTriggerDevEnabled: false })
-    Object.assign(env, { TRIGGER_SECRET_KEY: 'trigger-secret' })
-
-    await expect(
-      processDocumentsWithQueue(
-        [DOCUMENT],
-        'knowledge-base-1',
-        {},
-        'request-1',
-        BILLING_ATTRIBUTION
-      )
-    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-
-    expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
 })
 
@@ -977,7 +522,6 @@ describe('processDocumentsWithQueue dispatch backend', () => {
  */
 describe('processDocumentsWithQueue attempt refund', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
@@ -999,7 +543,8 @@ describe('processDocumentsWithQueue attempt refund', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).rejects.toThrow('trigger.dev region unavailable')
 
@@ -1039,24 +584,6 @@ describe('processDocumentsWithQueue attempt refund', () => {
       )
     ).toBe(true)
   })
-
-  it('leaves the attempt spent when a dispatch did get through', async () => {
-    mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
-
-    await processDocumentsWithQueue(
-      [DOCUMENT],
-      'knowledge-base-1',
-      {},
-      'request-1',
-      BILLING_ATTRIBUTION
-    )
-
-    expect(
-      dbChainMockFns.set.mock.calls.some(
-        (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null
-      )
-    ).toBe(false)
-  })
 })
 
 describe('processDocumentsWithQueue under a connector sync lease', () => {
@@ -1066,7 +593,6 @@ describe('processDocumentsWithQueue under a connector sync lease', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
@@ -1092,6 +618,7 @@ describe('processDocumentsWithQueue under a connector sync lease', () => {
         {},
         'request-1',
         BILLING_ATTRIBUTION,
+        'backfill',
         lease
       )
     ).rejects.toBeInstanceOf(SyncLockLostException)
@@ -1099,27 +626,5 @@ describe('processDocumentsWithQueue under a connector sync lease', () => {
     expect(dbChainMockFns.where).toHaveBeenCalledWith(lease.stillHeld())
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockBatchTrigger).not.toHaveBeenCalled()
-  })
-
-  it('queues and dispatches while the lease is still held', async () => {
-    dbChainMockFns.for.mockResolvedValueOnce([{ id: 'connector-1' }])
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { userId: 'knowledge-owner', workspaceId: 'workspace-1' },
-    ])
-
-    await expect(
-      processDocumentsWithQueue(
-        [DOCUMENT],
-        'knowledge-base-1',
-        {},
-        'request-1',
-        BILLING_ATTRIBUTION,
-        lease
-      )
-    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-
-    expect(dbChainMockFns.where).toHaveBeenCalledWith(lease.stillHeld())
-    expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
   })
 })

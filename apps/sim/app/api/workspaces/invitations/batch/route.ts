@@ -5,10 +5,8 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import {
-  invitationOperations,
-  sendInvitationBatch,
-} from '@/lib/invitations/application/send-invitation-batch'
+import { invitationOperations } from '@/lib/invitations/application/operations'
+import { sendInvitationBatch } from '@/lib/invitations/application/send-invitation-batch'
 import { WorkspaceInvitationError } from '@/lib/invitations/workspace-invitations'
 import { InvitationsNotAllowedError } from '@/ee/access-control/utils/permission-check'
 

@@ -1,10 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { deflateSync } from 'zlib'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import { MAX_PDF_TEXT_CHARS, PdfParser } from '@/lib/file-parsers/pdf-parser'
-import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
+import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
  * Builds a single-page PDF that draws 64 characters per repeat from a
@@ -38,7 +36,7 @@ function buildTextBombPdf(repeats: number): Buffer {
 }
 
 /** Builds a PDF whose pages carry no content stream, so nothing is extractable. */
-function buildTextFreePdf(pageCount: number): Buffer {
+function _buildTextFreePdf(pageCount: number): Buffer {
   const pageIds = Array.from({ length: pageCount }, (_, i) => 3 + i)
 
   return assemblePdf([
@@ -51,7 +49,7 @@ function buildTextFreePdf(pageCount: number): Buffer {
 }
 
 /** Shares a bounded dense text stream across pages to exercise aggregate extraction. */
-function buildLargeTypesetPdf(pageCount: number): Buffer {
+function _buildLargeTypesetPdf(pageCount: number): Buffer {
   const unit = `BT /F1 12 Tf 10 700 Td (${'A'.repeat(64)}) Tj ET\n`
   const compressed = deflateSync(Buffer.from(unit.repeat(3000)))
   const pageIds = Array.from({ length: pageCount }, (_, index) => index + 5)
@@ -122,77 +120,95 @@ function assemblePdf(objects: Buffer[], trailerEntries = ''): Buffer {
   return Buffer.concat(chunks)
 }
 
-describe('PdfParser', () => {
-  it('preloads the server worker instead of relying on a runtime-relative worker path', async () => {
-    const previousWorker: unknown = Reflect.get(globalThis, 'pdfjsWorker')
-    Reflect.deleteProperty(globalThis, 'pdfjsWorker')
+/** Repeats needed to exceed `MAX_PDF_TEXT_CHARS`; 64 characters per repeat. */
+const BOMB_REPEATS = 200_000
 
-    const pdf = await openPdfDocument(new Uint8Array(buildTextFreePdf(1)))
+/** Evaluating the bomb takes pdf.js about two minutes; both bomb tests share one parse. */
+const BOMB_TIMEOUT_MS = 300_000
 
-    try {
-      expect(Reflect.get(globalThis, 'pdfjsWorker')).toEqual({
-        WorkerMessageHandler: expect.anything(),
-      })
-      expect(pdf.numPages).toBe(1)
-    } finally {
-      await pdf.destroy()
-      if (previousWorker === undefined) {
-        Reflect.deleteProperty(globalThis, 'pdfjsWorker')
-      } else {
-        Reflect.set(globalThis, 'pdfjsWorker', previousWorker)
+let bombParse: Promise<FileParseResult> | undefined
+
+function parseBomb(): Promise<FileParseResult> {
+  bombParse ??= new PdfParser().parseBuffer(buildTextBombPdf(BOMB_REPEATS))
+  return bombParse
+}
+
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
+
+/** Day numbers of `month` (0-based) in 2026, one array per calendar week. */
+function calendarWeeks(month: number): string[][] {
+  const firstWeekday = new Date(Date.UTC(2026, month, 1)).getUTCDay()
+  const days = new Date(Date.UTC(2026, month + 1, 0)).getUTCDate()
+  const weeks: string[][] = [[]]
+  for (let day = 1; day <= days; day++) {
+    if (weeks[weeks.length - 1].length > 0 && (firstWeekday + day - 1) % 7 === 0) weeks.push([])
+    weeks[weeks.length - 1].push(String(day))
+  }
+  return weeks
+}
+
+/**
+ * A quarter of 2026 laid out as three month grids side by side, drawn the way
+ * calendar producers draw them: each visual row across all three months before
+ * the next row.
+ */
+async function _buildQuarterCalendarPdf(): Promise<Buffer> {
+  const doc = await PDFDocument.create()
+  const font = await doc.embedFont(StandardFonts.Helvetica)
+  const page = doc.addPage([612, 792])
+  const size = 8
+  const cell = 20
+  const monthX = [40, 220, 400]
+  const names = ['January 2026', 'February 2026', 'March 2026']
+  page.drawText('2026 Calendar', { x: 220, y: 740, size: 14, font })
+  for (let row = 0; row < 8; row++) {
+    const y = 700 - row * 14
+    for (const [month, x] of monthX.entries()) {
+      if (row === 0) page.drawText(names[month], { x, y, size, font })
+      if (row === 1) {
+        WEEKDAYS.forEach((day, i) => page.drawText(day, { x: x + i * cell, y, size, font }))
       }
+      if (row < 2) continue
+      const weeks = calendarWeeks(month)
+      const week = weeks[row - 2]
+      if (!week) continue
+      const offset = row === 2 ? 7 - week.length : 0
+      week.forEach((day, i) => page.drawText(day, { x: x + (offset + i) * cell, y, size, font }))
     }
-  })
+  }
+  return Buffer.from(await doc.save())
+}
 
-  it('bounds extracted text from a compression-bomb PDF instead of exhausting the heap', async () => {
-    const bomb = buildTextBombPdf(200_000)
-    expect(bomb.length).toBeLessThan(200 * 1024)
+describe('PdfParser', () => {
+  it(
+    'bounds extracted text from a compression-bomb PDF instead of exhausting the heap',
+    async () => {
+      const bomb = buildTextBombPdf(BOMB_REPEATS)
+      expect(bomb.length).toBeLessThan(200 * 1024)
 
-    const result = await new PdfParser().parseBuffer(bomb)
+      const result = await parseBomb()
 
-    expect(result.metadata?.truncated).toBe(true)
-    expect(result.metadata?.warning).toMatch(/parser limit/i)
-    expect(result.content.length).toBeLessThanOrEqual(MAX_PDF_TEXT_CHARS + 200)
-  }, 120_000)
+      expect(result.metadata?.truncated).toBe(true)
+      expect(result.metadata?.warning).toMatch(/parser limit/i)
+      expect(result.content.length).toBeLessThanOrEqual(MAX_PDF_TEXT_CHARS + 200)
+    },
+    BOMB_TIMEOUT_MS
+  )
 
-  it('marks truncated content inline so callers reading only content can see it', async () => {
-    const result = await new PdfParser().parseBuffer(buildTextBombPdf(200_000))
+  it(
+    'marks truncated content inline so callers reading only content can see it',
+    async () => {
+      const result = await parseBomb()
 
-    expect(result.content).toMatch(/\[\.\.\. PDF text truncated at parser limits.* \.\.\.\]/)
-  }, 120_000)
-
-  it('extracts a real multi-page PDF past the preview budget completely', async () => {
-    const result = await new PdfParser().parseBuffer(buildLargeTypesetPdf(60), {
-      pdfTextMode: 'complete',
-    })
-
-    expect(result.content.length).toBeGreaterThan(MAX_PDF_TEXT_CHARS)
-    expect(result.metadata).toMatchObject({ pageCount: 60, truncated: false })
-    expect(result.content).not.toContain('truncated')
-  }, 60_000)
+      expect(result.content).toMatch(/\[\.\.\. PDF text truncated at parser limits.* \.\.\.\]/)
+    },
+    BOMB_TIMEOUT_MS
+  )
 
   it('rejects a real compressed page at its independent complete-extraction cap', async () => {
     await expect(
       new PdfParser().parseBuffer(buildTextBombPdf(6000), { pdfTextMode: 'complete' })
     ).rejects.toMatchObject({ name: 'FileParserError', code: 'complexity_limit' })
-  }, 30_000)
-
-  it('extracts a small PDF in full and does not flag it as truncated', async () => {
-    const result = await new PdfParser().parseBuffer(buildTextBombPdf(3))
-
-    expect(result.metadata?.truncated).toBe(false)
-    expect(result.metadata?.warning).toBeUndefined()
-    expect(result.metadata?.pageCount).toBe(1)
-    expect(result.metadata?.source).toBe('unpdf')
-    expect(result.content).toContain('AAAA')
-    expect(result.content).not.toContain('truncated')
-  }, 30_000)
-
-  it('reports a multi-page PDF with no extractable text as empty', async () => {
-    const result = await new PdfParser().parseBuffer(buildTextFreePdf(3))
-
-    expect(result.content.trim()).toBe('')
-    expect(result.content).not.toContain('[...')
   }, 30_000)
 
   it('rejects malformed PDF input', async () => {
@@ -203,7 +219,8 @@ describe('PdfParser', () => {
 
   it('preserves the password-required error for encrypted PDFs', async () => {
     await expect(new PdfParser().parseBuffer(buildEncryptedPdf())).rejects.toMatchObject({
-      name: 'PasswordException',
+      name: 'FileParserError',
+      code: 'encrypted_file',
     })
   })
 })

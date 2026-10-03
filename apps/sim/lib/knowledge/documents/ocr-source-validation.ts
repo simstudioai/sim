@@ -1,5 +1,10 @@
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 
+/** Canonical Git LFS pointers are text records smaller than 1 KiB, not the referenced binary. */
+const GIT_LFS_POINTER_MAX_BYTES = 1024
+const GIT_LFS_POINTER_PATTERN =
+  /^version https:\/\/git-lfs\.github\.com\/spec\/v1\r?\n(?:ext-[0-9]+-[a-z0-9.-]+ sha256:[a-f0-9]{64}\r?\n)*oid sha256:[a-f0-9]{64}\r?\nsize [0-9]+\r?\n$/
+
 function invalidSource(message: string): never {
   throw new PermanentDocumentProcessingError('invalid_file', message)
 }
@@ -61,6 +66,15 @@ function assertStaticGif(buffer: Buffer): void {
 
 /** Rejects proven input failures before they consume provider admission or paid OCR. */
 export function assertOcrSourceSupported(buffer: Buffer, mimeType: string): void {
+  if (
+    (mimeType === 'application/pdf' || mimeType.startsWith('image/')) &&
+    buffer.length < GIT_LFS_POINTER_MAX_BYTES &&
+    GIT_LFS_POINTER_PATTERN.test(buffer.toString('utf8'))
+  ) {
+    invalidSource(
+      'This file contains a Git LFS pointer instead of the actual PDF or image. Upload the original file content and retry.'
+    )
+  }
   if (mimeType === 'application/pdf' && !buffer.subarray(0, 1024).includes(Buffer.from('%PDF-'))) {
     invalidSource('This file is not a valid PDF. Re-export it as a PDF and retry.')
   }

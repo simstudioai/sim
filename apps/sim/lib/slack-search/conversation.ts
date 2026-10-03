@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { SlackSearchJob } from '@/lib/slack-search/types'
+import { slackSearchThreadTimestamp } from '@/lib/slack-search/types'
 
 const slackTimestamp = z.string().regex(/^\d{1,12}\.\d{1,9}$/)
 export const slackSearchConversationSchema = z
@@ -41,7 +42,7 @@ export function slackSearchConversation(job: SlackSearchJob): SlackSearchConvers
     type: 'slack',
     installationId: job.installationId,
     channelId: job.message.channelId,
-    threadTs: job.message.threadTs ?? job.message.messageTs,
+    threadTs: slackSearchThreadTimestamp(job.message),
     slackUserId: job.message.userId,
     lastStopTs: null,
     ...(job.message.origin ? { origin: job.message.origin } : {}),

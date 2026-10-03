@@ -457,7 +457,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               className={cn(
                 'appearance-none border-none bg-transparent align-middle font-sans outline-hidden placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
                 inputValue.trim()
-                  ? 'absolute top-0 left-0 h-full w-full p-0 text-inherit text-sm leading-5'
+                  ? 'absolute top-0 left-0 size-full p-0 text-inherit text-sm leading-5'
                   : 'h-5 w-auto min-w-0 p-0 text-[var(--text-body)] text-sm leading-5',
                 inputClassName
               )}

@@ -1,7 +1,6 @@
 import { SSMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SsmSendCommandResponse } from '@/tools/ssm/types'
 
 /** Operations whose SSM API caps `MaxResults` at 50. */
 const STANDARD_PAGE_OPERATIONS = [
@@ -43,7 +42,7 @@ function toParsedJson(value: unknown): unknown {
   return JSON.parse(value)
 }
 
-export const SSMBlock: BlockConfig<SsmSendCommandResponse> = {
+export const SSMBlock: BlockConfig = {
   type: 'ssm',
   name: 'AWS Systems Manager',
   description: 'Run commands, manage parameters, and audit managed nodes',

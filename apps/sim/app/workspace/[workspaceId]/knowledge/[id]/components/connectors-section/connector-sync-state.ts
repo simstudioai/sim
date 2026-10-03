@@ -1,5 +1,4 @@
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
-import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { isConnectorSyncingOrPending } from '@/hooks/queries/kb/connectors'
 
 const MEMBER_STATUS = {
@@ -16,15 +15,11 @@ export function getConnectorSyncState(connector: ConnectorData) {
   const syncInFlight = isConnectorSyncingOrPending(connector)
   const canResume = connector.status === 'paused' || connector.status === 'disabled'
   const memberSyncDisabled = syncsPerMember && connector.memberSyncStatus === 'disabled'
-  const canFullResync =
-    Boolean(CONNECTOR_META_REGISTRY[connector.connectorType]?.rehydrateOnFullSync) &&
-    !syncsPerMember
 
   return {
     syncsPerMember,
     syncInFlight,
     canResume,
-    canFullResync,
     syncDisabled: syncInFlight || canResume || memberSyncDisabled,
     effectiveStatus:
       syncsPerMember && connector.status === 'active'

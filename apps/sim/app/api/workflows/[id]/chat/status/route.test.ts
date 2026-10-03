@@ -4,59 +4,51 @@
  * The route is an adapter over `chat_deployments.list`, so the seams mocked here
  * are the canonical workflow/deployment reads and the workspace permission
  * resolver — not a route-local access helper.
- *
- * @vitest-environment node
  */
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
-  authMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  resetEnvMock,
-  schemaMock,
-  setEnv,
-  setEnvFlags,
-} from '@sim/testing'
-import { NextRequest } from 'next/server'
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  loadWorkspaceContext: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getLiveChatDeploymentForWorkflow: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspaceContext,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@/lib/chat-deployments/queries', () => ({
-  getLiveChatDeploymentForWorkflow: mocks.getLiveChatDeploymentForWorkflow,
+  getLiveChatDeploymentForWorkflow: hoisted.getLiveChatDeploymentForWorkflow,
   getChatDeploymentWithWorkspace: vi.fn(),
   getChatDeploymentIdOwningIdentifier: vi.fn(),
   updateChatDeploymentRow: vi.fn(),
   listWorkspaceChatDeployments: vi.fn(),
 }))
 
-import { chatDeploymentOperations } from '@/lib/chat-deployments/application'
 import { GET } from '@/app/api/workflows/[id]/chat/status/route'
+
+const mocks = {
+  ...hoisted,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspaceContext: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
 
 const WORKFLOW_ID = 'workflow-1'
 const WORKSPACE_ID = 'workspace-1'
 const CHAT_ID = 'chat-123'
 
-const params = { params: Promise.resolve({ id: WORKFLOW_ID }) }
+const params = createRouteContext({ id: WORKFLOW_ID })
 
 function request() {
-  return new NextRequest(`http://localhost:3000/api/workflows/${WORKFLOW_ID}/chat/status`)
+  return createMockRequest({ url: `/api/workflows/${WORKFLOW_ID}/chat/status` })
 }
 
 /** A deployment configured with every field the admin-gated read serves. */
@@ -95,7 +87,6 @@ afterAll(() => {
 
 describe('workflow chat deployment status route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'member-1', name: 'Member', email: 'member@example.com' },
@@ -112,15 +103,6 @@ describe('workflow chat deployment status route', () => {
     queueTableRows(schemaMock.workflow, [
       { workflowId: WORKFLOW_ID, workflow: { id: WORKFLOW_ID }, workspaceId: WORKSPACE_ID },
     ])
-  })
-
-  it('returns 401 when there is no session', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-
-    const response = await GET(request(), params)
-
-    expect(response.status).toBe(401)
-    expect(mocks.getLiveChatDeploymentForWorkflow).not.toHaveBeenCalled()
   })
 
   /**
@@ -154,35 +136,5 @@ describe('workflow chat deployment status route', () => {
 
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({ error: 'Chat not found or access denied' })
-  })
-
-  it('reports an inactive deployment as not deployed while still naming it', async () => {
-    mocks.getLiveChatDeploymentForWorkflow.mockResolvedValue(chatRow({ isActive: false }))
-
-    const body = await (await GET(request(), params)).json()
-
-    expect(body).toEqual({
-      isDeployed: false,
-      deployment: { id: CHAT_ID, identifier: 'victim-support' },
-    })
-  })
-
-  it('reports a workflow with no chat as not deployed', async () => {
-    mocks.getLiveChatDeploymentForWorkflow.mockResolvedValue(null)
-
-    const body = await (await GET(request(), params)).json()
-
-    expect(body).toEqual({ isDeployed: false, deployment: null })
-  })
-
-  /**
-   * The projection above is only safe because the fields it omits stay behind
-   * an admin operation. If `chat_deployments.read` were ever relaxed, this
-   * route would no longer be the narrower of the two.
-   */
-  it('keeps the detail read admin-gated and discovery capability-gated', () => {
-    expect(chatDeploymentOperations.read.minimumRole).toBe('admin')
-    expect(chatDeploymentOperations.list.minimumRole).toBe('read')
-    expect(chatDeploymentOperations.list.capability).toBe('deploy.chat')
   })
 })

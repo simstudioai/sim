@@ -6,7 +6,11 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import {
+  getTransientDatabaseFailure,
+  type TransientDatabaseFailureClass,
+  toError,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
@@ -15,10 +19,13 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import {
   CONTENT_ENGINE_ACCESS_MODES,
+  type ContentEngineAccessMode,
   effectiveConnectorSyncIntervalMinutes,
   isContentEngineAccessMode,
   mirrorsSourceAcls,
@@ -31,9 +38,13 @@ import {
 } from '@/lib/knowledge/connectors/access-token'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
-  DIRECTORY_ERROR_PREFIX,
+  type DirectoryRefreshResult,
+  directorySyncNotice,
+  hasDirectorySyncNotice,
+  persistExternalGroupMembership,
   refreshMirroredDirectory,
 } from '@/lib/knowledge/connectors/external-group-sync'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
 import {
@@ -42,6 +53,7 @@ import {
   unansweredByListing,
 } from '@/lib/knowledge/connectors/mirrored-acls'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import { resolveDatabaseRetryDelayMs } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
   deferConnectorSync,
   getConnectorSyncDeferral,
@@ -50,15 +62,19 @@ import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   CONNECTOR_SYNC_MAX_DURATION_SECONDS,
+  CREDENTIAL_REMOVED_SYNC_ERROR,
+  CREDENTIAL_REVOKED_SYNC_ERROR,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
   assertSyncLeaseHeldInTx,
   buildSyncLockAcquisition,
+  buildSyncUnscheduledUpdate,
   createContentSyncLease,
   holdsSyncLockToken,
   LOCKABLE_CONNECTOR_STATUSES,
+  leaseTransaction,
   RUNNABLE_CONNECTOR_STATUSES,
   SyncLockLostException,
   type SyncRunLease,
@@ -79,11 +95,15 @@ import {
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
+import { getCredentialTerminalRefreshError } from '@/lib/oauth/credential-service'
+import { isCredentialRevocationError } from '@/lib/oauth/terminal-errors'
+import { connectorHasAuthSource } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
   ConnectorConfig,
   ExternalDocument,
+  ExternalListingFailures,
   SyncResult,
 } from '@/connectors/types'
 
@@ -105,14 +125,13 @@ export {
  * documents would let a revoked grant stay readable until somebody happened to
  * edit the file.
  *
- * A listed document the connector could not speak for gets an empty ACL, which
- * hides it. That is the safe direction and it is visible — a connector
- * declaring {@link ConnectorMeta.mirrorsSourceAcls} is promising an ACL for
- * every document it lists, so a missing one is a bug in the connector rather
- * than an expected state to paper over.
+ * An unresolved observation cannot erase another identity's verified ACL from
+ * this crawl. Older unverified grants are hidden, while explicit source answers
+ * always replace existing permissions.
  */
 async function applySourceMirroredAcls(input: {
   connectorId: string
+  kbOwner: KnowledgeBaseOwner
   connectorConfig: ConnectorConfig
   sourceConfig: Record<string, unknown>
   syncContext: Record<string, unknown>
@@ -121,7 +140,8 @@ async function applySourceMirroredAcls(input: {
   /** External ids of every live document the connector owns, listed this run or not. */
   ownedExternalIds: readonly (string | null)[]
   lease?: SyncRunLease
-}): Promise<void> {
+  generationStartedAt: Date
+}): Promise<{ permissionsIncomplete: boolean }> {
   const { connectorId, connectorConfig, externalDocs } = input
 
   /**
@@ -131,16 +151,38 @@ async function applySourceMirroredAcls(input: {
    * place until the next run.
    */
   const unanswered = unansweredByListing(externalDocs)
-  const fetched =
-    unanswered.length > 0 && connectorConfig.getDocumentAcls
-      ? await connectorConfig.getDocumentAcls(
-          input.accessToken,
-          input.sourceConfig,
-          unanswered,
-          input.syncContext
-        )
-      : {}
-  const { acls, unattributed } = mergeMirroredAcls(externalDocs, fetched)
+  let fetched: Record<string, MirroredDocumentAcl> = {}
+  if (unanswered.length > 0 && connectorConfig.getDocumentAcls) {
+    /** Audience freshness belongs to this observation, including when an old crawl resumes. */
+    const [clock] = await db.execute<{ startedAt: string }>(
+      sql`SELECT statement_timestamp()::text AS "startedAt"`
+    )
+    const observedAt = new Date(clock?.startedAt ?? '')
+    if (!Number.isFinite(observedAt.getTime()))
+      throw new Error('Could not read the sync database clock')
+    fetched = await connectorConfig.getDocumentAcls(
+      input.accessToken,
+      input.sourceConfig,
+      unanswered,
+      input.syncContext,
+      {
+        persistGroupMembership: (membership) =>
+          db.transaction(async (tx) => {
+            if (input.lease) await assertSyncLeaseHeldInTx(tx, connectorId, input.lease)
+            await persistExternalGroupMembership(
+              {
+                ...resourceScopeFields(resourceScopeFromOwner(input.kbOwner)),
+                ...membership,
+                observedAt,
+              },
+              tx
+            )
+          }),
+      }
+    )
+  }
+  const { acls, unattributed, unresolvedExternalIds } = mergeMirroredAcls(externalDocs, fetched)
+  const evidence = { unresolvedExternalIds, generationStartedAt: input.generationStartedAt }
   const listed = acls.size
   /**
    * A document this run did not list has no ACL this run can vouch for, so it
@@ -150,12 +192,13 @@ async function applySourceMirroredAcls(input: {
    */
   const unlisted = hideUnlistedDocuments(acls, input.ownedExternalIds)
 
-  const written = input.lease
-    ? await db.transaction(async (tx) => {
-        await assertSyncLeaseHeldInTx(tx, connectorId, input.lease!)
-        return persistDocumentAcls(connectorId, acls, tx)
-      })
-    : await persistDocumentAcls(connectorId, acls)
+  /** One short transaction per batch, each proving the lease, rather than one across all of them. */
+  const written = await persistDocumentAcls(
+    connectorId,
+    acls,
+    leaseTransaction(connectorId, input.lease),
+    evidence
+  )
   logger.info('Mirrored source permissions onto connector documents', {
     connectorId,
     listed,
@@ -164,11 +207,15 @@ async function applySourceMirroredAcls(input: {
     ...(unattributed > 0 ? { unattributed } : {}),
   })
   if (unattributed > 0) {
-    logger.error('Connector listed documents without an ACL; they are readable by nobody', {
-      connectorId,
-      unattributed,
-    })
+    logger.warn(
+      'Connector listed documents without an ACL; only current-crawl evidence is retained',
+      {
+        connectorId,
+        unattributed,
+      }
+    )
   }
+  return { permissionsIncomplete: unattributed > 0 || written.rejected > 0 }
 }
 
 /** Whether an automatic connector sync may begin from this persisted state. */
@@ -187,6 +234,8 @@ function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
 interface CompleteSyncLogOptions {
   /** Recorded on the row when the run is being closed as `failed`. */
   errorMessage?: string
+  /** Recorded on a `failed` row when a transient database failure ended the run. */
+  databaseFailureClass?: TransientDatabaseFailureClass
   /**
    * Connector whose sync lock this run must still hold for the close to land.
    *
@@ -249,7 +298,7 @@ export async function completeSyncLog(
   result: SyncResult,
   options: CompleteSyncLogOptions = {}
 ): Promise<boolean> {
-  const { errorMessage, requireSyncLockOn } = options
+  const { errorMessage, databaseFailureClass, requireSyncLockOn } = options
 
   const closed = await db
     .update(knowledgeConnectorSyncLog)
@@ -257,6 +306,7 @@ export async function completeSyncLog(
       status,
       completedAt: new Date(),
       ...(errorMessage != null && { errorMessage }),
+      ...(databaseFailureClass && { databaseFailureClass }),
       docsAdded: result.docsAdded,
       docsUpdated: result.docsUpdated,
       docsDeleted: result.docsDeleted,
@@ -285,6 +335,53 @@ class SyncCompletionOwnershipLost extends Error {
   }
 }
 
+/** What a finished content pass reports to the sync-log and connector close. */
+export interface ContentPassOutcome {
+  complete: boolean
+  checkpoint: {
+    unsafe: boolean
+    contentFailures?: boolean
+    permissionFailures?: boolean
+    listingFailures?: ExternalListingFailures | null
+    startedAt: string
+    listedCount: number
+    incrementalSince?: string | null
+    resumeAt?: string | null
+  }
+}
+
+/**
+ * A deletion hold alone does not make a sync incomplete: `checkpoint.unsafe`
+ * prevents deletion reconciliation, but an otherwise successful crawl may
+ * still advance its watermark.
+ */
+export function isContentPassIncomplete(
+  contentPass: Pick<ContentPassOutcome, 'complete' | 'checkpoint'>
+): boolean {
+  return (
+    !contentPass.complete ||
+    contentPass.checkpoint.contentFailures === true ||
+    contentPass.checkpoint.permissionFailures === true ||
+    (contentPass.checkpoint.listingFailures?.count ?? 0) > 0
+  )
+}
+
+/** Live documents the connector owns: what the connector list shows as its document count. */
+async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(document)
+    .where(
+      and(
+        eq(document.connectorId, connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+  return row?.count ?? 0
+}
+
 /**
  * Atomically publishes the completed log and connector terminal state.
  *
@@ -299,75 +396,91 @@ export async function completeSuccessfulSync(
   syncIntervalMinutes: number,
   result: SyncResult,
   reconciliationHoldNotice: string | null,
-  contentPass?: {
-    complete: boolean
-    checkpoint: {
-      unsafe: boolean
-      contentFailures?: boolean
-      startedAt: string
-      listedCount: number
-      incrementalSince?: string | null
-    }
-  }
+  contentPass?: ContentPassOutcome,
+  directoryNotice: string | null = null,
+  /** A pending ACL rewrite this run began but did not finish: the flag stays and the next run resumes it. */
+  accessRewriteUnfinished = false
 ): Promise<boolean> {
+  const processingDispatchFailed = result.processingDispatch.failed > 0
+  const contentNotice =
+    reconciliationHoldNotice ??
+    (processingDispatchFailed
+      ? 'Some documents could not be queued for indexing. They will be retried automatically.'
+      : null)
+  const listingFailures = contentPass?.checkpoint.listingFailures
+  const failedAccounts = listingFailures?.samples
+    .map((failure) => {
+      const details = [
+        failure.operation,
+        failure.status ? `HTTP ${failure.status}` : null,
+        ...failure.reasons,
+      ]
+        .filter(Boolean)
+        .join(', ')
+      return `${failure.scope} (${details})`
+    })
+    .join('; ')
+  const listingNotice = listingFailures?.count
+    ? `Source listing failed for ${listingFailures.count} ${listingFailures.count === 1 ? 'account' : 'accounts'}.${failedAccounts ? ` ${failedAccounts}.` : ''} Failed accounts will be retried at the next scheduled sync.`
+    : null
+  const completionNotice =
+    [directoryNotice, listingNotice, contentNotice].filter(Boolean).join('\n') || null
+  /**
+   * Read before the completion transaction so a slow count neither holds the connector lock
+   * nor turns a sync whose documents already landed into a failure. It is also the previous
+   * owned count the next pass's mass-deletion guard starts from, so a tally of this run's
+   * adds and deletes would drift; when it cannot be read the previous count stands, which the
+   * guard already treats as a floor.
+   */
+  const actualDocCount = await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
+    const diagnostic = getConnectorFailureDiagnostic(error)
+    if (diagnostic?.category !== 'database') throw error
+    logger.warn('Could not count connector documents; keeping the previous count', {
+      connectorId,
+      diagnostic,
+    })
+    return null
+  })
   try {
     return await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
         .select({ id: knowledgeBase.id })
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-        .for('update')
+        .for('share')
       if (!lockedKnowledgeBase) throw new SyncCompletionOwnershipLost()
 
       const [lockedConnector] = await tx
-        .select({ id: knowledgeConnector.id })
+        .select({
+          id: knowledgeConnector.id,
+          lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
+        })
         .from(knowledgeConnector)
         .where(stillHoldsSyncLock(connectorId, syncLogId))
         .for('update')
       if (!lockedConnector) throw new SyncCompletionOwnershipLost()
-
-      /**
-       * Self-healing invariant of workspace mode: a mode switch back from
-       * members that was interrupted, or any other drift, leaves no document
-       * of this connector hidden from the workspace once a sync completes.
-       * Inside the completion transaction, after the lock is proven held, so a
-       * reclaimed run cannot rewrite a connector that has since changed mode.
-       */
-      const restoredAcls = await restoreWorkspaceDocumentAcls(tx, connectorId)
-      if (restoredAcls > 0) {
-        logger.warn('Restored workspace access on connector documents that had drifted', {
-          connectorId,
-          restoredAcls,
-        })
-      }
-
-      const [{ count: actualDocCount }] = await tx
-        .select({ count: sql<number>`count(*)::int` })
-        .from(document)
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
 
       const now = new Date()
       const [closedLog] = await tx
         .update(knowledgeConnectorSyncLog)
         .set({
           status:
-            contentPass &&
-            (!contentPass.complete ||
-              contentPass.checkpoint.unsafe ||
-              contentPass.checkpoint.contentFailures)
+            directoryNotice ||
+            processingDispatchFailed ||
+            accessRewriteUnfinished ||
+            (contentPass && isContentPassIncomplete(contentPass))
               ? 'partial'
               : 'completed',
           completedAt: now,
+          /**
+           * An incremental pass lists only the delta, so its log carries the live corpus size
+           * instead; when that count could not be read the previous size stands, otherwise the
+           * next pass would reconstruct the delta as the corpus and read a broken listing as
+           * corroborated.
+           */
           listedCount: contentPass?.complete
             ? contentPass.checkpoint.incrementalSince
-              ? actualDocCount
+              ? (actualDocCount ?? lockedConnector.lastSyncDocCount)
               : contentPass.checkpoint.listedCount
             : null,
           docsAdded: result.docsAdded,
@@ -376,6 +489,7 @@ export async function completeSuccessfulSync(
           docsUnchanged: result.docsUnchanged,
           docsSkipped: result.docsSkipped,
           docsFailed: result.docsFailed,
+          errorMessage: completionNotice,
         })
         .where(
           and(
@@ -392,21 +506,25 @@ export async function completeSuccessfulSync(
           ...buildSyncSuccessUpdate(
             now,
             actualDocCount,
-            contentPass && !contentPass.complete ? now : calculateNextSyncTime(syncIntervalMinutes),
-            reconciliationHoldNotice,
+            accessRewriteUnfinished
+              ? now
+              : contentPass && !contentPass.complete
+                ? contentPass.checkpoint.resumeAt
+                  ? new Date(contentPass.checkpoint.resumeAt)
+                  : now
+                : calculateNextSyncTime(syncIntervalMinutes),
+            completionNotice,
             result.docsFailed === 0 &&
-              (!contentPass ||
-                (contentPass.complete &&
-                  !contentPass.checkpoint.unsafe &&
-                  !contentPass.checkpoint.contentFailures))
+              !accessRewriteUnfinished &&
+              (!contentPass || !isContentPassIncomplete(contentPass))
           ),
-          /** Restored above under this same lock, or hidden by the admin pass before the ACLs it wrote. */
-          accessRewritePending: false,
+          /**
+           * Restored before completion under this run's lease, or hidden by the admin pass before
+           * the ACLs it wrote; cleared only once that walk reached the end of the connector.
+           */
+          ...(accessRewriteUnfinished ? {} : { accessRewritePending: false }),
           ...(contentPass?.complete ? { listingCheckpoint: null } : {}),
-          ...(contentPass?.complete &&
-          !contentPass.checkpoint.unsafe &&
-          !contentPass.checkpoint.contentFailures &&
-          result.docsFailed === 0
+          ...(contentPass && !isContentPassIncomplete(contentPass) && result.docsFailed === 0
             ? { lastSyncAt: new Date(contentPass.checkpoint.startedAt) }
             : {}),
         })
@@ -477,14 +595,7 @@ async function releaseSyncLockOnDeletedConnector(
 ): Promise<void> {
   await db
     .update(knowledgeConnector)
-    .set({
-      status: 'error',
-      nextSyncAt: null,
-      lastSyncError: 'Connector deleted during sync',
-      syncLockToken: null,
-      syncLockLeaseAt: null,
-      updatedAt: new Date(),
-    })
+    .set(buildSyncUnscheduledUpdate(new Date(), 'Connector deleted during sync'))
     .where(holdsSyncLockToken(connectorId, syncLogId))
 }
 
@@ -592,9 +703,32 @@ export function buildSyncCapacityUpdate(
   errorMessage: string
 ) {
   return {
+    ...buildSyncUnscheduledUpdate(now, errorMessage),
+    consecutiveFailures: previousFailures ?? 0,
+  }
+}
+
+/**
+ * The connector row written after the database, not the source, failed the run: a statement,
+ * lock, or transaction timeout, a deadlock, or a dropped connection.
+ *
+ * A slow database window says nothing about the connector, so, like throttling, it must not
+ * consume the breaker that disables connectors after persistent failures: the counter keeps the
+ * source failures already counted, and a later source failure is judged on those alone. The retry
+ * still backs off by the delay {@link resolveDatabaseRetryDelayMs} chose: short after a run that
+ * made progress, and otherwise up the failure ladder, so a statement too heavy for its budget backs
+ * off to the ladder's ceiling instead of re-crawling the source every half hour.
+ */
+export function buildSyncDatabaseRetryUpdate(
+  now: Date,
+  previousFailures: number | null | undefined,
+  errorMessage: string,
+  retryDelayMs: number
+) {
+  return {
     status: 'error' as const,
     lastSyncError: errorMessage,
-    nextSyncAt: null,
+    nextSyncAt: new Date(now.getTime() + retryDelayMs),
     consecutiveFailures: previousFailures ?? 0,
     syncLockToken: null,
     syncLockLeaseAt: null,
@@ -613,7 +747,7 @@ export function buildSyncCapacityUpdate(
  */
 export function buildSyncSuccessUpdate(
   now: Date,
-  actualDocCount: number,
+  actualDocCount: number | null,
   nextSyncAt: Date | null,
   holdNotice: string | null,
   advanceLastSyncAt = true
@@ -622,7 +756,7 @@ export function buildSyncSuccessUpdate(
     status: 'active' as const,
     ...(advanceLastSyncAt ? { lastSyncAt: now } : {}),
     lastSyncError: holdNotice,
-    lastSyncDocCount: actualDocCount,
+    ...(actualDocCount === null ? {} : { lastSyncDocCount: actualDocCount }),
     nextSyncAt,
     consecutiveFailures: 0,
     // Releases the lock so a stale token can never match a later run, and closes
@@ -634,18 +768,50 @@ export function buildSyncSuccessUpdate(
 }
 
 /**
+ * A credential the source revoked: the refresh path recorded a revocation for it, so no retry
+ * can produce a token until the credential is reauthorized.
+ */
+export class ConnectorCredentialRevokedError extends Error {
+  constructor(
+    readonly credentialId: string,
+    readonly errorCode: string
+  ) {
+    super(`Credential ${credentialId} was rejected by the source (${errorCode})`)
+    this.name = 'ConnectorCredentialRevokedError'
+  }
+}
+
+/**
+ * The revocation code a credential's refresh was last rejected with, if its grant is gone. An
+ * app-registration fault is terminal for the refresh too, but it is ours to fix and fixing it
+ * restores the credential, so it reads as nothing here and the connector keeps its retry ladder
+ * rather than waiting on an owner to reconnect a credential that was never broken.
+ */
+async function getCredentialRevocationError(credentialId: string): Promise<string | null> {
+  const rejection = await getCredentialTerminalRefreshError(credentialId)
+  return rejection && isCredentialRevocationError(rejection.errorCode, rejection.providerId)
+    ? rejection.errorCode
+    : null
+}
+
+/**
  * Resolves the token a connector syncs with, failing loudly where the shared
  * resolver reports "no token" — a sync has no reconnect prompt to fall back to.
+ * A credential the source has revoked fails as
+ * {@link ConnectorCredentialRevokedError}, so the run can unschedule the
+ * connector instead of walking the failure ladder toward a retry that cannot help.
  */
 async function resolveAccessToken(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
   connectorConfig: { auth: ConnectorAuthConfig },
   userId: string,
-  sourceConfig: Record<string, unknown>
+  sourceConfig: Record<string, unknown>,
+  accessMode: ContentEngineAccessMode
 ): Promise<ConnectorAccessToken> {
   const requestId = `sync-${connector.credentialId}`
   const resolved = await resolveConnectorAccessToken({
     auth: connectorConfig.auth,
+    accessMode,
     connector,
     userId,
     requestId,
@@ -658,6 +824,13 @@ async function resolveAccessToken(
       userId,
       authMode: connectorConfig.auth.mode,
     })
+    const revocationError =
+      connectorConfig.auth.mode === 'oauth' && connector.credentialId
+        ? await getCredentialRevocationError(connector.credentialId)
+        : null
+    if (revocationError && connector.credentialId) {
+      throw new ConnectorCredentialRevokedError(connector.credentialId, revocationError)
+    }
     throw new Error(`Failed to obtain access token for credential ${connector.credentialId}`)
   }
 
@@ -739,6 +912,7 @@ export async function executeSync(
 
   const kbRows = await db
     .select({
+      isSearchIndex: knowledgeBase.isSearchIndex,
       userId: knowledgeBase.userId,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
@@ -758,28 +932,13 @@ export async function executeSync(
     )
     await db
       .update(knowledgeConnector)
-      .set({
-        status: 'error',
-        nextSyncAt: null,
-        lastSyncError: 'Knowledge base deleted',
-        /**
-         * Clears the lock alongside the status.
-         *
-         * This write runs BEFORE the lock is taken, but it is unconditional on
-         * status, so it can land on a row a previous run left `syncing` — a run
-         * that may still be alive. Flipping status without releasing the token
-         * left a row that was neither locked nor reclaimable: the reaper only
-         * looks at `syncing` rows, and the old run's terminal write could still
-         * match its own token and resurrect a state for a knowledge base that no
-         * longer exists. Releasing both makes the transition terminal.
-         */
-        syncLockToken: null,
-        syncLockLeaseAt: null,
-        updatedAt: new Date(),
-      })
+      .set(buildSyncUnscheduledUpdate(new Date(), 'Knowledge base deleted'))
       .where(eq(knowledgeConnector.id, connectorId))
     return { ...result, skipReason: 'knowledge_base_deleted' }
   }
+
+  if (!requiresConnectorIndexing(kbRows[0].isSearchIndex))
+    return { ...result, skipReason: 'connector_not_syncable' }
 
   const userId = kbRows[0].userId
   // Resolved once per sync and threaded into add/updateDocument so every synced
@@ -795,540 +954,735 @@ export async function executeSync(
     )
   }
   assertBillingAttributionOwner(billingAttribution, kbOwner)
-  /**
-   * Identifies this run for the terminal writes. Generated before the CAS and
-   * written by it, so ownership is established atomically with the lock — and
-   * reused as the sync-log row id, which makes the connector row point at the
-   * run that holds it.
-   */
-  const syncLogId = generateId()
-
-  const lockResult = await db
-    .update(knowledgeConnector)
-    .set(buildSyncLockAcquisition(syncLogId, new Date()))
-    .where(
-      and(
-        inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
-        eq(knowledgeConnector.id, connectorId),
-        inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
-        /**
-         * Proves this run is consuming the queue entry that was made for it.
-         *
-         * A task delayed past the lease is reclaimed and replaced, and the
-         * status check alone would let that stale task take the replacement's
-         * entry — running superseded options (a plain sync where the user had
-         * just asked for a full resync) while the replacement is turned away as
-         * `sync_in_progress`. Matching the token is the same discipline
-         * {@link holdsSyncLockToken} already applies to the `syncing` phase,
-         * extended to the phase before it.
-         */
-        ...(options.dispatchToken
-          ? [eq(knowledgeConnector.syncLockToken, options.dispatchToken)]
-          : []),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
-      )
-    )
-    .returning()
-
-  if (lockResult.length === 0) {
-    /**
-     * Distinguishes the two ways the CAS can find no row. Costs one read on a
-     * path that already decided not to work, and the alternative is reporting a
-     * connector someone paused as a concurrency conflict.
-     */
-    const [current] = await db
-      .select({
-        status: knowledgeConnector.status,
-        syncLockToken: knowledgeConnector.syncLockToken,
-      })
-      .from(knowledgeConnector)
-      .where(eq(knowledgeConnector.id, connectorId))
-      .limit(1)
-
-    /**
-     * Status is checked before ownership because pausing a queued connector
-     * releases its token, so a mismatch is the *symptom* there and the status is
-     * the actual reason. Testing ownership first would report every
-     * pause-while-queued — the common case — as a superseded dispatch, losing
-     * the distinction this branch exists to draw.
-     */
-    if (current?.status === 'paused' || current?.status === 'disabled') {
-      logger.info('Connector is not accepting syncs, skipping', {
-        connectorId,
-        status: current.status,
-      })
-      return { ...result, skipReason: 'connector_not_syncable' }
-    }
-
-    if (options.dispatchToken && current?.syncLockToken !== options.dispatchToken) {
-      logger.info('Sync superseded by a newer dispatch, skipping', { connectorId })
-      return { ...result, skipReason: 'dispatch_superseded' }
-    }
-
-    logger.info('Sync already in progress, skipping', { connectorId })
-    return { ...result, skipReason: 'sync_in_progress' }
-  }
 
   /**
-   * The row returned by the lock is the authoritative sync snapshot. A source update
-   * committed before the lock is included here; one attempted after it sees `syncing`
-   * and conflicts instead of letting this worker process stale configuration.
+   * A connector with no token source cannot succeed, and each attempt would only walk the
+   * failure ladder and, at its end, disable a connector that merely needs reconnecting. Left
+   * unscheduled with the reconnect error instead, the same transition as a deleted knowledge base.
    */
-  const connector = lockResult[0]
-  /** The lock CAS only takes a content-engine row; this is the type's word for the same fact. */
-  if (!isContentEngineAccessMode(connector.accessMode)) {
-    throw new Error(`Connector ${connectorId} left the content engine's modes while locked`)
-  }
-  const mirrored = mirrorsSourceAcls(connector.accessMode)
-  const sourceConfig = connector.sourceConfig as Record<string, unknown>
-  const syncStartedAt = new Date()
-  const lease = createContentSyncLease(connectorId, syncLogId)
-  await db.insert(knowledgeConnectorSyncLog).values({
-    id: syncLogId,
-    connectorId,
-    status: 'started',
-    startedAt: syncStartedAt,
-  })
-
-  try {
+  if (!connectorHasAuthSource(connectorConfig.auth, connectorBeforeLock)) {
+    logger.warn('Skipping sync: connector has no credential to authenticate with', { connectorId })
     /**
-     * OAuth credentials are workspace-scoped and shared, so the member who authorized
-     * one is often not the knowledge base owner. Resolve the credential's own account
-     * owner — token reads are scoped to `account.userId`, so passing the KB owner
-     * resolves no token at all. Resolved once here rather than inside
-     * `resolveAccessToken` so per-page refreshes don't repeat the lookup.
+     * Written only while the row is still the credential-less row this run read: a reconnect
+     * that landed in between keeps its schedule, and a paused or disabled connector a stale task
+     * reached keeps its status. A row this dispatch marked `pending` is released with it, the
+     * same token match the lock acquisition below applies.
      */
-    const credentialUserId = await resolveConnectorTokenUserId({
-      credentialId: connector.credentialId,
-      ...resourceScopeFields(resourceScopeFromOwner(kbOwner)),
-      fallbackUserId: userId,
-    })
-    if (!credentialUserId) {
-      throw new Error(
-        `Credential ${connector.credentialId} is not usable from workspace ${kbOwner.workspaceId} — reconnect the credential`
-      )
-    }
-
-    let credentialToken = await resolveAccessToken(
-      connector,
-      connectorConfig,
-      credentialUserId,
-      sourceConfig
-    )
-    /** Re-resolves the token for every OAuth call after the first, so a long run outlives a short-lived token. */
-    const refreshOAuthToken = async (): Promise<void> => {
-      if (connectorConfig.auth.mode === 'oauth') {
-        credentialToken = await resolveAccessToken(
-          connector,
-          connectorConfig,
-          credentialUserId,
-          sourceConfig
-        )
-      }
-    }
-
-    /**
-     * A credential that already knows its cloud id seeds the same `syncContext`
-     * slot the connector would otherwise memoise it into. Confluence discovers
-     * it by calling `accessible-resources` with a bearer token; an Atlassian
-     * service account holds an API token that cannot make that call, so for it
-     * the seed is the only source. Connectors need no service-account branch.
-     */
-    const syncContext: Record<string, unknown> = {
-      syncRunId: generateId(),
-      ...syncContextForToken(credentialToken),
-      /** Tells a connector to carry permissions with its listing; without it, none are read. */
-      ...(mirrored ? { mirrorsSourceAcls: true } : {}),
-    }
-
-    // Shared cutoff for both the tombstone-retry bound below and the stuck-document
-    // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
-    const retryCutoff = new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000)
-
-    /**
-     * Bounded to the same retry window as the stuck-document retry below: a
-     * document whose refresh keeps failing every sync (e.g. permanently
-     * oversized) would otherwise be a tombstone that never resolves, forcing a
-     * full listing — and its listing-time overhead — for this connector
-     * forever. Past the window, this connector stops forcing full syncs on its
-     * account; the document itself is unaffected and stays tombstoned either way.
-     *
-     * Known accepted trade-off: once past the window, a still-tombstoned
-     * document that's unchanged-but-genuinely-present at the source can only
-     * be resurrected by a full listing — and nothing here forces one anymore.
-     * On a connector that never runs a full sync again (persistent incremental
-     * syncMode, no manual full resync), that document stays correctly
-     * invisible (excluded everywhere by `isNull(deletedAt)`, so no
-     * search/billing/listing leakage) but unresolved indefinitely. This is
-     * deliberately not "fixed" by hard-deleting it after the window expires —
-     * that would delete a document we have no positive evidence is actually
-     * gone, reintroducing the exact risk this whole design exists to avoid.
-     */
-    const hasTombstonedDocs = await db
-      .select({ id: document.id })
-      .from(document)
+    const observed = (
+      column: typeof knowledgeConnector.credentialId | typeof knowledgeConnector.encryptedApiKey,
+      value: string | null
+    ) => (value === null ? isNull(column) : eq(column, value))
+    await db
+      .update(knowledgeConnector)
+      .set(buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REMOVED_SYNC_ERROR))
       .where(
         and(
-          eq(document.connectorId, connectorId),
-          isNull(document.archivedAt),
+          eq(knowledgeConnector.id, connectorId),
+          observed(knowledgeConnector.credentialId, connectorBeforeLock.credentialId),
+          observed(knowledgeConnector.encryptedApiKey, connectorBeforeLock.encryptedApiKey),
           or(
-            and(isNotNull(document.deletedAt), gt(document.deletedAt, retryCutoff)),
-            isNull(document.contentHash)
+            inArray(knowledgeConnector.status, [...RUNNABLE_CONNECTOR_STATUSES]),
+            options.dispatchToken
+              ? and(
+                  eq(knowledgeConnector.status, 'pending'),
+                  eq(knowledgeConnector.syncLockToken, options.dispatchToken)
+                )
+              : undefined
           )
         )
       )
-      .limit(1)
-      .then((rows) => rows.length > 0)
-
+    return { ...result, skipReason: 'credential_missing' }
+  }
+  return withResourceOutboundScope(kbOwner, async (): Promise<SyncResult> => {
     /**
-     * Determine if this sync should be incremental. A `rehydrate` request forces a
-     * full listing too: re-hydration must see *every* document (a container page can
-     * be unchanged itself yet transclude a page that changed), and an incremental
-     * listing would omit those unchanged containers, so they'd never be re-fetched.
+     * Identifies this run for the terminal writes. Generated before the CAS and
+     * written by it, so ownership is established atomically with the lock — and
+     * reused as the sync-log row id, which makes the connector row point at the
+     * run that holds it.
      */
-    const isIncremental =
-      !mirrored &&
-      shouldRunIncrementalSync(
-        connectorConfig.supportsIncrementalSync,
-        connector.syncMode,
-        options?.fullSync,
-        options?.rehydrate,
-        hasTombstonedDocs,
-        connector.lastSyncAt
+    const syncLogId = generateId()
+
+    const lockResult = await db
+      .update(knowledgeConnector)
+      .set(buildSyncLockAcquisition(syncLogId, new Date()))
+      .where(
+        and(
+          inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
+          eq(knowledgeConnector.id, connectorId),
+          inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
+          /**
+           * Proves this run is consuming the queue entry that was made for it.
+           *
+           * A task delayed past the lease is reclaimed and replaced, and the
+           * status check alone would let that stale task take the replacement's
+           * entry — running superseded options (a plain sync where the user had
+           * just asked for a full resync) while the replacement is turned away as
+           * `sync_in_progress`. Matching the token is the same discipline
+           * {@link holdsSyncLockToken} already applies to the `syncing` phase,
+           * extended to the phase before it.
+           */
+          ...(options.dispatchToken
+            ? [eq(knowledgeConnector.syncLockToken, options.dispatchToken)]
+            : []),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
       )
-    const lastSyncAt =
-      isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
+      .returning()
 
-    /**
-     * Re-hydrate and re-index connectors whose rendered content can drift without a
-     * hash change (transclusions) — see `ConnectorMeta.rehydrateOnFullSync`. Driven
-     * by the dedicated `rehydrate` request (the "Full resync" action) or implied by a
-     * true `fullSync`. It forces a full listing (above) and re-indexes unchanged
-     * deferred docs, but — unlike `fullSync` — it does NOT bypass any
-     * deletion-reconciliation safety guard. Incremental syncs of other connectors
-     * stay hash-gated.
-     */
-    const forceRehydrate = Boolean(
-      (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
-    )
-
-    let directoryRefreshed: Promise<Error | undefined> = Promise.resolve(undefined)
-    if (mirrored) {
+    if (lockResult.length === 0) {
       /**
-       * A switch into this mode hides every document before it flips, and one
-       * whose rewrite outgrew its request budget leaves the rest for the next
-       * run. It has to be finished *before this run lists anything*: the
-       * documents it did not reach are still readable by the whole workspace,
-       * and the completion write below clears the flag on the strength of this
-       * pass having left none under the mode the connector came from. The
-       * workspace-mode equivalent runs at completion instead, because restoring
-       * is safe to do last; hiding is not.
+       * Distinguishes the two ways the CAS can find no row. Costs one read on a
+       * path that already decided not to work, and the alternative is reporting a
+       * connector someone paused as a concurrency conflict.
        */
-      if (connector.accessRewritePending) {
-        await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
-          beforeBatch: lease.beatIfDue,
-          lease,
-        })
-      }
-      /**
-       * Started before the listing and awaited before the ACLs are written: a
-       * group grant this crawl writes must never point at membership nobody
-       * has read, and the scheduler's refresh is a cadence, not a guarantee.
-       * Observe failures immediately while allowing content ingestion to finish.
-       * The terminal sync write below still reports directory failures.
-       */
-      directoryRefreshed = refreshMirroredDirectory({
-        ...resourceScopeFields(resourceScopeFromOwner(kbOwner)),
-        connectorConfig,
-        sourceConfig,
-        syncContext,
-        accessToken: credentialToken.accessToken,
-        force:
-          Boolean(options.fullSync) ||
-          connector.consecutiveFailures > 0 ||
-          connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX),
-      }).then(() => undefined, toError)
-    }
-
-    const contentPass = await runConnectorContentPass({
-      connectorId,
-      connector,
-      connectorConfig,
-      sourceConfig,
-      syncContext,
-      lastSyncAt,
-      kbOwner,
-      billingAttribution,
-      result,
-      forceRehydrate,
-      getAccessToken: async (pageNum) => {
-        if (pageNum > 0) await refreshOAuthToken()
-        return credentialToken.accessToken
-      },
-      hydration: {
-        concurrency: connectorConfig.contentConcurrency,
-        beforeHydration: refreshOAuthToken,
-        getDocument: (externalId) =>
-          connectorConfig.getDocument(
-            credentialToken.accessToken,
-            sourceConfig,
-            externalId,
-            syncContext
-          ),
-      },
-      lease,
-      documentAccess: connector.accessMode,
-      runId: syncLogId,
-      leaseKind: 'content',
-      fingerprint: listingFingerprint({
-        connectorType: connector.connectorType,
-        credentialId: connector.credentialId,
-        encryptedApiKey: connector.encryptedApiKey,
-        sourceConfig,
-        accessMode: connector.accessMode,
-      }),
-      fullSync: options.fullSync,
-      deadlineAt: syncStartedAt.getTime() + (CONNECTOR_SYNC_MAX_DURATION_SECONDS - 300) * 1000,
-      onPage: mirrored
-        ? async (externalDocs) => {
-            await directoryRefreshed
-            await applySourceMirroredAcls({
-              connectorId,
-              connectorConfig,
-              sourceConfig,
-              syncContext,
-              accessToken: credentialToken.accessToken,
-              externalDocs,
-              ownedExternalIds: [],
-              lease,
-            })
-          }
-        : undefined,
-    })
-
-    result.listingIncomplete =
-      !contentPass.complete ||
-      contentPass.checkpoint.unsafe ||
-      contentPass.checkpoint.contentFailures
-    const reconciliationHoldNotice = contentPass.holdNotice
-    const directoryError = await directoryRefreshed
-    if (directoryError) throw directoryError
-
-    const postBatchPresence = await checkSyncTargetPresence(connectorId, connector.knowledgeBaseId)
-    if (postBatchPresence.connectorDeleted) {
-      throw new ConnectorDeletedException(connectorId)
-    }
-    if (postBatchPresence.knowledgeBaseDeleted) {
-      throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
-    }
-
-    await sweepStuckDocuments({
-      connectorId,
-      knowledgeBaseId: connector.knowledgeBaseId,
-      syncStartedAt,
-      retryCutoff,
-      billingAttribution,
-      result,
-      lease,
-    })
-
-    const completionLanded = await completeSuccessfulSync(
-      connectorId,
-      connector.knowledgeBaseId,
-      syncLogId,
-      effectiveConnectorSyncIntervalMinutes(connector.accessMode, connector.syncIntervalMinutes),
-      result,
-      reconciliationHoldNotice,
-      contentPass
-    )
-
-    if (!completionLanded) {
-      logger.warn('Sync result discarded — connector was reclaimed while this run was executing', {
-        connectorId,
-        syncLogId,
-        ...result,
-      })
-      return markSyncSuperseded(result)
-    }
-
-    logger.info('Sync completed', { connectorId, ...result })
-    return result
-  } catch (error) {
-    let connectorDeleted = error instanceof ConnectorDeletedException
-    if (error instanceof SyncLockLostException) {
-      /** A checkpoint can discover an archive before the next batch's presence check. */
-      const [ownedArchive] = await db
+      const [current] = await db
         .select({
-          archivedAt: knowledgeConnector.archivedAt,
-          deletedAt: knowledgeConnector.deletedAt,
+          status: knowledgeConnector.status,
+          syncLockToken: knowledgeConnector.syncLockToken,
         })
         .from(knowledgeConnector)
-        .where(
-          and(
-            holdsSyncLockToken(connectorId, syncLogId),
-            or(isNotNull(knowledgeConnector.archivedAt), isNotNull(knowledgeConnector.deletedAt))
-          )
-        )
+        .where(eq(knowledgeConnector.id, connectorId))
         .limit(1)
-      connectorDeleted = Boolean(ownedArchive?.archivedAt || ownedArchive?.deletedAt)
-      if (!connectorDeleted) {
-        /** A replacement-owned connector must receive no writes from this run. */
-        logger.warn('Sync abandoned — lock was reclaimed while this run was executing', {
+
+      /**
+       * Status is checked before ownership because pausing a queued connector
+       * releases its token, so a mismatch is the *symptom* there and the status is
+       * the actual reason. Testing ownership first would report every
+       * pause-while-queued — the common case — as a superseded dispatch, losing
+       * the distinction this branch exists to draw.
+       */
+      if (current?.status === 'paused' || current?.status === 'disabled') {
+        logger.info('Connector is not accepting syncs, skipping', {
           connectorId,
-          syncLogId,
-          ...result,
+          status: current.status,
         })
-        return markSyncSuperseded(result)
-      }
-    }
-
-    if (connectorDeleted) {
-      logger.info('Connector deleted during sync, cleaning up', { connectorId })
-
-      try {
-        await releaseSyncLockOnDeletedConnector(connectorId, syncLogId)
-
-        /**
-         * Includes pending-removal tombstones. Page IDs so deleting a connector
-         * with a legacy corpus above the sync admission cap cannot materialize
-         * the entire corpus in the cleanup worker.
-         */
-        let afterDocumentId: string | undefined
-        while (true) {
-          const connectorDocs = await db
-            .select({ id: document.id })
-            .from(document)
-            .where(
-              and(
-                eq(document.connectorId, connectorId),
-                isNull(document.archivedAt),
-                afterDocumentId ? gt(document.id, afterDocumentId) : undefined
-              )
-            )
-            .orderBy(asc(document.id))
-            .limit(CONNECTOR_DELETION_CLEANUP_BATCH_SIZE)
-          if (connectorDocs.length === 0) break
-
-          await hardDeleteDocuments(
-            connectorDocs.map((doc) => doc.id),
-            syncLogId,
-            connectorId
-          )
-          afterDocumentId = connectorDocs.at(-1)?.id
-          if (connectorDocs.length < CONNECTOR_DELETION_CLEANUP_BATCH_SIZE) break
-        }
-
-        await completeSyncLog(syncLogId, 'failed', result, {
-          errorMessage: 'Connector deleted during sync',
-        })
-      } catch (cleanupError) {
-        logger.error('Failed to clean up after connector deletion', {
-          connectorId,
-          error: toError(cleanupError).message,
-        })
+        return { ...result, skipReason: 'connector_not_syncable' }
       }
 
-      result.skipReason = 'connector_deleted_during_sync'
-      return result
-    }
-
-    if (getConnectorSyncDeferral(error)) {
-      try {
-        result.deferred = await deferConnectorSync({
-          connectorId,
-          knowledgeBaseId: connector.knowledgeBaseId,
-          runId: syncLogId,
-          lease,
-          kind: 'content',
-          result,
-          error,
-        })
-        result.listingIncomplete = true
-        logger.info('Connector source sync deferred', {
-          connectorId,
-          ...result.deferred,
-          docsAdvanced:
-            result.docsAdded + result.docsUpdated + result.docsUnchanged + result.docsSkipped,
-        })
-        return result
-      } catch (persistenceError) {
-        logger.error('Failed to persist connector source deferral', {
-          connectorId,
-          error:
-            getConnectorFailureDiagnostic(persistenceError)?.message ??
-            toError(persistenceError).message,
-        })
-        result.error = 'Could not persist the connector retry after provider deferral'
-        return result
+      if (options.dispatchToken && current?.syncLockToken !== options.dispatchToken) {
+        logger.info('Sync superseded by a newer dispatch, skipping', { connectorId })
+        return { ...result, skipReason: 'dispatch_superseded' }
       }
+
+      logger.info('Sync already in progress, skipping', { connectorId })
+      return { ...result, skipReason: 'sync_in_progress' }
     }
 
-    const diagnostic = getConnectorFailureDiagnostic(error)
-    const errorMessage = diagnostic?.message ?? toError(error).message
-    const retryAfterMs = getRetryAfterMs(error)
-    const rateLimited = isRateLimitError(error)
-    logger.error('Sync failed', {
+    /**
+     * The row returned by the lock is the authoritative sync snapshot. A source update
+     * committed before the lock is included here; one attempted after it sees `syncing`
+     * and conflicts instead of letting this worker process stale configuration.
+     */
+    const connector = lockResult[0]
+    /** The lock CAS only takes a content-engine row; this is the type's word for the same fact. */
+    if (!isContentEngineAccessMode(connector.accessMode)) {
+      throw new Error(`Connector ${connectorId} left the content engine's modes while locked`)
+    }
+    const accessMode = connector.accessMode
+    const mirrored = mirrorsSourceAcls(connector.accessMode)
+    const sourceConfig = connector.sourceConfig as Record<string, unknown>
+    const syncStartedAt = new Date()
+    /** One budget for every page walker of the run, ending before the worker's own limit. */
+    const runDeadlineAt =
+      syncStartedAt.getTime() + (CONNECTOR_SYNC_MAX_DURATION_SECONDS - 300) * 1000
+    const lease = createContentSyncLease(connectorId, syncLogId)
+    await db.insert(knowledgeConnectorSyncLog).values({
+      id: syncLogId,
       connectorId,
-      diagnostic,
-      error: errorMessage,
-      ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+      status: 'started',
+      startedAt: syncStartedAt,
     })
 
     try {
-      await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
+      /**
+       * OAuth credentials are workspace-scoped and shared, so the member who authorized
+       * one is often not the knowledge base owner. Resolve the credential's own account
+       * owner — token reads are scoped to `account.userId`, so passing the KB owner
+       * resolves no token at all. Resolved once here rather than inside
+       * `resolveAccessToken` so per-page refreshes don't repeat the lookup.
+       */
+      const credentialUserId = await resolveConnectorTokenUserId({
+        credentialId: connector.credentialId,
+        ...resourceScopeFields(resourceScopeFromOwner(kbOwner)),
+        fallbackUserId: userId,
+      })
+      if (!credentialUserId) {
+        throw new Error(
+          `Credential ${connector.credentialId} is not usable from workspace ${kbOwner.workspaceId} — reconnect the credential`
+        )
+      }
 
-      const failureUpdate =
-        error instanceof ConnectorSyncCapacityError
-          ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
-          : rateLimited
-            ? buildSyncRateLimitUpdate(
-                new Date(),
-                connector.consecutiveFailures,
-                errorMessage,
-                retryAfterMs
-              )
-            : buildSyncFailureUpdate(
-                new Date(),
-                connector.consecutiveFailures,
-                errorMessage,
-                retryAfterMs
-              )
+      let credentialToken = await resolveAccessToken(
+        connector,
+        connectorConfig,
+        credentialUserId,
+        sourceConfig,
+        accessMode
+      )
+      /** Re-resolves the token for every OAuth call after the first, so a long run outlives a short-lived token. */
+      const refreshOAuthToken = async (): Promise<void> => {
+        if (connectorConfig.auth.mode === 'oauth') {
+          credentialToken = await resolveAccessToken(
+            connector,
+            connectorConfig,
+            credentialUserId,
+            sourceConfig,
+            accessMode
+          )
+        }
+      }
 
-      if (failureUpdate.status === 'disabled') {
-        logger.warn('Connector disabled after repeated failures', {
+      /**
+       * A credential that already knows its cloud id seeds the same `syncContext`
+       * slot the connector would otherwise memoise it into. Confluence discovers
+       * it by calling `accessible-resources` with a bearer token; an Atlassian
+       * service account holds an API token that cannot make that call, so for it
+       * the seed is the only source. Connectors need no service-account branch.
+       */
+      const syncContext: Record<string, unknown> = {
+        syncRunId: generateId(),
+        ...syncContextForToken(credentialToken),
+        /** Tells a connector to carry permissions with its listing; without it, none are read. */
+        ...(mirrored ? { mirrorsSourceAcls: true } : {}),
+      }
+      if (mirrored)
+        await connectorConfig.permissionConfig?.populateSyncContext(connectorId, syncContext)
+
+      // Shared cutoff for both the tombstone-retry bound below and the stuck-document
+      // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
+      const retryCutoff = new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+
+      /**
+       * Bounded to the same retry window as the stuck-document retry below: a
+       * document whose refresh keeps failing every sync (e.g. permanently
+       * oversized) would otherwise be a tombstone that never resolves, forcing a
+       * full listing — and its listing-time overhead — for this connector
+       * forever. Past the window, this connector stops forcing full syncs on its
+       * account; the document itself is unaffected and stays tombstoned either way.
+       *
+       * Known accepted trade-off: once past the window, a still-tombstoned
+       * document that's unchanged-but-genuinely-present at the source can only
+       * be resurrected by a full listing — and nothing here forces one anymore.
+       * On a connector that never runs a full sync again (persistent incremental
+       * syncMode, no manual full resync), that document stays correctly
+       * invisible (excluded everywhere by `isNull(deletedAt)`, so no
+       * search/billing/listing leakage) but unresolved indefinitely. This is
+       * deliberately not "fixed" by hard-deleting it after the window expires —
+       * that would delete a document we have no positive evidence is actually
+       * gone, reintroducing the exact risk this whole design exists to avoid.
+       */
+      const tombstoneCheckStartedAt = Date.now()
+      const hasTombstonedDocs = await db
+        .select({ id: document.id })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            isNull(document.archivedAt),
+            or(
+              and(isNotNull(document.deletedAt), gt(document.deletedAt, retryCutoff)),
+              isNull(document.contentHash)
+            )
+          )
+        )
+        .limit(1)
+        .then((rows) => rows.length > 0)
+        .catch((error: unknown) => {
+          logger.error('Connector tombstone check failed', {
+            connectorId,
+            operation: 'document.tombstone-check',
+            elapsedMs: Date.now() - tombstoneCheckStartedAt,
+            diagnostic: getConnectorFailureDiagnostic(error),
+          })
+          throw error
+        })
+
+      /**
+       * Determine if this sync should be incremental. A `rehydrate` request forces a
+       * full listing too: re-hydration must see *every* document (a container page can
+       * be unchanged itself yet transclude a page that changed), and an incremental
+       * listing would omit those unchanged containers, so they'd never be re-fetched.
+       */
+      const isIncremental =
+        !mirrored &&
+        shouldRunIncrementalSync(
+          connectorConfig.supportsIncrementalSync,
+          connector.syncMode,
+          options?.fullSync,
+          options?.rehydrate,
+          hasTombstonedDocs,
+          connector.lastSyncAt
+        )
+      const lastSyncAt =
+        isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
+
+      /**
+       * Re-hydrate and re-index connectors whose rendered content can drift without a
+       * hash change (transclusions) — see `ConnectorMeta.rehydrateOnFullSync`. Driven
+       * by the dedicated `rehydrate` request (the "Full resync" action) or implied by a
+       * true `fullSync`. It forces a full listing (above) and re-indexes unchanged
+       * deferred docs, but — unlike `fullSync` — it does NOT bypass any
+       * deletion-reconciliation safety guard. Incremental syncs of other connectors
+       * stay hash-gated.
+       */
+      const forceRehydrate = Boolean(
+        (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
+      )
+
+      let directoryRefreshed: Promise<DirectoryRefreshResult | Error> = Promise.resolve({
+        status: 'skipped',
+      })
+      if (mirrored) {
+        /**
+         * A switch into this mode hides every document before it flips, and one
+         * whose rewrite outgrew its request budget leaves the rest for the next
+         * run. It has to be finished *before this run lists anything*: the
+         * documents it did not reach are still readable by the whole workspace,
+         * and the completion write below clears the flag on the strength of this
+         * pass having left none under the mode the connector came from. The
+         * workspace-mode equivalent runs at completion instead, because restoring
+         * is safe to do last; hiding is not.
+         */
+        if (connector.accessRewritePending) {
+          const hidden = await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
+            beforeBatch: lease.beatIfDue,
+            lease,
+            deadlineAt: runDeadlineAt,
+          })
+          if (!hidden) {
+            /** Nothing is listed while documents are still readable; the next run resumes the walk. */
+            const landed = await completeSuccessfulSync(
+              connectorId,
+              connector.knowledgeBaseId,
+              syncLogId,
+              effectiveConnectorSyncIntervalMinutes(
+                connector.accessMode,
+                connector.syncIntervalMinutes
+              ),
+              result,
+              null,
+              undefined,
+              null,
+              true
+            )
+            return landed ? result : markSyncSuperseded(result)
+          }
+        }
+        /**
+         * Started before the listing and awaited before the ACLs are written: a
+         * group grant this crawl writes must never point at membership nobody
+         * has read, and the scheduler's refresh is a cadence, not a guarantee.
+         * Observe failures immediately while allowing content ingestion to finish.
+         * The terminal sync write below still reports directory failures.
+         */
+        directoryRefreshed = refreshMirroredDirectory({
+          ...resourceScopeFields(resourceScopeFromOwner(kbOwner)),
+          connectorConfig,
+          sourceConfig,
+          syncContext,
+          accessToken: credentialToken.accessToken,
+          force:
+            Boolean(options.fullSync) ||
+            connector.consecutiveFailures > 0 ||
+            hasDirectorySyncNotice(connector.lastSyncError),
+        }).catch(toError)
+      }
+
+      const contentPass = await runConnectorContentPass({
+        connectorId,
+        connector,
+        connectorConfig,
+        sourceConfig,
+        syncContext,
+        lastSyncAt,
+        kbOwner,
+        billingAttribution,
+        result,
+        forceRehydrate,
+        getAccessToken: async (pageNum) => {
+          if (pageNum > 0) await refreshOAuthToken()
+          return credentialToken.accessToken
+        },
+        hydration: {
+          concurrency: connectorConfig.contentConcurrency,
+          beforeHydration: refreshOAuthToken,
+          getDocument: (externalId) =>
+            connectorConfig.getDocument(
+              credentialToken.accessToken,
+              sourceConfig,
+              externalId,
+              syncContext
+            ),
+        },
+        lease,
+        documentAccess: connector.accessMode,
+        runId: syncLogId,
+        leaseKind: 'content',
+        fingerprint: listingFingerprint({
+          connectorType: connector.connectorType,
+          credentialId: connector.credentialId,
+          encryptedApiKey: connector.encryptedApiKey,
+          sourceConfig,
+          accessMode: connector.accessMode,
+        }),
+        fullSync: options.fullSync,
+        deadlineAt: runDeadlineAt,
+        onPage: mirrored
+          ? async (externalDocs, generationStartedAt) => {
+              await directoryRefreshed
+              return applySourceMirroredAcls({
+                connectorId,
+                kbOwner,
+                connectorConfig,
+                sourceConfig,
+                syncContext,
+                accessToken: credentialToken.accessToken,
+                externalDocs,
+                generationStartedAt,
+                ownedExternalIds: [],
+                lease,
+              })
+            }
+          : undefined,
+      })
+
+      result.listingIncomplete = isContentPassIncomplete(contentPass)
+      const reconciliationHoldNotice = contentPass.holdNotice
+      const directoryOutcome = await directoryRefreshed
+      if (directoryOutcome instanceof Error) throw directoryOutcome
+      const directoryNotice =
+        directoryOutcome.status === 'partial'
+          ? directoryOutcome.notice
+          : directoryOutcome.status === 'skipped' && mirrored
+            ? directorySyncNotice(connector.lastSyncError)
+            : null
+
+      const postBatchPresence = await checkSyncTargetPresence(
+        connectorId,
+        connector.knowledgeBaseId
+      )
+      if (postBatchPresence.connectorDeleted) {
+        throw new ConnectorDeletedException(connectorId)
+      }
+      if (postBatchPresence.knowledgeBaseDeleted) {
+        throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
+      }
+
+      await sweepStuckDocuments({
+        connectorId,
+        knowledgeBaseId: connector.knowledgeBaseId,
+        syncStartedAt,
+        retryCutoff,
+        billingAttribution,
+        result,
+        lease,
+      })
+
+      /**
+       * Finishes a switch into workspace mode that outgrew its request budget
+       * or was interrupted: every document of the connector becomes readable by
+       * the workspace before the completion write clears the pending flag. The
+       * flag is the only source of such drift: every other writer of a
+       * workspace-mode document's ACL writes the workspace ACL, and both the
+       * mode switch and an ACL-resetting edit set the flag before anything can
+       * hide a document. One short lease-proving transaction per page that also
+       * re-checks the mode, before the completion transaction, so a large
+       * restore never holds the connector row across its projection fan-out.
+       */
+      let accessRewriteUnfinished = false
+      if (accessMode === 'workspace' && connector.accessRewritePending) {
+        const restore = await restoreWorkspaceDocumentAcls(
           connectorId,
-          consecutiveFailures: failureUpdate.consecutiveFailures,
+          leaseTransaction(connectorId, lease),
+          { beforePage: lease.beatIfDue, deadlineAt: runDeadlineAt }
+        )
+        accessRewriteUnfinished = !restore.finished
+        if (restore.restored > 0) {
+          logger.warn('Restored workspace access on connector documents that had drifted', {
+            connectorId,
+            restoredAcls: restore.restored,
+            finished: restore.finished,
+          })
+        }
+      }
+
+      const completionLanded = await completeSuccessfulSync(
+        connectorId,
+        connector.knowledgeBaseId,
+        syncLogId,
+        effectiveConnectorSyncIntervalMinutes(connector.accessMode, connector.syncIntervalMinutes),
+        result,
+        reconciliationHoldNotice,
+        contentPass,
+        directoryNotice,
+        accessRewriteUnfinished
+      )
+
+      if (!completionLanded) {
+        logger.warn(
+          'Sync result discarded — connector was reclaimed while this run was executing',
+          {
+            connectorId,
+            syncLogId,
+            ...result,
+          }
+        )
+        return markSyncSuperseded(result)
+      }
+
+      logger.info('Sync completed', { connectorId, ...result })
+      return result
+    } catch (error) {
+      let connectorDeleted = error instanceof ConnectorDeletedException
+      if (error instanceof SyncLockLostException) {
+        /** A checkpoint can discover an archive before the next batch's presence check. */
+        const [ownedArchive] = await db
+          .select({
+            archivedAt: knowledgeConnector.archivedAt,
+            deletedAt: knowledgeConnector.deletedAt,
+          })
+          .from(knowledgeConnector)
+          .where(
+            and(
+              holdsSyncLockToken(connectorId, syncLogId),
+              or(isNotNull(knowledgeConnector.archivedAt), isNotNull(knowledgeConnector.deletedAt))
+            )
+          )
+          .limit(1)
+        connectorDeleted = Boolean(ownedArchive?.archivedAt || ownedArchive?.deletedAt)
+        if (!connectorDeleted) {
+          /** A replacement-owned connector must receive no writes from this run. */
+          logger.warn('Sync abandoned — lock was reclaimed while this run was executing', {
+            connectorId,
+            syncLogId,
+            ...result,
+          })
+          return markSyncSuperseded(result)
+        }
+      }
+
+      if (connectorDeleted) {
+        logger.info('Connector deleted during sync, cleaning up', { connectorId })
+
+        try {
+          await releaseSyncLockOnDeletedConnector(connectorId, syncLogId)
+
+          /**
+           * Includes pending-removal tombstones. Page IDs so deleting a connector
+           * with a legacy corpus above the sync admission cap cannot materialize
+           * the entire corpus in the cleanup worker.
+           */
+          let afterDocumentId: string | undefined
+          while (true) {
+            const connectorDocs = await db
+              .select({ id: document.id })
+              .from(document)
+              .where(
+                and(
+                  eq(document.connectorId, connectorId),
+                  isNull(document.archivedAt),
+                  afterDocumentId ? gt(document.id, afterDocumentId) : undefined
+                )
+              )
+              .orderBy(asc(document.id))
+              .limit(CONNECTOR_DELETION_CLEANUP_BATCH_SIZE)
+            if (connectorDocs.length === 0) break
+
+            await hardDeleteDocuments(
+              connectorDocs.map((doc) => doc.id),
+              syncLogId,
+              connectorId
+            )
+            afterDocumentId = connectorDocs.at(-1)?.id
+            if (connectorDocs.length < CONNECTOR_DELETION_CLEANUP_BATCH_SIZE) break
+          }
+
+          await completeSyncLog(syncLogId, 'failed', result, {
+            errorMessage: 'Connector deleted during sync',
+          })
+        } catch (cleanupError) {
+          logger.error('Failed to clean up after connector deletion', {
+            connectorId,
+            error: toError(cleanupError).message,
+          })
+        }
+
+        result.skipReason = 'connector_deleted_during_sync'
+        return result
+      }
+
+      if (getConnectorSyncDeferral(error)) {
+        try {
+          result.deferred = await deferConnectorSync({
+            connectorId,
+            knowledgeBaseId: connector.knowledgeBaseId,
+            runId: syncLogId,
+            lease,
+            kind: 'content',
+            result,
+            error,
+          })
+          result.listingIncomplete = true
+          logger.info('Connector source sync deferred', {
+            connectorId,
+            ...result.deferred,
+            docsAdvanced:
+              result.docsAdded + result.docsUpdated + result.docsUnchanged + result.docsSkipped,
+          })
+          return result
+        } catch (persistenceError) {
+          logger.error('Failed to persist connector source deferral', {
+            connectorId,
+            error:
+              getConnectorFailureDiagnostic(persistenceError)?.message ??
+              toError(persistenceError).message,
+          })
+          result.error = 'Could not persist the connector retry after provider deferral'
+          return result
+        }
+      }
+
+      if (error instanceof ConnectorCredentialRevokedError) {
+        /**
+         * Retrying cannot help until the credential is reauthorized, so the
+         * connector leaves its schedule with a reconnect prompt instead of
+         * climbing the failure ladder toward the same rejection. Reauthorizing
+         * the credential puts it back on schedule, and a reauthorization that
+         * landed while this run was failing has already cleared the rejection:
+         * that run takes the ordinary ladder below, so its next attempt uses the
+         * repaired chain rather than leaving a repaired connector unscheduled.
+         * The unscheduled run itself is a skip: nothing about the source failed,
+         * and a sync that cannot start is not an incident to page on. A run that
+         * cannot record the unschedule is a failure, so the runner reports it
+         * instead of leaving the connector locked behind a benign outcome.
+         */
+        const stillRejected = await getCredentialRevocationError(error.credentialId)
+        if (stillRejected) {
+          logger.warn('Sync unscheduled: the source rejected the connector credential', {
+            connectorId,
+            credentialId: error.credentialId,
+            errorCode: error.errorCode,
+          })
+          try {
+            await completeSyncLog(syncLogId, 'failed', result, {
+              errorMessage: CREDENTIAL_REVOKED_SYNC_ERROR,
+            })
+            const landed = await writeTerminalConnectorState(
+              connectorId,
+              syncLogId,
+              buildSyncUnscheduledUpdate(new Date(), CREDENTIAL_REVOKED_SYNC_ERROR)
+            )
+            if (!landed) {
+              logger.warn(
+                'Unschedule discarded — connector was reclaimed while this run was executing',
+                { connectorId, syncLogId }
+              )
+            }
+            return { ...result, skipReason: 'credential_revoked' }
+          } catch (recoveryError) {
+            const recoveryMessage =
+              getConnectorFailureDiagnostic(recoveryError)?.message ??
+              toError(recoveryError).message
+            logger.error('Failed to unschedule the connector', {
+              connectorId,
+              error: recoveryMessage,
+            })
+            result.error = recoveryMessage
+            return result
+          }
+        }
+        logger.info('Credential reauthorized during the run; the retry uses the repaired chain', {
+          connectorId,
+          credentialId: error.credentialId,
         })
       }
 
-      const failureWriteLanded = await writeTerminalConnectorState(
+      const diagnostic = getConnectorFailureDiagnostic(error)
+      const errorMessage = diagnostic?.message ?? toError(error).message
+      const retryAfterMs = getRetryAfterMs(error)
+      const rateLimited = isRateLimitError(error)
+      logger.error('Sync failed', {
         connectorId,
-        syncLogId,
-        failureUpdate
-      )
-
-      /**
-       * Deliberately does NOT get {@link markSyncSuperseded}. `result.error`
-       * is set to the real failure cause below, so replacing it with lifecycle
-       * control flow would destroy the diagnostic. The supersession is carried
-       * by this log line instead.
-       */
-      if (!failureWriteLanded) {
-        logger.warn(
-          'Sync failure discarded — connector was reclaimed while this run was executing',
-          { connectorId, syncLogId, error: errorMessage }
-        )
-      }
-    } catch (recoveryError) {
-      logger.error('Failed to record sync failure', {
-        connectorId,
-        error:
-          getConnectorFailureDiagnostic(recoveryError)?.message ?? toError(recoveryError).message,
+        diagnostic,
+        error: errorMessage,
+        ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
       })
-    }
 
-    result.error = errorMessage
-    return result
-  }
+      try {
+        const databaseFailure =
+          error instanceof ConnectorSyncCapacityError
+            ? undefined
+            : getTransientDatabaseFailure(error)
+        await completeSyncLog(syncLogId, 'failed', result, {
+          errorMessage,
+          databaseFailureClass: databaseFailure,
+        })
+        const failureUpdate =
+          error instanceof ConnectorSyncCapacityError
+            ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
+            : databaseFailure
+              ? buildSyncDatabaseRetryUpdate(
+                  new Date(),
+                  connector.consecutiveFailures,
+                  errorMessage,
+                  await resolveDatabaseRetryDelayMs({
+                    kind: 'content',
+                    connectorId,
+                    runId: syncLogId,
+                    previousFailures: connector.consecutiveFailures,
+                    madeProgress: result.docsAdded + result.docsUpdated + result.docsDeleted > 0,
+                  })
+                )
+              : rateLimited
+                ? buildSyncRateLimitUpdate(
+                    new Date(),
+                    connector.consecutiveFailures,
+                    errorMessage,
+                    retryAfterMs
+                  )
+                : buildSyncFailureUpdate(
+                    new Date(),
+                    connector.consecutiveFailures,
+                    errorMessage,
+                    retryAfterMs
+                  )
+
+        if (failureUpdate.status === 'disabled') {
+          logger.warn('Connector disabled after repeated failures', {
+            connectorId,
+            consecutiveFailures: failureUpdate.consecutiveFailures,
+          })
+        }
+
+        const failureWriteLanded = await writeTerminalConnectorState(
+          connectorId,
+          syncLogId,
+          failureUpdate
+        )
+
+        /**
+         * Deliberately does NOT get {@link markSyncSuperseded}. `result.error`
+         * is set to the real failure cause below, so replacing it with lifecycle
+         * control flow would destroy the diagnostic. The supersession is carried
+         * by this log line instead.
+         */
+        if (!failureWriteLanded) {
+          logger.warn(
+            'Sync failure discarded — connector was reclaimed while this run was executing',
+            { connectorId, syncLogId, error: errorMessage }
+          )
+        }
+      } catch (recoveryError) {
+        logger.error('Failed to record sync failure', {
+          connectorId,
+          error:
+            getConnectorFailureDiagnostic(recoveryError)?.message ?? toError(recoveryError).message,
+        })
+      }
+
+      result.error = errorMessage
+      return result
+    }
+  })
 }

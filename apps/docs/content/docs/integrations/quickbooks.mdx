@@ -3119,8 +3119,6 @@ Download a QuickBooks file attachment as a stored Sim file
 | `size` | number | Downloaded file size in bytes |
 | `attachmentId` | string | Downloaded QuickBooks attachment ID |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -3990,4 +3988,22 @@ Trigger when selected Vendor events occur in QuickBooks
 | `source` | string | Intuit event source |
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a QuickBooks account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/quickbooks` |
+| Client credentials | Entered in Sim when connecting an account, not set as environment variables |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `com.intuit.quickbooks.accounting` | Access and manage accounting data in the connected QuickBooks Online company |
+
 

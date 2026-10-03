@@ -8,6 +8,7 @@ import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import { getEnv, isTruthy, publicEnvMissingAtModuleInit } from '@/lib/core/config/env'
 import { setPostHogClient } from '@/lib/posthog/client'
 import { preparePostHogEvent } from '@/lib/posthog/exception-filter'
+import { surfaceSuperProperties } from '@/lib/posthog/surface'
 
 const logger = createLogger('PostHogProvider')
 
@@ -154,6 +155,7 @@ export function PostHogProvider({ children, consentRequired = false }: PostHogPr
        * without emitting PostHog's synthetic opt-in event.
        */
       posthog.opt_in_capturing({ captureEventName: false })
+      posthog.register(surfaceSuperProperties())
       setPostHogClient(posthog)
 
       if (publicEnvMissingAtModuleInit) {

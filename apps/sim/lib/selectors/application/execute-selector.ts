@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import {
   type ExecuteSelectorRequest,
@@ -7,8 +8,13 @@ import {
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
-import { selectorOperations } from '@/lib/selectors/application/operations'
+import {
+  SELECTOR_DELEGATION_AUDIENCE,
+  selectorOperations,
+} from '@/lib/selectors/application/operations'
 import {
   resolveSelectorApplicationContext,
   type SelectorApplicationContext,
@@ -29,7 +35,7 @@ import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-
 import { resolveSelectorReferences } from '@/lib/selectors/server/references'
 import { getServerSelectorAttachment } from '@/lib/selectors/server/registry'
 import { sanitizeSelectorResult } from '@/lib/selectors/server/sanitize'
-import type { ResolvedSelectorReference } from '@/lib/selectors/server/types'
+import type { ResolvedSelectorReference, SelectorPrincipal } from '@/lib/selectors/server/types'
 import type { SelectorExecutionResult, SelectorRequest } from '@/lib/selectors/types'
 import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
@@ -124,7 +130,7 @@ function getReferencedDetailResolvedId(input: {
 }
 
 async function executeAuthorizedSelector(args: {
-  principal: { kind: 'session'; userId: string; sessionId: string }
+  principal: SelectorPrincipal
   input: ExecuteSelectorInput
   context: SelectorApplicationContext
 }): Promise<SelectorExecutionResult> {
@@ -139,7 +145,7 @@ async function executeAuthorizedSelector(args: {
       selectorKey: args.input.selectorKey as ServerSelectorKey,
       context: args.input.context,
       request: args.input.request,
-      requesterUserId: args.principal.userId,
+      requesterUserId: requirePrincipalSubjectUserId(args.principal),
       workspaceId: args.context.workspaceId,
       protectedValues,
     })
@@ -193,19 +199,22 @@ async function executeAuthorizedSelector(args: {
     })
 
     const credentialAccess = credential?.access
+    const credentialResourceId = credentialAccess?.resolvedCredentialId
     let credentialUseRecorded = false
     const recordCredentialUse =
-      attachment.auditCredentialUse && credentialAccess?.resolvedCredentialId
+      attachment.auditCredentialUse && credentialResourceId
         ? (providerId: string) => {
             if (credentialUseRecorded) return
             credentialUseRecorded = true
             recordCredentialAccess({
-              actorId: args.principal.userId,
+              actorId: requirePrincipalSubjectUserId(args.principal),
               workspaceId: args.context.workspaceId ?? null,
-              resourceId: credentialAccess.resolvedCredentialId!,
+              resourceId: credentialResourceId,
               providerId: credential?.providerId ?? providerId,
               credentialType:
-                credentialAccess.credentialType === 'service_account' ? 'service_account' : 'oauth',
+                credentialAccess?.credentialType === 'service_account'
+                  ? 'service_account'
+                  : 'oauth',
               auditRequest: args.input.auditRequest,
             })
           }
@@ -219,7 +228,7 @@ async function executeAuthorizedSelector(args: {
       workspaceId: args.context.workspaceId,
       organizationId,
       principal: args.principal,
-      requesterUserId: args.principal.userId,
+      requesterUserId: requirePrincipalSubjectUserId(args.principal),
       credential,
       references: resolved.references,
       signal: args.input.signal,
@@ -280,7 +289,8 @@ async function executeAuthorizedSelector(args: {
       error instanceof SelectorOptionsUnavailableError ||
       // A refusal, not a provider failure: it reaches the caller as its own 403
       // rather than being folded into "Options unavailable".
-      error instanceof IntegrationNotAllowedError
+      error instanceof IntegrationNotAllowedError ||
+      error instanceof OrchestrationError
     ) {
       throw error
     }
@@ -314,7 +324,9 @@ const executeWorkspaceSelector = defineAuthorizedWorkspaceUseCase<
     if (context.workspaceId === undefined) throw new SelectorContextUnavailableError()
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: {
+    delegation: { audience: SELECTOR_DELEGATION_AUDIENCE, isWithinScope: () => true },
+  },
   authorizeResource: ({ input, context }) => validateAuthorizedInput(input, context),
   execute: executeAuthorizedSelector,
 })
@@ -326,8 +338,19 @@ export const executeSelector: OperationUseCase<
   SelectorExecutionResult
 > = {
   operation: selectorOperations.execute,
+  delegationAudience: executeWorkspaceSelector.delegationAudience,
   async execute(args) {
-    if (args.input.scope.kind !== 'organization') return executeWorkspaceSelector.execute(args)
+    args = {
+      ...args,
+      input: {
+        ...args.input,
+        signal: args.input.signal ?? args.request?.signal,
+        auditRequest: args.input.auditRequest ?? args.request,
+      },
+    }
+    if (args.input.scope.kind !== 'organization') {
+      return executeWorkspaceSelector.execute(args)
+    }
     if (args.principal.kind !== 'session') throw new SelectorContextUnavailableError()
     await requireOrganizationMembership(
       args.principal,
@@ -340,6 +363,7 @@ export const executeSelector: OperationUseCase<
       scope: args.input.scope,
     })
     validateAuthorizedInput(args.input, context)
-    return executeAuthorizedSelector({ principal: args.principal, input: args.input, context })
+    const executionArgs = { principal: args.principal, input: args.input, context }
+    return withResourceOutboundScope(context, () => executeAuthorizedSelector(executionArgs))
   },
 }

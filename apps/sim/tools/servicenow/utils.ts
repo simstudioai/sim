@@ -1,4 +1,4 @@
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { DEFAULT_DISPLAY_VALUE } from '@/tools/servicenow/constants'
 import type {
   ServiceNowAuthParams,
@@ -251,9 +251,9 @@ export function toRecordArray(result: unknown): ServiceNowRecord[] {
   return (Array.isArray(result) ? result : [result]).filter(isRecord)
 }
 
-/** Narrows an unknown value to a plain (non-array, non-null) object. */
+/** {@link isRecordLike} re-narrowed to `ServiceNowRecord` for the response shapes here. */
 export function isRecord(value: unknown): value is ServiceNowRecord {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+  return isRecordLike(value)
 }
 
 /**

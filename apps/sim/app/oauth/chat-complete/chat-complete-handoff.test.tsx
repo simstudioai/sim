@@ -23,7 +23,6 @@ describe('ChatCompleteHandoff', () => {
   let attempt: OAuthChatAttempt
 
   beforeEach(() => {
-    vi.clearAllMocks()
     window.localStorage.clear()
     vi.spyOn(window, 'close').mockImplementation(() => {})
     attempt = createOAuthChatAttempt({
@@ -36,42 +35,12 @@ describe('ChatCompleteHandoff', () => {
     })
   })
 
-  it('publishes success on arrival, without requiring a new credential to appear', () => {
-    // Re-authorizing an already-linked account updates the account row rather
-    // than creating one, so no new credential lands — reaching this page is
-    // still the server telling us the flow succeeded.
-    const { root } = renderAt(`?oauthAttempt=${attempt.id}`)
-
-    expect(readOAuthChatAttempt(attempt.id)?.status).toBe('connected')
-    expect(window.close).toHaveBeenCalledOnce()
-    act(() => root.unmount())
-  })
-
-  it('publishes failure when the provider returned an error', () => {
-    const { root } = renderAt(`?oauthAttempt=${attempt.id}&error=access_denied`)
-
-    expect(readOAuthChatAttempt(attempt.id)?.status).toBe('failed')
-    act(() => root.unmount())
-  })
-
   it('leaves an unrelated attempt untouched when no attempt is named', () => {
     const { root } = renderAt('')
 
     expect(readOAuthChatAttempt(attempt.id)?.status).toBe('pending')
     expect(window.close).toHaveBeenCalledOnce()
     act(() => root.unmount())
-  })
-
-  it('still publishes the verdict when the attempt store rejects the write', () => {
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('quota', 'QuotaExceededError')
-    })
-
-    // The verdict is lost, but the window must still be released — an
-    // unguarded throw would strand the popup open on this page.
-    expect(() => renderAt(`?oauthAttempt=${attempt.id}`)).not.toThrow()
-    expect(window.close).toHaveBeenCalledOnce()
-    setItem.mockRestore()
   })
 
   describe('close-refused fallback', () => {

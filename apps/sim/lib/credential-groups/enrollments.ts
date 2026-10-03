@@ -44,9 +44,11 @@ import type {
   CredentialGroupEnrollmentRecord,
   InviteCredentialGroupEnrollmentsInput,
 } from '@/lib/credential-groups/types'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const DELIVERY_CONCURRENCY = 5
@@ -173,25 +175,29 @@ export interface CredentialGroupEnrollmentCompletion {
 
 /** Serializes OAuth grant persistence and administrative revocation for one enrollment. */
 export async function lockCredentialGroupEnrollmentLifecycle(
-  executor: DbOrTx,
+  executor: DbTransaction,
   enrollmentId: string
 ): Promise<void> {
   if (!enrollmentId.trim()) throw new Error('Credential group enrollment ID is required')
-  await executor.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-enrollment:${enrollmentId}`}, 0))`
+  await acquireAdvisoryXactLock(
+    executor,
+    'credential_group_enrollment',
+    `credential-group-enrollment:${enrollmentId}`
   )
 }
 
 /** Serializes invitation issuance before an enrollment row is known or locked. */
 async function lockCredentialGroupInvitationTarget(
-  executor: DbOrTx,
+  executor: DbTransaction,
   groupId: string,
   email: string
 ): Promise<void> {
   if (!groupId.trim()) throw new Error('Credential group ID is required')
   if (!email.trim()) throw new Error('Credential group enrollment email is required')
-  await executor.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-invitation:${groupId}:${email}`}, 0))`
+  await acquireAdvisoryXactLock(
+    executor,
+    'credential_group_invitation',
+    `credential-group-invitation:${groupId}:${email}`
   )
 }
 
@@ -962,26 +968,6 @@ export async function createCredentialGroupSelfEnrollmentLink(
   }
 }
 
-export async function createCredentialGroupInvitationLink(
-  scopeInput: string | ResourceScope,
-  groupId: string,
-  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
-  userId: string | undefined,
-  email: string,
-  /** See {@link inviteCredentialGroupEnrollment}. */
-  revokedEnrollment: RevokedEnrollmentPolicy = 'reactivate'
-): Promise<CredentialGroupInvitationLink> {
-  const scope = credentialGroupScope(scopeInput)
-  const context = await getInvitationContext(scope, groupId)
-  const issued = await issueInvitation(context, userId, normalizeEmail(email), {
-    revokedEnrollment,
-  })
-  return {
-    enrollment: toCredentialGroupEnrollment(issued.enrollment),
-    invitationLink: issued.invitationLink,
-  }
-}
-
 export async function resendCredentialGroupEnrollment(
   scopeInput: string | ResourceScope,
   groupId: string,
@@ -1469,6 +1455,11 @@ async function credentialGroupMcpOAuthContextFromRow(
     throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
   }
   getManagedMcpConnector(server.managedConnectorId)
+  if (
+    server.managedConnectorId === 'zoom' &&
+    !(await isSearchProviderEnabled('zoom', resourceScopeFromOwner(row)))
+  )
+    return null
   return {
     enrollmentId: row.enrollment.id,
     userId: row.enrollment.userId,

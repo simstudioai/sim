@@ -8,6 +8,7 @@ import {
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -21,11 +22,13 @@ import type { ScopedKnowledgeOperation } from '@/lib/knowledge/application/opera
 
 type KnowledgePrincipalForOperation<O extends ScopedKnowledgeOperation> =
   | PrincipalForOperation<O>
-  | ('copilot' extends NonNullable<O['delegatedServices']>[number]
-      ? O['minimumRole'] extends 'read'
-        ? OrganizationDelegatedPrincipal
-        : never
-      : never)
+  | (O extends { readonly organizationDelegation: 'allow' }
+      ? OrganizationDelegatedPrincipal
+      : 'copilot' extends NonNullable<O['delegatedServices']>[number]
+        ? O['minimumRole'] extends 'read'
+          ? OrganizationDelegatedPrincipal
+          : never
+        : never)
 
 function requireKnowledgePrincipal<O extends ScopedKnowledgeOperation>(
   principal: Principal,
@@ -34,7 +37,7 @@ function requireKnowledgePrincipal<O extends ScopedKnowledgeOperation>(
   if (principal.kind !== 'organization_delegated')
     return requireAllowedWorkspacePrincipal(principal, operation)
   if (
-    operation.minimumRole !== 'read' ||
+    !operation.organizationOperation.principalKinds.includes('organization_delegated') ||
     !operation.organizationOperation.delegatedServices?.includes(principal.serviceId)
   ) {
     throw new OrchestrationError(
@@ -206,6 +209,7 @@ export function defineAuthorizedKnowledgeUseCase<
 
   return {
     operation: definition.operation,
+    delegationAudience: workspaceUseCase.delegationAudience,
     async authorize({ principal, input, request }) {
       const resolved = await resolveAuthorizedContext({ principal, input })
       if (resolved.scope !== 'workspace') return
@@ -230,11 +234,13 @@ export function defineAuthorizedKnowledgeUseCase<
         context: resolved.context,
         request,
       }
-      const result = await definition.execute(executionContext)
-      const resultContext = { ...executionContext, result }
-      recordOrganizationAudit(resultContext, resolved.context.organizationId)
-      await definition.afterSuccess?.(resultContext)
-      return result
+      return runWithOutboundOrganization(resolved.context.organizationId, async () => {
+        const result = await definition.execute(executionContext)
+        const resultContext = { ...executionContext, result }
+        recordOrganizationAudit(resultContext, resolved.context.organizationId)
+        await definition.afterSuccess?.(resultContext)
+        return result
+      })
     },
   }
 }

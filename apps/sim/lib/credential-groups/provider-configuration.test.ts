@@ -1,17 +1,39 @@
-/** @vitest-environment node */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: async (value: string) => ({ encrypted: `encrypted:${value}` }),
-  decryptSecret: async (value: string) => ({ decrypted: value.replace(/^encrypted:/, '') }),
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   decryptCredentialGroupProviderConfiguration,
   encryptCredentialGroupProviderConfiguration,
   getSlackCredentialGroupConfiguration,
 } from '@/lib/credential-groups/provider-configuration'
+
+const shared = { flag: featureFlagsMockFns.mockIsFeatureEnabled }
+
+setEnv({
+  SLACK_SEARCH_APP_ID: '',
+  SLACK_SEARCH_CLIENT_ID: 'environment-client',
+  SLACK_SEARCH_CLIENT_SECRET: 'environment-secret',
+  SLACK_SEARCH_SIGNING_SECRET: 'environment-signing',
+})
+setEnvFlags({ isHosted: true })
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${value}`,
+}))
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted: value.replace(/^encrypted:/, ''),
+}))
+afterAll(() => {
+  resetEnvMock()
+  resetEnvFlagsMock()
+})
 
 const configuration = {
   type: 'credential-group-provider-configuration' as const,
@@ -26,6 +48,8 @@ const configuration = {
 }
 beforeEach(() => {
   resetDbChainMock()
+  setEnv({ SLACK_SEARCH_APP_ID: '' })
+  shared.flag.mockReset().mockResolvedValue(true)
 })
 
 describe('organization Slack app references', () => {
@@ -36,7 +60,12 @@ describe('organization Slack app references', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ encryptedProviderConfiguration }])
       .mockResolvedValueOnce([
-        { id: 'A1', clientId: 'client-1', encryptedClientSecret: 'encrypted:current-secret' },
+        {
+          id: 'A1',
+          clientId: 'client-1',
+          encryptedClientSecret: 'encrypted:current-secret',
+          encryptedSigningSecret: 'encrypted:signing',
+        },
       ])
     expect(
       await getSlackCredentialGroupConfiguration({
@@ -49,6 +78,84 @@ describe('organization Slack app references', () => {
       clientId: 'client-1',
       clientSecret: 'current-secret',
     })
+  })
+  it.each([
+    [true, true],
+    [false, true],
+    [true, false],
+  ])(
+    'resolves shared credentials only for an active installation and enabled organization (active=%s, enabled=%s)',
+    async (active, enabled) => {
+      setEnv({ SLACK_SEARCH_APP_ID: 'A1' })
+      shared.flag.mockImplementation(
+        async (_flag, context) => enabled && context?.orgId === 'org-1'
+      )
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([
+          {
+            encryptedProviderConfiguration:
+              await encryptCredentialGroupProviderConfiguration(configuration),
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'A1',
+            kind: 'shared',
+            organizationId: null,
+            clientId: null,
+            encryptedClientSecret: null,
+            encryptedSigningSecret: null,
+          },
+        ])
+        .mockResolvedValueOnce(active ? [{ id: 'installation' }] : [])
+      const result = getSlackCredentialGroupConfiguration({
+        organizationId: 'org-1',
+        credentialGroupId: 'group-1',
+      })
+      if (!enabled) await expect(result).rejects.toThrow('unavailable')
+      else if (active)
+        await expect(result).resolves.toMatchObject({
+          clientId: 'environment-client',
+          clientSecret: 'environment-secret',
+          appId: 'A1',
+          teamId: 'T1',
+        })
+      else await expect(result).rejects.toThrow('disabled or removed')
+      expect(shared.flag).toHaveBeenCalledWith('slack-search-shared-app', { orgId: 'org-1' })
+    }
+  )
+  it('keeps using the custom app for personal sources after a different native app is installed', async () => {
+    setEnv({ SLACK_SEARCH_APP_ID: 'ANATIVE' })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          encryptedProviderConfiguration:
+            await encryptCredentialGroupProviderConfiguration(configuration),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'A1',
+          kind: 'custom',
+          organizationId: 'org-1',
+          clientId: 'custom-client',
+          encryptedClientSecret: 'encrypted:custom-secret',
+          encryptedSigningSecret: 'encrypted:custom-signing',
+        },
+      ])
+    await expect(
+      getSlackCredentialGroupConfiguration({
+        organizationId: 'org-1',
+        credentialGroupId: 'group-1',
+      })
+    ).resolves.toMatchObject({
+      appId: 'A1',
+      teamId: 'T1',
+      clientId: 'custom-client',
+      clientSecret: 'custom-secret',
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+    expect(shared.flag).not.toHaveBeenCalled()
   })
   it('fails when the referenced app is absent from the owning organization', async () => {
     dbChainMockFns.limit

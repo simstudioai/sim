@@ -1,16 +1,13 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
+import { credentialGroupsCredentialsMock } from '@sim/testing/mocks/credential-groups-credentials.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  LIVE_ENROLLMENT_STATUSES: ['active', 'partial'],
-}))
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 
 import { resolveSlackSearchMember } from '@/lib/knowledge/application/slack-search/identity'
 
 const limit = vi.fn()
 beforeEach(() => {
-  vi.clearAllMocks()
   const query = { from: vi.fn(), innerJoin: vi.fn(), where: vi.fn(), limit }
   query.from.mockReturnValue(query)
   query.innerJoin.mockReturnValue(query)

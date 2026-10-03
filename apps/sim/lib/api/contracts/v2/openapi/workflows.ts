@@ -27,12 +27,14 @@ import {
   WORKSPACE_ERRORS,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
   v2ActivateWorkflowVersionContract,
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
   v2CancelWorkflowRunContract,
+  v2CompareWorkflowVersionsContract,
   v2CreateWorkflowContract,
   v2CreateWorkflowFolderContract,
   v2DeleteWorkflowContract,
@@ -114,6 +116,7 @@ const EMPTY_LINT_EXAMPLE = {
   invalidConnectionTargets: [],
   fieldIssues: [],
   unresolvedReferences: [],
+  tableFieldIssues: [],
   notes: [],
 } as const
 
@@ -136,9 +139,6 @@ const WORKFLOW_VERSION_EXAMPLE = {
  */
 const WORKFLOW_DEPLOYMENT_VS_CHAT =
   '`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.'
-
-const CHAT_VS_WORKFLOW_DEPLOYMENT =
-  '`/workflows/{workflowId}/deployment` controls API execution; this singleton path controls hosted chat. `PUT` creates or replaces it without a chat-id path.'
 
 const CHAT_DEPLOYMENT_EXAMPLE = {
   id: 'chat_01J8ZK3QW4M6X2R9T7B5C0V2',
@@ -181,6 +181,7 @@ const RUN_RESULT_EXAMPLE = {
     workflowId: WORKFLOW_ID,
     status: 'completed',
     output: { result: 'Ticket routed to Support' },
+    blockOutputs: null,
     error: null,
     startedAt: '2026-08-09T18:04:10.000Z',
     endedAt: '2026-08-09T18:04:11.000Z',
@@ -333,7 +334,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.replaceState,
       operationId: 'replaceWorkflowState',
       summary: 'Replace Workflow State',
-      description: `Replace the draft graph atomically; concurrent writes are last-write-wins. Recompute containers from blocks and preserve omitted variables. Foreign IDs return \`409\`; lint is advisory. The live deployment is unchanged. \`dryRun=true\` validates without saving, auditing, or notifying; \`needsRedeployment\` describes the pre-write state. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Atomically replace the draft graph; row-locked concurrent writes are last-write-wins. Block, edge, or subflow IDs owned by another workflow return \`409\`. Deployments remain immutable snapshots; schedules and webhook registrations are unchanged. Deploy to publish edits. Lint is advisory. Use \`dryRun=true\` to validate without writing. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
@@ -415,6 +416,7 @@ const declaredRoutes = [
                   },
                 ],
                 unresolvedReferences: [],
+                tableFieldIssues: [],
                 notes: [],
               },
               warnings: [],
@@ -619,6 +621,55 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2CompareWorkflowVersionsContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.compareVersions,
+      operationId: 'compareWorkflowVersionsV2',
+      summary: 'Compare Workflow Versions',
+      description:
+        'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. Connections include stable block and port identifiers. The combined snapshots and the comparison result must each fit within 16 MiB.',
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: jsonSuccess('Changes from the base deployment to the target deployment.'),
+    }),
+    {
+      params: v2CompareWorkflowVersionsContract.params,
+      query: v2CompareWorkflowVersionsContract.query,
+      response: documentedSchema(
+        v2CompareWorkflowVersionsContract.response.schema,
+        'WorkflowVersionComparisonResponse',
+        'Workflow version comparison response',
+        'Changes from base to target, with credential values withheld.',
+        [
+          {
+            data: {
+              workflowId: WORKFLOW_ID,
+              base: 1,
+              target: 2,
+              diff: {
+                addedBlocks: [],
+                removedBlocks: [],
+                modifiedBlocks: [],
+                edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
+                loopChanges: { added: 0, removed: 0, modified: 0 },
+                parallelChanges: { added: 0, removed: 0, modified: 0 },
+                containerChanges: [],
+                variableChanges: {
+                  added: 0,
+                  removed: 0,
+                  modified: 0,
+                  addedNames: [],
+                  removedNames: [],
+                  modifiedNames: [],
+                },
+                hasChanges: false,
+              },
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2GetWorkflowVersionContract,
     workflowOperation({
       applicationOperation: workflowOperations.readVersion,
@@ -759,8 +810,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.read,
       operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
-      description:
-        'Get the live version, latest deployment attempt, readiness, draft changes (`needsRedeployment`), and public API access. With `isPublicApi: true`, anyone with the execution URL can run the workflow and consume billed usage without an API key. Hosted chat is managed separately.',
+      description: `Read live status, deployment time, latest attempt readiness and failure, draft divergence (\`needsRedeployment\`), anonymous execution access (\`isPublicApi\`), and registered webhook URLs. This read exposes public API access and webhook URLs; see their field descriptions for security and delivery details.\n\n${WORKFLOW_DEPLOYMENT_VS_CHAT}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The current deployment state.'),
     }),
@@ -798,6 +848,13 @@ const declaredRoutes = [
                 activatedAt: '2026-06-12T10:30:00.000Z',
                 error: null,
               },
+              webhooks: [
+                {
+                  blockId: 'blk_01J8ZK3QW4M6X2R9T7B5C0V3',
+                  provider: 'generic',
+                  url: 'https://www.sim.ai/api/webhooks/trigger/leads',
+                },
+              ],
             },
           },
         ]
@@ -900,6 +957,7 @@ const declaredRoutes = [
               warnings: [],
               activeDeployment: null,
               latestDeploymentAttempt: null,
+              archivedMcpTools: [],
             },
           },
         ]
@@ -958,7 +1016,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.export,
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description: `Export a portable, secret-sanitized workflow; workspace-scoped bindings must be selected again after import. Exporting records an audit event. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Export a portable, secret-sanitized workflow. Use includeReferences=true for non-secret source identities and field occurrences used by mapped imports. Use includeWorkspaceBindings=true to retain non-secret workspace bindings for a same-workspace round trip; default exports clear those bindings. Credentials and secrets are cleared either way. Exporting records an audit event. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
@@ -995,13 +1053,18 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.import,
       operationId: 'importWorkflow',
       summary: 'Import Workflow',
-      description: `Create a workflow from a portable export object, bare state, or JSON string. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Create an undeployed workflow from a portable export object, bare state, or JSON string. Mapping options require a preview fingerprint and stable request ID; unresolved required configuration creates nothing. Mapped imports return source-to-imported block IDs and an operation receipt. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The imported workflow.'),
     }),
     {
       query: v2ImportWorkflowContract.query,
-      body: v2ImportWorkflowContract.body,
+      body: documentedSchema(
+        v2ImportWorkflowContract.body,
+        'ImportWorkflowBody',
+        'Import workflow input',
+        'Workflow document, destination, and optional reviewed mappings.'
+      ),
       response: documentedSchema(
         v2ImportWorkflowContract.response.schema,
         'ImportWorkflowResponse',
@@ -1017,6 +1080,12 @@ const declaredRoutes = [
               folderPath: '/Operations',
               createdAt: WORKFLOW_EXAMPLE.createdAt,
               updatedAt: WORKFLOW_EXAMPLE.updatedAt,
+              blocks: [
+                { id: 'block_start', type: 'starter', name: 'Start' },
+                { id: 'block_triage', type: 'agent', name: 'Triage' },
+                { id: 'block_reply', type: 'response', name: 'Reply' },
+              ],
+              warnings: ['Triage: knowledgeBaseId was stripped by export; set it before running'],
             },
           },
         ]
@@ -1025,6 +1094,7 @@ const declaredRoutes = [
   ),
   defineOpenApiRoute(
     v2ListChatDeploymentsContract,
+
     workflowOperation({
       applicationOperation: chatDeploymentOperations.list,
       operationId: 'listChatDeployments',
@@ -1300,7 +1370,7 @@ const declaredRoutes = [
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
       description:
-        'Request cancellation of a running, queued, or paused workflow run. Terminal runs return successfully without changes. A table workflow-group run returns `409` if its cell can no longer accept cancellation.',
+        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state is a `200` no-op answered with `success: false` and an `already_*` reason. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The cancellation outcome.'),
     }),
@@ -1476,6 +1546,11 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   servers: [{ url: 'https://www.sim.ai', description: 'Production' }],
   tags: [
     {
+      name: 'Workspace Sync',
+      description:
+        'Portable workflow configuration, workspace forks, push and pull, and durable operation status.',
+    },
+    {
       name: 'Workflows',
       description:
         'Manage and execute workflow definitions, folders, deployment versions, and portable imports and exports.',
@@ -1490,5 +1565,5 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
-  routes,
+  routes: [...routes, ...workspaceSyncOpenApiRoutes],
 })

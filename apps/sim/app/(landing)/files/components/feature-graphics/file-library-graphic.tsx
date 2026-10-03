@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import { ChipTag, cn } from '@sim/emcn'
-import { DocxIcon, PdfIcon } from '@/components/icons/document-icons'
+import { DocxIcon, PdfIcon } from '@sim/emcn/icons'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/files/components/feature-graphics/file-library-graphic.module.css'
 import { InteractiveLibraryFolder } from '@/app/(landing)/files/components/feature-graphics/interactive-library-folder'

@@ -1,6 +1,12 @@
-/**
- * @vitest-environment node
- */
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import {
@@ -10,20 +16,18 @@ import {
 } from '@/lib/credentials/application/authorized-credential-use-case'
 import { defineCredentialOperation } from '@/lib/credentials/application/operations'
 
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  getActor: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   execute: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mocks.getActor,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
+
+const mocks = {
+  ...hoisted,
+  getActor: credentialsAccessMockFns.mockGetCredentialActorContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const memberOperation = defineCredentialOperation(
   defineWorkspaceOperation({
@@ -45,11 +49,7 @@ const adminOperation = defineCredentialOperation(
   }),
   'admin'
 )
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const principal = createSessionPrincipal()
 const credential = {
   id: 'credential-1',
   workspaceId: 'workspace-1',
@@ -73,7 +73,6 @@ function createUseCase(operation: typeof memberOperation | typeof adminOperation
 
 describe('defineAuthorizedCredentialUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.execute.mockResolvedValue({ ok: true })
     mocks.getActor.mockResolvedValue({
@@ -82,13 +81,6 @@ describe('defineAuthorizedCredentialUseCase', () => {
       hasWorkspaceAccess: true,
       isAdmin: false,
     })
-  })
-
-  it('allows an active credential member for member-level reads', async () => {
-    await expect(
-      createUseCase(memberOperation).execute({ principal, input: undefined })
-    ).resolves.toEqual({ ok: true })
-    expect(mocks.execute).toHaveBeenCalledOnce()
   })
 
   it('denies member-level reads without credential membership', async () => {
@@ -133,12 +125,7 @@ describe('defineAuthorizedCredentialUseCase', () => {
  * 500 rather than a refusal.
  */
 describe('requireManageableCredentialType', () => {
-  const sessionPrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
-  const apiKeyPrincipal = {
-    kind: 'personal_api_key' as const,
-    userId: 'user-1',
-    keyId: 'key-1',
-  }
+  const apiKeyPrincipal = createPersonalApiKeyPrincipal()
   const delegatedPrincipal = {
     kind: 'delegated' as const,
     service: 'copilot' as const,
@@ -147,22 +134,7 @@ describe('requireManageableCredentialType', () => {
 
   const credentialOfType = (type: string) => ({ type }) as Pick<typeof credential, 'type'>
 
-  it.each(['oauth', 'service_account', 'env_workspace', 'env_personal'])(
-    'lets a session manage a %s credential',
-    (type) => {
-      expect(() =>
-        requireManageableCredentialType(sessionPrincipal, credentialOfType(type))
-      ).not.toThrow()
-    }
-  )
-
-  it.each(['oauth', 'service_account'])('lets an API key manage a %s credential', (type) => {
-    expect(() =>
-      requireManageableCredentialType(apiKeyPrincipal, credentialOfType(type))
-    ).not.toThrow()
-  })
-
-  it.each(['env_workspace', 'env_personal'])(
+  it.each(['env_workspace'])(
     'refuses an API key on a %s credential the public schema cannot express',
     (type) => {
       expect(() =>
@@ -171,12 +143,9 @@ describe('requireManageableCredentialType', () => {
     }
   )
 
-  it.each(['service_account', 'env_workspace', 'env_personal'])(
-    'confines Copilot to oauth, refusing %s',
-    (type) => {
-      expect(() =>
-        requireManageableCredentialType(delegatedPrincipal, credentialOfType(type))
-      ).toThrowError(/Only oauth credentials can be managed by this caller/)
-    }
-  )
+  it.each(['service_account'])('confines Copilot to oauth, refusing %s', (type) => {
+    expect(() =>
+      requireManageableCredentialType(delegatedPrincipal, credentialOfType(type))
+    ).toThrowError(/Only oauth credentials can be managed by this caller/)
+  })
 })

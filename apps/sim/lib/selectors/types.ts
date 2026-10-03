@@ -2,6 +2,11 @@ import type { ComponentType } from 'react'
 
 export const selectorContextKeys = [
   'oauthCredential',
+  'serviceTokenId',
+  'serviceToken',
+  'organization',
+  'branch',
+  'mcpServerId',
   'domain',
   'teamId',
   'projectId',
@@ -15,7 +20,9 @@ export const selectorContextKeys = [
   'driveId',
   'excludeWorkflowId',
   'baseId',
+  'docId',
   'datasetId',
+  'groupId',
   'serviceDeskId',
   'impersonateUserEmail',
   'boardId',

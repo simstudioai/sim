@@ -28,10 +28,12 @@ import { executeSlackGetChannelHistoryOperation } from '@/lib/internal/slack/ope
 import { executeSlackGetThreadRepliesOperation } from '@/lib/internal/slack/operations/get-thread-replies'
 import { executeSlackListConversationsOperation } from '@/lib/internal/slack/operations/list-conversations'
 import { executeToolOperationImplementation } from '@/lib/internal/tool-operations/execute'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
+  InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 
@@ -41,14 +43,14 @@ async function executeOperation<C extends AnyApiRouteContract>(
   contract: C,
   request: InternalToolOperationCall,
   execute: (input: ContractBody<C>) => Promise<unknown>
-): Promise<Response> {
+): Promise<InternalToolOperationResult> {
   request.signal?.throwIfAborted()
   const parsed = parseInternalToolInput(contract, request.input)
   if (!parsed.success) return parsed.response
   try {
     const result = await execute(parsed.data)
     request.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof SlackOperationError) {
@@ -71,7 +73,9 @@ async function executeOperation<C extends AnyApiRouteContract>(
   }
 }
 
-export const executeSlackTool: InternalToolOperationHandler = async (request) => {
+export const executeSlackTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   const context: SlackOperationContext = {
     requestId: request.requestId,
     signal: request.signal,

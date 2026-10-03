@@ -3,6 +3,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialDelegationPolicy } from '@/lib/credentials/application/authorization'
 import { credentialOperations } from '@/lib/credentials/application/operations'
+import { filterWorkspaceAccountCredentials } from '@/lib/credentials/application/workspace-account-visibility'
 import {
   getPersonalOAuthCredentials,
   type PersonalOAuthCredential,
@@ -33,7 +34,10 @@ export const listPersonalCredentials = defineAuthorizedWorkspaceUseCase({
       getPersonalTokenCredentials(context.workspaceId, userId),
     ])
     return {
-      credentials: [...oauthCredentials, ...tokenCredentials],
+      credentials: await filterWorkspaceAccountCredentials(context, [
+        ...oauthCredentials,
+        ...tokenCredentials,
+      ]),
     }
   },
 })
@@ -57,7 +61,8 @@ export const authorizePersonalCredential = defineAuthorizedWorkspaceUseCase({
       input.credentialId
     )
     const providerIds = providerIdsForService(input.expectedProviderId)
-    const credential = credentials.find(
+    const visible = await filterWorkspaceAccountCredentials(context, credentials)
+    const credential = visible.find(
       (entry) => entry.id === input.credentialId && providerIds.includes(entry.providerId)
     )
     if (!credential) {

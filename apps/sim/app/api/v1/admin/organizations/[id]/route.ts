@@ -38,7 +38,7 @@ import {
   recordAuditBatch,
 } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, organizationColumns, subscription } from '@sim/db/schema'
+import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNull, not, or } from 'drizzle-orm'
 import {
@@ -57,6 +57,7 @@ import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   TERMINAL_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
@@ -93,7 +94,7 @@ export const GET = withRouteHandler(
 
     try {
       const [orgData] = await db
-        .select(organizationColumns)
+        .select()
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -144,7 +145,7 @@ export const PATCH = withRouteHandler(
 
     try {
       const [existing] = await db
-        .select(organizationColumns)
+        .select()
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -183,7 +184,7 @@ export const PATCH = withRouteHandler(
         .update(organization)
         .set(updateData)
         .where(eq(organization.id, organizationId))
-        .returning(organizationColumns)
+        .returning()
 
       const updatedFields = auditUpdatedFields(updateData)
       logger.info(`Admin API: Updated organization ${organizationId}`, { updatedFields })
@@ -338,6 +339,9 @@ export const DELETE = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to delete organization', { error, organizationId })
+      if (error instanceof OrchestrationError && error.code === 'conflict') {
+        return conflictResponse(error.message)
+      }
       return internalErrorResponse('Failed to delete organization')
     }
   })

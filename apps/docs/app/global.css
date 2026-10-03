@@ -1013,8 +1013,6 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: none !important;
 }
 
-/* Method+path bar — cleaner, lighter styling like Gumloop.
-   Override bg-fd-card CSS variable directly for reliability. */
 #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose {
   --color-fd-card: var(--surface-3) !important;
   background-color: var(--surface-3) !important;

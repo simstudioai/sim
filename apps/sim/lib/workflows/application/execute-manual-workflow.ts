@@ -90,10 +90,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       )
     }
     const state = await loadManualState(context.workflowId)
-    const options = resolveTriggerRunOptions(
-      mergeSubblockStateWithValues(state.blocks),
-      state.edges
-    )
+    const options = resolveTriggerRunOptions(mergeSubblockStateWithValues(state.blocks))
     if (options.length === 0) {
       throw new OrchestrationError(
         'validation',

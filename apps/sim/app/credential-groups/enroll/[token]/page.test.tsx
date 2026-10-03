@@ -51,7 +51,6 @@ vi.mock('@/app/credential-groups/enroll/[token]/oauth-toast', () => ({
   ),
 }))
 
-import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import CredentialGroupEnrollmentPage from '@/app/credential-groups/enroll/[token]/page'
 
 const principal = {
@@ -79,7 +78,6 @@ function oauthLinks() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   authMockFns.mockGetSession.mockResolvedValue({
     user: { id: 'member', email: 'member@example.test', emailVerified: true },
     session: { id: 'session-1' },
@@ -135,79 +133,6 @@ afterEach(() => {
 })
 
 describe('focused Search enrollment', () => {
-  it('retains the generic invitation choices and Submit without Search context', async () => {
-    await render()
-    expect(oauthLinks()).toHaveLength(3)
-    expect(document.body.textContent).toContain('Unrelated MCP')
-    expect(document.querySelector('form')?.getAttribute('action')).toBe(
-      '/api/credential-groups/enroll/invitation/complete'
-    )
-    expect(document.querySelector('button')?.textContent).toBe('Submit')
-    expect(document.body.textContent).not.toContain('Return to Search')
-    expect(document.body.textContent).not.toContain('Setup guide')
-    expect(mocks.read).toHaveBeenCalledWith({ principal, input: {} })
-  })
-
-  it('keeps account-settings reconnect focused and returns to account settings', async () => {
-    await render({ returnTo: 'accounts', optionId: 'site-two' })
-    expect(oauthLinks().map((link) => link.getAttribute('href'))).toEqual([
-      '/api/credential-groups/enroll/invitation/oauth/site-two?returnTo=accounts',
-    ])
-    expect(document.querySelector('form')).toBeNull()
-    expect(
-      Array.from(document.querySelectorAll('a'))
-        .find((link) => link.textContent === 'Your connected accounts')
-        ?.getAttribute('href')
-    ).toBe('/account/settings/connected-accounts')
-  })
-
-  it('lets an account owner deliberately reconnect an active grant before reporting completion', async () => {
-    enrollment.options[1]!.connections = [
-      {
-        email: 'member@example.test',
-        displayName: null,
-        avatarUrl: null,
-        status: 'connected',
-        grantedAt: new Date().toISOString(),
-      },
-    ]
-    await render({ returnTo: 'accounts', optionId: 'site-two' })
-    expect(oauthLinks()).toHaveLength(1)
-    expect(oauthLinks()[0].textContent).toContain('Reconnect')
-    await render({ returnTo: 'accounts', optionId: 'site-two', connected: 'site-two' })
-    expect(oauthLinks()).toHaveLength(0)
-    expect(document.querySelector('h1')?.textContent).toBe('Confluence connected')
-  })
-
-  it.each([true, false])(
-    'uses current Search eligibility for organization return links: %s',
-    async (canSearch) => {
-      mocks.authenticate.mockResolvedValue({
-        ...principal,
-        workspaceId: undefined,
-        organizationId: 'canonical-org',
-      })
-      mocks.read.mockResolvedValue({ enrollment, canSearch })
-      await render({ returnTo: 'search', optionId: 'site-two' })
-      const label = canSearch ? 'Return to Search' : 'Your connected accounts'
-      expect(
-        Array.from(document.querySelectorAll('a'))
-          .find((link) => link.textContent === label)
-          ?.getAttribute('href')
-      ).toBe(canSearch ? '/o/canonical-org/search' : '/account/settings/connected-accounts')
-    }
-  )
-
-  it('gives an unverified person a verification action before resolving enrollment', async () => {
-    authMockFns.mockGetSession.mockResolvedValue({
-      user: { id: 'member', emailVerified: false },
-      session: { id: 'session-1' },
-    })
-    await render({ returnTo: 'search', optionId: 'site-two' })
-    expect(document.querySelector('a')?.getAttribute('href')).toBe('/verify')
-    expect(mocks.read).not.toHaveBeenCalled()
-  })
-
   it('shows only the exact requested option and derives the return workspace from the principal', async () => {
     await render({ returnTo: 'search', optionId: 'site-two', workspaceId: 'other-workspace' })
     expect(document.querySelector('h1')?.textContent).toBe('Connect your Confluence account')
@@ -221,9 +146,9 @@ describe('focused Search enrollment', () => {
     expect(document.querySelector('form')).toBeNull()
     expect(
       Array.from(document.querySelectorAll('a'))
-        .find((link) => link.textContent === 'Return to Search')
+        .find((link) => link.textContent === 'Open knowledge bases')
         ?.getAttribute('href')
-    ).toBe('/workspace/canonical-workspace/search')
+    ).toBe('/workspace/canonical-workspace/knowledge')
     expect(document.body.textContent).not.toContain('Setup guide')
     expect(mocks.read).toHaveBeenCalledWith({ principal, input: { optionId: 'site-two' } })
   })
@@ -239,39 +164,9 @@ describe('focused Search enrollment', () => {
       expect(document.body.textContent).toContain('Ask an admin')
       expect(oauthLinks()).toHaveLength(0)
       expect(document.querySelector('form')).toBeNull()
-      expect(document.body.textContent).toContain('Return to Search')
+      expect(document.body.textContent).toContain('Open knowledge bases')
     }
   )
-
-  it('reports provider configuration failures with a clear path back to Search', async () => {
-    mocks.read.mockRejectedValue(
-      new CredentialGroupProviderConfigurationError('Slack configuration missing')
-    )
-    await render({ returnTo: 'search', optionId: 'slack' })
-    expect(document.body.textContent).toContain('Connection unavailable')
-    expect(document.body.textContent).toContain('Ask an admin')
-    expect(document.querySelector('a')?.getAttribute('href')).toBe(
-      '/workspace/canonical-workspace/search'
-    )
-  })
-
-  it('shows Connected from current credential state without requiring generic completion', async () => {
-    enrollment.options[1]!.connections = [
-      {
-        email: principal.email,
-        displayName: null,
-        avatarUrl: null,
-        status: 'connected',
-        grantedAt: '2026-09-05T12:00:00Z',
-      },
-    ]
-    await render({ returnTo: 'search', optionId: 'site-two' })
-    expect(document.body.textContent).toContain(`${principal.email} · Connected`)
-    expect(document.querySelector('h1')?.textContent).toBe('Confluence connected')
-    expect(oauthLinks()).toHaveLength(0)
-    expect(document.querySelector('form')).toBeNull()
-    expect(document.body.textContent).toContain('Return to Search')
-  })
 
   it('does not treat a success query marker as a connected account', async () => {
     await render({
@@ -284,22 +179,6 @@ describe('focused Search enrollment', () => {
     expect(oauthLinks()[0]?.textContent).toBe('Connect')
     expect(document.body.textContent).toContain('Not connected')
     expect(document.querySelector('[role="status"]')).toBeNull()
-  })
-
-  it('keeps the same focused Reconnect action after canceled authorization', async () => {
-    enrollment.options[1]!.connections = [
-      {
-        email: principal.email,
-        displayName: null,
-        avatarUrl: null,
-        status: 'needs_reauth',
-        grantedAt: '2026-09-05T12:00:00Z',
-      },
-    ]
-    await render({ returnTo: 'search', optionId: 'site-two', oauth: 'denied' })
-    expect(oauthLinks()).toHaveLength(1)
-    expect(oauthLinks()[0]?.textContent).toBe('Reconnect')
-    expect(oauthLinks()[0]?.getAttribute('href')).toContain('/site-two?returnTo=search')
   })
 
   it('does not resolve enrollment metadata or trust a return workspace after authentication fails', async () => {

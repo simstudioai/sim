@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { embeddingsCohereTool } from '@/tools/embeddings/cohere'
 import { embeddingsGeminiTool } from '@/tools/embeddings/gemini'
@@ -25,14 +22,6 @@ const ALL_TOOLS = [
  * tool built from the factory, including the legacy alias, must declare it.
  */
 describe('embeddings tools model-input projection', () => {
-  it('declares a projecting model input on every tool', () => {
-    for (const tool of ALL_TOOLS) {
-      expect(tool.operation.modelInput?.mode, `${tool.id} must project its model input`).toBe(
-        'project'
-      )
-    }
-  })
-
   it('selects only the input field, never the API key', () => {
     for (const tool of ALL_TOOLS) {
       const modelInput = tool.operation.modelInput

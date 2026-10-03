@@ -227,16 +227,6 @@ export async function uploadToGcs(
 }
 
 /**
- * Generate a presigned URL for direct file access
- * @param key GCS object key
- * @param expiresIn Time in seconds until URL expires
- * @returns Presigned URL
- */
-export async function getPresignedUrl(key: string, expiresIn = 3600) {
-  return getPresignedUrlWithConfig(key, { bucket: GCS_CONFIG.bucket }, expiresIn)
-}
-
-/**
  * Generate a presigned URL for direct file access with custom bucket
  * @param key GCS object key
  * @param customConfig Custom GCS configuration

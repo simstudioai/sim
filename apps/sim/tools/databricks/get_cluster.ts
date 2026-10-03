@@ -2,6 +2,7 @@ import type {
   DatabricksGetClusterParams,
   DatabricksGetClusterResponse,
 } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGetClusterResponse> =
@@ -35,11 +36,7 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
 
     request: {
       url: (params) => {
-        const host = params.host
-          .trim()
-          .replace(/^https?:\/\//, '')
-          .replace(/\/$/, '')
-        const url = new URL(`https://${host}/api/2.0/clusters/get`)
+        const url = new URL(databricksUrl(params.host, '/api/2.0/clusters/get'))
         url.searchParams.set('cluster_id', params.clusterId.trim())
         return url.toString()
       },

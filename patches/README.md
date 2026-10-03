@@ -37,11 +37,55 @@ PostgreSQL 17+ uses `transaction_timeout`; older supported servers use
 `idle_in_transaction_session_timeout` alongside the statement timeout. Both release
 a stalled idle holder; the older fallback limits each idle interval and statement,
 not the total elapsed transaction time.
-`apps/sim/lib/billing/core/usage-log.postgres.test.ts` tests real ESM/CommonJS driver
+`apps/sim/lib/billing/core/usage-log.integration.ts` tests real ESM/CommonJS driver
 closure and reconnection, rollback after billing INSERT/UPDATE, and exact retry
-accounting. CI runs it against PostgreSQL 17 and 16. Set
-`BILLING_USAGE_TEST_DATABASE_URL` to a disposable local PostgreSQL 15+ database to
-run it manually.
+accounting. CI runs it against PostgreSQL 17 and 16. Set `TEST_DATABASE_URL` to a
+disposable local PostgreSQL 15+ database and run
+`bun run --cwd apps/sim test --mode integration lib/billing/core/usage-log.integration.ts`.
 
 Remove this patch when the pinned driver includes equivalent transaction-scope
 closure handling. Keep the reconnect regression tests when upgrading.
+
+# Drizzle development push policy
+
+`drizzle-kit@0.31.10` prompts when it sees both additions and removals, even with
+`--force`. Its PostgreSQL push path also catches errors and exits successfully,
+which lets post-push work run against a schema that was not applied.
+
+The pinned CLI patch adds an opt-in create/drop policy to the existing rename
+resolvers and makes PostgreSQL push failures and cancellations return nonzero.
+`packages/db/scripts/push.ts` enables the policy only in its Drizzle subprocess
+using `SIM_DB_PUSH_RENAME_MODE=create`. `--interactive-renames` selects the native
+chooser and requires a terminal. Normal migration generation keeps its rename
+prompts. Data-loss confirmations, table filters, introspection, and generated SQL
+remain owned by Drizzle; `--force` still controls data-loss approval.
+
+`packages/db/scripts/push.test.ts` covers argument forwarding and stopping before
+reconciliation on failure. `packages/db/scripts/push.integration.ts` exercises
+the installed CLI against PostgreSQL, including multiple column changes, table
+and enum replacement, schema replacement, preservation of the excluded script
+ledger, and database errors. Set `TEST_DATABASE_URL` to a disposable local
+PostgreSQL database and run these tests with
+`bun run --cwd packages/db test --mode integration`.
+
+Remove the patch when Drizzle provides an explicit noninteractive create/drop
+policy and propagates push failures. Keep Drizzle pinned until the replacement
+passes these regression tests.
+
+# ECharts rich-text tooltip fonts
+
+`echarts@6.1.0` omits the configured font from its rich-text tooltip container
+and the font family from generated name/value tokens. Custom formatter strings
+therefore use the renderer's default font, and built-in tooltips lose the app's
+font family. The patch applies the configured font and line height to the
+container and preserves the family/style on generated tokens, so sizing and
+drawing use the same typography. Authored font overrides still take precedence.
+
+The patch covers the package's ESM source entry point and its full CommonJS and
+ESM bundles. Sim uses the ESM source entry point; the optional common/simple and
+minified distributions are not used or patched. It keeps tooltips in canvas
+rich-text mode, preserving the chart document's untrusted-markup boundary.
+
+`apps/sim/lib/charts/tooltip.test.ts` exercises actual ECharts tooltip rendering,
+font overrides, generated tokens, and box sizing. Remove this patch when an
+upstream release provides equivalent font handling and these tests pass.

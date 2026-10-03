@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
@@ -46,12 +47,7 @@ interface DispatchSlackCustomBotOptions {
 export function getLegacySlackCustomBotCredentialId(
   foundWebhook: LegacySlackPathWebhook
 ): string | null {
-  const providerConfig =
-    foundWebhook.providerConfig !== null &&
-    typeof foundWebhook.providerConfig === 'object' &&
-    !Array.isArray(foundWebhook.providerConfig)
-      ? (foundWebhook.providerConfig as Record<string, unknown>)
-      : {}
+  const providerConfig = toRecord(foundWebhook.providerConfig)
 
   if (providerConfig.ingressMode !== LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE) {
     return null

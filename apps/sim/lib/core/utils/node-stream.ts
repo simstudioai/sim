@@ -1,5 +1,12 @@
 import type { Readable } from 'node:stream'
 
+/** Preserve Node's transient stream-close code when an upstream closes without an error event. */
+export function createPrematureStreamCloseError() {
+  return Object.assign(new Error('Stream closed before completing'), {
+    code: 'ERR_STREAM_PREMATURE_CLOSE',
+  })
+}
+
 /**
  * Bridges a Node `Readable` into a WHATWG `ReadableStream` suitable for a `Response`
  * body. Node's built-in `Readable.toWeb` is NOT used: its adapter throws an unhandled
@@ -47,7 +54,7 @@ export function nodeReadableToWebStream(nodeStream: Readable): ReadableStream<Ui
         if (settled) return
         settled = true
         try {
-          controller.error(new Error('Stream closed before completing'))
+          controller.error(createPrematureStreamCloseError())
         } catch {}
       })
       // Start paused so nothing buffers before the consumer pulls (backpressure).

@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { getLLMText } from '@/lib/llms'
 import { source } from '@/lib/source'
+
+const logger = createLogger('DocsLlmsFullText')
 
 export const revalidate = false
 
@@ -18,7 +21,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('Error generating LLM full text:', error)
+    logger.error('Error generating LLM full text:', error)
     return new Response('Error generating full documentation text', { status: 500 })
   }
 }

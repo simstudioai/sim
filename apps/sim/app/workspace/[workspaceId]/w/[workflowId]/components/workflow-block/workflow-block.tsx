@@ -61,6 +61,7 @@ import {
   getDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
+  resolveFallbackModelsLabel,
   resolveFilterFieldLabel,
   resolveFolderPathLabel,
   resolveSandboxLabel,
@@ -158,6 +159,7 @@ const SUBBLOCK_META_ICONS_BY_TYPE: Record<string, MetaIcon> = {
   'messages-input': MessageSquareText,
   'tool-input': Wrench,
   'skill-input': Sparkles,
+  'model-fallback-list': ArrowLeftRight,
   'oauth-input': Key,
   switch: ToggleLeft,
   'file-upload': Paperclip,
@@ -496,8 +498,10 @@ const SubBlockRow = memo(function SubBlockRow({
     if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
       return null
     }
-    return mcpToolNamesById.get(rawValue) ?? null
-  }, [subBlock?.type, rawValue, mcpToolNamesById])
+    return subBlock.canonicalParamId === 'tool'
+      ? rawValue
+      : (mcpToolNamesById.get(rawValue) ?? null)
+  }, [subBlock?.type, subBlock?.canonicalParamId, rawValue, mcpToolNamesById])
 
   const { data: tables = [] } = useTablesList(workspaceId || '')
   const tableDisplayName = useMemo(() => {
@@ -572,6 +576,11 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, workspaceSkills]
   )
 
+  const fallbackModelsDisplayValue = useMemo(
+    () => resolveFallbackModelsLabel(subBlock, rawValue),
+    [subBlock, rawValue]
+  )
+
   /**
    * Hydrates the Function block's sandbox id to its name. Deliberately scoped to
    * the sandbox row: this row is memoized per subblock, and the shared list query
@@ -603,6 +612,7 @@ const SubBlockRow = memo(function SubBlockRow({
     filterDisplayValue ||
     toolsDisplayValue ||
     skillsDisplayValue ||
+    fallbackModelsDisplayValue ||
     sandboxDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||

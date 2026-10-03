@@ -25,7 +25,6 @@ export function StructuredData({
     headline: title,
     description: description,
     url: url,
-    ...(dateModified && { datePublished: dateModified }),
     ...(dateModified && { dateModified }),
     author: {
       '@type': 'Organization',

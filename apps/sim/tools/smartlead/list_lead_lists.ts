@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SmartleadBaseParams, SmartleadLeadListsResponse } from '@/tools/smartlead/types'
 import {
@@ -48,7 +48,7 @@ export const listLeadListsTool: ToolConfig<ListLeadListsParams, SmartleadLeadLis
   },
   transformResponse: async (response) => {
     const record = await smartleadRecord(response, 'lead lists')
-    const data = isRecordLike(record.data) ? record.data : {}
+    const data = toRecord(record.data)
     const rows = Array.isArray(data.lists) ? data.lists : []
     const lists = rows.map(mapLeadList)
 

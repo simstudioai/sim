@@ -1,17 +1,21 @@
 import { Command, Option } from 'commander'
+import { updateCommand } from '#sim-cli/commands/update'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth'
 import { configureCommand } from './commands/configure'
 import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
+import { cliCommand } from './commands/search'
 import { attachSecretCommands } from './commands/secrets'
+import { telemetryCommand } from './commands/telemetry'
 import { OUTPUT_FORMATS } from './config/index'
 import {
   assertNoReservedProgramFlags,
   buildGeneratedCommands,
   refuseHelpAfterUnknownCommand,
 } from './runtime/build'
+import { detectCodingAgent } from './telemetry/coding-agent'
 import { announceUpdateIfAvailable } from './update/check'
-import { CLI_VERSION } from './version'
+import { cliVersion } from './version'
 
 /** Root program description, shared by `--help` and the generated docs. */
 export const PROGRAM_DESCRIPTION = 'Talk to the Sim API from your terminal'
@@ -27,18 +31,35 @@ or custom-tool ID can open with a dash, which reads as a flag; put -- in front
 of it, as in sim audit-logs get -- -HlDcD1z76nK6R4crsUp0.
 
 Examples:
+  $ sim cli search "cancel a workflow run"  Find the command for a task
   $ sim login                          Authorize the default profile
   $ sim login --profile dev --endpoint http://localhost:3000
   $ sim profile add acme --workspace 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
   $ sim workflows list
   $ sim logs list --level error --limit 20
-  $ sim configure --set-output json    Save a profile output default
-  $ sim --output json tables get tbl_9f3c1a05d4b7426e8c2f0917ab35de64
+  $ sim configure --set-output table   Prefer tables over the JSON default
+  $ sim --output table tables get tbl_9f3c1a05d4b7426e8c2f0917ab35de64
   $ sim knowledge search --query "refund policy" --kb 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31
   $ sim workflows export 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 > wf.json
   $ sim workflows import --workflow @wf.json
   $ sim knowledge export 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31 -o ./kb.simkb.zip
   $ sim whoami --profile dev
+`
+
+/**
+ * Printed above group-level help when a coding agent runs the CLI.
+ *
+ * Agents otherwise map the surface by walking `--help` down every group, which
+ * costs a call and a screenful of context per level. Leaf help is left alone:
+ * an agent reading it has already found its command.
+ */
+export const AGENT_DISCOVERY_NOTE = `=== AGENT COMMAND DISCOVERY ===
+Do not explore commands by chaining nested --help calls. Instead run:
+  sim cli search "<describe the task you want to accomplish>"
+It returns the 5 best-matching commands, each with a one-line summary. Pick the
+best match rather than repeating similar searches, then run
+\`<command> --help\` for its flags.
+=== END AGENT COMMAND DISCOVERY ===
 `
 
 /** The root's own value-taking options, which consume the token after them. */
@@ -107,7 +128,11 @@ function addVersionOption(program: Command): void {
       'error: --version reports the Sim CLI version and takes no value. A command that acts on a deployment version reads it from --to-version.'
     )
   })
-  program.version(CLI_VERSION, '-V, --version [none]', 'output the version number (takes no value)')
+  program.version(
+    cliVersion(),
+    '-V, --version [none]',
+    'output the version number (takes no value)'
+  )
 }
 
 /**
@@ -122,8 +147,11 @@ function addVersionOption(program: Command): void {
  * and the emitted pages must not carry a version that goes stale on every
  * release.
  */
-export function buildProgram(options: { version?: boolean } = {}): Command {
-  const program = new Command()
+export function buildProgram(
+  options: { version?: boolean; helpText?: string; program?: Command; env?: NodeJS.ProcessEnv } = {}
+): Command {
+  const env = options.env ?? process.env
+  const program = options.program ?? new Command()
 
   program.name('sim').description(PROGRAM_DESCRIPTION)
 
@@ -136,12 +164,18 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
     .addOption(
       new Option('--output <format>', 'Output format for this command').choices([...OUTPUT_FORMATS])
     )
-
-  program.addCommand(loginCommand())
-  program.addCommand(logoutCommand())
-  program.addCommand(whoamiCommand())
-  program.addCommand(profilesCommand())
-  program.addCommand(configureCommand())
+  for (const command of [
+    loginCommand,
+    logoutCommand,
+    whoamiCommand,
+    profilesCommand,
+    configureCommand,
+  ])
+    program.addCommand(command())
+  const update = updateCommand()
+  program.addCommand(update)
+  program.addCommand(telemetryCommand())
+  program.addCommand(cliCommand())
 
   for (const command of buildGeneratedCommands()) {
     program.addCommand(command)
@@ -151,9 +185,15 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
   attachProtocolCommands(program)
   attachSecretCommands(program)
 
-  program.addHelpText('after', HELP_EPILOGUE)
+  program.addHelpText('after', options.helpText ?? HELP_EPILOGUE)
+  program.addHelpText('beforeAll', ({ command }) =>
+    detectCodingAgent(env) !== undefined && command.commands.length > 0 ? AGENT_DISCOVERY_NOTE : ''
+  )
 
-  program.hook('preAction', () => announceUpdateIfAvailable())
+  program.hook('preAction', async (_program, command) => {
+    if (command === update) return
+    await announceUpdateIfAvailable()
+  })
 
   refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)

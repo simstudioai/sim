@@ -15,6 +15,10 @@ interface ColumnHeaderMenuProps {
   column: DisplayColumn
   colIndex: number
   readOnly?: boolean
+  /** Why column changes are unavailable; disables the schema rows and explains them. */
+  schemaLockedReason?: string
+  /** Why deleting is unavailable; disables the destructive column row. */
+  deleteLockedReason?: string
   isRenaming: boolean
   isColumnSelected: boolean
   renameValue: string
@@ -65,6 +69,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
   colIndex,
   readOnly,
+  schemaLockedReason,
+  deleteLockedReason,
   isRenaming,
   isColumnSelected,
   renameValue,
@@ -278,7 +284,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         />
       )}
       {isRenaming ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+        <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
@@ -299,7 +305,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           />
         </div>
       ) : readOnly ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+        <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
@@ -312,7 +318,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           />
         </div>
       ) : (
-        <div className='flex h-full w-full min-w-0 items-center'>
+        <div className='flex size-full min-w-0 items-center'>
           <button
             type='button'
             className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-hidden'
@@ -346,6 +352,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             column={column}
             deleteLabel={deleteLabel}
             onOpenConfig={onOpenConfig}
+            schemaLockedReason={schemaLockedReason}
+            deleteLockedReason={deleteLockedReason}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
             onDeleteColumn={onDeleteColumn}

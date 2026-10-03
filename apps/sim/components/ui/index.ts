@@ -1,4 +1,4 @@
-export { Button, buttonVariants } from './button'
+export { ActivityStatus } from '@/components/ui/activity-status'
 export { GeneratedPasswordInput } from './generated-password-input'
 export { Progress } from './progress'
 export {

@@ -1,8 +1,10 @@
+import { receiveSlackSearchHome } from '@/lib/knowledge/application/slack-search/home'
 import { receiveSlackSearchMessage } from '@/lib/knowledge/application/slack-search/process-message'
 import {
   slackSearchStopSchema,
   stopSlackSearchThread,
 } from '@/lib/knowledge/application/slack-search/stop'
+import { parseSlackSearchHomeEvent } from '@/lib/slack-search/home'
 import { parseSlackSearchMessage } from '@/lib/slack-search/types'
 
 /** Routes authenticated Slack payloads to named application handlers. Unsupported interactions acknowledge immediately. */
@@ -12,6 +14,22 @@ export async function dispatchSlackSearch(input: {
   body: unknown
   receivedAt: number
 }) {
+  const home = parseSlackSearchHomeEvent(input.body)
+  if (home) {
+    await receiveSlackSearchHome.execute({
+      principal: {
+        kind: 'slack_installation',
+        credentialId: input.credentialId,
+        credentialVersion: input.credentialVersion,
+        appId: home.appId,
+        teamId: home.teamId,
+        eventId: home.eventId,
+        receivedAt: new Date(input.receivedAt),
+      },
+      input: home,
+    })
+    return
+  }
   const stopped = slackSearchStopSchema.safeParse(input.body)
   if (stopped.success) {
     await stopSlackSearchThread.execute({

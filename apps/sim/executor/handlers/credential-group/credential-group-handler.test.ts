@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { CredentialGroupBlockHandler } from '@/executor/handlers/credential-group/credential-group-handler'
 

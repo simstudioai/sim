@@ -1,6 +1,9 @@
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
 import type { OAuthService } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import type { ConnectorSourceReasonState } from '@/connectors/source-error'
 
 /**
  * Authentication configuration for a connector.
@@ -14,7 +17,7 @@ export type ConnectorAuthConfig =
       requiredScopes?: string[]
       /** Scope requirements for the selected source; omitted configurations use requiredScopes. */
       requiredScopesForConfig?: (sourceConfig: Record<string, unknown>) => string[]
-      /** Restricts permission-mirroring crawls when ordinary OAuth cannot grant directory access. */
+      /** Credential type required for permission-mirroring crawls. */
       adminCredentialType?: 'service_account'
       /** Optional token authentication for workspace crawls; member access always uses OAuth. */
       apiKey?: { label: string; placeholder?: string }
@@ -30,6 +33,10 @@ export type ConnectorAuthConfig =
        * genuinely coincide, which is the common case.
        */
       serviceAccountScopes?: string[]
+      /** Scope override for central crawls that read the source directory and mirror permissions. */
+      adminServiceAccountScopes?: string[]
+      /** Fixed scopes for per-user tokens minted during a delegated service-account crawl. */
+      serviceAccountDelegationScopes?: string[]
       /**
        * The config field naming the person a service-account credential acts
        * as, through domain-wide delegation.
@@ -62,7 +69,7 @@ export interface ConnectorDirectoryGroup {
 
 export interface ConnectorDirectoryMembership {
   group: ConnectorDirectoryGroup
-  /** Canonical u:email or provider-attested s: identity tokens, with nested groups flattened. */
+  /** Canonical identities; Confluence space audiences may also name same-site native groups. */
   memberTokens: string[]
   /**
    * False when the walk could not be completed. A partial membership must never
@@ -70,6 +77,19 @@ export interface ConnectorDirectoryMembership {
    * enumerate silently revokes everyone in the part that did not.
    */
   complete: boolean
+}
+
+/** A complete source audience observed while resolving a bounded batch of document ACLs. */
+export interface ConnectorAclGroupMembership {
+  providerId: string
+  tenantId: string
+  group: ConnectorDirectoryGroup
+  memberTokens: string[]
+}
+
+/** Persistence capabilities bound by the engine to the canonical resource owner and sync lease. */
+export interface ConnectorAclContext {
+  persistGroupMembership: (membership: ConnectorAclGroupMembership) => Promise<void>
 }
 
 /**
@@ -176,9 +196,21 @@ export interface ExternalDocument {
   metadata?: Record<string, unknown>
 }
 
-/**
- * Paginated result from listing documents in an external source.
- */
+/** Bounded provider evidence for scopes that could not be fully listed. */
+export interface ExternalListingFailures {
+  count: number
+  samples: {
+    scope: string
+    operation: string
+    status?: number
+    reasons: string[]
+    reasonState?: ConnectorSourceReasonState
+    /** When a standing account condition was first observed, bounding how long it is retained. */
+    since?: string
+  }[]
+}
+
+/** Paginated result from listing documents in an external source. */
 export interface ExternalDocumentList {
   documents: ExternalDocument[]
   nextCursor?: string
@@ -191,6 +223,12 @@ export interface ExternalDocumentList {
    * provider pagination must set this to false.
    */
   reconciliationSafe?: boolean
+  /** Cumulative, bounded failure evidence for this listing generation; replay must not add it twice. */
+  listingFailures?: ExternalListingFailures | null
+  /** Refreshes existing permissions and repairs changed stored bodies, without discovering new content or reconciling absence. */
+  permissionsOnly?: boolean
+  /** A durable user-work queue can yield until the next bounded retry becomes due. */
+  resumeAt?: string
 }
 
 /**
@@ -200,6 +238,16 @@ export interface ExternalDocumentList {
 export type ExternalChange =
   | { kind: 'upsert'; externalId: string; document: ExternalDocument }
   | { kind: 'removed'; externalId: string }
+
+/**
+ * One page of the containers a caller can still read, as external-ID prefixes.
+ * Each listed prefix proves access on its own; `nextCursor` continues the
+ * listing and is absent on its last page.
+ */
+export interface AccessibleScopePage {
+  prefixes: string[]
+  nextCursor?: string
+}
 
 export interface ExternalChangeList {
   changes: ExternalChange[]
@@ -219,6 +267,8 @@ export const SYNC_SKIP_REASONS = [
   'sync_in_progress',
   'sync_superseded',
   'connector_deleted_during_sync',
+  'credential_missing',
+  'credential_revoked',
 ] as const
 
 export type SyncSkipReason = (typeof SYNC_SKIP_REASONS)[number]
@@ -266,6 +316,8 @@ export interface SyncResult {
 export interface ConnectorConfigField {
   id: string
   title: string
+  /** Label when configuring a central crawl that mirrors source permissions. */
+  titleInAdminMode?: string
   type: 'short-input' | 'dropdown' | 'selector'
   placeholder?: string
   required?: boolean
@@ -274,8 +326,14 @@ export interface ConnectorConfigField {
   /** Secondary Search setup controls, shown in the shared More options disclosure. */
   setupGroup?: 'options'
   description?: string
+  /** Setup guidance specific to a central crawl that mirrors source permissions. */
+  descriptionInAdminMode?: string
   /** Excludes settings unused by member crawls and account-local selectors that need a manual sibling. */
   hideInMemberMode?: true
+  /** Excludes account-local controls that cannot describe a company-wide source. */
+  hideInAdminMode?: true
+  /** Only applies to a central crawl that mirrors source permissions. */
+  showInAdminModeOnly?: true
   options?: { label: string; id: string }[]
 
   /** Selector key from the selector registry (used when type is 'selector') */
@@ -289,6 +347,8 @@ export interface ConnectorConfigField {
   mode?: 'basic' | 'advanced'
   /** Links selector + manual input fields that resolve to the same config key */
   canonicalParamId?: string
+  /** Both modes use the same provider identifiers, so switching carries the current selection. */
+  preserveValueOnModeChange?: boolean
 
   /**
    * When true, the field accepts multiple values.
@@ -297,6 +357,10 @@ export interface ConnectorConfigField {
    * Connector handlers receive `string | string[]` and should normalize via `parseMultiValue`.
    */
   multi?: boolean
+  /** Offers selection of all items, using selectAllValue when configured. */
+  allowSelectAll?: boolean
+  /** Stores a provider-supported scope marker instead of the currently loaded option IDs. */
+  selectAllValue?: string
 }
 
 /**
@@ -309,10 +373,18 @@ export interface ConnectorConfigField {
  * mirroring the `XBlockMeta` pattern in `blocks/`.
  */
 export interface ConnectorMeta {
-  /** Opts a source into workspace Search after its indexing and permission paths are verified. */
+  /** Restricts new setup and mode changes; existing sources keep their stored access policy. */
+  supportedAccessModes?: readonly ConnectorAccessMode[]
+  /** Opts a source into Sim Search after its indexing and permission paths are verified. */
   search?: true
   /** Source setup guide shown only in Search connection flows. */
   searchDocsUrl?: string
+  /**
+   * Settings a Search source starts from when nobody chose a value, such as a
+   * bounded history window for a mailbox. Explicit settings always win, and
+   * knowledge-base connectors ignore these defaults.
+   */
+  searchDefaultSourceConfig?: Readonly<Record<string, string>>
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */
@@ -407,6 +479,8 @@ export interface ConnectorMeta {
  * Adding a new connector = creating one of these + registering it.
  */
 export interface ConnectorConfig extends ConnectorMeta {
+  /** Optional private permission setup, including transactional replacement and worker context. */
+  permissionConfig?: ConnectorPermissionConfigCapability
   /** Bounds local hydration fan-out to avoid queueing siblings behind a serial provider gate. */
   contentConcurrency?: 1 | 2 | 3 | 4 | 5
   /**
@@ -497,6 +571,34 @@ export interface ConnectorConfig extends ConnectorMeta {
   isListingCursorInvalidError?: (error: unknown) => boolean
 
   /**
+   * Whether `candidate` describes the content `stored` already holds, for a
+   * connector whose hashes are not compared by equality alone. `current` means
+   * the stored document is up to date; `equivalent` means it holds the same
+   * content under an older hash, which is advanced without re-indexing; `stale`
+   * means the document must be refreshed. Consulted for listing hashes, which
+   * may identify a source version without its content, and for hydrated hashes.
+   * Without it, hashes match only when identical.
+   */
+  matchContentHash?: (candidate: string, stored: string) => 'current' | 'equivalent' | 'stale'
+
+  /**
+   * External-ID prefixes of everything the caller can still read, when access is
+   * granted to whole containers (a Slack channel) rather than item by item. A
+   * members-mode crawl renews the caller's observations under these prefixes
+   * without relisting each item, so access stays fresh while a large listing is
+   * still in progress, and lapses for containers the caller has lost. Paged, so
+   * a renewal can resume where an earlier run stopped; an expired cursor is
+   * recognised by {@link ConnectorConfig.isListingCursorInvalidError}. Only
+   * meaningful alongside {@link ConnectorMeta.permissionScopedListing}.
+   */
+  listAccessibleScopes?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    cursor?: string,
+    syncContext?: Record<string, unknown>
+  ) => Promise<AccessibleScopePage>
+
+  /**
    * Opens the external directory whose groups this connector's mirrored ACLs
    * refer to, or null when it has none reachable.
    *
@@ -538,7 +640,8 @@ export interface ConnectorConfig extends ConnectorMeta {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     documents: readonly ExternalDocument[],
-    syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>,
+    aclContext?: ConnectorAclContext
   ) => Promise<Record<string, MirroredDocumentAcl>>
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */

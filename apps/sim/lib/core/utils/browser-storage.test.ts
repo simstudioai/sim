@@ -18,6 +18,7 @@ describe('MothershipHandoffStorage', () => {
       message: 'Find the policy',
       resumeUserMessageId: 'original-send',
       requestMode: 'assistant' as const,
+      assistantSearchLevel: 'fast' as const,
     }
     expect(MothershipHandoffStorage.store(handoff, { organizationId: 'org-1' })).toBe(true)
     expect(MothershipHandoffStorage.consume('org-1')).toBeNull()
@@ -33,29 +34,38 @@ describe('MothershipHandoffStorage', () => {
     localStorage.clear()
   })
 
+  it.each([
+    [true, 'fast'],
+    [false, 'adaptive'],
+  ] as const)('migrates a legacy Fast value %s only when reading', (assistantFast, level) => {
+    localStorage.setItem(
+      STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+      JSON.stringify({ workspaceId: WS, message: 'Search', timestamp: Date.now(), assistantFast })
+    )
+    const handoff = MothershipHandoffStorage.consume(WS)
+    expect(handoff).toMatchObject({ assistantSearchLevel: level })
+    expect(handoff).not.toHaveProperty('assistantFast')
+  })
+
+  it('rejects an invalid Search level rather than silently changing routing', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+      JSON.stringify({
+        workspaceId: WS,
+        message: 'Search',
+        timestamp: Date.now(),
+        assistantSearchLevel: 'unknown',
+        assistantFast: true,
+      })
+    )
+    expect(MothershipHandoffStorage.consume(WS)).toBeNull()
+  })
+
   it('round-trips a handoff and trims the message, preserving contexts', () => {
     const contexts: ChatContext[] = [{ kind: 'logs', executionId: 'run-1', label: 'My Flow' }]
     expect(MothershipHandoffStorage.store({ message: '  fix it  ', contexts }, WS)).toBe(true)
 
     expect(MothershipHandoffStorage.consume(WS)).toEqual({ message: 'fix it', contexts })
-  })
-
-  it('retains the selected document and filters when Search hands off to Assistant', () => {
-    const assistantSearch = {
-      source: 'slack',
-      modifiedAfter: '2026-09-01T00:00:00.000Z',
-      documentIds: ['selected-doc'],
-    }
-    MothershipHandoffStorage.store(
-      { message: 'Summarize this', requestMode: 'assistant', assistantSearch },
-      WS
-    )
-    expect(MothershipHandoffStorage.consume(WS)).toEqual({
-      message: 'Summarize this',
-      contexts: [],
-      requestMode: 'assistant',
-      assistantSearch,
-    })
   })
 
   it('discards a corrupted scope instead of silently widening the Assistant request', () => {
@@ -96,21 +106,6 @@ describe('MothershipHandoffStorage', () => {
 
     // The owning workspace still consumes it.
     expect(MothershipHandoffStorage.consume(WS)).toEqual({ message: 'fix it', contexts: [] })
-  })
-
-  it('stores a chip-only handoff (no message) and returns it without one', () => {
-    const contexts: ChatContext[] = [
-      {
-        kind: 'file_selection',
-        fileId: 'f1',
-        fileName: 'notes.md',
-        label: 'notes.md:2-4',
-        text: 'passage',
-      },
-    ]
-    expect(MothershipHandoffStorage.store({ contexts }, WS)).toBe(true)
-
-    expect(MothershipHandoffStorage.consume(WS)).toEqual({ contexts })
   })
 
   it('accumulates chip-only handoffs so a second add before navigation is not dropped', () => {
@@ -206,5 +201,19 @@ describe('MothershipHandoffStorage', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+it('preserves explicit org agent recovery and leaves a Search handoff for its own surface', () => {
+  const owner = { organizationId: 'org-1' }
+  MothershipHandoffStorage.store({ message: 'Update workflow', requestMode: 'agent' }, owner)
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'assistant')).toBeNull()
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'agent')).toMatchObject({
+    requestMode: 'agent',
+  })
+  MothershipHandoffStorage.store({ message: 'Search legacy' }, owner)
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'agent')).toBeNull()
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'assistant')).toMatchObject({
+    message: 'Search legacy',
   })
 })

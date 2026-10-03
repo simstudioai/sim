@@ -7,8 +7,8 @@ import {
 } from '@/lib/core/rate-limiter/provider-capacity-error'
 import type { ProviderCapacityQuota } from '@/lib/core/rate-limiter/provider-capacity-state'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
-  fetchWithRetry,
   hasRateLimitEvidence,
   type RetryOptions,
   resolveRetryDelayMs,
@@ -69,7 +69,7 @@ export async function fetchGitHubWithRetry(
     .digest('hex')
   return fetchWithRetry(url, options, {
     ...retryOptions,
-    fetcher: async (input, init) => {
+    fetcher: async (input, init, transport) => {
       const signal = init?.signal ?? undefined
       let lease
       try {
@@ -119,7 +119,7 @@ export async function fetchGitHubWithRetry(
       }
 
       try {
-        const response = await fetch(input, init)
+        const response = await transport(input, init)
         quota = readRequestQuota(response.headers)
         let secondaryLimit = false
         let forbiddenBody: string | undefined

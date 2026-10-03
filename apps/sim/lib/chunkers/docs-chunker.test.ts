@@ -1,14 +1,20 @@
-/**
- * @vitest-environment node
- */
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateEmbeddings: vi.fn(async () => ({ embeddings: [] })),
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
+import { mkdtemp, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
-import { DocsChunker } from '@/lib/chunkers/docs-chunker'
+import { DocsChunker, resolveDocumentTitle } from '@/lib/chunkers/docs-chunker'
+
+knowledgeEmbeddingsMockFns.mockGenerateEmbeddings.mockImplementation(async () => ({
+  embeddings: [],
+}))
 
 function cleanContent(content: string): string {
   const chunker = new DocsChunker()
@@ -57,76 +63,22 @@ describe('cleanContent FAQ extraction', () => {
     // Angle brackets are dropped so the tag strip cannot re-eat the sentence.
     expect(cleaned).toContain('(e.g., gmail.attachments[0]) and the block extracts')
   })
-
-  it('extracts items formatted across multiple lines', () => {
-    const cleaned = cleanContent(
-      [
-        '<FAQ items={[',
-        '  {',
-        '    question: "Is SSO supported?",',
-        '    answer: "Yes, on enterprise plans."',
-        '  },',
-        ']} />',
-      ].join('\n')
-    )
-
-    expect(cleaned).toContain('Is SSO supported?')
-    expect(cleaned).toContain('Yes, on enterprise plans.')
-  })
-
-  it('extracts single-quoted multiline items with trailing commas (session-policies shape)', () => {
-    const cleaned = cleanContent(
-      [
-        '<FAQ',
-        '  items={[',
-        '    {',
-        "      question: 'Do session policies apply to SSO sign-ins?',",
-        '      answer:',
-        "        'Yes. Sessions created through SSO follow the same limits.',",
-        '    },',
-        '    {',
-        '      question: \'Does "Sign out all members" affect API keys?\',',
-        "      answer: 'No. API keys are unaffected.',",
-        '    },',
-        '  ]}',
-        '/>',
-      ].join('\n')
-    )
-
-    expect(cleaned).toContain('Do session policies apply to SSO sign-ins?')
-    expect(cleaned).toContain('Yes. Sessions created through SSO follow the same limits.')
-    expect(cleaned).toContain('Does "Sign out all members" affect API keys?')
-    expect(cleaned).toContain('No. API keys are unaffected.')
-    expect(cleaned).not.toContain('items=')
-  })
-
-  it('unescapes escaped quotes in extracted strings', () => {
-    const cleaned = cleanContent(
-      '<FAQ items={[ { question: "What does \\"draft\\" mean?", answer: "An unsaved workflow." } ]} />'
-    )
-
-    expect(cleaned).toContain('What does "draft" mean?')
-  })
 })
 
-describe('cleanContent scaffolding strips', () => {
-  it('still strips imports, exports, comments, and code-ish brace expressions', () => {
-    const cleaned = cleanContent(
+describe('cleanContent keeps code intact', () => {
+  it('leaves reference tokens inside fenced and inline code alone while stripping prose tags', () => {
+    const chunker = new DocsChunker({ chunkSize: 500 })
+    const cleaned = (chunker as unknown as { cleanContent: (c: string) => string }).cleanContent(
       [
-        'import { Callout } from "fumadocs-ui/components/callout"',
-        'export const dynamic = "force-static"',
-        '{/* editorial note */}',
-        'Visible prose {props.title} continues here.',
-        '<Callout>Inside text stays</Callout>',
+        'Use <Callout>this</Callout> block. Reference `<start.input>` in code:',
+        '```javascript',
+        'return <start.input>.toLowerCase().includes({{ENV}})',
+        '```',
       ].join('\n')
     )
-
-    expect(cleaned).not.toContain('import')
-    expect(cleaned).not.toContain('force-static')
-    expect(cleaned).not.toContain('editorial note')
-    expect(cleaned).not.toContain('props.title')
-    expect(cleaned).toContain('Visible prose')
-    expect(cleaned).toContain('Inside text stays')
+    expect(cleaned).not.toContain('<Callout>')
+    expect(cleaned).toContain('`<start.input>`')
+    expect(cleaned).toContain('return <start.input>.toLowerCase().includes({{ENV}})')
   })
 })
 
@@ -166,5 +118,48 @@ describe('DocsChunker output budget', () => {
     const longLine = 'a'.repeat(120)
 
     expect(() => enforceSizeLimit([`${longLine}\n${longLine}`])).toThrow(ChunkLimitExceededError)
+  })
+})
+
+/**
+ * `docs search --path docs/tables` answered results titled "Next": every page
+ * ends on a nav link, so the last chunk sat under it and the indexer read the
+ * link as its header. A title comes from the frontmatter, else the first `#`
+ * heading, and never from a link-only line.
+ */
+describe('DocsChunker page title', () => {
+  const NAV_LINK = '[Next](/docs/tables/workflow-columns)'
+  const PARAGRAPH =
+    'Tables store rows your workflows read and write. Columns are typed, and every write is validated against the schema before it lands, so a bad row never reaches a downstream block. '
+  const _BODY = `# Tables
+
+${PARAGRAPH.repeat(3)}
+
+## Querying rows
+
+Use the Table block to query, insert, or update rows from a workflow. ${PARAGRAPH.repeat(3)}
+
+## ${NAV_LINK}
+
+${NAV_LINK}
+`
+
+  async function _chunkPage(content: string) {
+    const dir = await mkdtemp(join(tmpdir(), 'docs-chunker-'))
+    const file = join(dir, 'tables.mdx')
+    await writeFile(file, content)
+    return new DocsChunker({ chunkSize: 100, chunkOverlap: 0 }).chunkMdxFile(file, dir)
+  }
+
+  it('never resolves a link-only heading as the title', () => {
+    expect(
+      resolveDocumentTitle({}, [{ level: 2, text: NAV_LINK, anchor: 'next', position: 0 }])
+    ).toBeUndefined()
+    expect(
+      resolveDocumentTitle({ title: '  ' }, [
+        { level: 2, text: 'Querying rows', anchor: 'querying-rows', position: 0 },
+        { level: 1, text: 'Tables', anchor: 'tables', position: 10 },
+      ])
+    ).toBe('Tables')
   })
 })

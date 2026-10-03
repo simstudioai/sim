@@ -60,7 +60,7 @@ async function deliverOtp(requestId: string, deploymentId: string, title: string
   const otp = generateOTP()
   await storeOTP('chat', deploymentId, email, otp)
 
-  const emailHtml = await renderOTPEmail(otp, email, 'email-verification', title)
+  const emailHtml = await renderOTPEmail(otp, 'email-verification', title)
   const emailResult = await sendEmail({
     to: email,
     subject: getOtpSubject(title),

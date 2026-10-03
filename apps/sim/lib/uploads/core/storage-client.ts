@@ -4,16 +4,6 @@ import type { StorageConfig } from '@/lib/uploads/shared/types'
 export type { StorageConfig } from '@/lib/uploads/shared/types'
 
 /**
- * Get the current storage provider name
- */
-export function getStorageProvider(): 'blob' | 's3' | 'gcs' | 'local' {
-  if (USE_BLOB_STORAGE) return 'blob'
-  if (USE_S3_STORAGE) return 's3'
-  if (USE_GCS_STORAGE) return 'gcs'
-  return 'local'
-}
-
-/**
  * Get the serve path prefix (unified across all storage providers)
  */
 export function getServePathPrefix(): string {

@@ -17,6 +17,7 @@ import {
   createWorkspaceFileContract,
   deleteWorkspaceFileContract,
   listWorkspaceFilesContract,
+  readWorkspaceFileContract,
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
   type UpdateWorkspaceFileContentBody,
@@ -43,6 +44,9 @@ export const workspaceFilesKeys = {
   workspaceLists: (workspaceId: string) => [...workspaceFilesKeys.lists(), workspaceId] as const,
   list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
     [...workspaceFilesKeys.workspaceLists(workspaceId), scope] as const,
+  records: () => [...workspaceFilesKeys.all, 'record'] as const,
+  record: (workspaceId: string, fileId: string) =>
+    [...workspaceFilesKeys.records(), workspaceId, fileId] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
   contentFile: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
@@ -64,7 +68,6 @@ export const workspaceFilesKeys = {
 export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
-export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
 /** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
 export const CLOUD_STORAGE_CONFIGURED_STALE_TIME = Number.POSITIVE_INFINITY
 
@@ -82,6 +85,27 @@ export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
     enabled: !!workspaceId && !!fileId,
     staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     select: (files) => files.find((f) => f.id === fileId) ?? null,
+  })
+}
+
+/** Canonical read fallback for addressed resources absent from the workspace file inventory. */
+export function useAddressedWorkspaceFileRecord(
+  workspaceId: string,
+  fileId: string,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.record(workspaceId, fileId),
+    queryFn: async ({ signal }) => {
+      const result = await requestJson(readWorkspaceFileContract, {
+        params: { id: workspaceId, fileId },
+        signal,
+      })
+      return result.file
+    },
+    enabled: !!workspaceId && !!fileId && (options?.enabled ?? true),
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
+    retry: false,
   })
 }
 
@@ -200,8 +224,9 @@ export function useWorkspaceImageDimensionsAdapter(
 /**
  * A read that addressed a storage object the file no longer points at.
  *
- * A workspace file's bytes are rewritten under a NEW storage key on every content update and the
- * superseded object is deleted (`updateWorkspaceFileContent`), so a 404 from a content read means
+ * A workspace file's bytes are rewritten under a NEW storage key on every content update, and the
+ * serve route answers only for the key the file currently points at (a superseded object is either
+ * deleted or kept as a version reachable through the version API), so a 404 from a content read means
  * "the key you are holding has been replaced", not "the server is broken" — the serve route says as
  * much and logs it at `info`. Distinguished from a transport failure so {@link useStaleKeyRecovery}
  * can re-resolve the record instead of surfacing a dead end.
@@ -372,13 +397,14 @@ export class DocNotReadyError extends Error {
 /**
  * Fetch compiled/binary file content via the serve URL.
  *
- * A `version` (the file record's `updatedAt`) makes the URL content-immutable: the
- * serve route marks versioned responses `immutable`, so the browser HTTP cache
- * resolves re-opens and focus refetches with no round trip. Generated docs are
- * edited in place (same storage key), so an unversioned caller cannot assume
- * immutability and instead busts + bypasses the cache to always read fresh. A 409
- * means a generated doc is still compiling — surfaced as {@link DocNotReadyError}
- * so the query keeps polling.
+ * A `version` (the file record's `updatedAt`) lets the serve route mark the response
+ * `immutable`, so the browser HTTP cache resolves re-opens and focus refetches with no
+ * round trip. The route withholds that promise for bytes it resolved against OTHER
+ * files — a doc compiled against its references, a page inlining its images — which the
+ * same key can serve differently over time. An unversioned caller makes no immutability
+ * claim at all and busts + bypasses the cache to always read fresh. A 409 means a
+ * generated doc is still compiling — surfaced as {@link DocNotReadyError} so the query
+ * keeps polling.
  */
 async function fetchWorkspaceFileBinary(
   url: string,
@@ -400,11 +426,10 @@ async function fetchWorkspaceFileBinary(
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
  *
  * `options.version` is a content version (the record's `updatedAt`) folded into the
- * query key. Generated docs are edited IN PLACE — `edit_content` keeps the SAME
- * storage key — so without a version the cache is never busted and the open
- * preview keeps showing the stale binary after a regenerate. Versioning the key
- * makes the preview refetch whenever the file's content changes (and on first
- * open, keyed to the current content rather than a stale cached entry).
+ * query key, and it is what lets the response be cached as immutable. A content write
+ * rotates the storage key, so `key` alone would already re-key the query; `version`
+ * additionally covers a recompile that leaves the key alone, and keys the first open to
+ * the current content rather than a stale cached entry.
  */
 export function useWorkspaceFileBinary(
   workspaceId: string,

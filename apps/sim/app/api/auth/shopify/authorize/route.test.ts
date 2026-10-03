@@ -1,41 +1,33 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
   requireConfiguredOAuthClient: vi.fn(),
   createShopifyOAuthState: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mocks.getSession,
 }))
 
 vi.mock('@/lib/core/config/env-capabilities.server', () => ({
   requireConfiguredOAuthClient: mocks.requireConfiguredOAuthClient,
 }))
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.test',
-}))
-
 vi.mock('@/lib/oauth/shopify-state', () => ({
   createShopifyOAuthState: mocks.createShopifyOAuthState,
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
-  getScopesForService: () => ['read_products'],
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import { GET } from '@/app/api/auth/shopify/authorize/route'
 
+oauthUtilsMockFns.mockGetScopesForService.mockReturnValue(['read_products'])
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+
 describe('Shopify authorize route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.getSession.mockResolvedValue({ user: { id: 'user-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mocks.requireConfiguredOAuthClient.mockReturnValue({
       values: {
         SHOPIFY_CLIENT_ID: 'shopify-client',

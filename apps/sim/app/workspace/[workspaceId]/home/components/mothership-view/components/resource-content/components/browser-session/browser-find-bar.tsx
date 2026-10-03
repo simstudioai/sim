@@ -141,6 +141,8 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
         onKeyDown={(event) => {
           // The panel and the global command layer both listen for these.
           event.stopPropagation()
+          // Keys during an IME composition edit the composed text.
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
           if (event.key === 'Escape') {
             event.preventDefault()
             dismiss()

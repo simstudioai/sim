@@ -10,7 +10,9 @@ import {
 } from '@/lib/core/resource-scope'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
+import { startViewerCredentialGroupOAuth } from '@/lib/credential-groups/self-enrollment-oauth'
 import {
   requireKnowledgeMemberAccessAvailable,
   requireSourceMirroredAccessAvailable,
@@ -26,10 +28,12 @@ import {
   validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
+import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/github-installation-source'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   type ConnectorAccessMode,
   mirrorsSourceAcls,
+  supportsConnectorAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
 import { validateKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-access'
 import {
@@ -54,6 +58,9 @@ export interface StartKnowledgeConnectorMemberEnrollmentInput {
   connectorId: string
   assertedWorkspaceId?: string
   assertedOrganizationId?: string
+  /** Opens provider OAuth directly and correlates its completion with the initiating tab. */
+  connectionIntent?: CredentialGroupConnectionIntent
+  oauthCompletionId?: string
 }
 
 /**
@@ -70,7 +77,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     principal: Principal
     input: StartKnowledgeConnectorMemberEnrollmentInput
   }) => resolveActiveKnowledgeConnectorContext(input, principal),
-  async execute({ principal, context }) {
+  async execute({ principal, context, input }) {
     const owner = resourceScopeFields(resourceScopeFromOwner(context.knowledgeBase))
     const userId = resolvePrincipalSubjectUserId(principal)
     if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
@@ -84,7 +91,29 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     if (!connectorMeta || (context.knowledgeBase.isSearchIndex && !connectorMeta.search)) {
       throw new OrchestrationError('validation', 'This connector is unavailable for Search')
     }
-    const enrollmentUrl = (invitationLink: string, optionId: string) => {
+    if (input.oauthCompletionId && !context.knowledgeBase.isSearchIndex) {
+      throw new OrchestrationError(
+        'validation',
+        'Direct account connection requires a Search source'
+      )
+    }
+    const enrollmentUrl = async (credentialGroupId: string, optionId: string) => {
+      if (input.oauthCompletionId) {
+        const { authorizationUrl } = await startViewerCredentialGroupOAuth({
+          userId,
+          ...owner,
+          credentialGroupId,
+          optionId,
+          completionId: input.oauthCompletionId,
+          connectionIntent: input.connectionIntent,
+        })
+        return authorizationUrl
+      }
+      const { invitationLink } = await createViewerCredentialGroupEnrollment({
+        userId,
+        ...owner,
+        credentialGroupId,
+      })
       if (!context.knowledgeBase.isSearchIndex) return invitationLink
       const url = new URL(invitationLink)
       url.searchParams.set('optionId', optionId)
@@ -101,12 +130,9 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
           `Ask an admin to configure ${connectorMeta.name} sign-in in Connected accounts`
         )
       }
-      const { invitationLink: url } = await createViewerCredentialGroupEnrollment({
-        userId,
-        ...owner,
-        credentialGroupId: binding.credentialGroupId,
-      })
-      return { url: enrollmentUrl(url, binding.credentialGroupOptionId) }
+      return {
+        url: await enrollmentUrl(binding.credentialGroupId, binding.credentialGroupOptionId),
+      }
     }
     if (
       connector.accessMode !== 'members' ||
@@ -139,12 +165,9 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
       sourceConfig: connector.sourceConfig,
     })
     if (!validation.ok) throw new OrchestrationError('validation', validation.message)
-    const { invitationLink: url } = await createViewerCredentialGroupEnrollment({
-      userId,
-      ...owner,
-      credentialGroupId: connector.credentialGroupId,
-    })
-    return { url: enrollmentUrl(url, connector.credentialGroupOptionId) }
+    return {
+      url: await enrollmentUrl(connector.credentialGroupId, connector.credentialGroupOptionId),
+    }
   },
 })
 
@@ -156,6 +179,8 @@ export interface UpdateKnowledgeConnectorAccessInput {
   accessMode: ConnectorAccessMode
   /** Workspace mode: the credential the connector syncs as from now on. */
   credentialId?: string | null
+  sourceConfig?: Record<string, unknown>
+  syncIntervalMinutes?: number
   source?: KnowledgeOperationSource
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
@@ -189,6 +214,12 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       )
     }
 
+    if (!supportsConnectorAccessMode(connectorMeta, input.accessMode)) {
+      throw new OrchestrationError(
+        'validation',
+        `${connectorMeta.name} requires source permission access.`
+      )
+    }
     if (
       context.knowledgeBase.isSearchIndex &&
       (!connectorMeta.search || input.accessMode === 'workspace')
@@ -198,7 +229,32 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         'Search sources must support per-person access or source permissions'
       )
     }
-    const sourceConfig = connector.sourceConfig as Record<string, unknown>
+    const previousConfig = connector.sourceConfig as Record<string, unknown>
+    if (
+      (input.sourceConfig !== undefined || input.syncIntervalMinutes !== undefined) &&
+      (input.accessMode === 'members' || input.accessMode !== connector.accessMode)
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        'Save source settings separately when changing the connection method.'
+      )
+    }
+    const sourceConfig = await prepareGitHubInstallationSource({
+      principal,
+      requestId,
+      workspaceId: context.workspaceId,
+      connectorType: connector.connectorType,
+      credentialId:
+        input.credentialId === undefined && input.accessMode === connector.accessMode
+          ? connector.credentialId
+          : input.credentialId,
+      organizationId: context.organizationId,
+      isSearchIndex: context.knowledgeBase.isSearchIndex === true,
+      accessMode: input.accessMode,
+      actingUserId,
+      sourceConfig: input.sourceConfig ?? previousConfig,
+      previousConfig,
+    })
 
     let target: ConnectorAccessTarget
     if (input.accessMode === 'members') {
@@ -224,6 +280,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       }
       if (credentialId) {
         await requireUsableCredential({
+          principal,
           credentialId,
           connectorMeta,
           sourceConfig,
@@ -233,6 +290,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           accessMode: 'members',
         })
         const rejection = await validateConnectorSourceConfig({
+          principal,
           connector: { ...connector, accessMode: 'members', credentialId },
           sourceConfig,
           ...owner,
@@ -252,6 +310,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       target = {
         accessMode: input.accessMode,
         credentialId: await requireUsableCredential({
+          principal,
           credentialId: input.credentialId,
           connectorMeta,
           sourceConfig,
@@ -262,6 +321,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         }),
       }
       const rejection = await validateConnectorSourceConfig({
+        principal,
         connector: {
           ...connector,
           accessMode: target.accessMode,
@@ -287,6 +347,9 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       knowledgeBase: { id: context.knowledgeBaseId, name: context.knowledgeBase.name, ...owner },
       connectorId: context.connectorId,
       target,
+      sourceConfig: input.sourceConfig === undefined ? undefined : sourceConfig,
+      syncIntervalMinutes: input.syncIntervalMinutes,
+      expectedUpdatedAt: connector.updatedAt,
       resolveBillingAttribution: () =>
         (owner.workspaceId ? input.resolveBillingAttribution?.(owner.workspaceId) : undefined) ??
         resolveKnowledgeBillingAttribution(principal, context),
@@ -305,13 +368,18 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           resourceType: AuditResourceType.CONNECTOR,
           resourceId: result.connector.id,
           resourceName: result.connector.connectorType,
-          description: `Switched connector access to ${input.accessMode} mode for knowledge base "${context.knowledgeBase.name}"`,
+          description: `Updated connector connection for knowledge base "${context.knowledgeBase.name}"`,
           metadata: {
             source: input.source,
             knowledgeBaseId: context.knowledgeBaseId,
             knowledgeBaseName: context.knowledgeBase.name,
             connectorType: result.connector.connectorType,
-            updatedFields: ['accessMode'],
+            updatedFields: [
+              'accessMode',
+              ...(input.credentialId !== undefined ? ['credentialId'] : []),
+              ...(input.sourceConfig !== undefined ? ['sourceConfig'] : []),
+              ...(input.syncIntervalMinutes !== undefined ? ['syncIntervalMinutes'] : []),
+            ],
             accessMode: input.accessMode,
           },
         }
@@ -325,6 +393,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
  * source validation verifies it against the target mode before any mutation.
  */
 async function requireUsableCredential(input: {
+  principal: Principal
   credentialId: string | null | undefined
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth'>
   sourceConfig: Record<string, unknown>
@@ -356,6 +425,7 @@ async function requireUsableCredential(input: {
     )
   }
   const token = await resolveConnectorCredentialAccessToken({
+    principal: input.principal,
     credentialId: input.credentialId,
     ...resourceScopeFields(resourceScopeFromOwner(input)),
     actingUserId: input.actingUserId,

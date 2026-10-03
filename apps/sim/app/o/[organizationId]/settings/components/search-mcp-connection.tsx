@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import {
   Chip,
-  ChipDropdown,
   ChipModalField,
+  ChipSelect,
   Code,
   chipFieldSurfaceClass,
   useCopyToClipboard,
@@ -16,6 +16,7 @@ const CLIENTS = [
   { value: 'codex', label: 'Codex' },
   { value: 'claude-code', label: 'Claude Code' },
   { value: 'cursor', label: 'Cursor' },
+  { value: 'devin', label: 'Devin' },
   { value: 'other', label: 'Other' },
 ] as const
 
@@ -38,18 +39,20 @@ export function SearchMcpConnection({ endpoint }: SearchMcpConnectionProps) {
   return (
     <>
       <ChipModalField type='custom' title='App' flush>
-        <ChipDropdown
-          value={client}
-          onChange={(value) => {
-            const option = CLIENTS.find((item) => item.value === value)
-            if (option) setClient(option.value)
-          }}
-          options={CLIENTS}
-          aria-label={`MCP app: ${CLIENTS.find((option) => option.value === client)?.label}`}
-          align='start'
-          matchTriggerWidth={false}
-          className='self-start'
-        />
+        <div className='w-[240px] shrink-0'>
+          <ChipSelect
+            value={client}
+            onChange={(value) => {
+              const option = CLIENTS.find((item) => item.value === value)
+              if (option) setClient(option.value)
+            }}
+            options={[...CLIENTS]}
+            aria-label={`MCP app: ${CLIENTS.find((option) => option.value === client)?.label}`}
+            align='start'
+            fullWidth
+            dropdownWidth='trigger'
+          />
+        </div>
       </ChipModalField>
       {client !== 'cursor' ? (
         <ChipModalField
@@ -64,11 +67,13 @@ export function SearchMcpConnection({ endpoint }: SearchMcpConnectionProps) {
           hint={
             client === 'claude'
               ? 'In Claude web or Desktop, add a custom connector with this URL, then sign in to Sim. On Team or Enterprise, an owner adds the connector first.'
-              : client === 'other'
-                ? 'Add this URL in an app that supports remote MCP with OAuth. Choose Streamable HTTP if asked, then sign in to Sim.'
-                : client === 'claude-code'
-                  ? 'Run this command, then open /mcp in Claude Code to connect and sign in to Sim.'
-                  : 'Run this command and sign in to Sim in the browser. To reconnect, run codex mcp login sim-search.'
+              : client === 'devin'
+                ? 'In Devin, open Customize → MCPs and add a custom MCP with this URL. Choose HTTP, OAuth, and Personal access, then select Connect and sign in to Sim.'
+                : client === 'other'
+                  ? 'Add this URL in an app that supports remote MCP with OAuth. Choose Streamable HTTP if asked, then sign in to Sim.'
+                  : client === 'claude-code'
+                    ? 'Run this command, then open /mcp in Claude Code to connect and sign in to Sim.'
+                    : 'Run this command and sign in to Sim in the browser. To reconnect, run codex mcp login sim-search.'
           }
         />
       ) : (

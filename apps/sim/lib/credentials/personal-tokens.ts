@@ -24,7 +24,7 @@ import {
   verifyGitLabPersonalToken,
 } from '@/lib/credentials/gitlab-personal-token'
 import type { CredentialRow } from '@/lib/credentials/queries'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 
 export interface PersonalTokenCredential {
@@ -115,19 +115,23 @@ function liveEnrollmentConditions(workspaceId: string, userId: string) {
   ]
 }
 
-/** Rechecks the canonical group and the verified person behind a bound token before every use. */
+/**
+ * Rechecks the canonical group and the verified person behind a bound token before every use.
+ * Given `lockingTx`, it serializes against the enrollment's lifecycle and holds the binding in
+ * that transaction.
+ */
 export async function requirePersonalTokenEnrollment(
   input: ResourceOwner & { userId: string; enrollmentId: string | null },
-  executor: DbOrTx = db,
-  lock = false
-): Promise<void> {
+  lockingTx?: DbTransaction
+): Promise<{ credentialGroupId: string }> {
   const scope = resourceScopeFromOwner(input)
   if (!input.enrollmentId)
     throw new OrchestrationError(
       'forbidden',
       'Reconnect your personal account in Connected accounts'
     )
-  if (lock) await lockCredentialGroupEnrollmentLifecycle(executor, input.enrollmentId)
+  if (lockingTx) await lockCredentialGroupEnrollmentLifecycle(lockingTx, input.enrollmentId)
+  const executor = lockingTx ?? db
   const query = executor
     .select({
       id: credentialGroupEnrollment.id,
@@ -158,7 +162,7 @@ export async function requirePersonalTokenEnrollment(
       )
     )
     .limit(1)
-  const [binding] = await (lock
+  const [binding] = await (lockingTx
     ? query.for('share', { of: [credentialGroupEnrollment, credentialGroup, user] })
     : query)
   if (!binding)
@@ -173,6 +177,7 @@ export async function requirePersonalTokenEnrollment(
       executor
     )
   }
+  return { credentialGroupId: binding.credentialGroupId }
 }
 
 export interface CreatePersonalTokenParams {
@@ -227,8 +232,7 @@ export async function createPersonalTokenCredential(input: CreatePersonalTokenPa
         userId: input.userId,
         enrollmentId: enrollment.id,
       },
-      tx,
-      true
+      tx
     )
     await tx
       .update(credentialGroupEnrollment)
@@ -368,7 +372,7 @@ export async function updatePersonalTokenCredential(input: UpdatePersonalTokenPa
     updatedFields.push('apiToken')
   }
   const updated = await db.transaction(async (tx) => {
-    await requirePersonalTokenEnrollment(enrollmentBinding, tx, true)
+    await requirePersonalTokenEnrollment(enrollmentBinding, tx)
     const [updated] = await tx
       .update(credential)
       .set(updates)
