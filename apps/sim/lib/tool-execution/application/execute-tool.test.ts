@@ -26,6 +26,7 @@ import {
   customBlockOperationsMockFns,
 } from '@sim/testing/mocks/custom-block-operations.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
@@ -253,6 +254,7 @@ describe('executeToolForCaller', () => {
     mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { markdown: '# Hi' } })
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
     mocks.checkUsageLimits.mockResolvedValue({ isExceeded: false })
+    environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({})
   })
 
   it.each<PersonalApiKeyPrincipal | SessionPrincipal>([principal, createSessionPrincipal()])(
@@ -512,11 +514,12 @@ describe('executeToolForCaller', () => {
   it.each([
     ['the key is omitted', { input: { url: 'https://a.co' } }],
     [
-      'the key is a variable reference that may resolve empty',
+      'the key references an empty variable',
       { input: { url: 'https://a.co', apiKey: '{{FIRECRAWL_KEY}}' } },
     ],
   ])('refuses a hosted-key call over the usage limit when %s', async (_case, input) => {
     mocks.checkUsageLimits.mockResolvedValue({ isExceeded: true, message: 'Usage limit exceeded' })
+    environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({ FIRECRAWL_KEY: ' ' })
 
     await expect(run(input)).rejects.toBeInstanceOf(ToolUsageLimitExceededError)
   })
@@ -524,11 +527,18 @@ describe('executeToolForCaller', () => {
   it.each([
     ['the caller brings their own key', { input: { url: 'https://a.co', apiKey: 'sk-own' } }],
     [
+      'the caller references a variable holding their own key',
+      { input: { url: 'https://a.co', apiKey: '{{FIRECRAWL_KEY}}' } },
+    ],
+    [
       'the tool has no hosted key',
       { toolId: 'zendesk_get_ticket', input: { ticketId: '4', subdomain: 'a', apiToken: 't' } },
     ],
   ])('does not gate on usage when %s', async (_case, input) => {
     mocks.checkUsageLimits.mockResolvedValue({ isExceeded: true, message: 'Usage limit exceeded' })
+    environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({
+      FIRECRAWL_KEY: 'fc-own',
+    })
 
     await expect(run(input)).resolves.toMatchObject({ status: 'succeeded' })
   })

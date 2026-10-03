@@ -17,9 +17,10 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
-import { isEnvVarReference } from '@/executor/constants'
+import { extractEnvVarName, isEnvVarReference } from '@/executor/constants'
 import { executeTool as executeRegistryTool } from '@/tools'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -76,6 +77,23 @@ function hostedKeyParamFor(
     return undefined
   }
   return tool.hosting.apiKeyParam
+}
+
+/**
+ * Whether a `{{VAR}}` key resolves to a key of the caller's own.
+ *
+ * The registry resolves the reference from this same environment before it
+ * decides on Sim's key, and a variable that is missing or empty leaves the
+ * parameter for Sim's key to fill.
+ */
+async function referencesOwnKey(
+  value: unknown,
+  userId: string,
+  workspaceId: string
+): Promise<boolean> {
+  if (typeof value !== 'string' || !isEnvVarReference(value)) return false
+  const env = await getEffectiveDecryptedEnv(userId, workspaceId)
+  return Boolean(env[extractEnvVarName(value)]?.trim())
 }
 
 /**
@@ -320,7 +338,10 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
      * has charged it. A BYOK workspace is gated too, since only the registry can
      * see that key — the same standing every workflow run is held to.
      */
-    if (hostedKeyParam) {
+    if (
+      hostedKeyParam &&
+      !(await referencesOwnKey(callerParams[hostedKeyParam], userId, context.workspaceId))
+    ) {
       const usage = await checkExecutionUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         throw new ToolUsageLimitExceededError(
