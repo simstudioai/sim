@@ -10,6 +10,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { MAX_BLOCK_MOUNTED_FILES } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { MAX_FUNCTION_CODE_LENGTH } from '@/lib/function-execution/limits'
 import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,
   MAX_PII_VALIDATION_TEXT_CHARACTERS,
@@ -165,8 +166,8 @@ const functionOutputFileSchema = z
 
 export const functionExecuteBodySchema = z
   .object({
-    code: z.string().min(1, 'Code is required'),
-    sourceCode: z.string().optional(),
+    code: z.string().min(1, 'Code is required').max(MAX_FUNCTION_CODE_LENGTH),
+    sourceCode: z.string().max(MAX_FUNCTION_CODE_LENGTH).optional(),
     params: unknownRecordSchema.optional().default({}),
     timeout: z.coerce.number().int().positive().optional(),
     language: z.string().optional().default(DEFAULT_CODE_LANGUAGE),
@@ -221,6 +222,11 @@ export const functionExecuteBodySchema = z
     isCustomTool: z.boolean().optional().default(false),
     /** Workspace sandbox whose dependency set this execution runs against. */
     sandboxId: z.string().optional(),
+    /**
+     * Reusable session-sandbox identity (one per Mothership chat). Honored only
+     * for trusted Mothership executions; workspace callers cannot opt in.
+     */
+    sandboxSessionKey: z.string().optional(),
     /** `all` (default) or `selected`; see mountedSecrets. */
     secretScope: z.enum(['all', 'selected']).optional(),
     /** Secret names this execution may read when secretScope is `selected`. */

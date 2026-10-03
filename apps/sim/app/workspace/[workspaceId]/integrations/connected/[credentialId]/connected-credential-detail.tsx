@@ -18,7 +18,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { resolveCredentialDisplay } from '@/lib/integrations'
+import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   AddPeopleModal,
@@ -33,6 +33,7 @@ import {
   RESOURCE_TILE_BASE,
   RESOURCE_TILE_PLAIN,
 } from '@/app/workspace/[workspaceId]/components/resource-tile'
+import { ConnectPersonalTokenModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-personal-token-modal'
 import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
@@ -81,7 +82,7 @@ export function ConnectedCredentialDetail({
   const { data: oauthConnections = [] } = useOAuthConnections()
   const connectOAuthService = useConnectOAuthService()
   const createDraft = useCreateCredentialDraft()
-  const deleteCredential = useDeleteWorkspaceCredential()
+  const deleteCredential = useDeleteWorkspaceCredential(workspaceId)
 
   const credential = useMemo<WorkspaceCredential | null>(
     () => credentials.find((c) => c.id === credentialId) ?? null,
@@ -106,7 +107,12 @@ export function ConnectedCredentialDetail({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [reconnectOpen, setReconnectOpen] = useState(false)
 
-  const form = useCredentialDetailForm({ credential, isAdmin, backHref: integrationsHref })
+  const form = useCredentialDetailForm({
+    credential,
+    isAdmin,
+    backHref: integrationsHref,
+    workspaceId,
+  })
 
   const oauthServiceNameByProviderId = useMemo(
     () => new Map(oauthConnections.map((service) => [service.providerId, service.name])),
@@ -207,10 +213,12 @@ export function ConnectedCredentialDetail({
   const actions =
     credential && isAdmin ? (
       <>
-        {(credential.type === 'oauth' || credential.type === 'service_account') && (
+        {(credential.type === 'oauth' ||
+          credential.type === 'service_account' ||
+          credential.type === 'personal_token') && (
           <Chip
             onClick={
-              credential.type === 'service_account'
+              credential.type === 'service_account' || credential.type === 'personal_token'
                 ? () => setReconnectOpen(true)
                 : credential.providerId === 'quickbooks'
                   ? () => setReconnectOpen(true)
@@ -226,9 +234,11 @@ export function ConnectedCredentialDetail({
             Reconnect
           </Chip>
         )}
-        <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
-          Share
-        </Chip>
+        {credential.type !== 'personal_token' && (
+          <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
+            Share
+          </Chip>
+        )}
         <Chip
           onClick={() => setShowDeleteConfirmDialog(true)}
           disabled={deleteCredential.isPending}
@@ -311,7 +321,14 @@ export function ConnectedCredentialDetail({
           />
         </DetailSection>
 
-        <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />
+        {credential.type !== 'personal_token' && (
+          <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />
+        )}
+        {credential.type === 'personal_token' && credential.instanceUrl && (
+          <DetailSection title='GitLab instance'>
+            <ChipCopyInput value={credential.instanceUrl} copyLabel='Copy GitLab instance' />
+          </DetailSection>
+        )}
       </CredentialDetailLayout>
 
       <ChipConfirmModal
@@ -332,11 +349,13 @@ export function ConnectedCredentialDetail({
         }}
       />
 
-      <AddPeopleModal
-        credentialId={credential.id}
-        open={isShareModalOpen}
-        onOpenChange={setIsShareModalOpen}
-      />
+      {credential.type !== 'personal_token' && (
+        <AddPeopleModal
+          credentialId={credential.id}
+          open={isShareModalOpen}
+          onOpenChange={setIsShareModalOpen}
+        />
+      )}
 
       <UnsavedChangesModal
         open={form.showUnsavedAlert}
@@ -344,6 +363,15 @@ export function ConnectedCredentialDetail({
         onDiscard={form.confirmDiscard}
       />
 
+      {credential.type === 'personal_token' && (
+        <ConnectPersonalTokenModal
+          open={reconnectOpen}
+          onOpenChange={setReconnectOpen}
+          workspaceId={workspaceId}
+          credentialId={credential.id}
+          instanceUrl={credential.instanceUrl}
+        />
+      )}
       {credential.type === 'service_account' && credential.providerId && (
         <ConnectServiceAccountModal
           open={reconnectOpen}

@@ -169,6 +169,9 @@ export function WorkflowEdgeView({
     if (diffStatus === 'deleted') {
       color = 'var(--text-error)'
       opacity = 0.7
+    } else if (diffStatus === 'ghost') {
+      color = 'var(--text-tertiary)'
+      opacity = 0.7
     } else if (diffStatus === 'new') {
       color = 'var(--brand-accent)'
     } else if (isWorkflowRunning) {
@@ -194,7 +197,7 @@ export function WorkflowEdgeView({
     }
 
     return {
-      strokeWidth: diffStatus ? 2.5 : hasRunStatus ? 2 : 1.5,
+      strokeWidth: diffStatus === 'ghost' ? 1.5 : diffStatus ? 2.5 : hasRunStatus ? 2 : 1.5,
       strokeDasharray: diffStatus === 'deleted' ? '10,5' : undefined,
       opacity,
       ...(style ?? {}),
@@ -277,6 +280,7 @@ export function WorkflowEdgeView({
       {isSelected && (
         <EdgeLabelRenderer>
           <button
+            aria-label='Delete connection'
             type='button'
             className='nodrag nopan group flex size-[22px] cursor-pointer items-center justify-center transition-colors'
             style={{

@@ -1,4 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
+import type { OAuthApiScope } from '@/lib/auth/oauth-provider'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import {
   CAPABILITY_RULES,
@@ -14,13 +16,15 @@ import {
  * authorizes in its own middleware — for every operation alike, ahead of and
  * independently of whatever module capability the operation names.
  *
+ * `oauth_apps.use` applies the same rule to OAuth credentials.
+ *
  * Excluded from {@link OperationDeclarableCapability} because an operation that
  * named it would be wrong either way: withheld, it would double-apply a refusal
  * the funnel has already made in the caller's own words; and a session caller
  * holding no API key at all would be refused an ordinary operation over a
  * setting about credentials they are not using.
  */
-export type PrincipalWideCapability = 'personal_api_key.use'
+export type PrincipalWideCapability = 'personal_api_key.use' | 'oauth_apps.use'
 
 /**
  * The capabilities an operation may name — every static rule except the
@@ -33,10 +37,15 @@ export type OperationDeclarableCapability = Exclude<
 >
 
 /** The runtime half of {@link PrincipalWideCapability}, for the builders' guard. */
-const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = ['personal_api_key.use']
+const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = [
+  'personal_api_key.use',
+  'oauth_apps.use',
+]
 
 export interface ApplicationOperation<Id extends string = string> {
   readonly id: Id
+  /** Required by definitions that admit OAuth; independent of the user's membership role. */
+  readonly oauthScope?: OAuthApiScope
   /**
    * The capability a permission group must not have withheld, or `'none'` when
    * no group governs this operation.
@@ -61,12 +70,46 @@ export interface ApplicationOperation<Id extends string = string> {
   readonly capability: OperationDeclarableCapability | 'none'
 }
 
+export type OAuthOperationPolicy<Kinds extends readonly string[]> =
+  'oauth_access_token' extends Kinds[number]
+    ? { readonly oauthScope: OAuthApiScope }
+    : { readonly oauthScope?: never }
+
+/** Rejects missing scope policy at definition time, including dynamically composed policies. */
+export function assertOperationOAuthPolicy(
+  operation: ApplicationOperation & { readonly principalKinds: readonly string[] }
+): void {
+  const acceptsOAuth = operation.principalKinds.includes('oauth_access_token')
+  if (acceptsOAuth) {
+    if (
+      operation.oauthScope === 'api:read' ||
+      operation.oauthScope === 'api:write' ||
+      operation.oauthScope === 'search:read'
+    )
+      return
+    throw new Error(`Operation ${operation.id} must declare its OAuth scope`)
+  }
+  if (operation.oauthScope !== undefined) {
+    throw new Error(`Operation ${operation.id} declares OAuth scope without admitting OAuth`)
+  }
+}
+
 /**
  * Every principal kind an operation can name. `credential_group_enrollment`
  * authenticates one enrollment flow, while `system` is an infrastructure-owned
  * workflow execution identity; neither performs a semantic resource operation.
+ *
+ * `scim_connection` is excluded for a different reason: it is an organization's
+ * identity provider, which provisions membership and never reads or writes a
+ * workspace resource. Leaving it out makes that a compile-time fact — a
+ * workspace operation cannot name it even by accident — and SCIM declares its
+ * own operation type in `ee/scim/lib/application/operations.ts`, the way
+ * organization BYOK does.
  */
-export type PrincipalKind = Exclude<Principal['kind'], 'credential_group_enrollment' | 'system'>
+export type PrincipalKind = Exclude<
+  Principal['kind'],
+  'credential_group_enrollment' | 'system' | 'scim_connection' | 'slack_installation' | 'slack_app'
+>
 
 /**
  * A principal kind a non-workspace operation may name. `delegated` is excluded
@@ -75,7 +118,10 @@ export type PrincipalKind = Exclude<Principal['kind'], 'credential_group_enrollm
  * that {@link defineWorkspaceOperation} exists to carry. An operation that needs
  * delegation is a workspace operation.
  */
-export type UndelegatedPrincipalKind = Exclude<PrincipalKind, 'delegated'>
+export type UndelegatedPrincipalKind = Exclude<
+  PrincipalKind,
+  'delegated' | 'organization_delegated'
+>
 
 /**
  * An operation with no workspace scope and therefore no role, whose whole
@@ -127,8 +173,8 @@ export function defineOperation<
   const Id extends string,
   const PrincipalKinds extends readonly UndelegatedPrincipalKind[],
 >(
-  operation: PrincipalScopedOperation<Id, PrincipalKinds>
-): PrincipalScopedOperation<Id, PrincipalKinds> {
+  operation: PrincipalScopedOperation<Id, PrincipalKinds> & OAuthOperationPolicy<PrincipalKinds>
+): PrincipalScopedOperation<Id, PrincipalKinds> & OAuthOperationPolicy<PrincipalKinds> {
   if (operation.principalKinds.length === 0) {
     throw new Error(`Operation ${operation.id} must allow at least one principal kind`)
   }
@@ -136,6 +182,7 @@ export function defineOperation<
     throw new Error(`Operation ${operation.id} declares duplicate principal kinds`)
   }
   assertOperationCapability(operation)
+  assertOperationOAuthPolicy(operation)
   Object.freeze(operation.principalKinds)
   Object.freeze(operation)
   return operation
@@ -161,10 +208,13 @@ export function assertOperationPrincipal<O extends PrincipalScopedOperation>(
       `Operation ${operation.id} reached by principal kind ${principal.kind}, which its policy does not name`
     )
   }
+  requireOAuthOperationScope(principal, operation)
 }
 
 export interface OperationUseCase<O extends ApplicationOperation, I, R> {
   readonly operation: O
+  /** Static domain delegation audience; absent means this use case is not a private Copilot route. */
+  readonly delegationAudience?: string
   execute(args: {
     principal: Principal
     input: I

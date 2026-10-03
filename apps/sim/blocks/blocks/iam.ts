@@ -1,7 +1,6 @@
 import { IAMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { IAMBaseResponse } from '@/tools/iam/types'
 
 /**
  * Raised when `contextEntries` is not a JSON array of context entries.
@@ -13,7 +12,7 @@ import type { IAMBaseResponse } from '@/tools/iam/types'
 const CONTEXT_ENTRIES_SHAPE_ERROR =
   'Condition Context Keys must be a JSON array of { contextKeyName, contextKeyValues, contextKeyType }'
 
-export const IAMBlock: BlockConfig<IAMBaseResponse> = {
+export const IAMBlock: BlockConfig = {
   type: 'iam',
   name: 'AWS IAM',
   description: 'Manage AWS IAM users, roles, policies, and groups',

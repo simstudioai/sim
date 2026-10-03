@@ -3,6 +3,7 @@ import { Extension } from '@tiptap/core'
 import { GapCursor } from '@tiptap/pm/gapcursor'
 import type { ResolvedPos } from '@tiptap/pm/model'
 import { NodeSelection, Plugin, PluginKey, Selection } from '@tiptap/pm/state'
+import { replaceStep } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import {
   MENTION_PLUGIN_KEY,
@@ -99,7 +100,11 @@ function removeEmptyWrappedBlock(editor: Editor, $from: ResolvedPos): boolean {
   const end = $from.after(depth)
   return editor.commands.command(({ tr, dispatch }) => {
     if (dispatch) {
-      tr.delete(start, end)
+      const step = replaceStep(tr.doc, start, end)
+      const next = step?.apply(tr.doc).doc
+      /** A required leading paragraph can be replaced with itself; keep its caret and history. */
+      if (!step || !next || next.eq(tr.doc)) return true
+      tr.step(step)
       const $gap = tr.doc.resolve(start)
       tr.setSelection(
         Selection.findFrom($gap, -1, true) ??

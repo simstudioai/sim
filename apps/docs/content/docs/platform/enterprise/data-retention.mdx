@@ -71,6 +71,12 @@ Controls how long **Chat data** is kept, including:
 - Run checkpoints and async tool calls
 - Inbox tasks
 
+### Previous file versions
+
+Every change to a file's content keeps the previous content as a version you can read or revert to through the API, CLI, or MCP server. This setting controls how long a version is kept after a newer one replaces it. The newest ten versions of each file are always kept, whatever their age.
+
+Without a setting, previous versions are kept until a file reaches 500 of them. The setting isn't on the settings page yet: set `fileVersionRetentionHours` through the data retention API, either for the organization or in a workspace override.
+
 Each setting is independent. You can configure a short log retention period alongside a long soft deletion cleanup period, or any combination that fits your compliance requirements.
 
 ---
@@ -102,7 +108,7 @@ For each stage, choose the **entity types** to redact from the searchable grid. 
 - **United Kingdom** — NHS number, National Insurance number
 - **Other regions** — Spanish (NIF, NIE), Italian (fiscal code, driver's licence, VAT code, passport, identity card), Polish (PESEL), Singaporean (NRIC/FIN, UEN), Australian (ABN, ACN, TFN, Medicare), Indian (PAN, Aadhaar, vehicle registration, voter ID, passport), and Finnish (personal identity code) identifiers
 
-The **Block outputs** stage is restricted to regex- and checksum-based recognizers, so it can run in-flight over large payloads without a performance penalty. Types that need name-model detection — person name, location, date or time, and nationality/religious/political group — are not offered for that stage.
+The **Block outputs** stage is restricted to regex- and checksum-based recognizers, to support in-flight masking without name-model detection. Types that need name-model detection — person name, location, date or time, and nationality/religious/political group — are not offered for that stage.
 
 Detection is language-aware: pick the **language** whose recognizers should apply. English, Spanish, Italian, Polish, and Finnish are supported, and the grid filters to the identifiers available for the selected language.
 
@@ -186,16 +192,17 @@ Once enabled, retention settings are configurable through **Settings → Organiz
 
 ### Scheduling the deletion pass
 
-`DATA_RETENTION_ENABLED` permits deletion; it does not perform it. Deletion runs when a scheduled request reaches one of three endpoints, each authenticated with a bearer token equal to `CRON_SECRET`:
+`DATA_RETENTION_ENABLED` permits deletion; it does not perform it. Deletion runs when a scheduled request reaches one of four endpoints, each authenticated with a bearer token equal to `CRON_SECRET`:
 
 | Category | Endpoint |
 |----------|----------|
 | Execution and job logs | `GET /api/logs/cleanup` |
 | Soft-deleted resources | `GET /api/cron/cleanup-soft-deletes` |
 | Chats and Chat runs | `GET /api/cron/cleanup-tasks` |
+| Previous file versions | `GET /api/cron/cleanup-file-versions` |
 
 <Callout type="warn">
-Neither shipped deployment schedules these three endpoints — not the Helm chart, not Docker Compose's `cron` service. An operator who sets `DATA_RETENTION_ENABLED=true` alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
+Neither shipped deployment schedules these four endpoints — not the Helm chart, not Docker Compose's `cron` service. An operator who sets `DATA_RETENTION_ENABLED=true` alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
 </Callout>
 
 ```bash

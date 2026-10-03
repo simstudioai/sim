@@ -2,7 +2,6 @@ import { AffinityIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
-import type { AffinityCollectionResponse } from '@/tools/affinity/types'
 
 /** Operations scoped to a company or person through the shared field endpoints. */
 const FIELD_ENTITY_OPERATIONS = [
@@ -304,7 +303,7 @@ function affinityToolIds(): ReadonlySet<string> {
   return affinityToolIdCache
 }
 
-export const AffinityBlock: BlockConfig<AffinityCollectionResponse<string>> = {
+export const AffinityBlock: BlockConfig = {
   type: 'affinity',
   name: 'Affinity',
   description: 'Read and write companies, people, lists, notes, and relationships in Affinity',

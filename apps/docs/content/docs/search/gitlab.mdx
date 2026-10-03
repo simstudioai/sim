@@ -1,0 +1,103 @@
+---
+title: GitLab
+description: Search self-managed GitLab projects with current administrator checks or CSV permissions
+---
+
+GitLab uses **Service account** mode only. Add one self-managed project per source. Teammates do not connect personal GitLab accounts; Sim matches their verified identity to the project's permission strategy on every search and read.
+
+## Choose a token path
+
+| | Administrator token | Non-admin token |
+| --- | --- | --- |
+| Token identity | Active instance administrator | Identity that can read the configured project's content |
+| PAT scopes | `read_api`; also `admin_mode` when Admin Mode is enabled | `read_api` |
+| Reader permissions | Current GitLab identity, project/group membership, roles, and supported restrictions | Administrator-uploaded user mapping and project grants |
+| Membership changes | Checked from GitLab during the request | Admin must update the CSV files |
+| Confidential issues | Returned only when supported GitLab permissions allow that reader | Always excluded |
+
+The administrator path requires a supported self-managed GitLab instance (17.4 or later) and access to its administrator identity/settings APIs. A project Maintainer or group Owner is not an instance administrator. A non-admin source does not require those administrator APIs.
+
+The instance must be reachable from the Sim server and pass its configured outbound-request protections. Use the actual self-managed host, not `gitlab.com`, for the source. Each saved source binds its host and project identity; a search query cannot redirect its token to another instance or project.
+
+## Add a project
+
+1. Create a read-only PAT in the chosen GitLab account, with the scopes above and an appropriate expiry.
+2. Open **Settings → Sources → Add source → GitLab**, then **Add project**. For another project, open GitLab's source page and use **Add project** again.
+3. Choose **Administrator token** or **Non-admin token**.
+4. Enter the token, self-managed **Host**, and exact **Project** path or numeric ID.
+5. Choose the content scope and any filters. In non-admin mode, upload both CSV files below.
+6. Save the source. Have a permitted teammate search and read known content, then repeat as a teammate without a grant.
+
+There is no initial content sync. Organization membership and a matching verified email are required, but membership alone does not authorize project content.
+
+## Resource settings
+
+| Setting | Effect |
+| --- | --- |
+| Content | **Wiki & Issues** by default; the broader choice includes code and merge requests. |
+| Branch / tag | Code search and reads use the selected ref; blank uses the project's default branch. |
+| Path prefix / file extensions | Restrict code results. |
+| Issue state | Restricts matching issues. |
+| Issue labels | Every configured label must match. |
+| Milestone | Exact issue milestone title. |
+
+Search requests are scoped to the configured project. Sim checks returned content against these restrictions rather than trusting a provider query alone. API search support can depend on the GitLab version and enabled search capabilities; unsupported or unavailable searches are reported instead of falling back to an old index.
+
+## Non-admin CSV permissions
+
+Use **Download template** beside each field, replace the example rows, and upload both files.
+
+**User mapping** maps numeric GitLab user IDs to verified Sim email addresses:
+
+```csv
+user_id,email
+123,alice@example.com
+456,bob@example.com
+```
+
+**Project permissions** grants each mapped user access to the named project:
+
+```csv
+project_path,user_id
+engineering/platform,123
+engineering/platform,456
+```
+
+Use the full namespace path even when the Project field contains a numeric ID. Inherited members must be included explicitly when they should have access. A grant without a corresponding email mapping grants nothing.
+
+- Each file has exactly two columns in the shown order and at least one data row. Exact template headers or headerless data are accepted.
+- Use UTF-8 CSV, at most 4 MiB and 100,000 data rows per file; the complete request must fit the 10 MiB request limit.
+- Identical rows are deduplicated. Conflicting user-ID/email mappings and malformed rows are rejected.
+- Rows for another project do not expand this source's boundary.
+
+CSV grants are administrator-managed authorization. Each granted reader may search the source's allowed non-confidential content; Sim does not infer that person's actual GitLab role, feature restrictions, or membership from a non-admin token. Keep these files accurate when access changes.
+
+## How access is enforced
+
+The configured token searches and reads the project. Unlike other service-account providers, GitLab does not obtain a personal reader token.
+
+With an administrator token, Sim proves the reader's current GitLab identity from their verified Sim email, loads current membership and relevant project/group policy, and constructs permission evidence within that request. This is not a scheduled ACL build or a stored directory snapshot. Unsupported restrictions fail closed.
+
+With a non-admin token, Sim uses the saved source-local CSV mappings and revalidates the token's current host/project identity. Confidential issues are excluded, including when fresh read metadata shows an issue became confidential after search.
+
+Reads recheck current settings, permission evidence, and content metadata before returning text. Sim does not allow a document reference from another member, account, organization, project, or host to authorize a read.
+
+## Change permissions or rotate the token
+
+Open the project's settings and replace either CSV file, retaining the other when appropriate. Sim validates the resulting pair before saving. Invalid or stale updates preserve the saved grants. Removed users lose access on the next operation; there is no crawl or re-embedding step.
+
+To rotate a PAT, supply the replacement in the source's settings. Leaving the token blank keeps the saved token. Changing project, host, or permission strategy requires a valid configuration for the new identity; old indexed ACL state is not used to authorize live requests.
+
+## Troubleshooting
+
+| Problem | Next step |
+| --- | --- |
+| Administrator token required | Use an instance-admin PAT, or choose Non-admin token and supply both CSVs. |
+| Host or project cannot be reached | Check the saved host, server connectivity/outbound rules, project identity, and token access. |
+| Member sees no results | Check their verified Sim email, Sim membership, current GitLab identity/role or CSV grant, content scope, and query. |
+| Confidential issue is missing | Expected in CSV mode; in admin mode, check the reader's supported GitLab permissions. |
+| CSV upload fails | Correct the reported rows and size limits; the previous saved grants remain in effect. |
+| Source permissions cannot be verified | Check the reported GitLab restriction. Do not broaden access to bypass failed verification. |
+| Search type is unavailable | Check your instance's search capabilities and version. A connected project does not guarantee every search endpoint is enabled. |
+
+Ordinary GitLab [knowledge-base connectors](/knowledgebase/connectors), and explicitly restored legacy Search, retain their own indexing and permission-maintenance behavior.

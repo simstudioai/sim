@@ -41,6 +41,8 @@ interface KnowledgeSearchResult {
   chunkIndex: number
   metadata: Record<string, any>
   similarity: number
+  rankScore: number
+  rank: number
   rerankerScore?: number
 }
 
@@ -66,12 +68,6 @@ export interface KnowledgeSearchResponse {
     model?: string
   }
   error?: string
-}
-
-interface KnowledgeSearchParams {
-  knowledgeBaseIds: string | string[]
-  query: string
-  topK?: number
 }
 
 interface KnowledgeUploadChunkResult {
@@ -112,12 +108,6 @@ export interface KnowledgeUploadChunkResponse {
   error?: string
 }
 
-interface KnowledgeUploadChunkParams {
-  documentId: string
-  content: string
-  enabled?: boolean
-}
-
 interface KnowledgeCreateDocumentResult {
   documentId: string
   documentName: string
@@ -143,10 +133,6 @@ interface KnowledgeTagDefinition {
   fieldType: string
   createdAt: string | null
   updatedAt: string | null
-}
-
-interface KnowledgeListTagsParams {
-  knowledgeBaseId: string
 }
 
 export interface KnowledgeListTagsResponse {

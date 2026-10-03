@@ -16,6 +16,17 @@ export const linkPreviewResponseSchema = z.object({
       title: z.string().nullable(),
       description: z.string().nullable(),
       siteName: z.string().nullable(),
+      image: z
+        .string()
+        .max(180_000)
+        .regex(/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/)
+        .optional(),
+      imageRetryable: z
+        .literal(true)
+        .describe(
+          'The optional image was deferred or temporarily unavailable; retry on later intent.'
+        )
+        .optional(),
     })
     .nullable(),
 })

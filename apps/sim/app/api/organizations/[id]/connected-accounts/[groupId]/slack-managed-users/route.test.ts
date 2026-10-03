@@ -1,0 +1,65 @@
+import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({ execute: vi.fn() }))
+vi.mock('@/lib/credential-groups/application/slack-managed-users', () => ({
+  startSlackCredentialGroupConfiguration: {
+    get operation() {
+      return credentialGroupOperations.startSlackConfiguration
+    },
+    execute: mocks.execute,
+  },
+}))
+
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
+import { POST } from '@/app/api/organizations/[id]/connected-accounts/[groupId]/slack-managed-users/route'
+
+const body = {
+  appId: 'A123',
+  teamId: 'T123',
+}
+const context = createRouteContext({ id: 'org-a', groupId: 'group-a' })
+function request(input: unknown = body) {
+  return createMockRequest(
+    'POST',
+    input,
+    undefined,
+    'http://localhost:3000/api/organizations/org-a/connected-accounts/group-a/slack-managed-users'
+  )
+}
+
+beforeEach(() => {
+  authMockFns.mockGetSession.mockResolvedValue({
+    user: { id: 'actor' },
+    session: { id: 'session' },
+  })
+  mocks.execute.mockResolvedValue({
+    authorizationUrl: 'https://slack.com/oauth/v2/authorize',
+    state: 'opaque-state',
+  })
+})
+
+describe('organization Slack setup route', () => {
+  it('rejects a client-supplied workspace owner', async () => {
+    const response = await POST(request({ ...body, workspaceId: 'workspace-a' }), context)
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it.each(['clientId', 'clientSecret'])('rejects a client-supplied OAuth %s', async (field) => {
+    const response = await POST(request({ ...body, [field]: 'client-supplied-value' }), context)
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('preserves refusal when current organization authority is insufficient', async () => {
+    mocks.execute.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Organization admin required')
+    )
+    const response = await POST(request(), context)
+    expect(response.status).toBe(403)
+  })
+})

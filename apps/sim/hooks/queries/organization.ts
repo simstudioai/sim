@@ -1,6 +1,12 @@
-import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
-import { type UseQueryResult, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import {
+  queryOptions,
+  type UseQueryResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -34,18 +40,15 @@ import {
 import { client } from '@/lib/auth/auth-client'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
+import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-const logger = createLogger('OrganizationQueries')
 const invitationListsKey = ['invitations', 'list'] as const
 
 export const ORGANIZATION_ROSTER_STALE_TIME = 30 * 1000
-export const ORGANIZATION_LIST_STALE_TIME = 30 * 1000
 export const ORGANIZATION_DETAIL_STALE_TIME = 30 * 1000
-export const ORGANIZATION_SUBSCRIPTION_STALE_TIME = 30 * 1000
 export const ORGANIZATION_BILLING_STALE_TIME = 30 * 1000
-export const ORGANIZATION_MEMBERS_STALE_TIME = 30 * 1000
 export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
 /**
  * Zero: removal impact is a consent disclosure, so every dialog open must
@@ -89,12 +92,18 @@ async function fetchOrganizationRoster(
   }
 }
 
+export function organizationRosterQueryOptions(orgId: string) {
+  return queryOptions({
+    queryKey: organizationKeys.roster(orgId),
+    queryFn: ({ signal }) => fetchOrganizationRoster(orgId, signal),
+    staleTime: ORGANIZATION_ROSTER_STALE_TIME,
+  })
+}
+
 export function useOrganizationRoster(orgId: string | undefined | null) {
   return useQuery({
-    queryKey: organizationKeys.roster(orgId ?? ''),
-    queryFn: ({ signal }) => fetchOrganizationRoster(orgId as string, signal),
+    ...organizationRosterQueryOptions(orgId ?? ''),
     enabled: !!orgId,
-    staleTime: ORGANIZATION_ROSTER_STALE_TIME,
   })
 }
 
@@ -143,18 +152,24 @@ async function fetchOrganization(orgId: string, signal?: AbortSignal) {
     query: { organizationId: orgId },
     fetchOptions: { signal },
   })
+  if (response.error) {
+    throw new Error(response.error.message || 'Failed to load organization')
+  }
   return response.data
 }
 
-/**
- * Hook to fetch a specific organization
- */
-export function useOrganization(orgId: string) {
-  return useQuery({
+export function organizationDetailQueryOptions(orgId: string) {
+  return queryOptions({
     queryKey: organizationKeys.detail(orgId),
     queryFn: ({ signal }) => fetchOrganization(orgId, signal),
-    enabled: !!orgId,
     staleTime: ORGANIZATION_DETAIL_STALE_TIME,
+  })
+}
+
+export function useOrganization(orgId: string) {
+  return useQuery({
+    ...organizationDetailQueryOptions(orgId),
+    enabled: !!orgId,
   })
 }
 
@@ -178,19 +193,22 @@ async function fetchOrganizationBilling(
   }
 }
 
-/**
- * Hook to fetch organization billing data
- */
+export function organizationBillingQueryOptions(orgId: string) {
+  return queryOptions({
+    queryKey: organizationKeys.billing(orgId),
+    queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
+    retry: false,
+    staleTime: ORGANIZATION_BILLING_STALE_TIME,
+  })
+}
+
 export function useOrganizationBilling(
   orgId: string,
   options?: { enabled?: boolean }
 ): OrganizationBillingQueryResult {
   return useQuery({
-    queryKey: organizationKeys.billing(orgId),
-    queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
+    ...organizationBillingQueryOptions(orgId),
     enabled: !!orgId && (options?.enabled ?? true),
-    retry: false,
-    staleTime: ORGANIZATION_BILLING_STALE_TIME,
   })
 }
 
@@ -231,7 +249,7 @@ export function useUpdateOrganizationUsageLimit() {
         organizationKeys.billing(organizationId),
         (old: unknown) => {
           if (!isRecordLike(old) || !isRecordLike(old.data)) return old
-          const usage = isRecordLike(old.data.usage) ? old.data.usage : {}
+          const usage = toRecord(old.data.usage)
           const currentUsage =
             readNumber(old.data.currentUsage) ??
             readNumber(usage.current) ??
@@ -300,6 +318,10 @@ export function useUpdateOrganizationUsageLimit() {
       })
       queryClient.invalidateQueries({
         queryKey: organizationKeys.subscription(variables.organizationId),
+      })
+      /** The Insights headline states the same allowance. */
+      queryClient.invalidateQueries({
+        queryKey: organizationUsageKeys.overviews(variables.organizationId),
       })
     },
   })
@@ -562,6 +584,7 @@ type CreateOrganizationParams = Pick<
 
 export function useCreateOrganization() {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async ({ name, slug }: CreateOrganizationParams) => {
@@ -572,15 +595,17 @@ export function useCreateOrganization() {
         },
       })
 
-      await client.organization.setActive({
+      const { error } = await client.organization.setActive({
         organizationId: data.organizationId,
       })
+      if (error) throw new Error(error.message || 'Failed to activate organization')
 
       return data
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      router.refresh()
     },
   })
 }

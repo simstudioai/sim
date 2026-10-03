@@ -77,7 +77,8 @@ export async function dispatchDocumentProcessing({
       knowledgeBaseId,
       processingOptions,
       requestId,
-      billingAttribution
+      billingAttribution,
+      'interactive'
     )
     failedDocumentIds = dispatch.failedDocumentIds
     failureMessage = 'Document processing dispatch was not accepted'

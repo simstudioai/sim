@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { GoogleDriveToolParams } from '@/tools/google_drive/types'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
@@ -9,12 +10,7 @@ interface GoogleDriveExportParams extends GoogleDriveToolParams {
 
 interface GoogleDriveExportResponse extends ToolResponse {
   output: {
-    file: {
-      name: string
-      mimeType: string
-      data: string
-      size: number
-    }
+    file: UserFile
     exportedMimeType: string
   }
 }

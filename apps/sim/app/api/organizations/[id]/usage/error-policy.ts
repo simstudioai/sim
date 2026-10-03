@@ -7,21 +7,25 @@ import {
   UsageWindowRangeInvertedError,
   UsageWindowRangeTooLargeError,
 } from '@/lib/billing/core/usage-analytics'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
 
-/**
- * The window resolver throws when a custom range exceeds its cap or ends before it
-begins, both of which are
- * caller-fixable input error rather than a fault. Without this it fell through to
- * the orchestration policy's `unhandled` branch and every over-long range answered
- * `500 Internal server error`, so the client could neither surface the real reason
- * nor tell the two apart.
- *
- * Shared by all four usage routes so they cannot classify the same throw differently.
- */
+/** Preserve internal organization-access refusals and classify invalid reporting windows. */
 export const organizationUsageErrorPolicy = extendInternalErrorPolicy(
   internalOrchestrationErrorPolicy,
-  (error) =>
-    error instanceof UsageWindowRangeTooLargeError || error instanceof UsageWindowRangeInvertedError
+  (error) => {
+    if (
+      error instanceof OrganizationMembershipNotFoundError ||
+      (error instanceof ForbiddenOperationError &&
+        error.detailCode === 'ORGANIZATION_ADMIN_REQUIRED')
+    ) {
+      return internalErrorResponse(403, {
+        error: 'Organization admin or owner authority is required to read pooled usage',
+      })
+    }
+    return error instanceof UsageWindowRangeTooLargeError ||
+      error instanceof UsageWindowRangeInvertedError
       ? internalErrorResponse(400, { error: error.message })
       : null
+  }
 )

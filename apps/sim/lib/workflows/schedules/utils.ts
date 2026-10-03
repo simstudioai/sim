@@ -50,9 +50,6 @@ export function validateCronExpression(
   }
 }
 
-/** Upper bound on how many excluded occurrences the next-run search skips before giving up. */
-const MAX_OCCURRENCE_SKIP = 1000
-
 interface SubBlockValue {
   value: string
 }
@@ -473,17 +470,6 @@ export const parseCronToHumanReadable = (cronExpression: string, timezone?: stri
     })
     return `Schedule: ${cronExpression}${timezone && timezone !== 'UTC' ? ` (${getTimezoneAbbreviation(timezone)})` : ''}`
   }
-}
-
-const REVERSE_DAY_MAP: Record<number, string> = {
-  0: 'SUN',
-  1: 'MON',
-  2: 'TUE',
-  3: 'WED',
-  4: 'THU',
-  5: 'FRI',
-  6: 'SAT',
-  7: 'SUN',
 }
 
 export type ScheduleType = 'minutes' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'

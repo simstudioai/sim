@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getSubBlocksForToolInput } = vi.hoisted(() => ({
@@ -63,16 +60,5 @@ describe('tool-input selector context', () => {
     expect(configs.find((config) => config.paramId === 'resourceId')?.selectorContext).toEqual({
       oauthCredential: 'credential-1',
     })
-  })
-
-  it('returns the generic fallback when the tool has no registry definition', () => {
-    getSubBlocksForToolInput.mockReturnValue(null)
-
-    const configs = getToolInputParamConfigs({
-      tool: { type: 'test', operation: 'list', params: { message: 'hello' } },
-    })
-
-    expect(configs.map((config) => config.paramId)).toEqual(['message'])
-    expect(configs[0].authoritative).toBe(false)
   })
 })

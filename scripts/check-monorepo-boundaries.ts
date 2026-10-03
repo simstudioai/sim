@@ -1,15 +1,21 @@
 #!/usr/bin/env bun
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import ts from '@typescript/typescript6'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const PACKAGES_DIR = path.join(ROOT, 'packages')
 
-const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
-  { pattern: /from\s+['"]@\/(?!\*)/g, description: "'@/' path alias (apps/sim-only)" },
-  { pattern: /from\s+['"]\.\.\/\.\.\/apps\//g, description: 'relative import into apps/' },
-  { pattern: /from\s+['"]apps\//g, description: "bare 'apps/' import" },
-]
+/** Package dependencies point toward shared code, including type-only imports. */
+function forbiddenImport(file: string, specifier: string, appNames: ReadonlySet<string>): boolean {
+  if (specifier.startsWith('@/') || specifier.startsWith('apps/')) return true
+  for (const name of appNames) {
+    if (specifier === name || specifier.startsWith(`${name}/`)) return true
+  }
+  if (!specifier.startsWith('.')) return false
+  const target = path.relative(ROOT, path.resolve(path.dirname(file), specifier))
+  return target === 'apps' || target.startsWith(`apps${path.sep}`)
+}
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'])
 
@@ -28,6 +34,21 @@ async function walk(dir: string, results: string[] = []): Promise<string[]> {
 }
 
 async function main() {
+  const appNames = new Set<string>()
+  for (const entry of await readdir(path.join(ROOT, 'apps'), { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const content = await readFile(
+      path.join(ROOT, 'apps', entry.name, 'package.json'),
+      'utf8'
+    ).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return null
+      throw error
+    })
+    if (content === null) continue
+    const manifest = JSON.parse(content) as { name?: string }
+    if (typeof manifest.name === 'string') appNames.add(manifest.name)
+  }
+
   const packagesEntries = await readdir(PACKAGES_DIR, { withFileTypes: true })
   const packageDirs = packagesEntries
     .filter((entry) => entry.isDirectory())
@@ -39,21 +60,42 @@ async function main() {
     const files = await walk(dir)
     for (const file of files) {
       const content = await readFile(file, 'utf8')
+      const source = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
       const lines = content.split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]
-        for (const { pattern, description } of FORBIDDEN_PATTERNS) {
-          pattern.lastIndex = 0
-          if (pattern.test(line)) {
-            offenders.push({
-              file: path.relative(ROOT, file),
-              line: i + 1,
-              description,
-              snippet: line.trim(),
-            })
-          }
+      function visit(node: ts.Node): void {
+        let module: ts.Node | undefined
+        if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+          module = node.moduleSpecifier
+        } else if (
+          ts.isImportEqualsDeclaration(node) &&
+          ts.isExternalModuleReference(node.moduleReference)
+        ) {
+          module = node.moduleReference.expression
+        } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+          module = node.argument.literal
+        } else if (
+          ts.isCallExpression(node) &&
+          (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+        ) {
+          module = node.arguments[0]
         }
+        if (
+          module &&
+          ts.isStringLiteralLike(module) &&
+          forbiddenImport(file, module.text, appNames)
+        ) {
+          const { line } = source.getLineAndCharacterOfPosition(module.getStart(source))
+          offenders.push({
+            file: path.relative(ROOT, file),
+            line: line + 1,
+            description: `import into apps/: ${module.text}`,
+            snippet: lines[line].trim(),
+          })
+        }
+        ts.forEachChild(node, visit)
       }
+      visit(source)
     }
   }
 

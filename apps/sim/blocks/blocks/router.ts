@@ -1,4 +1,5 @@
 import { ConnectIcon } from '@/components/icons'
+import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
   getModelOptions,
@@ -6,29 +7,6 @@ import {
   getSerializedModelProviderId,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
-import type { ToolResponse } from '@/tools/types'
-
-interface RouterResponse extends ToolResponse {
-  output: {
-    prompt: string
-    model: string
-    tokens?: {
-      prompt?: number
-      completion?: number
-      total?: number
-    }
-    cost?: {
-      input: number
-      output: number
-      total: number
-    }
-    selectedPath: {
-      blockId: string
-      blockType: string
-      blockTitle: string
-    }
-  }
-}
 
 interface TargetBlock {
   id: string
@@ -140,7 +118,7 @@ Respond with a JSON object containing:
  * Legacy Router Block (block-based routing).
  * Hidden from toolbar but still supported for existing workflows.
  */
-export const RouterBlock: BlockConfig<RouterResponse> = {
+export const RouterBlock: BlockConfig = {
   type: 'router',
   name: 'Router (Legacy)',
   description: 'Route workflow',
@@ -182,10 +160,11 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5',
+      defaultValue: 'claude-sonnet-5-5',
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),
+    getModelFallbackSubBlock(),
     {
       id: 'temperature',
       title: 'Temperature',
@@ -221,6 +200,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     prompt: { type: 'string', description: 'Routing prompt content' },
     model: { type: 'string', description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...MODEL_FALLBACK_INPUTS,
     temperature: {
       type: 'number',
       description: 'Response randomness level (low for consistent routing)',
@@ -236,35 +216,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   },
 }
 
-/**
- * Router V2 Block (port-based routing).
- * Uses route definitions with descriptions instead of downstream block names.
- */
-interface RouterV2Response extends ToolResponse {
-  output: {
-    context: string
-    model: string
-    tokens?: {
-      prompt?: number
-      completion?: number
-      total?: number
-    }
-    cost?: {
-      input: number
-      output: number
-      total: number
-    }
-    selectedRoute: string
-    reasoning: string
-    selectedPath: {
-      blockId: string
-      blockType: string
-      blockTitle: string
-    }
-  }
-}
-
-export const RouterV2Block: BlockConfig<RouterV2Response> = {
+export const RouterV2Block: BlockConfig = {
   type: 'router_v2',
   name: 'Router',
   description: 'Route workflow based on context',
@@ -299,10 +251,11 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5',
+      defaultValue: 'claude-sonnet-5-5',
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),
+    getModelFallbackSubBlock(),
   ],
   tools: {
     access: [
@@ -322,6 +275,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
     routes: { type: 'json', description: 'Route definitions with descriptions' },
     model: { type: 'string', description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...MODEL_FALLBACK_INPUTS,
   },
   outputs: {
     context: { type: 'string', description: 'Context used for routing' },

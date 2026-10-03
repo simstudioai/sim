@@ -46,6 +46,7 @@ function attachment(definition: SelectorDefinition) {
       async prepare(args: ExecuteServerSelectorArgs) {
         const access = args.credential?.access
         if (
+          !args.workspaceId ||
           !access?.ok ||
           !access.resolvedCredentialId ||
           access.workspaceId !== args.workspaceId ||

@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SDP_DATA_CENTER_BASES } from '@/tools/manageengine_sdp/data-centers'
-import type { SdpResponse } from '@/tools/manageengine_sdp/types'
 
 /**
  * Operations grouped by the entity they address. Every group is used twice —
@@ -99,7 +98,7 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
   return resolved === true || resolved === 'true'
 }
 
-export const ManageEngineSdpBlock: BlockConfig<SdpResponse> = {
+export const ManageEngineSdpBlock: BlockConfig = {
   type: 'manageengine_sdp',
   name: 'ManageEngine ServiceDesk Plus',
   description:

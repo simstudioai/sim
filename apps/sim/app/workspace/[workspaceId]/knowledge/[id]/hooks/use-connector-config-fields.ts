@@ -1,6 +1,14 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  createSourceLabelMetadata,
+  normalizeSourceSelectionLabels,
+  SOURCE_LABELS_KEY,
+  type SourceSelectionLabel,
+  type SourceSelectionLabels,
+} from '@/lib/sim-search/source-identity'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
@@ -9,19 +17,26 @@ export type ConfigFieldMap = Record<string, ConfigFieldValue>
 
 export interface UseConnectorConfigFieldsOptions {
   connectorConfig: ConnectorMeta | null
+  accessMode?: ConnectorAccessMode
   initialSourceConfig?: ConfigFieldMap
   initialCanonicalModes?: Record<string, 'basic' | 'advanced'>
+  initialSelectionLabels?: SourceSelectionLabels
 }
 
 export interface UseConnectorConfigFieldsResult {
   sourceConfig: ConfigFieldMap
+  selectionLabels: SourceSelectionLabels
   setSourceConfig: React.Dispatch<React.SetStateAction<ConfigFieldMap>>
   canonicalModes: Record<string, 'basic' | 'advanced'>
   setCanonicalModes: React.Dispatch<React.SetStateAction<Record<string, 'basic' | 'advanced'>>>
   canonicalGroups: Map<string, ConnectorConfigField[]>
   isFieldVisible: (field: ConnectorConfigField) => boolean
   isFieldPopulated: (field: ConnectorConfigField) => boolean
-  handleFieldChange: (fieldId: string, value: ConfigFieldValue) => void
+  handleFieldChange: (
+    fieldId: string,
+    value: ConfigFieldValue,
+    selectedOptions?: SourceSelectionLabel[]
+  ) => void
   toggleCanonicalMode: (canonicalId: string) => void
   resolveSourceConfig: () => Record<string, unknown>
 }
@@ -69,25 +84,51 @@ function isValuePopulated(value: ConfigFieldValue): boolean {
  */
 export function useConnectorConfigFields({
   connectorConfig,
+  accessMode = 'workspace',
   initialSourceConfig,
   initialCanonicalModes,
+  initialSelectionLabels,
 }: UseConnectorConfigFieldsOptions): UseConnectorConfigFieldsResult {
-  const [sourceConfig, setSourceConfig] = useState<ConfigFieldMap>(() => initialSourceConfig ?? {})
-  const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>(
-    () => initialCanonicalModes ?? {}
+  const [sourceConfig, setFieldValues] = useState<ConfigFieldMap>(() => initialSourceConfig ?? {})
+  const [selectionLabels, setSelectionLabels] = useState(() =>
+    normalizeSourceSelectionLabels(initialSelectionLabels)
   )
+  const setSourceConfig = useCallback<React.Dispatch<React.SetStateAction<ConfigFieldMap>>>(
+    (value) => {
+      setFieldValues(value)
+      setSelectionLabels({})
+    },
+    []
+  )
+  const [selectedCanonicalModes, setCanonicalModes] = useState<
+    Record<string, 'basic' | 'advanced'>
+  >(() => initialCanonicalModes ?? {})
 
   const canonicalGroups = useMemo(() => {
     const groups = new Map<string, ConnectorConfigField[]>()
     if (!connectorConfig) return groups
     for (const field of connectorConfig.configFields) {
+      if (accessMode === 'members' && field.hideInMemberMode) continue
+      if (accessMode === 'admin' && field.hideInAdminMode) continue
+      if (accessMode !== 'admin' && field.showInAdminModeOnly) continue
       if (!field.canonicalParamId) continue
       const existing = groups.get(field.canonicalParamId)
       if (existing) existing.push(field)
       else groups.set(field.canonicalParamId, [field])
     }
     return groups
-  }, [connectorConfig])
+  }, [connectorConfig, accessMode])
+
+  const canonicalModes = useMemo(() => {
+    const modes = { ...selectedCanonicalModes }
+    for (const [canonicalId, fields] of canonicalGroups) {
+      const selected = modes[canonicalId] ?? 'basic'
+      modes[canonicalId] = fields.some((field) => field.mode === selected)
+        ? selected
+        : (fields[0]?.mode ?? 'basic')
+    }
+    return modes
+  }, [selectedCanonicalModes, canonicalGroups])
 
   const fieldsById = useMemo(() => {
     const map = new Map<string, ConnectorConfigField>()
@@ -137,11 +178,14 @@ export function useConnectorConfigFields({
 
   const isFieldVisible = useCallback(
     (field: ConnectorConfigField): boolean => {
+      if (accessMode === 'members' && field.hideInMemberMode) return false
+      if (accessMode === 'admin' && field.hideInAdminMode) return false
+      if (accessMode !== 'admin' && field.showInAdminModeOnly) return false
       if (!field.canonicalParamId || !field.mode) return true
       const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
       return field.mode === activeMode
     },
-    [canonicalModes]
+    [canonicalModes, accessMode]
   )
 
   const isFieldPopulated = useCallback(
@@ -150,23 +194,54 @@ export function useConnectorConfigFields({
     [sourceConfig]
   )
 
-  const handleFieldChange = (fieldId: string, value: ConfigFieldValue) => {
-    setSourceConfig((prev) => {
-      const next: ConfigFieldMap = { ...prev, [fieldId]: value }
-      const toClear = dependentFieldIds.get(fieldId)
-      if (toClear) {
-        for (const depId of toClear) next[depId] = emptyValue(fieldsById.get(depId))
-      }
-      return next
-    })
-  }
+  const handleFieldChange = useCallback(
+    (fieldId: string, value: ConfigFieldValue, selectedOptions?: SourceSelectionLabel[]) => {
+      setFieldValues((prev) => {
+        const next: ConfigFieldMap = { ...prev, [fieldId]: value }
+        const toClear = dependentFieldIds.get(fieldId)
+        if (toClear) {
+          for (const depId of toClear) next[depId] = emptyValue(fieldsById.get(depId))
+        }
+        return next
+      })
+      setSelectionLabels((prev) => {
+        const next = { ...prev }
+        for (const id of [fieldId, ...(dependentFieldIds.get(fieldId) ?? [])]) {
+          delete next[fieldsById.get(id)?.canonicalParamId ?? id]
+        }
+        const canonicalId = fieldsById.get(fieldId)?.canonicalParamId ?? fieldId
+        return {
+          ...next,
+          ...normalizeSourceSelectionLabels({ [canonicalId]: selectedOptions }),
+        }
+      })
+    },
+    [dependentFieldIds, fieldsById]
+  )
 
-  const toggleCanonicalMode = (canonicalId: string) => {
-    setCanonicalModes((prev) => ({
-      ...prev,
-      [canonicalId]: prev[canonicalId] === 'advanced' ? 'basic' : 'advanced',
-    }))
-  }
+  const toggleCanonicalMode = useCallback(
+    (canonicalId: string) => {
+      const group = canonicalGroups.get(canonicalId) ?? []
+      const currentMode = canonicalModes[canonicalId] ?? 'basic'
+      const nextMode = currentMode === 'basic' ? 'advanced' : 'basic'
+      const currentField = group.find((field) => field.mode === currentMode)
+      const nextField = group.find((field) => field.mode === nextMode)
+      if (currentField && nextField && group.some((field) => field.preserveValueOnModeChange)) {
+        setFieldValues((prev) => ({
+          ...prev,
+          [nextField.id]: coerceForField(nextField, prev[currentField.id]),
+        }))
+      } else {
+        setSelectionLabels((prev) => {
+          const next = { ...prev }
+          delete next[canonicalId]
+          return next
+        })
+      }
+      setCanonicalModes((prev) => ({ ...prev, [canonicalId]: nextMode }))
+    },
+    [canonicalGroups, canonicalModes]
+  )
 
   const resolveSourceConfig = useCallback((): Record<string, unknown> => {
     const resolved: Record<string, unknown> = {}
@@ -188,11 +263,14 @@ export function useConnectorConfigFields({
         resolved[field.id] = coerceForField(field, raw)
       }
     }
+    resolved[SOURCE_LABELS_KEY] =
+      createSourceLabelMetadata(connectorConfig, resolved, selectionLabels) ?? null
     return resolved
-  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig])
+  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig, selectionLabels])
 
   return {
     sourceConfig,
+    selectionLabels,
     setSourceConfig,
     canonicalModes,
     setCanonicalModes,

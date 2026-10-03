@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toArray, toRecord } from '@sim/utils/object'
 import type {
   ConfluenceBlogPostOperationBody,
   ConfluenceCreateCommentBody,
@@ -50,8 +51,6 @@ import {
 } from '@/lib/core/security/input-validation'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
-  asArray,
-  asObject,
   type ConfluenceClient,
   createConfluenceClient,
   type JsonObject,
@@ -109,7 +108,7 @@ function cappedLimit(value: string | number): string {
 }
 
 function mappedPage(value: unknown): JsonObject {
-  const page = asObject(value)
+  const page = toRecord(value)
   return {
     id: page.id,
     title: page.title,
@@ -142,8 +141,8 @@ async function findConfluenceSpaceByKey(
   for (const status of SPACE_STATUSES) {
     const query = new URLSearchParams({ keys: spaceKey, limit: '1', status })
     const data = await client.json(client.apiV2(`/spaces?${query}`), {}, signal)
-    const match = asArray(data.results)
-      .map(asObject)
+    const match = toArray(data.results)
+      .map(toRecord)
       .find((space) => space.key === spaceKey)
     if (match) return match
   }
@@ -315,8 +314,8 @@ export async function executeConfluenceListAttachments(
     context.signal
   )
   return {
-    attachments: asArray(data.results).map((value) => {
-      const attachment = asObject(value)
+    attachments: toArray(data.results).map((value) => {
+      const attachment = toRecord(value)
       return {
         id: attachment.id,
         title: attachment.title,
@@ -415,7 +414,7 @@ export async function executeConfluenceUploadAttachment(
     signal,
     'Confluence attachment response'
   )
-  const attachment = asObject(asArray(data.results)[0] || data)
+  const attachment = toRecord(toArray(data.results)[0] || data)
   return {
     attachmentId: attachment.id,
     title: attachment.title,
@@ -437,7 +436,7 @@ export async function executeConfluenceAddLabel(
     jsonInit('POST', [{ prefix: input.prefix || 'global', name: input.labelName }]),
     context.signal
   )
-  const label = asObject(asArray(data.results)[0] || asArray(data)[0] || data)
+  const label = toRecord(toArray(data.results)[0] || toArray(data)[0] || data)
   return {
     id: label.id ?? '',
     name: label.name ?? input.labelName,
@@ -461,8 +460,8 @@ export async function executeConfluenceListLabels(
     context.signal
   )
   return {
-    labels: asArray(data.results).map((value) => {
-      const label = asObject(value)
+    labels: toArray(data.results).map((value) => {
+      const label = toRecord(value)
       return { id: label.id, name: label.name, prefix: label.prefix || 'global' }
     }),
     nextCursor: nextCursor(data),
@@ -518,8 +517,8 @@ export async function executeConfluenceListComments(
     context.signal
   )
   return {
-    comments: asArray(data.results).map((value) => {
-      const comment = asObject(value)
+    comments: toArray(data.results).map((value) => {
+      const comment = toRecord(value)
       return {
         id: comment.id,
         body: {
@@ -621,8 +620,8 @@ export async function executeConfluenceListPageProperties(
     context.signal
   )
   return {
-    properties: asArray(data.results).map((value) => {
-      const property = asObject(value)
+    properties: toArray(data.results).map((value) => {
+      const property = toRecord(value)
       return {
         id: property.id,
         key: property.key,
@@ -681,8 +680,8 @@ export async function executeConfluenceGetPageAncestors(
     context.signal
   )
   return {
-    ancestors: asArray(data.results).map((value) => {
-      const page = asObject(value)
+    ancestors: toArray(data.results).map((value) => {
+      const page = toRecord(value)
       return {
         id: page.id,
         title: page.title,
@@ -709,8 +708,8 @@ export async function executeConfluenceGetPageChildren(
     context.signal
   )
   return {
-    children: asArray(data.results).map((value) => {
-      const page = asObject(value)
+    children: toArray(data.results).map((value) => {
+      const page = toRecord(value)
       return {
         id: page.id,
         title: page.title,
@@ -740,8 +739,8 @@ export async function executeConfluenceGetPageDescendants(
     context.signal
   )
   return {
-    descendants: asArray(data.results).map((value) => {
-      const page = asObject(value)
+    descendants: toArray(data.results).map((value) => {
+      const page = toRecord(value)
       return {
         id: page.id,
         title: page.title,
@@ -830,8 +829,8 @@ export async function executeConfluencePageVersions(
     context.signal
   )
   return {
-    versions: asArray(data.results).map((value) => {
-      const version = asObject(value)
+    versions: toArray(data.results).map((value) => {
+      const version = toRecord(value)
       return {
         number: version.number,
         message: version.message ?? null,
@@ -859,7 +858,7 @@ export async function executeConfluenceGetPagesByLabel(
     context.signal
   )
   return {
-    pages: asArray(data.results).map(mappedPage),
+    pages: toArray(data.results).map(mappedPage),
     labelId: input.labelId,
     nextCursor: nextCursor(data),
   }
@@ -880,11 +879,11 @@ export async function executeConfluenceSearch(
   })
   const data = await client.json(client.rest(`/search?${query}`), {}, context.signal)
   return {
-    results: asArray(data.results).map((value) => {
-      const result = asObject(value)
-      const content = asObject(result.content)
-      const globalContainer = asObject(result.resultGlobalContainer)
-      const contentSpace = asObject(content.space)
+    results: toArray(data.results).map((value) => {
+      const result = toRecord(value)
+      const content = toRecord(result.content)
+      const globalContainer = toRecord(result.resultGlobalContainer)
+      const contentSpace = toRecord(content.space)
       const space = Object.keys(globalContainer).length ? globalContainer : contentSpace
       return {
         id: content.id || result.id,
@@ -920,9 +919,9 @@ export async function executeConfluenceSearchInSpace(
   if (input.contentType) cql += ` AND type = "${escapeCql(input.contentType)}"`
   const query = new URLSearchParams({ cql, limit: cappedLimit(input.limit) })
   const data = await client.json(client.rest(`/search?${query}`), {}, context.signal)
-  const results = asArray(data.results).map((value) => {
-    const result = asObject(value)
-    const content = asObject(result.content)
+  const results = toArray(data.results).map((value) => {
+    const result = toRecord(value)
+    const content = toRecord(result.content)
     return {
       id: content.id ?? result.id,
       title: content.title ?? result.title,
@@ -952,8 +951,8 @@ export async function executeConfluenceListBlogPostsInSpace(
     context.signal
   )
   return {
-    blogPosts: asArray(data.results).map((value) => {
-      const post = asObject(value)
+    blogPosts: toArray(data.results).map((value) => {
+      const post = toRecord(value)
       return {
         id: post.id,
         title: post.title,
@@ -986,8 +985,8 @@ export async function executeConfluenceListPagesInSpace(
     context.signal
   )
   return {
-    pages: asArray(data.results).map((value) => {
-      const page = asObject(value)
+    pages: toArray(data.results).map((value) => {
+      const page = toRecord(value)
       return { ...mappedPage(page), body: page.body ?? null }
     }),
     nextCursor: nextCursor(data),
@@ -1008,8 +1007,8 @@ export async function executeConfluenceListSpaceLabels(
     context.signal
   )
   return {
-    labels: asArray(data.results).map((value) => {
-      const label = asObject(value)
+    labels: toArray(data.results).map((value) => {
+      const label = toRecord(value)
       return { id: label.id, name: label.name, prefix: label.prefix || 'global' }
     }),
     spaceId,
@@ -1032,8 +1031,8 @@ export async function executeConfluenceListSpacePermissions(
     context.signal
   )
   return {
-    permissions: asArray(data.results).map((value) => {
-      const permission = asObject(value)
+    permissions: toArray(data.results).map((value) => {
+      const permission = toRecord(value)
       return {
         id: permission.id,
         principalType: nested(permission, 'principal', 'type') ?? null,
@@ -1060,8 +1059,8 @@ export async function executeConfluenceListBlogPosts(
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(client.apiV2(`/blogposts?${query}`), {}, context.signal)
   return {
-    blogPosts: asArray(data.results).map((value) => {
-      const post = asObject(value)
+    blogPosts: toArray(data.results).map((value) => {
+      const post = toRecord(value)
       return {
         id: post.id,
         title: post.title,
@@ -1246,7 +1245,7 @@ export async function executeConfluenceDeleteSpace(
       'Confluence delete space response',
       'DELETE'
     )
-    if (text) longTask = asObject(JSON.parse(text))
+    if (text) longTask = toRecord(JSON.parse(text))
   } catch {
     context.signal?.throwIfAborted()
   }
@@ -1267,8 +1266,8 @@ export async function executeConfluenceListSpaces(
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(client.apiV2(`/spaces?${query}`), {}, context.signal)
   return {
-    spaces: asArray(data.results).map((value) => {
-      const space = asObject(value)
+    spaces: toArray(data.results).map((value) => {
+      const space = toRecord(value)
       return {
         id: space.id,
         name: space.name,
@@ -1316,8 +1315,8 @@ export async function executeConfluenceSpaceProperties(
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(`${base}?${query}`, {}, context.signal)
   return {
-    properties: asArray(data.results).map((value) => {
-      const property = asObject(value)
+    properties: toArray(data.results).map((value) => {
+      const property = toRecord(value)
       return { id: property.id, key: property.key, value: property.value ?? null }
     }),
     spaceId,
@@ -1326,7 +1325,7 @@ export async function executeConfluenceSpaceProperties(
 }
 
 function mapTask(value: unknown): JsonObject {
-  const task = asObject(value)
+  const task = toRecord(value)
   return {
     id: task.id,
     localId: task.localId ?? null,
@@ -1390,7 +1389,7 @@ export async function executeConfluenceTasks(
     query.set('assigned-to', input.assignedTo)
   }
   const data = await client.json(client.apiV2(`/tasks?${query}`), {}, context.signal)
-  return { tasks: asArray(data.results).map(mapTask), nextCursor: nextCursor(data) }
+  return { tasks: toArray(data.results).map(mapTask), nextCursor: nextCursor(data) }
 }
 
 export async function executeConfluenceGetUser(

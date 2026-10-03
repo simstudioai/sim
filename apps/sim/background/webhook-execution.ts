@@ -6,11 +6,11 @@ import {
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
-import { createLogger, runWithRequestContext } from '@sim/logger'
+import { createLogger, type RequestContext, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task, timeout } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
@@ -45,6 +45,7 @@ import {
   WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
   webhookIdempotency,
 } from '@/lib/core/idempotency'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import {
   type EnvironmentResolutionSnapshot,
   getEffectiveEnvironmentSnapshot,
@@ -71,6 +72,7 @@ import { SlackExecutionStreamController } from '@/lib/webhooks/slack-execution-s
 import { readSlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-config'
 import {
   executeWorkflowCore,
+  type PreloadedExecutionEnvironment,
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
@@ -236,7 +238,7 @@ async function processTriggerFileOutputs(
           normalizeWebhookAttachments(value),
           context
         )
-      } catch (error) {
+      } catch {
         processed[key] = []
       }
     } else if (outputDef?.type === 'file' && value) {
@@ -555,7 +557,12 @@ export async function executeWebhookJob(
       })
     }
 
-    return await runWithRequestContext({ requestId }, async () => {
+    /** A trigger, not a client, started this run. */
+    const requestContext: RequestContext = {
+      requestId,
+      client: { surface: 'webhook', source: 'trigger' },
+    }
+    return await runWithRequestContext(requestContext, async () => {
       logger.info(`[${requestId}] Starting webhook execution`, {
         webhookId: authenticatedPayload.webhookId,
         workflowId: authenticatedPayload.workflowId,
@@ -659,6 +666,8 @@ export async function resolveWebhookExecutionProviderConfig<
   options?: WebhookEnvResolutionOptions & {
     onEnvironmentSnapshot?: (snapshot: EnvironmentResolutionSnapshot) => void | Promise<void>
     actorUserId?: string
+    /** The same environment load, already started by a caller that had its identities early. */
+    environment?: Promise<EnvironmentResolutionSnapshot>
   }
 ): Promise<T & { providerConfig: Record<string, unknown> }> {
   try {
@@ -666,12 +675,12 @@ export async function resolveWebhookExecutionProviderConfig<
       return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
     }
 
-    const { onEnvironmentSnapshot, actorUserId, ...resolutionOptions } = options
+    const { onEnvironmentSnapshot, actorUserId, environment, ...resolutionOptions } = options
     if (onEnvironmentSnapshot && resolutionOptions.envVars === undefined) {
-      const snapshot =
-        actorUserId && workspaceId
-          ? await getExecutionEnvironment(userId, actorUserId, workspaceId)
-          : await getEffectiveEnvironmentSnapshot(userId, workspaceId)
+      const snapshot = await (environment ??
+        (actorUserId && workspaceId
+          ? getExecutionEnvironment(userId, actorUserId, workspaceId)
+          : getEffectiveEnvironmentSnapshot(userId, workspaceId)))
       await onEnvironmentSnapshot(snapshot)
       resolutionOptions.envVars = {
         ...snapshot.personalDecrypted,
@@ -726,7 +735,7 @@ async function handleExecutionResult(
     ctx.timeoutController.isTimedOut() &&
     ctx.timeoutController.timeoutMs
   ) {
-    const timeoutErrorMessage = getTimeoutErrorMessage(null, ctx.timeoutController.timeoutMs)
+    const timeoutErrorMessage = getTimeoutErrorMessage(ctx.timeoutController.timeoutMs)
     logger.info(`[${ctx.requestId}] Webhook execution timed out`, {
       timeoutMs: ctx.timeoutController.timeoutMs,
     })
@@ -831,348 +840,372 @@ async function executeWebhookJobInternal(
   let workflowCoreStarted = false
 
   try {
-    const workflowStatePromise = payload.deploymentVersionId
-      ? loadWorkflowDeploymentVersionState(
-          payload.workflowId,
-          payload.deploymentVersionId,
-          workspaceId
+    return await withResourceOutboundScope({ workspaceId }, async () => {
+      /**
+       * The run's environment depends only on identities preprocessing already
+       * settled, so it loads alongside the workflow state rather than after it.
+       */
+      const environment = getExecutionEnvironment(workflowRecord.userId, actorUserId, workspaceId)
+      environment.catch(() => {})
+      const workflowStatePromise = payload.deploymentVersionId
+        ? loadWorkflowDeploymentVersionState(
+            payload.workflowId,
+            payload.deploymentVersionId,
+            workspaceId
+          )
+        : loadDeployedWorkflowState(payload.workflowId, workspaceId)
+      const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
+        workflowStatePromise,
+        db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
+        payload.credentialId
+          ? resolveCredentialAccountUserId(payload.credentialId)
+          : Promise.resolve(undefined),
+      ])
+      const credentialAccountUserId = resolvedCredentialUserId
+      if (payload.credentialId && !credentialAccountUserId) {
+        logger.warn(
+          `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
         )
-      : loadDeployedWorkflowState(payload.workflowId, workspaceId)
-    const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
-      workflowStatePromise,
-      db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
-      payload.credentialId
-        ? resolveCredentialAccountUserId(payload.credentialId)
-        : Promise.resolve(undefined),
-    ])
-    const credentialAccountUserId = resolvedCredentialUserId
-    if (payload.credentialId && !credentialAccountUserId) {
-      logger.warn(
-        `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
-      )
-    }
-
-    if (!workflowData) {
-      throw new Error(
-        'Workflow state not found. The workflow may not be deployed or the deployment data may be corrupted.'
-      )
-    }
-
-    const { blocks, edges, loops, parallels } = workflowData
-    deploymentVersionId =
-      'deploymentVersionId' in workflowData
-        ? (workflowData.deploymentVersionId as string)
-        : undefined
-
-    const handler = getProviderHandler(payload.provider)
-
-    let input: Record<string, unknown> | null = null
-    let skipMessage: string | undefined
-
-    const webhookRecord = webhookRows[0]
-    if (!webhookRecord) {
-      throw new Error(`Webhook record not found: ${payload.webhookId}`)
-    }
-
-    const secretScope = { userId: workflowRecord.userId, workspaceId }
-    let resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
-    const resolvedWebhookRecord = await resolveWebhookExecutionProviderConfig(
-      webhookRecord,
-      payload.provider,
-      workflowRecord.userId,
-      workspaceId,
-      {
-        /**
-         * The identity preprocessing already elected for this run, so the
-         * provider config resolves against exactly the workspace variables the
-         * run's own blocks will see rather than against a second, narrower
-         * selection derived from the workflow owner.
-         */
-        actorUserId,
-        onEnvironmentSnapshot: async (secretEnvironment) => {
-          try {
-            resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
-              personalEncrypted: secretEnvironment.personalEncrypted,
-              workspaceEncrypted: secretEnvironment.workspaceEncrypted,
-              personalDecrypted: secretEnvironment.personalDecrypted,
-              workspaceDecrypted: secretEnvironment.workspaceDecrypted,
-              decryptionFailures: secretEnvironment.decryptionFailures,
-              personalOwners: secretEnvironment.personalOwners,
-              workspaceUnredactedKeys: secretEnvironment.workspaceUnredactedKeys,
-              scope: secretScope,
-            })
-          } catch (error) {
-            logger.warn(
-              `[${requestId}] Failed to build webhook trace secret catalog`,
-              loggingSession.projectDiagnosticError(error)
-            )
-            resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
-          }
-          loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
-        },
-        onResolved: (name, value) => {
-          resolvedSecretTraceRegistry.recordResolved(name, value)
-        },
       }
-    )
 
-    if (handler.formatInput) {
-      const result = await handler.formatInput({
-        webhook: resolvedWebhookRecord,
-        workflow: { id: payload.workflowId, userId: payload.userId },
-        body: payload.body,
-        headers: payload.headers,
-        query: payload.query ?? {},
-        method: payload.method ?? '',
-        requestId,
-      })
-      input = result.input as Record<string, unknown> | null
-      skipMessage = result.skip?.message
-    } else {
-      input = payload.body as Record<string, unknown> | null
-    }
-
-    if (!input && handler.handleEmptyInput) {
-      const skipResult = handler.handleEmptyInput(requestId)
-      if (skipResult) {
-        skipMessage = skipResult.message
+      if (!workflowData) {
+        throw new Error(
+          'Workflow state not found. The workflow may not be deployed or the deployment data may be corrupted.'
+        )
       }
-    }
 
-    if (skipMessage) {
-      await loggingSession.safeStart({
-        userId: actorUserId,
-        actorUserId,
-        billingAttribution,
+      const { blocks, edges, loops, parallels } = workflowData
+      deploymentVersionId =
+        'deploymentVersionId' in workflowData
+          ? (workflowData.deploymentVersionId as string)
+          : undefined
+
+      const handler = getProviderHandler(payload.provider)
+
+      let input: Record<string, unknown> | null = null
+      let skipMessage: string | undefined
+
+      const webhookRecord = webhookRows[0]
+      if (!webhookRecord) {
+        throw new Error(`Webhook record not found: ${payload.webhookId}`)
+      }
+
+      const secretScope = { userId: workflowRecord.userId, workspaceId }
+      let resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
+      let preloadedEnvironment: PreloadedExecutionEnvironment | undefined
+      const resolvedWebhookRecord = await resolveWebhookExecutionProviderConfig(
+        webhookRecord,
+        payload.provider,
+        workflowRecord.userId,
         workspaceId,
-        variables: {},
-        triggerData: {
-          isTest: false,
-          correlation,
+        {
+          /**
+           * The identity preprocessing already elected for this run, so the
+           * provider config resolves against exactly the workspace variables the
+           * run's own blocks will see rather than against a second, narrower
+           * selection derived from the workflow owner.
+           */
+          actorUserId,
+          environment,
+          onEnvironmentSnapshot: async (secretEnvironment) => {
+            preloadedEnvironment = {
+              personalUserId: workflowRecord.userId,
+              workspaceUserId: actorUserId,
+              workspaceId,
+              snapshot: secretEnvironment,
+            }
+            try {
+              resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+                personalEncrypted: secretEnvironment.personalEncrypted,
+                workspaceEncrypted: secretEnvironment.workspaceEncrypted,
+                personalDecrypted: secretEnvironment.personalDecrypted,
+                workspaceDecrypted: secretEnvironment.workspaceDecrypted,
+                decryptionFailures: secretEnvironment.decryptionFailures,
+                personalOwners: secretEnvironment.personalOwners,
+                workspaceUnredactedKeys: secretEnvironment.workspaceUnredactedKeys,
+                scope: secretScope,
+              })
+            } catch (error) {
+              logger.warn(
+                `[${requestId}] Failed to build webhook trace secret catalog`,
+                loggingSession.projectDiagnosticError(error)
+              )
+              resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
+            }
+            loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
+          },
+          onResolved: (name, value) => {
+            resolvedSecretTraceRegistry.recordResolved(name, value)
+          },
+        }
+      )
+
+      if (handler.formatInput) {
+        const result = await handler.formatInput({
+          webhook: resolvedWebhookRecord,
+          workflow: { id: payload.workflowId, userId: payload.userId },
+          body: payload.body,
+          headers: payload.headers,
+          query: payload.query ?? {},
+          method: payload.method ?? '',
+          requestId,
+        })
+        input = result.input as Record<string, unknown> | null
+        skipMessage = result.skip?.message
+      } else {
+        input = payload.body as Record<string, unknown> | null
+      }
+
+      if (!input && handler.handleEmptyInput) {
+        const skipResult = handler.handleEmptyInput(requestId)
+        if (skipResult) {
+          skipMessage = skipResult.message
+        }
+      }
+
+      if (skipMessage) {
+        await loggingSession.safeStart({
+          userId: actorUserId,
+          actorUserId,
+          billingAttribution,
+          workspaceId,
+          variables: {},
+          triggerData: {
+            isTest: false,
+            correlation,
+          },
+          deploymentVersionId,
+        })
+
+        await loggingSession.safeComplete({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: 0,
+          finalOutput: { message: skipMessage },
+          traceSpans: [],
+        })
+
+        return {
+          success: true,
+          workflowId: payload.workflowId,
+          executionId,
+          output: { message: skipMessage },
+          executedAt: new Date().toISOString(),
+        }
+      }
+
+      if (input && payload.blockId && blocks[payload.blockId]) {
+        try {
+          const triggerBlock = blocks[payload.blockId]
+          const rawSelectedTriggerId = triggerBlock?.subBlocks?.selectedTriggerId?.value
+          const rawTriggerId = triggerBlock?.subBlocks?.triggerId?.value
+
+          let resolvedTriggerId = [rawSelectedTriggerId, rawTriggerId].find(
+            (candidate): candidate is string =>
+              typeof candidate === 'string' && isTriggerValid(candidate)
+          )
+
+          if (!resolvedTriggerId) {
+            const blockConfig = getBlock(triggerBlock.type)
+            if (blockConfig?.category === 'triggers' && isTriggerValid(triggerBlock.type)) {
+              resolvedTriggerId = triggerBlock.type
+            } else if (triggerBlock.triggerMode && blockConfig?.triggers?.enabled) {
+              const available = blockConfig.triggers?.available?.[0]
+              if (available && isTriggerValid(available)) {
+                resolvedTriggerId = available
+              }
+            }
+          }
+
+          if (resolvedTriggerId) {
+            const triggerConfig = getTrigger(resolvedTriggerId)
+
+            if (triggerConfig.outputs) {
+              const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
+                workspaceId,
+                workflowId: payload.workflowId,
+                executionId,
+                requestId,
+                userId: payload.userId,
+                projectDiagnosticError: (error, details) =>
+                  loggingSession.projectDiagnosticError(error, details),
+              })
+              safeAssign(input, processedInput as Record<string, unknown>)
+            }
+          }
+        } catch (error) {
+          logger.error(
+            `[${requestId}] Error processing trigger file outputs`,
+            loggingSession.projectDiagnosticError(error)
+          )
+        }
+      }
+
+      if (input && handler.processInputFiles && payload.blockId && blocks[payload.blockId]) {
+        try {
+          await handler.processInputFiles({
+            input,
+            blocks,
+            blockId: payload.blockId,
+            workspaceId,
+            workflowId: payload.workflowId,
+            executionId,
+            requestId,
+            userId: payload.userId,
+          })
+        } catch (error) {
+          logger.error(
+            `[${requestId}] Error processing provider-specific files`,
+            loggingSession.projectDiagnosticError(error)
+          )
+        }
+      }
+
+      logger.info(`[${requestId}] Executing workflow for ${payload.provider} webhook`)
+
+      const metadata: ExecutionMetadata = {
+        requestId,
+        executionId,
+        workflowId: payload.workflowId,
+        workspaceId,
+        userId: actorUserId!,
+        principal,
+        billingAttribution,
+        sessionUserId: undefined,
+        workflowUserId: workflowRecord.userId,
+        triggerType: payload.provider || 'webhook',
+        triggerBlockId: payload.blockId,
+        useDraftState: false,
+        startTime: new Date().toISOString(),
+        isClientSession: false,
+        credentialAccountUserId,
+        correlation,
+        workflowStateOverride: {
+          blocks,
+          edges,
+          loops: loops || {},
+          parallels: parallels || {},
+          deploymentVersionId,
         },
-        deploymentVersionId,
+      }
+
+      const triggerInput = input || {}
+
+      /**
+       * Surface the pre-execution latency that per-block timings cannot see: the
+       * gap between webhook receipt and the first block running, and — for
+       * trigger_id-bound providers like Slack — the true age of the interaction
+       * against its 3s expiry window. Logged structured so it is queryable/alarmable.
+       */
+      if (payload.webhookReceivedAt !== undefined || payload.triggerTimestampMs !== undefined) {
+        const now = Date.now()
+        logger.info(`[${requestId}] Webhook dispatch latency`, {
+          workflowId: payload.workflowId,
+          provider: payload.provider,
+          dispatchLatencyMs:
+            payload.webhookReceivedAt !== undefined ? now - payload.webhookReceivedAt : undefined,
+          triggerAgeMs:
+            payload.triggerTimestampMs !== undefined ? now - payload.triggerTimestampMs : undefined,
+        })
+      }
+
+      const persistedProviderConfig = toRecord(resolvedWebhookRecord.providerConfig)
+      const slackStreamConfig =
+        payload.provider === 'slack' || payload.provider === 'slack_app'
+          ? readSlackStreamResponseConfig(persistedProviderConfig)
+          : null
+      if (slackStreamConfig && payload.provider !== 'slack') {
+        throw new Error('Slack trigger response streaming is only supported for custom bots')
+      }
+      const slackStreamCredentialId =
+        typeof persistedProviderConfig.credentialId === 'string'
+          ? persistedProviderConfig.credentialId
+          : null
+      if (slackStreamConfig && !slackStreamCredentialId) {
+        throw new Error('Slack stream configuration is missing its custom bot credential')
+      }
+      const slackStreamController = slackStreamConfig
+        ? await SlackExecutionStreamController.create({
+            credentialId: slackStreamCredentialId!,
+            workspaceId,
+            workflowId: payload.workflowId,
+            executionId,
+            userId: actorUserId,
+            triggerInput,
+            config: slackStreamConfig,
+            loggingSession,
+            abortSignal: timeoutController.signal,
+          })
+        : null
+
+      if (slackStreamConfig) {
+        metadata.agentEvents = true
+        metadata.includeThinking = slackStreamConfig.includeThinking
+        metadata.includeToolCalls = slackStreamConfig.includeToolCalls
+      }
+
+      const snapshot = new ExecutionSnapshot(
+        metadata,
+        workflowRecord,
+        triggerInput,
+        workflowVariables,
+        slackStreamController?.selectedOutputs ?? []
+      )
+
+      workflowCoreStarted = true
+      let executionResult: ExecutionResult
+      try {
+        executionResult = await executeWorkflowCore({
+          snapshot,
+          callbacks: slackStreamController?.callbacks ?? {},
+          ...(slackStreamController
+            ? {
+                finalizeDelivery: async (result: ExecutionResult) => {
+                  await slackStreamController.finalize(result)
+                  slackStreamController.assertSucceeded()
+                },
+              }
+            : {}),
+          loggingSession,
+          trustedInitialResolvedSecretTraceProvenance:
+            resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
+          preloadedEnvironment,
+          includeFileBase64: false,
+          base64MaxBytes: undefined,
+          abortSignal: timeoutController.signal,
+        })
+      } catch (error) {
+        if (slackStreamController) {
+          await slackStreamController.finalize({
+            success: false,
+            output: {},
+            error: toError(error).message,
+          })
+        }
+        throw error
+      }
+      await handleExecutionResult(executionResult, {
+        loggingSession,
+        timeoutController,
+        requestId,
+        executionId,
+        workflowId: payload.workflowId,
       })
 
-      await loggingSession.safeComplete({
-        endedAt: new Date().toISOString(),
-        totalDurationMs: 0,
-        finalOutput: { message: skipMessage },
-        traceSpans: [],
+      logger.info(`[${requestId}] Webhook execution completed`, {
+        success: executionResult.success,
+        workflowId: payload.workflowId,
+        provider: payload.provider,
       })
 
       return {
-        success: true,
+        success: executionResult.success,
         workflowId: payload.workflowId,
         executionId,
-        output: { message: skipMessage },
+        output: executionResult.output,
         executedAt: new Date().toISOString(),
-      }
-    }
-
-    if (input && payload.blockId && blocks[payload.blockId]) {
-      try {
-        const triggerBlock = blocks[payload.blockId]
-        const rawSelectedTriggerId = triggerBlock?.subBlocks?.selectedTriggerId?.value
-        const rawTriggerId = triggerBlock?.subBlocks?.triggerId?.value
-
-        let resolvedTriggerId = [rawSelectedTriggerId, rawTriggerId].find(
-          (candidate): candidate is string =>
-            typeof candidate === 'string' && isTriggerValid(candidate)
-        )
-
-        if (!resolvedTriggerId) {
-          const blockConfig = getBlock(triggerBlock.type)
-          if (blockConfig?.category === 'triggers' && isTriggerValid(triggerBlock.type)) {
-            resolvedTriggerId = triggerBlock.type
-          } else if (triggerBlock.triggerMode && blockConfig?.triggers?.enabled) {
-            const available = blockConfig.triggers?.available?.[0]
-            if (available && isTriggerValid(available)) {
-              resolvedTriggerId = available
-            }
-          }
-        }
-
-        if (resolvedTriggerId) {
-          const triggerConfig = getTrigger(resolvedTriggerId)
-
-          if (triggerConfig.outputs) {
-            const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
-              workspaceId,
-              workflowId: payload.workflowId,
-              executionId,
-              requestId,
-              userId: payload.userId,
-              projectDiagnosticError: (error, details) =>
-                loggingSession.projectDiagnosticError(error, details),
-            })
-            safeAssign(input, processedInput as Record<string, unknown>)
-          }
-        }
-      } catch (error) {
-        logger.error(
-          `[${requestId}] Error processing trigger file outputs`,
-          loggingSession.projectDiagnosticError(error)
-        )
-      }
-    }
-
-    if (input && handler.processInputFiles && payload.blockId && blocks[payload.blockId]) {
-      try {
-        await handler.processInputFiles({
-          input,
-          blocks,
-          blockId: payload.blockId,
-          workspaceId,
-          workflowId: payload.workflowId,
-          executionId,
-          requestId,
-          userId: payload.userId,
-        })
-      } catch (error) {
-        logger.error(
-          `[${requestId}] Error processing provider-specific files`,
-          loggingSession.projectDiagnosticError(error)
-        )
-      }
-    }
-
-    logger.info(`[${requestId}] Executing workflow for ${payload.provider} webhook`)
-
-    const metadata: ExecutionMetadata = {
-      requestId,
-      executionId,
-      workflowId: payload.workflowId,
-      workspaceId,
-      userId: actorUserId!,
-      principal,
-      billingAttribution,
-      sessionUserId: undefined,
-      workflowUserId: workflowRecord.userId,
-      triggerType: payload.provider || 'webhook',
-      triggerBlockId: payload.blockId,
-      useDraftState: false,
-      startTime: new Date().toISOString(),
-      isClientSession: false,
-      credentialAccountUserId,
-      correlation,
-      workflowStateOverride: {
-        blocks,
-        edges,
-        loops: loops || {},
-        parallels: parallels || {},
-        deploymentVersionId,
-      },
-    }
-
-    const triggerInput = input || {}
-
-    /**
-     * Surface the pre-execution latency that per-block timings cannot see: the
-     * gap between webhook receipt and the first block running, and — for
-     * trigger_id-bound providers like Slack — the true age of the interaction
-     * against its 3s expiry window. Logged structured so it is queryable/alarmable.
-     */
-    if (payload.webhookReceivedAt !== undefined || payload.triggerTimestampMs !== undefined) {
-      const now = Date.now()
-      logger.info(`[${requestId}] Webhook dispatch latency`, {
-        workflowId: payload.workflowId,
         provider: payload.provider,
-        dispatchLatencyMs:
-          payload.webhookReceivedAt !== undefined ? now - payload.webhookReceivedAt : undefined,
-        triggerAgeMs:
-          payload.triggerTimestampMs !== undefined ? now - payload.triggerTimestampMs : undefined,
-      })
-    }
-
-    const persistedProviderConfig = isRecordLike(resolvedWebhookRecord.providerConfig)
-      ? resolvedWebhookRecord.providerConfig
-      : {}
-    const slackStreamConfig =
-      payload.provider === 'slack' || payload.provider === 'slack_app'
-        ? readSlackStreamResponseConfig(persistedProviderConfig)
-        : null
-    if (slackStreamConfig && payload.provider !== 'slack') {
-      throw new Error('Slack trigger response streaming is only supported for custom bots')
-    }
-    const slackStreamCredentialId =
-      typeof persistedProviderConfig.credentialId === 'string'
-        ? persistedProviderConfig.credentialId
-        : null
-    if (slackStreamConfig && !slackStreamCredentialId) {
-      throw new Error('Slack stream configuration is missing its custom bot credential')
-    }
-    const slackStreamController = slackStreamConfig
-      ? await SlackExecutionStreamController.create({
-          credentialId: slackStreamCredentialId!,
-          workspaceId,
-          workflowId: payload.workflowId,
-          executionId,
-          userId: actorUserId,
-          triggerInput,
-          config: slackStreamConfig,
-          loggingSession,
-          abortSignal: timeoutController.signal,
-        })
-      : null
-
-    const snapshot = new ExecutionSnapshot(
-      metadata,
-      workflowRecord,
-      triggerInput,
-      workflowVariables,
-      slackStreamController?.selectedOutputs ?? []
-    )
-
-    workflowCoreStarted = true
-    let executionResult: ExecutionResult
-    try {
-      executionResult = await executeWorkflowCore({
-        snapshot,
-        callbacks: slackStreamController?.callbacks ?? {},
-        loggingSession,
-        trustedInitialResolvedSecretTraceProvenance:
-          resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
-        includeFileBase64: false,
-        base64MaxBytes: undefined,
-        abortSignal: timeoutController.signal,
-      })
-    } catch (error) {
-      if (slackStreamController) {
-        await slackStreamController.finalize({
-          success: false,
-          output: {},
-          error: toError(error).message,
-        })
       }
-      throw error
-    }
-    if (slackStreamController) {
-      await slackStreamController.finalize(executionResult)
-      slackStreamController.assertSucceeded()
-    }
-
-    await handleExecutionResult(executionResult, {
-      loggingSession,
-      timeoutController,
-      requestId,
-      executionId,
-      workflowId: payload.workflowId,
     })
-
-    logger.info(`[${requestId}] Webhook execution completed`, {
-      success: executionResult.success,
-      workflowId: payload.workflowId,
-      provider: payload.provider,
-    })
-
-    return {
-      success: executionResult.success,
-      workflowId: payload.workflowId,
-      executionId,
-      output: executionResult.output,
-      executedAt: new Date().toISOString(),
-      provider: payload.provider,
-    }
   } catch (error: unknown) {
     const errorMessage = toError(error).message
     const errorStack = error instanceof Error ? error.stack : undefined

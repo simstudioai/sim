@@ -11,19 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Pipedrive](https://www.pipedrive.com) is a sales-focused CRM platform designed to help sales teams manage leads, track deals, and optimize their sales pipeline. Built with simplicity and effectiveness in mind, Pipedrive provides intuitive visual pipeline management and actionable sales insights.
-
-With the Pipedrive integration in Sim, you can:
-
-- **Manage deals**: List, get, create, and update deals in your sales pipeline
-- **Manage leads**: Get, create, update, and delete leads for prospect tracking
-- **Track activities**: Get, create, and update sales activities such as calls, meetings, and tasks
-- **Manage projects**: List and create projects for post-sale delivery tracking
-- **Access pipelines**: Get pipeline configurations and list deals within specific pipelines
-- **Retrieve files**: Access files attached to deals, contacts, or other records
-- **Access email**: Get mail messages and threads linked to CRM records
-
-In Sim, the Pipedrive integration enables your agents to interact with your sales workflow as part of automated processes. Agents can qualify leads, manage deals through pipeline stages, schedule activities, and keep CRM data synchronized—enabling intelligent sales automation.
+Use [Pipedrive](https://www.pipedrive.com) to manage deals, leads, activities, and projects, inspect pipelines, and retrieve CRM files and mail threads.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -516,5 +504,24 @@ Delete a specific lead from Pipedrive
 | --------- | ---- | ----------- |
 | `data` | object | Deletion confirmation data |
 | `success` | boolean | Operation success status |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Pipedrive account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/pipedrive` |
+| Environment variables | `PIPEDRIVE_CLIENT_ID`, `PIPEDRIVE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `base` | Basic access to Pipedrive account |
+| `deals:full` | Full access to manage Pipedrive deals |
+| `contacts:full` | Full access to manage Pipedrive contacts |
+| `leads:full` | Full access to manage Pipedrive leads |
+| `activities:full` | Full access to manage Pipedrive activities |
+| `mail:full` | Full access to manage Pipedrive emails |
+| `projects:full` | Full access to manage Pipedrive projects |
 
 

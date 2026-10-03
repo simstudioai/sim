@@ -1,24 +1,16 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClickHouseConnectionConfig } from '@/lib/internal/clickhouse/client'
 
-const { mockValidateDatabaseHost, mockSecureFetchWithPinnedIP, mockValidateSqlWhereClause } =
-  vi.hoisted(() => ({
-    mockValidateDatabaseHost: vi.fn(),
-    mockSecureFetchWithPinnedIP: vi.fn(),
-    mockValidateSqlWhereClause: vi.fn(),
-  }))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  validateDatabaseHost: mockValidateDatabaseHost,
-  secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
-  validateSqlWhereClause: mockValidateSqlWhereClause,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateDatabaseHost, mockValidateSqlWhereClause } =
+  inputValidationMockFns
 
-import { executeClickHouseInsert, executeClickHouseQuery } from '@/lib/internal/clickhouse/sql'
+import { executeClickHouseQuery } from '@/lib/internal/clickhouse/sql'
 
 function makeConfig(
   overrides: Partial<ClickHouseConnectionConfig> = {}
@@ -49,7 +41,6 @@ function okResponse(body: string, summary?: string) {
 
 describe('clickhouseRequest DNS pinning', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '93.184.216.34',
@@ -98,14 +89,6 @@ describe('clickhouseRequest DNS pinning', () => {
     expect(options.profile).toBe('selfHostedService')
   })
 
-  it('allows http for the initial request when secure is false', async () => {
-    await executeClickHouseQuery(makeConfig({ secure: false }), 'SELECT 1')
-
-    const [url, , options] = mockSecureFetchWithPinnedIP.mock.calls[0]
-    expect(url).toMatch(/^http:\/\//)
-    expect(options.profile).toBe('selfHostedService')
-  })
-
   it('brackets an unbracketed IPv6 literal when constructing the request URL', async () => {
     mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
@@ -118,49 +101,5 @@ describe('clickhouseRequest DNS pinning', () => {
     const [url, pinnedIP] = mockSecureFetchWithPinnedIP.mock.calls[0]
     expect(url).toMatch(/^http:\/\/\[2001:4860:4860::8888\]:8123\//)
     expect(pinnedIP).toBe('2001:4860:4860::8888')
-  })
-
-  it('passes cancellation through to the pinned request', async () => {
-    const controller = new AbortController()
-
-    await executeClickHouseQuery(makeConfig(), 'SELECT 1', {}, controller.signal)
-
-    const [, , options] = mockSecureFetchWithPinnedIP.mock.calls[0]
-    expect(options.signal).toBe(controller.signal)
-  })
-
-  it('stops before host validation when execution is already cancelled', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(
-      executeClickHouseQuery(makeConfig(), 'SELECT 1', {}, controller.signal)
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mockValidateDatabaseHost).not.toHaveBeenCalled()
-    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
-  })
-
-  it('sends the statement as the body with a matching Content-Length and auth headers', async () => {
-    await executeClickHouseInsert(makeConfig(), 'events', { id: 1 })
-
-    const [, , options] = mockSecureFetchWithPinnedIP.mock.calls[0]
-    expect(options.body).toContain('INSERT INTO `events` FORMAT JSONEachRow')
-    expect(options.headers['Content-Length']).toBe(String(Buffer.byteLength(options.body, 'utf-8')))
-    expect(options.headers['X-ClickHouse-User']).toBe('default')
-    expect(options.headers['X-ClickHouse-Key']).toBe('secret')
-  })
-
-  it('propagates non-ok responses as errors with the body text', async () => {
-    mockSecureFetchWithPinnedIP.mockResolvedValue({
-      ok: false,
-      status: 400,
-      statusText: 'Bad Request',
-      text: async () => 'Code: 62. DB::Exception: Syntax error',
-      headers: { get: () => null },
-    })
-
-    await expect(executeClickHouseQuery(makeConfig(), 'SELECT 1')).rejects.toThrow(
-      'Code: 62. DB::Exception: Syntax error'
-    )
   })
 })

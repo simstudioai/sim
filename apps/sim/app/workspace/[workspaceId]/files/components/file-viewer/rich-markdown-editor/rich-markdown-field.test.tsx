@@ -38,10 +38,9 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.restoreAllMocks()
 })
 
-describe('shared field paste admission with real extensions', () => {
+describe('shared field with real extensions', () => {
   it.each([false, true])('counts preserved frontmatter (near limit=%s)', async (nearLimit) => {
     const frontmatter = `---\ndescription: ${'f'.repeat(nearLimit ? 900 : 10)}\n---\n\n`
     const body = 'x'.repeat(PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS - 1000)

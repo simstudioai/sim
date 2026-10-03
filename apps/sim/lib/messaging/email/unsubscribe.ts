@@ -181,15 +181,3 @@ export async function isUnsubscribed(
 export async function unsubscribeFromAll(email: string): Promise<boolean> {
   return updateEmailPreferences(email, { unsubscribeAll: true })
 }
-
-/**
- * Resubscribe user (remove all unsubscribe flags)
- */
-export async function resubscribe(email: string): Promise<boolean> {
-  return updateEmailPreferences(email, {
-    unsubscribeAll: false,
-    unsubscribeMarketing: false,
-    unsubscribeUpdates: false,
-    unsubscribeNotifications: false,
-  })
-}

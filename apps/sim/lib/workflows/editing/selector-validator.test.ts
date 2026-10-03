@@ -1,34 +1,41 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckWorkspaceAccess } = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  eq: vi.fn((...args: unknown[]) => ({ type: 'eq', args })),
-  inArray: vi.fn((...args: unknown[]) => ({ type: 'inArray', args })),
-  isNotNull: vi.fn((field: unknown) => ({ type: 'isNotNull', field })),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
-  or: vi.fn((...args: unknown[]) => ({ type: 'or', args })),
-}))
-
-import { validateSelectorIds } from './selector-validator'
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
 
 describe('validateSelectorIds', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockCheckWorkspaceAccess.mockResolvedValue({ canAdmin: false })
   })
+
+  it.each([
+    'oauth-input',
+    'knowledge-base-selector',
+    'workflow-selector',
+    'document-selector',
+    'mcp-server-selector',
+  ])(
+    'propagates an unavailable %s lookup for a complete diagnostic, preserving advisory validation',
+    async (selectorType) => {
+      const context = { userId: 'user-1', workspaceId: 'workspace-1' }
+      dbChainMockFns.where.mockRejectedValueOnce(new Error('lookup unavailable'))
+      await expect(
+        validateSelectorIds(selectorType, 'resource-1', context, { requireComplete: true })
+      ).rejects.toThrow('lookup unavailable')
+      dbChainMockFns.where.mockRejectedValueOnce(new Error('lookup unavailable'))
+      await expect(validateSelectorIds(selectorType, 'resource-1', context)).resolves.toEqual({
+        valid: ['resource-1'],
+        invalid: [],
+        warning: `Failed to validate ${selectorType} IDs - validation skipped`,
+      })
+    }
+  )
 
   it('accepts shared workspace credential ids and legacy account ids for oauth-input', async () => {
     dbChainMockFns.where.mockResolvedValueOnce([{ credentialId: 'cred-1', accountId: 'acct-1' }])
@@ -103,11 +110,11 @@ describe('validateSelectorIds', () => {
 
 /**
  * The second argument of the outer `and(...)` the query is filtered by. The
- * mocked drizzle helpers record their arguments verbatim, so the membership
- * clause is either an `isNotNull` node or `undefined`.
+ * global drizzle mock records `and` arguments verbatim as `conditions`, so the
+ * membership clause is either an `isNotNull` node or `undefined`.
  */
 function membershipClauseOf(predicate: unknown): unknown {
-  const node = predicate as { type?: string; args?: unknown[] }
+  const node = predicate as { type?: string; conditions?: unknown[] }
   expect(node.type).toBe('and')
-  return node.args?.[1]
+  return node.conditions?.[1]
 }

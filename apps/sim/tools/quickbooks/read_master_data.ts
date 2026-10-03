@@ -93,7 +93,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       default: 25,
-      description: 'Number of list records to request (1–100)',
+      description: 'Number of list records to request (1–1000)',
     },
     activeStatus: {
       type: 'string',

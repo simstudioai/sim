@@ -21,6 +21,7 @@ export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
   'asana',
   'attio',
   'bitbucket',
+  'github-repositories',
   'box',
   'calcom',
   'clickup',
@@ -47,7 +48,7 @@ export const CREDENTIAL_GROUP_PROVIDER_IDS = [
 
 export type CredentialGroupProvider = (typeof CREDENTIAL_GROUP_PROVIDER_IDS)[number]
 
-export interface CredentialGroupProviderSupport {
+interface CredentialGroupProviderSupport {
   serviceId: string
   description: string
   configuration: 'oauth' | 'slack_custom_bot'
@@ -152,6 +153,11 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
     description: 'Let each person connect one Bitbucket account',
     configuration: 'oauth',
   },
+  'github-repositories': {
+    serviceId: 'github-repositories',
+    description: 'Let each person connect their GitHub account',
+    configuration: 'oauth',
+  },
   box: {
     serviceId: 'box',
     description: 'Let each person connect one Box account',
@@ -250,12 +256,6 @@ export function getCredentialGroupProviderService(
     )
   }
   return service
-}
-
-export function getCredentialGroupProviderSupport(
-  provider: CredentialGroupProvider
-): CredentialGroupProviderSupport {
-  return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider]
 }
 
 export function getCredentialGroupProviderId(provider: CredentialGroupProvider): string {
