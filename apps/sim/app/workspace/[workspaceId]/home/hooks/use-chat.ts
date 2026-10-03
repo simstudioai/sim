@@ -1349,6 +1349,9 @@ export function useChat(
         return false
       }
 
+      const visibleResourceId = activeResourceIdRef.current
+      if (visibleResourceId) setActiveResourceId((current) => current ?? visibleResourceId)
+
       setResources((prev) => {
         const current = prev.find((r) => getChatResourceKey(r) === getChatResourceKey(resource))
         if (!current) return [...prev, resource]
@@ -1367,7 +1370,7 @@ export function useChat(
       resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, persistenceScopeId, existing)
       return existing === undefined
     },
-    [queryClient, resourcePersistenceQueue]
+    [queryClient, resourcePersistenceQueue, setActiveResourceId]
   )
 
   const removeResource = useCallback(

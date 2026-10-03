@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Chip, ChipConfirmModal, ChipLink, Send, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -34,6 +34,11 @@ const logger = createLogger('SkillDetail')
 interface SkillDetailProps {
   workspaceId: string
   skillId: string
+  /** Reuses the editor inside Sim Chat without routing away after deletion. */
+  embedded?: boolean
+  /** Reports draft state to the resource-panel transition guard. */
+  onDirtyChange?: (dirty: boolean) => void
+  onDeleted?: () => void
 }
 
 /**
@@ -42,7 +47,13 @@ interface SkillDetailProps {
  * Description / Content sections, and the Skill Editors roster. Non-editors
  * and built-in template skills render read-only.
  */
-export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
+export function SkillDetail({
+  workspaceId,
+  skillId,
+  embedded = false,
+  onDirtyChange,
+  onDeleted,
+}: SkillDetailProps) {
   const router = useRouter()
   const skillsHref = `/workspace/${workspaceId}/skills`
 
@@ -71,7 +82,12 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const [errors, setErrors] = useState<SkillFieldErrors>({})
   const [shareOpen, setShareOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [prevSkillId, setPrevSkillId] = useState<string | null>(null)
+  const [previousSkillSource, setPreviousSkillSource] = useState<{
+    id: string
+    name: string
+    description: string
+    content: string
+  } | null>(null)
 
   /** Applies a full skill shape to all three drafts and remounts the Content editor. */
   const seedDrafts = (source: { name: string; description: string; content: string }) => {
@@ -82,21 +98,57 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     setContentSeed((seed) => seed + 1)
   }
 
-  // Seed drafts when the skill first resolves (or the route id changes); a
-  // background refetch of the same skill must not clobber an in-progress edit.
-  if (skill && skill.id !== prevSkillId) {
-    setPrevSkillId(skill.id)
-    seedDrafts(skill)
+  // A clean editor follows server-side changes (including Mothership edits),
+  // while a background refetch must not clobber an in-progress local draft.
+  if (skill) {
+    const nextSource = {
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      content: skill.content,
+    }
+    const switchedSkill = previousSkillSource?.id !== skill.id
+    const sourceChanged =
+      previousSkillSource !== null &&
+      (previousSkillSource.id !== nextSource.id ||
+        previousSkillSource.name !== nextSource.name ||
+        previousSkillSource.description !== nextSource.description ||
+        previousSkillSource.content !== nextSource.content)
+
+    if (switchedSkill || (sourceChanged && !updateSkill.isPending)) {
+      const shouldReseed =
+        switchedSkill ||
+        previousSkillSource === null ||
+        (nameDraft === previousSkillSource.name &&
+          descriptionDraft === previousSkillSource.description &&
+          contentDraft === previousSkillSource.content)
+      setPreviousSkillSource(nextSource)
+      if (shouldReseed) seedDrafts(skill)
+    }
   }
 
+  const dirtyBaseline = previousSkillSource?.id === skill?.id ? previousSkillSource : skill
   const isDirty =
     !!skill &&
     !isBuiltin &&
-    (nameDraft !== skill.name ||
-      descriptionDraft !== skill.description ||
-      contentDraft !== skill.content)
+    !!dirtyBaseline &&
+    (nameDraft !== dirtyBaseline.name ||
+      descriptionDraft !== dirtyBaseline.description ||
+      contentDraft !== dirtyBaseline.content)
 
-  const guard = useUnsavedChangesGuard({ isDirty, backHref: skillsHref })
+  const guard = useUnsavedChangesGuard({
+    isDirty,
+    backHref: skillsHref,
+    enabled: !embedded,
+  })
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false)
+  }, [onDirtyChange])
 
   const handleSave = async () => {
     if (!skill || !canEdit || !isDirty || updateSkill.isPending) return
@@ -144,7 +196,8 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     guard.release()
     try {
       await deleteSkill.mutateAsync({ workspaceId, skillId: skill.id })
-      router.replace(skillsHref)
+      if (embedded) onDeleted?.()
+      else router.replace(skillsHref)
     } catch (error) {
       guard.rearm()
       toast.error("Couldn't delete skill", {
@@ -166,7 +219,9 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     return true
   }
 
-  const back = (
+  const back = embedded ? (
+    <div />
+  ) : (
     <ChipLink href={skillsHref} onClick={guard.handleBackClick} leftIcon={ArrowLeft}>
       Skills
     </ChipLink>
@@ -282,11 +337,13 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
         hideRole
       />
 
-      <UnsavedChangesModal
-        open={guard.showUnsavedAlert}
-        onOpenChange={guard.setShowUnsavedAlert}
-        onDiscard={guard.confirmDiscard}
-      />
+      {!embedded && (
+        <UnsavedChangesModal
+          open={guard.showUnsavedAlert}
+          onOpenChange={guard.setShowUnsavedAlert}
+          onDiscard={guard.confirmDiscard}
+        />
+      )}
     </>
   )
 }

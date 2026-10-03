@@ -990,6 +990,35 @@ describe('handleUnifiedChatPost', () => {
     expect(persistChatResources).not.toHaveBeenCalled()
   })
 
+  it('accepts and persists panel-only resource attachments without adding artificial context', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Keep these tabs open',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          resourceAttachments: [
+            { type: 'skill', id: 'skill-1', title: 'Writing' },
+            { type: 'custom_tool', id: 'tool-1', title: 'Formatter' },
+            { type: 'mcp_server', id: 'mcp-1', title: 'GitHub' },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
+      { type: 'skill', id: 'skill-1', title: 'Writing' },
+      { type: 'custom_tool', id: 'tool-1', title: 'Formatter' },
+      { type: 'mcp_server', id: 'mcp-1', title: 'GitHub' },
+    ])
+    expect(resolveActiveResourceContext).not.toHaveBeenCalled()
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ contexts: [] })
+    )
+  })
+
   it('accepts and forwards more than eight open terminal hints', async () => {
     const terminals = Array.from({ length: 12 }, (_, index) => ({
       id: String(index + 1),

@@ -49,8 +49,11 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { customToolsQueryOptions, useCustomTools } from '@/hooks/queries/custom-tools'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { mcpServersQueryOptions, useMcpServers } from '@/hooks/queries/mcp'
+import { getSkillsQueryOptions, useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -193,6 +196,33 @@ function useResourceNameLookup(
     enabled: enabled && Boolean(workspaceId),
   })
 
+  const editableOwners = (type: MothershipResourceType) => [
+    ...new Set(
+      resources.flatMap((resource) =>
+        resource.type === type && resource.workspaceId && resource.workspaceId !== workspaceId
+          ? [resource.workspaceId]
+          : []
+      )
+    ),
+  ]
+  const ownedSkills = useQueries({
+    queries: editableOwners('skill').map(getSkillsQueryOptions),
+  })
+  const ownedCustomTools = useQueries({
+    queries: editableOwners('custom_tool').map(customToolsQueryOptions),
+  })
+  const ownedMcpServers = useQueries({
+    queries: editableOwners('mcp_server').map(mcpServersQueryOptions),
+  })
+  const openTypes = new Set(resources.map((resource) => resource.type))
+  const { data: skills } = useSkills(workspaceId ?? '', { enabled: openTypes.has('skill') })
+  const { data: customTools } = useCustomTools(workspaceId ?? '', {
+    enabled: openTypes.has('custom_tool'),
+  })
+  const { data: mcpServers } = useMcpServers(workspaceId ?? '', {
+    enabled: openTypes.has('mcp_server'),
+  })
+
   return useMemo(() => {
     if (!enabled) return NO_RESOURCE_NAMES
     const map = new Map<string, string>()
@@ -206,8 +236,39 @@ function useResourceNameLookup(
     for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
+    for (const result of ownedSkills) {
+      for (const skill of result.data ?? []) map.set(`skill:${skill.id}`, skill.name)
+    }
+    for (const result of ownedCustomTools) {
+      for (const tool of result.data ?? []) map.set(`custom_tool:${tool.id}`, tool.title)
+    }
+    for (const result of ownedMcpServers) {
+      for (const server of result.data ?? []) {
+        map.set(`mcp_server:${server.id}`, server.name || 'Unnamed server')
+      }
+    }
+    for (const skill of skills ?? []) map.set(`skill:${skill.id}`, skill.name)
+    for (const tool of customTools ?? []) map.set(`custom_tool:${tool.id}`, tool.title)
+    for (const server of mcpServers ?? []) {
+      map.set(`mcp_server:${server.id}`, server.name || 'Unnamed server')
+    }
     return map
-  }, [enabled, workflows, tables, files, knowledgeBases, folders, ownedWorkflows, owners])
+  }, [
+    enabled,
+    workflows,
+    tables,
+    files,
+    knowledgeBases,
+    folders,
+    ownedWorkflows,
+    owners,
+    skills,
+    customTools,
+    mcpServers,
+    ownedSkills,
+    ownedCustomTools,
+    ownedMcpServers,
+  ])
 }
 
 interface ResourceTabsProps {
@@ -257,6 +318,7 @@ export function ResourceTabs({
     addResource: onAddResource,
     removeResource: onRemoveResource,
     reorderResources: onReorderResources,
+    requestResourceTransition,
   } = useMothershipResources()
 
   const { confirmTerminalClose, confirmationDialog } = useTerminalCloseConfirmation(desktopScopeId)
@@ -337,34 +399,36 @@ export function ResourceTabs({
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
-      // A browser tab or terminal is a live page or shell the desktop app
-      // creates; it joins the strip through the tab list rather than as a
-      // resource of its own.
-      if (resource.type === 'browser') {
-        void openBrowserTab(desktopScopeId)
-          .then((state) => {
-            if (!state?.activeTabId) return
-            requestBrowserOmniboxFocus(state.activeTabId, state.scopeId)
-            selectResource(state.activeTabId)
-          })
-          .catch(() => toast.error('Could not open a new browser tab. Please try again.'))
-        return
-      }
-      if (resource.type === 'terminal') {
-        void openTerminal(undefined, desktopScopeId)
-          .then((state) => {
-            if (!state.activeTerminalId) return
-            selectResource(terminalResourceId(state.activeTerminalId))
-            requestTerminalFocus(state.activeTerminalId)
-          })
-          .catch(() => toast.error('Could not open a new terminal. Please try again.'))
-        return
-      }
-      // The chat owner handles optimistic state and its single ordered persistence queue.
-      onAddResource(resource)
+      requestResourceTransition(() => {
+        // A browser tab or terminal is a live page or shell the desktop app
+        // creates; it joins the strip through the tab list rather than as a
+        // resource of its own.
+        if (resource.type === 'browser') {
+          void openBrowserTab(desktopScopeId)
+            .then((state) => {
+              if (!state?.activeTabId) return
+              requestBrowserOmniboxFocus(state.activeTabId, state.scopeId)
+              selectResource(state.activeTabId)
+            })
+            .catch(() => toast.error('Could not open a new browser tab. Please try again.'))
+          return
+        }
+        if (resource.type === 'terminal') {
+          void openTerminal(undefined, desktopScopeId)
+            .then((state) => {
+              if (!state.activeTerminalId) return
+              selectResource(terminalResourceId(state.activeTerminalId))
+              requestTerminalFocus(state.activeTerminalId)
+            })
+            .catch(() => toast.error('Could not open a new terminal. Please try again.'))
+          return
+        }
+        // The chat owner handles optimistic state and its single ordered persistence queue.
+        onAddResource(resource)
+      })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [desktopScopeId, onAddResource, selectResource]
+    [desktopScopeId, onAddResource, selectResource, requestResourceTransition]
   )
 
   const handleSelect = useCallback(
@@ -373,56 +437,60 @@ export function ResourceTabs({
       const resource = resources[idx]
       if (!resource) return
 
-      // Shift+click: contiguous range from anchor
-      if (e?.shiftKey) {
-        // Fall back to activeId when no explicit anchor exists (e.g. tab opened via sidebar)
-        const anchorId = anchorIdRef.current ?? activeId
-        const anchorIdx = anchorId
-          ? resources.findIndex((r) => getChatResourceSelectionId(r) === anchorId)
-          : -1
-        if (anchorIdx !== -1) {
-          const start = Math.min(anchorIdx, idx)
-          const end = Math.max(anchorIdx, idx)
-          const next = new Set<string>()
-          for (let i = start; i <= end; i++) next.add(getChatResourceSelectionId(resources[i]))
-          setSelectedIds(next)
-          selectResource(getChatResourceSelectionId(resource))
+      const select = () => {
+        // Shift+click: contiguous range from anchor
+        if (e?.shiftKey) {
+          // Fall back to activeId when no explicit anchor exists (e.g. tab opened via sidebar)
+          const anchorId = anchorIdRef.current ?? activeId
+          const anchorIdx = anchorId
+            ? resources.findIndex((r) => getChatResourceSelectionId(r) === anchorId)
+            : -1
+          if (anchorIdx !== -1) {
+            const start = Math.min(anchorIdx, idx)
+            const end = Math.max(anchorIdx, idx)
+            const next = new Set<string>()
+            for (let i = start; i <= end; i++) next.add(getChatResourceSelectionId(resources[i]))
+            setSelectedIds(next)
+            selectResource(getChatResourceSelectionId(resource))
+            return
+          }
+        }
+
+        // Cmd/Ctrl+click: toggle individual tab in/out of selection
+        if (e?.metaKey || e?.ctrlKey) {
+          const wasSelected = selectedIds.has(getChatResourceSelectionId(resource))
+          if (wasSelected) {
+            const next = new Set(selectedIds)
+            next.delete(getChatResourceSelectionId(resource))
+            setSelectedIds(next)
+            // Only switch active if we just deselected the currently-active tab
+            if (activeId === getChatResourceSelectionId(resource)) {
+              const fallback =
+                findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
+              if (fallback) selectResource(fallback)
+            }
+          } else {
+            setSelectedIds((prev) => new Set(prev).add(getChatResourceSelectionId(resource)))
+            selectResource(getChatResourceSelectionId(resource))
+          }
+          if (!anchorIdRef.current) anchorIdRef.current = getChatResourceSelectionId(resource)
           return
         }
-      }
 
-      // Cmd/Ctrl+click: toggle individual tab in/out of selection
-      if (e?.metaKey || e?.ctrlKey) {
-        const wasSelected = selectedIds.has(getChatResourceSelectionId(resource))
-        if (wasSelected) {
-          const next = new Set(selectedIds)
-          next.delete(getChatResourceSelectionId(resource))
-          setSelectedIds(next)
-          // Only switch active if we just deselected the currently-active tab
-          if (activeId === getChatResourceSelectionId(resource)) {
-            const fallback =
-              findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
-            if (fallback) selectResource(fallback)
-          }
-        } else {
-          setSelectedIds((prev) => new Set(prev).add(getChatResourceSelectionId(resource)))
-          selectResource(getChatResourceSelectionId(resource))
+        // Plain click: single-select
+        anchorIdRef.current = getChatResourceSelectionId(resource)
+        setSelectedIds(new Set([getChatResourceSelectionId(resource)]))
+        selectResource(getChatResourceSelectionId(resource))
+        // A pointer pick of a shell also hands it the keyboard; arrow-key
+        // navigation along the strip keeps its own focus.
+        if (resource.type === 'terminal' && source !== 'keyboard') {
+          requestTerminalFocus(terminalIdFromResourceId(resource.id))
         }
-        if (!anchorIdRef.current) anchorIdRef.current = getChatResourceSelectionId(resource)
-        return
       }
-
-      // Plain click: single-select
-      anchorIdRef.current = getChatResourceSelectionId(resource)
-      setSelectedIds(new Set([getChatResourceSelectionId(resource)]))
-      selectResource(getChatResourceSelectionId(resource))
-      // A pointer pick of a shell also hands it the keyboard; arrow-key
-      // navigation along the strip keeps its own focus.
-      if (resource.type === 'terminal' && source !== 'keyboard') {
-        requestTerminalFocus(terminalIdFromResourceId(resource.id))
-      }
+      if (id === activeId) select()
+      else requestResourceTransition(select)
     },
-    [resources, selectResource, selectedIds, activeId]
+    [resources, selectResource, selectedIds, activeId, requestResourceTransition]
   )
 
   const handleClose = useCallback(
@@ -438,44 +506,49 @@ export function ResourceTabs({
         .filter((target) => target.type === 'terminal')
         .map((target) => terminalIdFromResourceId(target.id))
       if (!(await confirmTerminalClose(terminalIds))) return
-      // Closing the shown tab moves to its neighbour, right then left, so the
-      // strip does not fall back to its last tab and jump. For a desktop tab
-      // this is also the neighbour the desktop app itself picks.
-      if (!isMulti && activeId === getChatResourceSelectionId(resource)) {
-        const sameKind = new Set(
-          resources.filter((r) => r.type === resource.type).map(getChatResourceSelectionId)
-        )
-        const nextId =
-          findNearestId(resources, index, sameKind) ?? findNearestId(resources, index, null)
-        if (nextId) selectResource(nextId)
-      }
-      // A browser tab's page is closed natively and its resource dropped at
-      // once; the tab list then confirms the removal. A shell's close answers
-      // with the tab list, so its resource follows that list instead — a
-      // close the desktop app refuses must not leave a running shell with no
-      // tab.
-      for (const r of targets) {
-        if (r.type === 'terminal') {
-          void closeTerminal(terminalIdFromResourceId(r.id), desktopScopeId).catch(() =>
-            toast.error('Could not close that terminal. Please try again.')
+      const close = () => {
+        // Closing the shown tab moves to its neighbour, right then left, so the
+        // strip does not fall back to its last tab and jump. For a desktop tab
+        // this is also the neighbour the desktop app itself picks.
+        if (!isMulti && activeId === getChatResourceSelectionId(resource)) {
+          const sameKind = new Set(
+            resources.filter((r) => r.type === resource.type).map(getChatResourceSelectionId)
           )
-          continue
+          const nextId =
+            findNearestId(resources, index, sameKind) ?? findNearestId(resources, index, null)
+          if (nextId) selectResource(nextId)
         }
-        onRemoveResource(r.type, r.id, r.workspaceId)
-        if (r.type === 'browser') {
-          sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
+        // A browser tab's page is closed natively and its resource dropped at
+        // once; the tab list then confirms the removal. A shell's close answers
+        // with the tab list, so its resource follows that list instead — a
+        // close the desktop app refuses must not leave a running shell with no
+        // tab.
+        for (const r of targets) {
+          if (r.type === 'terminal') {
+            void closeTerminal(terminalIdFromResourceId(r.id), desktopScopeId).catch(() =>
+              toast.error('Could not close that terminal. Please try again.')
+            )
+            continue
+          }
+          onRemoveResource(r.type, r.id, r.workspaceId)
+          if (r.type === 'browser') {
+            sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
+          }
+        }
+        // Clear stale selection and anchor for all removed targets
+        const removedIds = new Set(targets.map(getChatResourceSelectionId))
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          for (const removedId of removedIds) next.delete(removedId)
+          return next
+        })
+        if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
+          anchorIdRef.current = null
         }
       }
-      // Clear stale selection and anchor for all removed targets
-      const removedIds = new Set(targets.map(getChatResourceSelectionId))
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        for (const removedId of removedIds) next.delete(removedId)
-        return next
-      })
-      if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
-        anchorIdRef.current = null
-      }
+      if (targets.some((target) => getChatResourceSelectionId(target) === activeId)) {
+        requestResourceTransition(close)
+      } else close()
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
@@ -487,6 +560,7 @@ export function ResourceTabs({
       selectResource,
       selectedIds,
       confirmTerminalClose,
+      requestResourceTransition,
     ]
   )
 

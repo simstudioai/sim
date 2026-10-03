@@ -15,7 +15,9 @@ import {
   Task,
   TerminalWindow,
   Workflow,
+  Wrench,
 } from '@sim/emcn/icons'
+import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import { BrowserTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/browser-tab-icon'
@@ -257,6 +259,33 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IntegrationDropdownItem {...props} />,
   },
+  skill: {
+    type: 'skill',
+    label: 'Skills',
+    icon: AgentSkillsIcon,
+    renderTabIcon: (_resource, className) => (
+      <AgentSkillsIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={AgentSkillsIcon} />,
+  },
+  custom_tool: {
+    type: 'custom_tool',
+    label: 'Custom Tools',
+    icon: Wrench,
+    renderTabIcon: (_resource, className) => (
+      <Wrench className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Wrench} />,
+  },
+  mcp_server: {
+    type: 'mcp_server',
+    label: 'MCP Servers',
+    icon: McpIcon,
+    renderTabIcon: (_resource, className) => (
+      <McpIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={McpIcon} />,
+  },
   browser: {
     type: 'browser',
     label: 'Browser',
@@ -298,6 +327,9 @@ export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
 export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
   'integration',
   'task',
+  'skill',
+  'custom_tool',
+  'mcp_server',
   'dashboard',
   'table',
   'file',

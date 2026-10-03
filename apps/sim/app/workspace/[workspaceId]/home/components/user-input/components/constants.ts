@@ -107,7 +107,8 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
  * Maps a {@link MothershipResource} (resource-picker domain) to a
  * {@link ChatContext} (chat-input domain). Keyed by `MothershipResourceType`
  * so adding a new resource type fails compilation here until a conversion is
- * supplied — preventing silent drift between the two taxonomies.
+ * supplied. Panel-only resources explicitly return `null`, so they cannot
+ * become artificial prompt attachments without weakening exhaustive coverage.
  */
 // A browser resource is one live page and a terminal resource one live shell,
 // so each id is a precise pointer the agent can act on directly.
@@ -142,6 +143,9 @@ const RESOURCE_TO_CONTEXT: Record<
   log: (r) => ({ kind: 'logs', executionId: r.executionId ?? r.id, label: r.title }),
   integration: (r) => ({ kind: 'integration', blockType: r.id, label: r.title }),
   generic: (r) => ({ kind: 'docs', label: r.title }),
+  skill: () => null,
+  custom_tool: () => null,
+  mcp_server: () => null,
 }
 
 export function mapResourceToContext(resource: MothershipResource): ChatContext | null {

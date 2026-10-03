@@ -13,6 +13,9 @@ export const MothershipResourceType = {
   task: 'task',
   log: 'log',
   integration: 'integration',
+  skill: 'skill',
+  custom_tool: 'custom_tool',
+  mcp_server: 'mcp_server',
   generic: 'generic',
   browser: 'browser',
   terminal: 'terminal',
@@ -119,6 +122,9 @@ const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   task: { persisted: true },
   log: { persisted: true },
   integration: { persisted: true },
+  skill: { persisted: true },
+  custom_tool: { persisted: true },
+  mcp_server: { persisted: true },
   // A synthetic panel with no addressable entity behind it to reopen.
   generic: { persisted: false },
   // One tab per live desktop page or shell, keyed by the native id. The
@@ -240,6 +246,9 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Knowledge Base',
   'Folder',
   'Log',
+  'Skill',
+  'Custom Tool',
+  'MCP Server',
 ])
 
 /**

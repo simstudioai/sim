@@ -183,10 +183,10 @@ export function customToolsQueryOptions(workspaceId: string) {
 /**
  * Hook to fetch custom tools
  */
-export function useCustomTools(workspaceId: string) {
+export function useCustomTools(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery({
     ...customToolsQueryOptions(workspaceId),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     placeholderData: keepPreviousData,
   })
 }

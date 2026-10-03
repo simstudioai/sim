@@ -96,10 +96,10 @@ export interface McpServerInput {
   authType?: McpAuthType
 }
 
-export function useMcpServers(workspaceId: string) {
+export function useMcpServers(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery({
     ...mcpServersQueryOptions(workspaceId),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
   })
 }
 

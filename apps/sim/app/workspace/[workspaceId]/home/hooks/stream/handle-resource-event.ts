@@ -70,7 +70,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       (!settings.workspaceId || (chatWorkspaceId && settings.workspaceId !== chatWorkspaceId))
     )
       return
-    refreshSettings(queryClient, settings)
+    refreshSettings(queryClient, settings, ctx.deps.chatIdRef.current ?? undefined)
     if (settings.scope !== 'account' || settings.id === 'profile') ctx.deps.refreshRoute?.()
     return
   }

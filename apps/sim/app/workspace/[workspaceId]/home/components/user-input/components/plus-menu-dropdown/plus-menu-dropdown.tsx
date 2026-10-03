@@ -77,6 +77,11 @@ function candidateKey({ type, item }: MentionCandidate): string {
  * (`ADD_RESOURCE_EXCLUDED_TYPES` in `resource-tabs`).
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
+const PANEL_ONLY_RESOURCE_TYPES: readonly MothershipResourceType[] = [
+  'skill',
+  'custom_tool',
+  'mcp_server',
+] as const
 
 /**
  * Families an organization chat's workspace submenus leave out: the mention-only
@@ -85,6 +90,7 @@ const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integratio
  */
 const WORKSPACE_SUBMENU_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
   ...MENTION_ONLY_RESOURCE_TYPES,
+  ...PANEL_ONLY_RESOURCE_TYPES,
   'browser',
   'terminal',
 ]
@@ -154,6 +160,7 @@ export const PlusMenuDropdown = React.memo(
     const workspaceInventory = useAvailableResources(organizationId ? '' : workspaceId, {
       enabled: inventoryEnabled,
       includeFolderMentions: true,
+      excludeTypes: PANEL_ONLY_RESOURCE_TYPES,
     })
     const { data: allWorkspaces, isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
@@ -201,7 +208,10 @@ export const PlusMenuDropdown = React.memo(
     const visibleResources = useMemo(() => {
       const resources = withTerminalTabMentions(
         withBrowserTabMentions(
-          withFolderMentions(availableResources, structureFolders),
+          withFolderMentions(
+            availableResources.filter(({ type }) => !PANEL_ONLY_RESOURCE_TYPES.includes(type)),
+            structureFolders
+          ),
           browserTabs
         ),
         terminalTabs,
@@ -409,6 +419,7 @@ export const PlusMenuDropdown = React.memo(
           inventoryEnabled &&
           workspaces.map((workspace) => (
             <OrganizationResourceInventory
+              excludeTypes={PANEL_ONLY_RESOURCE_TYPES}
               key={workspace.id}
               workspaceId={workspace.id}
               onChange={receiveInventory}

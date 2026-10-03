@@ -4,9 +4,12 @@ import { dashboardKeys } from '@/hooks/queries/dashboards'
 import { deploymentKeys, invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { skillsKeys } from '@/hooks/queries/skills'
+import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
@@ -68,6 +71,13 @@ const RESOURCE_INVALIDATORS: Record<
    * invalidate when one is added.
    */
   integration: () => {},
+  skill: (qc, wId) => invalidate(qc, skillsKeys.list(wId)),
+  custom_tool: (qc, wId) => invalidate(qc, customToolsKeys.list(wId)),
+  mcp_server: (qc, wId, id) => {
+    invalidate(qc, mcpKeys.serversList(wId))
+    invalidate(qc, id ? mcpKeys.serverToolsList(wId, id) : mcpKeys.serverToolsWorkspace(wId))
+    invalidate(qc, mcpKeys.storedToolsList(wId))
+  },
   /**
    * The browser panel hosts the desktop app's natively embedded browser view
    * (in-memory page state, no server-backed query), so there is nothing to

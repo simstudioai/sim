@@ -314,6 +314,10 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         return context.fileId ? { type: 'file', id: context.fileId } : null
       case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
+      case 'skill':
+        return context.skillId ? { type: 'skill', id: context.skillId } : null
+      case 'mcp':
+        return context.serverId ? { type: 'mcp_server', id: context.serverId } : null
       case 'dashboard':
         return { type: 'dashboard', id: context.dashboardId }
       default:

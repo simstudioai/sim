@@ -223,6 +223,27 @@ describe.each([{ workspaceId: 'ws-1' }, { workspaceId: '', organizationId: 'org-
 )
 
 describe('usePromptEditor context insertion', () => {
+  it.each(['skill', 'custom_tool', 'mcp_server'] as const)(
+    'does not insert panel-only %s resources into the prompt',
+    (type) => {
+      const onContextAdd = vi.fn()
+      const { result, unmount } = renderPromptEditor({
+        workspaceId: 'ws-1',
+        initialValue: 'Keep this',
+        onContextAdd,
+      })
+
+      act(() => {
+        result().insertResource({ type, id: 'resource-1', title: 'Panel resource' })
+      })
+
+      expect(result().value).toBe('Keep this')
+      expect(result().contexts).toEqual([])
+      expect(onContextAdd).not.toHaveBeenCalled()
+      unmount()
+    }
+  )
+
   it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
     const context = {
       kind: 'file_selection',

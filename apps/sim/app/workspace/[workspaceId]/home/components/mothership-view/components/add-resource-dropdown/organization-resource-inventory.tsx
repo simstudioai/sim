@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import type { MothershipResourceType } from '@/lib/mothership/resources/types'
 import {
   type AvailableResources,
   useAvailableResources,
@@ -8,11 +9,16 @@ import {
 export function OrganizationResourceInventory({
   workspaceId,
   onChange,
+  excludeTypes,
 }: {
   workspaceId: string
+  excludeTypes?: readonly MothershipResourceType[]
   onChange: (workspaceId: string, inventory: AvailableResources) => void
 }) {
-  const inventory = useAvailableResources(workspaceId, { includeFolderMentions: true })
+  const inventory = useAvailableResources(workspaceId, {
+    includeFolderMentions: true,
+    excludeTypes,
+  })
   useEffect(() => {
     onChange(workspaceId, inventory)
   }, [workspaceId, inventory, onChange])

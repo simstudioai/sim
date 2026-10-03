@@ -49,6 +49,7 @@ import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { requestMothershipNavigation } from '@/lib/mothership/events'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
@@ -833,7 +834,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       label: 'Organization',
       icon: Building,
       href: organizationHref,
-      onNavigate: () => router.push(organizationHref),
+      onNavigate: () => requestMothershipNavigation(() => router.push(organizationHref)),
     })
   }
 
@@ -888,31 +889,39 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       (id) => currentPath === `/workspace/${workspaceId}/chat/${id}`
     )
 
-    const onDeleteSuccess = () => {
-      useFolderStore.getState().clearChatSelection()
-      if (isViewingDeletedChat) {
-        router.push(`/workspace/${workspaceId}/home`)
+    const deleteChats = () => {
+      const onDeleteSuccess = () => {
+        useFolderStore.getState().clearChatSelection()
+        if (isViewingDeletedChat) {
+          router.push(`/workspace/${workspaceId}/home`)
+        }
+      }
+
+      if (chatIdsToDelete.length === 1) {
+        deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess: onDeleteSuccess })
+      } else {
+        deleteChatsMutation.mutate(chatIdsToDelete, {
+          onSuccess: onDeleteSuccess,
+          onError: (error) => {
+            if (
+              error instanceof MothershipChatDeleteError &&
+              error.deletedChatIds.some(
+                (id) => window.location.pathname === `/workspace/${workspaceId}/chat/${id}`
+              )
+            ) {
+              router.push(`/workspace/${workspaceId}/home`)
+            }
+          },
+        })
       }
     }
-
-    if (chatIdsToDelete.length === 1) {
-      deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess: onDeleteSuccess })
-    } else {
-      deleteChatsMutation.mutate(chatIdsToDelete, {
-        onSuccess: onDeleteSuccess,
-        onError: (error) => {
-          if (
-            error instanceof MothershipChatDeleteError &&
-            error.deletedChatIds.some(
-              (id) => window.location.pathname === `/workspace/${workspaceId}/chat/${id}`
-            )
-          ) {
-            router.push(`/workspace/${workspaceId}/home`)
-          }
-        },
-      })
-    }
     setIsChatDeleteModalOpen(false)
+    if (!isViewingDeletedChat) {
+      deleteChats()
+      return
+    }
+
+    requestMothershipNavigation(deleteChats)
   }
 
   const [visibleChatCount, setVisibleChatCount] = useState(5)
@@ -1248,7 +1257,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
           try {
             const pathWorkspaceId = resolveWorkspaceIdFromPath()
             if (pathWorkspaceId) {
-              router.push(`/workspace/${pathWorkspaceId}/logs`)
+              requestMothershipNavigation(() => router.push(`/workspace/${pathWorkspaceId}/logs`))
               logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
             } else {
               logger.warn('No workspace ID found, cannot navigate to logs')

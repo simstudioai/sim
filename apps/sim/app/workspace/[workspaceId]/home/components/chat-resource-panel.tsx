@@ -2,6 +2,7 @@
 
 import { lazy, type ReactNode, Suspense, useCallback } from 'react'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
@@ -62,6 +63,11 @@ export function ChatResourcePanel({
     handleResourceResizeKeyDown,
     handleResourceResizeFocus,
     handleResourceInteraction,
+    requestResourceTransition,
+    reportResourceDirty,
+    showDiscardConfirmation,
+    dismissDiscardConfirmation,
+    confirmDiscard,
   } = panel
   const summarize = useCallback(
     (message: string, filters: WorkspaceSearchFilters) => {
@@ -71,47 +77,58 @@ export function ChatResourcePanel({
     [onSummarize, chat.sendMessage]
   )
   return (
-    <ChatPanelLayout
-      collapsed={isResourceCollapsed}
-      label='resource view'
-      activityCount={resourceActivityIds.size}
-      onToggle={isResourceCollapsed ? expandResource : collapseResource}
-      onResize={handleResourceResizePointerDown}
-      onResizeKeyDown={handleResourceResizeKeyDown}
-      onResizeFocus={handleResourceResizeFocus}
-      panel={
-        <MothershipResourcesProvider
-          selectResource={selectResourceFromUser}
-          addResource={addResourceFromUser}
-          removeResource={removeResource}
-          reorderResources={reorderResources}
-          collapseResource={collapseResource}
-        >
-          <Suspense fallback={null}>
-            <MothershipView
-              ref={mothershipRef}
-              workspaceId={workspaceId}
-              organizationId={organizationId}
-              allowBuildControls={allowBuildControls}
-              chatId={resolvedChatId}
-              desktopScopeId={desktopScopeId}
-              resources={resources}
-              onTableViewContextChange={setTableViewContext}
-              activeResourceId={activeResourceId}
-              activityResourceIds={resourceActivityIds}
-              isCollapsed={isResourceCollapsed}
-              previewSession={previewSession}
-              isAgentResponding={isSending}
-              genericResourceData={genericResourceData ?? undefined}
-              onSummarize={summarize}
-              onUserInteraction={handleResourceInteraction}
-              className={skipResourceTransition ? 'transition-none!' : undefined}
-            />
-          </Suspense>
-        </MothershipResourcesProvider>
-      }
-    >
-      {children}
-    </ChatPanelLayout>
+    <>
+      <ChatPanelLayout
+        collapsed={isResourceCollapsed}
+        label='resource view'
+        activityCount={resourceActivityIds.size}
+        onToggle={isResourceCollapsed ? expandResource : collapseResource}
+        onResize={handleResourceResizePointerDown}
+        onResizeKeyDown={handleResourceResizeKeyDown}
+        onResizeFocus={handleResourceResizeFocus}
+        panel={
+          <MothershipResourcesProvider
+            selectResource={selectResourceFromUser}
+            addResource={addResourceFromUser}
+            removeResource={removeResource}
+            reorderResources={reorderResources}
+            collapseResource={collapseResource}
+            requestResourceTransition={requestResourceTransition}
+            reportResourceDirty={reportResourceDirty}
+          >
+            <Suspense fallback={null}>
+              <MothershipView
+                ref={mothershipRef}
+                workspaceId={workspaceId}
+                organizationId={organizationId}
+                allowBuildControls={allowBuildControls}
+                chatId={resolvedChatId}
+                desktopScopeId={desktopScopeId}
+                resources={resources}
+                onTableViewContextChange={setTableViewContext}
+                activeResourceId={activeResourceId}
+                activityResourceIds={resourceActivityIds}
+                isCollapsed={isResourceCollapsed}
+                previewSession={previewSession}
+                isAgentResponding={isSending}
+                genericResourceData={genericResourceData ?? undefined}
+                onSummarize={summarize}
+                onUserInteraction={handleResourceInteraction}
+                className={skipResourceTransition ? 'transition-none!' : undefined}
+              />
+            </Suspense>
+          </MothershipResourcesProvider>
+        }
+      >
+        {children}
+      </ChatPanelLayout>
+      <UnsavedChangesModal
+        open={showDiscardConfirmation}
+        onOpenChange={(open) => {
+          if (!open) dismissDiscardConfirmation()
+        }}
+        onDiscard={confirmDiscard}
+      />
+    </>
   )
 }

@@ -13,5 +13,6 @@ import { vi } from 'vitest'
  */
 export const integrationMatcherMock = {
   getIntegrationMatcher: vi.fn(() => ({ regex: null, byName: new Map() })),
+  listIntegrationsByPopularity: vi.fn(() => []),
   mentionifyIntegrations: vi.fn((text: string) => text),
 }

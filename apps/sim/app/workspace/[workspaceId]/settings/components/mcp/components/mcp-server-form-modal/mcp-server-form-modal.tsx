@@ -57,6 +57,8 @@ export interface McpServerFormConfig {
 export interface McpServerFormModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Reports unsaved edits when a host surface owns navigation protection. */
+  onDirtyChange?: (dirty: boolean) => void
   mode: 'add' | 'edit'
   initialData?: McpServerFormData
   onSubmit: (config: McpServerFormConfig) => Promise<void>
@@ -308,6 +310,7 @@ function updateHeadersArray(
 export function McpServerFormModal({
   open,
   onOpenChange,
+  onDirtyChange,
   mode,
   initialData,
   onSubmit,
@@ -451,6 +454,14 @@ export function McpServerFormModal({
     return false
   }
   const hasChanges = computeHasChanges()
+
+  useEffect(() => {
+    onDirtyChange?.(open && hasChanges)
+  }, [hasChanges, onDirtyChange, open])
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false)
+  }, [onDirtyChange])
 
   const parseJsonConfig = (
     json: string

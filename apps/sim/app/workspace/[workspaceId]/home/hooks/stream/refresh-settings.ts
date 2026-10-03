@@ -5,7 +5,11 @@ import { refreshGeneralSettings } from '@/hooks/queries/general-settings'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 /** Read canonical settings again; replay must never restore a historical setting value. */
-export function refreshSettings(queryClient: QueryClient, settings: SettingsRefresh): void {
+export function refreshSettings(
+  queryClient: QueryClient,
+  settings: SettingsRefresh,
+  chatId?: string
+): void {
   if (settings.scope === 'account' && settings.id === 'preferences') {
     void refreshGeneralSettings(queryClient)
     return
@@ -13,6 +17,13 @@ export function refreshSettings(queryClient: QueryClient, settings: SettingsRefr
   if (settings.scope === 'account' && settings.id === 'profile') {
     void queryClient.invalidateQueries({ queryKey: userProfileKeys.all })
     return
+  }
+  if (
+    chatId &&
+    settings.scope === 'workspace' &&
+    ['skills', 'custom-tools', 'mcp'].includes(settings.id)
+  ) {
+    void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
   }
   // Access, billing and integration policies affect resources beyond the Settings screen.
   // Keep live chat history stable while revalidating the rest of the current viewer's cache.

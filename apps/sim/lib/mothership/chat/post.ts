@@ -135,6 +135,9 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
+  skill: 'Skill',
+  custom_tool: 'Custom Tool',
+  mcp_server: 'MCP Server',
   generic: 'Resource',
   browser: 'Browser',
   terminal: 'Terminal',
@@ -603,6 +606,23 @@ async function resolveAgentContexts(params: {
                 resource.workspaceId
               )
             : { workspaceId: workspaceId! }
+        if (
+          resource.type === 'skill' ||
+          resource.type === 'custom_tool' ||
+          resource.type === 'mcp_server'
+        ) {
+          if (persistResources)
+            authorizedResources.push(
+              mothershipResourceSchema.parse({
+                ...resource,
+                title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
+                ...(organizationId
+                  ? { workspaceId: target.workspaceId }
+                  : { workspaceId: undefined, workspaceName: undefined }),
+              })
+            )
+          return null
+        }
         const ctx = await withWorkspaceInvocationScope(
           { workspaceId: target.workspaceId, organizationId },
           () =>

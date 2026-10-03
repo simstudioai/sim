@@ -22,6 +22,7 @@ import {
   type useChat,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { useMothershipResize } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-resize'
+import { useResourceTransitionGuard } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-transition-guard'
 import {
   resolveResourceEventPresentation,
   resolveResourceSelectionUpdate,
@@ -34,6 +35,7 @@ import {
 
 /** URL selection and event attention are installed before the chat starts streaming. */
 export function useResourcePanelController() {
+  const transitionGuard = useResourceTransitionGuard()
   /**
    * URL is the single source of truth for the selected resource. `Home` renders
    * client-side, so nuqs reads `?resource=` from the URL on mount — the same
@@ -107,23 +109,29 @@ export function useResourcePanelController() {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
       return
     }
-    setResourceActivityIds((current) => {
-      if (!current.has(resourceId)) return current
-      const next = new Set(current)
-      next.delete(resourceId)
-      return next
+    const focusResource = () => {
+      setResourceActivityIds((current) => {
+        if (!current.has(resourceId)) return current
+        const next = new Set(current)
+        next.delete(resourceId)
+        return next
+      })
+      if (presentation.activateResource && options?.tableViewId) {
+        /** A live view request replaces the host URL's previous table selection. */
+        void setTableParams({ view: options.tableViewId, sort: null, dir: null })
+      }
+      if (presentation.activateResource && activeResourceId !== resourceId) {
+        activeResourceParamRef.current = resourceId
+        setActiveResourceUrl(resourceId)
+      }
+    }
+    transitionGuard.routeAutomaticResourceFocus(resourceId, focusResource, () => {
+      setResourceActivityIds((current) => new Set(current).add(resourceId))
     })
-    if (presentation.activateResource && options?.tableViewId) {
-      /** A live view request replaces the host URL's previous table selection. */
-      void setTableParams({ view: options.tableViewId, sort: null, dir: null })
-    }
-    if (presentation.activateResource && activeResourceId !== resourceId) {
-      activeResourceParamRef.current = resourceId
-      setActiveResourceUrl(resourceId)
-    }
   }
 
   return {
+    ...transitionGuard,
     activeResourceParam,
     activeResourceParamRef,
     activeResourceState,
@@ -178,6 +186,9 @@ export function useChatResourcePanel(
     resourceSelectionOwnedByUserRef,
     effectiveActiveResourceIdRef,
     onResourceEvent: handleResourceEvent,
+    requestResourceTransition,
+    rebaseHistorySentinel,
+    reset: resetResourceTransitionGuard,
   } = controller
   const { mothershipRef, handleResizePointerDown, handleResizeKeyDown, handleResizeFocus } =
     useMothershipResize(desktopScopeId, { userId, collapsed: isResourceCollapsed })
@@ -185,10 +196,12 @@ export function useChatResourcePanel(
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
   const collapseResource = useCallback(() => {
-    resourceCollapseOwnedByUserRef.current = true
-    resourceSelectionOwnedByUserRef.current = true
-    setResourceCollapsed(true)
-  }, [setResourceCollapsed])
+    requestResourceTransition(() => {
+      resourceCollapseOwnedByUserRef.current = true
+      resourceSelectionOwnedByUserRef.current = true
+      setResourceCollapsed(true)
+    })
+  }, [requestResourceTransition, setResourceCollapsed])
 
   const clearResourceActivity = useCallback((resourceId: string) => {
     setResourceActivityIds((current) => {
@@ -209,14 +222,18 @@ export function useChatResourcePanel(
 
   const selectResourceFromUser = useCallback(
     (resourceId: string) => {
-      resourceSelectionOwnedByUserRef.current = true
-      clearResourceActivity(resourceId)
-      if (effectiveActiveResourceIdRef.current === resourceId) return
-      effectiveActiveResourceIdRef.current = resourceId
-      activeResourceParamRef.current = resourceId
-      setActiveResourceId(resourceId)
+      const select = () => {
+        resourceSelectionOwnedByUserRef.current = true
+        clearResourceActivity(resourceId)
+        if (effectiveActiveResourceIdRef.current === resourceId) return
+        effectiveActiveResourceIdRef.current = resourceId
+        activeResourceParamRef.current = resourceId
+        setActiveResourceId(resourceId)
+      }
+      if (effectiveActiveResourceIdRef.current === resourceId) select()
+      else requestResourceTransition(select)
     },
-    [setActiveResourceId, clearResourceActivity]
+    [setActiveResourceId, clearResourceActivity, requestResourceTransition]
   )
 
   const desktopTabResourceOptions = {
@@ -232,13 +249,15 @@ export function useChatResourcePanel(
 
   const addResourceFromUser = useCallback(
     (resource: MothershipResource) => {
-      resourceCollapseOwnedByUserRef.current = false
-      resourceSelectionOwnedByUserRef.current = true
-      addResource(resource)
-      selectResourceFromUser(getChatResourceSelectionId(resource))
-      setResourceCollapsed(false)
+      requestResourceTransition(() => {
+        resourceCollapseOwnedByUserRef.current = false
+        resourceSelectionOwnedByUserRef.current = true
+        addResource(resource)
+        selectResourceFromUser(getChatResourceSelectionId(resource))
+        setResourceCollapsed(false)
+      })
     },
-    [addResource, selectResourceFromUser, setResourceCollapsed]
+    [addResource, selectResourceFromUser, setResourceCollapsed, requestResourceTransition]
   )
 
   const handleResourceResizePointerDown = useCallback(
@@ -269,6 +288,7 @@ export function useChatResourcePanel(
   useEffect(() => {
     const previousChatId = resourceAttentionChatIdRef.current
     resourceAttentionChatIdRef.current = resolvedChatId
+    if (resolvedChatId && !previousChatId) rebaseHistorySentinel()
     if (!resolvedChatId) {
       setResourceCollapsed(true)
     }
@@ -276,8 +296,9 @@ export function useChatResourcePanel(
       resourceCollapseOwnedByUserRef.current = false
       resourceSelectionOwnedByUserRef.current = false
       setResourceActivityIds(new Set())
+      resetResourceTransitionGuard()
     }
-  }, [resolvedChatId, setResourceCollapsed])
+  }, [resolvedChatId, setResourceCollapsed, rebaseHistorySentinel, resetResourceTransitionGuard])
 
   useEffect(() => {
     if (

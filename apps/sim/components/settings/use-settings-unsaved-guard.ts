@@ -3,6 +3,8 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface UseSettingsUnsavedGuardParams {
   isDirty: boolean
+  /** Embedded editors use their host's guard instead of global settings navigation. */
+  enabled?: boolean
   navigationBlocked?: boolean
 }
 
@@ -18,19 +20,25 @@ interface SettingsUnsavedGuard {
  */
 export function useSettingsUnsavedGuard({
   isDirty,
+  enabled = true,
   navigationBlocked = false,
 }: UseSettingsUnsavedGuardParams): SettingsUnsavedGuard {
   const setDirty = useSettingsDirtyStore((state) => state.setDirty)
   const setNavigationBlocked = useSettingsDirtyStore((state) => state.setNavigationBlocked)
   const reset = useSettingsDirtyStore((state) => state.reset)
-  const isDirtyRef = useRef(isDirty)
-  const navigationBlockedRef = useRef(navigationBlocked)
+  const isDirtyRef = useRef(enabled && isDirty)
+  const navigationBlockedRef = useRef(enabled && navigationBlocked)
   const pendingLeaveRef = useRef<(() => void) | null>(null)
   const [showUnsavedModal, setShowUnsavedModal] = useState(false)
 
   useEffect(() => {
-    isDirtyRef.current = isDirty
-    navigationBlockedRef.current = navigationBlocked
+    isDirtyRef.current = enabled && isDirty
+    navigationBlockedRef.current = enabled && navigationBlocked
+    if (!enabled) {
+      pendingLeaveRef.current = null
+      setShowUnsavedModal(false)
+      return
+    }
     setDirty(isDirty)
     setNavigationBlocked(navigationBlocked)
     if (navigationBlocked) {
@@ -42,11 +50,12 @@ export function useSettingsUnsavedGuard({
       pendingLeaveRef.current = null
       setShowUnsavedModal(false)
     }
-  }, [isDirty, navigationBlocked, setDirty, setNavigationBlocked])
+  }, [enabled, isDirty, navigationBlocked, setDirty, setNavigationBlocked])
 
   useEffect(() => {
+    if (!enabled) return
     return () => reset()
-  }, [reset])
+  }, [enabled, reset])
 
   const guardBack = useCallback((onLeave: () => void) => {
     if (navigationBlockedRef.current || useSettingsDirtyStore.getState().navigationBlocked) {

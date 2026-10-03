@@ -8,6 +8,8 @@ interface UseUnsavedChangesGuardParams {
   isDirty: boolean
   /** Where a confirmed discard navigates to. */
   backHref: string
+  /** Embedded surfaces disable this guard and delegate to their host. */
+  enabled?: boolean
 }
 
 /**
@@ -23,13 +25,18 @@ interface UseUnsavedChangesGuardParams {
  * still mounted), never in cleanup, so an intentional discard/navigation away is
  * not reversed.
  */
-export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesGuardParams) {
+export function useUnsavedChangesGuard({
+  isDirty,
+  backHref,
+  enabled = true,
+}: UseUnsavedChangesGuardParams) {
   const router = useRouter()
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false)
   const [isReleased, setIsReleased] = useState(false)
   const hasSentinelRef = useRef(false)
 
   useEffect(() => {
+    if (!enabled) return
     // The caller is navigating away — popping the seeded entry would cancel it. But
     // Back during that window consumes the entry with no listener left to re-push
     // it, so track that: a later rearm() must seed a fresh one rather than trust a
@@ -71,16 +78,16 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('popstate', handlePopState)
     }
-  }, [isDirty, isReleased])
+  }, [enabled, isDirty, isReleased])
 
   const handleBackClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
-      if (isDirty && !isReleased) {
+      if (enabled && isDirty && !isReleased) {
         event.preventDefault()
         setShowUnsavedAlert(true)
       }
     },
-    [isDirty, isReleased]
+    [enabled, isDirty, isReleased]
   )
 
   const confirmDiscard = useCallback(() => {

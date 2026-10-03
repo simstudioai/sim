@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -38,7 +38,13 @@ interface CustomToolDetailProps {
   tool: CustomToolDefinition | null
   /** Viewers without edit rights get the same page with every control inert. */
   readOnly?: boolean
+  /** Embedded editors defer navigation through the resource panel's guard. */
+  embedded?: boolean
+  /** Reports draft state to the resource-panel transition guard. */
+  onDirtyChange?: (dirty: boolean) => void
   onBack: () => void
+  /** Lets an embedded detail close immediately after its resource was deleted. */
+  onDeleted?: () => void
   /** Lands the caller on the tool it just created, matching the skill create flow. */
   onCreated?: (toolId: string) => void
 }
@@ -53,7 +59,10 @@ export function CustomToolDetail({
   workspaceId,
   tool,
   readOnly = false,
+  embedded = false,
+  onDirtyChange,
   onBack,
+  onDeleted,
   onCreated,
 }: CustomToolDetailProps) {
   const isEditing = !!tool
@@ -75,9 +84,45 @@ export function CustomToolDetail({
 
   const [jsonSchema, setJsonSchema] = useState(seededSchema)
   const [functionCode, setFunctionCode] = useState(seededCode)
+  const [previousToolSource, setPreviousToolSource] = useState<{
+    id: string
+    schema: string
+    code: string
+  } | null>(() =>
+    tool
+      ? { id: tool.id, schema: JSON.stringify(tool.schema, null, 2), code: tool.code ?? '' }
+      : null
+  )
   const [schemaError, setSchemaError] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  if (tool) {
+    const nextSource = {
+      id: tool.id,
+      schema: JSON.stringify(tool.schema, null, 2),
+      code: tool.code ?? '',
+    }
+    const switchedTool = previousToolSource?.id !== tool.id
+    const sourceChanged =
+      previousToolSource !== null &&
+      (previousToolSource.id !== nextSource.id ||
+        previousToolSource.schema !== nextSource.schema ||
+        previousToolSource.code !== nextSource.code)
+
+    if (switchedTool || (sourceChanged && !updateTool.isPending)) {
+      const hadLocalDraft = jsonSchema !== seededSchema || functionCode !== seededCode
+      setPreviousToolSource(nextSource)
+      setSeededSchema(nextSource.schema)
+      setSeededCode(nextSource.code)
+      if (switchedTool || !hadLocalDraft) {
+        setJsonSchema(nextSource.schema)
+        setFunctionCode(nextSource.code)
+        setSchemaError(null)
+        setCodeError(null)
+      }
+    }
+  }
 
   const schemaParameters = useMemo(() => extractSchemaParameters(jsonSchema), [jsonSchema])
 
@@ -117,7 +162,15 @@ export function CustomToolDetail({
     ? jsonSchema !== seededSchema || functionCode !== seededCode
     : jsonSchema.trim().length > 0 || functionCode.trim().length > 0
 
-  const guard = useSettingsUnsavedGuard({ isDirty: dirty })
+  const guard = useSettingsUnsavedGuard({ isDirty: dirty, enabled: !embedded })
+
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false)
+  }, [onDirtyChange])
 
   const saving = createTool.isPending || updateTool.isPending
   const isSchemaValid = useMemo(() => validateCustomToolSchema(jsonSchema).isValid, [jsonSchema])
@@ -186,7 +239,8 @@ export function CustomToolDetail({
     setShowDeleteConfirm(false)
     try {
       await deleteTool.mutateAsync({ workspaceId, toolId: tool.id })
-      onBack()
+      if (onDeleted) onDeleted()
+      else onBack()
     } catch (error) {
       logger.error('Failed to delete custom tool', error)
       toast.error("Couldn't delete tool", {
@@ -299,11 +353,13 @@ export function CustomToolDetail({
         }}
       />
 
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
+      {!embedded && (
+        <UnsavedChangesModal
+          open={guard.showUnsavedModal}
+          onOpenChange={guard.setShowUnsavedModal}
+          onDiscard={guard.confirmDiscard}
+        />
+      )}
     </>
   )
 }

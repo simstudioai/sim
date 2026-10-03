@@ -60,8 +60,11 @@ export function getSkillsQueryOptions(workspaceId: string) {
   })
 }
 
-export function useSkills(workspaceId: string) {
-  return useQuery(getSkillsQueryOptions(workspaceId))
+export function useSkills(workspaceId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    ...getSkillsQueryOptions(workspaceId),
+    enabled: !!workspaceId && (options?.enabled ?? true),
+  })
 }
 
 interface CreateSkillParams {
