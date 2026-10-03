@@ -11,6 +11,8 @@ export const revalidate = 0
 
 const DEFAULT_SEARCH_LIMIT = 10
 const MAX_SEARCH_LIMIT = 20
+/** Bounds the paid embedding call per request; real searches are a few words. */
+const MAX_QUERY_LENGTH = 256
 
 /** PostgreSQL text-search configuration for the docs' English content. */
 const TS_CONFIG = 'english'
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest) {
   try {
     const { query, limit } = getSearchParams(request)
 
-    if (!query || query.trim().length === 0) {
+    if (query.trim().length === 0 || query.length > MAX_QUERY_LENGTH) {
       return NextResponse.json([])
     }
 
