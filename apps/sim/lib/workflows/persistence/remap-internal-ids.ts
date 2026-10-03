@@ -149,12 +149,19 @@ export function remapVariableIdsInSubBlocks(
 export function remapWorkflowReferencesInSubBlocks(
   subBlocks: SubBlockRecord,
   workflowIdMap: Map<string, string> | undefined,
-  options?: { clearUnmapped?: boolean; canonicalModes?: CanonicalModeOverrides }
+  options?: {
+    clearUnmapped?: boolean
+    preserveToolIndices?: boolean
+    canonicalModes?: CanonicalModeOverrides
+    resolve?: (sourceId: string, path: Array<string | number>) => string | null | undefined
+  }
 ): SubBlockRecord {
-  if (!workflowIdMap?.size) return subBlocks
+  if (!workflowIdMap?.size && !options?.resolve) return subBlocks
+  const resolve = (id: string, path: Array<string | number>) =>
+    options?.resolve ? options.resolve(id, path) : workflowIdMap?.get(id)
   const clearUnmapped = options?.clearUnmapped ?? false
-  const remapScalar = (value: string): string => {
-    const mapped = workflowIdMap.get(value)
+  const remapScalar = (value: string, key: string): string => {
+    const mapped = resolve(value, [key])
     if (mapped) return mapped
     return clearUnmapped ? '' : value
   }
@@ -183,7 +190,7 @@ export function remapWorkflowReferencesInSubBlocks(
         typeof subBlock.value === 'string' &&
         subBlock.value
       ) {
-        updated[key] = { ...subBlock, value: remapScalar(subBlock.value) }
+        updated[key] = { ...subBlock, value: remapScalar(subBlock.value, key) }
         continue
       }
       // Remap only the STRUCTURED multi-workflow lists: the logs block's `workflowSelector` and
@@ -194,14 +201,23 @@ export function remapWorkflowReferencesInSubBlocks(
         baseKey === 'workflowSelector' ||
         (subBlock.type === 'dropdown' && baseKey === 'workflowIds')
       ) {
-        const remapped = remapWorkflowIdList(subBlock.value, workflowIdMap, clearUnmapped)
+        const remapped = remapWorkflowIdList(
+          subBlock.value,
+          (id) => resolve(id, [key]),
+          clearUnmapped
+        )
         if (remapped !== subBlock.value) {
           updated[key] = { ...subBlock, value: remapped }
           continue
         }
       }
       if (subBlock.type === 'tool-input') {
-        const remapped = remapWorkflowInputTools(subBlock.value, workflowIdMap, clearUnmapped)
+        const remapped = remapWorkflowInputTools(
+          subBlock.value,
+          (id, index) => resolve(id, [key, index ?? 0, 'params', 'workflowId']),
+          clearUnmapped,
+          options?.preserveToolIndices
+        )
         if (remapped !== subBlock.value) {
           updated[key] = { ...subBlock, value: remapped }
           continue
@@ -244,11 +260,11 @@ export function remapWorkflowReferencesInSubBlocks(
  */
 function remapWorkflowIdList(
   value: unknown,
-  workflowIdMap: Map<string, string>,
+  resolve: (id: string, index?: number) => string | null | undefined,
   clearUnmapped: boolean
 ): unknown {
   const remapId = (id: string): string | null => {
-    const mapped = workflowIdMap.get(id)
+    const mapped = resolve(id)
     if (mapped) return mapped
     return clearUnmapped ? null : id
   }
@@ -290,18 +306,19 @@ function remapWorkflowIdList(
  */
 function remapWorkflowInputTools(
   value: unknown,
-  workflowIdMap: Map<string, string>,
-  clearUnmapped: boolean
+  resolve: (id: string, index?: number) => string | null | undefined,
+  clearUnmapped: boolean,
+  preserveToolIndices = false
 ): unknown {
   const { array, wasString } = coerceObjectArray(value)
   if (!array) return value
   let changed = false
-  const next = array.flatMap((tool) => {
+  const next = array.flatMap((tool, index) => {
     if (!isRecordLike(tool) || tool.type !== 'workflow_input' || !isRecordLike(tool.params))
       return [tool]
     const workflowId = tool.params.workflowId
     if (typeof workflowId !== 'string') return [tool]
-    const mapped = workflowIdMap.get(workflowId)
+    const mapped = resolve(workflowId, index)
     if (mapped) {
       if (mapped === workflowId) return [tool]
       changed = true
@@ -309,6 +326,7 @@ function remapWorkflowInputTools(
     }
     if (clearUnmapped) {
       changed = true
+      if (preserveToolIndices) return [{ ...tool, params: { ...tool.params, workflowId: '' } }]
       return []
     }
     return [tool]

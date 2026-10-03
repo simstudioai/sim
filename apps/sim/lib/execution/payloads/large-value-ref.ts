@@ -20,6 +20,22 @@ export interface LargeValueRef {
 
 const LARGE_VALUE_ID_PATTERN = /^lv_[A-Za-z0-9_-]{12}$/
 
+/**
+ * Whether `key` is an exact large-value grant in `scope`. A grant only reaches values stored under
+ * the scope's own workspace and workflow, so a key recorded for another tenant never unlocks one.
+ */
+export function isGrantedLargeValueKey(
+  key: string,
+  scope: { workspaceId?: string; workflowId?: string; largeValueKeys?: readonly string[] }
+): boolean {
+  return Boolean(
+    scope.workspaceId &&
+      scope.workflowId &&
+      key.startsWith(`execution/${scope.workspaceId}/${scope.workflowId}/`) &&
+      scope.largeValueKeys?.includes(key)
+  )
+}
+
 export function isLargeValueStorageKey(key: string, id: string, executionId?: string): boolean {
   if (!key.startsWith('execution/')) return false
   if (!key.endsWith(`/large-value-${id}.json`)) return false

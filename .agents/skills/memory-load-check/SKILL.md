@@ -45,7 +45,7 @@ Read these when doing a deeper pass:
   - dispatch concrete chunks (`workspaceIds`, retention, label) instead of one giant scope
   - prefer Trigger.dev queue/concurrency keys when available
   - execute inline fallback chunks sequentially, not with unbounded `Promise.all`
-- File parse pattern in `apps/sim/lib/internal/file/parser.ts` and `apps/sim/lib/uploads/contexts/workspace/fetch-external-url.ts`
+- File parse pattern in `apps/sim/lib/internal/file/parser.ts` and `apps/sim/lib/uploads/utils/fetch-external-url.server.ts`
   - cap downloads and parsed output separately
   - preserve partial results when a later item exceeds the cap
   - never read untrusted response bodies without a byte cap
@@ -73,8 +73,10 @@ For those, require all three:
 - never drop/truncate silently — oversized files become content-less failed rows carrying `skippedReason`, so they stay visible in the KB UI instead of vanishing from the index
 
 Skip the pattern when the source already bounds the payload:
-- pure API/structured-data connectors (Jira, Linear, Notion, Confluence, Sentry, Slack, Zendesk, Gmail, ...) — paginated JSON/text; apply normal pagination + concurrency bounds instead of a per-file byte cap
-- native-document connectors capped by the platform (Google Docs ~50 MB, Google Sheets via `MAX_ROWS`, Evernote ~25 MB/note) — a 100 MB cap can never fire, and wrapping a `response.json()`/Thrift parse in `readBodyWithLimit` is cargo-culting
+- pure API/structured-data connectors (Jira, Linear, Sentry, Slack, Zendesk, Gmail, ...) — paginated JSON/text; apply normal pagination + concurrency bounds instead of a per-file byte cap
+- native-document connectors whose platform caps each document — a 100 MB cap can never fire there
+
+Some connectors also budget the response body (google-docs `MAX_DOCS_RESPONSE_BYTES`, google-sheets `MAX_CONTENT_BYTES`, a remaining-bytes budget in notion); Confluence attachments use the full file pattern. Follow the connector's existing approach rather than adding a cap to every `response.json()`.
 
 Litmus test: "Can a user make this one fetch arbitrarily large, with nothing upstream stopping it?" Yes -> use the pattern. No (platform hard-cap, or already paginated) -> a per-file byte cap adds noise, not safety. Borderline: a user-configured/self-hosted endpoint with no platform cap (e.g. Obsidian) — bound it only if the content is genuinely unbounded.
 

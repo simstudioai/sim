@@ -81,6 +81,25 @@ export const quickbooksCreateBillPaymentTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal payment note',
     },
+    apAccountId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional accounts-payable account the payment is credited to',
+    },
+    documentNumber: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional reference number for the payment',
+    },
+    currencyCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company',
+    },
     requestId: {
       type: 'string',
       required: false,

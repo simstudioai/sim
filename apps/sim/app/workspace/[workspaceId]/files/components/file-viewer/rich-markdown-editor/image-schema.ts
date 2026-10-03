@@ -1,5 +1,11 @@
-import type { JSONContent } from '@tiptap/core'
-import { Image } from '@tiptap/extension-image'
+import { InputRule, type JSONContent, mergeAttributes } from '@tiptap/core'
+import { Image, inputRegex } from '@tiptap/extension-image'
+import { type DOMOutputSpec, Fragment, Slice } from '@tiptap/pm/model'
+import { Plugin } from '@tiptap/pm/state'
+import { Lexer, Tokenizer } from 'marked'
+import { imageTypeAt } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
+import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { createTextInputRulePlugins } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/text-input-rule'
 
 /**
  * React-free schema half of the image node. Lives apart from {@link ./image} (its React resize node
@@ -10,15 +16,10 @@ import { Image } from '@tiptap/extension-image'
  */
 
 /**
- * A markdown linked image `[![alt](src "t")](href "t2")` — an image wrapped in a link, the canonical
- * form of a README badge. `@tiptap/markdown` parses this as a link mark over an image node, but an
- * image node can't carry inline marks, so the wrapping link is silently dropped. We instead tokenize
- * the whole construct ourselves and hang the link target on the image node's `href` attribute, so it
- * round-trips losslessly (and the file stays editable rather than opening read-only).
+ * Linked images store their destination in attributes because the Yjs binding does not preserve
+ * marks on image atoms. Tokenizing the complete Markdown link preserves README badges in both
+ * image representations.
  */
-const LINKED_IMAGE_RE =
-  /^\[!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/
-
 /** Escape a value for safe interpolation into a double-quoted HTML attribute. */
 function escapeAttr(value: string): string {
   return value
@@ -28,30 +29,42 @@ function escapeAttr(value: string): string {
     .replace(/>/g, '&gt;')
 }
 
+function decodeAttr(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+function imageAttrsFromHtml(raw: string): Record<string, string> | null {
+  if (!/^<img\s/i.test(raw)) return null
+  const attrs: Record<string, string> = {}
+  const attributePattern = /([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g
+  for (const match of raw.matchAll(attributePattern)) {
+    attrs[match[1].toLowerCase()] = decodeAttr(match[2] ?? match[3] ?? match[4] ?? '')
+  }
+  return typeof attrs.src === 'string' ? attrs : null
+}
+
 /**
- * Serialize an image to markdown when it has no explicit size, and to an HTML `<img>` tag when
- * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
- * preserve its dimensions. Unsized images stay clean `![alt](src)`. An image with an `href` is
- * wrapped in a markdown link so a linked badge round-trips as `[![alt](src)](href)`.
- *
- * A *sized **and** linked* image is the one case markdown can't represent: the linked-image tokenizer
- * only recognizes `[![alt](src)](href)`, so emitting `[<img …>](href)` would silently drop the link on
- * reparse (and the round-trip-safety probe wouldn't catch it). We keep the link and fall back to the
- * unsized `[![alt](src)](href)` form — the link matters more than the exact dimensions for a badge.
+ * Markdown has no image dimensions, so sized images use HTML. Links wrap either representation:
+ * `[![alt](src)](href)` or `[<img …>](href)`.
  */
 function imageMarkdown(node: JSONContent): string {
   const attrs = node.attrs ?? {}
   const src = typeof attrs.src === 'string' ? attrs.src : ''
   const alt = typeof attrs.alt === 'string' ? attrs.alt : ''
   const title = typeof attrs.title === 'string' ? attrs.title : ''
-  const href = typeof attrs.href === 'string' ? attrs.href : ''
-  const hrefTitle = typeof attrs.hrefTitle === 'string' ? attrs.hrefTitle : ''
+  const link = node.marks?.find((mark) => mark.type === 'link')
+  const linkAttrs = link ? link.attrs : { href: attrs.href, title: attrs.hrefTitle }
+  const href = typeof linkAttrs?.href === 'string' ? linkAttrs.href : ''
+  const hrefTitle = typeof linkAttrs?.title === 'string' ? linkAttrs.title : ''
   const width = attrs.width
   const height = attrs.height
   let image: string
-  if ((width || height) && !href) {
-    const parts = [`src="${escapeAttr(src)}"`]
-    if (alt) parts.push(`alt="${escapeAttr(alt)}"`)
+  if (width || height) {
+    const parts = [`src="${escapeAttr(src)}"`, `alt="${escapeAttr(alt)}"`]
     if (title) parts.push(`title="${escapeAttr(title)}"`)
     if (width) parts.push(`width="${escapeAttr(String(width))}"`)
     if (height) parts.push(`height="${escapeAttr(String(height))}"`)
@@ -67,17 +80,20 @@ function imageMarkdown(node: JSONContent): string {
   // Escape `"`/`\` so an href title can't break out of the `[…](href "title")` syntax (mirrors the
   // image title escaping above).
   const hrefTitlePart = hrefTitle ? ` "${hrefTitle.replace(/["\\]/g, '\\$&')}"` : ''
-  return `[${image}](${href}${hrefTitlePart})`
+  const safeHref = /[\s()]/.test(href) ? `<${href}>` : href
+  return `[${image}](${safeHref}${hrefTitlePart})`
 }
 
 interface MarkdownImageToken {
-  /** Set only by our linked-image tokenizer; absent on the built-in `![](src)` token. */
+  /** Custom image tokens hold the source here; the built-in image token uses `href`. */
   src?: string
   alt?: string
   title?: string | null
   /** Built-in image token holds the source URL here; our linked token holds the link target. */
   href?: string
   hrefTitle?: string | null
+  width?: string | null
+  height?: string | null
   /** Built-in image token holds the alt text here. */
   text?: string
 }
@@ -94,6 +110,8 @@ function parseImageToken(token: MarkdownImageToken): JSONContent {
           title: token.title ?? null,
           href: token.href ?? null,
           hrefTitle: token.hrefTitle ?? null,
+          width: token.width ?? null,
+          height: token.height ?? null,
         }
       : {
           src: token.href ?? '',
@@ -101,6 +119,8 @@ function parseImageToken(token: MarkdownImageToken): JSONContent {
           title: token.title ?? null,
           href: null,
           hrefTitle: null,
+          width: null,
+          height: null,
         },
   }
 }
@@ -119,16 +139,25 @@ const heightAttr = {
     attributes.height ? { height: String(attributes.height) } : {},
 }
 
-/** Link target of a linked image — markdown-only state, never emitted as an HTML `<img>` attribute. */
-const hrefAttr = { default: null, rendered: false }
-const hrefTitleAttr = { default: null, rendered: false }
+/** Wrapping links belong to the image's metadata, not an HTML `<img>` attribute. */
+const hrefAttr = {
+  default: null,
+  rendered: false,
+  parseHTML: (element: HTMLElement) => element.closest('a[href]')?.getAttribute('href') ?? null,
+}
+const hrefTitleAttr = {
+  default: null,
+  rendered: false,
+  parseHTML: (element: HTMLElement) => element.closest('a[href]')?.getAttribute('title') ?? null,
+}
 
 /**
  * Image node that carries optional `width`/`height` (serialized as an HTML `<img>` tag) and an
  * optional `href`/`hrefTitle` (a wrapping markdown link, for badges). Shared by the headless
  * round-trip path (no node view) and the live {@link ResizableImage}.
  */
-export const MarkdownImage = Image.extend({
+const ImageSchema = Image.extend({
+  addInputRules: () => [],
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -138,24 +167,168 @@ export const MarkdownImage = Image.extend({
       hrefTitle: hrefTitleAttr,
     }
   },
+  renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
+    const image: DOMOutputSpec = [
+      'img',
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+    ]
+    const href = typeof node.attrs.href === 'string' ? normalizeLinkHref(node.attrs.href) : ''
+    if (!href || node.marks.some((mark) => mark.type.name === 'link')) return image
+    return [
+      'a',
+      {
+        href,
+        ...(typeof node.attrs.hrefTitle === 'string' ? { title: node.attrs.hrefTitle } : {}),
+      },
+      image,
+    ]
+  },
+  renderMarkdown: imageMarkdown,
+})
+
+export const MarkdownImage = ImageSchema.extend({
+  addProseMirrorPlugins() {
+    return createTextInputRulePlugins(
+      this.editor,
+      this.name,
+      new InputRule({
+        find: new RegExp(`${inputRegex.source}(?![\\s\\S])`),
+        handler: ({ state, range, match }) => {
+          const [, syntax, alt, src, title] = match
+          const from = range.from + match[0].indexOf(syntax)
+          const type = state.schema.nodes[imageTypeAt(state.doc, from)]
+          state.tr
+            .replaceRangeWith(from, range.to, type.create({ alt, src, title: title ?? null }))
+            .scrollIntoView()
+        },
+      })
+    )
+  },
+  addCommands() {
+    return {
+      setImage:
+        (attrs) =>
+        ({ state, commands }) =>
+          commands.insertContent({ type: imageTypeAt(state.doc, state.selection.from), attrs }),
+    }
+  },
   markdownTokenizer: {
     name: 'image',
     level: 'inline',
-    start: (src: string) => src.indexOf('[!['),
+    start: (src: string) => {
+      const markdown = src.indexOf('[![')
+      const html = src.search(/\[?<img\s/i)
+      if (markdown === -1) return html
+      if (html === -1) return markdown
+      return Math.min(markdown, html)
+    },
     tokenize: (src: string): (MarkdownImageToken & { type: string; raw: string }) | undefined => {
-      const match = LINKED_IMAGE_RE.exec(src)
-      if (!match) return undefined
+      if (/^<img\s/i.test(src)) {
+        const tokenizer = new Tokenizer()
+        new Lexer({ gfm: true, tokenizer })
+        const tag = tokenizer.tag(src)
+        const attrs = tag && imageAttrsFromHtml(tag.raw)
+        if (!tag || !attrs) return undefined
+        return {
+          type: 'image',
+          raw: tag.raw,
+          src: attrs.src,
+          alt: attrs.alt,
+          title: attrs.title,
+          width: attrs.width,
+          height: attrs.height,
+        }
+      }
+      if (!src.startsWith('[![') && !/^\[<img\s/i.test(src)) return undefined
+      /** Native first-token parsing avoids recursively lexing the entire remaining document. */
+      const tokenizer = new Tokenizer()
+      new Lexer({ gfm: true, tokenizer })
+      const inner = src.startsWith('[![')
+        ? tokenizer.link(src.slice(1))
+        : tokenizer.tag(src.slice(1))
+      const innerRaw = inner?.raw
+      if (!inner || !innerRaw || (inner.type !== 'image' && inner.type !== 'html')) return undefined
+      if (inner.type === 'image' && !innerRaw.trimEnd().endsWith(')')) return undefined
+      const suffix = src.slice(1 + innerRaw.length)
+      if (!suffix.startsWith(']')) return undefined
+      const outer = tokenizer.link(`[x${suffix}`)
+      if (outer?.type !== 'link' || typeof outer.raw !== 'string' || !outer.raw.startsWith('[x]')) {
+        return undefined
+      }
+      if (!outer.raw.trimEnd().endsWith(')')) return undefined
+      const raw = `[${innerRaw}${outer.raw.slice(2)}`
+      const htmlAttrs = inner.type === 'html' ? imageAttrsFromHtml(innerRaw) : null
+      if (inner.type === 'html' && !htmlAttrs) return undefined
       return {
         type: 'image',
-        raw: match[0],
-        alt: match[1] ?? '',
-        src: match[2],
-        title: match[3] ?? null,
-        href: match[4],
-        hrefTitle: match[5] ?? null,
+        raw,
+        alt: inner.type === 'image' ? inner.text : (htmlAttrs?.alt ?? ''),
+        src: inner.type === 'image' ? inner.href : htmlAttrs?.src,
+        title: inner.type === 'image' ? inner.title : (htmlAttrs?.title ?? null),
+        width: htmlAttrs?.width ?? null,
+        height: htmlAttrs?.height ?? null,
+        href: outer.href,
+        hrefTitle: outer.title ?? null,
       }
     },
   },
   parseMarkdown: parseImageToken,
-  renderMarkdown: imageMarkdown,
 })
+
+/** Yjs persists inline image attributes, but not marks on image atoms. */
+function preservePastedImageLinks(fragment: Fragment): Fragment {
+  const children = []
+  for (let index = 0; index < fragment.childCount; index++) {
+    const child = fragment.child(index)
+    const link =
+      child.type.name === 'inlineImage' && child.marks.find((mark) => mark.type.name === 'link')
+    children.push(
+      link
+        ? child.type.create(
+            { ...child.attrs, href: link.attrs.href, hrefTitle: link.attrs.title ?? null },
+            child.content,
+            child.marks.filter((mark) => mark !== link)
+          )
+        : child.content.size
+          ? child.copy(preservePastedImageLinks(child.content))
+          : child
+    )
+  }
+  return Fragment.fromArray(children)
+}
+
+export const MarkdownInlineImage = ImageSchema.extend({
+  name: 'inlineImage',
+  markdownTokenName: 'inlineImage',
+  addCommands: () => ({}),
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          transformPasted: (slice) =>
+            new Slice(preservePastedImageLinks(slice.content), slice.openStart, slice.openEnd),
+        },
+      }),
+    ]
+  },
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      /** HTML links on inline images are represented by the surrounding link mark. */
+      href: { default: null, rendered: false },
+      hrefTitle: { default: null, rendered: false },
+    }
+  },
+  parseHTML() {
+    return [
+      { tag: 'img[data-inline-image]', priority: 60 },
+      { tag: 'img[src]', context: 'heading/', priority: 60 },
+      {
+        tag: 'img[src]',
+        context: 'paragraph/',
+        priority: 60,
+        getAttrs: (element) => (element.closest('p')?.textContent?.trim() ? null : false),
+      },
+    ]
+  },
+}).configure({ inline: true, HTMLAttributes: { 'data-inline-image': '' } })

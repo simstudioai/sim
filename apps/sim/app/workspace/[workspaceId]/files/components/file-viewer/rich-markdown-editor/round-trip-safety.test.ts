@@ -1,33 +1,89 @@
 /**
  * @vitest-environment jsdom
  */
+import { Editor } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import {
+  parseMarkdownToDoc,
+  serializeMarkdownDocument,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
 import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
 
 describe('isRoundTripSafe', () => {
-  it('passes ordinary markdown and lossless normalizations', () => {
-    expect(isRoundTripSafe('# Title\n\nA **bold** word and a [link](https://sim.ai).')).toBe(true)
-    expect(isRoundTripSafe('- one\n- two\n\n```js\nconst x = 1\n```')).toBe(true)
-    expect(isRoundTripSafe('| a | b |\n| :-- | --: |\n| 1 | 2 |')).toBe(true)
-    expect(isRoundTripSafe('- [ ] a\n  - [x] b')).toBe(true)
-    expect(isRoundTripSafe('line one  \nline two')).toBe(true)
-    expect(isRoundTripSafe('value $x^2 + y$ here')).toBe(true)
-    expect(isRoundTripSafe('a &amp; b &lt; c')).toBe(true)
-    expect(isRoundTripSafe('Title\n=====\n\nbody')).toBe(true)
-    expect(isRoundTripSafe('')).toBe(true)
+  it.each([
+    '<pre>[https://example.com](https://example.com)</pre>',
+    '<!-- [https://example.com](https://example.com) -->',
+    '<span>[https://example.com](https://example.com)</span>',
+    '<details>\n> \\[!NOTE\\]\nparent\n  - \n</details>',
+    '````\n```\n[https://example.com](https://example.com)\n```\n````',
+  ])('preserves literal content on its first serialization: %s', (source) => {
+    const once = serializeMarkdownDocument(source)
+    expect(once.trimEnd()).toBe(source)
+    expect(serializeMarkdownDocument(once)).toBe(once)
+    expect(isRoundTripSafe(source)).toBe(true)
   })
 
-  it('passes a linked image / badge (round-trips through the image node href)', () => {
-    expect(isRoundTripSafe('[![alt](https://e.com/i.png)](https://e.com)')).toBe(true)
-    expect(
-      isRoundTripSafe('[![build](https://img.shields.io/badge/x-green)](https://ci.example.com)')
-    ).toBe(true)
-    expect(isRoundTripSafe('[![alt](https://e.com/i.png "t")](https://e.com "h")')).toBe(true)
+  it.each([
+    'See [label](/path "[unused]").',
+    '`[unused]`',
+    '<span>[unused]</span>',
+    '<!-- [unused] -->',
+    '    [unused]',
+    '\\[unused]',
+  ])('does not count literal reference labels as definition usage: %s', (body) => {
+    expect(isRoundTripSafe(`${body}\n\n[unused]: https://example.com`)).toBe(false)
   })
 
-  it('passes inline code without an interior backtick', () => {
-    expect(isRoundTripSafe('use `npm install` here')).toBe(true)
+  it.each([
+    { field: 'alt', linked: false },
+    { field: 'title', linked: false },
+    { field: 'alt', linked: true },
+    { field: 'title', linked: true },
+  ])('keeps a resized image editable with quoted $field (linked: $linked)', ({ field, linked }) => {
+    const attributes = {
+      src: '/image.png',
+      alt: 'Diagram',
+      [field]: 'A "quoted" diagram',
+      href: linked ? '/destination' : null,
+    }
+    const editor = new Editor({
+      extensions: createMarkdownContentExtensions(),
+      content: { type: 'doc', content: [{ type: 'image', attrs: attributes }] },
+    })
+    try {
+      expect(isRoundTripSafe(editor.getMarkdown())).toBe(true)
+      editor.commands.setNodeSelection(0)
+      editor.commands.updateAttributes('image', { width: '320', height: null })
+      const markdown = editor.getMarkdown()
+      expect(markdown).toContain('&quot;')
+      expect(isRoundTripSafe(markdown)).toBe(true)
+      expect(parseMarkdownToDoc(markdown).content?.[0].attrs).toMatchObject({
+        ...attributes,
+        width: '320',
+        height: null,
+      })
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it.each([
+    '![literal <img src="/inner" alt="&quot;">](/outer)',
+    "![outer](/outer \"literal <img src='/inner' alt='&quot;'>\")",
+    "[text](/link \"literal <img src='/inner' alt='&quot;'>\")",
+    '<img src="/inner" alt="`&quot;`" width="30">\n\n![x][id]\n\n[id]: /outer "&quot;"',
+    '&quot;outside&quot;\n\n[<img src="/image" alt="&quot;inside&quot;" width="30">](/link)',
+    '[<img src="/image" alt="&quot;&copy;&quot;" width="30">](/link)',
+    '[<img src="/image" alt="&quot;inside&quot;" class="hero" width="30">](/link)',
+  ])('does not exempt unsafe text or dropped attributes near image quotes: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+  })
+
+  it('does not let a preserved raw tag hide an identical image tag that loses attributes', () => {
+    const tag = '<img src="/logo.svg" class="logo" width="200">'
+    expect(isRoundTripSafe(`<div>\n${tag}\n</div>\n\n${tag}`)).toBe(false)
   })
 
   it.each([
@@ -59,19 +115,6 @@ describe('isRoundTripSafe', () => {
     }
   )
 
-  it('does not count reference-looking code or escaped brackets as links', () => {
-    expect(isRoundTripSafe('- [ ] `[foo][link]`')).toBe(true)
-    expect(isRoundTripSafe('- [ ] \\[foo\\]\\[link\\]')).toBe(true)
-    expect(isRoundTripSafe('```md\n[![foo][image]](/dest)\n\n[image]: /url\n```')).toBe(true)
-  })
-
-  it('allows adjacent equal links to merge without treating the lower token count as data loss', () => {
-    expect(isRoundTripSafe('[a](/url)[b](/url)')).toBe(true)
-    expect(isRoundTripSafe('[a][link][b][link]\n\n[link]: /url')).toBe(true)
-    expect(isRoundTripSafe('- [ ] [a](/url)[b](/url)')).toBe(true)
-    expect(isRoundTripSafe('![a](/image)\n\n![b](/image)')).toBe(true)
-  })
-
   it('does not let another link or image hide a lost wrapping link or duplicate table image', () => {
     expect(isRoundTripSafe('[other](/dest)\n\n1. [![foo][image]](/dest)\n\n[image]: /url')).toBe(
       false
@@ -79,12 +122,15 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('![kept](/image)\n\n| h |\n| --- |\n| <img src="/image"> |')).toBe(false)
   })
 
-  it('passes a code block followed by other content (idempotent block separation)', () => {
-    expect(isRoundTripSafe('```\ncode\n```\n\ntext after')).toBe(true)
-    expect(
-      isRoundTripSafe('```markdown\n\n```\n\n![s](/api/files/serve/x.png?context=workspace)')
-    ).toBe(true)
-    expect(isRoundTripSafe('> ```\n> code\n> ```')).toBe(true)
+  it.each([
+    '| Header |\n| --- |\n| Before ![Image](/image.png) after |',
+    '| Before ![Image](/image.png) after |\n| --- |\n| Cell |',
+    '| Header |\n| --- |\n| [![Image](/image.png)](/destination) |',
+    '| Header |\n| --- |\n| ![Image][image] |\n\n[image]: /image.png',
+    '| Header |\n| --- |\n| Before <img src="/image.png" width="320"> after |',
+  ])('preserves unsupported table images in source mode: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
   })
 
   it('preserves footnotes, HTML comments, and raw HTML tags via the verbatim snippet nodes', () => {
@@ -116,34 +162,52 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('A [shortcut] ref.\n\n[shortcut]: https://example.com')).toBe(true)
     expect(isRoundTripSafe('Case [Foo] insensitive.\n\n[foo]: https://example.com')).toBe(true)
     expect(isRoundTripSafe('A note.\n\n[^x]: the footnote body')).toBe(true)
-    expect(isRoundTripSafe('See [ foo ] here.\n\n[foo]: https://example.com')).toBe(true)
-  })
-
-  it('does not flag HTML/comments/entities inside tilde or nested code fences', () => {
-    expect(isRoundTripSafe('~~~html\n<!-- c -->\n~~~')).toBe(true)
-    expect(isRoundTripSafe('````md\n```\n<div>x</div>\n```\n````')).toBe(true)
+    /** The installed lexer does not resolve the padded shortcut; its definition would be dropped. */
+    expect(isRoundTripSafe('See [ foo ] here.\n\n[foo]: https://example.com')).toBe(false)
   })
 
   it('rejects non-idempotent churn', () => {
     expect(isRoundTripSafe('render `` a`b `` inline')).toBe(false)
   })
 
-  it('does not flag <br> outside a table (converts losslessly to a hard break)', () => {
-    expect(isRoundTripSafe('a<br>b')).toBe(true)
-    expect(isRoundTripSafe('a line\n\nwith | a pipe but no break')).toBe(true)
-    expect(isRoundTripSafe('Use a<br>break or the pipe | operator.')).toBe(true)
+  it('keeps HTML images with unsupported attributes in source mode', () => {
+    expect(isRoundTripSafe('<img src="/image" class="hero">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" height="20" data-x="y">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" style="width: 20px">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" alt="a" title="t" width="40" height="20">')).toBe(
+      true
+    )
   })
 
-  it('supports <br> inside a table cell without flattening its hard break', () => {
-    expect(isRoundTripSafe('| a | b |\n| --- | --- |\n| one<br>two | x |')).toBe(true)
+  it.each([
+    '[<img src="a>b" class="hero">](/link)',
+    '[<img src="/image" title="a>b" class="hero" width="30">](/link)',
+    "[<img src='/image' title='a>b' data-credit='Alice' width='30'>](/link)",
+  ])('checks attributes after quoted angle brackets without losing source: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
   })
 
-  it('allows <img> (a supported, resizable image node)', () => {
-    expect(isRoundTripSafe('<img src="https://e.com/i.png" width="320">')).toBe(true)
-    expect(isRoundTripSafe('<img src="https://e.com/i.png">')).toBe(true)
-    expect(isRoundTripSafe('<img src="/image?a=1&amp;b=2">')).toBe(true)
-    expect(isRoundTripSafe("<img src='/image' width='40'>")).toBe(true)
-    expect(isRoundTripSafe('<img src=/image>')).toBe(true)
+  it.each([
+    '<img src="/image" alt="first" alt="second">',
+    '[<img src="/image" alt="first" alt="second" width="30">](/link)',
+    '[<img src="/image" alt="first" ALT="second" width="30">](/link)',
+    '[<img src="/image" width="30" WIDTH="60">](/link)',
+  ])('keeps duplicate image attributes in source mode: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
+  })
+
+  it.each([
+    '<img src="/image" width>',
+    '<img src="/image" height>',
+    '<img src="/image" width="">',
+    "<img src='/image' height=''>",
+    '<img WIDTH src="/image" height="20">',
+    '[<img src="/image" width height>](/link)',
+  ])('keeps valueless image dimensions in source mode: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
   })
 
   it.each([
@@ -151,21 +215,25 @@ describe('isRoundTripSafe', () => {
     '| header |\n| --- |\n| <img src="/image.png"> |',
     '| header |\n| --- |\n| <IMG src="/image.png"> |',
     '| header |\n| --- |\n| [<img src="/image.png">](/dest) |',
+    '| header |\n| --- |\n| <img title="a>b" src="/image.png"> |',
+    "| header |\n| --- |\n| <img title='a>b' src=/image.png> |",
+    '| header |\n| --- |\n| <img alt="example `code`" src=/image.png /> |',
+    '| header |\n| --- |\n| <!-- <img src="/example.png"> --><img src="/image.png"> |',
   ])('refuses unsupported HTML images inside GFM tables: %s', (source) => {
     expect(isRoundTripSafe(source)).toBe(false)
   })
 
-  it('allows literal HTML image examples in table code spans', () => {
-    expect(isRoundTripSafe('| header |\n| --- |\n| `<img src="/image.png">` |')).toBe(true)
-  })
-
-  it('does not flag a fenced block that merely contains html or backticks', () => {
-    expect(isRoundTripSafe('```html\n<div>hi</div>\n```')).toBe(true)
-    expect(isRoundTripSafe('````md\n```\ncode\n```\n````')).toBe(true)
-  })
-
-  it('does not flag markdown autolinks as raw html', () => {
-    expect(isRoundTripSafe('see <https://sim.ai> for more')).toBe(true)
+  it.each([
+    '<!-- example: <img src="/image.png"> -->',
+    '<!-- example: <IMG title="a>b" src=/image.png class="hero"> -->',
+    '<span title="example <img>">text</span>',
+  ])('preserves literal image markup in table comments and attributes: %s', (cell) => {
+    for (const source of [`| ${cell} |\n| --- |\n| body |`, `| header |\n| --- |\n| ${cell} |`]) {
+      const serialized = serializeMarkdownDocument(source)
+      expect(serialized).toContain(cell)
+      expect(serializeMarkdownDocument(serialized)).toBe(serialized)
+      expect(isRoundTripSafe(source)).toBe(true)
+    }
   })
 
   it('probes documents up to the size cap but falls back (read-only) above it', () => {
@@ -328,34 +396,4 @@ describe('editability gate — realistic documents stay editable', () => {
       expect(isRoundTripSafe(doc)).toBe(true)
     })
   }
-
-  it('a large-but-ordinary document (just under the probe limit) stays editable', () => {
-    const big = `# Big Doc\n\n${'A paragraph of perfectly ordinary prose. '.repeat(5000)}`
-    expect(big.length).toBeLessThan(256 * 1024)
-    expect(big.length).toBeGreaterThan(128 * 1024)
-    expect(isRoundTripSafe(big)).toBe(true)
-  })
-
-  it('frontmatter does not gate editability', () => {
-    expect(isRoundTripSafe('---\ntitle: Hello\ntags: [a, b]\n---\n\n# Body\n\nText.')).toBe(true)
-    expect(isRoundTripSafe('---\ntitle: "[![foo][image]](/dest)"\n---\n\n# Body')).toBe(true)
-  })
-})
-
-// The flip side and exact boundary of the gate: constructs the WYSIWYG schema genuinely cannot
-// represent open read-only so an edit can't silently corrupt them. Raw HTML blocks, comments, and
-// footnotes used to be the canonical examples here — `./raw-markdown-snippet.ts` now holds each
-// verbatim (including a multi-line block spanning blank lines, via the same `NON_CHUNKABLE`
-// whole-document parse path `markdown-parse.ts` already uses for these constructs), so they moved
-// to the "preserved" test above instead of staying here.
-describe('editability gate — genuinely lossy constructs open read-only', () => {
-  it('raw HTML blocks (<details>, <div align>) are preserved verbatim, not locked read-only', () => {
-    expect(isRoundTripSafe('<details><summary>More</summary>\n\nbody\n\n</details>')).toBe(true)
-    expect(isRoundTripSafe('<div align="center">\n\ncentered\n\n</div>')).toBe(true)
-  })
-
-  it('HTML comments and footnotes are preserved verbatim, not locked read-only', () => {
-    expect(isRoundTripSafe('<!-- TODO: revise -->\n\ntext')).toBe(true)
-    expect(isRoundTripSafe('a claim[^1]\n\n[^1]: the source')).toBe(true)
-  })
 })

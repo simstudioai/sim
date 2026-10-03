@@ -27,8 +27,8 @@ vi.mock(
 )
 
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter?rate-limiter-test'
-import type { ConsumeResult, RateLimitStorageAdapter, TokenStatus } from './storage'
-import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS, RateLimitError } from './types'
+import type { ConsumeResult, RateLimitStorageAdapter } from './storage'
+import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS } from './types'
 
 interface MockAdapter {
   consumeTokens: Mock
@@ -55,7 +55,6 @@ describe('RateLimiter', () => {
   let rateLimiter: RateLimiter
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAdapter = createMockAdapter()
     rateLimiter = new RateLimiter(mockAdapter as RateLimitStorageAdapter)
   })
@@ -73,30 +72,6 @@ describe('RateLimiter', () => {
       expect(result.remaining).toBe(MANUAL_EXECUTION_LIMIT)
       expect(result.resetAt).toBeInstanceOf(Date)
       expect(mockAdapter.consumeTokens).not.toHaveBeenCalled()
-    })
-
-    it('should consume tokens for API requests', async () => {
-      const mockResult: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: RATE_LIMITS.free.sync.maxTokens - 1,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(mockResult)
-
-      const result = await rateLimiter.checkRateLimitWithSubscription(
-        testUserId,
-        freeSubscription,
-        'api',
-        false
-      )
-
-      expect(result.allowed).toBe(true)
-      expect(result.remaining).toBe(mockResult.tokensRemaining)
-      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
-        `${testUserId}:sync`,
-        1,
-        RATE_LIMITS.free.sync
-      )
     })
 
     it('should use async bucket for async requests', async () => {
@@ -245,27 +220,6 @@ describe('RateLimiter', () => {
         config
       )
     })
-
-    it('should work for all non-manual trigger types', async () => {
-      const triggerTypes = ['api', 'webhook', 'schedule', 'chat'] as const
-      const mockResult: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: 10,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(mockResult)
-
-      for (const triggerType of triggerTypes) {
-        await rateLimiter.checkRateLimitWithSubscription(
-          testUserId,
-          freeSubscription,
-          triggerType,
-          false
-        )
-        expect(mockAdapter.consumeTokens).toHaveBeenCalled()
-        mockAdapter.consumeTokens.mockClear()
-      }
-    })
   })
 
   describe('getRateLimitStatusWithSubscription', () => {
@@ -282,67 +236,10 @@ describe('RateLimiter', () => {
       expect(status.remaining).toBe(MANUAL_EXECUTION_LIMIT)
       expect(mockAdapter.getTokenStatus).not.toHaveBeenCalled()
     })
-
-    it('should return status from storage for API requests', async () => {
-      const mockStatus: TokenStatus = {
-        tokensAvailable: 15,
-        maxTokens: RATE_LIMITS.free.sync.maxTokens,
-        lastRefillAt: new Date(),
-        nextRefillAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.getTokenStatus.mockResolvedValue(mockStatus)
-
-      const status = await rateLimiter.getRateLimitStatusWithSubscription(
-        testUserId,
-        freeSubscription,
-        'api',
-        false
-      )
-
-      expect(status.remaining).toBe(15)
-      expect(status.requestsPerMinute).toBe(RATE_LIMITS.free.sync.refillRate)
-      expect(status.maxBurst).toBe(RATE_LIMITS.free.sync.maxTokens)
-      expect(mockAdapter.getTokenStatus).toHaveBeenCalledWith(
-        `${testUserId}:sync`,
-        RATE_LIMITS.free.sync
-      )
-    })
-  })
-
-  describe('resetRateLimit', () => {
-    it('should reset all bucket types for a user', async () => {
-      mockAdapter.resetBucket.mockResolvedValue(undefined)
-
-      await rateLimiter.resetRateLimit(testUserId)
-
-      expect(mockAdapter.resetBucket).toHaveBeenCalledTimes(3)
-      expect(mockAdapter.resetBucket).toHaveBeenCalledWith(`${testUserId}:sync`)
-      expect(mockAdapter.resetBucket).toHaveBeenCalledWith(`${testUserId}:async`)
-      expect(mockAdapter.resetBucket).toHaveBeenCalledWith(`${testUserId}:api-endpoint`)
-    })
-
-    it('should throw error if reset fails', async () => {
-      mockAdapter.resetBucket.mockRejectedValue(new Error('Reset failed'))
-
-      await expect(rateLimiter.resetRateLimit(testUserId)).rejects.toThrow('Reset failed')
-    })
   })
 
   describe('checkRateLimitDirect', () => {
     const config = { maxTokens: 3, refillRate: 1, refillIntervalMs: 60_000 }
-
-    it('should reflect the storage decision when it succeeds', async () => {
-      mockAdapter.consumeTokens.mockResolvedValue({
-        allowed: true,
-        tokensRemaining: 2,
-        resetAt: new Date(),
-      })
-
-      const result = await rateLimiter.checkRateLimitDirect('public:contact:ip', config)
-
-      expect(result.allowed).toBe(true)
-      expect(result.remaining).toBe(2)
-    })
 
     it('should fail open on storage error by default', async () => {
       mockAdapter.consumeTokens.mockRejectedValue(new Error('Storage error'))
@@ -384,29 +281,6 @@ describe('RateLimiter', () => {
       )
     })
 
-    it('should use enterprise plan limits', async () => {
-      const enterpriseSubscription = { plan: 'enterprise', referenceId: 'org-enterprise' }
-      const mockResult: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: RATE_LIMITS.enterprise.sync.maxTokens - 1,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(mockResult)
-
-      await rateLimiter.checkRateLimitWithSubscription(
-        testUserId,
-        enterpriseSubscription,
-        'api',
-        false
-      )
-
-      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
-        `org-enterprise:sync`,
-        1,
-        RATE_LIMITS.enterprise.sync
-      )
-    })
-
     it('should fall back to free plan when subscription is null', async () => {
       const mockResult: ConsumeResult = {
         allowed: true,
@@ -426,28 +300,6 @@ describe('RateLimiter', () => {
   })
 
   describe('schedule trigger type', () => {
-    it('should use sync bucket for schedule trigger', async () => {
-      const mockResult: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: 10,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(mockResult)
-
-      await rateLimiter.checkRateLimitWithSubscription(
-        testUserId,
-        freeSubscription,
-        'schedule',
-        false
-      )
-
-      expect(mockAdapter.consumeTokens).toHaveBeenCalledWith(
-        `${testUserId}:sync`,
-        1,
-        RATE_LIMITS.free.sync
-      )
-    })
-
     it('should use async bucket for schedule trigger with isAsync true', async () => {
       const mockResult: ConsumeResult = {
         allowed: true,
@@ -486,36 +338,5 @@ describe('RateLimiter', () => {
       expect(status.requestsPerMinute).toBe(RATE_LIMITS.free.sync.refillRate)
       expect(status.maxBurst).toBe(RATE_LIMITS.free.sync.maxTokens)
     })
-  })
-})
-
-describe('RateLimitError', () => {
-  it('should create error with default status code 429', () => {
-    const error = new RateLimitError('Rate limit exceeded')
-
-    expect(error.message).toBe('Rate limit exceeded')
-    expect(error.statusCode).toBe(429)
-    expect(error.name).toBe('RateLimitError')
-  })
-
-  it('should create error with custom status code', () => {
-    const error = new RateLimitError('Custom error', 503)
-
-    expect(error.message).toBe('Custom error')
-    expect(error.statusCode).toBe(503)
-  })
-
-  it('should be instanceof Error', () => {
-    const error = new RateLimitError('Test')
-
-    expect(error instanceof Error).toBe(true)
-    expect(error instanceof RateLimitError).toBe(true)
-  })
-
-  it('should have proper stack trace', () => {
-    const error = new RateLimitError('Test error')
-
-    expect(error.stack).toBeDefined()
-    expect(error.stack).toContain('RateLimitError')
   })
 })

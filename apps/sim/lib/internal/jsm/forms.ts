@@ -1,3 +1,4 @@
+import { toArray, toRecord } from '@sim/utils/object'
 import type {
   JsmAttachFormBody,
   JsmCopyFormsBody,
@@ -14,7 +15,7 @@ import type {
   JsmSubmitFormBody,
 } from '@/lib/api/contracts/tools/jsm'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
-import { asArray, asObject, createJsmClient, nested } from '@/lib/internal/jsm/client'
+import { createJsmClient, nested } from '@/lib/internal/jsm/client'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
 
 type IssueFormInput =
@@ -57,15 +58,15 @@ export async function executeJsmGetIssueForms(input: JsmIssueFormsBody, signal?:
     signal,
     true
   )
-  const data = asObject(value)
-  const forms = Array.isArray(value) ? value : asArray(data.values ?? data.forms)
+  const data = toRecord(value)
+  const forms = Array.isArray(value) ? value : toArray(data.values ?? data.forms)
   return {
     success: true,
     output: {
       ts: new Date().toISOString(),
       issueIdOrKey: input.issueIdOrKey,
       forms: forms.map((entry) => {
-        const form = asObject(entry)
+        const form = toRecord(entry)
         return {
           id: form.id ?? null,
           name: form.name ?? null,
@@ -242,15 +243,15 @@ export async function executeJsmGetFormTemplates(
     signal,
     true
   )
-  const data = asObject(value)
-  const templates = Array.isArray(value) ? value : asArray(data.values)
+  const data = toRecord(value)
+  const templates = Array.isArray(value) ? value : toArray(data.values)
   return {
     success: true,
     output: {
       ts: new Date().toISOString(),
       projectIdOrKey: input.projectIdOrKey,
       templates: templates.map((entry) => {
-        const template = asObject(entry)
+        const template = toRecord(entry)
         return {
           id: template.id ?? null,
           name: template.name ?? null,

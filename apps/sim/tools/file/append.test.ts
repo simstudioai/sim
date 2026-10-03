@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { fileManageAppendBodySchema } from '@/lib/api/contracts/tools/file'
 import { fileAppendTool } from '@/tools/file/append'

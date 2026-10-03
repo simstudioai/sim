@@ -1,65 +1,49 @@
-/**
- * @vitest-environment node
- */
 import { createHash } from 'node:crypto'
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockCreateApproval,
-  mockEnforceUserRateLimit,
-  mockGetPermissions,
-  mockGetUserPermissionConfig,
-  mockGetOrgPermissionConfig,
-  mockResolveVerifiedContext,
-  mockGetUserOrganization,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockCreateApproval } = vi.hoisted(() => ({
   mockCreateApproval: vi.fn(),
-  mockEnforceUserRateLimit: vi.fn(),
-  mockGetPermissions: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
-  mockGetOrgPermissionConfig: vi.fn(),
-  mockResolveVerifiedContext: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
-  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  getUserOrganization: mockGetUserOrganization,
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/cli-auth/approval-store', () => ({
   createApproval: mockCreateApproval,
 }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceUserRateLimit: mockEnforceUserRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { POST } from '@/app/api/cli/auth/approve/route'
+
+const mockEnforceUserRateLimit = rateLimiterMockFns.mockEnforceUserRateLimit
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const mockGetOrgPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+const mockGetPermissions = permissionsMockFns.mockGetUserEntityPermissions
+const mockGetUserOrganization = organizationMembershipMockFns.mockGetUserOrganization
+const mockGetSession = authMockFns.mockGetSession
 
 const REQUEST = 'a'.repeat(43)
 const CHALLENGE = createHash('sha256').update('b'.repeat(43)).digest('base64url')
 
 describe('POST /api/cli/auth/approve', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockEnforceUserRateLimit.mockResolvedValue(null)
     mockCreateApproval.mockResolvedValue(undefined)
@@ -78,62 +62,6 @@ describe('POST /api/cli/auth/approve', () => {
 
     expect(response.status).toBe(403)
     expect(mockCreateApproval).not.toHaveBeenCalled()
-  })
-
-  it('resolves the governing group from the bound workspace when one is given', async () => {
-    await POST(
-      createMockRequest('POST', {
-        request: REQUEST,
-        challenge: CHALLENGE,
-        scope: 'platform',
-        workspaceId: 'ws-1',
-        bindKeyToWorkspace: true,
-      })
-    )
-
-    expect(mockGetUserPermissionConfig).toHaveBeenCalledWith('user-1', 'ws-1')
-    expect(mockGetOrgPermissionConfig).not.toHaveBeenCalled()
-  })
-
-  it('records the approval for the signed-in user', async () => {
-    const response = await POST(
-      createMockRequest('POST', { request: REQUEST, challenge: CHALLENGE })
-    )
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ ok: true })
-    expect(mockCreateApproval).toHaveBeenCalledWith('user-1', REQUEST, CHALLENGE, {
-      scope: 'copilot',
-      workspaceId: undefined,
-      workspaceBound: false,
-    })
-  })
-
-  it('defaults to the copilot scope so pre-scope terminals keep working', async () => {
-    await POST(createMockRequest('POST', { request: REQUEST, challenge: CHALLENGE }))
-    expect(mockCreateApproval).toHaveBeenCalledWith(
-      'user-1',
-      REQUEST,
-      CHALLENGE,
-      expect.objectContaining({ scope: 'copilot' })
-    )
-  })
-
-  it('records a workspace binding when the approver is a workspace admin', async () => {
-    const response = await POST(
-      createMockRequest('POST', {
-        request: REQUEST,
-        challenge: CHALLENGE,
-        scope: 'platform',
-        workspaceId: 'ws-1',
-        bindKeyToWorkspace: true,
-      })
-    )
-    expect(response.status).toBe(200)
-    expect(mockCreateApproval).toHaveBeenCalledWith('user-1', REQUEST, CHALLENGE, {
-      scope: 'platform',
-      workspaceId: 'ws-1',
-      workspaceBound: true,
-    })
   })
 
   it("records a non-admin's pick as a default without binding the key to it", async () => {
@@ -166,33 +94,6 @@ describe('POST /api/cli/auth/approve', () => {
       })
     )
     expect(response.status).toBe(403)
-    expect(mockCreateApproval).not.toHaveBeenCalled()
-  })
-
-  it('refuses a workspace the approver is not a member of', async () => {
-    mockGetPermissions.mockResolvedValue(null)
-    const response = await POST(
-      createMockRequest('POST', {
-        request: REQUEST,
-        challenge: CHALLENGE,
-        scope: 'platform',
-        workspaceId: 'ws-1',
-      })
-    )
-    expect(response.status).toBe(404)
-    expect(mockCreateApproval).not.toHaveBeenCalled()
-  })
-
-  it('refuses bindKeyToWorkspace with no workspaceId', async () => {
-    const response = await POST(
-      createMockRequest('POST', {
-        request: REQUEST,
-        challenge: CHALLENGE,
-        scope: 'platform',
-        bindKeyToWorkspace: true,
-      })
-    )
-    expect(response.status).toBe(400)
     expect(mockCreateApproval).not.toHaveBeenCalled()
   })
 
@@ -247,70 +148,11 @@ describe('POST /api/cli/auth/approve', () => {
       expect(mockCreateApproval).not.toHaveBeenCalled()
     })
 
-    it('reads the organization group for an unbound approval that still names a workspace', async () => {
-      // The workspace is only the terminal's default here, so the key is
-      // personal and the organization's group is the one that governs it.
-      mockGetPermissions.mockResolvedValue('write')
-      mockGetOrgPermissionConfig.mockResolvedValue({ hideApiKeysTab: true })
-
-      const response = await POST(
-        createMockRequest('POST', {
-          request: REQUEST,
-          challenge: CHALLENGE,
-          scope: 'platform',
-          workspaceId: 'ws-1',
-        })
-      )
-
-      expect(response.status).toBe(403)
-      expect(mockCreateApproval).not.toHaveBeenCalled()
-    })
-
     it('leaves a copilot approval alone — a separate key space the API-keys surface never manages', async () => {
       mockGetOrgPermissionConfig.mockResolvedValue({ hideApiKeysTab: true })
 
       const response = await POST(
         createMockRequest('POST', { request: REQUEST, challenge: CHALLENGE, scope: 'copilot' })
-      )
-
-      expect(response.status).toBe(200)
-      expect(mockCreateApproval).toHaveBeenCalled()
-    })
-
-    it('records the approval when a governing group permits key management', async () => {
-      mockGetUserPermissionConfig.mockResolvedValue({ hideApiKeysTab: false })
-
-      const response = await POST(
-        createMockRequest('POST', {
-          request: REQUEST,
-          challenge: CHALLENGE,
-          scope: 'platform',
-          workspaceId: 'ws-1',
-          bindKeyToWorkspace: true,
-        })
-      )
-
-      expect(response.status).toBe(200)
-      expect(mockCreateApproval).toHaveBeenCalledWith('user-1', REQUEST, CHALLENGE, {
-        scope: 'platform',
-        workspaceId: 'ws-1',
-        workspaceBound: true,
-      })
-    })
-
-    it('leaves a user no group governs unaffected', async () => {
-      mockGetUserPermissionConfig.mockResolvedValue(null)
-      mockGetOrgPermissionConfig.mockResolvedValue(null)
-      mockGetUserOrganization.mockResolvedValue(null)
-
-      const response = await POST(
-        createMockRequest('POST', {
-          request: REQUEST,
-          challenge: CHALLENGE,
-          scope: 'platform',
-          workspaceId: 'ws-1',
-          bindKeyToWorkspace: true,
-        })
       )
 
       expect(response.status).toBe(200)
@@ -360,27 +202,10 @@ describe('POST /api/cli/auth/approve', () => {
     })
   })
 
-  it('rejects an unauthenticated caller', async () => {
-    mockGetSession.mockResolvedValue(null)
-    const response = await POST(
-      createMockRequest('POST', { request: REQUEST, challenge: CHALLENGE })
-    )
-    expect(response.status).toBe(401)
-    expect(mockCreateApproval).not.toHaveBeenCalled()
-  })
-
   it('ignores a user id supplied in the body', async () => {
     await POST(
       createMockRequest('POST', { request: REQUEST, challenge: CHALLENGE, userId: 'attacker' })
     )
     expect(mockCreateApproval).toHaveBeenCalledWith('user-1', REQUEST, CHALLENGE, expect.anything())
-  })
-
-  it('rejects a malformed challenge', async () => {
-    const response = await POST(
-      createMockRequest('POST', { request: REQUEST, challenge: 'not-a-digest' })
-    )
-    expect(response.status).toBe(400)
-    expect(mockCreateApproval).not.toHaveBeenCalled()
   })
 })

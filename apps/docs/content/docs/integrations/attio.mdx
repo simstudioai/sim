@@ -11,17 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Attio](https://www.attio.com/) is a modern and flexible CRM platform built to help teams manage relationships, data, and workflows more efficiently. Attio enables organizations to create and organize custom objects (like people, companies, deals, and more), manage notes and tasks, collaborate as a team, and automate work across their relationship and data pipelines.
-
-With Attio, you can:
-
-- **Manage records for any object**: Store and organize people, companies, or any custom objects to fit your team's needs.
-- **Track, connect, and update information**: Add and edit notes, comments, tasks, and linked records so your contextual data is always in sync.
-- **Build and customize lists**: Segment records, filter and sort with powerful queries, and build views that fit your workflow.
-- **Collaborate with your team**: Assign tasks, share comments, and see activities in real time.
-- **Automate CRM workflows**: Create, update, and read record data via API to keep your tools and teams in the loop, or trigger actions as relationships evolve.
-
-In Sim, the Attio integration lets your agents programmatically query lists, fetch and manipulate records, manage entries, tasks, comments, and more—making it easy to automate CRM operations, enrich data, synchronize with other systems, or trigger workflow automations based on relationship or record events. Use these tools to ensure your CRM stays up-to-date and powerful directly from within your Sim projects.
+Use [Attio](https://www.attio.com/) in Sim to manage records for people, companies, and custom objects; work with lists, notes, tasks, and comments; and configure webhooks. Attio event triggers can start workflows when records or related resources change.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -1234,8 +1224,6 @@ Update an attribute (schema field) on an Attio object or list
 | `config` | json | Type-dependent attribute configuration |
 | `createdAt` | string | When the attribute was created |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1736,4 +1724,27 @@ Trigger workflow when a new member is added to the Attio workspace
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `workspaceMemberId` | string | The workspace member ID |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects an Attio account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/attio` |
+| Environment variables | `ATTIO_CLIENT_ID`, `ATTIO_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `record_permission:read-write` | Read and write CRM records |
+| `object_configuration:read-write` | Read and manage object schemas |
+| `list_configuration:read-write` | Read and manage list configurations |
+| `list_entry:read-write` | Read and write list entries |
+| `note:read-write` | Read and write notes |
+| `task:read-write` | Read and write tasks |
+| `comment:read-write` | Read and write comments and threads |
+| `user_management:read` | View workspace members |
+| `webhook:read-write` | Manage webhooks |
+
 

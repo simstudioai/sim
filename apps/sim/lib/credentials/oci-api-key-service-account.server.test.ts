@@ -2,16 +2,16 @@
  * @vitest-environment node
  */
 import { createHash, createPublicKey, generateKeyPairSync, type KeyObject } from 'node:crypto'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const dependencies = vi.hoisted(() => ({
-  encryptSecret: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   verifySetup: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: dependencies.encryptSecret }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/internal/oci/client.server', () => ({
-  verifyOciApiKeyCredentialForSetup: dependencies.verifySetup,
+  verifyOciApiKeyCredentialForSetup: hoisted.verifySetup,
 }))
 
 import {
@@ -24,12 +24,19 @@ import {
   OCI_API_KEY_SERVICE_ACCOUNT_SECRET_TYPE,
 } from '@/lib/oauth/types'
 
+const dependencies = {
+  ...hoisted,
+  encryptSecret: encryptionMockFns.mockEncryptSecret,
+}
+
 const TENANCY_OCID = 'ocid1.tenancy.oc1..aaaaaaaafoundationtenant'
 const USER_OCID = 'ocid1.user.oc1..aaaaaaaafoundationuser'
 
 function fingerprintForKey(privateKey: KeyObject): string {
   const der = createPublicKey(privateKey).export({ format: 'der', type: 'spki' })
-  return createHash('md5').update(der).digest('hex').match(/.{2}/g)!.join(':')
+  const bytes = createHash('md5').update(der).digest('hex').match(/.{2}/g)
+  if (!bytes) throw new Error('Expected a key fingerprint')
+  return bytes.join(':')
 }
 
 describe('OCI API-key credential setup', () => {
@@ -54,7 +61,6 @@ describe('OCI API-key credential setup', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     dependencies.verifySetup.mockResolvedValue(new TextEncoder().encode('"namespace"'))
     dependencies.encryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })
   })
@@ -114,7 +120,9 @@ describe('OCI API-key credential setup', () => {
             privateKeyPassphrase: keyPassphrase,
           })
         )
-        const serialized = dependencies.verifySetup.mock.lastCall![0]
+        const call = dependencies.verifySetup.mock.lastCall
+        if (!call) throw new Error('Expected OCI setup verification')
+        const serialized = call[0]
         expect(JSON.parse(serialized).privateKey).toBe(pem)
         expect(dependencies.encryptSecret).toHaveBeenLastCalledWith(serialized)
       }

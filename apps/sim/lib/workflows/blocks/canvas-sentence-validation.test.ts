@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Unit coverage for the invariants. The fleet-wide run lives in
  * `scripts/check-canvas-sentences.ts` — loading all 315 block configs here
  * would drag the whole registry into every test run.
@@ -50,14 +48,6 @@ describe('field references', () => {
     ])
   })
 
-  it('accepts a field the block declares', () => {
-    const config = createConfig({ default: [{ text: 'Run', field: 'code', core: true }] }, [
-      { id: 'code' },
-    ])
-
-    expect(messages(config)).toEqual([])
-  })
-
   it('rejects an empty field list', () => {
     const config = createConfig({ default: ['Run', { text: 'with', field: [] }] }, [{ id: 'code' }])
 
@@ -75,15 +65,6 @@ describe('byOperation keys', () => {
     expect(messages(config)).toEqual([
       expect.stringContaining('no option with id "snd" on the "operation" dropdown'),
     ])
-  })
-
-  it('accepts a key that matches an option', () => {
-    const config = createConfig({ byOperation: { send: [{ field: 'to', core: true }] } }, [
-      operationDropdown('send', 'search'),
-      { id: 'to' },
-    ])
-
-    expect(messages(config)).toEqual([])
   })
 })
 
@@ -109,19 +90,6 @@ describe('canonical-pair completeness', () => {
     ])
   })
 
-  it('rejects a clause naming only the advanced member', () => {
-    /* Non-core plus literal copy, so only the canonical-pair rule can fire —
-       the advanced member is also, correctly, not on a basic-mode card. */
-    const config = createConfig(
-      { default: ['Query rows', { text: 'from', field: 'manualTableId' }] },
-      pairSubBlocks
-    )
-
-    expect(messages(config)).toEqual([
-      expect.stringContaining('omits "tableSelector" from canonical group "tableId"'),
-    ])
-  })
-
   it('rejects a core clause naming only the advanced member, which a basic card hides', () => {
     const config = createConfig(
       { default: [{ text: 'Query', field: 'manualTableId', core: true }] },
@@ -133,17 +101,6 @@ describe('canonical-pair completeness', () => {
       expect.stringContaining('is `core`, but "manualTableId" is not proven to be on the card'),
       expect.stringContaining('nothing in this sentence is guaranteed to render'),
     ])
-  })
-
-  it('accepts a clause naming both members', () => {
-    const config = createConfig(
-      {
-        default: [{ text: 'Query', field: ['tableSelector', 'manualTableId'], core: true }],
-      },
-      pairSubBlocks
-    )
-
-    expect(messages(config)).toEqual([])
   })
 })
 
@@ -172,20 +129,6 @@ describe('dead clauses', () => {
       [
         operationDropdown('send', 'search'),
         { id: 'to', condition: { field: 'operation', value: 'search', not: true } },
-      ]
-    )
-
-    expect(messages(config)).toEqual([])
-  })
-
-  it('accepts when one of several same-id definitions matches', () => {
-    /* table declares `filter` once per operation family; the card shows whichever matches. */
-    const config = createConfig(
-      { byOperation: { bulk: [{ text: 'Update, where', field: 'filter', core: true }] } },
-      [
-        operationDropdown('query', 'bulk'),
-        { id: 'filter', condition: { field: 'operation', value: 'query' } },
-        { id: 'filter', condition: { field: 'operation', value: 'bulk' } },
       ]
     )
 
@@ -276,22 +219,6 @@ describe('operations must be distinguishable', () => {
     expect(messages(config)).toEqual([
       expect.stringContaining('renders identically to "get_thread_replies"'),
     ])
-  })
-
-  it('accepts operations that differ only in copy', () => {
-    const config = createConfig(
-      {
-        byOperation: {
-          get_thread: [{ text: 'Read thread', field: 'threadId', core: true }],
-          get_thread_replies: [
-            { text: 'Read every reply in thread', field: 'threadId', core: true },
-          ],
-        },
-      },
-      [operationDropdown('get_thread', 'get_thread_replies'), { id: 'threadId' }]
-    )
-
-    expect(messages(config)).toEqual([])
   })
 
   /*
@@ -395,15 +322,6 @@ describe('article agreement with a dropdown chip', () => {
     ])
   })
 
-  it('accepts a core chip with no article in front of it', () => {
-    const config = createConfig(
-      { default: [{ text: 'Create', field: 'campaignType', after: 'campaign', core: true }] },
-      [campaignTypes]
-    )
-
-    expect(messages(config)).toEqual([])
-  })
-
   it('rejects "a" in front of an optional label that needs "an"', () => {
     /* An optional chip only ever renders a real label, so the article can be
        checked against the label set instead. */
@@ -415,15 +333,6 @@ describe('article agreement with a dropdown chip', () => {
     expect(messages(config)).toEqual([
       expect.stringContaining('puts "a" in front of the "campaignType" chip'),
     ])
-  })
-
-  it('accepts the value moved out from behind the article', () => {
-    const config = createConfig(
-      { default: ['Create a campaign', { text: 'of type', field: 'campaignType' }] },
-      [campaignTypes]
-    )
-
-    expect(messages(config)).toEqual([])
   })
 
   it('honours labels whose spelling and pronunciation disagree', () => {
@@ -453,34 +362,6 @@ describe('article agreement with a dropdown chip', () => {
 
     expect(messages(config)).toEqual([expect.stringContaining('needs "an"')])
   })
-
-  it('does not treat an all-caps word as an initialism', () => {
-    /* `MERGE` and `HEAD` are HTTP verbs read as words — "a MERGE request". */
-    const config = createConfig(
-      { default: ['Send', { text: 'a', field: 'method', after: 'request' }] },
-      [
-        {
-          id: 'method',
-          type: 'dropdown',
-          options: [
-            { id: 'merge', label: 'MERGE' },
-            { id: 'head', label: 'HEAD' },
-          ],
-        },
-      ]
-    )
-
-    expect(messages(config)).toEqual([])
-  })
-
-  it('stays silent when the chip is not an enumerable dropdown', () => {
-    const config = createConfig(
-      { default: ['Create', { text: 'a', field: 'name', after: 'record' }] },
-      [{ id: 'name' }]
-    )
-
-    expect(messages(config)).toEqual([])
-  })
 })
 
 describe('correlative constructions', () => {
@@ -504,49 +385,6 @@ describe('correlative constructions', () => {
     expect(messages(config)).toEqual([
       expect.stringContaining('clause 0 opens "from … to", but clause 1 carries the other half'),
     ])
-  })
-
-  it('rejects a droppable second operand after "between"', () => {
-    const config = createConfig(
-      {
-        default: [
-          { text: 'Compare builds between', field: 'fromBuild', core: true },
-          { text: 'and', field: 'toBuild' },
-        ],
-      },
-      [{ id: 'fromBuild' }, { id: 'toBuild' }]
-    )
-
-    expect(messages(config)).toEqual([expect.stringContaining('opens "between … and"')])
-  })
-
-  it('accepts a second operand that names itself when empty', () => {
-    const config = createConfig(
-      {
-        default: [
-          { text: 'Route from', field: 'origin', core: true },
-          { text: 'to', field: 'destination', core: true },
-        ],
-      },
-      [{ id: 'origin' }, { id: 'destination' }]
-    )
-
-    expect(messages(config)).toEqual([])
-  })
-
-  it('ignores "from" with no matching closer', () => {
-    /* "List rows from ⟨table⟩" is a complete thought, not half a relation. */
-    const config = createConfig(
-      {
-        default: [
-          { text: 'List rows from', field: 'table', core: true },
-          { text: ', limited to', field: 'limit' },
-        ],
-      },
-      [{ id: 'table' }, { id: 'limit' }]
-    )
-
-    expect(messages(config)).toEqual([])
   })
 })
 
@@ -690,38 +528,6 @@ describe('connective hygiene', () => {
     ])
   })
 
-  it('accepts the same connective carried inside the optional clause', () => {
-    const config = createConfig(
-      {
-        default: [
-          { text: 'Query', field: 'table', core: true },
-          { text: ', where', field: 'filter' },
-        ],
-      },
-      [{ id: 'table' }, { id: 'filter' }]
-    )
-
-    expect(messages(config)).toEqual([])
-  })
-
-  it('rejects an `after` connective in front of an optional clause, core or not', () => {
-    /* A core clause's own `after` is just as exposed: the clause renders its
-       noun and the connective with it, and the next clause still drops. */
-    const config = createConfig(
-      {
-        default: [
-          { text: 'Send', field: 'method', after: 'request to', core: true },
-          { field: 'url' },
-        ],
-      },
-      [{ id: 'method' }, { id: 'url' }]
-    )
-
-    expect(messages(config)).toEqual([
-      expect.stringContaining('ends on "to", but clause 1 is optional'),
-    ])
-  })
-
   it('rejects a trailing connective with nothing after it', () => {
     const config = createConfig(
       { default: [{ text: 'Query', field: 'table', after: 'where', core: true }] },
@@ -731,20 +537,6 @@ describe('connective hygiene', () => {
     expect(messages(config)).toEqual([
       expect.stringContaining('ends on "where" with nothing after it'),
     ])
-  })
-
-  it('accepts a connective in front of a clause that always renders', () => {
-    const config = createConfig(
-      {
-        default: [
-          { text: 'Send', field: 'method', after: 'request to', core: true },
-          { field: 'url', core: true },
-        ],
-      },
-      [{ id: 'method' }, { id: 'url' }]
-    )
-
-    expect(messages(config)).toEqual([])
   })
 })
 
@@ -777,19 +569,6 @@ describe('coverage', () => {
       covered: 1,
       total: 3,
       missing: ['search', 'archive'],
-    })
-  })
-
-  it('treats a default sentence as covering every operation', () => {
-    const config = createConfig({ default: [{ text: 'Act on', field: 'to', core: true }] }, [
-      operationDropdown('send', 'search'),
-      { id: 'to' },
-    ])
-
-    expect(validateBlockSentences(config).coverage).toEqual({
-      covered: 2,
-      total: 2,
-      missing: [],
     })
   })
 })

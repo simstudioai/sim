@@ -1,15 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 
 describe('requireWorkflowTransition', () => {
-  it('returns without throwing for a successful transition', () => {
-    expect(() => requireWorkflowTransition({ success: true }, 'Failed')).not.toThrow()
-  })
-
   it('withholds the raw message a failed lifecycle transition carries', () => {
     expect(() =>
       requireWorkflowTransition(

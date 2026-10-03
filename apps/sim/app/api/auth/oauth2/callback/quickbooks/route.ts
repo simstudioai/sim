@@ -7,6 +7,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { completeQuickBooksConnection } from '@/lib/credentials/application/complete-quickbooks-connection'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { normalizeQuickBooksRealmId } from '@/lib/oauth/quickbooks'
 import { parseQuickBooksOAuthState } from '@/lib/oauth/quickbooks-state'
 
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic'
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const baseUrl = getBaseUrl()
-  const fallbackUrl = `${baseUrl}/workspace`
+  const fallbackUrl = `${baseUrl}${APP_ENTRY_PATH}`
   let validatedReturnUrl: URL | null = null
 
   try {

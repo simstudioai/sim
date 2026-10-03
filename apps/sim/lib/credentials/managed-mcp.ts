@@ -9,13 +9,27 @@ import {
 } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, ne } from 'drizzle-orm'
-import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
+import {
+  type ResourceScope,
+  resourceScopeColumns,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
+import {
+  resourceScopeCondition,
+  sameResourceScopeCondition,
+} from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import type { OrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
-import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  getManagedMcpConnector,
+  requireManagedMcpConnectorUrl,
+} from '@/lib/credential-groups/managed-mcp-connectors'
+import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
+import { loadPreregisteredClient } from '@/lib/mcp/oauth/provider'
 import { generateManagedMcpConnectionId } from '@/lib/mcp/utils'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const MANAGED_MCP_TOKEN_SET_TYPE = 'managed-mcp-oauth-token-set' as const
@@ -25,9 +39,12 @@ interface ManagedMcpTokenEnvelope {
   type: typeof MANAGED_MCP_TOKEN_SET_TYPE
   version: typeof MANAGED_MCP_TOKEN_SET_VERSION
   tokens: OAuthTokens
+  configurationFingerprint?: string
 }
 
 export interface ManagedMcpCredentialApplicationContext extends WorkspaceAuthorizationContext {
+  credentialType: OrganizationCredentialType
+  organizationId?: string
   credentialId: string
   credentialGroupId: string
   credentialGroupEnrollmentId: string
@@ -36,6 +53,12 @@ export interface ManagedMcpCredentialApplicationContext extends WorkspaceAuthori
 }
 
 export interface ManagedMcpRuntimeCredential {
+  credentialType: OrganizationCredentialType
+  grantedAt: Date
+  oauthConfigVersion: number
+  configurationFingerprint?: string
+  scope: ResourceScope
+  credentialGroupId: string
   credentialId: string
   mcpServerId: string
   mcpServerName: string
@@ -67,17 +90,21 @@ function isOAuthTokens(value: unknown): value is OAuthTokens {
   )
 }
 
-export async function encryptManagedMcpTokens(tokens: OAuthTokens): Promise<string> {
+export async function encryptManagedMcpTokens(
+  tokens: OAuthTokens,
+  configurationFingerprint?: string
+): Promise<string> {
   if (!isOAuthTokens(tokens)) throw new ManagedMcpCredentialError('Invalid MCP OAuth tokens', 500)
   const envelope: ManagedMcpTokenEnvelope = {
     type: MANAGED_MCP_TOKEN_SET_TYPE,
     version: MANAGED_MCP_TOKEN_SET_VERSION,
     tokens,
+    ...(configurationFingerprint ? { configurationFingerprint } : {}),
   }
   return (await encryptSecret(JSON.stringify(envelope))).encrypted
 }
 
-export async function decryptManagedMcpTokens(encrypted: string): Promise<OAuthTokens> {
+async function decryptManagedMcpEnvelope(encrypted: string): Promise<ManagedMcpTokenEnvelope> {
   try {
     const { decrypted } = await decryptSecret(encrypted)
     const parsed: unknown = JSON.parse(decrypted)
@@ -86,11 +113,21 @@ export async function decryptManagedMcpTokens(encrypted: string): Promise<OAuthT
     if (
       envelope.type !== MANAGED_MCP_TOKEN_SET_TYPE ||
       envelope.version !== MANAGED_MCP_TOKEN_SET_VERSION ||
-      !isOAuthTokens(envelope.tokens)
+      !isOAuthTokens(envelope.tokens) ||
+      (envelope.configurationFingerprint !== undefined &&
+        (typeof envelope.configurationFingerprint !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(envelope.configurationFingerprint)))
     ) {
       throw new Error('Invalid token envelope')
     }
-    return envelope.tokens
+    return {
+      type: MANAGED_MCP_TOKEN_SET_TYPE,
+      version: MANAGED_MCP_TOKEN_SET_VERSION,
+      tokens: envelope.tokens,
+      ...(typeof envelope.configurationFingerprint === 'string'
+        ? { configurationFingerprint: envelope.configurationFingerprint }
+        : {}),
+    }
   } catch (error) {
     throw new ManagedMcpCredentialError(
       `Managed MCP credential token data is invalid: ${getErrorMessage(error)}`,
@@ -100,59 +137,16 @@ export async function decryptManagedMcpTokens(encrypted: string): Promise<OAuthT
 }
 
 export async function loadManagedMcpCredentialApplicationContext(
-  credentialId: string
+  credentialId: string,
+  executingWorkspaceId?: string
 ): Promise<ManagedMcpCredentialApplicationContext | null> {
   const [row] = await db
     .select({
       credentialId: credential.id,
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
       credentialGroupId: credentialGroup.id,
       credentialGroupEnrollmentId: credentialGroupEnrollment.id,
-      mcpServerId: mcpServers.id,
-      mcpServerName: mcpServers.name,
-      managedConnectorId: mcpServers.managedConnectorId,
-    })
-    .from(credential)
-    .innerJoin(
-      credentialGroupEnrollment,
-      eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
-    )
-    .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
-    .innerJoin(mcpServers, eq(mcpServers.id, credential.mcpServerId))
-    .where(and(eq(credential.id, credentialId), eq(credential.type, 'managed_mcp')))
-    .limit(1)
-  if (!row) return null
-  if (!row.managedConnectorId) {
-    throw new Error(`Managed MCP server ${row.mcpServerId} has no connector ID`)
-  }
-  getManagedMcpConnector(row.managedConnectorId)
-  const workspaceContext = await loadActiveWorkspaceApplicationContext(row.workspaceId)
-  return workspaceContext ? { ...workspaceContext, ...row } : null
-}
-
-export async function loadManagedMcpRuntimeCredential(
-  credentialId: string,
-  workspaceId: string
-): Promise<ManagedMcpRuntimeCredential> {
-  const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(workspaceId)
-  if (!(await isCredentialGroupsAvailable({ workspaceId, ownerBilling }))) {
-    throw new ManagedMcpCredentialError(
-      'Managed MCP credentials are not available for this workspace',
-      403
-    )
-  }
-
-  const [row] = await db
-    .select({
-      credentialId: credential.id,
-      workspaceId: credential.workspaceId,
-      status: credential.managedOauthStatus,
-      encryptedTokens: credential.encryptedOauthTokenSet,
-      tools: credential.mcpTools,
-      enrollmentStatus: credentialGroupEnrollment.status,
-      groupStatus: credentialGroup.status,
-      credentialGroupId: credentialGroup.id,
-      linkedCredentialGroupId: mcpServers.credentialGroupId,
       mcpServerId: mcpServers.id,
       mcpServerName: mcpServers.name,
       managedConnectorId: mcpServers.managedConnectorId,
@@ -167,9 +161,97 @@ export async function loadManagedMcpRuntimeCredential(
     .where(
       and(
         eq(credential.id, credentialId),
-        eq(credential.workspaceId, workspaceId),
         eq(credential.type, 'managed_mcp'),
-        eq(mcpServers.workspaceId, workspaceId),
+        sameResourceScopeCondition(credential, credentialGroup),
+        sameResourceScopeCondition(credential, mcpServers),
+        eq(mcpServers.credentialGroupId, credentialGroup.id)
+      )
+    )
+    .limit(1)
+  if (!row) return null
+  const workspaceId = executingWorkspaceId ?? row.workspaceId
+  if (!workspaceId) return null
+  if (!row.managedConnectorId) {
+    throw new Error(`Managed MCP server ${row.mcpServerId} has no connector ID`)
+  }
+  const connector = getManagedMcpConnector(row.managedConnectorId)
+  const workspaceContext = await loadActiveWorkspaceApplicationContext(workspaceId)
+  if (
+    !workspaceContext ||
+    (row.organizationId
+      ? row.organizationId !== workspaceContext.workspaceOrganizationId
+      : row.workspaceId !== workspaceId)
+  )
+    return null
+  return {
+    ...row,
+    ...workspaceContext,
+    credentialType: `mcp:${connector.id}` as const,
+    organizationId: row.organizationId ?? undefined,
+  }
+}
+
+export async function loadManagedMcpRuntimeCredential(
+  credentialId: string,
+  workspaceId: string
+): Promise<ManagedMcpRuntimeCredential> {
+  const context = await loadManagedMcpCredentialApplicationContext(credentialId, workspaceId)
+  if (!context) throw new ManagedMcpCredentialError('Managed MCP credential not found', 404)
+  const scope = resourceScopeFromOwner(
+    context.organizationId ? { organizationId: context.organizationId } : { workspaceId }
+  )
+  return { ...(await loadScopedManagedMcpRuntimeCredential(credentialId, scope)), workspaceId }
+}
+
+/** The caller authorizes the resource scope; supplying userId also requires their own enrollment. */
+export async function loadScopedManagedMcpRuntimeCredential(
+  credentialId: string,
+  scope: ResourceScope,
+  userId?: string
+): Promise<Omit<ManagedMcpRuntimeCredential, 'workspaceId'>> {
+  if (!(await isScopedCredentialGroupsAvailable(scope))) {
+    throw new ManagedMcpCredentialError(
+      'Managed MCP credentials are not available for this workspace',
+      403
+    )
+  }
+
+  const [row] = await db
+    .select({
+      credentialId: credential.id,
+      workspaceId: credential.workspaceId,
+      status: credential.managedOauthStatus,
+      encryptedTokens: credential.encryptedOauthTokenSet,
+      tools: credential.mcpTools,
+      oauthConfigVersion: credential.mcpOauthConfigVersion,
+      serverOauthConfigVersion: mcpServers.oauthConfigVersion,
+      grantedAt: credential.grantedAt,
+      enrollmentStatus: credentialGroupEnrollment.status,
+      enrollmentUserId: credentialGroupEnrollment.userId,
+      groupStatus: credentialGroup.status,
+      credentialGroupId: credentialGroup.id,
+      linkedCredentialGroupId: mcpServers.credentialGroupId,
+      mcpServerId: mcpServers.id,
+      mcpServerName: mcpServers.name,
+      serverUrl: mcpServers.url,
+      managedConnectorId: mcpServers.managedConnectorId,
+    })
+    .from(credential)
+    .innerJoin(
+      credentialGroupEnrollment,
+      eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
+    )
+    .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
+    .innerJoin(mcpServers, eq(mcpServers.id, credential.mcpServerId))
+    .where(
+      and(
+        eq(credential.id, credentialId),
+        resourceScopeCondition(credential, scope),
+        eq(credential.type, 'managed_mcp'),
+        isNull(credential.revokedAt),
+        ...(userId ? [eq(credentialGroupEnrollment.userId, userId)] : []),
+        resourceScopeCondition(mcpServers, scope),
+        resourceScopeCondition(credentialGroup, scope),
         eq(mcpServers.authType, 'oauth'),
         eq(mcpServers.enabled, true),
         isNull(mcpServers.deletedAt)
@@ -180,11 +262,18 @@ export async function loadManagedMcpRuntimeCredential(
   if (!row.managedConnectorId) {
     throw new ManagedMcpCredentialError('Managed MCP connector metadata is missing', 500)
   }
-  getManagedMcpConnector(row.managedConnectorId)
+  const connector = getManagedMcpConnector(row.managedConnectorId)
+  if (connector.id === 'zoom' && !(await isSearchProviderEnabled('zoom', scope)))
+    throw new ManagedMcpCredentialError('Zoom Search is not available for this organization', 403)
+  if (!row.serverUrl) throw new ManagedMcpCredentialError('Managed MCP endpoint is missing', 500)
+  requireManagedMcpConnectorUrl(connector.id, row.serverUrl)
   if (
     row.status !== 'active' ||
+    (userId !== undefined && row.enrollmentUserId !== userId) ||
     row.groupStatus !== 'active' ||
     !['in_progress', 'completed'].includes(row.enrollmentStatus) ||
+    (scope.kind === 'organization' && !row.enrollmentUserId) ||
+    row.oauthConfigVersion !== row.serverOauthConfigVersion ||
     row.linkedCredentialGroupId !== row.credentialGroupId
   ) {
     throw new ManagedMcpCredentialError('Managed MCP credential needs authorization', 401)
@@ -193,26 +282,58 @@ export async function loadManagedMcpRuntimeCredential(
     throw new ManagedMcpCredentialError('Managed MCP credential token data is missing', 500)
   }
   if (!row.tools) throw new ManagedMcpCredentialError('Managed MCP tool metadata is missing', 500)
+  if (!row.grantedAt)
+    throw new ManagedMcpCredentialError('Managed MCP grant version is missing', 500)
+  const envelope = await decryptManagedMcpEnvelope(row.encryptedTokens)
+  const client =
+    connector.id === 'hubspot' || connector.id === 'zoom'
+      ? await loadPreregisteredClient(row.mcpServerId)
+      : undefined
+  if (envelope.configurationFingerprint !== client?.configurationFingerprint)
+    throw new ManagedMcpCredentialError(
+      'Managed MCP credential needs authorization after app configuration changed',
+      401
+    )
   return {
+    credentialType: `mcp:${connector.id}`,
+    configurationFingerprint: envelope.configurationFingerprint,
     credentialId: row.credentialId,
-    workspaceId: row.workspaceId,
+    oauthConfigVersion: row.serverOauthConfigVersion,
+    credentialGroupId: row.credentialGroupId,
+    scope,
     mcpServerId: row.mcpServerId,
     mcpServerName: row.mcpServerName,
     tokenVersion: row.encryptedTokens,
-    tokens: await decryptManagedMcpTokens(row.encryptedTokens),
+    grantedAt: row.grantedAt,
+    tokens: envelope.tokens,
     tools: row.tools,
   }
 }
 
 export async function persistManagedMcpCredential(params: {
+  configurationFingerprint?: string
+  invitationTokenHash: string
+  oauthConfigVersion: number
+  userId: string
+  credentialGroupId: string
+  email: string
   enrollmentId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   mcpServerId: string
   mcpServerName: string
   tokens: OAuthTokens
   tools: Array<{ name: string; description?: string; inputSchema: Record<string, unknown> }>
-}): Promise<string> {
-  const encryptedOauthTokenSet = await encryptManagedMcpTokens(params.tokens)
+}): Promise<{
+  connectionId: string
+  created: boolean
+  enrollmentStatus: 'in_progress' | 'completed'
+}> {
+  const scope = resourceScopeFromOwner(params)
+  const encryptedOauthTokenSet = await encryptManagedMcpTokens(
+    params.tokens,
+    params.configurationFingerprint
+  )
   const now = new Date()
   const accessTokenExpiresAt =
     typeof params.tokens.expires_in === 'number'
@@ -223,6 +344,7 @@ export async function persistManagedMcpCredential(params: {
     const [source] = await tx
       .select({
         enrollmentStatus: credentialGroupEnrollment.status,
+        enrollmentRevokedAt: credentialGroupEnrollment.revokedAt,
         credentialGroupId: credentialGroupEnrollment.credentialGroupId,
         groupStatus: credentialGroup.status,
         linkedCredentialGroupId: mcpServers.credentialGroupId,
@@ -237,8 +359,13 @@ export async function persistManagedMcpCredential(params: {
       .where(
         and(
           eq(credentialGroupEnrollment.id, params.enrollmentId),
-          eq(credentialGroup.workspaceId, params.workspaceId),
-          eq(mcpServers.workspaceId, params.workspaceId),
+          eq(credentialGroupEnrollment.credentialGroupId, params.credentialGroupId),
+          eq(credentialGroupEnrollment.email, params.email),
+          eq(credentialGroupEnrollment.userId, params.userId),
+          eq(credentialGroupEnrollment.invitationTokenHash, params.invitationTokenHash),
+          resourceScopeCondition(credentialGroup, scope),
+          resourceScopeCondition(mcpServers, scope),
+          eq(mcpServers.oauthConfigVersion, params.oauthConfigVersion),
           eq(mcpServers.authType, 'oauth'),
           eq(mcpServers.enabled, true),
           isNull(mcpServers.deletedAt)
@@ -250,12 +377,15 @@ export async function persistManagedMcpCredential(params: {
       !source ||
       !source.managedConnectorId ||
       source.groupStatus !== 'active' ||
+      source.enrollmentRevokedAt ||
       !['invited', 'in_progress', 'completed'].includes(source.enrollmentStatus) ||
       source.linkedCredentialGroupId !== source.credentialGroupId
     ) {
       throw new ManagedMcpCredentialError('Managed MCP connection is no longer available', 404)
     }
     getManagedMcpConnector(source.managedConnectorId)
+    if (source.managedConnectorId === 'zoom' && !(await isSearchProviderEnabled('zoom', scope)))
+      throw new ManagedMcpCredentialError('Zoom Search is not available for this organization', 403)
 
     const [existing] = await tx
       .select({ id: credential.id })
@@ -270,6 +400,7 @@ export async function persistManagedMcpCredential(params: {
       .limit(1)
       .for('update')
     const values = {
+      mcpOauthConfigVersion: params.oauthConfigVersion,
       displayName: params.mcpServerName,
       managedOauthStatus: 'active' as const,
       encryptedOauthTokenSet,
@@ -293,7 +424,7 @@ export async function persistManagedMcpCredential(params: {
       const id = generateManagedMcpConnectionId()
       const insert: typeof credential.$inferInsert = {
         id,
-        workspaceId: params.workspaceId,
+        ...resourceScopeColumns(scope),
         type: 'managed_mcp',
         createdBy: null,
         credentialGroupEnrollmentId: params.enrollmentId,
@@ -316,6 +447,8 @@ export async function persistManagedMcpCredential(params: {
       .where(
         and(
           eq(credentialGroupEnrollment.id, params.enrollmentId),
+          eq(credentialGroupEnrollment.credentialGroupId, params.credentialGroupId),
+          eq(credentialGroupEnrollment.email, params.email),
           ne(credentialGroupEnrollment.status, 'revoked')
         )
       )
@@ -323,7 +456,11 @@ export async function persistManagedMcpCredential(params: {
     if (!updatedEnrollment) {
       throw new ManagedMcpCredentialError('Managed MCP enrollment is no longer available', 404)
     }
-    return connectionId
+    return {
+      connectionId,
+      created: !existing,
+      enrollmentStatus: source.enrollmentStatus === 'completed' ? 'completed' : 'in_progress',
+    }
   })
 }
 
@@ -333,7 +470,10 @@ export async function saveManagedMcpRuntimeTokens(
   expectedTokenVersion: string
 ): Promise<string | null> {
   const now = new Date()
-  const encryptedOauthTokenSet = tokens ? await encryptManagedMcpTokens(tokens) : null
+  const envelope = tokens ? await decryptManagedMcpEnvelope(expectedTokenVersion) : undefined
+  const encryptedOauthTokenSet = tokens
+    ? await encryptManagedMcpTokens(tokens, envelope?.configurationFingerprint)
+    : null
   return db.transaction(async (tx) => {
     const [source] = await tx
       .select({ enrollmentId: credential.credentialGroupEnrollmentId })
@@ -383,7 +523,9 @@ export async function saveManagedMcpRuntimeTokens(
 /** Replaces the editor snapshot only after a complete live tools/list succeeds. */
 export async function saveManagedMcpToolSnapshot(
   credentialId: string,
-  tools: ManagedMcpToolSnapshot[]
+  tools: ManagedMcpToolSnapshot[],
+  expectedConfigVersion: number,
+  expectedGrantedAt: Date
 ): Promise<void> {
   const updated = await db
     .update(credential)
@@ -392,7 +534,9 @@ export async function saveManagedMcpToolSnapshot(
       and(
         eq(credential.id, credentialId),
         eq(credential.type, 'managed_mcp'),
-        eq(credential.managedOauthStatus, 'active')
+        eq(credential.managedOauthStatus, 'active'),
+        eq(credential.mcpOauthConfigVersion, expectedConfigVersion),
+        eq(credential.grantedAt, expectedGrantedAt)
       )
     )
     .returning({ id: credential.id })

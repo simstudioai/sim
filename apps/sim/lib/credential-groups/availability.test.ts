@@ -1,25 +1,26 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
-const { mockIsFeatureEnabled } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: true,
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { resolveCredentialGroupsAvailability } from '@/lib/credential-groups/availability'
 
+const mockIsFeatureEnabled = featureFlagsMockFns.mockIsFeatureEnabled
+
+setEnvFlags({ isHosted: true })
+afterAll(resetEnvFlagsMock)
+
 describe('resolveCredentialGroupsAvailability', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  it('does not expose organization accounts in a personal workspace even with the global flag enabled', async () => {
+    mockIsFeatureEnabled.mockResolvedValue(true)
+    await expect(
+      resolveCredentialGroupsAvailability({
+        organizationId: null,
+        ownerBilling: { isEnterprise: true },
+      })
+    ).resolves.toEqual({ available: false, reason: 'feature_disabled' })
+    expect(mockIsFeatureEnabled).not.toHaveBeenCalled()
   })
 
   it('attributes a disabled feature flag before considering the plan', async () => {
@@ -27,7 +28,7 @@ describe('resolveCredentialGroupsAvailability', () => {
 
     await expect(
       resolveCredentialGroupsAvailability({
-        workspaceId: 'ws-1',
+        organizationId: 'org-1',
         ownerBilling: { isEnterprise: false },
       })
     ).resolves.toEqual({
@@ -41,7 +42,7 @@ describe('resolveCredentialGroupsAvailability', () => {
 
     await expect(
       resolveCredentialGroupsAvailability({
-        workspaceId: 'ws-1',
+        organizationId: 'org-1',
         ownerBilling: { isEnterprise: false },
       })
     ).resolves.toEqual({
@@ -50,23 +51,12 @@ describe('resolveCredentialGroupsAvailability', () => {
     })
   })
 
-  it('evaluates the flag against the workspace id', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(true)
-
-    await resolveCredentialGroupsAvailability({
-      workspaceId: 'ws-1',
-      ownerBilling: { isEnterprise: true },
-    })
-
-    expect(mockIsFeatureEnabled).toHaveBeenCalledWith('credential-groups', { workspaceId: 'ws-1' })
-  })
-
-  it('allows Enterprise workspaces when the hosted feature is enabled', async () => {
+  it('allows Enterprise organizations when the hosted feature is enabled', async () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
 
     await expect(
       resolveCredentialGroupsAvailability({
-        workspaceId: 'ws-1',
+        organizationId: 'org-1',
         ownerBilling: { isEnterprise: true },
       })
     ).resolves.toEqual({

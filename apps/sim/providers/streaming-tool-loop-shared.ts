@@ -20,6 +20,7 @@ export const STREAMING_TOOL_CALL_PROVIDERS: ReadonlySet<string> = new Set([
   'openai',
   'anthropic',
   'azure-anthropic',
+  'kie',
   'groq',
   'deepseek',
   'google',

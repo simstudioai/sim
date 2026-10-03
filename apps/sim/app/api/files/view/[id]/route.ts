@@ -38,7 +38,6 @@ export const GET = withRouteHandler(
       authResult.userId,
       undefined,
       record.context as StorageContext | 'general',
-      undefined,
       { knowledgeAccess: authResult.authType === AuthType.SESSION ? 'user' : undefined }
     )
     if (!hasAccess) {

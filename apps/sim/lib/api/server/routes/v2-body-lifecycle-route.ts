@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
@@ -39,7 +40,7 @@ interface V2BodyLifecycleAdmission<
 
 interface V2BodyLifecycleContext<C extends JsonApiRouteContract, A> {
   request: NextRequest
-  principal: Awaited<ReturnType<typeof v2ApiKeyAuth.authenticate>>['principal']
+  principal: Principal
   parsed: ParsedRequest<C>
   admission: A
 }
@@ -127,7 +128,8 @@ export function defineV2BodyLifecycleRoute<
         request,
         options.operation,
         options.auth,
-        options.rateLimit
+        options.rateLimit,
+        options.useCase
       )
       if (!routeAdmission.success) return routeAdmission.response
 

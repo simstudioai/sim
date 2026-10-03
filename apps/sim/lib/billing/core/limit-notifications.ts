@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, type SQL, sql } from 'drizzle-orm'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
@@ -33,6 +33,32 @@ function thresholdFor(percent: number): 0 | 80 | 100 {
 }
 
 /**
+ * Replace the account's `limitNotifications` with `next` when `condition` holds, returning
+ * whether the row was updated.
+ */
+async function writeLimitNotifications(
+  scope: 'user' | 'organization',
+  id: string,
+  next: SQL,
+  condition: SQL
+): Promise<boolean> {
+  const written =
+    scope === 'user'
+      ? await db
+          .update(userStats)
+          .set({ limitNotifications: next })
+          .where(and(eq(userStats.userId, id), condition))
+          .returning({ id: userStats.userId })
+      : await db
+          .update(organization)
+          .set({ limitNotifications: next })
+          .where(and(eq(organization.id, id), condition))
+          .returning({ id: organization.id })
+
+  return written.length > 0
+}
+
+/**
  * Atomically claim a threshold for a category: advance the stored value to
  * `threshold` only if it is currently lower, returning whether THIS call won the
  * advance. A single conditional UPDATE is race-free — concurrent crossings can't
@@ -50,20 +76,68 @@ async function claimThreshold(
       ? sql`coalesce((${userStats.limitNotifications} ->> ${category})::int, 0) < ${threshold}`
       : sql`coalesce((${organization.limitNotifications} ->> ${category})::int, 0) < ${threshold}`
 
-  const claimed =
-    scope === 'user'
-      ? await db
-          .update(userStats)
-          .set({ limitNotifications: setExpr })
-          .where(and(eq(userStats.userId, id), onlyIfLower))
-          .returning({ id: userStats.userId })
-      : await db
-          .update(organization)
-          .set({ limitNotifications: setExpr })
-          .where(and(eq(organization.id, id), onlyIfLower))
-          .returning({ id: organization.id })
+  return writeLimitNotifications(scope, id, setExpr, onlyIfLower)
+}
 
-  return claimed.length > 0
+/** One account's credits threshold, keyed on its billing period and limit. */
+export interface CreditsThresholdClaim {
+  scope: 'user' | 'organization'
+  id: string
+  periodStart: Date
+  limit: number
+  threshold: 80 | 100
+}
+
+/**
+ * The stored claims for a credits threshold, and the condition under which it is still unclaimed:
+ * `credits` holds the highest threshold emailed while `creditsPeriod` (the period's exact start,
+ * in epoch seconds) and `creditsLimit` (the limit in cents) still match, so a new period — even
+ * one starting the same day as the last — or a changed limit, in either direction, re-arms both
+ * thresholds with no reset write, while within one a claim of 100 also retires 80, and never the
+ * reverse.
+ */
+function creditsThresholdSql(claim: CreditsThresholdClaim) {
+  const periodStartSeconds = Math.floor(claim.periodStart.getTime() / 1000)
+  const limitCents = Math.round(claim.limit * 100)
+  const column =
+    claim.scope === 'user' ? userStats.limitNotifications : organization.limitNotifications
+  return {
+    next: sql`coalesce(${column}, '{}'::jsonb) || jsonb_build_object('credits', ${claim.threshold}::int, 'creditsPeriod', ${periodStartSeconds}::bigint, 'creditsLimit', ${limitCents}::bigint)`,
+    unclaimed: sql<boolean>`not (
+      (${column} ->> 'creditsPeriod')::bigint is not distinct from ${periodStartSeconds}::bigint
+      and (${column} ->> 'creditsLimit')::bigint is not distinct from ${limitCents}::bigint
+      and coalesce((${column} ->> 'credits')::int, 0) >= ${claim.threshold}::int
+    )`,
+  }
+}
+
+/**
+ * Whether a credits threshold is still unclaimed, read with one indexed lookup of the account
+ * row. A cheap pre-check only: callers run it on every completion above a threshold, so once
+ * the threshold is claimed they stop there instead of resolving recipients. The atomic
+ * {@link claimCreditsThreshold} remains the real dedup.
+ */
+export async function isCreditsThresholdUnclaimed(claim: CreditsThresholdClaim): Promise<boolean> {
+  const { unclaimed } = creditsThresholdSql(claim)
+  const [row] =
+    claim.scope === 'user'
+      ? await db
+          .select({ unclaimed })
+          .from(userStats)
+          .where(eq(userStats.userId, claim.id))
+          .limit(1)
+      : await db
+          .select({ unclaimed })
+          .from(organization)
+          .where(eq(organization.id, claim.id))
+          .limit(1)
+  return row?.unclaimed === true
+}
+
+/** Claim a credits threshold, returning whether THIS call won it. */
+export function claimCreditsThreshold(claim: CreditsThresholdClaim): Promise<boolean> {
+  const { next, unclaimed } = creditsThresholdSql(claim)
+  return writeLimitNotifications(claim.scope, claim.id, next, unclaimed)
 }
 
 /** Re-arm a category (reset its stored threshold to 0) once usage falls back into the low band. */
@@ -108,7 +182,7 @@ async function isUnsubscribed(email: string): Promise<boolean> {
  * Returning an empty list means "nobody to notify" — the caller then skips the
  * claim so the dedup state isn't burned without an email going out.
  */
-async function resolveRecipients(
+export async function resolveLimitEmailRecipients(
   scope: 'user' | 'organization',
   params: { userId?: string; userEmail?: string; userName?: string; organizationId?: string }
 ): Promise<LimitEmailRecipient[]> {
@@ -207,7 +281,7 @@ export async function maybeSendLimitThresholdEmail(params: {
 
     if (params.rearmOnly || desired === 0) return
 
-    const recipients = await resolveRecipients(scope, params)
+    const recipients = await resolveLimitEmailRecipients(scope, params)
     if (recipients.length === 0) return
 
     if (!(await claimThreshold(scope, stateId, category, desired))) return

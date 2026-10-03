@@ -1,15 +1,23 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   V2ApiTable,
   V2EnrichmentProviderOutcome,
   V2EnrichmentRunDetail,
+  V2RowGroupEnrichment,
   V2RowRunState,
 } from '@/lib/api/contracts/v2/tables'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { workspaceResourceWebUrl } from '@/lib/resources'
-import type { RowData, TableDefinition, TableSchema } from '@/lib/table'
+import type { RowData, TableDefinition, TableRowSummary, TableSchema } from '@/lib/table'
 import { getMaxRowsPerTable } from '@/lib/table/billing'
 import { buildColumnNameById, remapViewConfigColumnRefs } from '@/lib/table/column-keys'
-import type { ColumnDefinition, EnrichmentRunDetail, RowExecutions } from '@/lib/table/types'
+import type {
+  ColumnDefinition,
+  EnrichmentRunDetail,
+  RowExecutionMetadata,
+  RowExecutions,
+  WorkflowGroup,
+} from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
 import { normalizeColumn } from '@/lib/table/wire'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
@@ -191,18 +199,60 @@ interface ApiRowInput {
 function toApiRunState(executions: RowExecutions): Record<string, V2RowRunState> {
   const runState: Record<string, V2RowRunState> = {}
   for (const [groupId, execution] of Object.entries(executions)) {
-    runState[groupId] = {
-      /** Stored as `cancelled`; published as `canceled`. See presentV2TableDispatch. */
-      status: execution.status === 'cancelled' ? 'canceled' : execution.status,
-      executionId: execution.executionId,
-      workflowId: execution.workflowId,
-      error: execution.error,
-      runningBlockIds: execution.runningBlockIds ?? [],
-      blockErrors: execution.blockErrors ?? {},
-      canceledAt: execution.cancelledAt ?? null,
-    }
+    runState[groupId] = toApiRunStateEntry(execution)
   }
   return runState
+}
+
+/** One group's run state on one row, in the published shape. */
+function toApiRunStateEntry(execution: RowExecutionMetadata): V2RowRunState {
+  return {
+    /** Stored as `cancelled`; published as `canceled`. See presentV2TableDispatch. */
+    status: execution.status === 'cancelled' ? 'canceled' : execution.status,
+    executionId: execution.executionId,
+    workflowId: execution.workflowId,
+    error: execution.error,
+    runningBlockIds: execution.runningBlockIds ?? [],
+    blockErrors: execution.blockErrors ?? {},
+    canceledAt: execution.cancelledAt ?? null,
+  }
+}
+
+/** The inputs to {@link toApiRowGroupEnrichment}, as the use case returns them. */
+export interface RowGroupEnrichmentInput {
+  row: TableRowSummary
+  group: WorkflowGroup
+  runState: RowExecutionMetadata | null
+  detail: EnrichmentRunDetail | null
+}
+
+/**
+ * One group's outcome on one row: the run state `includeRunState` publishes,
+ * the group's output cells read out of the row, and the provider cascade.
+ *
+ * `outputs` is keyed by column NAME through the same `namedRowMapper` the row
+ * reads use, and every output column the group declares is present — `null`
+ * when the run has not written it — so a caller can tell "not populated" from
+ * "not an output of this group". `runState: null` is the group never having
+ * run for this row; the row itself always answers.
+ */
+export function toApiRowGroupEnrichment(
+  input: RowGroupEnrichmentInput,
+  toNamedRow: (data: RowData) => RowData,
+  toColumnName: (id: string) => string
+): V2RowGroupEnrichment {
+  const named = toNamedRow(input.row.data)
+  const outputs: RowData = {}
+  for (const output of input.group.outputs) {
+    const name = toColumnName(output.columnName)
+    outputs[name] = named[name] ?? null
+  }
+  return {
+    groupId: input.group.id,
+    runState: input.runState ? toApiRunStateEntry(input.runState) : null,
+    outputs,
+    cascade: toApiEnrichmentDetail(input.detail),
+  }
 }
 
 /**
@@ -238,11 +288,6 @@ function storedNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
-/** Reads a stored field that the published shape declares as a nullable string. */
-function storedNullableString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 /**
  * Reads a stored timestamp, keeping only a value the published `date-time`
  * format will accept. A Postgres literal or a half-written blob becomes `null`
@@ -257,13 +302,13 @@ function storedTimestamp(value: unknown): string | null {
 function toApiEnrichmentProvider(value: unknown): V2EnrichmentProviderOutcome {
   const provider = (value ?? {}) as Record<string, unknown>
   return {
-    id: storedNullableString(provider.id) ?? '',
-    label: storedNullableString(provider.label) ?? '',
-    toolId: storedNullableString(provider.toolId) ?? '',
-    status: storedNullableString(provider.status) ?? 'not_run',
+    id: toStringOrNull(provider.id) ?? '',
+    label: toStringOrNull(provider.label) ?? '',
+    toolId: toStringOrNull(provider.toolId) ?? '',
+    status: toStringOrNull(provider.status) ?? 'not_run',
     cost: storedNumber(provider.cost),
     durationMs: storedNumber(provider.durationMs),
-    error: storedNullableString(provider.error),
+    error: toStringOrNull(provider.error),
   }
 }
 
@@ -287,7 +332,7 @@ export function toApiEnrichmentDetail(
     completedAt: storedTimestamp(stored.completedAt),
     durationMs: storedNumber(stored.durationMs),
     totalCost: storedNumber(stored.totalCost),
-    matchedProvider: storedNullableString(stored.matchedProvider),
+    matchedProvider: toStringOrNull(stored.matchedProvider),
     aborted: stored.aborted === true,
     providers: Array.isArray(stored.providers) ? stored.providers.map(toApiEnrichmentProvider) : [],
   }

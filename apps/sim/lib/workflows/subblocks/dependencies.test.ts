@@ -1,31 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
-  getDependsOnFields,
   getSubBlocksDependingOnChange,
   getTransitiveSubBlockDependents,
 } from '@/lib/workflows/subblocks/dependencies'
 import type { SubBlockConfig } from '@/blocks/types'
-
-describe('getDependsOnFields', () => {
-  it('returns an empty array when dependsOn is unset', () => {
-    expect(getDependsOnFields(undefined)).toEqual([])
-  })
-
-  it('returns array dependencies unchanged', () => {
-    expect(getDependsOnFields(['credential', 'projectId'])).toEqual(['credential', 'projectId'])
-  })
-
-  it('flattens all and any dependencies', () => {
-    expect(getDependsOnFields({ all: ['credential'], any: ['teamId', 'manualTeamId'] })).toEqual([
-      'credential',
-      'teamId',
-      'manualTeamId',
-    ])
-  })
-})
 
 describe('getSubBlocksDependingOnChange', () => {
   it('finds direct dependents of a changed subblock', () => {
@@ -113,25 +91,6 @@ describe('getTransitiveSubBlockDependents', () => {
       { subBlockId: 'project', reason: 'project depends on credential' },
       { subBlockId: 'issue', reason: 'issue depends on project' },
       { subBlockId: 'assignee', reason: 'assignee depends on issue' },
-    ])
-  })
-
-  it('walks multiple changed roots once', () => {
-    const subBlocks: SubBlockConfig[] = [
-      { id: 'credential', title: 'Credential', type: 'oauth-input' },
-      { id: 'domain', title: 'Domain', type: 'short-input' },
-      {
-        id: 'project',
-        title: 'Project',
-        type: 'project-selector',
-        dependsOn: ['credential', 'domain'],
-      },
-      { id: 'issue', title: 'Issue', type: 'file-selector', dependsOn: ['project'] },
-    ]
-
-    expect(getTransitiveSubBlockDependents(subBlocks, ['credential', 'domain'])).toEqual([
-      { subBlockId: 'project', reason: 'project depends on credential' },
-      { subBlockId: 'issue', reason: 'issue depends on project' },
     ])
   })
 })

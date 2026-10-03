@@ -6,6 +6,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isValidHandoffState, parseLoopbackPort } from '@/app/desktop/auth/validation'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 import { ConnectLauncher } from '@/app/desktop/connect/connect-launcher'
+import { SourceConnectLauncher } from '@/app/desktop/connect/source-connect-launcher'
 import { SwitchAccount } from '@/app/desktop/connect/switch-account'
 import {
   buildConnectCompletePath,
@@ -63,12 +64,26 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   const credentialId = isValidOpaqueId(params.credentialId) ? params.credentialId : undefined
   const draftId = isValidOpaqueId(params.draftId) ? params.draftId : undefined
   const expectedUserId = isValidOpaqueId(params.user) ? params.user : undefined
+  const sourceRequestId =
+    typeof params.sourceRequestId === 'string' && /^[A-Za-z0-9_-]{32}$/.test(params.sourceRequestId)
+      ? params.sourceRequestId
+      : undefined
+  const invalidSource =
+    params.sourceRequestId !== undefined &&
+    (!sourceRequestId ||
+      providerId !== 'source' ||
+      !expectedUserId ||
+      workspaceId ||
+      credentialId ||
+      draftId)
   const hasInvalidDraftId = params.draftId !== undefined && draftId === undefined
   if (
     !isValidOAuthProviderId(providerId) ||
     !isValidHandoffState(state) ||
     port === null ||
     hasInvalidDraftId ||
+    invalidSource ||
+    (providerId === 'source' && !sourceRequestId) ||
     (workspaceId !== undefined && draftId !== undefined)
   ) {
     return <InvalidRequest />
@@ -89,6 +104,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
           credentialId,
           draftId,
           user: expectedUserId,
+          sourceRequestId,
         })
       )}`
     )
@@ -111,6 +127,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
             credentialId,
             draftId,
             user: expectedUserId,
+            sourceRequestId,
           })}
         />
       </DesktopHandoffShell>
@@ -122,6 +139,9 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   // draft — including reconnect rebinding when a credentialId rides along.
   // Modal-initiated connects have no workspaceId here (the desktop app already
   // created the draft) and use the plain link flow below.
+  if (sourceRequestId)
+    return <SourceConnectLauncher requestId={sourceRequestId} state={state} port={port} />
+
   if (workspaceId) {
     const authorize = new URL('/api/auth/oauth2/authorize', getBaseUrl())
     authorize.searchParams.set('providerId', providerId)

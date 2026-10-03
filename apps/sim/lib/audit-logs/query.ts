@@ -1,6 +1,7 @@
 import { AuditResourceType } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
 import { parseUnorderedList } from '@/lib/api/cursor-binding'
@@ -70,8 +71,7 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
   if (params.actorEmail) conditions.push(eq(auditLog.actorEmail, params.actorEmail))
 
   if (params.search) {
-    const escaped = params.search.replace(/[%_\\]/g, '\\$&')
-    const searchTerm = `%${escaped}%`
+    const searchTerm = `%${escapeLikePattern(params.search)}%`
     conditions.push(
       or(
         ilike(auditLog.action, searchTerm),

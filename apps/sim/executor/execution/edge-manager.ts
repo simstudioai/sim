@@ -72,10 +72,20 @@ export class EdgeManager {
 
     const isDeadEnd = activatedTargets.length === 0
     const isRoutedDeadEnd = isDeadEnd && !!(output.selectedOption || output.selectedRoute)
+    const isSubflowExit =
+      output.selectedRoute === EDGE.LOOP_EXIT || output.selectedRoute === EDGE.PARALLEL_EXIT
 
     for (const targetId of cascadeTargets) {
       if (!readyNodes.includes(targetId) && !activatedTargets.includes(targetId)) {
-        if (!isDeadEnd || !this.isTargetReady(targetId)) continue
+        if (!this.isTargetReady(targetId)) continue
+
+        /** A previously activated join can become ready several edges into a skipped branch. */
+        if (!isSubflowExit && this.nodesWithActivatedEdge.has(targetId)) {
+          readyNodes.push(targetId)
+          continue
+        }
+
+        if (!isDeadEnd) continue
 
         if (isRoutedDeadEnd) {
           // A condition/router deliberately selected a dead-end path.
@@ -92,7 +102,7 @@ export class EdgeManager {
       }
     }
 
-    if (output.selectedRoute !== EDGE.LOOP_EXIT && output.selectedRoute !== EDGE.PARALLEL_EXIT) {
+    if (!isSubflowExit) {
       for (const { target } of edgesToDeactivate) {
         if (
           !readyNodes.includes(target) &&
@@ -166,7 +176,8 @@ export class EdgeManager {
   }
 
   /**
-   * Clear deactivated edges for a set of nodes (used when restoring loop state for next iteration).
+   * Clear deactivated edges for a set of nodes that is about to re-execute (a loop's next
+   * iteration, a parallel batch, or a run-from-block dirty set).
    *
    * Only clears edges whose SOURCE is in the provided set. Edges pointing INTO a node in the set
    * whose source lives outside (e.g. an external branch whose path was cascade-deactivated) must
@@ -308,7 +319,8 @@ export class EdgeManager {
     targetId: string,
     sourceHandle?: string,
     cascadeTargets?: Set<string>,
-    isCascade = false
+    isCascade = false,
+    cascadeSourceId = sourceId
   ): void {
     const edgeKey = this.createEdgeKey(sourceId, targetId, sourceHandle)
     if (this.deactivatedEdges.has(edgeKey)) {
@@ -320,8 +332,21 @@ export class EdgeManager {
     const targetNode = this.dag.nodes.get(targetId)
     if (!targetNode) return
 
-    if (isCascade && this.isTerminalControlNode(targetId)) {
+    if (
+      isCascade &&
+      (this.isTerminalControlNode(targetId) || this.nodesWithActivatedEdge.has(targetId))
+    ) {
       cascadeTargets?.add(targetId)
+    }
+
+    /** The enclosing subflow must resolve its own exit before downstream joins become ready. */
+    const cascadeSourceNode = this.dag.nodes.get(cascadeSourceId)
+    if (
+      targetNode.metadata.sentinelType === 'end' &&
+      cascadeSourceNode &&
+      this.isEnclosingSentinel(cascadeSourceNode, targetId)
+    ) {
+      return
     }
 
     // Don't cascade if node has active incoming edges OR has received an activated edge
@@ -339,7 +364,8 @@ export class EdgeManager {
           outgoingEdge.target,
           outgoingEdge.sourceHandle,
           cascadeTargets,
-          true
+          true,
+          cascadeSourceId
         )
       }
     }

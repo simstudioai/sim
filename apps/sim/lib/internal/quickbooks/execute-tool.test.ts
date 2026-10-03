@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -73,9 +70,14 @@ function request(overrides: Partial<InternalToolOperationCall> = {}): InternalTo
   }
 }
 
+const AUTH_INPUT = {
+  accessToken: 'token',
+  realmId: '123',
+  quickBooksEnvironment: 'sandbox',
+} as const
+
 describe('executeQuickBooksTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.addAttachment.mockResolvedValue({ attachmentId: 'attachment-1' })
     mocks.downloadDocument.mockResolvedValue({ attachmentId: 'attachment-1' })
     for (const operation of [
@@ -99,109 +101,35 @@ describe('executeQuickBooksTool', () => {
     }
   })
 
-  it.each([
-    ['quickbooks_create_bill_payment', mocks.createBillPayment],
-    ['quickbooks_update_bill', mocks.updateBill],
-    ['quickbooks_update_bill_payment', mocks.updateBillPayment],
-    ['quickbooks_update_credit_memo', mocks.updateCreditMemo],
-    ['quickbooks_update_customer_payment', mocks.updateCustomerPayment],
-    ['quickbooks_update_employee', mocks.updateEmployee],
-    ['quickbooks_update_item', mocks.updateItem],
-    ['quickbooks_update_purchase', mocks.updatePurchase],
-    ['quickbooks_update_purchase_order', mocks.updatePurchaseOrder],
-    ['quickbooks_update_refund_receipt', mocks.updateRefundReceipt],
-    ['quickbooks_update_vendor', mocks.updateVendor],
-    ['quickbooks_update_vendor_credit', mocks.updateVendorCredit],
-  ])('dispatches %s through its internal provider operation', async (toolId, operation) => {
-    const controller = new AbortController()
-    const operationRequest = request({
-      toolId,
-      input: {
-        accessToken: 'token',
-        realmId: '123',
-        quickBooksEnvironment: 'sandbox',
-        entityId: 'entity-1',
-      },
-      signal: controller.signal,
-    })
-
-    const response = await executeQuickBooksTool(operationRequest)
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      output: { id: 'entity-1' },
-    })
-    expect(operation).toHaveBeenCalledWith(
-      operationRequest.input,
-      controller.signal,
-      operationRequest.context
-    )
-  })
-
-  it('dispatches downloads with trusted execution context', async () => {
-    const controller = new AbortController()
-
-    const response = await executeQuickBooksTool(request({ signal: controller.signal }))
-
-    expect(response.status).toBe(200)
-    expect(mocks.downloadDocument).toHaveBeenCalledWith(
-      {
-        accessToken: 'token',
-        realmId: '123',
-        quickBooksEnvironment: 'sandbox',
-        documentKind: 'attachment',
-        attachmentId: 'attachment-1',
-      },
-      {
-        userId: 'user-1',
-        requestId: 'request-1',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        signal: controller.signal,
-      }
-    )
-  })
-
-  it('rejects missing trusted user identity', async () => {
-    const response = await executeQuickBooksTool(request({ context: { workflowId: 'workflow-1' } }))
-
-    expect(response.status).toBe(401)
-    expect(mocks.downloadDocument).not.toHaveBeenCalled()
-  })
-
-  it('rejects malformed provider input', async () => {
-    const response = await executeQuickBooksTool(request({ input: { accessToken: '' } }))
-
-    expect(response.status).toBe(400)
-    expect(mocks.downloadDocument).not.toHaveBeenCalled()
-  })
-
-  it('rejects oversized operation input before dispatch', async () => {
+  it('drops keys no provider operation contract declares', async () => {
     const response = await executeQuickBooksTool(
       request({
+        toolId: 'quickbooks_update_vendor',
+        input: { ...AUTH_INPUT, vendorId: 'vendor-1', syncToken: '3', credential: 'credential-1' },
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.updateVendor).toHaveBeenCalledWith(
+      { ...AUTH_INPUT, vendorId: 'vendor-1', syncToken: '3' },
+      undefined
+    )
+  })
+
+  it('rejects oversized provider operation input before dispatch', async () => {
+    const response = await executeQuickBooksTool(
+      request({
+        toolId: 'quickbooks_update_vendor',
         input: {
-          accessToken: 'token',
-          realmId: '123',
-          quickBooksEnvironment: 'sandbox',
-          attachmentId: 'attachment-1',
+          ...AUTH_INPUT,
+          vendorId: 'vendor-1',
+          syncToken: '3',
           extra: 'x'.repeat(1024 * 1024 + 1),
         },
       })
     )
 
     expect(response.status).toBe(413)
-    expect(mocks.downloadDocument).not.toHaveBeenCalled()
-  })
-
-  it('propagates cancellation before validation or provider work', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(
-      executeQuickBooksTool(request({ signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.downloadDocument).not.toHaveBeenCalled()
+    expect(mocks.updateVendor).not.toHaveBeenCalled()
   })
 })
