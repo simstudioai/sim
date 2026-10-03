@@ -1,9 +1,11 @@
 /**
- * Functions injected into automated pages via `webContents.executeJavaScript`.
+ * Functions injected into automated pages through a CDP isolated execution world.
  * The driver serializes each function's source (`String(fn)`) and calls it
  * with JSON-encoded arguments, so every function here MUST be fully
  * self-contained: no imports, no closed-over variables, only its own
- * arguments and page globals. Helpers live INSIDE the function that uses them.
+ * arguments and page globals. Helpers live INSIDE the function that uses them;
+ * the one exception is {@link installPageHelpers}, which {@link serializePageCall}
+ * runs before every function so shared helpers exist once.
  *
  * The element registry (`window.__simAgentElements`) is rebuilt by every
  * snapshot and naturally cleared by navigation. A snapshot also installs a
@@ -29,7 +31,10 @@
 declare global {
   interface Window {
     __simAgentElements?: Element[]
-    __simAgentResolveElement?: (id: number) => { element: Element; recovered: boolean } | null
+    __simAgentResolveElement?: (
+      id: number,
+      allowRecovery?: boolean
+    ) => { element: Element; recovered: boolean } | null
     __simAgentMutationStates?: Array<{
       root: Node
       observer: MutationObserver
@@ -38,6 +43,14 @@ declare global {
       observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
+    /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
+    __simAgentShownElements?: WeakSet<Element>
+    /** Installed by {@link installPageHelpers} before every page function; cached per call. */
+    __simAgentIsExemptModal: (element: Element) => boolean
+    /** Installed by {@link installPageHelpers}: the element's id in the current snapshot. */
+    __simAgentRefOf: (element: Element | null) => number | null
+    /** Installed by {@link installPageHelpers}: the snapshot controls of the overlay a blocker belongs to. */
+    __simAgentOverlayControls: (blocker: Element | null) => Array<{ id: number; name: string }>
     /** Why the last __simAgentResolveElement call returned null — read by the
      * shared stale-error producers so a refusal names its cause instead of
      * the blanket "the page changed". Cleared on every successful resolve. */
@@ -45,12 +58,171 @@ declare global {
   }
 }
 
+/** The expression that runs a page function in the page, with the shared helpers installed first. */
+export function serializePageCall(fn: (...args: never[]) => unknown, args: unknown[]): string {
+  return `((${String(installPageHelpers)})(), (${String(fn)}).apply(null, ${JSON.stringify(args)}))`
+}
+
+/**
+ * Installs the helpers page functions share. Page functions are serialized and run standalone,
+ * so the driver runs this installer before each one instead of inlining shared code into every
+ * function.
+ */
+export function installPageHelpers(): void {
+  /**
+   * The open modal each document aria-hid together with everything else. MUI's ModalManager
+   * aria-hides every <body> child except the modal's mount node, and a `disablePortal` modal
+   * mounts inside the app root it just hid, so its own ancestor carries aria-hidden. Visibility
+   * checks skip only the aria-hidden test on ancestors above this modal. A document has none when
+   * any modal is visible unmodified (the portaled case), when anything other than a <body> child
+   * hides a modal (the app hid that dialog itself), or when no single innermost modal is contained
+   * by every hidden ancestor. Looked up per document, so a same-origin iframe gets its own.
+   */
+  const exemptModals = new Map<Document, Element | null>()
+  window.__simAgentIsExemptModal = (element: Element): boolean => {
+    const doc = element.ownerDocument
+    let modal = exemptModals.get(doc)
+    if (modal === undefined) {
+      modal = findExemptModal(doc)
+      exemptModals.set(doc, modal)
+    }
+    return modal === element
+  }
+  window.__simAgentRefOf = (element: Element | null): number | null => {
+    const index = element ? (window.__simAgentElements ?? []).indexOf(element) : -1
+    return index >= 0 ? index : null
+  }
+  /**
+   * A refusal that names the overlay's own controls lets the agent dismiss it and retry the
+   * same id without another snapshot. Only a real overlay qualifies — a dialog, a modal, or a
+   * fixed or sticky layer — so an ordinary element in the way never lists unrelated page controls.
+   */
+  window.__simAgentOverlayControls = (blocker: Element | null) => {
+    /** The parent across shadow boundaries, so overlays built from web components qualify. */
+    const composedParent = (element: Element): Element | null => {
+      if (element.parentElement) return element.parentElement
+      const root = element.getRootNode()
+      return 'host' in root ? (root.host as Element) : null
+    }
+    const tagOf = (element: Element): string => String(element.tagName).toUpperCase()
+    let overlay: Element | null = null
+    for (let current = blocker; current && !overlay; current = composedParent(current)) {
+      const role = current.getAttribute('role')
+      const position = current.ownerDocument.defaultView?.getComputedStyle(current).position
+      if (
+        role === 'dialog' ||
+        role === 'alertdialog' ||
+        current.getAttribute('aria-modal') === 'true' ||
+        tagOf(current) === 'DIALOG' ||
+        position === 'fixed' ||
+        position === 'sticky'
+      ) {
+        overlay = current
+      }
+    }
+    if (!overlay) return []
+    const controls: Array<{ id: number; name: string }> = []
+    const registry = window.__simAgentElements ?? []
+    for (let id = 0; id < registry.length && controls.length < 4; id++) {
+      const element = registry[id]
+      if (!element) continue
+      let inOverlay = false
+      for (
+        let current: Element | null = element;
+        current && !inOverlay;
+        current = composedParent(current)
+      ) {
+        inOverlay = current === overlay
+      }
+      if (!inOverlay) continue
+      const role = element.getAttribute('role')
+      const tag = tagOf(element)
+      if (
+        tag !== 'BUTTON' &&
+        tag !== 'A' &&
+        role !== 'button' &&
+        role !== 'link' &&
+        !(tag === 'INPUT' && ['button', 'submit'].includes((element as HTMLInputElement).type))
+      ) {
+        continue
+      }
+      const name = (
+        element.getAttribute('aria-label') ||
+        (element as HTMLElement).innerText ||
+        (element as HTMLInputElement).value ||
+        element.getAttribute('title') ||
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 60)
+      controls.push({ id, name })
+    }
+    return controls
+  }
+  function findExemptModal(doc: Document): Element | null {
+    const rendered: Array<{ modal: Element; hidden: Element[] }> = []
+    for (const modal of Array.from(doc.querySelectorAll('[aria-modal="true"], dialog[open]'))) {
+      const rect = modal.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
+        continue
+      const hidden: Element[] = []
+      let visible = true
+      for (let current: Element | null = modal; current && visible; ) {
+        const style = current.ownerDocument.defaultView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        visible = Boolean(
+          style &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' &&
+            (!Number.isFinite(opacity) || opacity > 0.01) &&
+            !current.hasAttribute('hidden')
+        )
+        if (current.getAttribute('aria-hidden') === 'true') hidden.push(current)
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      if (visible && hidden.every((ancestor) => ancestor.parentElement === doc.body)) {
+        rendered.push({ modal, hidden })
+      }
+    }
+    if (rendered.some(({ hidden }) => hidden.length === 0)) return null
+    const topmost = rendered.filter(
+      ({ modal, hidden }) =>
+        hidden.every((ancestor) => rendered.every((other) => ancestor.contains(other.modal))) &&
+        !rendered.some((other) => other.modal !== modal && modal.contains(other.modal))
+    )
+    return topmost.length === 1 ? topmost[0].modal : null
+  }
+}
+
 /**
  * Builds the page snapshot: a structural outline (headings, landmarks) with
  * interactive elements carrying numeric ids, walking open shadow roots and
  * same-origin iframes. Rebuilds the element registry as a side effect.
+ * `markNew` false leaves the `new` markers out and records nothing as shown,
+ * for internal reads (such as a text search) whose outline the model never sees.
  */
-export function collectSnapshot(startingElementId = 0): unknown {
+export function collectSnapshot(
+  startingElementId = 0,
+  elementId: number | null = null,
+  markNew = true
+): unknown {
+  const resolver = window.__simAgentResolveElement
+  const scopedRoot =
+    elementId === null
+      ? undefined
+      : resolver
+        ? resolver(elementId, false)?.element
+        : window.__simAgentElements?.[elementId]
+  if (elementId !== null) {
+    if (!scopedRoot?.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
+    if (scopedRoot.ownerDocument !== document) return { error: 'framed-snapshot' }
+  }
   const refCap = 300
   const lineCap = 600
   const nodeCap = 12_000
@@ -146,11 +318,20 @@ export function collectSnapshot(startingElementId = 0): unknown {
     context: string
   }> = []
   window.__simAgentElements = registry
+  const previouslyShown = window.__simAgentShownElements
+  const shown = previouslyShown ?? new WeakSet<Element>()
+  if (markNew) window.__simAgentShownElements = shown
+  /** Whether no earlier snapshot of this document listed the element; the first snapshot marks nothing. */
+  const isNew = (el: Element): boolean => markNew && previouslyShown !== undefined && !shown.has(el)
+  /** Records an element whose line made it into the outline, so the next snapshot knows it. */
+  const recordShown = (el: Element): void => {
+    if (markNew) shown.add(el)
+  }
   const lines: string[] = []
   let truncated = false
   let refCount = 0
-  let textRefCount = 0
-  const textRefCap = 120
+  let textLineCount = 0
+  const textLineCap = 120
   let visitedNodes = 0
   const previousElementId = window.__simAgentNextElementId
   const safePreviousElementId =
@@ -180,6 +361,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
       return false
     }
     let visible = true
+    let aboveExemptModal = false
     for (let current: Element | null = el; current && visible; ) {
       const currentView: Window | null = current.ownerDocument.defaultView
       const style = currentView?.getComputedStyle(current)
@@ -191,8 +373,9 @@ export function collectSnapshot(startingElementId = 0): unknown {
           style.contentVisibility !== 'hidden' &&
           (!Number.isFinite(opacity) || opacity > 0.01) &&
           !current.hasAttribute('hidden') &&
-          current.getAttribute('aria-hidden') !== 'true'
+          (aboveExemptModal || current.getAttribute('aria-hidden') !== 'true')
       )
+      if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -448,10 +631,12 @@ export function collectSnapshot(startingElementId = 0): unknown {
       // like any other. Redaction above is realm-safe and runs first, so
       // widening this cannot expose a credential field.
       const value = (el as HTMLInputElement).value
-      if (tag === 'INPUT' && (el as HTMLInputElement).type === 'file') {
-        parts.push('upload-unsupported')
-      } else if (value && isSensitiveValueField(el)) parts.push('value-withheld')
-      else if (value) parts.push(`value=${quote(cut(String(value), 120))}`)
+      const inputType = tag === 'INPUT' ? (el as HTMLInputElement).type : ''
+      // A chosen file input reads as Chromium's C:\fakepath\<name>, which confirms an upload.
+      if (inputType !== 'checkbox' && inputType !== 'radio') {
+        if (value && isSensitiveValueField(el)) parts.push('value-withheld')
+        else if (value) parts.push(`value=${quote(cut(String(value), 120))}`)
+      }
     }
     if (tag === 'A') {
       const href = el.getAttribute('href')
@@ -459,16 +644,43 @@ export function collectSnapshot(startingElementId = 0): unknown {
     }
     if ((el as HTMLInputElement).disabled === true) parts.push('disabled')
     if (el.getAttribute('aria-disabled') === 'true') parts.push('aria-disabled')
-    if ((el as HTMLInputElement).checked === true) parts.push('checked')
+    if (el.getAttribute('aria-readonly') === 'true') parts.push('aria-readonly')
+    if (el.getAttribute('aria-required') === 'true') parts.push('aria-required')
+    if (tag === 'INPUT') {
+      const input = el as HTMLInputElement
+      if (!['text', 'checkbox', 'radio', 'submit', 'button', 'reset'].includes(input.type)) {
+        parts.push(`type=${quote(input.type)}`)
+      }
+      if (input.type === 'checkbox' || input.type === 'radio') {
+        parts.push(input.indeterminate ? 'mixed' : input.checked ? 'checked' : 'unchecked')
+      }
+      if (input.readOnly) parts.push('readonly')
+      if (input.required) parts.push('required')
+    } else if (tag === 'TEXTAREA') {
+      const textarea = el as HTMLTextAreaElement
+      if (textarea.readOnly) parts.push('readonly')
+      if (textarea.required) parts.push('required')
+    } else if (tag === 'SELECT') {
+      if ((el as HTMLSelectElement).required) parts.push('required')
+      if ((el as HTMLSelectElement).multiple) parts.push('multiple')
+    }
+    for (const attribute of ['aria-checked', 'aria-expanded', 'aria-pressed', 'aria-selected']) {
+      const value = el.getAttribute(attribute)
+      if (value === 'true' || value === 'false' || value === 'mixed') {
+        parts.push(`${attribute}=${value}`)
+      }
+    }
+    if (isNew(el)) parts.push('new')
     const suffix = parts.length > 0 ? ` ${parts.join(' ')}` : ''
     const lineIndex = lines.length
     if (push(`${indent}- ${role} ${quote(name)} [ref=${id}]${suffix}`)) {
       refLineIndexes[id] = lineIndex
+      recordShown(el)
     }
   }
 
   const emitTextLeaf = (el: Element, indent: string, renderedLabel?: string): void => {
-    if (refCount >= refCap || textRefCount >= textRefCap || lines.length >= lineCap) {
+    if (refCount >= refCap || textLineCount >= textLineCap || lines.length >= lineCap) {
       truncated = true
       return
     }
@@ -480,9 +692,13 @@ export function collectSnapshot(startingElementId = 0): unknown {
     )
     if (!text) return
     const id = registerElement(el, roleFor(el), text)
-    textRefCount++
+    textLineCount++
+    const marker = isNew(el) ? ' new' : ''
     const lineIndex = lines.length
-    if (push(`${indent}- text ${quote(text)} [ref=${id}]`)) refLineIndexes[id] = lineIndex
+    if (push(`${indent}- text ${quote(text)} [ref=${id}]${marker}`)) {
+      refLineIndexes[id] = lineIndex
+      recordShown(el)
+    }
   }
 
   const headingLevel = (el: Element): number | null => {
@@ -524,24 +740,47 @@ export function collectSnapshot(startingElementId = 0): unknown {
     )
   }
 
-  const walk = (root: ParentNode, depth: number, suppressTextCoveredBy = ''): void => {
+  const walk = (nodes: Iterable<Node>, depth: number, suppressTextCoveredBy = ''): void => {
     if (refCount >= refCap || depth > depthCap) {
       truncated = true
       return
     }
-    for (const el of Array.from(root.children)) {
+    for (const node of nodes) {
       visitedNodes++
       if (refCount >= refCap || visitedNodes > nodeCap) {
         truncated = true
         return
       }
+      const indent = '  '.repeat(depth)
+      if (node.nodeType === Node.TEXT_NODE) {
+        const root = node.getRootNode()
+        const parent = node.parentElement ?? ('host' in root ? (root.host as Element) : null)
+        if (parent?.tagName.toUpperCase() === 'TEXTAREA') continue
+        const text = cut((node.textContent || '').replace(/\s+/g, ' ').trim(), 160)
+        if (
+          text &&
+          parent &&
+          isVisible(parent) &&
+          (!suppressTextCoveredBy || !suppressTextCoveredBy.includes(text))
+        ) {
+          if (textLineCount >= textLineCap) {
+            truncated = true
+            continue
+          }
+          if (!push(`${indent}- text ${quote(text)}`)) return
+          textLineCount++
+        }
+        continue
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) continue
+      const el = node as Element
       const tag = String(el.tagName || '').toUpperCase()
       if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEMPLATE') continue
 
-      const indent = '  '.repeat(depth)
       let childDepth = depth
       let emittedInteractive = false
       let interactiveName = ''
+      let emittedText = ''
       const visible = isVisible(el)
 
       if (el.matches(landmarkSelector) && visible) {
@@ -549,15 +788,15 @@ export function collectSnapshot(startingElementId = 0): unknown {
         childDepth = depth + 1
       } else {
         const level = headingLevel(el)
-        if (level !== null && visible) {
-          const text = cut(((el as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim(), 160)
-          if (text) push(`${indent}- heading ${quote(text)} (h${level})`)
-        } else if (visible && (el.matches(interactiveSelector) || pointerBoundary(el))) {
+        if (visible && (el.matches(interactiveSelector) || pointerBoundary(el))) {
           emitInteractive(el, indent)
           emittedInteractive = true
           interactiveName = nameFor(el)
           // Interactive containers rarely nest other interactives; still
           // recurse so e.g. a clickable card exposes its inner links.
+        } else if (level !== null && visible) {
+          emittedText = cut(((el as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim(), 160)
+          if (emittedText) push(`${indent}- heading ${quote(emittedText)} (h${level})`)
         } else if (visible) {
           const visibleElementChild = Array.from(el.children).some(isVisible)
           const leafLabel = visibleElementChild
@@ -571,32 +810,38 @@ export function collectSnapshot(startingElementId = 0): unknown {
             (!suppressTextCoveredBy || !suppressTextCoveredBy.includes(leafLabel))
           ) {
             emitTextLeaf(el, indent, leafLabel)
+            emittedText = leafLabel
           }
         }
       }
 
-      const coveredText = emittedInteractive ? interactiveName : suppressTextCoveredBy
+      const coveredText = emittedInteractive
+        ? interactiveName
+        : emittedText || suppressTextCoveredBy
 
       if (tag === 'IFRAME' || tag === 'FRAME') {
         try {
           const innerDoc = (el as HTMLIFrameElement).contentDocument
           if (innerDoc?.body && isVisible(el)) {
             if (!push(`${indent}- iframe:`)) return
-            walk(innerDoc.body, childDepth + 1, coveredText)
+            walk(innerDoc.body.childNodes, childDepth + 1, coveredText)
+          } else if (scopedRoot && !innerDoc && visible) {
+            truncated = true
           }
         } catch {
-          // Cross-origin iframe — not readable.
+          if (scopedRoot && visible) truncated = true
         }
         continue
       }
 
       const shadow = (el as HTMLElement).shadowRoot
-      if (shadow) walk(shadow, childDepth, coveredText)
-      walk(el, childDepth, coveredText)
+      if (shadow) walk(shadow.childNodes, childDepth, coveredText)
+      walk(el.childNodes, childDepth, coveredText)
     }
   }
 
-  if (document.body) walk(document.body, 0)
+  if (scopedRoot) walk([scopedRoot], 0)
+  else if (document.body) walk(document.body.childNodes, 0)
 
   /**
    * React commonly replaces a control's DOM node while preserving its
@@ -604,7 +849,11 @@ export function collectSnapshot(startingElementId = 0): unknown {
    * fingerprint still identify one candidate; a weak or ambiguous match is a
    * real stale ref, never permission to click something nearby.
    */
-  window.__simAgentResolveElement = (id: number) => {
+  window.__simAgentResolveElement = (id: number, allowRecovery = true) => {
+    if (scopedRoot && !scopedRoot.isConnected) {
+      window.__simAgentStaleReason = 'the scoped snapshot root left the DOM'
+      return null
+    }
     const locator = locators[id]
     if (!locator) {
       window.__simAgentStaleReason = `id ${id} is not in the current snapshot's registry`
@@ -701,6 +950,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     const isCurrentlyVisible = (candidate: Element): boolean => {
       const rect = candidate.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return false
+      let aboveExemptModal = false
       for (let current: Element | null = candidate; current; ) {
         const currentView: Window | null = current.ownerDocument.defaultView
         const style = currentView?.getComputedStyle(current)
@@ -712,10 +962,11 @@ export function collectSnapshot(startingElementId = 0): unknown {
           style.contentVisibility === 'hidden' ||
           (Number.isFinite(opacity) && opacity <= 0.01) ||
           current.hasAttribute('hidden') ||
-          current.getAttribute('aria-hidden') === 'true'
+          (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
         ) {
           return false
         }
+        if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
         if (current.parentElement) current = current.parentElement
         else {
           const root = current.getRootNode()
@@ -735,6 +986,11 @@ export function collectSnapshot(startingElementId = 0): unknown {
         window.__simAgentStaleReason = undefined
         return { element: current, recovered: false }
       }
+    }
+
+    if (!allowRecovery) {
+      window.__simAgentStaleReason = 'the original snapshot node is detached or hidden'
+      return null
     }
 
     // Past this point the original node is gone or hidden, so anything returned
@@ -767,7 +1023,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     let candidateCount = 0
     const collect = (root: ParentNode, depth = 0): void => {
       if (depth > depthCap || candidateCount >= nodeCap) return
-      for (const element of Array.from(root.children)) {
+      for (const element of root.children) {
         candidateCount++
         if (candidateCount > nodeCap) return
         reachable.push(element)
@@ -785,7 +1041,8 @@ export function collectSnapshot(startingElementId = 0): unknown {
         collect(element, depth + 1)
       }
     }
-    if (document.body) collect(document.body)
+    if (scopedRoot) collect(scopedRoot)
+    else if (document.body) collect(document.body)
 
     const scored = reachable
       .filter((candidate) => identityMatches(candidate) && isCurrentlyVisible(candidate))
@@ -862,6 +1119,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     url: cut(window.location.href, 4096),
     title: cut(document.title, 500),
     outline: lines.join('\n'),
+    ...(scopedRoot ? { scoped: true } : {}),
     truncated,
     scrollY: Math.round(window.scrollY),
     pageHeight: Math.round(document.documentElement.scrollHeight),
@@ -877,7 +1135,8 @@ export function clickElement(
   id: number,
   dispatchSynthetic = true,
   focusForKeyboard = false,
-  allowDisabled = false
+  allowDisabled = false,
+  scrollToTarget = false
 ): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
@@ -922,10 +1181,14 @@ export function clickElement(
       return { error: 'file-input' }
     }
   }
-  el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+  if (scrollToTarget) {
+    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+    if (!el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
+  }
 
   const view = el.ownerDocument.defaultView
   if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
+  let aboveExemptModal = false
   for (let current: Element | null = el; current; ) {
     const currentView: Window | null = current.ownerDocument.defaultView
     const style = currentView?.getComputedStyle(current)
@@ -937,16 +1200,19 @@ export function clickElement(
       style.contentVisibility === 'hidden' ||
       (Number.isFinite(opacity) && opacity <= 0.01) ||
       current.hasAttribute('hidden') ||
-      current.getAttribute('aria-hidden') === 'true'
+      (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
     ) {
       return { error: 'not-visible' }
     }
+    if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
     if (current.parentElement) current = current.parentElement
     else {
       const root = current.getRootNode()
       if ('host' in root) current = root.host as Element
       else {
         const frame: Element | null = current.ownerDocument.defaultView?.frameElement ?? null
+        // The modal exemption belongs to one document; the host page's own aria-hidden applies.
+        aboveExemptModal = false
         current = frame ? (frame as Element) : null
       }
     }
@@ -969,7 +1235,11 @@ export function clickElement(
         rect.right - rect.left > 1 &&
         rect.bottom - rect.top > 1
     )
-  if (rects.length === 0) return { error: 'not-visible' }
+  if (rects.length === 0) {
+    return scrollToTarget
+      ? { error: 'not-visible' }
+      : clickElement(id, dispatchSynthetic, focusForKeyboard, allowDisabled, true)
+  }
 
   const composedParent = (node: Element): Element | null => {
     if (node.parentElement) return node.parentElement
@@ -1150,6 +1420,9 @@ export function clickElement(
     if (suggestionsCoverFocusedEditable()) {
       return { error: 'suggestions-open', blocker: blockerLabel(blocker) }
     }
+    if (!scrollToTarget) {
+      return clickElement(id, dispatchSynthetic, focusForKeyboard, allowDisabled, true)
+    }
     // A hit INSIDE the requested element is not an overlay — it is the ref
     // wrapping its own control (a row containing a button, a card containing a
     // link). hitBelongsToTarget rejects both cases identically, so this was
@@ -1164,9 +1437,21 @@ export function clickElement(
       }
     }
     if (nested) {
-      return { error: 'nested-control', blocker: blockerLabel(blocker) }
+      let control = blocker
+      while (control && control !== el && !isIndependentInteractive(control)) {
+        control = composedParent(control)
+      }
+      return {
+        error: 'nested-control',
+        blocker: blockerLabel(blocker),
+        controlId: control && control !== el ? window.__simAgentRefOf(control) : null,
+      }
     }
-    return { error: 'obstructed', blocker: blockerLabel(blocker) }
+    return {
+      error: 'obstructed',
+      blocker: blockerLabel(blocker),
+      blockerControls: window.__simAgentOverlayControls(blocker),
+    }
   }
 
   let pageX = clientX
@@ -1195,7 +1480,14 @@ export function clickElement(
     if (parentElementAt) {
       const parentHit: Element | null = parentElementAt(pageX, pageY)
       if (parentHit !== frame) {
-        return { error: 'obstructed', blocker: blockerLabel(parentHit) }
+        if (!scrollToTarget) {
+          return clickElement(id, dispatchSynthetic, focusForKeyboard, allowDisabled, true)
+        }
+        return {
+          error: 'obstructed',
+          blocker: blockerLabel(parentHit),
+          blockerControls: window.__simAgentOverlayControls(parentHit),
+        }
       }
     }
     ownerView = frame.ownerDocument.defaultView
@@ -1288,6 +1580,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       .some((token) => token === 'current-password' || token === 'new-password')
   }
 
+  const valueInputTypes = ['date', 'time', 'datetime-local', 'month', 'week', 'color', 'range']
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
@@ -1300,7 +1593,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     if (field.readOnly || field.getAttribute('aria-readonly') === 'true') return 'readonly'
     if (String(field.tagName || '').toUpperCase() === 'TEXTAREA') return 'writable'
     const type = String((field as HTMLInputElement).type || 'text').toLowerCase()
-    return ['text', 'search', 'email', 'url', 'tel', 'number'].includes(type)
+    return ['text', 'search', 'email', 'url', 'tel', 'number', ...valueInputTypes].includes(type)
       ? 'writable'
       : 'not-editable'
   }
@@ -1314,7 +1607,16 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     if (
       tag === 'TEXTAREA' ||
       (tag === 'INPUT' &&
-        ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
+        [
+          'text',
+          'search',
+          'email',
+          'url',
+          'tel',
+          'number',
+          'password',
+          ...valueInputTypes,
+        ].includes(inputType)) ||
       (node as HTMLElement).isContentEditable ||
       // An ARIA-only textbox. The snapshot already advertises these as
       // `[textbox]` with a ref, and browser_insert_text accepts them, so
@@ -1396,6 +1698,8 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
         rect.bottom - rect.top > 1
     )
   if (rects.length === 0) return { error: 'not-visible' }
+
+  let aboveExemptModal = false
   for (let current: Element | null = editable; current; current = composedParent(current)) {
     const currentView: Window | null = current.ownerDocument.defaultView
     const style = currentView?.getComputedStyle(current)
@@ -1407,10 +1711,11 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       style.contentVisibility === 'hidden' ||
       (Number.isFinite(opacity) && opacity <= 0.01) ||
       current.hasAttribute('hidden') ||
-      current.getAttribute('aria-hidden') === 'true'
+      (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
     ) {
       return { error: 'not-visible' }
     }
+    if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
   }
 
   if (moveFocus) {
@@ -1562,7 +1867,11 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     }
   }
   if (!chosenPoint) {
-    return { error: 'obstructed', blocker: blockerLabel(firstBlocker) }
+    return {
+      error: 'obstructed',
+      blocker: blockerLabel(firstBlocker),
+      blockerControls: window.__simAgentOverlayControls(firstBlocker),
+    }
   }
 
   return {
@@ -1576,8 +1885,65 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     x: chosenPoint.x,
     y: chosenPoint.y,
     coveredByRelatedPopup,
+    valueInput:
+      editableTag === 'INPUT' && valueInputTypes.includes((editable as HTMLInputElement).type),
     refRecovered: resolved?.recovered === true,
   }
+}
+
+/** Sets structured native inputs after the driver's ordinary typing actionability checks. */
+export function setFocusedInputValue(id: number, text: string): unknown {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const registered = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  if (!registered?.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
+  let active = registered.ownerDocument.activeElement
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
+  if (String(registered.tagName || '').toUpperCase() !== 'INPUT') {
+    return {
+      error:
+        'Structured inputs require the field reference itself, not a container. Take a fresh browser_snapshot.',
+    }
+  }
+  if (active !== registered) return { error: 'different' }
+  const input = active as HTMLInputElement
+  const type = input.type.toLowerCase()
+  const hints = (input.getAttribute('autocomplete') || '').toLowerCase().split(/\s+/)
+  if (
+    type === 'password' ||
+    hints.some((hint) => hint === 'current-password' || hint === 'new-password')
+  ) {
+    return { error: 'password' }
+  }
+  if (!['date', 'time', 'datetime-local', 'month', 'week', 'color', 'range'].includes(type)) {
+    return {
+      error:
+        'The focused field no longer accepts a structured input value. Take a fresh browser_snapshot.',
+    }
+  }
+  if (input.matches(':disabled') || input.getAttribute('aria-disabled') === 'true')
+    return { error: 'disabled' }
+  if (input.readOnly || input.getAttribute('aria-readonly') === 'true') return { error: 'readonly' }
+  const value = type === 'color' ? text.trim().toLowerCase() : text.trim()
+  const probe = input.cloneNode(false) as HTMLInputElement
+  probe.value = value
+  if (
+    (value !== '' && probe.value === '') ||
+    (['color', 'range'].includes(type) && probe.value !== value)
+  ) {
+    return {
+      error: `Invalid value for input[type=${type}]. Use the native format; the field was not changed.`,
+    }
+  }
+  const view = input.ownerDocument.defaultView
+  if (!view) return { error: 'stale' }
+  const setter = Object.getOwnPropertyDescriptor(view.HTMLInputElement.prototype, 'value')?.set
+  if (!setter)
+    return { error: 'The native input value setter is unavailable; the field was not changed.' }
+  setter.call(input, probe.value)
+  input.dispatchEvent(new view.Event('input', { bubbles: true, composed: true }))
+  input.dispatchEvent(new view.Event('change', { bubbles: true }))
+  return { dispatched: true }
 }
 
 /**
@@ -2041,14 +2407,24 @@ export function pressKeyOnPage(
  * Captures non-sensitive page state around a trusted input event. The driver
  * compares two readings so “the event was dispatched” is never confused with
  * “the page visibly reacted.”
+ * Registered-node waits return only target state, without action ref recovery
+ * or the broader page-effect scan.
  */
-export function readPageActionState(resetMutationRevision = false, elementId?: number): unknown {
+export function readPageActionState(
+  resetMutationRevision = false,
+  elementId?: number,
+  targetResolution: 'actionable' | 'registered' = 'actionable'
+): unknown {
   const registeredElement =
     typeof elementId === 'number' ? (window.__simAgentElements || [])[elementId] : undefined
   const resolver = window.__simAgentResolveElement
+  if (targetResolution === 'registered') {
+    if (!registeredElement) return { error: 'stale' }
+    if (registeredElement.ownerDocument !== document) return { error: 'framed-wait' }
+  }
   const resolved =
     typeof elementId === 'number'
-      ? resolver
+      ? resolver && targetResolution === 'actionable'
         ? resolver(elementId)
         : registeredElement?.isConnected
           ? { element: registeredElement, recovered: false }
@@ -2058,11 +2434,98 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
   const observedDocument =
     observedElement?.ownerDocument ?? registeredElement?.ownerDocument ?? document
   const observedWindow = observedDocument.defaultView ?? window
+
+  const isEffectivelyRendered = (element: Element): boolean => {
+    const rect = element.getBoundingClientRect()
+    const view = element.ownerDocument.defaultView
+    if (
+      !view ||
+      rect.width <= 1 ||
+      rect.height <= 1 ||
+      rect.right <= 0 ||
+      rect.bottom <= 0 ||
+      rect.left >= view.innerWidth ||
+      rect.top >= view.innerHeight
+    ) {
+      return false
+    }
+    let aboveExemptModal = false
+    for (let current: Element | null = element; current; ) {
+      const currentView: Window | null = current.ownerDocument.defaultView
+      const style = currentView?.getComputedStyle(current)
+      const opacity = Number.parseFloat(style?.opacity || '1')
+      if (
+        !style ||
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        style.contentVisibility === 'hidden' ||
+        (Number.isFinite(opacity) && opacity <= 0.01) ||
+        current.hasAttribute('hidden') ||
+        (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
+      ) {
+        return false
+      }
+      if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
+      if (current.parentElement) current = current.parentElement
+      else {
+        const root = current.getRootNode()
+        current = 'host' in root ? (root.host as Element) : null
+      }
+    }
+    return true
+  }
+
+  let disabled = observedElement?.matches(':disabled') === true
+  for (let ancestor = observedElement; ancestor && !disabled; ) {
+    disabled = ancestor.getAttribute('aria-disabled') === 'true'
+    const root = ancestor.getRootNode()
+    ancestor = ancestor.parentElement ?? ('host' in root ? (root.host as Element) : null)
+  }
+  const observedTag = observedElement?.tagName.toUpperCase()
+  const disclosure =
+    observedTag === 'DETAILS' || observedTag === 'DIALOG'
+      ? observedElement
+      : observedTag === 'SUMMARY' &&
+          observedElement?.parentElement?.tagName.toUpperCase() === 'DETAILS'
+        ? observedElement.parentElement
+        : undefined
+  const targetState =
+    typeof elementId !== 'number'
+      ? undefined
+      : observedElement
+        ? {
+            present: true,
+            rendered: isEffectivelyRendered(observedElement),
+            ariaExpanded: observedElement.getAttribute('aria-expanded'),
+            ariaSelected: observedElement.getAttribute('aria-selected'),
+            ariaPressed: observedElement.getAttribute('aria-pressed'),
+            ariaChecked: observedElement.getAttribute('aria-checked'),
+            checked:
+              observedTag !== 'INPUT' ||
+              !['checkbox', 'radio'].includes((observedElement as HTMLInputElement).type)
+                ? undefined
+                : (observedElement as HTMLInputElement).indeterminate === true
+                  ? 'mixed'
+                  : Boolean((observedElement as HTMLInputElement).checked),
+            disabled,
+            selected:
+              'selected' in observedElement
+                ? Boolean((observedElement as HTMLOptionElement).selected)
+                : undefined,
+            open: disclosure?.hasAttribute('open'),
+            hidden:
+              observedElement.hasAttribute('hidden') ||
+              observedElement.getAttribute('aria-hidden') === 'true',
+          }
+        : { present: false, rendered: false }
+  if (targetResolution === 'registered') return { targetState }
+
   const observationRoot = observedDocument.body
 
   const roots: ParentNode[] = observationRoot ? [observationRoot] : []
   const allElements: Element[] = []
   const stateNodeCap = 12_000
+  const overlayLimit = 10
   for (let index = 0; index < roots.length; index++) {
     for (const element of Array.from(roots[index].querySelectorAll('*'))) {
       if (allElements.length >= stateNodeCap) break
@@ -2151,48 +2614,48 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
   const dialogs = allElements.filter((element) =>
     element.matches('dialog[open], [role="dialog"], [aria-modal="true"]')
   )
-  const visibleDialogLabels = dialogs
-    .filter((element) => {
-      const rect = element.getBoundingClientRect()
-      const view = element.ownerDocument.defaultView
-      if (!view || rect.width <= 0 || rect.height <= 0) return false
-      for (let current: Element | null = element; current; ) {
-        const style = view.getComputedStyle(current)
-        if (
-          style.display === 'none' ||
-          style.visibility === 'hidden' ||
-          Number.parseFloat(style.opacity || '1') <= 0.01 ||
-          current.hasAttribute('hidden') ||
-          current.getAttribute('aria-hidden') === 'true'
-        ) {
-          return false
-        }
-        if (current.parentElement) current = current.parentElement
-        else {
-          const root = current.getRootNode()
-          current = 'host' in root ? (root.host as Element) : null
-        }
+  const visibleDialogs = dialogs.filter((element) => {
+    const rect = element.getBoundingClientRect()
+    const view = element.ownerDocument.defaultView
+    if (!view || rect.width <= 0 || rect.height <= 0) return false
+    let aboveExemptModal = false
+    for (let current: Element | null = element; current; ) {
+      const style = view.getComputedStyle(current)
+      if (
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        Number.parseFloat(style.opacity || '1') <= 0.01 ||
+        current.hasAttribute('hidden') ||
+        (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
+      ) {
+        return false
       }
-      return (
-        rect.right > 0 &&
-        rect.bottom > 0 &&
-        rect.left < view.innerWidth &&
-        rect.top < view.innerHeight
-      )
-    })
-    .slice(0, 10)
-    .map((element) =>
-      (
-        element.getAttribute('aria-label') ||
-        (element as HTMLElement).innerText ||
-        element.textContent ||
-        ''
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 120)
-        .replace(/[\uD800-\uDBFF]$/, '')
+      if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
+      if (current.parentElement) current = current.parentElement
+      else {
+        const root = current.getRootNode()
+        current = 'host' in root ? (root.host as Element) : null
+      }
+    }
+    return (
+      rect.right > 0 &&
+      rect.bottom > 0 &&
+      rect.left < view.innerWidth &&
+      rect.top < view.innerHeight
     )
+  })
+  const visibleDialogLabels = visibleDialogs.slice(0, overlayLimit).map((element) =>
+    (
+      element.getAttribute('aria-label') ||
+      (element as HTMLElement).innerText ||
+      element.textContent ||
+      ''
+    )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+      .replace(/[\uD800-\uDBFF]$/, '')
+  )
 
   // Roles an app uses for something that APPEARS over the page. The first three
   // were the whole list, which missed the most common hover affordance there
@@ -2200,7 +2663,7 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
   // with an aria-label). A hover that mounted one produced no popup change, no
   // target change, and so no observed effect at all — the agent concluded its
   // hover had failed and escalated to clicking pixels.
-  const visiblePopupLabels = allElements
+  const visiblePopups = allElements
     .filter((element) =>
       element.matches(
         '[role="tooltip"], [role="menu"], [role="listbox"], [role="toolbar"], [role="menubar"], [role="group"][aria-label], [popover]'
@@ -2222,89 +2685,24 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
         rect.top < view.innerHeight
       )
     })
-    .slice(0, 10)
-    .map((element) =>
-      (
-        element.getAttribute('aria-label') ||
-        (element as HTMLElement).innerText ||
-        element.textContent ||
-        element.getAttribute('role') ||
-        ''
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 120)
-        .replace(/[\uD800-\uDBFF]$/, '')
+  const visiblePopupLabels = visiblePopups.slice(0, overlayLimit).map((element) =>
+    (
+      element.getAttribute('aria-label') ||
+      (element as HTMLElement).innerText ||
+      element.textContent ||
+      element.getAttribute('role') ||
+      ''
     )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+      .replace(/[\uD800-\uDBFF]$/, '')
+  )
 
   const scrolledRegions = allElements
     .filter((element) => (element as HTMLElement).scrollTop !== 0)
     .slice(0, 30)
     .map((element) => `${element.tagName}:${Math.round((element as HTMLElement).scrollTop)}`)
-
-  const isEffectivelyRendered = (element: Element): boolean => {
-    const rect = element.getBoundingClientRect()
-    const view = element.ownerDocument.defaultView
-    if (
-      !view ||
-      rect.width <= 1 ||
-      rect.height <= 1 ||
-      rect.right <= 0 ||
-      rect.bottom <= 0 ||
-      rect.left >= view.innerWidth ||
-      rect.top >= view.innerHeight
-    ) {
-      return false
-    }
-    for (let current: Element | null = element; current; ) {
-      const currentView: Window | null = current.ownerDocument.defaultView
-      const style = currentView?.getComputedStyle(current)
-      const opacity = Number.parseFloat(style?.opacity || '1')
-      if (
-        !style ||
-        style.display === 'none' ||
-        style.visibility === 'hidden' ||
-        style.contentVisibility === 'hidden' ||
-        (Number.isFinite(opacity) && opacity <= 0.01) ||
-        current.hasAttribute('hidden') ||
-        current.getAttribute('aria-hidden') === 'true'
-      ) {
-        return false
-      }
-      if (current.parentElement) current = current.parentElement
-      else {
-        const root = current.getRootNode()
-        current = 'host' in root ? (root.host as Element) : null
-      }
-    }
-    return true
-  }
-
-  const targetState =
-    typeof elementId !== 'number'
-      ? undefined
-      : observedElement
-        ? {
-            present: true,
-            rendered: isEffectivelyRendered(observedElement),
-            ariaExpanded: observedElement.getAttribute('aria-expanded'),
-            ariaSelected: observedElement.getAttribute('aria-selected'),
-            ariaPressed: observedElement.getAttribute('aria-pressed'),
-            ariaChecked: observedElement.getAttribute('aria-checked'),
-            checked:
-              'checked' in observedElement
-                ? Boolean((observedElement as HTMLInputElement).checked)
-                : undefined,
-            selected:
-              'selected' in observedElement
-                ? Boolean((observedElement as HTMLOptionElement).selected)
-                : undefined,
-            open: observedElement.hasAttribute('open'),
-            hidden:
-              observedElement.hasAttribute('hidden') ||
-              observedElement.getAttribute('aria-hidden') === 'true',
-          }
-        : { present: false, rendered: false }
 
   return {
     url: observedWindow.location.href.slice(0, 4096),
@@ -2324,13 +2722,19 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
     popups: visiblePopupLabels,
     scroll: [Math.round(observedWindow.scrollY), ...scrolledRegions],
     ...(targetState ? { targetState } : {}),
-    observationTruncated: allElements.length >= stateNodeCap,
+    observationTruncated:
+      allElements.length >= stateNodeCap ||
+      visibleDialogs.length > overlayLimit ||
+      visiblePopups.length > overlayLimit,
   }
 }
 
 export function scrollPage(direction: string, amount?: number, elementId?: number): unknown {
-  const distance = typeof amount === 'number' && amount > 0 ? amount : window.innerHeight * 0.85
-  const delta = direction === 'up' ? -distance : distance
+  const horizontal = direction === 'left' || direction === 'right'
+  const viewportSize = horizontal ? window.innerWidth : window.innerHeight
+  const distance = typeof amount === 'number' && amount > 0 ? amount : viewportSize * 0.85
+  const towardStart = direction === 'up' || direction === 'left'
+  const delta = towardStart ? -distance : distance
   const scrollingElement = (document.scrollingElement || document.documentElement) as HTMLElement
 
   const isVisible = (element: Element): boolean => {
@@ -2345,6 +2749,7 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
     ) {
       return false
     }
+    let aboveExemptModal = false
     for (let current: Element | null = element; current; ) {
       const currentView: Window | null = current.ownerDocument.defaultView
       const style = currentView?.getComputedStyle(current)
@@ -2356,16 +2761,19 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
         style.contentVisibility === 'hidden' ||
         (Number.isFinite(opacity) && opacity <= 0.01) ||
         current.hasAttribute('hidden') ||
-        current.getAttribute('aria-hidden') === 'true'
+        (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
       ) {
         return false
       }
+      if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
         if ('host' in root) current = root.host as Element
         else {
           const frame: Element | null = current.ownerDocument.defaultView?.frameElement ?? null
+          // The modal exemption belongs to one document; the host page's own aria-hidden applies.
+          aboveExemptModal = false
           current = frame
         }
       }
@@ -2374,18 +2782,30 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
   }
   const isScrollable = (element: Element): element is HTMLElement => {
     const html = element as HTMLElement
-    if (html.scrollHeight <= html.clientHeight + 1) return false
+    const scrollSize = horizontal ? html.scrollWidth : html.scrollHeight
+    const clientSize = horizontal ? html.clientWidth : html.clientHeight
+    if (scrollSize <= clientSize + 1) return false
     const ownerScroller =
       element.ownerDocument.scrollingElement || element.ownerDocument.documentElement
     if (element === ownerScroller) return true
     const view = element.ownerDocument.defaultView
     if (!view) return false
-    const overflow = view.getComputedStyle(element).overflowY
+    const style = view.getComputedStyle(element)
+    const overflow = horizontal ? style.overflowX : style.overflowY
     return overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay'
   }
+  const horizontalBounds = (element: HTMLElement): { min: number; max: number } => {
+    const extent = Math.max(0, element.scrollWidth - element.clientWidth)
+    const rtl = element.ownerDocument.defaultView?.getComputedStyle(element).direction === 'rtl'
+    /** Chromium's RTL scrollLeft runs from a negative left edge to zero at the right edge. */
+    return rtl ? { min: -extent, max: 0 } : { min: 0, max: extent }
+  }
   const canMove = (element: HTMLElement): boolean => {
-    const max = Math.max(0, element.scrollHeight - element.clientHeight)
-    return direction === 'up' ? element.scrollTop > 1 : element.scrollTop < max - 1
+    const position = horizontal ? element.scrollLeft : element.scrollTop
+    const { min, max } = horizontal
+      ? horizontalBounds(element)
+      : { min: 0, max: Math.max(0, element.scrollHeight - element.clientHeight) }
+    return towardStart ? position > min + 1 : position < max - 1
   }
   const ancestors = (start: Element | null): HTMLElement[] => {
     const result: HTMLElement[] = []
@@ -2503,11 +2923,22 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
   const targetWindow = targetDocument.defaultView
   const targetDocumentScroller = targetDocument.scrollingElement || targetDocument.documentElement
   const isDocumentScroller = target === targetDocumentScroller
-  const before = isDocumentScroller ? (targetWindow?.scrollY ?? target.scrollTop) : target.scrollTop
+  const position = (): number => {
+    if (horizontal) {
+      return isDocumentScroller ? (targetWindow?.scrollX ?? target.scrollLeft) : target.scrollLeft
+    }
+    return isDocumentScroller ? (targetWindow?.scrollY ?? target.scrollTop) : target.scrollTop
+  }
+  const before = position()
+  const scrollOptions: ScrollToOptions = horizontal
+    ? { left: delta, behavior: 'instant' }
+    : { top: delta, behavior: 'instant' }
   if (isDocumentScroller && targetWindow) {
-    targetWindow.scrollBy({ top: delta, behavior: 'instant' })
+    targetWindow.scrollBy(scrollOptions)
   } else if (typeof target.scrollBy === 'function') {
-    target.scrollBy({ top: delta, behavior: 'instant' })
+    target.scrollBy(scrollOptions)
+  } else if (horizontal) {
+    target.scrollLeft += delta
   } else {
     target.scrollTop += delta
   }
@@ -2520,6 +2951,7 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
   const clientHeight = isDocumentScroller
     ? (targetWindow?.innerHeight ?? target.clientHeight)
     : target.clientHeight
+  const after = position()
   const label =
     target.getAttribute('aria-label') ||
     target.getAttribute('role') ||
@@ -2531,50 +2963,192 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
     scrollTop: Math.round(scrollTop),
     scrollHeight: Math.round(scrollHeight),
     clientHeight: Math.round(clientHeight),
-    movedBy: Math.round(scrollTop - before),
+    movedBy: Math.round(after - before),
     atTop: scrollTop <= 1,
     atBottom: scrollTop + clientHeight >= scrollHeight - 2,
     windowScrollY: Math.round(window.scrollY),
+    ...(horizontal
+      ? {
+          scrollLeft: Math.round(after),
+          scrollWidth: Math.round(target.scrollWidth),
+          clientWidth: Math.round(target.clientWidth),
+          atLeft: after <= horizontalBounds(target).min + 1,
+          atRight: after >= horizontalBounds(target).max - 2,
+          windowScrollX: Math.round(window.scrollX),
+        }
+      : {}),
   }
 }
 
-export function selectOptionInElement(id: number, value: string): unknown {
+export function selectOptionInElement(id: number, value: string | string[]): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   if (String(el.tagName || '').toUpperCase() !== 'SELECT') return { error: 'not-select' }
   const select = el as HTMLSelectElement
-  if (select.disabled || select.getAttribute('aria-disabled') === 'true') {
+  if (select.matches(':disabled') || select.getAttribute('aria-disabled') === 'true') {
     return { error: 'disabled' }
   }
-  const wanted = value.trim().toLowerCase()
-  const option = Array.from(select.options).find(
-    (o) => o.value.trim().toLowerCase() === wanted || o.label.trim().toLowerCase() === wanted
-  )
-  if (!option) {
+  if (Array.isArray(value) && !select.multiple) {
     return {
-      error: 'no-option',
-      options: Array.from(select.options)
-        .slice(0, 50)
-        .map((o) =>
-          o.label
+      error:
+        'Use value for a single-selection dropdown; values requires a multiple-selection control.',
+    }
+  }
+  const requested = Array.isArray(value) ? value : [value]
+  if (requested.length > 100 || requested.some((entry) => typeof entry !== 'string')) {
+    return { error: 'A selection requires at most 100 string values.' }
+  }
+  const options = Array.from(select.options)
+  const chosen = new Set<HTMLOptionElement>()
+  for (const entry of requested) {
+    const wanted = entry.trim().toLowerCase()
+    const option = options.find(
+      (candidate) =>
+        candidate.value.trim().toLowerCase() === wanted ||
+        candidate.label.trim().toLowerCase() === wanted
+    )
+    if (!option) {
+      return {
+        error: 'no-option',
+        options: options.slice(0, 50).map((candidate) =>
+          candidate.label
             .trim()
             .slice(0, 200)
             .replace(/[\uD800-\uDBFF]$/, '')
         ),
+      }
     }
+    if (
+      option.disabled ||
+      (option.parentElement as HTMLOptGroupElement | null)?.disabled === true
+    ) {
+      return { error: 'disabled' }
+    }
+    chosen.add(option)
   }
-  if (option.disabled || (option.parentElement as HTMLOptGroupElement | null)?.disabled === true) {
-    return { error: 'disabled' }
+  const selected = options.filter((option) => chosen.has(option))
+  const selection = {
+    selected: selected[0]?.label.trim() || '',
+    value: selected[0]?.value || '',
+    ...(select.multiple
+      ? {
+          values: selected.map((option) => option.value),
+          labels: selected.map((option) => option.label.trim()),
+        }
+      : {}),
   }
-  select.value = option.value
+  if (select.multiple) {
+    for (const option of options) option.selected = chosen.has(option)
+  } else {
+    select.value = selected[0].value
+  }
   select.dispatchEvent(new Event('input', { bubbles: true }))
   select.dispatchEvent(new Event('change', { bubbles: true }))
   return {
-    selected: option.label.trim(),
-    value: option.value,
+    ...selection,
     refRecovered: resolved?.recovered === true,
+  }
+}
+
+/** Reads and verifies an ordinary top-document form control without exposing secret values. */
+export function readFormFieldState(
+  id: number,
+  kind: 'text' | 'select' | 'checked',
+  expected: string | boolean
+): unknown {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const registered = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  const element =
+    String(registered?.tagName || '').toUpperCase() === 'LABEL'
+      ? (registered as HTMLLabelElement).control
+      : registered
+  if (!element?.isConnected) return { error: 'stale' }
+  if (element.ownerDocument !== document) return { error: 'Form batches require top-page fields.' }
+  const tag = String(element.tagName || '').toUpperCase()
+  const input = element as HTMLInputElement
+  const type = tag === 'INPUT' ? String(input.type || 'text').toLowerCase() : ''
+  const hints = String(element.getAttribute('autocomplete') || '')
+    .toLowerCase()
+    .split(/\s+/)
+  if (
+    tag === 'INPUT' &&
+    (type === 'password' ||
+      hints.some((hint) => hint === 'current-password' || hint === 'new-password'))
+  )
+    return { error: 'password' }
+  if (element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true') {
+    return { error: 'disabled' }
+  }
+  if (input.readOnly || element.getAttribute('aria-readonly') === 'true') {
+    return { error: 'readonly' }
+  }
+  if (kind === 'checked') {
+    if (tag !== 'INPUT' || !['checkbox', 'radio'].includes(type)) {
+      return { error: 'Form batches require native checkboxes or radio buttons.' }
+    }
+    if (type === 'radio' && expected === false)
+      return { error: 'Radio buttons cannot be unchecked directly.' }
+    return {
+      matchesRequested: !input.indeterminate && input.checked === expected,
+      checked: input.checked,
+    }
+  }
+  let value: string
+  let matchesRequested: boolean
+  if (kind === 'select') {
+    if (tag !== 'SELECT' || (element as HTMLSelectElement).multiple) {
+      return { error: 'Form batches require single-selection native dropdowns.' }
+    }
+    const select = element as HTMLSelectElement
+    const wanted = String(expected).trim().toLowerCase()
+    const option = Array.from(select.options).find(
+      (candidate) =>
+        candidate.value.trim().toLowerCase() === wanted ||
+        candidate.label.trim().toLowerCase() === wanted
+    )
+    if (
+      !option ||
+      option.disabled ||
+      (option.parentElement as HTMLOptGroupElement | null)?.disabled
+    ) {
+      return { error: 'The requested dropdown option is absent or disabled.' }
+    }
+    value = select.value
+    matchesRequested = value === option.value
+  } else {
+    if (
+      tag !== 'TEXTAREA' &&
+      (tag !== 'INPUT' || !['text', 'search', 'email', 'url', 'tel', 'number'].includes(type))
+    ) {
+      return { error: 'Form batches require ordinary text inputs or textareas.' }
+    }
+    value = input.value
+    matchesRequested = value === expected
+  }
+  const redacted =
+    tag === 'INPUT' &&
+    hints.some((hint) =>
+      ['one-time-code', 'cc-number', 'cc-csc', 'cc-exp', 'cc-exp-month', 'cc-exp-year'].includes(
+        hint
+      )
+    )
+  let active = document.activeElement
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
+  return {
+    matchesRequested,
+    focused: active === element,
+    valueLength: value.length,
+    valuePreview: redacted
+      ? ''
+      : value
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 120)
+          .replace(/[\uD800-\uDBFF]$/, ''),
+    redacted,
   }
 }
 
@@ -2585,9 +3159,118 @@ export function readSelectElementState(id: number): unknown {
   if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   if (String(el.tagName || '').toUpperCase() !== 'SELECT') return { error: 'not-select' }
   const select = el as HTMLSelectElement
+  const values: string[] = []
+  const labels: string[] = []
+  if (select.multiple) {
+    for (const option of select.selectedOptions) {
+      values.push(option.value)
+      labels.push(option.label.trim())
+      if (values.length > 100) break
+    }
+  }
   return {
     selected: select.selectedOptions[0]?.label.trim() || '',
     value: select.value,
+    ...(select.multiple ? { values, labels } : {}),
+  }
+}
+
+export function readCheckableElementState(id: number): unknown {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const registered = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  const candidate =
+    String(registered?.tagName || '').toUpperCase() === 'LABEL'
+      ? (registered as HTMLLabelElement).control
+      : registered
+  if (!candidate || !candidate.isConnected) {
+    return { error: 'stale', reason: window.__simAgentStaleReason }
+  }
+
+  const tag = String(candidate.tagName || '').toUpperCase()
+  const type =
+    tag === 'INPUT' ? String((candidate as HTMLInputElement).type || '').toLowerCase() : ''
+  const role = String(candidate.getAttribute('role') || '').toLowerCase()
+  const isNative = tag === 'INPUT' && (type === 'checkbox' || type === 'radio')
+  const isAria = ['checkbox', 'radio', 'switch', 'menuitemcheckbox', 'menuitemradio'].includes(role)
+  if (!isNative && !isAria) return { error: 'not-checkable' }
+
+  const ariaChecked = candidate.getAttribute('aria-checked')
+  const checked = isNative
+    ? (candidate as HTMLInputElement).indeterminate
+      ? 'mixed'
+      : Boolean((candidate as HTMLInputElement).checked)
+    : ariaChecked === 'true'
+      ? true
+      : ariaChecked === 'false'
+        ? false
+        : ariaChecked
+  let disabled = candidate.matches(':disabled')
+  for (let ancestor: Element | null = candidate; ancestor && !disabled; ) {
+    disabled = ancestor.getAttribute('aria-disabled') === 'true'
+    const root = ancestor.getRootNode()
+    ancestor = ancestor.parentElement ?? ('host' in root ? (root.host as Element) : null)
+  }
+  return {
+    checked,
+    disabled,
+    readOnly:
+      (candidate as Element & { readOnly?: boolean }).readOnly === true ||
+      candidate.getAttribute('aria-readonly') === 'true',
+    kind: isNative ? `input:${type}` : `role:${role}`,
+    refRecovered: resolved?.recovered === true,
+  }
+}
+
+export function getElementScreenshotRect(id: number): unknown {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id, false)
+  const element = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  if (!element || !element.isConnected) {
+    return { error: 'stale', reason: window.__simAgentStaleReason }
+  }
+
+  if (element.ownerDocument !== document) return { error: 'framed-screenshot' }
+  const rect = element.getBoundingClientRect()
+  const view = element.ownerDocument.defaultView
+  if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
+
+  let aboveExemptModal = false
+  for (let current: Element | null = element; current; ) {
+    const currentView: Window | null = current.ownerDocument.defaultView
+    const style = currentView?.getComputedStyle(current)
+    const opacity = Number.parseFloat(style?.opacity || '1')
+    if (
+      !style ||
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.contentVisibility === 'hidden' ||
+      (Number.isFinite(opacity) && opacity <= 0.01) ||
+      current.hasAttribute('hidden') ||
+      (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
+    ) {
+      return { error: 'not-visible' }
+    }
+    if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
+    if (current.parentElement) current = current.parentElement
+    else {
+      const root = current.getRootNode()
+      current = 'host' in root ? (root.host as Element) : null
+    }
+  }
+
+  const left = Math.max(0, rect.left)
+  const top = Math.max(0, rect.top)
+  const right = Math.min(view.innerWidth, rect.right)
+  const bottom = Math.min(view.innerHeight, rect.bottom)
+  if (right - left <= 1 || bottom - top <= 1) return { error: 'not-visible' }
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+    element: element.tagName.toLowerCase().slice(0, 80),
+    refRecovered: resolved?.recovered === true,
   }
 }
 
@@ -2703,7 +3386,9 @@ export function readChildFrameElementState(
       rect.left < view.innerWidth &&
       rect.top < view.innerHeight
   )
+
   let pointMappingReliable = true
+  let aboveExemptModal = false
   for (let current: Element | null = element; visible && current; ) {
     const style = view?.getComputedStyle(current)
     if (
@@ -2712,11 +3397,12 @@ export function readChildFrameElementState(
       style.visibility === 'hidden' ||
       Number.parseFloat(style.opacity || '1') <= 0.01 ||
       current.hasAttribute('hidden') ||
-      current.getAttribute('aria-hidden') === 'true'
+      (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
     ) {
       visible = false
       break
     }
+    if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
     if (style.transform && style.transform !== 'none') {
       try {
         if (typeof DOMMatrixReadOnly !== 'function') {
@@ -2829,6 +3515,63 @@ export function readPageText(id?: number): unknown {
     text: trimmed.slice(0, maxChars).replace(/[\uD800-\uDBFF]$/, ''),
     truncated: trimmed.length > maxChars,
   }
+}
+
+/**
+ * Resolves the exact file input and its document for an isolated CDP object handle. The ref may be the
+ * input itself, its label, or a visible upload control (button, dropzone) whose hidden input sits
+ * inside it or within a few ancestors — the nearest level with exactly one file input wins.
+ */
+export function resolveFileInputTarget(id: number): {
+  input: HTMLInputElement
+  document: Document
+} {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  if (!el || !el.isConnected) {
+    throw new Error(
+      window.__simAgentStaleReason || 'The upload target is stale. Take a fresh snapshot.'
+    )
+  }
+  const isFileInput = (node: Element | null | undefined): node is HTMLInputElement =>
+    Boolean(
+      node &&
+        String(node.tagName || '').toUpperCase() === 'INPUT' &&
+        String((node as HTMLInputElement).type || '').toLowerCase() === 'file'
+    )
+  const fileInputsWithin = (root: Element): HTMLInputElement[] => {
+    const found: HTMLInputElement[] = []
+    const visit = (scope: Element | ShadowRoot) => {
+      for (const node of Array.from(scope.querySelectorAll('*'))) {
+        if (isFileInput(node)) found.push(node)
+        if (node.shadowRoot) visit(node.shadowRoot)
+      }
+    }
+    if (isFileInput(root)) return [root]
+    visit(root)
+    return found
+  }
+  let input: HTMLInputElement | null = null
+  if (isFileInput(el)) input = el
+  else if (String(el.tagName || '').toUpperCase() === 'LABEL') {
+    const control = (el as HTMLLabelElement).control
+    if (isFileInput(control)) input = control
+  }
+  let scope: Element | null = el
+  for (let depth = 0; !input && scope && depth <= 3; depth++) {
+    const candidates = fileInputsWithin(scope)
+    if (candidates.length > 1)
+      throw new Error(
+        'The upload target contains multiple file inputs. Select one input explicitly.'
+      )
+    if (candidates.length === 1) input = candidates[0]
+    const root = scope.getRootNode()
+    scope = scope.parentElement ?? ('host' in root ? (root.host as Element) : null)
+  }
+  if (!input) throw new Error('The selected element has no nearby file input.')
+  if (input.matches(':disabled')) throw new Error('The file input is disabled.')
+  return { input, document: input.ownerDocument }
 }
 
 export function pageContainsText(text: string): boolean {

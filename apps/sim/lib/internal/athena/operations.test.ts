@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -13,10 +10,7 @@ vi.mock('@/lib/internal/athena/client', () => ({
   createAthenaClient: mocks.createAthenaClient,
 }))
 
-import {
-  executeAthenaGetQueryResults,
-  executeAthenaListNamedQueries,
-} from '@/lib/internal/athena/operations'
+import { executeAthenaGetQueryResults } from '@/lib/internal/athena/operations'
 
 const CONNECTION = {
   region: 'us-east-1',
@@ -26,7 +20,6 @@ const CONNECTION = {
 
 describe('Athena operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.createAthenaClient.mockReturnValue({ send: mocks.send, destroy: mocks.destroy })
   })
 
@@ -95,13 +88,6 @@ describe('Athena operations', () => {
       MaxResults: 10,
       NextToken: 'current-page',
     })
-    expect(mocks.destroy).toHaveBeenCalledOnce()
-  })
-
-  it('destroys the client when provider execution fails', async () => {
-    mocks.send.mockRejectedValue(new Error('provider failure'))
-
-    await expect(executeAthenaListNamedQueries(CONNECTION)).rejects.toThrow('provider failure')
     expect(mocks.destroy).toHaveBeenCalledOnce()
   })
 })

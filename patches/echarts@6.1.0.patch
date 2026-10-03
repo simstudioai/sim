@@ -1,0 +1,72 @@
+diff --git a/dist/echarts.esm.mjs b/dist/echarts.esm.mjs
+index 3780a0bafb7f888a820451bf5c370cf86c7b93bd..49021050e165820e7d77f98c1df12c60ce0588ca 100644
+--- a/dist/echarts.esm.mjs
++++ b/dist/echarts.esm.mjs
+@@ -82706,11 +82706,18 @@ var TooltipRichContent = /** @class */function () {
+       this._zr.remove(this.el);
+     }
+     var textStyleModel = tooltipModel.getModel('textStyle');
++    each(markupStyleCreator.richTextStyles, function (style) {
++      defaults(style, {
++        fontFamily: textStyleModel.get('fontFamily'),
++        fontStyle: textStyleModel.get('fontStyle')
++      });
++    });
+     this.el = new ZRText({
+       style: {
+         rich: markupStyleCreator.richTextStyles,
+         text: content,
+-        lineHeight: 22,
++        font: textStyleModel.getFont(),
++        lineHeight: textStyleModel.get('lineHeight') || 22,
+         borderWidth: 1,
+         borderColor: borderColor,
+         textShadowColor: textStyleModel.get('textShadowColor'),
+diff --git a/dist/echarts.js b/dist/echarts.js
+index 71f6176b106a62749fa9d86f81a748176095fc44..4c1ff4743bf22ba5291dc51393c6fedc89d8cfee 100644
+--- a/dist/echarts.js
++++ b/dist/echarts.js
+@@ -82712,11 +82712,18 @@
+           this._zr.remove(this.el);
+         }
+         var textStyleModel = tooltipModel.getModel('textStyle');
++        each(markupStyleCreator.richTextStyles, function (style) {
++          defaults(style, {
++            fontFamily: textStyleModel.get('fontFamily'),
++            fontStyle: textStyleModel.get('fontStyle')
++          });
++        });
+         this.el = new ZRText({
+           style: {
+             rich: markupStyleCreator.richTextStyles,
+             text: content,
+-            lineHeight: 22,
++            font: textStyleModel.getFont(),
++            lineHeight: textStyleModel.get('lineHeight') || 22,
+             borderWidth: 1,
+             borderColor: borderColor,
+             textShadowColor: textStyleModel.get('textShadowColor'),
+diff --git a/lib/component/tooltip/TooltipRichContent.js b/lib/component/tooltip/TooltipRichContent.js
+index 65a2793fa48845662345edaea7e8d7b05cde8c0b..6c25c8f2989afd769686383b67bb79c97dfb6584 100644
+--- a/lib/component/tooltip/TooltipRichContent.js
++++ b/lib/component/tooltip/TooltipRichContent.js
+@@ -82,11 +82,18 @@ var TooltipRichContent = /** @class */function () {
+       this._zr.remove(this.el);
+     }
+     var textStyleModel = tooltipModel.getModel('textStyle');
++    zrUtil.each(markupStyleCreator.richTextStyles, function (style) {
++      zrUtil.defaults(style, {
++        fontFamily: textStyleModel.get('fontFamily'),
++        fontStyle: textStyleModel.get('fontStyle')
++      });
++    });
+     this.el = new ZRText({
+       style: {
+         rich: markupStyleCreator.richTextStyles,
+         text: content,
+-        lineHeight: 22,
++        font: textStyleModel.getFont(),
++        lineHeight: textStyleModel.get('lineHeight') || 22,
+         borderWidth: 1,
+         borderColor: borderColor,
+         textShadowColor: textStyleModel.get('textShadowColor'),

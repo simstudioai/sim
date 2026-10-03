@@ -14,4 +14,4 @@ export const AUTH_CONTROL_HEIGHT = 'h-9'
  * under `justify-center` (the landing `HeroCta` idiom). Height-only inputs use
  * {@link AUTH_CONTROL_HEIGHT}; buttons compose this on top of it.
  */
-export const AUTH_BUTTON_CLASS = `${AUTH_CONTROL_HEIGHT} w-full justify-center [&>span]:flex-none`
+export const AUTH_BUTTON_CLASS = `${AUTH_CONTROL_HEIGHT} justify-center [&>span]:flex-none`

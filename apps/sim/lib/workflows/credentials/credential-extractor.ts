@@ -1,7 +1,10 @@
 import { isPlainRecord } from '@sim/utils/object'
+import { isWholeEnvVarReference } from '@/lib/workflows/blocks/fallback-models'
+import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
 import { setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
+import { evaluateSubBlockCondition, isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
 import { parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -55,7 +58,17 @@ const WORKSPACE_SPECIFIC_FIELDS = new Set([
   'projectId',
   'channelId',
   'folderId',
+  'sandboxId',
 ])
+
+/**
+ * The workspace-specific fields that name a credential rather than a resource.
+ * Cleared even when {@link WorkflowSanitizationOptions.preserveWorkspaceBindings}
+ * keeps the rest: the flag exists for a same-workspace round trip of resource
+ * selections, and credentials stay on the sharing-safe rule alongside
+ * `oauth-input` and `password` fields.
+ */
+const CREDENTIAL_BINDING_FIELDS: ReadonlySet<string> = new Set(['credentialId', 'oauthCredential'])
 
 /**
  * Sub-block values whose interior cannot be projected safely once the payload leaves the
@@ -132,8 +145,21 @@ interface SanitizedWorkflowState {
   [key: string]: unknown
 }
 
-interface WorkflowSanitizationOptions {
+export interface WorkflowSanitizationOptions {
   preserveEnvVars?: boolean
+  /** Allows only registered non-secret tool identities in portable exports. */
+  preserveReferenceMetadata?: boolean
+  /**
+   * Keep workspace-scoped resource bindings — table, knowledge base, document,
+   * file, folder, channel, and every other selector the resource registry knows
+   * — instead of clearing them. For a same-workspace round trip (`workflows
+   * export` then `workflows import` into the workspace it came from) those ids
+   * still resolve, and clearing them was the reason a re-imported workflow could
+   * not run. Credentials (`oauth-input`, {@link CREDENTIAL_BINDING_FIELDS}),
+   * passwords, and opaque table values are cleared regardless: the flag widens
+   * what a payload carries, never what leaves the trust boundary as a secret.
+   */
+  preserveWorkspaceBindings?: boolean
   /**
    * Withhold values whose interior cannot be projected safely once the payload leaves the
    * workspace — whole `table` values (see {@link OPAQUE_CREDENTIAL_BEARING_TYPES}) and every
@@ -166,19 +192,57 @@ function isEnvironmentVariableReference(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')
 }
 
+/** Whether a sub-block config holds a reference scoped to this workspace. */
+function isWorkspaceBindingConfig(config: CredentialSanitizationConfig): boolean {
+  return (
+    WORKSPACE_SPECIFIC_TYPES.has(config.type) ||
+    WORKSPACE_SPECIFIC_FIELDS.has(config.id) ||
+    (config.canonicalParamId != null && WORKSPACE_SPECIFIC_FIELDS.has(config.canonicalParamId))
+  )
+}
+
+/** Whether a sub-block config names a credential, which no export option preserves. */
+function isCredentialBindingConfig(config: CredentialSanitizationConfig): boolean {
+  return (
+    config.type === 'oauth-input' ||
+    CREDENTIAL_BINDING_FIELDS.has(config.id) ||
+    (config.canonicalParamId != null && CREDENTIAL_BINDING_FIELDS.has(config.canonicalParamId))
+  )
+}
+
+/**
+ * Keeps a fallback list's models and drops every row key that is not a whole
+ * environment-variable reference. The editor only ever writes references, but the
+ * realtime subblock-value op runs no validator, so this is what guarantees a raw
+ * key can never leave the workspace in an export or template.
+ */
+function sanitizeFallbackModelsValue(
+  value: unknown,
+  options: WorkflowSanitizationOptions
+): unknown {
+  if (!Array.isArray(value)) return value
+  return value.map((row) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return row
+    const { apiKey, ...rest } = row as Record<string, unknown>
+    return options.preserveEnvVars && isWholeEnvVarReference(apiKey) ? { ...rest, apiKey } : rest
+  })
+}
+
 /**
  * Sanitizes nested tool parameters using the same codecs as workflow search and fork remapping.
  * Only parameters resolved from a registered definition retain non-sensitive values. Custom, MCP,
  * and unknown schemas lack reliable secret annotations, so their generic parameters are withheld.
  */
 function sanitizeToolInputValue(value: unknown, options: WorkflowSanitizationOptions): unknown {
-  const tools = parseStoredToolInputValue(value)
-  if (!Array.isArray(value)) return null
-  if (tools.length !== value.length) return null
+  const { array, wasString } = coerceObjectArray(value)
+  if (!array) return null
+  if (wasString && !options.preserveReferenceMetadata) return null
+  const tools = parseStoredToolInputValue(array)
+  if (tools.length !== array.length) return null
 
-  let sanitizedValue: unknown = value
+  let sanitizedValue: unknown = array
   tools.forEach((tool, toolIndex) => {
-    const storedTool = value[toolIndex]
+    const storedTool = array[toolIndex]
     if (!isPlainRecord(storedTool)) {
       throw new Error(`Parsed tool input at index ${toolIndex} lost its object shape`)
     }
@@ -203,12 +267,18 @@ function sanitizeToolInputValue(value: unknown, options: WorkflowSanitizationOpt
       const resolved = configByParamKey.get(paramKey)
       const nextValue = resolved?.authoritative
         ? sanitizeConfiguredSubBlockValue(paramValue, resolved.config, options)
-        : null
+        : options.preserveReferenceMetadata &&
+            (tool.type === 'mcp' || tool.type === 'mcp-server-advanced') &&
+            paramKey === 'toolName' &&
+            typeof paramValue === 'string' &&
+            /^[\w.-]{1,256}$/.test(paramValue)
+          ? paramValue
+          : null
       sanitizedValue = setValueAtPath(sanitizedValue, [toolIndex, 'params', paramKey], nextValue)
     })
   })
 
-  return sanitizedValue
+  return wasString ? JSON.stringify(sanitizedValue) : sanitizedValue
 }
 
 function sanitizeConfiguredSubBlockValue(
@@ -217,6 +287,13 @@ function sanitizeConfiguredSubBlockValue(
   options: WorkflowSanitizationOptions
 ): unknown {
   if (config.type === 'oauth-input') return null
+  if (
+    options.preserveReferenceMetadata &&
+    config.type === 'mcp-tool-selector' &&
+    typeof value === 'string' &&
+    /^[\w.-]{1,512}$/.test(value)
+  )
+    return value
   if (options.redactOpaqueCredentialInputs && config.type === 'tool-input') {
     return sanitizeToolInputValue(value, options)
   }
@@ -226,12 +303,11 @@ function sanitizeConfiguredSubBlockValue(
   if (config.password === true) {
     return options.preserveEnvVars && isEnvironmentVariableReference(value) ? value : null
   }
-  if (
-    WORKSPACE_SPECIFIC_TYPES.has(config.type) ||
-    WORKSPACE_SPECIFIC_FIELDS.has(config.id) ||
-    (config.canonicalParamId != null && WORKSPACE_SPECIFIC_FIELDS.has(config.canonicalParamId))
-  ) {
-    return null
+  if (config.type === 'model-fallback-list') {
+    return sanitizeFallbackModelsValue(value, options)
+  }
+  if (isWorkspaceBindingConfig(config)) {
+    if (!options.preserveWorkspaceBindings || isCredentialBindingConfig(config)) return null
   }
   return value
 }
@@ -288,7 +364,11 @@ export function sanitizeWorkflowForSharing(
         }
 
         // Clear workspace-specific fields by key name
-        if (WORKSPACE_SPECIFIC_FIELDS.has(key) && subBlock) {
+        if (
+          WORKSPACE_SPECIFIC_FIELDS.has(key) &&
+          subBlock &&
+          (!options.preserveWorkspaceBindings || CREDENTIAL_BINDING_FIELDS.has(key))
+        ) {
           subBlock.value = null
         }
       })
@@ -302,7 +382,7 @@ export function sanitizeWorkflowForSharing(
           block.data![key] = null
         }
         // Clear workspace-specific data
-        if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
+        if (WORKSPACE_SPECIFIC_FIELDS.has(key) && !options.preserveWorkspaceBindings) {
           block.data![key] = null
         }
       })
@@ -310,4 +390,69 @@ export function sanitizeWorkflowForSharing(
   })
 
   return sanitized
+}
+
+/** A required workspace binding an export cleared, keyed the way a caller sets it. */
+export interface StrippedWorkspaceBinding {
+  blockId: string
+  blockName: string
+  /** The canonical param id of a picker/manual pair, else the sub-block id. */
+  field: string
+}
+
+function isRequiredSubBlock(config: SubBlockConfig, values: Record<string, unknown>): boolean {
+  if (!config.required) return false
+  if (config.required === true) return true
+  return evaluateSubBlockCondition(config.required, values)
+}
+
+/**
+ * The required workspace bindings of a state that arrived empty — what
+ * {@link sanitizeWorkflowForSharing} clears on export and nothing on the import
+ * path can restore.
+ *
+ * Reported per canonical group: a picker and its manual twin are one binding to
+ * the caller, and the group is empty only when every member is. A binding
+ * whose sub-block is hidden by its `condition` (a document selector on a
+ * knowledge block set to `search`) or not required in the current mode is not
+ * reported, so the list is exactly the fields the workflow cannot run without.
+ * Credentials are left to the sharing rule that always clears them; disabled
+ * blocks are skipped because execution skips them too.
+ */
+export function collectStrippedWorkspaceBindings(
+  state: Pick<Partial<WorkflowState>, 'blocks'> | null | undefined
+): StrippedWorkspaceBinding[] {
+  const findings: StrippedWorkspaceBinding[] = []
+  for (const [blockId, block] of Object.entries(state?.blocks ?? {})) {
+    if (!block?.type || block.enabled === false) continue
+    const blockConfig = getBlock(block.type)
+    if (!blockConfig) continue
+
+    const subBlocks = block.subBlocks ?? {}
+    const values: Record<string, unknown> = {}
+    for (const [id, subBlock] of Object.entries(subBlocks)) values[id] = subBlock?.value
+
+    const groups = new Map<string, { present: boolean; hasValue: boolean; required: boolean }>()
+    for (const config of blockConfig.subBlocks ?? []) {
+      if (!isWorkspaceBindingConfig(config) || isCredentialBindingConfig(config)) continue
+      const key = config.canonicalParamId ?? config.id
+      const group = groups.get(key) ?? { present: false, hasValue: false, required: false }
+      if (Object.hasOwn(subBlocks, config.id)) group.present = true
+      if (isNonEmptyValue(values[config.id])) group.hasValue = true
+      if (
+        evaluateSubBlockCondition(config.condition, values) &&
+        isRequiredSubBlock(config, values)
+      ) {
+        group.required = true
+      }
+      groups.set(key, group)
+    }
+
+    for (const [field, group] of groups) {
+      if (group.present && group.required && !group.hasValue) {
+        findings.push({ blockId, blockName: block.name || blockId, field })
+      }
+    }
+  }
+  return findings
 }

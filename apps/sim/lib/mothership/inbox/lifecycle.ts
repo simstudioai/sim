@@ -1,131 +1,198 @@
-import { db, mothershipInboxWebhook, workspace } from '@sim/db'
+import { db } from '@sim/db'
+import { mothershipInboxWebhook, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
-import type { InboxConfig } from '@/lib/mothership/inbox/types'
+import {
+  cancelInboxCleanup,
+  enqueueInboxCleanup,
+  type InboxCleanupPayload,
+  processInboxCleanupNow,
+} from '@/lib/mothership/inbox/cleanup-outbox'
+import type { AgentMailInbox, AgentMailWebhook, InboxConfig } from '@/lib/mothership/inbox/types'
 
 const logger = createLogger('InboxLifecycle')
+type InboxExecutor = Pick<typeof db, 'select'>
 
-/**
- * Enable inbox for a workspace:
- * 1. Create AgentMail inbox (with optional custom username)
- * 2. Create AgentMail webhook scoped to this inbox
- * 3. Store inbox details + webhook secret in DB
- * 4. Update workspace.inboxEnabled = true
- */
-export async function enableInbox(
-  workspaceId: string,
-  opts?: { username?: string }
-): Promise<InboxConfig> {
-  const inbox = await agentmail.createInbox({
-    username: opts?.username,
-    displayName: 'Sim',
-  })
-
-  logger.info('AgentMail createInbox response', { inbox: JSON.stringify(inbox) })
-
-  if (!inbox?.inbox_id) {
-    throw new Error('AgentMail createInbox response missing inbox_id')
+async function loadInbox(executor: InboxExecutor, workspaceId: string, lock = false) {
+  if (lock) {
+    await executor
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+      .for('update')
   }
+  const query = executor
+    .select({
+      enabled: workspace.inboxEnabled,
+      address: workspace.inboxAddress,
+      providerId: workspace.inboxProviderId,
+      webhookId: mothershipInboxWebhook.webhookId,
+    })
+    .from(workspace)
+    .leftJoin(mothershipInboxWebhook, eq(mothershipInboxWebhook.workspaceId, workspace.id))
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+  const [current] = await query
+  if (!current) throw new Error('Workspace not found')
+  return current
+}
 
-  let webhook: Awaited<ReturnType<typeof agentmail.createWebhook>> | null = null
+type InboxState = Awaited<ReturnType<typeof loadInbox>>
+
+function assertUnchanged(current: InboxState, expected: InboxState): void {
+  if (
+    current.enabled !== expected.enabled ||
+    current.providerId !== expected.providerId ||
+    current.webhookId !== expected.webhookId
+  ) {
+    throw new Error('Inbox settings changed. Refresh and try again.')
+  }
+}
+
+async function captureCleanup(current: InboxState): Promise<InboxCleanupPayload> {
+  const inbox = current.providerId ? await agentmail.getInbox(current.providerId) : null
+  return {
+    inboxId: inbox?.inbox_id ?? null,
+    inboxCreatedAt: inbox?.created_at ?? null,
+    webhookId: current.webhookId,
+  }
+}
+
+/** Only used before activation can have committed, so direct rollback cannot delete a live inbox. */
+async function rollbackUninstalledResources(
+  inbox: AgentMailInbox,
+  webhook: AgentMailWebhook | null
+) {
+  const results = await Promise.allSettled([
+    ...(webhook ? [agentmail.deleteWebhook(webhook.webhook_id)] : []),
+    agentmail.deleteInbox(inbox.inbox_id),
+  ])
+  if (results.some((result) => result.status === 'rejected' || !result.value)) {
+    logger.error('Inbox provisioning rollback needs reconciliation', {
+      inboxId: inbox.inbox_id,
+      webhookId: webhook?.webhook_id,
+    })
+  }
+}
+
+async function rollbackProvisioning(inbox: AgentMailInbox, webhook: AgentMailWebhook | null) {
   try {
-    /**
-     * The receiver routes a delivery to this workspace by the `message.inbox_id`
-     * in the envelope, so it can only accept event types that carry a message.
-     * Adding one that does not would make those deliveries unroutable.
-     */
-    webhook = await agentmail.createWebhook({
+    const eventId = await enqueueInboxCleanup(db, {
+      inboxId: inbox.inbox_id,
+      inboxCreatedAt: inbox.created_at,
+      webhookId: webhook?.webhook_id ?? null,
+    })
+    await processInboxCleanupNow(eventId)
+  } catch (error) {
+    await rollbackUninstalledResources(inbox, webhook)
+    logger.error('Failed to queue inbox provisioning rollback', {
+      inboxId: inbox.inbox_id,
+      webhookId: webhook?.webhook_id,
+      error,
+    })
+  }
+}
+
+async function provisionInbox(username?: string) {
+  const inbox = await agentmail.createInbox({ username, displayName: 'Sim' })
+  if (!inbox?.inbox_id) {
+    throw new Error('Email service returned an invalid inbox')
+  }
+  if (!inbox.created_at) {
+    await rollbackUninstalledResources(inbox, null)
+    throw new Error('Email service returned an invalid inbox')
+  }
+  try {
+    const webhook = await agentmail.createWebhook({
       url: `${getBaseUrl()}/api/webhooks/agentmail`,
       eventTypes: ['message.received'],
       inboxIds: [inbox.inbox_id],
     })
-
-    await db.insert(mothershipInboxWebhook).values({
-      id: generateId(),
-      workspaceId,
-      webhookId: webhook.webhook_id,
-      secret: webhook.secret,
-    })
-
-    await db
-      .update(workspace)
-      .set({
-        inboxEnabled: true,
-        inboxAddress: inbox.inbox_id,
-        inboxProviderId: inbox.inbox_id,
-        updatedAt: new Date(),
-      })
-      .where(eq(workspace.id, workspaceId))
-
-    logger.info('Inbox enabled', { workspaceId, address: inbox.inbox_id })
-
-    return {
-      enabled: true,
-      address: inbox.inbox_id,
-      providerId: inbox.inbox_id,
-    }
+    return { inbox, webhook }
   } catch (error) {
-    try {
-      if (webhook) await agentmail.deleteWebhook(webhook.webhook_id)
-      await agentmail.deleteInbox(inbox.inbox_id)
-      await db
-        .delete(mothershipInboxWebhook)
-        .where(eq(mothershipInboxWebhook.workspaceId, workspaceId))
-    } catch (rollbackError) {
-      logger.error('Failed to rollback AgentMail resources', { rollbackError })
-    }
+    await rollbackProvisioning(inbox, null)
     throw error
   }
 }
 
-/**
- * Disable inbox:
- * 1. Delete AgentMail webhook
- * 2. Delete AgentMail inbox
- * 3. Clear workspace inbox columns
- * 4. Delete mothershipInboxWebhook row
- */
+async function installInbox(
+  workspaceId: string,
+  expected: InboxState,
+  username?: string,
+  cleanup?: InboxCleanupPayload
+): Promise<InboxConfig> {
+  const { inbox, webhook } = await provisionInbox(username)
+  let rollbackEventId: string
+  try {
+    rollbackEventId = await enqueueInboxCleanup(
+      db,
+      {
+        inboxId: inbox.inbox_id,
+        inboxCreatedAt: inbox.created_at,
+        webhookId: webhook.webhook_id,
+      },
+      new Date(Date.now() + 5 * 60_000)
+    )
+  } catch (error) {
+    await rollbackUninstalledResources(inbox, webhook)
+    throw error
+  }
+  let cleanupEventId: string | undefined
+  try {
+    await db.transaction(async (tx) => {
+      assertUnchanged(await loadInbox(tx, workspaceId, true), expected)
+      await cancelInboxCleanup(tx, rollbackEventId)
+      if (cleanup) cleanupEventId = await enqueueInboxCleanup(tx, cleanup)
+      await tx
+        .delete(mothershipInboxWebhook)
+        .where(eq(mothershipInboxWebhook.workspaceId, workspaceId))
+      await tx.insert(mothershipInboxWebhook).values({
+        id: generateId(),
+        workspaceId,
+        webhookId: webhook.webhook_id,
+        secret: webhook.secret,
+      })
+      await tx
+        .update(workspace)
+        .set({
+          inboxEnabled: true,
+          inboxAddress: inbox.inbox_id,
+          inboxProviderId: inbox.inbox_id,
+          updatedAt: new Date(),
+        })
+        .where(eq(workspace.id, workspaceId))
+    })
+  } catch (error) {
+    await processInboxCleanupNow(rollbackEventId, { expedite: true })
+    throw error
+  }
+  if (cleanupEventId) await processInboxCleanupNow(cleanupEventId)
+  return { enabled: true, address: inbox.inbox_id, providerId: inbox.inbox_id }
+}
+
+/** Provisions resources before atomically activating their inbox and webhook configuration. */
+export async function enableInbox(
+  workspaceId: string,
+  opts?: { username?: string }
+): Promise<InboxConfig> {
+  const current = await loadInbox(db, workspaceId)
+  if (current.enabled || current.providerId || current.webhookId) {
+    throw new Error('Inbox is already configured. Refresh and try again.')
+  }
+  return installInbox(workspaceId, current, opts?.username)
+}
+
+/** Stops mail processing atomically and retains provider cleanup in the outbox until it succeeds. */
 export async function disableInbox(workspaceId: string): Promise<void> {
-  const [[ws], [webhookRow]] = await Promise.all([
-    db
-      .select({ inboxProviderId: workspace.inboxProviderId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1),
-    db
-      .select({ webhookId: mothershipInboxWebhook.webhookId })
-      .from(mothershipInboxWebhook)
-      .where(eq(mothershipInboxWebhook.workspaceId, workspaceId))
-      .limit(1),
-  ])
-
-  const deletePromises: Promise<void>[] = []
-  if (webhookRow) {
-    deletePromises.push(
-      agentmail.deleteWebhook(webhookRow.webhookId).catch((error) => {
-        logger.warn('Failed to delete AgentMail webhook', { error })
-      })
-    )
-  }
-  if (ws?.inboxProviderId) {
-    deletePromises.push(
-      agentmail.deleteInbox(ws.inboxProviderId).catch((error) => {
-        logger.warn('Failed to delete AgentMail inbox', { error })
-      })
-    )
-  }
-  await Promise.all(deletePromises)
-
-  /**
-   * Atomic so the two rows cannot disagree. `workspace.inboxProviderId` is
-   * uniquely indexed, so a half-applied disable would strand the id of an
-   * AgentMail inbox that no longer exists — and the next workspace to claim that
-   * same address would then fail to enable at all.
-   */
-  await db.transaction(async (tx) => {
+  const current = await loadInbox(db, workspaceId)
+  const cleanup = await captureCleanup(current)
+  const eventId = await db.transaction(async (tx) => {
+    assertUnchanged(await loadInbox(tx, workspaceId, true), current)
+    const eventId = await enqueueInboxCleanup(tx, cleanup)
     await tx
       .delete(mothershipInboxWebhook)
       .where(eq(mothershipInboxWebhook.workspaceId, workspaceId))
@@ -138,20 +205,17 @@ export async function disableInbox(workspaceId: string): Promise<void> {
         updatedAt: new Date(),
       })
       .where(eq(workspace.id, workspaceId))
+    return eventId
   })
-
-  logger.info('Inbox disabled', { workspaceId })
+  await processInboxCleanupNow(eventId)
 }
 
-/**
- * Update inbox address (regenerate):
- * 1. Disable old inbox
- * 2. Enable new inbox with new username
- */
+/** Keeps the existing inbox intact until its replacement is provisioned and committed. */
 export async function updateInboxAddress(
   workspaceId: string,
   newUsername: string
 ): Promise<InboxConfig> {
-  await disableInbox(workspaceId)
-  return enableInbox(workspaceId, { username: newUsername })
+  const current = await loadInbox(db, workspaceId)
+  const cleanup = await captureCleanup(current)
+  return installInbox(workspaceId, current, newUsername, cleanup)
 }

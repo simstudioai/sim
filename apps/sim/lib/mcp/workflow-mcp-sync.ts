@@ -2,7 +2,7 @@ import { db, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notExists } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { MAX_MCP_SERVERS_PER_WORKFLOW, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
 import { acquireWorkflowMcpServerLock } from '@/lib/mcp/server-locks'
 import {
@@ -268,7 +268,7 @@ async function getRestoreSkipReason(
  * neither deadlock against each other nor race the checks.
  */
 async function restoreArchivedMcpToolsForWorkflow(
-  tx: DbOrTx,
+  tx: DbTransaction,
   workflowId: string,
   requestId: string
 ): Promise<void> {
@@ -434,7 +434,7 @@ interface SyncOptionsBase {
  */
 type SyncOptions = SyncOptionsBase &
   (
-    | { tx: DbOrTx; state: { blocks?: Record<string, unknown> }; notify?: false }
+    | { tx: DbTransaction; state: { blocks?: Record<string, unknown> }; notify?: false }
     | { tx?: undefined; state?: { blocks?: Record<string, unknown> }; notify?: boolean }
   )
 
@@ -607,7 +607,7 @@ export async function syncMcpToolsForWorkflow(
 export async function removeMcpToolsForWorkflow(
   workflowId: string,
   requestId: string,
-  tx?: DbOrTx,
+  tx?: DbTransaction,
   throwOnError = false
 ): Promise<Array<{ serverId: string }>> {
   if (!tx) {
@@ -645,28 +645,28 @@ export async function removeMcpToolsForWorkflow(
  * Publish pubsub events for each unique server affected by a tool change.
  * Resolves workspace IDs from the server table so callers don't need to pass them.
  */
+/** Publishes affected servers synchronously so durable callers can observe failures. */
+export async function publishMcpToolServerChanges(serverIds: string[]): Promise<void> {
+  if (!mcpPubSub || !serverIds.length) return
+  const servers = await db
+    .select({ id: workflowMcpServer.id, workspaceId: workflowMcpServer.workspaceId })
+    .from(workflowMcpServer)
+    .where(
+      and(
+        inArray(workflowMcpServer.id, [...new Set(serverIds)]),
+        isNull(workflowMcpServer.deletedAt)
+      )
+    )
+  for (const server of servers) {
+    await mcpPubSub.publishWorkflowToolsChanged({
+      serverId: server.id,
+      workspaceId: server.workspaceId,
+    })
+  }
+}
+
 export function notifyMcpToolServers(tools: Array<{ serverId: string }>): void {
-  if (!mcpPubSub) return
-
-  const uniqueServerIds = [...new Set(tools.map((t) => t.serverId))]
-
-  void (async () => {
-    try {
-      const servers = await db
-        .select({ id: workflowMcpServer.id, workspaceId: workflowMcpServer.workspaceId })
-        .from(workflowMcpServer)
-        .where(
-          and(inArray(workflowMcpServer.id, uniqueServerIds), isNull(workflowMcpServer.deletedAt))
-        )
-
-      for (const server of servers) {
-        mcpPubSub.publishWorkflowToolsChanged({
-          serverId: server.id,
-          workspaceId: server.workspaceId,
-        })
-      }
-    } catch (error) {
-      logger.error('Error notifying affected servers:', error)
-    }
-  })()
+  void publishMcpToolServerChanges(tools.map((tool) => tool.serverId)).catch((error) => {
+    logger.error('Error notifying affected servers:', error)
+  })
 }

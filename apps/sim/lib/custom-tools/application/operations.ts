@@ -1,11 +1,17 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const HUMAN_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
 
@@ -18,6 +24,7 @@ const HUMAN_PRINCIPAL_POLICY = {
 export const customToolOperations = {
   list: defineWorkspaceOperation({
     id: 'custom_tools.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
@@ -25,6 +32,7 @@ export const customToolOperations = {
   }),
   listAvailable: defineWorkspaceOperation({
     id: 'custom_tools.list_available',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'custom_tools.use',
@@ -32,6 +40,7 @@ export const customToolOperations = {
   }),
   read: defineWorkspaceOperation({
     id: 'custom_tools.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
@@ -47,13 +56,7 @@ export const customToolOperations = {
   }),
   create: defineWorkspaceOperation({
     id: 'custom_tools.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    capability: 'custom_tools.use',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  save: defineWorkspaceOperation({
-    id: 'custom_tools.save',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
@@ -61,31 +64,19 @@ export const customToolOperations = {
   }),
   update: defineWorkspaceOperation({
     id: 'custom_tools.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
     ...ALL_PRINCIPAL_POLICY,
-  }),
-  updateAvailable: defineWorkspaceOperation({
-    id: 'custom_tools.update_available',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'custom_tools.use',
-    ...HUMAN_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
     id: 'custom_tools.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
     ...ALL_PRINCIPAL_POLICY,
-  }),
-  deleteAvailable: defineWorkspaceOperation({
-    id: 'custom_tools.delete_available',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'custom_tools.use',
-    ...HUMAN_PRINCIPAL_POLICY,
   }),
 } as const
 

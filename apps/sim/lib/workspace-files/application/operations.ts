@@ -1,31 +1,49 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_COPILOT_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const ALL_FILE_TOOL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot', 'executor'],
 } as const
 const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot', 'executor'],
 } as const
-const UPLOAD_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+/**
+ * Version history admits direct callers only; delegated version access is a separate decision.
+ */
+const DIRECT_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
 } as const
+const UPLOAD_PRINCIPAL_POLICY = ALL_COPILOT_PRINCIPAL_POLICY
 
 export const fileOperations = {
   list: defineWorkspaceOperation({
     id: 'files.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   readMetadata: defineWorkspaceOperation({
     id: 'files.read_metadata',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -33,6 +51,7 @@ export const fileOperations = {
   }),
   readContent: defineWorkspaceOperation({
     id: 'files.read_content',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -40,6 +59,7 @@ export const fileOperations = {
   }),
   searchContent: defineWorkspaceOperation({
     id: 'files.search_content',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -47,6 +67,7 @@ export const fileOperations = {
   }),
   download: defineWorkspaceOperation({
     id: 'files.download',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -61,6 +82,7 @@ export const fileOperations = {
   }),
   create: defineWorkspaceOperation({
     id: 'files.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -68,6 +90,7 @@ export const fileOperations = {
   }),
   rename: defineWorkspaceOperation({
     id: 'files.rename',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -87,13 +110,15 @@ export const fileOperations = {
    */
   extractArchive: defineWorkspaceOperation({
     id: 'files.extract_archive',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
   updateContent: defineWorkspaceOperation({
     id: 'files.update_content',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -101,6 +126,7 @@ export const fileOperations = {
   }),
   updateMetadata: defineWorkspaceOperation({
     id: 'files.update_metadata',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -108,37 +134,15 @@ export const fileOperations = {
   }),
   move: defineWorkspaceOperation({
     id: 'files.move',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
-  createVfsFolders: defineWorkspaceOperation({
-    id: 'files.vfs.folders.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'files.use',
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
-  }),
-  relocateVfsItems: defineWorkspaceOperation({
-    id: 'files.vfs.relocate',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'files.use',
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
-  }),
-  deleteVfsItems: defineWorkspaceOperation({
-    id: 'files.vfs.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'files.use',
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
-  }),
   delete: defineWorkspaceOperation({
     id: 'files.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -146,13 +150,63 @@ export const fileOperations = {
   }),
   restore: defineWorkspaceOperation({
     id: 'files.restore',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
+  listVersions: defineWorkspaceOperation({
+    id: 'files.versions.list',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  readVersion: defineWorkspaceOperation({
+    id: 'files.versions.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  readVersionContent: defineWorkspaceOperation({
+    id: 'files.versions.read_content',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  downloadVersion: defineWorkspaceOperation({
+    id: 'files.versions.download',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  revertVersion: defineWorkspaceOperation({
+    id: 'files.versions.revert',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
+  deleteVersion: defineWorkspaceOperation({
+    id: 'files.versions.delete',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'files.use',
+    ...DIRECT_PRINCIPAL_POLICY,
+  }),
   readShare: defineWorkspaceOperation({
     id: 'files.share.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -160,6 +214,7 @@ export const fileOperations = {
   }),
   updateShare: defineWorkspaceOperation({
     id: 'files.share.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'files.use',
@@ -167,13 +222,15 @@ export const fileOperations = {
   }),
   listFolders: defineWorkspaceOperation({
     id: 'files.folders.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   createFolder: defineWorkspaceOperation({
     id: 'files.folders.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -181,27 +238,31 @@ export const fileOperations = {
   }),
   updateFolder: defineWorkspaceOperation({
     id: 'files.folders.update',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   deleteFolder: defineWorkspaceOperation({
     id: 'files.folders.delete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   restoreFolder: defineWorkspaceOperation({
     id: 'files.folders.restore',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   uploadCreate: defineWorkspaceOperation({
     id: 'files.upload.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -215,13 +276,15 @@ export const fileOperations = {
    */
   uploadRead: defineWorkspaceOperation({
     id: 'files.upload.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...UPLOAD_PRINCIPAL_POLICY,
+    ...DIRECT_PRINCIPAL_POLICY,
   }),
   uploadParts: defineWorkspaceOperation({
     id: 'files.upload.parts',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -229,6 +292,7 @@ export const fileOperations = {
   }),
   uploadComplete: defineWorkspaceOperation({
     id: 'files.upload.complete',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
@@ -236,6 +300,7 @@ export const fileOperations = {
   }),
   uploadCancel: defineWorkspaceOperation({
     id: 'files.upload.cancel',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',

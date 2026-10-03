@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Pinned against the vendored SDKs rather than against numbers typed from memory: if an
  * SDK bump moves a default, these fail and the divergence becomes a decision instead of
  * a surprise.

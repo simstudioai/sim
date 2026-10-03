@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from 'react'
 import {
+  Avatar,
   Checkbox,
   Chip,
   ChipConfirmModal,
@@ -47,12 +48,12 @@ import {
   groupTabParam,
   groupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import {
-  MemberAvatar,
-  MemberRow,
-} from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -157,7 +158,7 @@ function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
       onChange={(next) => onChange(next as StatusFilter)}
       options={STATUS_FILTER_OPTIONS}
       matchTriggerWidth={false}
-      className='w-[140px] flex-shrink-0'
+      className='w-[140px] shrink-0'
     />
   )
 }
@@ -333,7 +334,7 @@ function AddMembersModal({
                           className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
-                          <MemberAvatar name={name} image={member.user?.image ?? null} />
+                          <Avatar size='xs' name={name} src={member.user?.image} aria-hidden />
                           <div className='min-w-0 flex-1'>
                             <OverflowText
                               label={name}
@@ -546,8 +547,8 @@ function ProviderRow({
           checked={isProviderAllowed}
           onCheckedChange={() => onToggleProvider()}
         />
-        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
-          {ProviderIcon && <ProviderIcon className='!size-[16px]' />}
+        <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
+          {ProviderIcon && <ProviderIcon className='size-[16px]!' />}
         </div>
         <button
           type='button'
@@ -560,14 +561,14 @@ function ProviderRow({
         >
           <OverflowText label={providerName} className='text-sm' />
           {isProviderAllowed && deniedCount > 0 && (
-            <ChipTag variant='gray' className='flex-shrink-0'>
+            <ChipTag variant='gray' className='shrink-0'>
               {deniedCount} blocked
             </ChipTag>
           )}
           {isProviderAllowed && (
             <ChevronDown
               className={cn(
-                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+                'ml-auto size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
                 expanded && 'rotate-180'
               )}
             />
@@ -630,10 +631,10 @@ function BlockToolRow({
           onCheckedChange={() => onToggleBlock()}
         />
         <div
-          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+          className='relative flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: block.bgColor }}
         >
-          {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
+          {BlockIcon && <BlockIcon className='size-[9px]! text-white' />}
         </div>
         <button
           type='button'
@@ -651,19 +652,19 @@ function BlockToolRow({
               is the only thing that tells them apart, so an allowlist decision made without
               it is a guess. */}
           {block.sourceWorkspaceName && (
-            <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+            <span className='shrink-0 text-[var(--text-muted)] text-caption'>
               {block.sourceWorkspaceName}
             </span>
           )}
           {isBlockAllowed && deniedCount > 0 && (
-            <ChipTag variant='gray' className='flex-shrink-0'>
+            <ChipTag variant='gray' className='shrink-0'>
               {deniedCount} blocked
             </ChipTag>
           )}
           {isBlockAllowed && isExpandable && (
             <ChevronDown
               className={cn(
-                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+                'ml-auto size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
                 expanded && 'rotate-180'
               )}
             />
@@ -671,7 +672,7 @@ function BlockToolRow({
         </button>
         {/* Outside the button: an Info trigger is itself a button and cannot nest. */}
         {block.description && (
-          <Info side='top' className={cn('flex-shrink-0', !isBlockAllowed && 'opacity-60')}>
+          <Info side='top' className={cn('shrink-0', !isBlockAllowed && 'opacity-60')}>
             {block.description}
           </Info>
         )}
@@ -724,21 +725,13 @@ export function GroupDetail({
 
   /**
    * Local, authoritative copy of the group while the detail view is open. Seeded
-   * from the prop and re-seeded only when the selected group id changes, so
+   * from the prop for this keyed group instance, so
    * optimistic scope/default/config writes are not clobbered by list refetches.
    */
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup>(group)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig>({ ...group.config })
   const [editingName, setEditingName] = useState(group.name.trim())
   const [editingDescription, setEditingDescription] = useState((group.description ?? '').trim())
-  const prevGroupIdRef = useRef(group.id)
-  if (prevGroupIdRef.current !== group.id) {
-    prevGroupIdRef.current = group.id
-    setViewingGroup(group)
-    setEditingConfig({ ...group.config })
-    setEditingName(group.name.trim())
-    setEditingDescription((group.description ?? '').trim())
-  }
 
   /**
    * Monotonic token for scope-affecting writes (workspace select + default
@@ -785,7 +778,7 @@ export function GroupDetail({
     viewingGroup.id
   )
   const { data: roster } = useOrganizationRoster(organizationId)
-  const { data: blacklistedProvidersData } = useBlacklistedProviders({ enabled: true })
+  const blacklistedProviders = useBlacklistedProviders()
 
   // Recompute when custom (deploy-as-block) blocks or the viewer's block
   // visibility hydrate into the overlay.
@@ -825,11 +818,10 @@ export function GroupDetail({
   const visibleBlocks = useMemo(() => allBlocks.filter((b) => !b.hideFromToolbar), [allBlocks])
 
   const allProviderIds = useMemo(() => {
-    const allIds = getAllProviderIds()
-    const blacklist = blacklistedProvidersData?.blacklistedProviders ?? []
-    if (blacklist.length === 0) return allIds
-    return allIds.filter((id) => !blacklist.includes(id.toLowerCase()))
-  }, [blacklistedProvidersData])
+    if (!blacklistedProviders.isSuccess) return []
+    const blacklist = blacklistedProviders.data.blacklistedProviders
+    return getAllProviderIds().filter((id) => !blacklist.includes(id.toLowerCase()))
+  }, [blacklistedProviders.data, blacklistedProviders.isSuccess])
 
   /** Maps every tool id to ALL block types that expose it (some tools are shared across blocks). */
   const toolBlockTypes = useMemo(() => {
@@ -1546,7 +1538,7 @@ export function GroupDetail({
                       options={workspaceOptions}
                       isLoading={workspacesLoading}
                       allowAllWorkspaces={false}
-                      className='flex-shrink-0'
+                      className='shrink-0'
                     />
                   </div>
                   {viewingGroup.workspaces.length > 0 && (
@@ -1579,7 +1571,7 @@ export function GroupDetail({
                       variant='primary'
                       leftIcon={Plus}
                       onClick={handleOpenAddMembersModal}
-                      className='flex-shrink-0'
+                      className='shrink-0'
                     >
                       Add
                     </Chip>
@@ -1588,7 +1580,7 @@ export function GroupDetail({
                     <div className='-mx-2 flex flex-col gap-y-0.5'>
                       {[1, 2].map((i) => (
                         <div key={i} className='flex items-center gap-2.5 p-2'>
-                          <Skeleton className='size-[14px] flex-shrink-0 rounded-full' />
+                          <Skeleton className='size-[14px] shrink-0 rounded-full' />
                           <Skeleton className='h-[14px] w-[180px]' />
                         </div>
                       ))}
@@ -1626,50 +1618,63 @@ export function GroupDetail({
           </>
         )}
 
-        {configTab === 'providers' && (
-          <div className='flex flex-col gap-7'>
-            <div className='flex items-center gap-2'>
-              <ChipInput
-                icon={Search}
-                placeholder='Search providers...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='min-w-0 flex-1'
-              />
-              <StatusFilterChip
-                value={statusFilter}
-                onChange={(next) => void setStatusFilter(next)}
-              />
-              <Chip
-                onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
-                disabled={filteredProviders.length === 0}
-              >
-                {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
-              </Chip>
-            </div>
-            {filteredProviders.length === 0 ? (
-              <SettingsEmptyState variant='inline'>
-                No providers match your filters.
-              </SettingsEmptyState>
-            ) : (
-              <div className='flex flex-col gap-0.5'>
-                {filteredProviders.map((providerId) => (
-                  <ProviderRow
-                    key={providerId}
-                    providerId={providerId}
-                    isProviderAllowed={isProviderAllowed(providerId)}
-                    onToggleProvider={() => toggleProvider(providerId)}
-                    deniedCount={deniedCountByProvider[providerId] ?? 0}
-                    workspaceId={workspaceId}
-                    isAllowed={isModelAllowed}
-                    onToggle={toggleModel}
-                    onSetDenied={setModelsDenied}
-                  />
-                ))}
+        {configTab === 'providers' &&
+          (blacklistedProviders.isError ? (
+            <SettingsQueryErrorState
+              error={blacklistedProviders.error}
+              fallback='Could not load provider availability'
+              isRetrying={blacklistedProviders.isFetching}
+              onRetry={() => void blacklistedProviders.refetch()}
+              variant='inline'
+            />
+          ) : !blacklistedProviders.isSuccess ? (
+            <SettingsEmptyState variant='inline'>Loading providers</SettingsEmptyState>
+          ) : (
+            <div className='flex flex-col gap-7'>
+              <div className='flex items-center gap-2'>
+                <ChipInput
+                  icon={Search}
+                  placeholder='Search providers...'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className='min-w-0 flex-1'
+                />
+                <StatusFilterChip
+                  value={statusFilter}
+                  onChange={(next) => void setStatusFilter(next)}
+                />
+                <Chip
+                  onClick={() =>
+                    setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)
+                  }
+                  disabled={filteredProviders.length === 0}
+                >
+                  {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
+                </Chip>
               </div>
-            )}
-          </div>
-        )}
+              {filteredProviders.length === 0 ? (
+                <SettingsEmptyState variant='inline'>
+                  No providers match your filters.
+                </SettingsEmptyState>
+              ) : (
+                <div className='flex flex-col gap-0.5'>
+                  {filteredProviders.map((providerId) => (
+                    <ProviderRow
+                      key={providerId}
+                      providerId={providerId}
+                      isProviderAllowed={isProviderAllowed(providerId)}
+                      onToggleProvider={() => toggleProvider(providerId)}
+                      deniedCount={deniedCountByProvider[providerId] ?? 0}
+                      workspaceId={workspaceId}
+                      isAllowed={isModelAllowed}
+                      onToggle={toggleModel}
+                      onSetDenied={setModelsDenied}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
 
         {configTab === 'blocks' && (
           <div className='flex flex-col gap-7'>
@@ -1719,20 +1724,20 @@ export function GroupDetail({
                             onCheckedChange={() => toggleIntegration(block.type)}
                           />
                           <div
-                            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                            className='relative flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm'
                             style={{ background: block.bgColor }}
                           >
-                            {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
+                            {BlockIcon && <BlockIcon className='size-[9px]! text-white' />}
                           </div>
                           <OverflowText label={block.name} className='text-sm' />
                           {block.sourceWorkspaceName && (
-                            <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+                            <span className='shrink-0 text-[var(--text-muted)] text-caption'>
                               {block.sourceWorkspaceName}
                             </span>
                           )}
                         </label>
                         {block.description && (
-                          <Info side='top' className='flex-shrink-0'>
+                          <Info side='top' className='shrink-0'>
                             {block.description}
                           </Info>
                         )}
@@ -1837,12 +1842,12 @@ export function GroupDetail({
                             />
                             <span className='font-normal text-sm'>{feature.label}</span>
                             {inert && (
-                              <ChipTag variant='gray' className='flex-shrink-0'>
+                              <ChipTag variant='gray' className='shrink-0'>
                                 Organization
                               </ChipTag>
                             )}
                           </label>
-                          <Info side='top' className='flex-shrink-0'>
+                          <Info side='top' className='shrink-0'>
                             {inert
                               ? `${feature.hint} ${ORGANIZATION_SCOPED_FEATURE_NOTE}`
                               : feature.hint}

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { admissionRejectedResponse } from '@/lib/core/admission/gate'
 import {

@@ -2,15 +2,24 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
+import { EmptyState } from '@/components/empty-state/empty-state'
+import {
+  getOrganizationSettingsHref,
+  UNIFIED_TO_ORGANIZATION_SECTION,
+} from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { authorizeWorkspaceSettingsSection } from '@/lib/settings/application/workspace-section-access'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { resolveSettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+import { getLegacyAccessRequestsQuery } from '@/ee/access-requests/lib/navigation'
 import { SECTION_PREFETCHERS } from './prefetch'
 import { SettingsPage } from './settings'
 
 interface WorkspaceSettingsSectionPageProps {
   params: Promise<{ workspaceId: string; section: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 /**
@@ -30,6 +39,7 @@ export async function generateMetadata({
 
 export default async function WorkspaceSettingsSectionPage({
   params,
+  searchParams,
 }: WorkspaceSettingsSectionPageProps) {
   const session = await getSession()
   if (!session?.user) redirect('/login')
@@ -38,7 +48,9 @@ export default async function WorkspaceSettingsSectionPage({
   /** The layout already rejected an unknown segment; this narrows the type and fails safe. */
   const resolved = resolveSettingsSection(section)
   if (!resolved) notFound()
-  const parsed = resolved.id
+  const queryParams = (await searchParams) ?? {}
+  const legacyRequestsQuery = getLegacyAccessRequestsQuery(resolved.id, queryParams)
+  const parsed = legacyRequestsQuery ? 'requests' : resolved.id
 
   const access = await authorizeWorkspaceSettingsSection({
     workspaceId,
@@ -47,7 +59,42 @@ export default async function WorkspaceSettingsSectionPage({
   })
   if (!access.allowed) {
     if (access.disposition === 'not-found') notFound()
+    if (access.disposition === 'request-access') {
+      return (
+        <Suspense
+          fallback={
+            <EmptyState
+              title='Checking access'
+              description='Loading your organization access policy.'
+            />
+          }
+        >
+          <PermissionAccessBoundary configKey={access.configKey} />
+        </Suspense>
+      )
+    }
     redirectToGeneralSettings(workspaceId)
+  }
+
+  const organizationSection = UNIFIED_TO_ORGANIZATION_SECTION[parsed]
+  if (organizationSection) {
+    const hostContext = await getWorkspaceHostContextForViewer(workspaceId, session.user.id)
+    if (hostContext?.hostOrganizationId && hostContext.features?.organizationSearch) {
+      const query = legacyRequestsQuery ?? new URLSearchParams()
+      for (const [key, value] of Object.entries(legacyRequestsQuery ? {} : queryParams)) {
+        for (const entry of Array.isArray(value) ? value : value === undefined ? [] : [value]) {
+          query.append(key, entry)
+        }
+      }
+      redirect(
+        getOrganizationSettingsHref(hostContext.hostOrganizationId, organizationSection, query)
+      )
+    }
+  }
+
+  if (legacyRequestsQuery) {
+    const query = legacyRequestsQuery.toString()
+    redirect(`/workspace/${workspaceId}/settings/requests${query ? `?${query}` : ''}`)
   }
 
   const queryClient = getQueryClient()
@@ -64,9 +111,7 @@ export default async function WorkspaceSettingsSectionPage({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={null}>
-        <SettingsPage section={parsed} />
-      </Suspense>
+      <SettingsPage section={parsed} />
     </HydrationBoundary>
   )
 }

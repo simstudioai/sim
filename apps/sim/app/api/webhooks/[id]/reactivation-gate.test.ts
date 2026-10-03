@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { webhook } from '@sim/db/schema'
 import {
   auditMock,
@@ -51,7 +48,6 @@ function queueDormantWebhook(): void {
  */
 describe('the subject the webhook reactivation gate is decided about', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,

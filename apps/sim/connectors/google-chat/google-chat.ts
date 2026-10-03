@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import {
   DEFAULT_MAX_MESSAGES,
   googleChatConnectorMeta,
@@ -328,24 +329,27 @@ function formatSpaceContent(
   space: Space,
   messages: ChatMessage[]
 ): { content: string; messageCount: number } {
-  const parts = new BoundedLines()
-  parts.push(`Space: ${spaceTitle(space)}`)
+  /** The newest messages survive when the window does not fit; the header always does. */
+  const parts = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, 'last')
+  parts.pin(`Space: ${spaceTitle(space)}`)
   const description = space.spaceDetails?.description?.trim()
-  if (description) parts.push(`Description: ${description}`)
+  if (description) parts.pin(`Description: ${description}`)
   const guidelines = space.spaceDetails?.guidelines?.trim()
-  if (guidelines) parts.push(`Guidelines: ${guidelines}`)
+  if (guidelines) parts.pin(`Guidelines: ${guidelines}`)
 
-  let messageCount = 0
+  let headed = false
   for (const message of messages) {
     const text = message.text?.trim() || message.fallbackText?.trim()
     if (!text) continue
-    if (messageCount === 0) parts.push('', '--- Messages ---')
+    if (!headed) {
+      parts.pin('', '--- Messages ---')
+      headed = true
+    }
     const timestamp = message.createTime ?? ''
-    if (!parts.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)) break
-    messageCount += 1
+    parts.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)
   }
 
-  return { content: parts.join(), messageCount }
+  return { content: parts.join(), messageCount: parts.count }
 }
 
 export const googleChatConnector: ConnectorConfig = {

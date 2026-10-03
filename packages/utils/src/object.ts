@@ -68,6 +68,21 @@ export function toRecordOrNull(value: unknown): Record<string, unknown> | null {
 }
 
 /**
+ * Coerces {@link value} to an array, falling back to an empty one. The array
+ * counterpart to {@link toRecord}, for the common `Array.isArray(v) ? v : []`
+ * shape when reading an untyped payload whose absence should read as "no items".
+ *
+ * @remarks Returns a fresh `[]` on every miss, so the result is never shared. A
+ * hit returns the original array rather than a copy, matching the inline form.
+ * The element type is the caller's assertion: nothing here inspects the members,
+ * so prefer the inline `Array.isArray` check where the source is already typed —
+ * that narrows, while this asserts.
+ */
+export function toArray<T = unknown>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : []
+}
+
+/**
  * Recursively sorts the keys of every plain object reachable from {@link value},
  * preserving array order while recursing into array elements. Primitives and
  * `null` are returned unchanged. Produces a structurally equivalent value with
@@ -90,4 +105,19 @@ export function sortObjectKeysDeep(value: unknown): unknown {
       }, {})
   }
   return value
+}
+
+/** Reads a dot-and-bracket path such as `items[0].name`; missing segments return undefined. */
+export function getValueAtPath(source: unknown, path: string): unknown {
+  if (source === null || source === undefined || !path) return source
+  const segments = path
+    .replace(/\[(\w+)\]/g, '.$1')
+    .split('.')
+    .filter(Boolean)
+  let cursor: unknown = source
+  for (const segment of segments) {
+    if (cursor === null || typeof cursor !== 'object') return undefined
+    cursor = (cursor as Record<string, unknown>)[segment]
+  }
+  return cursor
 }

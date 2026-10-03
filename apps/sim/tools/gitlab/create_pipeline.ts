@@ -7,6 +7,7 @@ export const gitlabCreatePipelineTool: ToolConfig<
   GitLabCreatePipelineResponse
 > = {
   id: 'gitlab_create_pipeline',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Create Pipeline',
   description: 'Trigger a new pipeline in a GitLab project',
   version: '1.0.0',

@@ -5,6 +5,7 @@ import type {
   PrimitiveValueType,
   SubBlockType,
 } from '@sim/workflow-types/blocks'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { ToolResponse } from '@/tools/types'
 
@@ -282,6 +283,20 @@ export interface SubBlockConfig {
    * stored, where a backslash is the author's own character.
    */
   searchTextFormat?: 'markdown'
+  /**
+   * Marks a `folder-selector` as a Sim workspace-folder field and selects which
+   * resource folders it offers. Provider folder selectors omit this property.
+   */
+  resourceType?: FolderResourceType
+  /**
+   * Narrows this control's options to a folder chosen elsewhere on the block,
+   * and identifies the sibling deciding whether that scope reaches nested folders.
+   *
+   * `fieldId` may be the basic half of a basic/advanced pair. The control
+   * resolves the pair's active half, the same one the run reads, so a scope
+   * typed into the advanced half narrows the picker just as a picked one does.
+   */
+  folderScope?: { fieldId: string; recursiveFieldId?: string }
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**
@@ -339,6 +354,8 @@ export interface SubBlockConfig {
         icon?: React.ComponentType<{ className?: string }>
         group?: string
         hidden?: boolean
+        /** Credential-type gate for this dropdown option. */
+        reactiveCondition?: SubBlockConfig['reactiveCondition']
         defaultChecked?: boolean
         description?: string
       }[]
@@ -356,6 +373,8 @@ export interface SubBlockConfig {
         icon?: React.ComponentType<{ className?: string }>
         group?: string
         hidden?: boolean
+        /** Credential-type gate for this dropdown option. */
+        reactiveCondition?: SubBlockConfig['reactiveCondition']
         defaultChecked?: boolean
         description?: string
       }[])
@@ -521,6 +540,14 @@ export interface SubBlockConfig {
   // Copyable-text specific: Use webhook URL from webhook management hook
   useWebhookUrl?: boolean
   /**
+   * Displays an app-level provider callback URL whose final segment comes from
+   * a server-derived trigger config field rather than a per-workflow path.
+   */
+  providerWebhookUrl?: {
+    providerPath: string
+    routingKeySubBlockId: string
+  }
+  /**
    * tool-input only: tool categories the consuming block cannot execute. They
    * stay visible in the picker but are greyed out with a tooltip rather than
    * hidden. Block/integration tools always run via `executeTool`, so only the
@@ -569,7 +596,7 @@ export type CanvasSentenceClause =
 /** An ordered set of clauses forming one card summary sentence. */
 export type CanvasSentence = readonly CanvasSentenceClause[]
 
-export interface BlockConfig<T extends ToolResponse = ToolResponse> {
+export interface BlockConfig {
   type: string
   name: string
   description: string
@@ -691,8 +718,4 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     enabled: boolean
     available: string[] // List of trigger IDs this block supports
   }
-}
-
-interface OutputConfig {
-  type: BlockOutput
 }

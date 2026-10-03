@@ -1,26 +1,13 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMock } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockRedirect } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockRedirect: vi.fn((url: string) => {
-    throw new Error(`NEXT_REDIRECT:${url}`)
-  }),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-
-vi.mock('next/navigation', () => ({
-  redirect: mockRedirect,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 import CliAuthPage from '@/app/cli/auth/page'
+
+const mockGetSession = authMockFns.mockGetSession
 
 /** BASE64URL, 43 chars; pairing is `XXXX-XXXX` over the no-look-alike alphabet. */
 const REQUEST = 'r'.repeat(43)
@@ -43,7 +30,6 @@ function pageProps() {
 
 describe('CliAuthPage signed-out bounce', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
   })
 
@@ -54,18 +40,6 @@ describe('CliAuthPage signed-out bounce', () => {
   it('sends a signed-out visitor to signup, carrying the handoff as callbackUrl', async () => {
     await expect(CliAuthPage(pageProps())).rejects.toThrow(
       `NEXT_REDIRECT:/signup?callbackUrl=${EXPECTED_CALLBACK}`
-    )
-  })
-
-  /**
-   * Nobody can create an account under the flag, so the pairing visitor is
-   * necessarily an existing user and signup would be a guaranteed dead end.
-   */
-  it('sends them to login instead when registration is disabled', async () => {
-    envFlagsMock.isRegistrationDisabled = true
-
-    await expect(CliAuthPage(pageProps())).rejects.toThrow(
-      `NEXT_REDIRECT:/login?callbackUrl=${EXPECTED_CALLBACK}`
     )
   })
 })

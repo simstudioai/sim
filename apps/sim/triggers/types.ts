@@ -43,15 +43,3 @@ export interface TriggerConfig {
 export interface TriggerRegistry {
   [triggerId: string]: TriggerConfig
 }
-
-interface TriggerInstance {
-  id: string
-  triggerId: string
-  blockId: string
-  workflowId: string
-  config: Record<string, any>
-  webhookPath?: string
-  isActive: boolean
-  createdAt: Date
-  updatedAt: Date
-}

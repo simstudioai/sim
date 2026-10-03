@@ -6,44 +6,18 @@ import {
 } from '@/lib/api/server/routes'
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { sourceAuthor } from '@/lib/knowledge/search/author'
+import { searchLiveKnowledge } from '@/lib/sim-search/live/application'
 
 export const POST = defineInternalJsonRoute({
   contract: searchWorkspaceKnowledgeContract,
   auth: internalSessionAuth,
   operation: knowledgeOperations.search,
   rateLimit: internalRateLimits.none({
-    reason: 'A person typing queries; the embedding call is metered against their workspace',
+    reason:
+      'Provider limits apply independently to each user grant; requests have bounded fanout and deadlines',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.search,
-  mapInput: ({ body }) => ({
-    workspaceId: body.workspaceId,
-    knowledgeBaseIds: body.knowledgeBaseIds,
-    query: body.query,
-    topK: body.topK,
-  }),
-  useCase: searchKnowledge,
-  present: ({ results, knowledgeBases }, { input }) => {
-    const knowledgeBaseNames = new Map(knowledgeBases.map((kb) => [kb.id, kb.name]))
-    return {
-      success: true as const,
-      data: {
-        query: input.query ?? '',
-        results: results.map((result) => ({
-          documentId: result.documentId,
-          knowledgeBaseId: result.knowledgeBaseId,
-          knowledgeBaseName: knowledgeBaseNames.get(result.knowledgeBaseId) ?? '',
-          documentName: result.documentName,
-          sourceUrl: result.sourceUrl,
-          connectorType: result.connectorType,
-          sourceModifiedAt: result.sourceModifiedAt?.toISOString() ?? null,
-          author: sourceAuthor(result.metadata),
-          content: result.content,
-          chunkIndex: result.chunkIndex,
-          similarity: result.similarity,
-        })),
-      },
-    }
-  },
+  mapInput: ({ body }, { request }) => ({ ...body, signal: request.signal }),
+  useCase: searchLiveKnowledge,
+  present: (data) => ({ success: true as const, data }),
 })

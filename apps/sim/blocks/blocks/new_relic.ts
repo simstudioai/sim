@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { NewRelicIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { NewRelicCustomAttributes, NewRelicResponse } from '@/tools/new_relic/types'
+import type { NewRelicCustomAttributes } from '@/tools/new_relic/types'
 
 function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undefined {
   if (!value) return undefined
@@ -18,7 +18,7 @@ function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undef
   }
 }
 
-export const NewRelicBlock: BlockConfig<NewRelicResponse> = {
+export const NewRelicBlock: BlockConfig = {
   type: 'new_relic',
   name: 'New Relic',
   description: 'Query observability data and record deployments in New Relic',

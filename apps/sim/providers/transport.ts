@@ -2,8 +2,8 @@
  * Transport policy for provider requests, in one place.
  *
  * These pin what the vendor SDKs already default to, so an SDK bump cannot silently
- * move production behaviour. For 16 of 18 providers this is a no-op. Groq and Cerebras
- * are the exception and are marked at {@link PROVIDER_HEADERS_TIMEOUT_MS}.
+ * move production behaviour. For every client but Groq's and Cerebras's this is a no-op;
+ * those two are the exception and are marked at {@link PROVIDER_HEADERS_TIMEOUT_MS}.
  *
  * What these deliberately do NOT do: bound a stalled stream. Bun's `fetch` is native
  * and appears to impose a socket-scoped idle wall of roughly 300s, reduced by however
@@ -17,7 +17,7 @@
  * Time-to-headers budget for a single attempt, matching `openai@7`'s own
  * `DEFAULT_TIMEOUT`.
  *
- * Behaviour-preserving for the 16 providers already on that client. It is a deliberate
+ * Behaviour-preserving for the providers already on that client. It is a deliberate
  * divergence for **Groq and Cerebras**, whose SDKs default to 60s: on a non-streaming
  * call headers do not arrive until the generation completes, so 60s caps every
  * generation at a minute and then retries it twice, re-billing. The cost of the raise is
@@ -37,6 +37,8 @@ export const PROVIDER_HEADERS_TIMEOUT_MS = 600_000
  * is non-idempotent and carries no idempotency key, and on the non-streaming path
  * the response only exists once the generation has already been billed — so a
  * replay re-bills completed work, multiplied by every turn of the tool loop.
+ *
+ * Calls no vendor SDK retries apply the same budget through `@/providers/retry`.
  */
 export const PROVIDER_MAX_RETRIES = 2
 

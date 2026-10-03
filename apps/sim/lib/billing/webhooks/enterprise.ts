@@ -1,9 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
+import { foldedEmail, organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
@@ -42,6 +43,7 @@ import {
   enqueueOutboxEvents,
   patchOutboxEventPayload,
 } from '@/lib/core/outbox/service'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -56,9 +58,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
 async function processManualEnterpriseSubscription(event: Stripe.Event) {
   const eventSubscription = event.data.object as Stripe.Subscription
   const rawPreviousAttributes: unknown = event.data.previous_attributes
-  const previousAttributes: Record<string, unknown> = isRecordLike(rawPreviousAttributes)
-    ? rawPreviousAttributes
-    : {}
+  const previousAttributes: Record<string, unknown> = toRecord(rawPreviousAttributes)
   return withEnterpriseReconciliationLease(eventSubscription.id, (lease) =>
     reconcileManualEnterpriseSubscription(eventSubscription, lease, {
       created: event.type === 'customer.subscription.created',
@@ -174,8 +174,10 @@ async function reconcileManualEnterpriseSubscription(
 
   const coreResult = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, referenceId)
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`stripe-subscription:${stripeSubscription.id}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'stripe_subscription',
+      `stripe-subscription:${stripeSubscription.id}`
     )
     // The authoritative Stripe read happened under a durable subscription
     // lease. Fence the write before touching billing state so a crashed holder
@@ -532,7 +534,7 @@ async function reconcileManualEnterpriseSubscription(
         requestedByUserId
           ? eq(user.id, requestedByUserId)
           : requestedByEmail
-            ? eq(user.normalizedEmail, requestedByEmail.toLowerCase())
+            ? eq(foldedEmail(user.email), normalizeEmail(requestedByEmail))
             : eq(user.stripeCustomerId, stripeCustomerId)
       )
       .limit(1)

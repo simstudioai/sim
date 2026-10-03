@@ -12,13 +12,15 @@ import {
 } from '@/lib/selectors/manifest'
 import type {
   SelectorContext,
+  SelectorExecutionResult,
   SelectorOption,
   SelectorPage,
   SelectorScope,
 } from '@/lib/selectors/types'
 import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 
-const EMPTY_PAGE: SelectorPage = { items: [] }
+type SelectorListResult = Extract<SelectorExecutionResult, { kind: 'list' }>
+
 let nextOpaqueRevision = 1
 
 export type SelectorClientContext = SelectorContext & {
@@ -45,9 +47,13 @@ export interface SelectorOptionsResult {
   error: Error | null
   isSuccess: boolean
   loadMore(): void
-  loadAll(): void
+  loadAll(): Promise<SelectorLoadAllResult>
   refetch(): void
 }
+
+export type SelectorLoadAllResult =
+  | { status: 'complete'; options: SelectorOption[] }
+  | { status: 'partial' | 'error' | 'cancelled' }
 
 interface CollectedSelectorOptions {
   options: SelectorOption[]
@@ -167,7 +173,7 @@ export function useSelectorOptions(
     prepared.revision
   )
 
-  const flatQuery = useQuery<SelectorOption[]>({
+  const flatQuery = useQuery<SelectorListResult>({
     // rq-lint-allow: context and search are represented by an opaque privacy revision.
     queryKey: baseKey,
     queryFn: async ({ signal }) => {
@@ -182,14 +188,14 @@ export function useSelectorOptions(
         signal,
       })
       if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
-      return result.items
+      return result
     },
     enabled: !supportsPagination && prepared.ready,
     staleTime: prepared.manifest.staleTime,
     gcTime: 0,
   })
 
-  const pagedQuery = useInfiniteQuery<SelectorPage>({
+  const pagedQuery = useInfiniteQuery<SelectorListResult>({
     // rq-lint-allow: context and search are represented by an opaque privacy revision.
     queryKey: [...baseKey, 'paged'],
     queryFn: async ({ pageParam, signal }) => {
@@ -204,7 +210,7 @@ export function useSelectorOptions(
         },
         signal,
       })
-      if (result.kind !== 'list') return EMPTY_PAGE
+      if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
       return result
     },
     getNextPageParam: (last) => last.nextCursor,
@@ -228,73 +234,88 @@ export function useSelectorOptions(
   const loadGenerationRef = useRef(0)
   const pageFetchInFlightRef = useRef(false)
   const [isLoadingAll, setIsLoadingAll] = useState(false)
+  const requestIdentity = JSON.stringify(baseKey)
 
   useEffect(() => {
     loadGenerationRef.current += 1
     pageFetchInFlightRef.current = false
     setIsLoadingAll(false)
-  }, [key, prepared.revision])
+    return () => {
+      loadGenerationRef.current += 1
+      pageFetchInFlightRef.current = false
+    }
+  }, [requestIdentity, prepared.ready])
 
   const loadMore = useCallback(() => {
     if (!canLoadMore || pageFetchInFlightRef.current) return
+    const generation = ++loadGenerationRef.current
     pageFetchInFlightRef.current = true
     void (async () => {
       if (pagedQuery.isFetchNextPageError) {
         const refreshed = await pagedQuery.refetch()
+        if (loadGenerationRef.current !== generation) return
         const refreshedPages = refreshed.data?.pages
         const refreshedLastPage = refreshedPages?.[refreshedPages.length - 1]
         if (refreshed.isError || !refreshedLastPage?.nextCursor) return
       }
       await pagedQuery.fetchNextPage()
     })().finally(() => {
-      pageFetchInFlightRef.current = false
+      if (loadGenerationRef.current === generation) pageFetchInFlightRef.current = false
     })
   }, [canLoadMore, pagedQuery.fetchNextPage, pagedQuery.isFetchNextPageError, pagedQuery.refetch])
 
-  const loadAll = useCallback(() => {
-    if (!canLoadMore || pageFetchInFlightRef.current) return
-    const generation = loadGenerationRef.current + 1
-    loadGenerationRef.current = generation
+  const loadAll = useCallback(async (): Promise<SelectorLoadAllResult> => {
+    if (!prepared.ready || pageFetchInFlightRef.current || pagedQuery.isFetching) {
+      return { status: 'cancelled' }
+    }
+    const generation = ++loadGenerationRef.current
     pageFetchInFlightRef.current = true
     setIsLoadingAll(true)
 
-    void (async () => {
-      let hasNextPage = Boolean(pagedQuery.hasNextPage)
-      let pages = pagedQuery.data?.pages
-      try {
-        if (pagedQuery.isFetchNextPageError) {
-          const refreshed = await pagedQuery.refetch()
-          if (loadGenerationRef.current !== generation || refreshed.isError) return
-          pages = refreshed.data?.pages
-          const refreshedLastPage = pages?.[pages.length - 1]
-          hasNextPage = Boolean(refreshedLastPage?.nextCursor)
-        }
-        while (hasNextPage) {
-          if (
-            (pages?.length ?? 0) >= MAX_SELECTOR_PAGES ||
-            collectSelectorOptions(pages).options.length >= MAX_SELECTOR_OPTIONS
-          ) {
-            break
-          }
-          const result = await pagedQuery.fetchNextPage()
-          if (loadGenerationRef.current !== generation) return
-          if (result.isError) break
-          hasNextPage = Boolean(result.hasNextPage)
-          pages = result.data?.pages
-        }
-      } finally {
-        if (loadGenerationRef.current === generation) {
-          pageFetchInFlightRef.current = false
-          setIsLoadingAll(false)
-        }
+    let hasNextPage = Boolean(pagedQuery.hasNextPage)
+    let pages = pagedQuery.data?.pages
+    try {
+      if (pagedQuery.isError || !pages) {
+        const refreshed = await pagedQuery.refetch()
+        if (loadGenerationRef.current !== generation) return { status: 'cancelled' }
+        if (refreshed.isError) return { status: 'error' }
+        pages = refreshed.data?.pages
+        const refreshedLastPage = pages?.[pages.length - 1]
+        hasNextPage = Boolean(refreshedLastPage?.nextCursor)
       }
-    })()
+      while (hasNextPage) {
+        const collected = collectSelectorOptions(pages)
+        if (
+          (pages?.length ?? 0) >= MAX_SELECTOR_PAGES ||
+          collected.options.length >= MAX_SELECTOR_OPTIONS ||
+          pages?.some((page) => page.truncated)
+        )
+          return { status: 'partial' }
+        const result = await pagedQuery.fetchNextPage()
+        if (loadGenerationRef.current !== generation) return { status: 'cancelled' }
+        if (result.isError) return { status: 'error' }
+        hasNextPage = Boolean(result.hasNextPage)
+        pages = result.data?.pages
+      }
+      const collected = collectSelectorOptions(pages)
+      return collected.overflowed || pages?.some((page) => page.truncated)
+        ? { status: 'partial' }
+        : { status: 'complete', options: collected.options }
+    } catch {
+      return { status: loadGenerationRef.current === generation ? 'error' : 'cancelled' }
+    } finally {
+      if (loadGenerationRef.current === generation) {
+        pageFetchInFlightRef.current = false
+        setIsLoadingAll(false)
+      }
+    }
   }, [
-    canLoadMore,
+    prepared.ready,
     pagedQuery.data?.pages,
     pagedQuery.fetchNextPage,
     pagedQuery.hasNextPage,
-    pagedQuery.isFetchNextPageError,
+    pagedQuery.isError,
+    pagedQuery.isFetching,
     pagedQuery.refetch,
   ])
 
@@ -306,7 +327,10 @@ export function useSelectorOptions(
       isFetchingMore: pagedQuery.isFetchingNextPage || isLoadingAll,
       isLoadingAll,
       hasMore: canLoadMore,
-      truncated: collectedOptions.overflowed || (Boolean(pagedQuery.hasNextPage) && reachedLoadCap),
+      truncated:
+        pagedQuery.data?.pages.some((page) => page.truncated === true) === true ||
+        collectedOptions.overflowed ||
+        (Boolean(pagedQuery.hasNextPage) && reachedLoadCap),
       error: (pagedQuery.error as Error | null) ?? null,
       isSuccess: pagedQuery.isSuccess,
       loadMore,
@@ -321,17 +345,24 @@ export function useSelectorOptions(
     }
   }
   return {
-    data: flatQuery.data,
+    data: flatQuery.data?.items,
     isLoading: flatQuery.isLoading,
     isFetching: flatQuery.isFetching,
     isFetchingMore: false,
     isLoadingAll: false,
     hasMore: false,
-    truncated: false,
+    truncated: flatQuery.data?.truncated === true,
     error: (flatQuery.error as Error | null) ?? null,
     isSuccess: flatQuery.isSuccess,
     loadMore: () => undefined,
-    loadAll: () => undefined,
+    loadAll: async () => {
+      if (!prepared.ready || flatQuery.isFetching) return { status: 'cancelled' }
+      if (flatQuery.isError || !flatQuery.data) return { status: 'error' }
+      const collected = collectSelectorOptions([flatQuery.data])
+      return flatQuery.data.truncated || collected.overflowed
+        ? { status: 'partial' }
+        : { status: 'complete', options: collected.options }
+    },
     refetch: () => {
       if (!prepared.ready) return
       void flatQuery.refetch()

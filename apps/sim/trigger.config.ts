@@ -97,15 +97,36 @@ export default defineConfig({
   },
   dirs: ['./background'],
   /**
+   * Every file under `dirs` is imported as a task file at deploy time, so any
+   * test co-located there must be excluded or its top-level `vi.mock()` throws
+   * outside Vitest and fails the whole deploy. Setting this replaces the CLI's
+   * defaults (`*.test.*` and `*.spec.*`), which are restated here alongside
+   * the `*.integration.*` suffix used for suites that run against real
+   * Postgres/Redis, across every extension task discovery matches.
+   */
+  ignorePatterns: ['**/*.{test,spec,integration}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
+  /**
    * Runs before any task run, in the run process. Marks the process so that
    * dispatch decisions further down the call graph stop inferring from
    * environment variables whether Trigger.dev is available: a process that
    * Trigger.dev is executing has Trigger.dev available by definition.
    *
+   * Also warms the shared Redis connection, because nearly every task's first
+   * Redis call — a lock acquire, a usage reservation — would otherwise pay the
+   * handshake inside its own command deadline. Awaited so the connection is up
+   * before `run()` issues anything; imported dynamically so deploy-time
+   * evaluation of this config does not pull the client; and never throwing,
+   * because a throw here fails the run. The execution-signal subscriber is
+   * deliberately not warmed here: only the tasks that execute a workflow ever
+   * subscribe, and they are a minority of runs, so that connection is warmed
+   * on intent at the execution entry point instead.
+   *
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
-  init: () => {
+  init: async () => {
     markInsideTriggerRun()
+    const { warmRedisConnection } = await import('./lib/core/config/redis')
+    await warmRedisConnection()
   },
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {
@@ -123,6 +144,7 @@ export default defineConfig({
       // pdf.js resolves its worker via a runtime-relative dynamic import that
       // breaks inside the worker bundle; it must load from node_modules.
       'pdfjs-dist',
+      '@napi-rs/canvas',
     ],
     extensions: [
       syncEnvVars(() => [
@@ -154,6 +176,7 @@ export default defineConfig({
           '@e2b/code-interpreter',
           '@daytona/sdk',
           'pdfjs-dist',
+          '@napi-rs/canvas',
         ],
       }),
     ],

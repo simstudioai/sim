@@ -2,7 +2,8 @@ import { appendFileSync, chmodSync, mkdirSync, renameSync, statSync } from 'node
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow, Details } from 'electron'
-import { app, dialog } from 'electron'
+import { app } from 'electron'
+import { showShellDialog } from '@/main/dialogs'
 
 const logger = createLogger('DesktopEvents')
 
@@ -32,6 +33,8 @@ export type DesktopEventName =
   | 'update_check'
   | 'update_feed'
   | 'update_downloaded'
+  | 'update_install'
+  | 'update_install_result'
   | 'update_error'
   | 'update_blocked_version'
   | 'update_manual_mode'
@@ -124,9 +127,7 @@ export function installMainProcessFailureObservers({
     }
     const win = getWindow()
     const prompt =
-      win && !win.isDestroyed()
-        ? dialog.showMessageBox(win, options)
-        : dialog.showMessageBox(options)
+      win && !win.isDestroyed() ? showShellDialog(win, options) : showShellDialog(options)
     void prompt
       .then(({ response }) => {
         if (response === 0) app.relaunch()

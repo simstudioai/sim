@@ -1,0 +1,34 @@
+---
+title: Granola
+description: Find meeting notes and read source transcripts with each member’s Granola account
+---
+
+Granola live Search uses **Member accounts** through Granola’s official MCP service. Results are limited to the connected person’s current access and their **active Granola workspace**.
+
+## Connect
+
+1. An admin enables **Granola** under **Settings → Sources**, using **Member accounts**.
+2. Each teammate opens **Integrations → Granola → Connect** and completes Granola authorization.
+3. Search with a focused natural-language question about a meeting topic.
+
+Sim uses the fixed endpoint `https://mcp.granola.ai/mcp` and each member’s managed OAuth grant. A shared API key cannot substitute for this personal connection.
+
+## Query guidance
+
+Ask focused questions, such as `What decisions did we make about the enterprise launch?` or `Which customer meetings discussed audit logs?`. Granola uses semantic meeting queries; GitHub qualifiers and Gmail search operators do not apply.
+
+Use `startDate` and `endDate` for a meeting-date range. A query without terms uses Granola’s meeting listing. When the server offers only preset ranges, Sim lists the **last 30 days** and applies the exact date filters to those meetings. Older meetings are outside that listing window; use a focused question to look for them, subject to your plan and access. If the server advertises custom date-range parameters, Sim uses them instead. An explicit native `project` can contain a meeting UUID to narrow a question to that meeting when Granola advertises this capability.
+
+There is no verified continuation cursor. Narrow the topic or meeting dates for additional coverage. Date ranges describe meetings, not note modification times. Sim does not invent modification timestamps when Granola omits them.
+
+## Source quality and coverage
+
+Granola’s query tool can return a generated answer. Sim uses that answer only to locate explicit meeting references, then fetches those meetings’ source notes before returning passages. Generated answers without verifiable references are reported as limited coverage with no source evidence. Each search hydrates at most 10 meetings and reports that the selection is not exhaustive.
+
+Notes can contain AI-generated summaries and private notes. Read a result to request the underlying transcript before quoting spoken words. If transcripts are unavailable, the result says so; it does not present notes as verbatim speech. Large notes and transcripts are visibly marked when truncated.
+
+Granola’s plan and workspace controls apply. The Basic plan limits note access to the last 30 days; transcript access requires a paid plan and may be disabled by an Enterprise administrator. MCP follows the active Granola workspace, so switch workspaces in Granola if expected meetings are missing.
+
+Sim discovers and validates the current MCP tool schemas, permits only fixed read operations, and rechecks the member’s grant before each call. Unexpected response formats fail visibly. Exact tool capabilities can change; an authenticated connection is required to inspect the current server’s schemas.
+
+See the [Granola MCP guide](https://docs.granola.ai/help-center/sharing/integrations/mcp) for current access and plan details.

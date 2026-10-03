@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { toArray } from '@sim/utils/object'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { grainConnectorMeta } from '@/connectors/grain/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -327,7 +329,7 @@ async function fetchTranscript(
   }
 
   const data = await response.json()
-  return Array.isArray(data) ? (data as GrainTranscriptSegment[]) : []
+  return toArray<GrainTranscriptSegment>(data)
 }
 
 export const grainConnector: ConnectorConfig = {
