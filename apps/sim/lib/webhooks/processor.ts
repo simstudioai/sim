@@ -5,7 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { and, eq, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -46,7 +46,18 @@ const logger = createLogger('WebhookProcessor')
 
 type WebhookRecord = typeof webhook.$inferSelect
 type WorkflowRecord = typeof workflow.$inferSelect
-type WebhookTarget = { webhook: WebhookRecord; workflow: WorkflowRecord }
+type WebhookTarget = {
+  webhook: WebhookRecord
+  workflow: WorkflowRecord
+  /** Whether the webhook's trigger block exists in the workflow's active deployment. */
+  triggerBlockDeployed: boolean
+}
+
+/**
+ * Answers {@link blockExistsInDeployment} from the active deployment a lookup
+ * already joins, so delivery does not read it a second time.
+ */
+const triggerBlockDeployedColumn = sql<boolean>`coalesce(json_typeof(${workflowDeploymentVersion.state} -> 'blocks' -> ${webhook.blockId}) = 'object', false)`
 type ResolvedWebhookRecord = Omit<WebhookRecord, 'provider' | 'providerConfig'> & {
   provider: string
   providerConfig: Record<string, unknown>
@@ -67,6 +78,8 @@ export interface WebhookProcessorOptions {
   triggerTimestampMs?: number
   /** Provider-authenticated external actor. Never derived from workflow input. */
   subject?: ExternalUserSubject
+  /** The lookup's answer for this webhook's trigger block; read fresh when absent. */
+  triggerBlockDeployed?: boolean
 }
 
 export interface WebhookPreprocessingResult {
@@ -363,6 +376,7 @@ export async function findAllWebhooksForPath(
     .select({
       webhook: webhook,
       workflow: workflow,
+      triggerBlockDeployed: triggerBlockDeployedColumn,
     })
     .from(webhook)
     .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
@@ -467,6 +481,7 @@ export async function findWebhooksByRoutingKey(
     .select({
       webhook: webhook,
       workflow: workflow,
+      triggerBlockDeployed: triggerBlockDeployedColumn,
     })
     .from(webhook)
     .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
@@ -896,7 +911,9 @@ export async function dispatchResolvedWebhookTarget(
   }
 
   if (webhookRecord.blockId) {
-    const blockExists = await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId)
+    const blockExists =
+      options.triggerBlockDeployed ??
+      (await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId))
     if (!blockExists) {
       const verificationResponse = handlePreDeploymentVerification(webhookRecord, options.requestId)
       return {

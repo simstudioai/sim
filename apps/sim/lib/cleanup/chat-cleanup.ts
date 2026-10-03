@@ -2,11 +2,17 @@ import { dbFor } from '@sim/db'
 import { copilotChats, copilotMessages, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
-import { and, inArray, isNull } from 'drizzle-orm'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { isRecordLike } from '@sim/utils/object'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
+import {
+  inlineChatImageKey,
+  inlineChatImageReferences,
+} from '@/lib/mothership/chat/inline-image-key'
+import { SIM_AGENT_API_URL } from '@/lib/mothership/constants'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('ChatCleanup')
 
@@ -30,12 +36,63 @@ interface FileRef {
   key: string
   context: ChatScopedContext
   chatId: string
+  /**
+   * An organization Chat attachment (`assistant/<orgId>/…`): no `workspace_files` row owns it,
+   * and a fork carries the same key, so it is deleted only once no remaining chat of that
+   * organization references it.
+   */
+  organizationId?: string
+}
+
+/** The organization an `assistant/<orgId>/…` attachment key was uploaded under. */
+function organizationAttachmentOwner(key: string): string | undefined {
+  if (tryInferContextFromKey(key) !== 'mothership') return undefined
+  const [, organizationId] = key.split('/')
+  return organizationId || undefined
 }
 
 /**
- * Collect all file storage keys for the given chat IDs from two sources:
+ * The chat images an assistant message published under its request id, keyed by chat id,
+ * so they are purged with the chat. A row this cannot read as such a message has none.
+ */
+function inlineChatImageKeys(chatId: string, content: Record<string, unknown>): string[] {
+  if (content.role !== 'assistant' || typeof content.requestId !== 'string') return []
+  const published = inlineChatImageReferences({
+    role: 'assistant',
+    requestId: content.requestId,
+    content: typeof content.content === 'string' ? content.content : '',
+    contentBlocks: Array.isArray(content.contentBlocks)
+      ? content.contentBlocks.flatMap((block) =>
+          isRecordLike(block) && block.type === 'text' && typeof block.content === 'string'
+            ? [{ type: 'text' as const, content: block.content }]
+            : []
+        )
+      : undefined,
+  })
+  if (!published) return []
+  const keys: string[] = []
+  for (const reference of published.references) {
+    try {
+      keys.push(inlineChatImageKey(chatId, published.requestId, reference))
+    } catch {
+      // A chat or request id outside the key grammar never had an image stored under it.
+    }
+  }
+  return keys
+}
+
+/**
+ * Collect all file storage keys for the given chat IDs from three sources:
  * 1. workspaceFiles rows with chatId FK (chat-scoped contexts only)
- * 2. fileAttachments[].key inside each copilot_messages.content
+ * 2. fileAttachments[].key inside each copilot_messages.content: copilot keys, and
+ *    organization attachments under their own context (see {@link FileRef.organizationId})
+ * 3. the chat-scoped inline images each assistant message published
+ *
+ * A workspace attachment is owned by its `workspace_files` row (source 1, or the workspace
+ * file lifecycle), never by the message: a fork carries the same attachment when its copy
+ * failed or its file was deleted, and the copilot bucket falls back to the workspace bucket
+ * on GCS (and may be configured to it on S3), so deleting such a key as copilot storage
+ * could delete a file another chat or the workspace still uses.
  */
 export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   const files: FileRef[] = []
@@ -77,6 +134,12 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
     for (const row of messageRows) {
       const msg = row.content
       if (!msg || typeof msg !== 'object') continue
+      for (const key of inlineChatImageKeys(row.chatId, msg as Record<string, unknown>)) {
+        if (!seen.has(key)) {
+          seen.add(key)
+          files.push({ key, context: 'mothership', chatId: row.chatId })
+        }
+      }
       const attachments = (msg as Record<string, unknown>).fileAttachments
       if (!Array.isArray(attachments)) continue
       for (const attachment of attachments) {
@@ -86,7 +149,12 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
           (attachment as Record<string, unknown>).key
         ) {
           const key = (attachment as Record<string, unknown>).key as string
-          if (!seen.has(key)) {
+          if (seen.has(key)) continue
+          const organizationId = organizationAttachmentOwner(key)
+          if (organizationId) {
+            seen.add(key)
+            files.push({ key, context: 'mothership', chatId: row.chatId, organizationId })
+          } else if (tryInferContextFromKey(key) === 'copilot') {
             seen.add(key)
             files.push({ key, context: 'copilot', chatId: row.chatId })
           }
@@ -96,6 +164,55 @@ export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   }
 
   return files
+}
+
+/**
+ * Organization attachment keys that a remaining chat still references, so they outlive the
+ * chats being purged. Runs after the caller deleted those chats' rows, so any match is
+ * another chat: a fork, or a chat that is only soft-deleted and may be restored.
+ */
+async function organizationAttachmentsStillReferenced(files: FileRef[]): Promise<Set<string>> {
+  const keysByOrganization = new Map<string, string[]>()
+  for (const file of files) {
+    if (!file.organizationId) continue
+    const keys = keysByOrganization.get(file.organizationId)
+    if (keys) keys.push(file.key)
+    else keysByOrganization.set(file.organizationId, [file.key])
+  }
+  const referenced = new Set<string>()
+  for (const [organizationId, keys] of keysByOrganization) {
+    for (const chunk of chunkArray(keys, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
+      const wanted = new Set(chunk)
+      const rows = await cleanupDb
+        .select({ content: copilotMessages.content })
+        .from(copilotMessages)
+        .innerJoin(copilotChats, eq(copilotChats.id, copilotMessages.chatId))
+        .where(
+          and(
+            eq(copilotChats.organizationId, organizationId),
+            or(
+              ...chunk.map(
+                (key) =>
+                  sql`${copilotMessages.content} @> ${JSON.stringify({ fileAttachments: [{ key }] })}::jsonb`
+              )
+            )
+          )
+        )
+      for (const { content } of rows) {
+        const attachments = isRecordLike(content) ? content.fileAttachments : undefined
+        if (!Array.isArray(attachments)) continue
+        for (const attachment of attachments) {
+          if (
+            isRecordLike(attachment) &&
+            typeof attachment.key === 'string' &&
+            wanted.has(attachment.key)
+          )
+            referenced.add(attachment.key)
+        }
+      }
+    }
+  }
+  return referenced
 }
 
 /** Groups files by storage context so each context can use one batch DELETE call. */
@@ -220,7 +337,12 @@ export async function prepareChatCleanup(
         )
       }
       const confirmedChatIds = chatIds.filter((id) => !survivors.has(id))
-      const confirmedFiles = files.filter((file) => !survivors.has(file.chatId))
+      const sharedKeys = await organizationAttachmentsStillReferenced(
+        files.filter((file) => !survivors.has(file.chatId))
+      )
+      const confirmedFiles = files.filter(
+        (file) => !survivors.has(file.chatId) && !sharedKeys.has(file.key)
+      )
 
       // Call copilot backend
       if (confirmedChatIds.length > 0) {

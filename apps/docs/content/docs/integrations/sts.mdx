@@ -11,16 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS Security Token Service (STS)](https://docs.aws.amazon.com/STS/latest/APIReference/welcome.html) is a web service that enables you to request temporary, limited-privilege credentials for AWS Identity and Access Management (IAM) users or for users that you authenticate (federated users).
-
-With AWS STS, you can:
-
-- **Assume IAM roles**: Request temporary credentials to access AWS resources across accounts or with elevated permissions
-- **Verify identity**: Determine the AWS account, ARN, and user ID associated with the calling credentials
-- **Generate session tokens**: Obtain temporary credentials with optional MFA protection for enhanced security
-- **Audit access keys**: Look up the AWS account that owns a given access key for security investigations
-
-In Sim, the AWS STS integration allows your agents to manage temporary credentials as part of automated workflows. This is useful for cross-account access patterns, credential rotation, identity verification before sensitive operations, and security auditing. Agents can assume roles to interact with other AWS services, verify their own identity, or look up access key ownership without exposing long-lived credentials.
+Use [AWS STS](https://docs.aws.amazon.com/STS/latest/APIReference/welcome.html) to request temporary credentials, assume roles, verify the calling identity, and identify the AWS account associated with an access key.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -79,7 +70,7 @@ Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actio
 | `roleArn` | string | Yes | ARN of the IAM role to assume |
 | `roleSessionName` | string | Yes | Identifier for the assumed role session |
 | `webIdentityToken` | string | Yes | OAuth 2.0 access token or OpenID Connect ID token from the identity provider \(up to 20000 chars\) |
-| `providerId` | string | No | Fully qualified host of a legacy OAuth 2.0 provider \(e.g. www.amazon.com\); omit for OpenID Connect providers |
+| `providerId` | string | No | Fully qualified host of a legacy OAuth 2.0 provider \(e.g. www.amazon.com); omit for OpenID Connect providers |
 | `policyArns` | string | No | Comma-separated ARNs of up to 10 IAM managed policies to use as session policies |
 | `policy` | string | No | JSON IAM policy to further restrict session permissions \(max 2048 chars\) |
 | `durationSeconds` | number | No | Duration of the session in seconds \(900-43200, default 3600\) |

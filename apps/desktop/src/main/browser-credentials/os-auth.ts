@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { MessageBoxOptions } from 'electron'
-import { BrowserWindow, dialog, systemPreferences } from 'electron'
+import { BrowserWindow, systemPreferences } from 'electron'
+import { showShellDialog } from '@/main/dialogs'
 
 const logger = createLogger('BrowserCredentialAuth')
 
@@ -143,10 +144,10 @@ async function promptForSecret(reason: string, action: string): Promise<boolean>
     const parent = BrowserWindow.getFocusedWindow()
     const { response } =
       parent && !parent.isDestroyed()
-        ? await dialog.showMessageBox(parent, options)
-        : await dialog.showMessageBox(options)
+        ? await showShellDialog(parent, options)
+        : await showShellDialog(options)
     return response === 1
-  } catch (error) {
+  } catch {
     // Fail closed: if the confirmation cannot be shown, nothing is revealed.
     logger.warn('Could not present the credential confirmation')
     return false

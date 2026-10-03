@@ -1,12 +1,14 @@
 /**
  * @vitest-environment node
  */
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ bundle: vi.fn(), list: vi.fn(), get: vi.fn() }))
-vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
-  resolveSelectorCredentialBundle: mocks.bundle,
-}))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn() }))
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 vi.mock('@/lib/internal/oracle-fusion-subscription-management/operations', () => ({
   listOracleFusionSubscriptionRecords: mocks.list,
   getOracleFusionSubscriptionRecord: mocks.get,
@@ -22,6 +24,8 @@ import {
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { oracleFusionSubscriptionSelectorAttachments } from '@/lib/selectors/server/providers/oracle-fusion-subscription-management'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockBundle = selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
 
 const ORIGIN = 'https://vision.fa.us2.oraclecloud.com'
 const PREPARED = {
@@ -69,7 +73,7 @@ describe('Subscription Management selectors', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     mocks.list.mockResolvedValue({ items: [], count: 0, limit: 50, offset: 0, hasMore: false })
-    mocks.bundle.mockResolvedValue({ instanceUrl: ORIGIN, accessToken: 'private-token' })
+    mockBundle.mockResolvedValue({ instanceUrl: ORIGIN, accessToken: 'private-token' })
   })
 
   it('binds nine selectors to the product service and credential-authoritative destination', () => {
@@ -113,11 +117,11 @@ describe('Subscription Management selectors', () => {
       context: { oauthCredential: 'credential-1' },
     })
     expect(await attachment.destination.prepare(input)).toEqual(PREPARED)
-    expect(mocks.bundle).toHaveBeenCalledWith({
+    expect(mockBundle).toHaveBeenCalledWith({
       credential: input.credential,
       protectedValues: input.protectedValues,
     })
-    mocks.bundle.mockResolvedValue({ accessToken: 'private-token' })
+    mockBundle.mockResolvedValue({ accessToken: 'private-token' })
     await expect(attachment.destination.prepare(input)).rejects.toBeInstanceOf(
       SelectorConnectionUnavailableError
     )

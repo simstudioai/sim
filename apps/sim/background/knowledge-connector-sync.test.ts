@@ -1,20 +1,12 @@
-/**
- * @vitest-environment node
- */
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { AbortTaskRunError } from '@trigger.dev/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertConnectorSyncPayload, mockExecuteSync, mockTask } = vi.hoisted(() => ({
+const { mockAssertConnectorSyncPayload, mockExecuteSync } = vi.hoisted(() => ({
   mockAssertConnectorSyncPayload: vi.fn(),
   mockExecuteSync: vi.fn(),
-  mockTask: vi.fn((config) => config),
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({
-  task: mockTask,
-  AbortTaskRunError: class AbortTaskRunError extends Error {},
-}))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({
   assertConnectorSyncPayload: mockAssertConnectorSyncPayload,
 }))
@@ -26,6 +18,8 @@ import {
   classifyConnectorSyncResult,
   executeConnectorSyncJob,
 } from '@/background/knowledge-connector-sync'
+
+const { warn: mockWarn } = getMockLogger('TriggerKnowledgeConnectorSync')
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -42,7 +36,6 @@ const BILLING_ATTRIBUTION = {
 
 describe('knowledge connector sync worker', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteSync.mockResolvedValue({
       docsAdded: 0,
       docsUpdated: 0,
@@ -54,67 +47,7 @@ describe('knowledge connector sync worker', () => {
     })
   })
 
-  it('rejects a legacy job before sync execution', async () => {
-    mockAssertConnectorSyncPayload.mockImplementation(() => {
-      throw new Error('Connector sync payload requires billing attribution')
-    })
-
-    await expect(
-      executeConnectorSyncJob({ connectorId: 'connector-1', requestId: 'request-1' })
-    ).rejects.toThrow('Connector sync payload requires billing attribution')
-    expect(mockExecuteSync).not.toHaveBeenCalled()
-  })
-
-  it('forwards the validated actor and payer snapshot to the sync engine', async () => {
-    mockAssertConnectorSyncPayload.mockReturnValue({
-      connectorId: 'connector-1',
-      requestId: 'request-1',
-      fullSync: true,
-      requireRunnable: true,
-      dispatchToken: 'dispatch-1',
-      billingAttribution: BILLING_ATTRIBUTION,
-    })
-
-    await executeConnectorSyncJob({
-      connectorId: 'connector-1',
-      requestId: 'request-1',
-      billingAttribution: BILLING_ATTRIBUTION,
-    })
-
-    expect(mockExecuteSync).toHaveBeenCalledWith('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      fullSync: true,
-      requireRunnable: true,
-      rehydrate: undefined,
-      dispatchToken: 'dispatch-1',
-    })
-  })
-
-  it('forwards the rehydrate flag to the sync engine (async worker path)', async () => {
-    mockAssertConnectorSyncPayload.mockReturnValue({
-      connectorId: 'connector-1',
-      requestId: 'request-1',
-      rehydrate: true,
-      billingAttribution: BILLING_ATTRIBUTION,
-    })
-
-    await executeConnectorSyncJob({
-      connectorId: 'connector-1',
-      requestId: 'request-1',
-      rehydrate: true,
-      billingAttribution: BILLING_ATTRIBUTION,
-    })
-
-    expect(mockExecuteSync).toHaveBeenCalledWith('connector-1', {
-      billingAttribution: BILLING_ATTRIBUTION,
-      fullSync: undefined,
-      requireRunnable: undefined,
-      rehydrate: true,
-      dispatchToken: undefined,
-    })
-  })
-
-  it('fails visibly without retrying an already-persisted partial sync', async () => {
+  it('returns a partial sync as an outcome instead of failing the run', async () => {
     mockAssertConnectorSyncPayload.mockReturnValue({
       connectorId: 'connector-1',
       requestId: 'request-1',
@@ -136,8 +69,43 @@ describe('knowledge connector sync worker', () => {
       billingAttribution: BILLING_ATTRIBUTION,
     })
 
-    await expect(run).rejects.toBeInstanceOf(AbortTaskRunError)
-    await expect(run).rejects.toThrow('Connector sync partially failed')
+    await expect(run).resolves.toMatchObject({
+      success: false,
+      outcome: 'partial',
+      docsFailed: 1,
+      processingDispatch: { failed: 1 },
+    })
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining('1 source failures, 1 dispatch failures')
+    )
+  })
+
+  it('completes a durably scheduled capacity wait while preserving existing source failures', async () => {
+    mockAssertConnectorSyncPayload.mockReturnValue({
+      connectorId: 'connector-1',
+      requestId: 'request-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+    const base = await mockExecuteSync()
+    const waiting = {
+      ...base,
+      listingIncomplete: true,
+      deferred: {
+        reason: 'admission_timeout',
+        providerId: 'github-rest',
+        nextSyncAt: '2026-09-01T00:00:00Z',
+      },
+    }
+    mockExecuteSync.mockResolvedValue(waiting)
+    expect(await executeConnectorSyncJob({})).toMatchObject({
+      outcome: 'deferred',
+      success: false,
+      deferred: waiting.deferred,
+    })
+    mockExecuteSync.mockResolvedValue({ ...waiting, docsFailed: 1 })
+    expect(await executeConnectorSyncJob({})).toMatchObject({ outcome: 'partial', success: false })
+    mockExecuteSync.mockResolvedValue({ ...waiting, error: 'Retry persistence failed' })
+    await expect(executeConnectorSyncJob({})).rejects.toThrow('Retry persistence failed')
   })
 
   it('does not turn intentionally skipped source files into a task failure', () => {
@@ -202,6 +170,31 @@ describe('knowledge connector sync worker', () => {
     ).toBe('failed')
   })
 
+  it('reports a durable continuation without aborting or retrying its completed pages', async () => {
+    const result = {
+      docsAdded: 1,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsSkipped: 0,
+      docsFailed: 0,
+      processingDispatch: { requested: 1, accepted: 1, failed: 0 },
+      listingIncomplete: true,
+    }
+    mockAssertConnectorSyncPayload.mockReturnValue({
+      connectorId: 'connector-1',
+      requestId: 'request-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+    mockExecuteSync.mockResolvedValue(result)
+    expect(classifyConnectorSyncResult(result)).toBe('partial')
+    await expect(executeConnectorSyncJob({})).resolves.toMatchObject({
+      outcome: 'partial',
+      listingIncomplete: true,
+    })
+    expect(mockWarn).not.toHaveBeenCalled()
+  })
+
   it('classifies a persisted connector error as a failed task', () => {
     expect(
       classifyConnectorSyncResult({
@@ -242,35 +235,5 @@ describe('knowledge connector sync worker', () => {
 
     await expect(run).rejects.toBeInstanceOf(AbortTaskRunError)
     await expect(run).rejects.toThrow('Connector sync failed for connector-1: provider unavailable')
-  })
-
-  it('returns an explicit skipped outcome for a superseded task', async () => {
-    mockAssertConnectorSyncPayload.mockReturnValue({
-      connectorId: 'connector-1',
-      requestId: 'request-1',
-      billingAttribution: BILLING_ATTRIBUTION,
-    })
-    mockExecuteSync.mockResolvedValue({
-      docsAdded: 0,
-      docsUpdated: 0,
-      docsDeleted: 0,
-      docsUnchanged: 0,
-      docsSkipped: 0,
-      docsFailed: 0,
-      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
-      skipReason: 'dispatch_superseded',
-    })
-
-    await expect(
-      executeConnectorSyncJob({
-        connectorId: 'connector-1',
-        requestId: 'request-1',
-        billingAttribution: BILLING_ATTRIBUTION,
-      })
-    ).resolves.toMatchObject({
-      success: false,
-      outcome: 'skipped',
-      skipReason: 'dispatch_superseded',
-    })
   })
 })

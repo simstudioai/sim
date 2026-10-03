@@ -2,8 +2,8 @@
  * Versioned CSV snapshot cache for table mounts.
  *
  * Materializes a table's CSV into object storage once per `rows_version` and reuses it across
- * executions until the table mutates (the `bump_user_table_rows_version` trigger invalidates the
- * key). This replaces draining the whole table into web-process heap on every mount.
+ * executions until the table mutates (the `rows_version` triggers on `user_table_rows` invalidate
+ * the key). This replaces draining the whole table into web-process heap on every mount.
  *
  * Tenant isolation: callers must pass a table they have already authorized (the
  * `function-execute` mount path enforces `table.workspaceId === context.workspaceId`); the key is

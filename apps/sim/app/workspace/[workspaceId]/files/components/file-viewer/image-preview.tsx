@@ -24,7 +24,7 @@ export const ImagePreview = memo(function ImagePreview({ file }: { file: Workspa
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col'>
-      <ZoomablePreview className='flex flex-1' contentClassName='h-full w-full'>
+      <ZoomablePreview className='flex flex-1' contentClassName='size-full'>
         <img
           src={serveUrl}
           alt={file.name}

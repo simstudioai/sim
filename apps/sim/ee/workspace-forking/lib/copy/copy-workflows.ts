@@ -8,6 +8,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { buildFolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import {
   remapConditionIdsInSubBlocks,
   remapVariableIdsInSubBlocks,
@@ -16,18 +17,19 @@ import {
   sanitizeSubBlocksForDuplicate,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
-import {
-  deriveForkBlockId,
-  type ForkBlockIdResolver,
-} from '@/ee/workspace-forking/lib/remap/block-identity'
+import { finalizeBlockToolPositions } from '@/lib/workflows/references/finalize-tool-positions'
 import {
   applyDependentOverrides,
   collectClearedDependents,
   type NeedsConfigurationField,
   replaceCustomBlockInputs,
   type SubBlockTransform,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+} from '@/lib/workflows/references/remap-references'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import {
+  deriveForkBlockId,
+  type ForkBlockIdResolver,
+} from '@/ee/workspace-forking/lib/remap/block-identity'
 import type {
   BlockData,
   BlockState,
@@ -205,9 +207,13 @@ export async function resolveForkFolderMapping({
      * `MAX_FOLDERS_PER_WORKSPACE`, so a fork that mirrors a large source tree into an
      * already-populated target could otherwise leave the target unreadable.
      *
-     * Runs inside the fork transaction, after the `fork-target` advisory lock, so it is
-     * atomic against every other fork/promote into this target and a refusal rolls the
-     * whole copy back. It does NOT take the folder mutation lock: that helper resets the
+     * Runs inside the caller's transaction, so a refusal rolls the whole copy back. What
+     * makes it atomic differs by caller: `promoteFork` holds `fork-target` and `fork-edge`,
+     * which serializes it against every other promote into the same target. `createFork`
+     * holds neither - it does not need to, because the target workspace is being created in
+     * this same transaction and nothing else can reach it yet.
+     *
+     * It does NOT take the folder mutation lock in either case: that helper resets the
      * transaction's `lock_timeout`, which the fork sets deliberately, so an ordinary
      * concurrent `createFolder` can still slip a row in between the count and the insert.
      */
@@ -518,7 +524,8 @@ export async function copyWorkflowStateIntoTarget(
 
   const newBlocks: Record<string, BlockState> = {}
   const clearedDependents: NeedsConfigurationField[] = []
-  for (const [oldBlockId, block] of Object.entries(sourceState.blocks)) {
+  for (const [oldBlockId, savedBlock] of Object.entries(sourceState.blocks)) {
+    const block = migrateMcpOperationControls(savedBlock)
     const newBlockId = blockIdMapping.get(oldBlockId)!
 
     let updatedData = block.data
@@ -570,7 +577,8 @@ export async function copyWorkflowStateIntoTarget(
           activeCanonicalModes = next
           updatedData = { ...updatedData, canonicalModes: next } as BlockData
         },
-        blockTriggerMode
+        blockTriggerMode,
+        true
       )
     }
     if (varIdMapping.size > 0) {
@@ -580,6 +588,7 @@ export async function copyWorkflowStateIntoTarget(
     // rather than leave them pointing at the source workspace.
     subBlocks = remapWorkflowReferencesInSubBlocks(subBlocks, workflowIdMap, {
       clearUnmapped: true,
+      preserveToolIndices: true,
       canonicalModes: activeCanonicalModes,
     })
     subBlocks = remapConditionIdsInSubBlocks(
@@ -598,24 +607,6 @@ export async function copyWorkflowStateIntoTarget(
     const blockOverrides = dependentOverrides?.get(newBlockId)
     if (blockOverrides && blockOverrides.size > 0) {
       subBlocks = applyDependentOverrides(subBlocks, block.type, blockOverrides)
-    }
-
-    // Dependents the TARGET had configured that the parent change cleared and nothing
-    // restored: the target must re-pick required ones (promote skips this workflow's
-    // redeploy) and is told about optional ones. Keyed on the target draft so a field the
-    // source carried but the target never set isn't flagged.
-    if (mode === 'replace' && targetCurrent) {
-      clearedDependents.push(
-        ...collectClearedDependents(
-          block.type,
-          newBlockId,
-          block.name,
-          targetCurrent.subBlocks,
-          subBlocks,
-          activeCanonicalModes,
-          blockTriggerMode
-        )
-      )
     }
 
     const nextBlockType = transformBlockType
@@ -638,6 +629,21 @@ export async function copyWorkflowStateIntoTarget(
       // double-cast-allowed: remap helpers return SubBlockRecord; the entries retain the SubBlockState shape this block requires
       subBlocks: subBlocks as unknown as Record<string, SubBlockState>,
       data: updatedData,
+    }
+    finalizeBlockToolPositions(newBlocks[newBlockId])
+    /** Compare the final tool positions with the target draft when reporting cleared selections. */
+    if (mode === 'replace' && targetCurrent) {
+      clearedDependents.push(
+        ...collectClearedDependents(
+          block.type,
+          newBlockId,
+          block.name,
+          targetCurrent.subBlocks,
+          subBlocks,
+          newBlocks[newBlockId].data?.canonicalModes,
+          blockTriggerMode
+        )
+      )
     }
   }
 
@@ -720,6 +726,9 @@ export async function copyWorkflowStateIntoTarget(
       // Deployment visibility follows the source on sync (a public source stays public in
       // the target); fork-create omits the field, so the child starts private.
       ...(sourceMeta.isPublicApi !== undefined ? { isPublicApi: sourceMeta.isPublicApi } : {}),
+      // A copy never takes the target's new-workflow default: `listDeployedWorkflows` admits
+      // only synced sources, so the copy is synced too.
+      forkSyncExcluded: false,
     })
   } else {
     await tx

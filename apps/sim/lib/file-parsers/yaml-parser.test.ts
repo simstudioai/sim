@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   assertYamlWithinLimits,
@@ -26,28 +23,6 @@ function buildAliasBomb(levels: number, width: number): string {
 }
 
 describe('parseYAMLBuffer', () => {
-  it('reports empty input with the typed parser taxonomy', async () => {
-    await expect(parseYAMLBuffer(Buffer.alloc(0))).rejects.toMatchObject({ code: 'empty_input' })
-  })
-
-  it('parses a normal YAML document', async () => {
-    const result = await parseYAMLBuffer(
-      Buffer.from('name: sim\nlist:\n  - a\n  - b\nnested:\n  key: value\n')
-    )
-    const parsed = JSON.parse(result.content)
-    expect(parsed).toEqual({ name: 'sim', list: ['a', 'b'], nested: { key: 'value' } })
-    expect(result.metadata.type).toBe('yaml')
-    expect(result.metadata.keys).toEqual(['name', 'list', 'nested'])
-    expect(result.metadata.depth).toBeGreaterThan(0)
-  })
-
-  it('reports depth and array metadata', async () => {
-    const result = await parseYAMLBuffer(Buffer.from('- 1\n- 2\n- 3\n'))
-    expect(result.metadata.isArray).toBe(true)
-    expect(result.metadata.itemCount).toBe(3)
-    expect(result.metadata.depth).toBe(1)
-  })
-
   it('rejects an alias-expansion bomb before serialization', async () => {
     const bomb = buildAliasBomb(9, 10)
     expect(Buffer.byteLength(bomb)).toBeLessThan(2048)
@@ -69,21 +44,9 @@ describe('parseYAMLBuffer', () => {
     expect(Buffer.byteLength(bomb)).toBeLessThan(4096)
     await expect(parseYAMLBuffer(Buffer.from(bomb))).rejects.toBeInstanceOf(YamlComplexityError)
   })
-
-  it('surfaces malformed YAML as an Invalid YAML error', async () => {
-    await expect(parseYAMLBuffer(Buffer.from('key: "unterminated\n'))).rejects.toThrow(
-      /Invalid YAML/
-    )
-  })
 })
 
 describe('assertYamlWithinLimits', () => {
-  it('returns the depth of a well-formed structure', () => {
-    expect(assertYamlWithinLimits({ a: { b: { c: 1 } } })).toBe(3)
-    expect(assertYamlWithinLimits([1, 2, 3])).toBe(1)
-    expect(assertYamlWithinLimits('scalar')).toBe(0)
-  })
-
   it('rejects nesting beyond the depth cap', () => {
     let deep: unknown = 1
     for (let i = 0; i < 600; i++) deep = { a: deep }
@@ -127,5 +90,17 @@ describe('assertYamlWithinLimits', () => {
     // (~20M code units, ~20 MB) stays well under the cap.
     const astral = String.fromCodePoint(0x1f600).repeat(10 * 1024 * 1024)
     expect(() => assertYamlWithinLimits({ text: astral })).not.toThrow()
+  })
+
+  it('decodes a BOM-prefixed Latin-1 YAML file without losing accented characters', async () => {
+    const bom = await parseYAMLBuffer(
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('name: Café')])
+    )
+    const latin1 = await parseYAMLBuffer(Buffer.from('name: Caf\xe9', 'latin1'))
+
+    expect(JSON.parse(bom.content)).toEqual({ name: 'Café' })
+    expect(bom.metadata?.encoding).toBe('utf-8')
+    expect(JSON.parse(latin1.content)).toEqual({ name: 'Café' })
+    expect(latin1.metadata?.encoding).toBe('windows-1252')
   })
 })

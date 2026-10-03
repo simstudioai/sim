@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
@@ -113,7 +109,6 @@ function context(id = 'item-1') {
 
 describe('defineV2BodyLifecycleRoute', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.order.splice(0)
     rejectedStage = null
     v2RouteMocks.preauthRate.mockImplementation(async () => {

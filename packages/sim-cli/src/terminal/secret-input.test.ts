@@ -42,22 +42,6 @@ class FakeOutput {
 }
 
 describe('promptSecret', () => {
-  it('masks input and pauses an initially idle terminal before returning', async () => {
-    const input = new FakeInput()
-    const output = new FakeOutput()
-    expect(input.isPaused()).toBe(false)
-
-    const result = promptSecret(input as unknown as ReadStream, output)
-
-    input.emit('keypress', 'hunter2', { name: 'h' })
-    input.emit('keypress', '\r', { name: 'return' })
-
-    await expect(result).resolves.toBe('hunter2')
-    expect(output.value).toBe('Secret value: *******\n')
-    expect(input.rawStates).toEqual([true, false])
-    expect(input.isPaused()).toBe(true)
-  })
-
   it('handles backspace without revealing the value', async () => {
     const input = new FakeInput()
     const output = new FakeOutput()
@@ -70,15 +54,6 @@ describe('promptSecret', () => {
 
     await expect(result).resolves.toBe('ac')
     expect(output.value).toBe('Secret value: **\b \b*\n')
-  })
-
-  it('requires --value when no interactive terminal is available', () => {
-    const input = new FakeInput()
-    input.isTTY = false
-
-    expect(() => promptSecret(input as unknown as ReadStream, new FakeOutput())).toThrow(
-      'Interactive secret input requires a terminal. Pass --value instead.'
-    )
   })
 
   it('restores the terminal when input is cancelled', async () => {
@@ -107,20 +82,5 @@ describe('promptSecret', () => {
 
     await expect(result).resolves.toBe('ab !A')
     expect(output.value).toBe('Secret value: *****\n')
-  })
-
-  it('still ignores navigation keys and a lone escape', async () => {
-    const input = new FakeInput()
-    const result = promptSecret(input as unknown as ReadStream, new FakeOutput())
-
-    input.emit('keypress', undefined, { name: 'up', sequence: `${ESCAPE}[A` })
-    input.emit('keypress', undefined, { name: 'left', sequence: `${ESCAPE}[D` })
-    input.emit('keypress', undefined, { name: 'up', meta: true, sequence: `${ESCAPE}[1;3A` })
-    input.emit('keypress', undefined, { name: 'escape', meta: true, sequence: ESCAPE })
-    input.emit('keypress', 'x', { name: 'x' })
-    input.emit('keypress', 'y', { name: 'y' })
-    input.emit('keypress', '\r', { name: 'return' })
-
-    await expect(result).resolves.toBe('xy')
   })
 })

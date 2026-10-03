@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockExecuteEnrichment = vi.hoisted(() => vi.fn())
@@ -13,7 +10,6 @@ import { executeEnrichmentTool } from '@/lib/internal/enrichment/execute-tool'
 
 describe('executeEnrichmentTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteEnrichment.mockResolvedValue(Response.json({ matched: false }))
   })
 

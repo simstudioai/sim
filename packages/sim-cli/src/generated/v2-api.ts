@@ -169,6 +169,31 @@ export type ActivateWorkflowVersionResponse = {
   data: ActivateWorkflowVersionResponseRef4
 }
 
+/** `POST /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
+export type AddPermissionGroupMemberParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type AddPermissionGroupMemberQuery = Record<string, unknown>
+
+export type AddPermissionGroupMemberBody = {
+  userId: string
+}
+
+type AddPermissionGroupMemberResponseRef0 = {
+  id: string
+  permissionGroupId: string
+  organizationId: string
+  userId: string
+  assignedBy: string
+  assignedAt: string
+}
+
+export type AddPermissionGroupMemberResponse = {
+  data: AddPermissionGroupMemberResponseRef0
+}
+
 /** `POST /api/v2/tables/[tableId]/columns` */
 export type AddTableColumnParams = {
   tableId: string
@@ -246,7 +271,7 @@ export type AddWorkflowGroupBody = {
     deploymentMode?: 'live' | 'deployed'
     autoRun?: boolean
   }
-  outputColumns: Array<{
+  outputColumns?: Array<{
     name: string
     type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
@@ -274,7 +299,7 @@ type AddWorkflowGroupResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -395,6 +420,7 @@ type ApplyWorkflowOperationsBodyRef3 = {
   type: string
   operation?: string
   usageControl?: 'auto' | 'force' | 'none'
+  usageControlExpression?: string
   params?: Record<string, unknown>
 }
 
@@ -403,6 +429,7 @@ type ApplyWorkflowOperationsBodyRef4 =
       type: 'custom-tool'
       customToolId: string
       usageControl?: 'auto' | 'force' | 'none'
+      usageControlExpression?: string
     }
   | {
       type: 'custom-tool'
@@ -416,6 +443,7 @@ type ApplyWorkflowOperationsBodyRef4 =
       }
       code: string
       usageControl?: 'auto' | 'force' | 'none'
+      usageControlExpression?: string
     }
 
 type ApplyWorkflowOperationsBodyRef5 = {
@@ -425,14 +453,28 @@ type ApplyWorkflowOperationsBodyRef5 = {
     toolName: string
   } & Record<string, unknown>
   usageControl?: 'auto' | 'force' | 'none'
+  usageControlExpression?: string
 }
 
 type ApplyWorkflowOperationsBodyRef6 = {
   type: 'mcp-server-advanced'
+  operationPolicy?:
+    | {
+        mode: 'all'
+      }
+    | {
+        mode: 'allow'
+        operations: Array<string>
+      }
+    | {
+        mode: 'deny'
+        operations: Array<string>
+      }
   params: {
     serverId: string
   }
   usageControl?: 'auto' | 'force' | 'none'
+  usageControlExpression?: string
 }
 
 export type ApplyWorkflowOperationsBody = {
@@ -536,8 +578,15 @@ type ApplyWorkflowOperationsResponseRef2 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
     reason: string
+  }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
   }>
   notes: Array<string>
 }
@@ -551,6 +600,7 @@ type ApplyWorkflowOperationsResponseRef3 = {
   deferred: Array<ApplyWorkflowOperationsResponseRef0>
   inputValidationErrors: Array<ApplyWorkflowOperationsResponseRef1>
   mintedBlockIds: Record<string, string>
+  previewBlockIds?: Record<string, string>
   lint: ApplyWorkflowOperationsResponseRef2
   dryRun: boolean
 }
@@ -595,6 +645,28 @@ type ApplyWorkflowVariablesResponseRef0 = {
 
 export type ApplyWorkflowVariablesResponse = {
   data: ApplyWorkflowVariablesResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk` */
+export type BulkAddPermissionGroupMembersParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type BulkAddPermissionGroupMembersQuery = Record<string, unknown>
+
+export type BulkAddPermissionGroupMembersBody = {
+  userIds?: Array<string>
+  addAllOrganizationMembers?: boolean
+}
+
+type BulkAddPermissionGroupMembersResponseRef0 = {
+  added: number
+  skipped: number
+}
+
+export type BulkAddPermissionGroupMembersResponse = {
+  data: BulkAddPermissionGroupMembersResponseRef0
 }
 
 /** `POST /api/v2/files/bulk-delete` */
@@ -795,6 +867,108 @@ export type BulkUpdateTableRowsResponse = {
   data: BulkUpdateTableRowsResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel` */
+export type CancelOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type CancelOrganizationAccessRequestQuery = Record<string, unknown>
+
+type CancelOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CancelOrganizationAccessRequestResponse = {
+  data: CancelOrganizationAccessRequestResponseRef0
+}
+
 /** `DELETE /api/v2/tables/[tableId]/dispatches/[dispatchId]` */
 export type CancelTableDispatchParams = {
   tableId: string
@@ -991,6 +1165,31 @@ type CancelTableRunsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type CancelTableRunsBody = {
   workspaceId: string
@@ -1041,6 +1240,108 @@ export type CancelWorkflowRunResponse = {
   data: CancelWorkflowRunResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel` */
+export type CancelWorkspaceAccessRequestParams = {
+  workspaceId: string
+  requestId: string
+}
+
+export type CancelWorkspaceAccessRequestQuery = Record<string, unknown>
+
+type CancelWorkspaceAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CancelWorkspaceAccessRequestResponse = {
+  data: CancelWorkspaceAccessRequestResponseRef0
+}
+
 /** `POST /api/v2/chat` */
 export type ChatQuery = Record<string, unknown>
 
@@ -1048,6 +1349,7 @@ export type ChatBody = {
   workspaceId: string
   message: string
   conversationId?: string
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 }
 
 export type ChatResponse = {
@@ -1063,6 +1365,140 @@ export type ChatResponse = {
     cost?: unknown
     toolCalls?: Array<Record<string, unknown>>
   }
+}
+
+/** `GET /api/v2/workflows/[workflowId]/versions/compare` */
+export type CompareWorkflowVersionsParams = {
+  workflowId: string
+}
+
+export type CompareWorkflowVersionsQuery = {
+  base: number
+  target: number
+}
+
+type CompareWorkflowVersionsResponseRef0 = {
+  workflowId: string
+  base: number
+  target: number
+  diff: {
+    addedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+    }>
+    removedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+    }>
+    modifiedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+      changes: Array<{
+        field: string
+        oldValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        newValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        scope: 'block' | 'subblock'
+      }>
+    }>
+    edgeChanges: {
+      added: number
+      removed: number
+      addedDetails: Array<{
+        source: string
+        target: string
+        sourceHandle?: string
+        targetHandle?: string
+        sourceName: string
+        targetName: string
+      }>
+      removedDetails: Array<{
+        source: string
+        target: string
+        sourceHandle?: string
+        targetHandle?: string
+        sourceName: string
+        targetName: string
+      }>
+    }
+    loopChanges: {
+      added: number
+      removed: number
+      modified: number
+    }
+    parallelChanges: {
+      added: number
+      removed: number
+      modified: number
+    }
+    containerChanges: Array<{
+      id: string
+      kind: 'loop' | 'parallel'
+      name?: string
+      changes: Array<{
+        field: string
+        oldValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        newValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+      }>
+      nodesAdded: Array<string>
+      nodesRemoved: Array<string>
+    }>
+    variableChanges: {
+      added: number
+      removed: number
+      modified: number
+      addedNames: Array<string>
+      removedNames: Array<string>
+      modifiedNames: Array<string>
+    }
+    hasChanges: boolean
+  }
+}
+
+export type CompareWorkflowVersionsResponse = {
+  data: CompareWorkflowVersionsResponseRef0
 }
 
 /** `POST /api/v2/files/uploads/[uploadId]/complete` */
@@ -1237,12 +1673,88 @@ export type CreateCredentialConnectionQuery = Record<string, unknown>
 export type CreateCredentialConnectionBody =
   | {
       workspaceId: string
-      providerId: string
       displayName: string
+      providerId: 'quickbooks'
+      oauthClientConfig: {
+        clientId: string
+        clientSecret: string
+        environment: 'sandbox' | 'production'
+        webhookVerifierToken: string
+      }
+    }
+  | {
+      workspaceId: string
+      displayName: string
+      providerId:
+        | 'github-repositories'
+        | 'google-email'
+        | 'google-drive'
+        | 'google-docs'
+        | 'google-sheets'
+        | 'google-forms'
+        | 'google-calendar'
+        | 'google-contacts'
+        | 'google-ads'
+        | 'google-bigquery'
+        | 'google-tasks'
+        | 'google-vault'
+        | 'google-groups'
+        | 'google-chat'
+        | 'google-meet'
+        | 'vertex-ai'
+        | 'microsoft-ad'
+        | 'microsoft-dataverse'
+        | 'microsoft-excel'
+        | 'microsoft-planner'
+        | 'microsoft-powerbi'
+        | 'microsoft-teams'
+        | 'microsoft-word'
+        | 'outlook'
+        | 'onedrive'
+        | 'sharepoint'
+        | 'x'
+        | 'tiktok'
+        | 'confluence'
+        | 'jira'
+        | 'airtable'
+        | 'bitbucket'
+        | 'notion'
+        | 'clickup'
+        | 'linear'
+        | 'manageengine-sdp'
+        | 'monday'
+        | 'box'
+        | 'dropbox'
+        | 'shopify'
+        | 'slack'
+        | 'reddit'
+        | 'wealthbox'
+        | 'webflow'
+        | 'trello'
+        | 'asana'
+        | 'attio'
+        | 'calcom'
+        | 'docusign'
+        | 'pipedrive'
+        | 'hubspot'
+        | 'linkedin'
+        | 'instagram'
+        | 'salesforce'
+        | 'salesforce-sandbox'
+        | 'zoho-desk'
+        | 'zoom'
+        | 'wordpress'
+        | 'spotify'
     }
   | {
       workspaceId: string
       credentialId: string
+      oauthClientConfig?: {
+        clientId: string
+        clientSecret: string
+        environment: 'sandbox' | 'production'
+        webhookVerifierToken: string
+      }
     }
 
 type CreateCredentialConnectionResponseRef0 = {
@@ -1325,6 +1837,7 @@ type CreateFileResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type CreateFileResponse = {
@@ -1819,6 +2332,412 @@ export type CreateMcpServerResponse = {
   data: CreateMcpServerResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/access-requests` */
+export type CreateOrganizationAccessRequestParams = {
+  organizationId: string
+}
+
+export type CreateOrganizationAccessRequestQuery = Record<string, unknown>
+
+export type CreateOrganizationAccessRequestBody = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  reason?: string
+}
+
+type CreateOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CreateOrganizationAccessRequestResponse = {
+  data: CreateOrganizationAccessRequestResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/invitations` */
+export type CreateOrganizationInvitationParams = {
+  organizationId: string
+}
+
+export type CreateOrganizationInvitationQuery = Record<string, unknown>
+
+export type CreateOrganizationInvitationBody = {
+  email: string
+  role?: 'member' | 'admin'
+}
+
+type CreateOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type CreateOrganizationInvitationResponse = {
+  data: CreateOrganizationInvitationResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/permission-groups` */
+export type CreatePermissionGroupParams = {
+  organizationId: string
+}
+
+export type CreatePermissionGroupQuery = Record<string, unknown>
+
+export type CreatePermissionGroupBody = {
+  name: string
+  description?: string
+  config?: {
+    allowedIntegrations?: Array<string> | null
+    allowedModelProviders?: Array<string> | null
+    deniedModels?: Array<string>
+    deniedTools?: Array<string>
+    hideTraceSpans?: boolean
+    hideKnowledgeBaseTab?: boolean
+    hideTablesTab?: boolean
+    hideCopilot?: boolean
+    hideIntegrationsTab?: boolean
+    hideSecretsTab?: boolean
+    hideApiKeysTab?: boolean
+    hideInboxTab?: boolean
+    hideFilesTab?: boolean
+    disableMcpTools?: boolean
+    disableCustomTools?: boolean
+    disableSkills?: boolean
+    disableInvitations?: boolean
+    disablePublicApi?: boolean
+    disablePublicFileSharing?: boolean
+    allowedFileShareAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi?: boolean
+    hideDeployMcp?: boolean
+    hideDeployChatbot?: boolean
+    allowedChatDeployAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys?: boolean
+    disableLogExport?: boolean
+    hideCostInfo?: boolean
+    disableKnowledgeBaseCreation?: boolean
+    disableKnowledgeBaseFileUpload?: boolean
+    allowedKnowledgeConnectors?: Array<string> | null
+    disableTableCreation?: boolean
+    disableTableExport?: boolean
+    disableBulkFileDownload?: boolean
+    disablePersonalCredentials?: boolean
+    disableWorkspaceCreation?: boolean
+    hideOrgMemberDirectory?: boolean
+    disableCliAccess?: boolean
+    disableWebhookTriggers?: boolean
+    disableToolAutoApproval?: boolean
+    hideSandboxesTab?: boolean
+    disableOAuthAppAccess?: boolean
+    disableKnowledgeBaseExport?: boolean
+  }
+  isDefault?: boolean
+  workspaceIds?: Array<string>
+}
+
+type CreatePermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreatePermissionGroupResponse = {
+  data: CreatePermissionGroupResponseRef0
+}
+
+/** `POST /api/v2/sandboxes` */
+export type CreateSandboxQuery = Record<string, unknown>
+
+export type CreateSandboxBody = {
+  workspaceId: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies?: Array<string>
+  cliTools?: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages?: Array<string>
+}
+
+type CreateSandboxResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateSandboxResponse = {
+  data: CreateSandboxResponseRef0
+}
+
 /** `POST /api/v2/credentials` */
 export type CreateServiceAccountCredentialQuery = Record<string, unknown>
 
@@ -2015,6 +2934,31 @@ type CreateTableDispatchBodyRef0 =
             value?: unknown
           }
       >
+    }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
     }
 
 export type CreateTableDispatchBody = {
@@ -2539,6 +3483,219 @@ export type CreateWorkflowMcpServerResponse = {
   data: CreateWorkflowMcpServerResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/access-requests` */
+export type CreateWorkspaceAccessRequestParams = {
+  workspaceId: string
+}
+
+export type CreateWorkspaceAccessRequestQuery = Record<string, unknown>
+
+export type CreateWorkspaceAccessRequestBody = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  reason?: string
+}
+
+type CreateWorkspaceAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CreateWorkspaceAccessRequestResponse = {
+  data: CreateWorkspaceAccessRequestResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/invitations` */
+export type CreateWorkspaceInvitationsParams = {
+  workspaceId: string
+}
+
+export type CreateWorkspaceInvitationsQuery = Record<string, unknown>
+
+export type CreateWorkspaceInvitationsBody = {
+  emails: Array<string>
+  permission?: 'admin' | 'write' | 'read'
+  membership?: 'member' | 'admin' | 'external'
+}
+
+type CreateWorkspaceInvitationsResponseRef0 = {
+  success: boolean
+  successful: Array<string>
+  added: Array<string>
+  failed: Array<{
+    email: string
+    error: string
+  }>
+  invitations: Array<{
+    id: string
+    email: string
+    workspaceIds: Array<string>
+    permission: 'admin' | 'write' | 'read'
+    membershipIntent: 'internal' | 'external'
+    instantAdd?: boolean
+    outcome?: 'added' | 'updated' | 'unchanged'
+  }>
+}
+
+export type CreateWorkspaceInvitationsResponse = {
+  data: CreateWorkspaceInvitationsResponseRef0
+}
+
 /** `DELETE /api/v2/credentials/[credentialId]` */
 export type DeleteCredentialParams = {
   credentialId: string
@@ -2625,6 +3782,26 @@ type DeleteFileFolderResponseRef0 = {
 
 export type DeleteFileFolderResponse = {
   data: DeleteFileFolderResponseRef0
+}
+
+/** `DELETE /api/v2/files/[fileId]/versions/[version]` */
+export type DeleteFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type DeleteFileVersionQuery = {
+  workspaceId: string
+}
+
+type DeleteFileVersionResponseRef0 = {
+  fileId: string
+  version: number
+  deleted: true
+}
+
+export type DeleteFileVersionResponse = {
+  data: DeleteFileVersionResponseRef0
 }
 
 /** `DELETE /api/v2/knowledge/[knowledgeBaseId]` */
@@ -2796,6 +3973,41 @@ type DeleteMcpServerResponseRef0 = {
 
 export type DeleteMcpServerResponse = {
   data: DeleteMcpServerResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type DeletePermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type DeletePermissionGroupQuery = Record<string, unknown>
+
+type DeletePermissionGroupResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeletePermissionGroupResponse = {
+  data: DeletePermissionGroupResponseRef0
+}
+
+/** `DELETE /api/v2/sandboxes/[sandboxId]` */
+export type DeleteSandboxParams = {
+  sandboxId: string
+}
+
+export type DeleteSandboxQuery = {
+  workspaceId: string
+}
+
+type DeleteSandboxResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteSandboxResponse = {
+  data: DeleteSandboxResponseRef0
 }
 
 /** `DELETE /api/v2/secrets/[name]` */
@@ -3007,6 +4219,31 @@ type DeleteTableRowsBodyRef0 =
             value?: unknown
           }
       >
+    }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
     }
 
 export type DeleteTableRowsBody = {
@@ -3255,6 +4492,222 @@ export type DeployWorkflowMcpToolResponse = {
   data: DeployWorkflowMcpToolResponseRef0
 }
 
+/** `GET /api/v2/organizations/[organizationId]/access-requests/discovery` */
+export type DiscoverOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type DiscoverOrganizationAccessRequestsQuery = {
+  search?: string
+  targetKind?:
+    | 'feature'
+    | 'integration'
+    | 'provider'
+    | 'model'
+    | 'tool'
+    | 'knowledge_connector'
+    | 'file_share_auth'
+    | 'chat_deploy_auth'
+    | 'usage_limit'
+  state?: 'allowed' | 'requestable' | 'unavailable'
+  sortBy?: 'label'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type DiscoverOrganizationAccessRequestsResponseRef0 = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  label: string
+  state: 'allowed' | 'requestable' | 'unavailable'
+  reason: string | null
+  pendingRequestId: string | null
+}
+
+export type DiscoverOrganizationAccessRequestsResponse = {
+  data: Array<DiscoverOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/access-requests/discovery` */
+export type DiscoverWorkspaceAccessRequestsParams = {
+  workspaceId: string
+}
+
+export type DiscoverWorkspaceAccessRequestsQuery = {
+  search?: string
+  targetKind?:
+    | 'feature'
+    | 'integration'
+    | 'provider'
+    | 'model'
+    | 'tool'
+    | 'knowledge_connector'
+    | 'file_share_auth'
+    | 'chat_deploy_auth'
+    | 'usage_limit'
+  state?: 'allowed' | 'requestable' | 'unavailable'
+  sortBy?: 'label'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type DiscoverWorkspaceAccessRequestsResponseRef0 = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  label: string
+  state: 'allowed' | 'requestable' | 'unavailable'
+  reason: string | null
+  pendingRequestId: string | null
+}
+
+export type DiscoverWorkspaceAccessRequestsResponse = {
+  data: Array<DiscoverWorkspaceAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/files/[fileId]` */
 export type DownloadFileParams = {
   fileId: string
@@ -3266,6 +4719,19 @@ export type DownloadFileQuery = {
 
 /** Non-JSON response (`binary`). */
 export type DownloadFileResponse = never
+
+/** `GET /api/v2/files/[fileId]/versions/[version]/content` */
+export type DownloadFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type DownloadFileVersionQuery = {
+  workspaceId: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadFileVersionResponse = never
 
 /** `GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]` */
 export type DownloadRunFileParams = {
@@ -3347,6 +4813,7 @@ export type EditFileContentBody = {
         endAnchor: string
         occurrence?: number
       }
+  expectedRevision?: string
 }
 
 type EditFileContentResponseRef0 = {
@@ -3366,6 +4833,7 @@ type EditFileContentResponseRef0 = {
 type EditFileContentResponseRef1 = {
   file: EditFileContentResponseRef0
   lineCount: number
+  revision?: string
 }
 
 export type EditFileContentResponse = {
@@ -3461,6 +4929,7 @@ type ExecuteWorkflowResponseRef1 = {
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
+  blockOutputs: Record<string, unknown> | null
   error: ExecuteWorkflowResponseRef0 | null
   startedAt?: string
   endedAt?: string
@@ -3480,12 +4949,28 @@ export type ExecuteWorkflowResponse =
       data: ExecuteWorkflowResponseRef2
     }
 
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/export` */
+export type ExportKnowledgeBaseParams = {
+  knowledgeBaseId: string
+}
+
+export type ExportKnowledgeBaseQuery = {
+  workspaceId: string
+  vectors?: boolean
+}
+
+/** Non-JSON response (`binary`). */
+export type ExportKnowledgeBaseResponse = never
+
 /** `GET /api/v2/workflows/[workflowId]/export` */
 export type ExportWorkflowParams = {
   workflowId: string
 }
 
-export type ExportWorkflowQuery = Record<string, unknown>
+export type ExportWorkflowQuery = {
+  includeReferences?: boolean
+  includeWorkspaceBindings?: boolean
+}
 
 type ExportWorkflowResponseRef0 = {
   version: '1.0'
@@ -3498,10 +4983,106 @@ type ExportWorkflowResponseRef0 = {
     folderPath: string
   }
   state: Record<string, unknown>
+  referenceManifest?: {
+    version: 1
+    references: Array<{
+      kind:
+        | 'credential'
+        | 'env-var'
+        | 'knowledge-base'
+        | 'knowledge-document'
+        | 'table'
+        | 'file'
+        | 'file-folder'
+        | 'mcp-server'
+        | 'custom-tool'
+        | 'custom-block'
+        | 'skill'
+        | 'sandbox'
+        | 'workflow'
+      sourceId: string
+      required: boolean
+      occurrences: Array<{
+        blockId: string
+        subBlockKey: string
+        valuePath: Array<string | number>
+        positions?: Array<number>
+        encoding: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+      }>
+    }>
+  }
 }
 
 export type ExportWorkflowResponse = {
   data: ExportWorkflowResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork` */
+export type ForkWorkspaceParams = {
+  workspaceId: string
+}
+
+export type ForkWorkspaceQuery = Record<string, unknown>
+
+export type ForkWorkspaceBody = {
+  name?: string
+  copy?: {
+    files?: Array<string>
+    tables?: Array<string>
+    knowledgeBases?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    mcpServers?: Array<string>
+    workflowMcpServers?: Array<string>
+  }
+  requestId: string
+  previewFingerprint: string
+}
+
+type ForkWorkspaceResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type ForkWorkspaceResponse = {
+  data: ForkWorkspaceResponseRef0
 }
 
 /** `GET /api/v2/audit-logs/[auditLogId]` */
@@ -3584,6 +5165,7 @@ type GetBlockResponseRef0 = {
     id: string
     label?: string
     hasIcon?: boolean
+    hosted?: boolean
   }>
   min?: number
   max?: number
@@ -3826,6 +5408,8 @@ type GetFileResponseRef1 = {
   updatedAt: string
   deletedAt: string | null
   share: GetFileResponseRef0 | null
+  revision?: string
+  currentVersion: number
 }
 
 export type GetFileResponse = {
@@ -3905,6 +5489,37 @@ type GetFileUploadResponseRef1 = {
 
 export type GetFileUploadResponse = {
   data: GetFileUploadResponseRef1
+}
+
+/** `GET /api/v2/files/[fileId]/versions/[version]` */
+export type GetFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type GetFileVersionQuery = {
+  workspaceId: string
+}
+
+type GetFileVersionResponseRef0 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type GetFileVersionResponse = {
+  data: GetFileVersionResponseRef0
 }
 
 /** `GET /api/v2/knowledge/[knowledgeBaseId]` */
@@ -4074,7 +5689,9 @@ export type GetLogParams = {
   runId: string
 }
 
-export type GetLogQuery = Record<string, unknown>
+export type GetLogQuery = {
+  includeWorkflowState?: boolean
+}
 
 type GetLogResponseRef0 = {
   id: string
@@ -4177,9 +5794,23 @@ export type GetLogStatsQuery = {
   folderPaths?: string
   triggers?: string
   level?: 'info' | 'error'
+  includeHandledErrors?: boolean
   startDate?: string
   endDate?: string
   segmentCount?: number
+  includeEmpty?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
 }
 
 type GetLogStatsResponseRef0 = {
@@ -4204,6 +5835,7 @@ type GetLogStatsResponseRef2 = {
   aggregateSegments: Array<GetLogStatsResponseRef1>
   totalRuns: number
   totalErrors: number
+  handledErrorRuns?: number
   avgLatency: number
   timeBounds: {
     start: string
@@ -4257,7 +5889,7 @@ export type GetMetaQuery = Record<string, unknown>
 
 type GetMetaResponseRef0 = {
   v2Enabled: boolean
-  keyType: 'personal' | 'workspace'
+  keyType: 'personal' | 'workspace' | 'oauth_access_token'
   expiresAt: string | null
 }
 
@@ -4287,6 +5919,228 @@ export type GetNextKnowledgeTagSlotResponse = {
   data: GetNextKnowledgeTagSlotResponseRef0
 }
 
+/** `GET /api/v2/organizations/[organizationId]` */
+export type GetOrganizationParams = {
+  organizationId: string
+}
+
+export type GetOrganizationQuery = Record<string, unknown>
+
+type GetOrganizationResponseRef0 = {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  role: 'owner' | 'admin' | 'member'
+  createdAt: string
+}
+
+export type GetOrganizationResponse = {
+  data: GetOrganizationResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests/settings` */
+export type GetOrganizationAccessRequestSettingsParams = {
+  organizationId: string
+}
+
+export type GetOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+
+type GetOrganizationAccessRequestSettingsResponseRef0 = {
+  allowRequests: boolean
+}
+
+export type GetOrganizationAccessRequestSettingsResponse = {
+  data: GetOrganizationAccessRequestSettingsResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/invitations/[invitationId]` */
+export type GetOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type GetOrganizationInvitationQuery = Record<string, unknown>
+
+type GetOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type GetOrganizationInvitationResponse = {
+  data: GetOrganizationInvitationResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/members/[userId]/usage-limit` */
+export type GetOrganizationMemberUsageLimitParams = {
+  organizationId: string
+  userId: string
+}
+
+export type GetOrganizationMemberUsageLimitQuery = Record<string, unknown>
+
+type GetOrganizationMemberUsageLimitResponseRef0 = {
+  creditsUsed: number
+  creditLimit: number | null
+  billingInterval: 'month' | 'year'
+}
+
+export type GetOrganizationMemberUsageLimitResponse = {
+  data: GetOrganizationMemberUsageLimitResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/breakdown` */
+export type GetOrganizationUsageBreakdownParams = {
+  organizationId: string
+}
+
+export type GetOrganizationUsageBreakdownQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  workspaceId?: string
+  dimension: 'member' | 'workspace' | 'workflow' | 'model' | 'byok' | 'source'
+  limit?: number
+}
+
+type GetOrganizationUsageBreakdownResponseRef0 = {
+  dimension: 'member' | 'workspace' | 'workflow' | 'model' | 'byok' | 'source'
+  rows: Array<{
+    id: string
+    label: string
+    credits: number
+    events: number
+    share: number
+    providerId?: string
+    tokens?: number
+  }>
+  other: {
+    credits: number
+    events: number
+    rowCount: number
+    tokens: number
+  }
+  totalCredits: number
+}
+
+export type GetOrganizationUsageBreakdownResponse = {
+  data: GetOrganizationUsageBreakdownResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/summary` */
+export type GetOrganizationUsageSummaryParams = {
+  organizationId: string
+}
+
+export type GetOrganizationUsageSummaryQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  workspaceId?: string
+}
+
+type GetOrganizationUsageSummaryResponseRef0 = {
+  window: {
+    start: string
+    end: string
+    source: 'reporting' | 'stripe' | 'default' | 'range'
+  }
+  bucket: 'day' | 'week' | 'month'
+  totals: {
+    credits: number
+  }
+  previousTotals: {
+    credits: number
+  } | null
+  series: Array<{
+    timestamp: string
+    credits: number
+    events: number
+  }>
+}
+
+export type GetOrganizationUsageSummaryResponse = {
+  data: GetOrganizationUsageSummaryResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type GetPermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type GetPermissionGroupQuery = Record<string, unknown>
+
+type GetPermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetPermissionGroupResponse = {
+  data: GetPermissionGroupResponseRef0
+}
+
 /** `GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
 export type GetRowEnrichmentParams = {
   tableId: string
@@ -4299,16 +6153,28 @@ export type GetRowEnrichmentQuery = {
 }
 
 type GetRowEnrichmentResponseRef0 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type GetRowEnrichmentResponseRef1 = Record<string, unknown>
+
+type GetRowEnrichmentResponseRef2 = {
   startedAt: string | null
   completedAt: string | null
   durationMs: number
   totalCost: number
   matchedProvider: string | null
   aborted: boolean
-  providers: Array<GetRowEnrichmentResponseRef1>
+  providers: Array<GetRowEnrichmentResponseRef3>
 }
 
-type GetRowEnrichmentResponseRef1 = {
+type GetRowEnrichmentResponseRef3 = {
   id: string
   label: string
   toolId: string
@@ -4318,8 +6184,197 @@ type GetRowEnrichmentResponseRef1 = {
   error: string | null
 }
 
+type GetRowEnrichmentResponseRef4 = {
+  groupId: string
+  runState: GetRowEnrichmentResponseRef0 | null
+  outputs: GetRowEnrichmentResponseRef1
+  cascade: GetRowEnrichmentResponseRef2 | null
+}
+
 export type GetRowEnrichmentResponse = {
-  data: GetRowEnrichmentResponseRef0 | null
+  data: GetRowEnrichmentResponseRef4
+}
+
+/** `GET /api/v2/sandboxes/[sandboxId]` */
+export type GetSandboxParams = {
+  sandboxId: string
+}
+
+export type GetSandboxQuery = {
+  workspaceId: string
+}
+
+type GetSandboxResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetSandboxResponse = {
+  data: GetSandboxResponseRef0
+}
+
+/** `POST /api/v2/selectors/get` */
+export type GetSelectorQuery = Record<string, unknown>
+
+export type GetSelectorBody = {
+  workspaceId: string
+  selectorKey:
+    | 'airtable.bases'
+    | 'airtable.tables'
+    | 'asana.workspaces'
+    | 'attio.lists'
+    | 'attio.objects'
+    | 'bigquery.datasets'
+    | 'bigquery.tables'
+    | 'bitbucket.workspaces'
+    | 'bitbucket.repositories'
+    | 'calcom.eventTypes'
+    | 'calcom.schedules'
+    | 'clickup.workspaces'
+    | 'clickup.spaces'
+    | 'clickup.folders'
+    | 'clickup.lists'
+    | 'coda.docs'
+    | 'coda.pages'
+    | 'coda.tables'
+    | 'coda.columns'
+    | 'coda.rows'
+    | 'coda.formulas'
+    | 'coda.controls'
+    | 'coda.folders'
+    | 'coda.permissions'
+    | 'confluence.spaces'
+    | 'confluence.spacesById'
+    | 'confluence.pages'
+    | 'google.tasks.lists'
+    | 'gmail.labels'
+    | 'google.calendar'
+    | 'google.drive'
+    | 'google.sheets'
+    | 'harmonic.savedSearches'
+    | 'hubspot.lists'
+    | 'hubspot.owners'
+    | 'hubspot.pipelines'
+    | 'hubspot.pipelineStages'
+    | 'hubspot.properties'
+    | 'jsm.requestTypes'
+    | 'jsm.serviceDesks'
+    | 'microsoft.planner.plans'
+    | 'notion.databases'
+    | 'notion.pages'
+    | 'netsuite.recordTypes'
+    | 'netsuite.asyncTasks'
+    | 'pipedrive.pipelines'
+    | 'sharepoint.lists'
+    | 'trello.boards'
+    | 'zoho_desk.organizations'
+    | 'zoho_desk.departments'
+    | 'zoho_desk.agents'
+    | 'zoom.meetings'
+    | 'slack.channels'
+    | 'snowflake.databases'
+    | 'snowflake.schemas'
+    | 'snowflake.tables'
+    | 'snowflake.warehouses'
+    | 'snowflake.roles'
+    | 'snowflake.fileFormats'
+    | 'snowflake.procedures'
+    | 'slack.users'
+    | 'outlook.folders'
+    | 'outlook.calendars'
+    | 'microsoft.teams'
+    | 'microsoft.chats'
+    | 'microsoft.channels'
+    | 'microsoft.planner'
+    | 'onedrive.files'
+    | 'onedrive.folders'
+    | 'sharepoint.sites'
+    | 'microsoft.excel'
+    | 'microsoft.excel.drives'
+    | 'microsoft.excel.sheets'
+    | 'microsoft.word'
+    | 'wealthbox.contacts'
+    | 'jira.issues'
+    | 'jira.projects'
+    | 'jira.projectKeys'
+    | 'linear.projects'
+    | 'linear.teams'
+    | 'monday.boards'
+    | 'monday.groups'
+    | 'webflow.sites'
+    | 'webflow.collections'
+    | 'webflow.items'
+    | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
+    | 'cloudwatch.logGroups'
+    | 'cloudwatch.logStreams'
+    | 'imap.mailboxes'
+    | 'mcp.tools'
+    | 'managedAgent.agents'
+    | 'managedAgent.environments'
+    | 'managedAgent.vaults'
+    | 'managedAgent.memoryStores'
+    | 'knowledge.documents'
+    | 'sim.workflows'
+    | 'table.columns'
+    | 'table.outputColumns'
+    | 'workspace.secretNames'
+    | 'workspace.sandboxes'
+    | 'providers.ollamaEmbeddingModels'
+    | 'providers.openrouterEmbeddingModels'
+  context?: Record<string, string>
+  id: string
+}
+
+type GetSelectorResponseRef0 = {
+  id: string
+  label: string
+  meta?: Record<string, string | number | boolean | null>
+}
+
+export type GetSelectorResponse = {
+  data: GetSelectorResponseRef0 | null
 }
 
 /** `GET /api/v2/skills/[skillId]` */
@@ -4772,6 +6827,12 @@ type GetWorkflowDeploymentResponseRef3 = {
 }
 
 type GetWorkflowDeploymentResponseRef4 = {
+  blockId: string | null
+  provider: string | null
+  url: string
+}
+
+type GetWorkflowDeploymentResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
@@ -4780,10 +6841,11 @@ type GetWorkflowDeploymentResponseRef4 = {
   latestDeploymentAttempt: GetWorkflowDeploymentResponseRef1 | null
   needsRedeployment: boolean
   isPublicApi: boolean
+  webhooks: Array<GetWorkflowDeploymentResponseRef4>
 }
 
 export type GetWorkflowDeploymentResponse = {
-  data: GetWorkflowDeploymentResponseRef4
+  data: GetWorkflowDeploymentResponseRef5
 }
 
 /** `GET /api/v2/workflow-mcp-servers/[serverId]` */
@@ -5032,6 +7094,200 @@ export type GetWorkspaceResponse = {
   data: GetWorkspaceResponseRef0
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/fork/availability` */
+export type GetWorkspaceForkAvailabilityParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceForkAvailabilityQuery = Record<string, unknown>
+
+type GetWorkspaceForkAvailabilityResponseRef0 = {
+  available: boolean
+}
+
+export type GetWorkspaceForkAvailabilityResponse = {
+  data: GetWorkspaceForkAvailabilityResponseRef0
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/fork/lineage` */
+export type GetWorkspaceForkLineageParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceForkLineageQuery = Record<string, unknown>
+
+type GetWorkspaceForkLineageResponseRef0 = {
+  current: {
+    id: string
+    name: string
+    organizationId: string | null
+  }
+  parent: {
+    id: string
+    name: string
+    organizationId: string | null
+  } | null
+}
+
+export type GetWorkspaceForkLineageResponse = {
+  data: GetWorkspaceForkLineageResponseRef0
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/fork/mappings` */
+export type GetWorkspaceForkMappingsParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceForkMappingsQuery = {
+  otherWorkspaceId: string
+  direction: 'push' | 'pull'
+  limit?: number
+  cursor?: string
+  sortBy?: 'id'
+  sortOrder?: 'asc'
+}
+
+type GetWorkspaceForkMappingsResponseRef0 = {
+  resourceType:
+    | 'oauth_credential'
+    | 'service_account_credential'
+    | 'env_var'
+    | 'table'
+    | 'knowledge_base'
+    | 'file'
+    | 'file_folder'
+    | 'mcp_server'
+    | 'custom_block'
+    | 'custom_tool'
+    | 'skill'
+    | 'sandbox'
+  sourceId: string
+  targetId: string | null
+  id: string
+}
+
+export type GetWorkspaceForkMappingsResponse = {
+  data: Array<GetWorkspaceForkMappingsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/operations/[operationId]` */
+export type GetWorkspaceOperationParams = {
+  workspaceId: string
+  operationId: string
+}
+
+export type GetWorkspaceOperationQuery = Record<string, unknown>
+
+type GetWorkspaceOperationResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type GetWorkspaceOperationResponse = {
+  data: GetWorkspaceOperationResponseRef0
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/permission-config` */
+export type GetWorkspacePermissionConfigParams = {
+  workspaceId: string
+}
+
+export type GetWorkspacePermissionConfigQuery = Record<string, unknown>
+
+type GetWorkspacePermissionConfigResponseRef0 = {
+  permissionGroupId: string | null
+  groupName: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  } | null
+  entitled: boolean
+  organizationId: string | null
+  isOrgAdmin: boolean
+}
+
+export type GetWorkspacePermissionConfigResponse = {
+  data: GetWorkspacePermissionConfigResponseRef0
+}
+
 /** `POST /api/v2/skills/[skillId]/editors` */
 export type GrantSkillEditorParams = {
   skillId: string
@@ -5066,9 +7322,62 @@ export type ImportWorkflowBody = {
   folderPath?: ImportWorkflowBodyRef0
   name?: string
   description?: string
+  mappings?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    sourceId: string
+    targetId: string | null
+  }>
+  bindings?: Array<{
+    blockId: string
+    subBlockKey: string
+    valuePath?: Array<string | number>
+    positions?: Array<number>
+    encoding?: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    blockId: string
+    subBlockKey: string
+    value: string
+  }>
+  requestId?: string
+  previewFingerprint?: string
 }
 
 type ImportWorkflowResponseRef0 = {
+  id: string
+  type: string
+  name: string
+}
+
+type ImportWorkflowResponseRef1 = {
   id: string
   name: string
   description: string | null
@@ -5076,10 +7385,50 @@ type ImportWorkflowResponseRef0 = {
   folderPath: string
   createdAt: string
   updatedAt: string
+  blocks?: Array<ImportWorkflowResponseRef0>
+  warnings: Array<string>
+  operationId?: string
+  requestId?: string
+  kind?: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied?: true
+  status?:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds?: Array<string>
+  issues?: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
 }
 
 export type ImportWorkflowResponse = {
-  data: ImportWorkflowResponseRef0
+  data: ImportWorkflowResponseRef1
 }
 
 /** `GET /api/v2/audit-logs` */
@@ -5173,6 +7522,7 @@ export type ListBlocksQuery = {
   category?: 'blocks' | 'tools' | 'triggers'
   capability?: 'trigger'
   source?: 'builtin' | 'custom'
+  includeSunset?: boolean
   sortBy?: 'id' | 'name' | 'category'
   sortOrder?: 'asc' | 'desc'
   limit?: number
@@ -5250,6 +7600,9 @@ export type ListChatDeploymentsResponse = {
 export type ListConnectorTypesQuery = {
   workspaceId: string
   search?: string
+  detail?: 'summary' | 'full'
+  limit?: number
+  cursor?: string
 }
 
 type ListConnectorTypesResponseRef0 = {
@@ -5302,8 +7655,17 @@ type ListConnectorTypesResponseRef1 = {
   multi?: boolean
 }
 
+type ListConnectorTypesResponseRef2 = {
+  connectorType: string
+  name: string
+  description: string
+  auth: {
+    mode: 'oauth' | 'apiKey'
+  }
+}
+
 export type ListConnectorTypesResponse = {
-  data: Array<ListConnectorTypesResponseRef0>
+  data: Array<ListConnectorTypesResponseRef0 | ListConnectorTypesResponseRef2>
   nextCursor: string | null
 }
 
@@ -5325,6 +7687,20 @@ type ListCredentialProvidersResponseRef0 =
       authorizationOptions: Array<{
         providerId: string
         label: string
+      }>
+      fields: Array<{
+        id: string
+        label: string
+        placeholder: string
+        required: boolean
+        secret: boolean
+        multiline: boolean
+        requiredForAuthMethods?: Array<string>
+        options?: Array<{
+          value: string
+          label: string
+        }>
+        hint?: string
       }>
     }
   | {
@@ -5506,6 +7882,41 @@ type ListFilesResponseRef0 = {
 
 export type ListFilesResponse = {
   data: Array<ListFilesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/files/[fileId]/versions` */
+export type ListFileVersionsParams = {
+  fileId: string
+}
+
+export type ListFileVersionsQuery = {
+  workspaceId: string
+  sortBy?: 'version'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListFileVersionsResponseRef0 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type ListFileVersionsResponse = {
+  data: Array<ListFileVersionsResponseRef0>
   nextCursor: string | null
 }
 
@@ -5794,6 +8205,7 @@ export type ListLogsQuery = {
   includeFinalOutput?: boolean
   limit?: number
   cursor?: string
+  includeHandledErrors?: boolean
   status?: string
   workflowName?: string
   includeJobRuns?: boolean
@@ -5818,6 +8230,7 @@ type ListLogsResponseRef0 = {
     total: number
   } | null
   files: Array<ListLogsResponseRef1> | null
+  hasHandledErrors: boolean
   workflow?: {
     id: string | null
     name: string
@@ -5948,6 +8361,670 @@ export type ListMcpServerToolsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/organizations/[organizationId]/access-requests/mine` */
+export type ListMyOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type ListMyOrganizationAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListMyOrganizationAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListMyOrganizationAccessRequestsResponse = {
+  data: Array<ListMyOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/access-requests` */
+export type ListMyWorkspaceAccessRequestsParams = {
+  workspaceId: string
+}
+
+export type ListMyWorkspaceAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListMyWorkspaceAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListMyWorkspaceAccessRequestsResponse = {
+  data: Array<ListMyWorkspaceAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests` */
+export type ListOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+  search?: string
+}
+
+type ListOrganizationAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListOrganizationAccessRequestsResponse = {
+  data: Array<ListOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/invitations` */
+export type ListOrganizationInvitationsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationInvitationsQuery = {
+  search?: string
+  status?: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  sortBy?: 'email' | 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationInvitationsResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type ListOrganizationInvitationsResponse = {
+  data: Array<ListOrganizationInvitationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces` */
+export type ListOrganizationInvitationWorkspacesParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type ListOrganizationInvitationWorkspacesQuery = {
+  search?: string
+  sortBy?: 'name' | 'id'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationInvitationWorkspacesResponseRef0 = {
+  id: string
+  name: string
+  permission: 'admin' | 'write' | 'read'
+  archivedAt: string | null
+}
+
+export type ListOrganizationInvitationWorkspacesResponse = {
+  data: Array<ListOrganizationInvitationWorkspacesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/members` */
+export type ListOrganizationMembersParams = {
+  organizationId: string
+}
+
+export type ListOrganizationMembersQuery = {
+  search?: string
+  sortBy?: 'name' | 'email' | 'joinedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationMembersResponseRef0 = {
+  userId: string
+  name: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+}
+
+export type ListOrganizationMembersResponse = {
+  data: Array<ListOrganizationMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations` */
+export type ListOrganizationsQuery = {
+  search?: string
+  sortBy?: 'name' | 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationsResponseRef0 = {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  role: 'owner' | 'admin' | 'member'
+  createdAt: string
+}
+
+export type ListOrganizationsResponse = {
+  data: Array<ListOrganizationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/events` */
+export type ListOrganizationUsageEventsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationUsageEventsQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  source?:
+    | 'workflow'
+    | 'wand'
+    | 'sim-chat'
+    | 'mcp_copilot'
+    | 'mothership_block'
+    | 'knowledge-base'
+    | 'voice-input'
+    | 'enrichment'
+    | 'voice-output'
+    | 'api-tool'
+  limit?: number
+  cursor?: string
+  sortBy?: 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListOrganizationUsageEventsResponseRef0 = {
+  id: string
+  createdAt: string
+  source:
+    | 'workflow'
+    | 'wand'
+    | 'sim-chat'
+    | 'mcp_copilot'
+    | 'mothership_block'
+    | 'knowledge-base'
+    | 'voice-input'
+    | 'enrichment'
+    | 'voice-output'
+    | 'api-tool'
+  description: string
+  workflowName: string | null
+  credits: number
+  hasCost: boolean
+}
+
+export type ListOrganizationUsageEventsResponse = {
+  data: Array<ListOrganizationUsageEventsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/workspaces` */
+export type ListOrganizationWorkspacesParams = {
+  organizationId: string
+}
+
+export type ListOrganizationWorkspacesQuery = {
+  search?: string
+  sortBy?: 'name' | 'id'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationWorkspacesResponseRef0 = {
+  id: string
+  name: string
+}
+
+export type ListOrganizationWorkspacesResponse = {
+  data: Array<ListOrganizationWorkspacesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
+export type ListPermissionGroupMembersParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type ListPermissionGroupMembersQuery = {
+  sortBy?: 'assignedAt' | 'userId'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListPermissionGroupMembersResponseRef0 = {
+  id: string
+  userId: string
+  assignedAt: string
+  userName: string | null
+  userEmail: string | null
+  userImage: string | null
+}
+
+export type ListPermissionGroupMembersResponse = {
+  data: Array<ListPermissionGroupMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups` */
+export type ListPermissionGroupsParams = {
+  organizationId: string
+}
+
+export type ListPermissionGroupsQuery = {
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListPermissionGroupsResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListPermissionGroupsResponse = {
+  data: Array<ListPermissionGroupsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/sandboxes` */
+export type ListSandboxesQuery = {
+  workspaceId: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListSandboxesResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListSandboxesResponse = {
+  data: Array<ListSandboxesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/secrets` */
 export type ListSecretsQuery = {
   workspaceId: string
@@ -5973,6 +9050,138 @@ type ListSecretsResponseRef0 = {
 export type ListSecretsResponse = {
   data: Array<ListSecretsResponseRef0>
   nextCursor: string | null
+}
+
+/** `POST /api/v2/selectors/list` */
+export type ListSelectorQuery = Record<string, unknown>
+
+export type ListSelectorBody = {
+  workspaceId: string
+  selectorKey:
+    | 'airtable.bases'
+    | 'airtable.tables'
+    | 'asana.workspaces'
+    | 'attio.lists'
+    | 'attio.objects'
+    | 'bigquery.datasets'
+    | 'bigquery.tables'
+    | 'bitbucket.workspaces'
+    | 'bitbucket.repositories'
+    | 'calcom.eventTypes'
+    | 'calcom.schedules'
+    | 'clickup.workspaces'
+    | 'clickup.spaces'
+    | 'clickup.folders'
+    | 'clickup.lists'
+    | 'coda.docs'
+    | 'coda.pages'
+    | 'coda.tables'
+    | 'coda.columns'
+    | 'coda.rows'
+    | 'coda.formulas'
+    | 'coda.controls'
+    | 'coda.folders'
+    | 'coda.permissions'
+    | 'confluence.spaces'
+    | 'confluence.spacesById'
+    | 'confluence.pages'
+    | 'google.tasks.lists'
+    | 'gmail.labels'
+    | 'google.calendar'
+    | 'google.drive'
+    | 'google.sheets'
+    | 'harmonic.savedSearches'
+    | 'hubspot.lists'
+    | 'hubspot.owners'
+    | 'hubspot.pipelines'
+    | 'hubspot.pipelineStages'
+    | 'hubspot.properties'
+    | 'jsm.requestTypes'
+    | 'jsm.serviceDesks'
+    | 'microsoft.planner.plans'
+    | 'notion.databases'
+    | 'notion.pages'
+    | 'netsuite.recordTypes'
+    | 'netsuite.asyncTasks'
+    | 'pipedrive.pipelines'
+    | 'sharepoint.lists'
+    | 'trello.boards'
+    | 'zoho_desk.organizations'
+    | 'zoho_desk.departments'
+    | 'zoho_desk.agents'
+    | 'zoom.meetings'
+    | 'slack.channels'
+    | 'snowflake.databases'
+    | 'snowflake.schemas'
+    | 'snowflake.tables'
+    | 'snowflake.warehouses'
+    | 'snowflake.roles'
+    | 'snowflake.fileFormats'
+    | 'snowflake.procedures'
+    | 'slack.users'
+    | 'outlook.folders'
+    | 'outlook.calendars'
+    | 'microsoft.teams'
+    | 'microsoft.chats'
+    | 'microsoft.channels'
+    | 'microsoft.planner'
+    | 'onedrive.files'
+    | 'onedrive.folders'
+    | 'sharepoint.sites'
+    | 'microsoft.excel'
+    | 'microsoft.excel.drives'
+    | 'microsoft.excel.sheets'
+    | 'microsoft.word'
+    | 'wealthbox.contacts'
+    | 'jira.issues'
+    | 'jira.projects'
+    | 'jira.projectKeys'
+    | 'linear.projects'
+    | 'linear.teams'
+    | 'monday.boards'
+    | 'monday.groups'
+    | 'webflow.sites'
+    | 'webflow.collections'
+    | 'webflow.items'
+    | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
+    | 'cloudwatch.logGroups'
+    | 'cloudwatch.logStreams'
+    | 'imap.mailboxes'
+    | 'mcp.tools'
+    | 'managedAgent.agents'
+    | 'managedAgent.environments'
+    | 'managedAgent.vaults'
+    | 'managedAgent.memoryStores'
+    | 'knowledge.documents'
+    | 'sim.workflows'
+    | 'table.columns'
+    | 'table.outputColumns'
+    | 'workspace.secretNames'
+    | 'workspace.sandboxes'
+    | 'providers.ollamaEmbeddingModels'
+    | 'providers.openrouterEmbeddingModels'
+  context?: Record<string, string>
+  search?: string
+  cursor?: string
+  limit?: number
+}
+
+type ListSelectorResponseRef0 = {
+  id: string
+  label: string
+  meta?: Record<string, string | number | boolean | null>
+}
+
+export type ListSelectorResponse = {
+  data: Array<ListSelectorResponseRef0>
+  nextCursor: string | null
+  truncated: boolean
 }
 
 /** `GET /api/v2/skills/[skillId]/editors` */
@@ -6305,7 +9514,7 @@ type ListWorkflowGroupsResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -6358,6 +9567,7 @@ type ListWorkflowMcpToolsResponseRef0 = {
   apiEndpoint: string
   createdAt: string
   updatedAt: string
+  status: 'active' | 'inactive'
 }
 
 export type ListWorkflowMcpToolsResponse = {
@@ -6460,6 +9670,62 @@ export type ListWorkflowVersionsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/fork/children` */
+export type ListWorkspaceForkChildrenParams = {
+  workspaceId: string
+}
+
+export type ListWorkspaceForkChildrenQuery = {
+  limit?: number
+  cursor?: string
+  sortBy?: 'createdAt'
+  sortOrder?: 'desc'
+}
+
+type ListWorkspaceForkChildrenResponseRef0 = {
+  id: string
+  name: string
+  organizationId: string | null
+  createdAt: string
+}
+
+export type ListWorkspaceForkChildrenResponse = {
+  data: Array<ListWorkspaceForkChildrenResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/fork/resources` */
+export type ListWorkspaceForkResourcesParams = {
+  workspaceId: string
+}
+
+export type ListWorkspaceForkResourcesQuery = {
+  limit?: number
+  cursor?: string
+  kind:
+    | 'files'
+    | 'tables'
+    | 'knowledgeBases'
+    | 'customTools'
+    | 'skills'
+    | 'mcpServers'
+    | 'workflowMcpServers'
+  sortBy?: 'id'
+  sortOrder?: 'asc'
+}
+
+type ListWorkspaceForkResourcesResponseRef0 = {
+  id: string
+  label: string
+  folderId?: string | null
+  folderName?: string | null
+}
+
+export type ListWorkspaceForkResourcesResponse = {
+  data: Array<ListWorkspaceForkResourcesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workspaces/[workspaceId]/members` */
 export type ListWorkspaceMembersParams = {
   workspaceId: string
@@ -6471,6 +9737,7 @@ export type ListWorkspaceMembersQuery = {
 }
 
 type ListWorkspaceMembersResponseRef0 = {
+  userId: string
   email: string
   name: string
   image: string | null
@@ -6481,6 +9748,64 @@ type ListWorkspaceMembersResponseRef0 = {
 
 export type ListWorkspaceMembersResponse = {
   data: Array<ListWorkspaceMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/operations` */
+export type ListWorkspaceOperationsParams = {
+  workspaceId: string
+}
+
+export type ListWorkspaceOperationsQuery = {
+  limit?: number
+  cursor?: string
+  requestId?: string
+}
+
+type ListWorkspaceOperationsResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type ListWorkspaceOperationsResponse = {
+  data: Array<ListWorkspaceOperationsResponseRef0>
   nextCursor: string | null
 }
 
@@ -6586,6 +9911,1032 @@ type MoveWorkflowsResponseRef0 = {
 
 export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests/[requestId]/preview` */
+export type PreviewOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type PreviewOrganizationAccessRequestQuery = Record<string, unknown>
+
+type PreviewOrganizationAccessRequestResponseRef0 = {
+  newLimitCredits: number | null
+  request: {
+    id: string
+    organizationId: string
+    workspaceId: string | null
+    target:
+      | {
+          kind: 'feature'
+          configKey:
+            | 'hideTraceSpans'
+            | 'hideKnowledgeBaseTab'
+            | 'hideTablesTab'
+            | 'hideCopilot'
+            | 'hideIntegrationsTab'
+            | 'hideSecretsTab'
+            | 'hideApiKeysTab'
+            | 'hideInboxTab'
+            | 'hideFilesTab'
+            | 'disableMcpTools'
+            | 'disableCustomTools'
+            | 'disableSkills'
+            | 'disableInvitations'
+            | 'disablePublicApi'
+            | 'disablePublicFileSharing'
+            | 'hideDeployApi'
+            | 'hideDeployMcp'
+            | 'hideDeployChatbot'
+            | 'disablePersonalApiKeys'
+            | 'disableLogExport'
+            | 'hideCostInfo'
+            | 'disableKnowledgeBaseCreation'
+            | 'disableKnowledgeBaseFileUpload'
+            | 'disableTableCreation'
+            | 'disableTableExport'
+            | 'disableBulkFileDownload'
+            | 'disablePersonalCredentials'
+            | 'disableWorkspaceCreation'
+            | 'hideOrgMemberDirectory'
+            | 'disableCliAccess'
+            | 'disableWebhookTriggers'
+            | 'disableToolAutoApproval'
+            | 'hideSandboxesTab'
+            | 'disableOAuthAppAccess'
+            | 'disableKnowledgeBaseExport'
+        }
+      | {
+          kind: 'integration'
+          id: string
+        }
+      | {
+          kind: 'provider'
+          id: string
+        }
+      | {
+          kind: 'model'
+          id: string
+        }
+      | {
+          kind: 'tool'
+          id: string
+        }
+      | {
+          kind: 'knowledge_connector'
+          id: string
+        }
+      | {
+          kind: 'file_share_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'chat_deploy_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'usage_limit'
+          id: 'member'
+        }
+    targetLabel: string
+    reason: string
+    status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+    decisionReason: string | null
+    createdAt: string
+    decidedAt: string | null
+    groupName: string | null
+    requester: {
+      id: string
+      name: string | null
+      email: string
+    }
+  }
+  changes: Array<{
+    configKey:
+      | 'allowedIntegrations'
+      | 'allowedModelProviders'
+      | 'deniedModels'
+      | 'deniedTools'
+      | 'hideTraceSpans'
+      | 'hideKnowledgeBaseTab'
+      | 'hideTablesTab'
+      | 'hideCopilot'
+      | 'hideIntegrationsTab'
+      | 'hideSecretsTab'
+      | 'hideApiKeysTab'
+      | 'hideInboxTab'
+      | 'hideFilesTab'
+      | 'disableMcpTools'
+      | 'disableCustomTools'
+      | 'disableSkills'
+      | 'disableInvitations'
+      | 'disablePublicApi'
+      | 'disablePublicFileSharing'
+      | 'allowedFileShareAuthTypes'
+      | 'hideDeployApi'
+      | 'hideDeployMcp'
+      | 'hideDeployChatbot'
+      | 'allowedChatDeployAuthTypes'
+      | 'disablePersonalApiKeys'
+      | 'disableLogExport'
+      | 'hideCostInfo'
+      | 'disableKnowledgeBaseCreation'
+      | 'disableKnowledgeBaseFileUpload'
+      | 'allowedKnowledgeConnectors'
+      | 'disableTableCreation'
+      | 'disableTableExport'
+      | 'disableBulkFileDownload'
+      | 'disablePersonalCredentials'
+      | 'disableWorkspaceCreation'
+      | 'hideOrgMemberDirectory'
+      | 'disableCliAccess'
+      | 'disableWebhookTriggers'
+      | 'disableToolAutoApproval'
+      | 'hideSandboxesTab'
+      | 'disableOAuthAppAccess'
+      | 'disableKnowledgeBaseExport'
+    label: string
+    before: boolean | Array<string> | null
+    after: boolean | Array<string> | null
+  }>
+  impact: {
+    memberCount: number
+    workspaceCount: number
+    workspaceNames: Array<string>
+    truncated: boolean
+  }
+  fingerprint: string
+  canApply: boolean
+  unavailableReason: string | null
+  resolutionKind: 'permission'
+  group: {
+    id: string
+    name: string
+  } | null
+  currentLimitCredits: null
+}
+
+type PreviewOrganizationAccessRequestResponseRef1 = {
+  newLimitCredits: number | null
+  request: {
+    id: string
+    organizationId: string
+    workspaceId: string | null
+    target:
+      | {
+          kind: 'feature'
+          configKey:
+            | 'hideTraceSpans'
+            | 'hideKnowledgeBaseTab'
+            | 'hideTablesTab'
+            | 'hideCopilot'
+            | 'hideIntegrationsTab'
+            | 'hideSecretsTab'
+            | 'hideApiKeysTab'
+            | 'hideInboxTab'
+            | 'hideFilesTab'
+            | 'disableMcpTools'
+            | 'disableCustomTools'
+            | 'disableSkills'
+            | 'disableInvitations'
+            | 'disablePublicApi'
+            | 'disablePublicFileSharing'
+            | 'hideDeployApi'
+            | 'hideDeployMcp'
+            | 'hideDeployChatbot'
+            | 'disablePersonalApiKeys'
+            | 'disableLogExport'
+            | 'hideCostInfo'
+            | 'disableKnowledgeBaseCreation'
+            | 'disableKnowledgeBaseFileUpload'
+            | 'disableTableCreation'
+            | 'disableTableExport'
+            | 'disableBulkFileDownload'
+            | 'disablePersonalCredentials'
+            | 'disableWorkspaceCreation'
+            | 'hideOrgMemberDirectory'
+            | 'disableCliAccess'
+            | 'disableWebhookTriggers'
+            | 'disableToolAutoApproval'
+            | 'hideSandboxesTab'
+            | 'disableOAuthAppAccess'
+            | 'disableKnowledgeBaseExport'
+        }
+      | {
+          kind: 'integration'
+          id: string
+        }
+      | {
+          kind: 'provider'
+          id: string
+        }
+      | {
+          kind: 'model'
+          id: string
+        }
+      | {
+          kind: 'tool'
+          id: string
+        }
+      | {
+          kind: 'knowledge_connector'
+          id: string
+        }
+      | {
+          kind: 'file_share_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'chat_deploy_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'usage_limit'
+          id: 'member'
+        }
+    targetLabel: string
+    reason: string
+    status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+    decisionReason: string | null
+    createdAt: string
+    decidedAt: string | null
+    groupName: string | null
+    requester: {
+      id: string
+      name: string | null
+      email: string
+    }
+  }
+  changes: Array<{
+    configKey:
+      | 'allowedIntegrations'
+      | 'allowedModelProviders'
+      | 'deniedModels'
+      | 'deniedTools'
+      | 'hideTraceSpans'
+      | 'hideKnowledgeBaseTab'
+      | 'hideTablesTab'
+      | 'hideCopilot'
+      | 'hideIntegrationsTab'
+      | 'hideSecretsTab'
+      | 'hideApiKeysTab'
+      | 'hideInboxTab'
+      | 'hideFilesTab'
+      | 'disableMcpTools'
+      | 'disableCustomTools'
+      | 'disableSkills'
+      | 'disableInvitations'
+      | 'disablePublicApi'
+      | 'disablePublicFileSharing'
+      | 'allowedFileShareAuthTypes'
+      | 'hideDeployApi'
+      | 'hideDeployMcp'
+      | 'hideDeployChatbot'
+      | 'allowedChatDeployAuthTypes'
+      | 'disablePersonalApiKeys'
+      | 'disableLogExport'
+      | 'hideCostInfo'
+      | 'disableKnowledgeBaseCreation'
+      | 'disableKnowledgeBaseFileUpload'
+      | 'allowedKnowledgeConnectors'
+      | 'disableTableCreation'
+      | 'disableTableExport'
+      | 'disableBulkFileDownload'
+      | 'disablePersonalCredentials'
+      | 'disableWorkspaceCreation'
+      | 'hideOrgMemberDirectory'
+      | 'disableCliAccess'
+      | 'disableWebhookTriggers'
+      | 'disableToolAutoApproval'
+      | 'hideSandboxesTab'
+      | 'disableOAuthAppAccess'
+      | 'disableKnowledgeBaseExport'
+    label: string
+    before: boolean | Array<string> | null
+    after: boolean | Array<string> | null
+  }>
+  impact: {
+    memberCount: number
+    workspaceCount: number
+    workspaceNames: Array<string>
+    truncated: boolean
+  }
+  fingerprint: string
+  canApply: boolean
+  unavailableReason: string | null
+  resolutionKind: 'usage_limit'
+  group: null
+  currentLimitCredits: number | null
+}
+
+export type PreviewOrganizationAccessRequestResponse = {
+  data: PreviewOrganizationAccessRequestResponseRef0 | PreviewOrganizationAccessRequestResponseRef1
+}
+
+/** `POST /api/v2/workflows/import/preview` */
+export type PreviewWorkflowImportQuery = Record<string, unknown>
+
+type PreviewWorkflowImportBodyRef0 = string
+
+export type PreviewWorkflowImportBody = {
+  workspaceId: string
+  workflow: string | Record<string, unknown>
+  folderPath?: PreviewWorkflowImportBodyRef0
+  name?: string
+  description?: string
+  mappings?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    sourceId: string
+    targetId: string | null
+  }>
+  bindings?: Array<{
+    blockId: string
+    subBlockKey: string
+    valuePath?: Array<string | number>
+    positions?: Array<number>
+    encoding?: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    blockId: string
+    subBlockKey: string
+    value: string
+  }>
+}
+
+type PreviewWorkflowImportResponseRef0 = {
+  previewFingerprint: string
+  ready: boolean
+  bindings: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    sourceId: string
+    targetId: string | null
+    required: boolean
+    occurrence: {
+      blockId: string
+      subBlockKey: string
+      valuePath: Array<string | number>
+      positions?: Array<number>
+      encoding: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+    }
+  }>
+  unresolvedBindings: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    sourceId: string
+    targetId: string | null
+    required: boolean
+    occurrence: {
+      blockId: string
+      subBlockKey: string
+      valuePath: Array<string | number>
+      positions?: Array<number>
+      encoding: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+    }
+  }>
+  configuration: Array<{
+    blockId: string
+    subBlockKey: string
+    title: string
+    required: boolean
+    configured: boolean
+    multiSelect?: boolean
+    selectorKey?: string
+    context: Record<string, string>
+    requiresAuthentication: boolean
+  }>
+  unresolvedConfiguration: Array<{
+    blockId: string
+    subBlockKey: string
+    title: string
+    required: boolean
+    configured: boolean
+    multiSelect?: boolean
+    selectorKey?: string
+    context: Record<string, string>
+    requiresAuthentication: boolean
+  }>
+  discovery: Array<{
+    kind: string
+    command: string
+    humanAuthorizationMayBeRequired: boolean
+  }>
+}
+
+export type PreviewWorkflowImportResponse = {
+  data: PreviewWorkflowImportResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/preview` */
+export type PreviewWorkspaceForkParams = {
+  workspaceId: string
+}
+
+export type PreviewWorkspaceForkQuery = Record<string, unknown>
+
+export type PreviewWorkspaceForkBody = {
+  name?: string
+  copy?: {
+    files?: Array<string>
+    tables?: Array<string>
+    knowledgeBases?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    mcpServers?: Array<string>
+    workflowMcpServers?: Array<string>
+  }
+}
+
+type PreviewWorkspaceForkResponseRef0 = {
+  previewFingerprint: string
+  sourceWorkspaceId: string
+  workflows: Array<{
+    sourceWorkflowId: string
+    name: string
+  }>
+  selectedResourceCount: number
+  draftOnly: true
+}
+
+export type PreviewWorkspaceForkResponse = {
+  data: PreviewWorkspaceForkResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/pull/preview` */
+export type PreviewWorkspacePullParams = {
+  workspaceId: string
+}
+
+export type PreviewWorkspacePullQuery = Record<string, unknown>
+
+export type PreviewWorkspacePullBody = {
+  otherWorkspaceId: string
+  mappings?: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
+  copyResources?: {
+    knowledgeBases?: Array<string>
+    tables?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    files?: Array<string>
+    mcpServers?: Array<string>
+  }
+  dropReferences?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+  }>
+  triggerMappings?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    adoptPath: string | null
+  }>
+}
+
+type PreviewWorkspacePullResponseRef0 = {
+  previewFingerprint: string
+  sourceWorkspaceId: string
+  targetWorkspaceId: string
+  ready: boolean
+  workflows: Array<{
+    action: 'create' | 'replace' | 'archive'
+    sourceWorkflowId?: string
+    targetWorkflowId?: string
+    name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
+  }>
+  unresolvedBindings: Array<{
+    kind: string
+    sourceId: string
+    blockName?: string
+    reason?: string
+  }>
+  configuration: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    title: string
+    required: boolean
+    currentValue: string
+    multiSelect?: boolean
+    selectorKey?: string
+    discoveryWorkspaceId: string
+    context: Record<string, string>
+    parentKind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    parentSourceId: string
+    parentContextKey?: string
+  }>
+  excludedTargets: Array<{
+    id: string
+    name: string
+  }>
+  triggerSlots: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    blockName: string
+    workflowName: string
+    ownPath: string | null
+    adoptablePaths: Array<string>
+    defaultAdoptPath: string | null
+  }>
+  triggerUrlChanges: Array<{
+    workflowName: string
+    path: string
+  }>
+}
+
+export type PreviewWorkspacePullResponse = {
+  data: PreviewWorkspacePullResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/push/preview` */
+export type PreviewWorkspacePushParams = {
+  workspaceId: string
+}
+
+export type PreviewWorkspacePushQuery = Record<string, unknown>
+
+export type PreviewWorkspacePushBody = {
+  otherWorkspaceId: string
+  mappings?: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
+  copyResources?: {
+    knowledgeBases?: Array<string>
+    tables?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    files?: Array<string>
+    mcpServers?: Array<string>
+  }
+  dropReferences?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+  }>
+  triggerMappings?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    adoptPath: string | null
+  }>
+}
+
+type PreviewWorkspacePushResponseRef0 = {
+  previewFingerprint: string
+  sourceWorkspaceId: string
+  targetWorkspaceId: string
+  ready: boolean
+  workflows: Array<{
+    action: 'create' | 'replace' | 'archive'
+    sourceWorkflowId?: string
+    targetWorkflowId?: string
+    name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
+  }>
+  unresolvedBindings: Array<{
+    kind: string
+    sourceId: string
+    blockName?: string
+    reason?: string
+  }>
+  configuration: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    title: string
+    required: boolean
+    currentValue: string
+    multiSelect?: boolean
+    selectorKey?: string
+    discoveryWorkspaceId: string
+    context: Record<string, string>
+    parentKind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    parentSourceId: string
+    parentContextKey?: string
+  }>
+  excludedTargets: Array<{
+    id: string
+    name: string
+  }>
+  triggerSlots: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    blockName: string
+    workflowName: string
+    ownPath: string | null
+    adoptablePaths: Array<string>
+    defaultAdoptPath: string | null
+  }>
+  triggerUrlChanges: Array<{
+    workflowName: string
+    path: string
+  }>
+}
+
+export type PreviewWorkspacePushResponse = {
+  data: PreviewWorkspacePushResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/pull` */
+export type PullWorkspaceParams = {
+  workspaceId: string
+}
+
+export type PullWorkspaceQuery = Record<string, unknown>
+
+export type PullWorkspaceBody = {
+  otherWorkspaceId: string
+  mappings?: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
+  copyResources?: {
+    knowledgeBases?: Array<string>
+    tables?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    files?: Array<string>
+    mcpServers?: Array<string>
+  }
+  dropReferences?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+  }>
+  triggerMappings?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    adoptPath: string | null
+  }>
+  requestId: string
+  previewFingerprint: string
+  confirm: true
+}
+
+type PullWorkspaceResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type PullWorkspaceResponse = {
+  data: PullWorkspaceResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/push` */
+export type PushWorkspaceParams = {
+  workspaceId: string
+}
+
+export type PushWorkspaceQuery = Record<string, unknown>
+
+export type PushWorkspaceBody = {
+  otherWorkspaceId: string
+  mappings?: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
+  copyResources?: {
+    knowledgeBases?: Array<string>
+    tables?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    files?: Array<string>
+    mcpServers?: Array<string>
+  }
+  dropReferences?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+  }>
+  triggerMappings?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    adoptPath: string | null
+  }>
+  requestId: string
+  previewFingerprint: string
+  confirm: true
+}
+
+type PushWorkspaceResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type PushWorkspaceResponse = {
+  data: PushWorkspaceResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/query` */
@@ -6841,6 +11192,7 @@ export type ReadFileTextQuery = {
 type ReadFileTextResponseRef0 = {
   fileId: string
   name: string
+  path: string
   type: string
   text: string
   truncated: boolean
@@ -6860,15 +11212,54 @@ export type ReadFileTextResponse = {
   data: ReadFileTextResponseRef0
 }
 
+/** `GET /api/v2/files/[fileId]/versions/[version]/text` */
+export type ReadFileVersionTextParams = {
+  fileId: string
+  version: number
+}
+
+export type ReadFileVersionTextQuery = {
+  workspaceId: string
+  maxBytes?: number
+  offset?: number
+  limit?: number
+}
+
+type ReadFileVersionTextResponseRef0 = {
+  fileId: string
+  name: string
+  path: string
+  type: string
+  text: string
+  truncated: boolean
+  degraded: boolean
+  degradedReason: string | null
+  charCount: number
+  byteCount: number
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+    totalLinesExact: boolean
+  }
+  version: number
+}
+
+export type ReadFileVersionTextResponse = {
+  data: ReadFileVersionTextResponseRef0
+}
+
 /** `PATCH /api/v2/files/folders` */
 export type RelocateFileFolderQuery = Record<string, unknown>
 
 type RelocateFileFolderBodyRef0 = string
 
+type RelocateFileFolderBodyRef1 = string
+
 export type RelocateFileFolderBody = {
   workspaceId: string
   path: RelocateFileFolderBodyRef0
-  destinationPath: RelocateFileFolderBodyRef0
+  destinationPath: RelocateFileFolderBodyRef1
 }
 
 type RelocateFileFolderResponseRef0 = {
@@ -6888,10 +11279,12 @@ export type RelocateKnowledgeFolderQuery = Record<string, unknown>
 
 type RelocateKnowledgeFolderBodyRef0 = string
 
+type RelocateKnowledgeFolderBodyRef1 = string
+
 export type RelocateKnowledgeFolderBody = {
   workspaceId: string
   path: RelocateKnowledgeFolderBodyRef0
-  destinationPath: RelocateKnowledgeFolderBodyRef0
+  destinationPath: RelocateKnowledgeFolderBodyRef1
 }
 
 type RelocateKnowledgeFolderResponseRef0 = {
@@ -6911,10 +11304,12 @@ export type RelocateTableFolderQuery = Record<string, unknown>
 
 type RelocateTableFolderBodyRef0 = string
 
+type RelocateTableFolderBodyRef1 = string
+
 export type RelocateTableFolderBody = {
   workspaceId: string
   path: RelocateTableFolderBodyRef0
-  destinationPath: RelocateTableFolderBodyRef0
+  destinationPath: RelocateTableFolderBodyRef1
 }
 
 type RelocateTableFolderResponseRef0 = {
@@ -6934,10 +11329,12 @@ export type RelocateWorkflowFolderQuery = Record<string, unknown>
 
 type RelocateWorkflowFolderBodyRef0 = string
 
+type RelocateWorkflowFolderBodyRef1 = string
+
 export type RelocateWorkflowFolderBody = {
   workspaceId: string
   path: RelocateWorkflowFolderBodyRef0
-  destinationPath: RelocateWorkflowFolderBodyRef0
+  destinationPath: RelocateWorkflowFolderBodyRef1
 }
 
 type RelocateWorkflowFolderResponseRef0 = {
@@ -6951,6 +11348,41 @@ type RelocateWorkflowFolderResponseRef0 = {
 
 export type RelocateWorkflowFolderResponse = {
   data: RelocateWorkflowFolderResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/members/[userId]` */
+export type RemoveOrganizationMemberParams = {
+  organizationId: string
+  userId: string
+}
+
+export type RemoveOrganizationMemberQuery = Record<string, unknown>
+
+type RemoveOrganizationMemberResponseRef0 = {
+  userId: string
+  deleted: true
+}
+
+export type RemoveOrganizationMemberResponse = {
+  data: RemoveOrganizationMemberResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]` */
+export type RemovePermissionGroupMemberParams = {
+  organizationId: string
+  groupId: string
+  userId: string
+}
+
+export type RemovePermissionGroupMemberQuery = Record<string, unknown>
+
+type RemovePermissionGroupMemberResponseRef0 = {
+  userId: string
+  deleted: true
+}
+
+export type RemovePermissionGroupMemberResponse = {
+  data: RemovePermissionGroupMemberResponseRef0
 }
 
 /** `PATCH /api/v2/files/[fileId]` */
@@ -7208,8 +11640,15 @@ type ReplaceWorkflowStateResponseRef0 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
     reason: string
+  }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
   }>
   notes: Array<string>
 }
@@ -7224,6 +11663,145 @@ type ReplaceWorkflowStateResponseRef1 = {
 
 export type ReplaceWorkflowStateResponse = {
   data: ReplaceWorkflowStateResponseRef1
+}
+
+/** `POST /api/v2/organizations/[organizationId]/invitations/[invitationId]/resend` */
+export type ResendOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type ResendOrganizationInvitationQuery = Record<string, unknown>
+
+export type ResendOrganizationInvitationBody = Record<string, unknown>
+
+type ResendOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type ResendOrganizationInvitationResponse = {
+  data: ResendOrganizationInvitationResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve` */
+export type ResolveOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type ResolveOrganizationAccessRequestQuery = Record<string, unknown>
+
+export type ResolveOrganizationAccessRequestBody =
+  | {
+      action: 'apply'
+      expectedFingerprint: string
+      newLimitCredits?: number
+    }
+  | {
+      action: 'decline'
+      reason: string
+    }
+
+type ResolveOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ResolveOrganizationAccessRequestResponse = {
+  data: ResolveOrganizationAccessRequestResponseRef0
 }
 
 /** `POST /api/v2/files/[fileId]/restore` */
@@ -7479,6 +12057,7 @@ type ResumeWorkflowResponseRef1 = {
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
+  blockOutputs: Record<string, unknown> | null
   error: ResumeWorkflowResponseRef0 | null
   startedAt?: string
   endedAt?: string
@@ -7499,6 +12078,62 @@ export type ResumeWorkflowResponse =
       data: ResumeWorkflowResponseRef2
     }
 
+/** `POST /api/v2/files/[fileId]/versions/[version]/revert` */
+export type RevertFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type RevertFileVersionQuery = Record<string, unknown>
+
+export type RevertFileVersionBody = {
+  workspaceId: string
+  expectedCurrentVersion?: number
+  expectedRevision?: string
+}
+
+type RevertFileVersionResponseRef0 = {
+  id: string
+  webUrl: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type RevertFileVersionResponseRef1 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+type RevertFileVersionResponseRef2 = {
+  reverted: boolean
+  file: RevertFileVersionResponseRef0
+  version: RevertFileVersionResponseRef1
+  revision?: string
+}
+
+export type RevertFileVersionResponse = {
+  data: RevertFileVersionResponseRef2
+}
+
 /** `POST /api/v2/workflows/[workflowId]/versions/[version]/revert` */
 export type RevertWorkflowVersionParams = {
   version: number | 'active'
@@ -7517,6 +12152,23 @@ type RevertWorkflowVersionResponseRef0 = {
 
 export type RevertWorkflowVersionResponse = {
   data: RevertWorkflowVersionResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/invitations/[invitationId]` */
+export type RevokeOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type RevokeOrganizationInvitationQuery = Record<string, unknown>
+
+type RevokeOrganizationInvitationResponseRef0 = {
+  id: string
+  status: 'cancelled'
+}
+
+export type RevokeOrganizationInvitationResponse = {
+  data: RevokeOrganizationInvitationResponseRef0
 }
 
 /** `DELETE /api/v2/skills/[skillId]/editors` */
@@ -7592,6 +12244,29 @@ type RollbackWorkflowResponseRef4 = {
 
 export type RollbackWorkflowResponse = {
   data: RollbackWorkflowResponseRef4
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/rollback` */
+export type RollbackWorkspaceForkParams = {
+  workspaceId: string
+}
+
+export type RollbackWorkspaceForkQuery = Record<string, unknown>
+
+export type RollbackWorkspaceForkBody = {
+  otherWorkspaceId: string
+}
+
+type RollbackWorkspaceForkResponseRef0 = {
+  restored: number
+  archived: number
+  unarchived: number
+  skipped: number
+  pendingActivations: Array<string>
+}
+
+export type RollbackWorkspaceForkResponse = {
+  data: RollbackWorkspaceForkResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
@@ -7702,6 +12377,8 @@ type SearchKnowledgeResponseRef0 = {
   chunkIndex: number
   metadata: Record<string, unknown>
   similarity: number
+  rankScore: number
+  rank: number
   rerankerScore?: number
 }
 
@@ -7785,6 +12462,31 @@ type SearchTableRowsBodyRef0 =
             value?: unknown
           }
       >
+    }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
     }
 
 export type SearchTableRowsBody = {
@@ -7922,16 +12624,22 @@ type UndeployWorkflowResponseRef3 = {
 }
 
 type UndeployWorkflowResponseRef4 = {
+  serverId: string
+  toolName: string
+}
+
+type UndeployWorkflowResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
   warnings: Array<string>
   activeDeployment: UndeployWorkflowResponseRef0 | null
   latestDeploymentAttempt: UndeployWorkflowResponseRef1 | null
+  archivedMcpTools: Array<UndeployWorkflowResponseRef4>
 }
 
 export type UndeployWorkflowResponse = {
-  data: UndeployWorkflowResponseRef4
+  data: UndeployWorkflowResponseRef5
 }
 
 /** `DELETE /api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]` */
@@ -7951,6 +12659,25 @@ type UndeployWorkflowMcpToolResponseRef0 = {
 
 export type UndeployWorkflowMcpToolResponse = {
   data: UndeployWorkflowMcpToolResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/unlink` */
+export type UnlinkWorkspaceForkParams = {
+  workspaceId: string
+}
+
+export type UnlinkWorkspaceForkQuery = Record<string, unknown>
+
+export type UnlinkWorkspaceForkBody = {
+  otherWorkspaceId: string
+}
+
+type UnlinkWorkspaceForkResponseRef0 = {
+  unlinked: boolean
+}
+
+export type UnlinkWorkspaceForkResponse = {
+  data: UnlinkWorkspaceForkResponseRef0
 }
 
 /** `POST /api/v2/files/[fileId]/unzip` */
@@ -7989,6 +12716,7 @@ export type UpdateCredentialBody = {
   serviceAccountJson?: string
   apiToken?: string
   domain?: string
+  atlassianProduct?: 'jira' | 'confluence'
   signingSecret?: string
   botToken?: string
   clientId?: string
@@ -8078,6 +12806,7 @@ export type UpdateFileContentBody = {
   workspaceId: string
   content: string
   encoding?: 'utf-8' | 'base64'
+  expectedRevision?: string
 }
 
 type UpdateFileContentResponseRef0 = {
@@ -8092,6 +12821,7 @@ type UpdateFileContentResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type UpdateFileContentResponse = {
@@ -8395,6 +13125,189 @@ export type UpdateMcpServerResponse = {
   data: UpdateMcpServerResponseRef0
 }
 
+/** `PATCH /api/v2/organizations/[organizationId]/access-requests/settings` */
+export type UpdateOrganizationAccessRequestSettingsParams = {
+  organizationId: string
+}
+
+export type UpdateOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+
+export type UpdateOrganizationAccessRequestSettingsBody = {
+  allowRequests: boolean
+}
+
+type UpdateOrganizationAccessRequestSettingsResponseRef0 = {
+  allowRequests: boolean
+}
+
+export type UpdateOrganizationAccessRequestSettingsResponse = {
+  data: UpdateOrganizationAccessRequestSettingsResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/members/[userId]` */
+export type UpdateOrganizationMemberParams = {
+  organizationId: string
+  userId: string
+}
+
+export type UpdateOrganizationMemberQuery = Record<string, unknown>
+
+export type UpdateOrganizationMemberBody = {
+  role: 'member' | 'admin'
+}
+
+type UpdateOrganizationMemberResponseRef0 = {
+  userId: string
+  name: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+}
+
+export type UpdateOrganizationMemberResponse = {
+  data: UpdateOrganizationMemberResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/members/[userId]/usage-limit` */
+export type UpdateOrganizationMemberUsageLimitParams = {
+  organizationId: string
+  userId: string
+}
+
+export type UpdateOrganizationMemberUsageLimitQuery = Record<string, unknown>
+
+export type UpdateOrganizationMemberUsageLimitBody = {
+  creditLimit: number | null
+}
+
+type UpdateOrganizationMemberUsageLimitResponseRef0 = {
+  creditLimit: number | null
+}
+
+export type UpdateOrganizationMemberUsageLimitResponse = {
+  data: UpdateOrganizationMemberUsageLimitResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type UpdatePermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type UpdatePermissionGroupQuery = Record<string, unknown>
+
+export type UpdatePermissionGroupBody = {
+  name?: string
+  description?: string | null
+  config?: {
+    allowedIntegrations?: Array<string> | null
+    allowedModelProviders?: Array<string> | null
+    deniedModels?: Array<string>
+    deniedTools?: Array<string>
+    hideTraceSpans?: boolean
+    hideKnowledgeBaseTab?: boolean
+    hideTablesTab?: boolean
+    hideCopilot?: boolean
+    hideIntegrationsTab?: boolean
+    hideSecretsTab?: boolean
+    hideApiKeysTab?: boolean
+    hideInboxTab?: boolean
+    hideFilesTab?: boolean
+    disableMcpTools?: boolean
+    disableCustomTools?: boolean
+    disableSkills?: boolean
+    disableInvitations?: boolean
+    disablePublicApi?: boolean
+    disablePublicFileSharing?: boolean
+    allowedFileShareAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi?: boolean
+    hideDeployMcp?: boolean
+    hideDeployChatbot?: boolean
+    allowedChatDeployAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys?: boolean
+    disableLogExport?: boolean
+    hideCostInfo?: boolean
+    disableKnowledgeBaseCreation?: boolean
+    disableKnowledgeBaseFileUpload?: boolean
+    allowedKnowledgeConnectors?: Array<string> | null
+    disableTableCreation?: boolean
+    disableTableExport?: boolean
+    disableBulkFileDownload?: boolean
+    disablePersonalCredentials?: boolean
+    disableWorkspaceCreation?: boolean
+    hideOrgMemberDirectory?: boolean
+    disableCliAccess?: boolean
+    disableWebhookTriggers?: boolean
+    disableToolAutoApproval?: boolean
+    hideSandboxesTab?: boolean
+    disableOAuthAppAccess?: boolean
+    disableKnowledgeBaseExport?: boolean
+  }
+  isDefault?: boolean
+  workspaceIds?: Array<string>
+}
+
+type UpdatePermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdatePermissionGroupResponse = {
+  data: UpdatePermissionGroupResponseRef0
+}
+
 /** `PATCH /api/v2/tables/[tableId]/rows` */
 export type UpdateRowsByFilterParams = {
   tableId: string
@@ -8463,6 +13376,31 @@ type UpdateRowsByFilterBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 type UpdateRowsByFilterBodyRef1 = Record<string, unknown>
 
@@ -8480,6 +13418,92 @@ type UpdateRowsByFilterResponseRef0 = {
 
 export type UpdateRowsByFilterResponse = {
   data: UpdateRowsByFilterResponseRef0
+}
+
+/** `PATCH /api/v2/sandboxes/[sandboxId]` */
+export type UpdateSandboxParams = {
+  sandboxId: string
+}
+
+export type UpdateSandboxQuery = Record<string, unknown>
+
+export type UpdateSandboxBody = {
+  workspaceId: string
+  name?: string
+  language?: 'javascript' | 'python'
+  dependencies?: Array<string>
+  cliTools?: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages?: Array<string>
+}
+
+type UpdateSandboxResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateSandboxResponse = {
+  data: UpdateSandboxResponseRef0
 }
 
 /** `PATCH /api/v2/skills/[skillId]` */
@@ -8599,6 +13623,14 @@ export type UpdateTableColumnBody = {
 }
 
 type UpdateTableColumnResponseRef0 = {
+  workflowId: string
+  workflowName: string
+  blockId: string
+  blockName: string
+  fields: Array<'filter' | 'order' | 'data'>
+}
+
+type UpdateTableColumnResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
@@ -8613,10 +13645,11 @@ type UpdateTableColumnResponseRef0 = {
     multiple?: boolean
     currencyCode?: string
   }>
+  unmigrated: Array<UpdateTableColumnResponseRef0>
 }
 
 export type UpdateTableColumnResponse = {
-  data: UpdateTableColumnResponseRef0
+  data: UpdateTableColumnResponseRef1
 }
 
 /** `PATCH /api/v2/tables/[tableId]/rows/[rowId]` */
@@ -8902,7 +13935,7 @@ type UpdateWorkflowGroupResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -8996,6 +14029,63 @@ type UpdateWorkflowVersionResponseRef0 = {
 
 export type UpdateWorkflowVersionResponse = {
   data: UpdateWorkflowVersionResponseRef0
+}
+
+/** `PUT /api/v2/workspaces/[workspaceId]/fork/exclusions` */
+export type UpdateWorkspaceForkExclusionsParams = {
+  workspaceId: string
+}
+
+export type UpdateWorkspaceForkExclusionsQuery = Record<string, unknown>
+
+export type UpdateWorkspaceForkExclusionsBody = {
+  workflowIds: Array<string>
+  forkSyncExcluded: boolean
+}
+
+type UpdateWorkspaceForkExclusionsResponseRef0 = {
+  updated: number
+}
+
+export type UpdateWorkspaceForkExclusionsResponse = {
+  data: UpdateWorkspaceForkExclusionsResponseRef0
+}
+
+/** `PUT /api/v2/workspaces/[workspaceId]/fork/mappings` */
+export type UpdateWorkspaceForkMappingsParams = {
+  workspaceId: string
+}
+
+export type UpdateWorkspaceForkMappingsQuery = Record<string, unknown>
+
+export type UpdateWorkspaceForkMappingsBody = {
+  otherWorkspaceId: string
+  direction: 'push' | 'pull'
+  mappings: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+}
+
+type UpdateWorkspaceForkMappingsResponseRef0 = {
+  updated: number
+}
+
+export type UpdateWorkspaceForkMappingsResponse = {
+  data: UpdateWorkspaceForkMappingsResponseRef0
 }
 
 /** `POST /api/v2/knowledge/[knowledgeBaseId]/documents` */
@@ -9106,14 +14196,14 @@ export type UpsertTableRowResponse = {
  * `query`, `body`, and `headers` describe each field well enough for the CLI
  * to build a flag for it and coerce the string argv gives back: its kind,
  * whether it is required, its enum values, and its server-side default. A slot
- * the contract does not declare — or one whose shape is a union with no flat
- * field list — is absent, and the runtime falls back to taking it as JSON.
+ * the contract does not declare is absent. Discriminated bodies carry branch
+ * field maps; other unions fall back to taking their variant data as JSON.
  * Headers the CLI sets itself, such as the API key, are never listed.
  *
  * `summary` is the operation's one-line description, lifted from the OpenAPI
  * specs so `--help` reuses prose that is already written and already checked.
  *
- * `personalKeyOnly` marks an operation whose spec description says a workspace
+ * `workspaceKeyUnsupported` marks an operation whose spec says a workspace
  * API key is rejected, so `--help` can say so before the request is sent.
  */
 export const V2_OPERATIONS = {
@@ -9174,7 +14264,22 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Activate Workflow Version',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
+  },
+  addPermissionGroupMember: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Add Permission Group Member',
+    workspaceKeyUnsupported: true,
+    body: {
+      userId: { kind: 'string', required: true, describe: 'Existing organization member to add.' },
+    },
   },
   addTableColumn: {
     method: 'POST',
@@ -9204,8 +14309,9 @@ export const V2_OPERATIONS = {
       },
       outputColumns: {
         kind: 'array',
-        required: true,
-        describe: 'Columns created for producer outputs.',
+        default: [],
+        describe:
+          'Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.',
       },
       autoRun: {
         kind: 'boolean',
@@ -9221,7 +14327,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Index Workspace Files',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9243,12 +14349,12 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Apply Workflow Operations',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       dryRun: {
         kind: 'boolean',
         describe:
-          'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.',
+          'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',
       },
     },
     body: {
@@ -9288,6 +14394,30 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  bulkAddPermissionGroupMembers: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Bulk Add Permission Group Members',
+    workspaceKeyUnsupported: true,
+    body: {
+      userIds: {
+        kind: 'array',
+        describe:
+          'Organization member identifiers. Existing group members are skipped; users outside the organization are ignored.',
+      },
+      addAllOrganizationMembers: {
+        kind: 'boolean',
+        describe:
+          'Add every current organization member in bounded batches within one transaction. Cannot be combined with userIds.',
+      },
+    },
+  },
   bulkDeleteFiles: {
     method: 'POST',
     path: '/api/v2/files/bulk-delete',
@@ -9296,7 +14426,7 @@ export const V2_OPERATIONS = {
     summary: 'Delete Files',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
-      fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
+      fileIds: { kind: 'array', required: true, describe: 'File identifiers to delete.' },
     },
   },
   bulkDeleteTables: {
@@ -9338,7 +14468,7 @@ export const V2_OPERATIONS = {
       folderPaths: {
         kind: 'string',
         describe:
-          'Folder paths to include with all their descendants, comma-separated. At most 100 entries, and the files they resolve to count against the same 100-file download ceiling. A path that matches no folder is rejected rather than ignored.',
+          'Comma-separated folder paths whose contents are included recursively. Up to 100 paths; resolved files share the 100-file download limit. Unknown paths are rejected.',
       },
     },
   },
@@ -9349,7 +14479,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Bulk Save Tag Definitions',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9373,7 +14503,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Bulk Update Chunks',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9401,7 +14531,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Bulk Enable or Disable Documents',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9442,6 +14572,18 @@ export const V2_OPERATIONS = {
         describe: 'One merge patch per row. Each row identifier may appear at most once.',
       },
     },
+  },
+  cancelOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Cancel Organization Access Request',
+    workspaceKeyUnsupported: true,
   },
   cancelTableDispatch: {
     method: 'DELETE',
@@ -9519,7 +14661,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from an all-scope cancellation.' },
     },
@@ -9534,6 +14676,18 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Cancel Workflow Run',
+  },
+  cancelWorkspaceAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel',
+    pathParams: ['workspaceId', 'requestId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace in which the acting user requests access.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Cancel Workspace Access Request',
+    workspaceKeyUnsupported: true,
   },
   chat: {
     method: 'POST',
@@ -9550,6 +14704,27 @@ export const V2_OPERATIONS = {
       conversationId: {
         kind: 'string',
         describe: 'Conversation to continue; a new one starts when omitted.',
+      },
+      effort: {
+        kind: 'enum',
+        values: ['low', 'medium', 'high', 'xhigh', 'max'] as const,
+        describe: 'Model effort for this turn; defaults to the deployment default (high).',
+      },
+    },
+  },
+  compareWorkflowVersions: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/versions/compare',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Compare Workflow Versions',
+    query: {
+      base: { kind: 'integer', required: true, describe: 'Deployment version to compare from.' },
+      target: {
+        kind: 'integer',
+        required: true,
+        describe: 'Deployment version to compare to, in the same workflow.',
       },
     },
   },
@@ -9628,14 +14803,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Credential Connection',
-    personalKeyOnly: true,
-    body: {
-      workspaceId: {
-        kind: 'string',
-        required: true,
-        describe: 'Workspace that will own the credential.',
-      },
-    },
+    workspaceKeyUnsupported: true,
     opaqueBody: true,
   },
   createCustomTool: {
@@ -9806,7 +14974,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Create Chunk',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9832,7 +15000,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Create Knowledge Connector',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -9842,11 +15010,13 @@ export const V2_OPERATIONS = {
       connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
       credentialId: {
         kind: 'string',
-        describe: 'OAuth credential identifier for connectors that require OAuth.',
+        describe:
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.',
       },
       apiKey: {
         kind: 'string',
-        describe: 'Write-only API key for connectors that use API-key authentication.',
+        describe:
+          'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.',
       },
       sourceConfig: {
         kind: 'object',
@@ -9948,7 +15118,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Create Tag',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -10011,8 +15181,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['streamable-http'] as const,
         default: 'streamable-http',
-        describe:
-          'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.',
+        describe: 'Transport protocol. Defaults to `streamable-http` on creation.',
       },
       url: {
         kind: 'string',
@@ -10034,19 +15203,17 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
-        describe:
-          'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.',
+        describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
-        describe: 'Number of retries per request. Applied server-side as 3 when omitted on create.',
+        describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
         kind: 'boolean',
         default: true,
-        describe:
-          'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.',
+        describe: "Whether workflows can use the server's tools. Defaults to true on creation.",
       },
       oauthClientId: {
         kind: 'string',
@@ -10060,13 +15227,123 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Create Organization Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      target: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable.',
+      },
+      reason: { kind: 'string', default: '', describe: 'Why the acting user needs this access.' },
+    },
+  },
+  createOrganizationInvitation: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/invitations',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Create Organization Invitation',
+    workspaceKeyUnsupported: true,
+    body: {
+      email: { kind: 'string', required: true, describe: 'Email address of the person to invite.' },
+      role: {
+        kind: 'enum',
+        values: ['member', 'admin'] as const,
+        default: 'member',
+        describe:
+          'Organization role to offer. Defaults to member; grants no workspace-specific permissions.',
+      },
+    },
+  },
+  createPermissionGroup: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the permission groups.' },
+    responseMode: 'json',
+    summary: 'Create Permission Group',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Group name, unique within the organization.',
+      },
+      description: { kind: 'string', describe: 'Optional group description.' },
+      config: {
+        kind: 'object',
+        describe:
+          'Permission restrictions to set. Omitted keys use the default permission configuration.',
+      },
+      isDefault: {
+        kind: 'boolean',
+        describe:
+          'Whether the group is the organization default. Only one group can be the default.',
+      },
+      workspaceIds: {
+        kind: 'array',
+        describe:
+          'Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group.',
+      },
+    },
+  },
+  createSandbox: {
+    method: 'POST',
+    path: '/api/v2/sandboxes',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Sandbox',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the sandbox.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Display name, unique within the workspace; 1 to 64 characters.',
+      },
+      language: {
+        kind: 'enum',
+        required: true,
+        values: ['javascript', 'python'] as const,
+        describe: 'Dependency ecosystem: `javascript` installs from npm, `python` from PyPI.',
+      },
+      dependencies: {
+        kind: 'array',
+        default: [],
+        describe: 'Package specifiers installed into the sandbox, one per entry.',
+      },
+      cliTools: {
+        kind: 'array',
+        default: [],
+        describe: 'Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates.',
+      },
+      systemPackages: {
+        kind: 'array',
+        default: [],
+        describe: 'Debian packages installed into the sandbox, one per entry.',
+      },
+    },
+  },
   createServiceAccountCredential: {
     method: 'POST',
     path: '/api/v2/credentials',
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Service-Account Credential',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -10090,7 +15367,8 @@ export const V2_OPERATIONS = {
       description: { kind: 'string', describe: 'Optional credential description.' },
       id: {
         kind: 'string',
-        describe: 'Required only when provider discovery requests a client-generated ID.',
+        describe:
+          'Optional client-generated credential ID. The server mints one when it is omitted, so no provider requires it. A `slack-custom-bot` credential may supply one so its Slack Request URL, which embeds the ID, can be configured before the credential exists; every other provider ignores it.',
       },
       credentials: {
         kind: 'string',
@@ -10106,7 +15384,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Skill',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -10169,7 +15447,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
       limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
@@ -10325,7 +15603,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Workflow MCP Server',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -10350,6 +15628,54 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createWorkspaceAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'Create Workspace Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      target: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable.',
+      },
+      reason: { kind: 'string', default: '', describe: 'Why the acting user needs this access.' },
+    },
+  },
+  createWorkspaceInvitations: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/invitations',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Unique workspace identifier.' },
+    responseMode: 'json',
+    summary: 'Create Workspace Invitations',
+    workspaceKeyUnsupported: true,
+    body: {
+      emails: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients.',
+      },
+      permission: {
+        kind: 'enum',
+        values: ['admin', 'write', 'read'] as const,
+        default: 'read',
+        describe: 'Workspace permission to grant. Existing workspace access is preserved.',
+      },
+      membership: {
+        kind: 'enum',
+        values: ['member', 'admin', 'external'] as const,
+        default: 'member',
+        describe:
+          'Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external.',
+      },
+    },
+  },
   deleteCredential: {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
@@ -10357,7 +15683,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { credentialId: 'Credential to disconnect.' },
     responseMode: 'json',
     summary: 'Disconnect Credential',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10423,6 +15749,17 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteFileVersion: {
+    method: 'DELETE',
+    path: '/api/v2/files/[fileId]/versions/[version]',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Delete File Version',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
   deleteKnowledgeBase: {
     method: 'DELETE',
     path: '/api/v2/knowledge/[knowledgeBaseId]',
@@ -10449,7 +15786,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Delete Chunk',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10468,7 +15805,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Delete Knowledge Connector',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10540,7 +15877,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Delete Tag',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10556,7 +15893,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Delete Tag Definitions',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10585,6 +15922,30 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deletePermissionGroup: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Permission Group',
+    workspaceKeyUnsupported: true,
+  },
+  deleteSandbox: {
+    method: 'DELETE',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Sandbox',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+    },
+  },
   deleteSecret: {
     method: 'DELETE',
     path: '/api/v2/secrets/[name]',
@@ -10592,7 +15953,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { name: 'Secret to delete.' },
     responseMode: 'json',
     summary: 'Delete Secret',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -10619,7 +15980,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Delete Skill',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
@@ -10701,7 +16062,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       limit: { kind: 'integer', describe: 'Maximum matching rows to delete.' },
       rowIds: { kind: 'array', describe: 'Explicit row identifiers to delete.' },
@@ -10733,7 +16094,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Delete Workflow Chat Deployment',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
   },
   deleteWorkflowFolder: {
     method: 'DELETE',
@@ -10785,7 +16146,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'Delete Workflow MCP Server',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
   },
   deployWorkflow: {
     method: 'POST',
@@ -10794,7 +16155,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Deploy Workflow',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'Optional label for the deployment version.' },
       description: {
@@ -10810,7 +16171,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'Publish Workflow As MCP Tool',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workflowId: {
         kind: 'string',
@@ -10833,6 +16194,124 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  discoverOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/discovery',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Discover Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the access item label.',
+      },
+      targetKind: {
+        kind: 'enum',
+        values: [
+          'feature',
+          'integration',
+          'provider',
+          'model',
+          'tool',
+          'knowledge_connector',
+          'file_share_auth',
+          'chat_deploy_auth',
+          'usage_limit',
+        ] as const,
+        describe: 'Category of access to discover.',
+      },
+      state: {
+        kind: 'enum',
+        values: ['allowed', 'requestable', 'unavailable'] as const,
+        describe:
+          'Filter by the acting user’s current access. Requestable items can be submitted for review.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['label'] as const,
+        default: 'label',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  discoverWorkspaceAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests/discovery',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'Discover Workspace Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the access item label.',
+      },
+      targetKind: {
+        kind: 'enum',
+        values: [
+          'feature',
+          'integration',
+          'provider',
+          'model',
+          'tool',
+          'knowledge_connector',
+          'file_share_auth',
+          'chat_deploy_auth',
+          'usage_limit',
+        ] as const,
+        describe: 'Category of access to discover.',
+      },
+      state: {
+        kind: 'enum',
+        values: ['allowed', 'requestable', 'unavailable'] as const,
+        describe:
+          'Filter by the acting user’s current access. Requestable items can be submitted for review.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['label'] as const,
+        default: 'label',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   downloadFile: {
     method: 'GET',
     path: '/api/v2/files/[fileId]',
@@ -10840,6 +16319,17 @@ export const V2_OPERATIONS = {
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'binary',
     summary: 'Download File',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
+  downloadFileVersion: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]/content',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'binary',
+    summary: 'Download File Version',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
@@ -10889,6 +16379,11 @@ export const V2_OPERATIONS = {
         describe:
           'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.',
       },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+      },
     },
   },
   executeTool: {
@@ -10901,7 +16396,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Run Tool',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -10913,7 +16408,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         default: {},
         describe:
-          'Arguments for the tool, keyed by the parameter ids the tool catalog publishes for it. A parameter whose visibility is `user-only` also accepts an environment-variable reference written as the whole value, `{{VAR_NAME}}`, resolved server-side against the workspace environment; any other value is sent verbatim.',
+          'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves a workspace environment variable. Other values pass through unchanged.',
       },
       credentialId: {
         kind: 'string',
@@ -10941,18 +16436,18 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires a personal API key with write access and supports synchronous or streamed runs only.',
+          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.',
       },
       async: {
         kind: 'boolean',
         default: false,
         describe:
-          'Queue the run and return a 202 receipt when true. Requires an API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).',
+          'Queue the run and return a 202 receipt when true. Requires an OAuth access token or API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).',
       },
       executionTimeoutSeconds: {
         kind: 'integer',
         describe:
-          "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true.",
+          "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`.",
       },
       stream: {
         kind: 'boolean',
@@ -10963,7 +16458,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names. Selecting a child workflow applies to every invocation of it. Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
+          'Select `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>` using normalized block reference names. Child selectors cover every invocation. Synchronous results use selector strings verbatim as `blockOutputs` keys; streaming selections shape the envelope. Unknown block names or IDs return `400` with available blocks before execution. Unexecuted blocks and absent paths are omitted. Incompatible with `async`; select outputs from the finished run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',
@@ -10991,12 +16486,32 @@ export const V2_OPERATIONS = {
       'x-run-id': {
         kind: 'string',
         describe:
-          'Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: "RUN_ID_CONFLICT"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.',
+          'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.',
       },
       'x-sim-via': {
         kind: 'string',
         describe:
           'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
+      },
+    },
+  },
+  exportKnowledgeBase: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/export',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'binary',
+    summary: 'Export Knowledge Base',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      vectors: {
+        kind: 'boolean',
+        describe:
+          'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.',
       },
     },
   },
@@ -11007,6 +16522,45 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Export Workflow',
+    query: {
+      includeReferences: {
+        kind: 'boolean',
+        describe:
+          'Include non-secret resource identifiers and source field occurrences for mapped imports.',
+      },
+      includeWorkspaceBindings: {
+        kind: 'boolean',
+        describe:
+          'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.',
+      },
+    },
+  },
+  forkWorkspace: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Fork Workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'Display name of the workflow or workspace.' },
+      copy: {
+        kind: 'object',
+        describe:
+          'Explicit resource selections to copy into the new fork; omitted resource kinds are not copied.',
+      },
+      requestId: {
+        kind: 'string',
+        required: true,
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+      previewFingerprint: {
+        kind: 'string',
+        required: true,
+        describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
+    },
   },
   getAuditLog: {
     method: 'GET',
@@ -11015,7 +16569,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { auditLogId: 'Audit-log entry identifier.' },
     responseMode: 'json',
     summary: 'Get Audit Log',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       organizationId: {
         kind: 'string',
@@ -11123,6 +16677,17 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getFileVersion: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Get File Version',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
   getKnowledgeBase: {
     method: 'GET',
     path: '/api/v2/knowledge/[knowledgeBaseId]',
@@ -11149,7 +16714,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Get Chunk',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -11168,7 +16733,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Get Knowledge Connector',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -11202,6 +16767,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Get Log',
+    query: {
+      includeWorkflowState: {
+        kind: 'boolean',
+        describe:
+          'Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.',
+      },
+    },
   },
   getLogStats: {
     method: 'GET',
@@ -11223,7 +16795,7 @@ export const V2_OPERATIONS = {
       folderPaths: {
         kind: 'string',
         describe:
-          'Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches.',
       },
       triggers: {
         kind: 'string',
@@ -11234,6 +16806,11 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['info', 'error'] as const,
         describe: 'Severity level to include.',
+      },
+      includeHandledErrors: {
+        kind: 'boolean',
+        describe:
+          'Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace.',
       },
       startDate: {
         kind: 'string',
@@ -11249,7 +16826,27 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         default: 72,
         describe:
-          'Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
+          'Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
+      },
+      includeEmpty: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        default: false,
+        describe:
+          'Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
       },
     },
   },
@@ -11282,7 +16879,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Get Next Tag Slot',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -11298,6 +16895,143 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getOrganization: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationAccessRequestSettings: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/settings',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Get Organization Access Request Settings',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationInvitation: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Organization Invitation',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationMemberUsageLimit: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]/usage-limit',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId:
+        'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
+    },
+    responseMode: 'json',
+    summary: 'Get Organization Member Credit Limit',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationUsageBreakdown: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/breakdown',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization Usage Breakdown',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      workspaceId: {
+        kind: 'string',
+        describe: 'Restrict usage to one workspace owned by the organization.',
+      },
+      dimension: {
+        kind: 'enum',
+        required: true,
+        values: ['member', 'workspace', 'workflow', 'model', 'byok', 'source'] as const,
+        describe: 'Usage grouping dimension.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+    },
+  },
+  getOrganizationUsageSummary: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/summary',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization Usage Summary',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      workspaceId: {
+        kind: 'string',
+        describe: 'Restrict usage to one workspace owned by the organization.',
+      },
+    },
+  },
+  getPermissionGroup: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Permission Group',
+    workspaceKeyUnsupported: true,
+  },
   getRowEnrichment: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
@@ -11308,9 +17042,157 @@ export const V2_OPERATIONS = {
       groupId: 'Workflow or enrichment group to run.',
     },
     responseMode: 'json',
-    summary: 'Get Enrichment Run Detail',
+    summary: 'Get Row Group Run',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
+  getSandbox: {
+    method: 'GET',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Get Sandbox',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+    },
+  },
+  getSelector: {
+    method: 'POST',
+    path: '/api/v2/selectors/get',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get Selector Option',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Explicit current workspace scope.',
+      },
+      selectorKey: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'airtable.bases',
+          'airtable.tables',
+          'asana.workspaces',
+          'attio.lists',
+          'attio.objects',
+          'bigquery.datasets',
+          'bigquery.tables',
+          'bitbucket.workspaces',
+          'bitbucket.repositories',
+          'calcom.eventTypes',
+          'calcom.schedules',
+          'clickup.workspaces',
+          'clickup.spaces',
+          'clickup.folders',
+          'clickup.lists',
+          'coda.docs',
+          'coda.pages',
+          'coda.tables',
+          'coda.columns',
+          'coda.rows',
+          'coda.formulas',
+          'coda.controls',
+          'coda.folders',
+          'coda.permissions',
+          'confluence.spaces',
+          'confluence.spacesById',
+          'confluence.pages',
+          'google.tasks.lists',
+          'gmail.labels',
+          'google.calendar',
+          'google.drive',
+          'google.sheets',
+          'harmonic.savedSearches',
+          'hubspot.lists',
+          'hubspot.owners',
+          'hubspot.pipelines',
+          'hubspot.pipelineStages',
+          'hubspot.properties',
+          'jsm.requestTypes',
+          'jsm.serviceDesks',
+          'microsoft.planner.plans',
+          'notion.databases',
+          'notion.pages',
+          'netsuite.recordTypes',
+          'netsuite.asyncTasks',
+          'pipedrive.pipelines',
+          'sharepoint.lists',
+          'trello.boards',
+          'zoho_desk.organizations',
+          'zoho_desk.departments',
+          'zoho_desk.agents',
+          'zoom.meetings',
+          'slack.channels',
+          'snowflake.databases',
+          'snowflake.schemas',
+          'snowflake.tables',
+          'snowflake.warehouses',
+          'snowflake.roles',
+          'snowflake.fileFormats',
+          'snowflake.procedures',
+          'slack.users',
+          'outlook.folders',
+          'outlook.calendars',
+          'microsoft.teams',
+          'microsoft.chats',
+          'microsoft.channels',
+          'microsoft.planner',
+          'onedrive.files',
+          'onedrive.folders',
+          'sharepoint.sites',
+          'microsoft.excel',
+          'microsoft.excel.drives',
+          'microsoft.excel.sheets',
+          'microsoft.word',
+          'wealthbox.contacts',
+          'jira.issues',
+          'jira.projects',
+          'jira.projectKeys',
+          'linear.projects',
+          'linear.teams',
+          'monday.boards',
+          'monday.groups',
+          'webflow.sites',
+          'webflow.collections',
+          'webflow.items',
+          'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
+          'cloudwatch.logGroups',
+          'cloudwatch.logStreams',
+          'imap.mailboxes',
+          'mcp.tools',
+          'managedAgent.agents',
+          'managedAgent.environments',
+          'managedAgent.vaults',
+          'managedAgent.memoryStores',
+          'knowledge.documents',
+          'sim.workflows',
+          'table.columns',
+          'table.outputColumns',
+          'workspace.secretNames',
+          'workspace.sandboxes',
+          'providers.ollamaEmbeddingModels',
+          'providers.openrouterEmbeddingModels',
+        ] as const,
+        describe: 'Registered selector key for discovering this field’s destination options.',
+      },
+      context: {
+        kind: 'object',
+        default: {},
+        describe:
+          'Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization.',
+      },
+      id: { kind: 'string', required: true, describe: 'Resource identifier.' },
     },
   },
   getSkill: {
@@ -11455,7 +17337,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow Chat Deployment',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
   },
   getWorkflowDeployment: {
     method: 'GET',
@@ -11472,7 +17354,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow MCP Server',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
   },
   getWorkflowRun: {
     method: 'GET',
@@ -11533,6 +17415,90 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Workspace',
   },
+  getWorkspaceForkAvailability: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/availability',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Fork Availability',
+    workspaceKeyUnsupported: true,
+  },
+  getWorkspaceForkLineage: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/lineage',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Fork Lineage',
+    workspaceKeyUnsupported: true,
+  },
+  getWorkspaceForkMappings: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/mappings',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Fork Mappings',
+    workspaceKeyUnsupported: true,
+    query: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      direction: {
+        kind: 'enum',
+        required: true,
+        values: ['push', 'pull'] as const,
+        describe:
+          'Push means current to other; pull means other to current, independent of parent/child orientation.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id'] as const,
+        default: 'id',
+        describe: 'Supported stable sort key for this collection.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+    },
+  },
+  getWorkspaceOperation: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/operations/[operationId]',
+    pathParams: ['workspaceId', 'operationId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Explicit current workspace scope.',
+      operationId: 'Durable operation identifier to use for polling.',
+    },
+    responseMode: 'json',
+    summary: 'Get Workspace Operation',
+  },
+  getWorkspacePermissionConfig: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/permission-config',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Unique workspace identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Permission Config',
+    workspaceKeyUnsupported: true,
+  },
   grantSkillEditor: {
     method: 'POST',
     path: '/api/v2/skills/[skillId]/editors',
@@ -11543,7 +17509,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Grant Skill Editor',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       email: {
@@ -11577,6 +17543,27 @@ export const V2_OPERATIONS = {
       },
       name: { kind: 'string', describe: 'Override for the imported workflow name.' },
       description: { kind: 'string', describe: 'Override for the imported workflow description.' },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      bindings: {
+        kind: 'array',
+        describe: 'Resolved and unresolved source occurrences with their destination selections.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      requestId: {
+        kind: 'string',
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+      previewFingerprint: {
+        kind: 'string',
+        describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
     },
   },
   listAuditLogs: {
@@ -11585,7 +17572,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Audit Logs',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       action: { kind: 'string', describe: 'Filter by exact action name.' },
       resourceType: {
@@ -11654,7 +17641,7 @@ export const V2_OPERATIONS = {
       workspaceId: {
         kind: 'string',
         describe:
-          "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
+          "Narrow the ledger to one workspace. An OAuth token or personal API key reports only its user's events; a workspace API key reports every member's events in its bound workspace. The response `scope` identifies which view was returned. A workspace key asking for another workspace receives the same `404 Workspace not found` as an unknown id.",
       },
       period: {
         kind: 'enum',
@@ -11718,6 +17705,11 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['builtin', 'custom'] as const,
         describe: 'Restrict to shipped blocks or to this workspace’s deployed custom blocks.',
+      },
+      includeSunset: {
+        kind: 'boolean',
+        describe:
+          'Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead.',
       },
       sortBy: {
         kind: 'enum',
@@ -11800,6 +17792,24 @@ export const V2_OPERATIONS = {
       search: {
         kind: 'string',
         describe: 'Case-insensitive substring match against the connector name.',
+      },
+      detail: {
+        kind: 'enum',
+        values: ['summary', 'full'] as const,
+        default: 'summary',
+        describe:
+          'Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 25,
+        describe:
+          'Maximum connector types to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
     },
   },
@@ -11928,7 +17938,7 @@ export const V2_OPERATIONS = {
       parentPath: {
         kind: 'string',
         describe:
-          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -11993,7 +18003,7 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to files inside this folder — its direct children, or its whole subtree when `recursive` is true. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict files to this folder, including subfolders when `recursive` is true. Unknown folder paths contribute no matches.',
       },
       recursive: {
         kind: 'enum',
@@ -12012,7 +18022,7 @@ export const V2_OPERATIONS = {
           'disabled',
         ] as const,
         describe:
-          'Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
+          'Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter.',
       },
       scope: {
         kind: 'enum',
@@ -12051,6 +18061,40 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listFileVersions: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'List File Versions',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['version'] as const,
+        default: 'version',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listKnowledgeBases: {
     method: 'GET',
     path: '/api/v2/knowledge',
@@ -12068,12 +18112,12 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.',
       },
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to knowledge bases in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to knowledge bases in this folder. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -12115,7 +18159,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'List Chunks',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12167,7 +18211,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'List Knowledge Connector Documents',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12198,7 +18242,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Knowledge Connectors',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12307,7 +18351,7 @@ export const V2_OPERATIONS = {
       parentPath: {
         kind: 'string',
         describe:
-          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -12350,7 +18394,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Tag Usage',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12379,7 +18423,7 @@ export const V2_OPERATIONS = {
       triggers: {
         kind: 'string',
         describe:
-          'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries.',
+          'Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values. At most 100 entries.',
       },
       level: {
         kind: 'enum',
@@ -12445,6 +18489,11 @@ export const V2_OPERATIONS = {
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
+      includeHandledErrors: {
+        kind: 'boolean',
+        describe:
+          'Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.',
+      },
       status: {
         kind: 'string',
         describe:
@@ -12458,7 +18507,7 @@ export const V2_OPERATIONS = {
       includeJobRuns: {
         kind: 'boolean',
         describe:
-          'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.',
+          'Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`.',
       },
       runId: { kind: 'string', describe: 'Exact run identifier to match.' },
       sortBy: {
@@ -12466,7 +18515,7 @@ export const V2_OPERATIONS = {
         values: ['startedAt', 'durationMs', 'cost', 'status'] as const,
         default: 'startedAt',
         describe:
-          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.',
+          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs sort before recorded values in ascending order and after them in descending order. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.',
       },
       sortOrder: {
         kind: 'enum',
@@ -12477,7 +18526,7 @@ export const V2_OPERATIONS = {
       folderPaths: {
         kind: 'string',
         describe:
-          'Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches.',
       },
     },
   },
@@ -12530,7 +18579,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'List MCP Server Tools',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12540,7 +18589,514 @@ export const V2_OPERATIONS = {
       refresh: {
         kind: 'boolean',
         describe:
-          'Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.',
+          "Refresh tools using your credentials. Otherwise results may reuse another workspace member's recent discovery and omit newly added tools.",
+      },
+    },
+  },
+  listMyOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/mine',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'List My Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listMyWorkspaceAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'List My Workspace Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'List Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      search: {
+        kind: 'string',
+        describe:
+          'Case-insensitive substring match against the target label or requester name or email.',
+      },
+    },
+  },
+  listOrganizationInvitations: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Invitations',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the invitee email.',
+      },
+      status: {
+        kind: 'enum',
+        values: ['pending', 'accepted', 'rejected', 'cancelled', 'expired'] as const,
+        describe: 'Filter by current invitation status. Omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['email', 'createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum invitations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationInvitationWorkspaces: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Organization Invitation Workspaces',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the workspace name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'id'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationMembers: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/members',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Members',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against member name or email.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'email', 'joinedAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizations: {
+    method: 'GET',
+    path: '/api/v2/organizations',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Organizations',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the organization name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum organizations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationUsageEvents: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/events',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Usage Events',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      source: {
+        kind: 'enum',
+        values: [
+          'workflow',
+          'wand',
+          'sim-chat',
+          'mcp_copilot',
+          'mothership_block',
+          'knowledge-base',
+          'voice-input',
+          'enrichment',
+          'voice-output',
+          'api-tool',
+        ] as const,
+        describe: 'Restrict events to one product surface.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+    },
+  },
+  listOrganizationWorkspaces: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/workspaces',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Workspaces',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the workspace name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'id'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPermissionGroupMembers: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Permission Group Members',
+    workspaceKeyUnsupported: true,
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['assignedAt', 'userId'] as const,
+        default: 'assignedAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum group members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPermissionGroups: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the permission groups.' },
+    responseMode: 'json',
+    summary: 'List Permission Groups',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the group name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum permission groups to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listSandboxes: {
+    method: 'GET',
+    path: '/api/v2/sandboxes',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Sandboxes',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the sandbox name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum sandboxes to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
     },
   },
@@ -12550,7 +19106,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Secrets',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12589,6 +19145,152 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listSelector: {
+    method: 'POST',
+    path: '/api/v2/selectors/list',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Selector Options',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Explicit current workspace scope.',
+      },
+      selectorKey: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'airtable.bases',
+          'airtable.tables',
+          'asana.workspaces',
+          'attio.lists',
+          'attio.objects',
+          'bigquery.datasets',
+          'bigquery.tables',
+          'bitbucket.workspaces',
+          'bitbucket.repositories',
+          'calcom.eventTypes',
+          'calcom.schedules',
+          'clickup.workspaces',
+          'clickup.spaces',
+          'clickup.folders',
+          'clickup.lists',
+          'coda.docs',
+          'coda.pages',
+          'coda.tables',
+          'coda.columns',
+          'coda.rows',
+          'coda.formulas',
+          'coda.controls',
+          'coda.folders',
+          'coda.permissions',
+          'confluence.spaces',
+          'confluence.spacesById',
+          'confluence.pages',
+          'google.tasks.lists',
+          'gmail.labels',
+          'google.calendar',
+          'google.drive',
+          'google.sheets',
+          'harmonic.savedSearches',
+          'hubspot.lists',
+          'hubspot.owners',
+          'hubspot.pipelines',
+          'hubspot.pipelineStages',
+          'hubspot.properties',
+          'jsm.requestTypes',
+          'jsm.serviceDesks',
+          'microsoft.planner.plans',
+          'notion.databases',
+          'notion.pages',
+          'netsuite.recordTypes',
+          'netsuite.asyncTasks',
+          'pipedrive.pipelines',
+          'sharepoint.lists',
+          'trello.boards',
+          'zoho_desk.organizations',
+          'zoho_desk.departments',
+          'zoho_desk.agents',
+          'zoom.meetings',
+          'slack.channels',
+          'snowflake.databases',
+          'snowflake.schemas',
+          'snowflake.tables',
+          'snowflake.warehouses',
+          'snowflake.roles',
+          'snowflake.fileFormats',
+          'snowflake.procedures',
+          'slack.users',
+          'outlook.folders',
+          'outlook.calendars',
+          'microsoft.teams',
+          'microsoft.chats',
+          'microsoft.channels',
+          'microsoft.planner',
+          'onedrive.files',
+          'onedrive.folders',
+          'sharepoint.sites',
+          'microsoft.excel',
+          'microsoft.excel.drives',
+          'microsoft.excel.sheets',
+          'microsoft.word',
+          'wealthbox.contacts',
+          'jira.issues',
+          'jira.projects',
+          'jira.projectKeys',
+          'linear.projects',
+          'linear.teams',
+          'monday.boards',
+          'monday.groups',
+          'webflow.sites',
+          'webflow.collections',
+          'webflow.items',
+          'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
+          'cloudwatch.logGroups',
+          'cloudwatch.logStreams',
+          'imap.mailboxes',
+          'mcp.tools',
+          'managedAgent.agents',
+          'managedAgent.environments',
+          'managedAgent.vaults',
+          'managedAgent.memoryStores',
+          'knowledge.documents',
+          'sim.workflows',
+          'table.columns',
+          'table.outputColumns',
+          'workspace.secretNames',
+          'workspace.sandboxes',
+          'providers.ollamaEmbeddingModels',
+          'providers.openrouterEmbeddingModels',
+        ] as const,
+        describe: 'Registered selector key for discovering this field’s destination options.',
+      },
+      context: {
+        kind: 'object',
+        default: {},
+        describe:
+          'Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization.',
+      },
+      search: { kind: 'string', describe: 'Provider option search text.' },
+      cursor: {
+        kind: 'string',
+        describe: 'Opaque continuation cursor returned by the preceding page.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe: 'Maximum number of items to return on one page.',
       },
     },
   },
@@ -12674,7 +19376,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'List Active Run Dispatches',
+    summary: 'List Run Dispatches',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -12694,7 +19396,7 @@ export const V2_OPERATIONS = {
       parentPath: {
         kind: 'string',
         describe:
-          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -12764,7 +19466,7 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to tables in this folder. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -12874,7 +19576,7 @@ export const V2_OPERATIONS = {
       parentPath: {
         kind: 'string',
         describe:
-          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -12912,7 +19614,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Workflow MCP Servers',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -12952,7 +19654,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'List Workflow MCP Tools',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
   },
   listWorkflowRuns: {
     method: 'GET',
@@ -13020,7 +19722,7 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to workflows in this folder path. Unknown folder paths contribute no matches.',
       },
       deployedOnly: {
         kind: 'boolean',
@@ -13077,6 +19779,88 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listWorkspaceForkChildren: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/children',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'List Workspace Fork Children',
+    workspaceKeyUnsupported: true,
+    query: {
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Supported stable sort key for this collection.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+    },
+  },
+  listWorkspaceForkResources: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/resources',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'List Workspace Fork Resources',
+    workspaceKeyUnsupported: true,
+    query: {
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      kind: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'files',
+          'tables',
+          'knowledgeBases',
+          'customTools',
+          'skills',
+          'mcpServers',
+          'workflowMcpServers',
+        ] as const,
+        describe: 'Resource or operation kind.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id'] as const,
+        default: 'id',
+        describe: 'Supported stable sort key for this collection.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+    },
+  },
   listWorkspaceMembers: {
     method: 'GET',
     path: '/api/v2/workspaces/[workspaceId]/members',
@@ -13095,6 +19879,31 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listWorkspaceOperations: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/operations',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'List Workspace Operations',
+    query: {
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      requestId: {
+        kind: 'string',
+        describe: 'Stable client request ID for reconciliation and identical retries.',
       },
     },
   },
@@ -13120,9 +19929,9 @@ export const V2_OPERATIONS = {
       },
       limit: {
         kind: 'integer',
-        default: 50,
+        default: 25,
         describe:
-          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
       },
       cursor: {
         kind: 'string',
@@ -13190,6 +19999,260 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  previewOrganizationAccessRequest: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Preview Organization Access Request',
+    workspaceKeyUnsupported: true,
+  },
+  previewWorkflowImport: {
+    method: 'POST',
+    path: '/api/v2/workflows/import/preview',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Preview Workflow Import',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to import the workflow.',
+      },
+      workflow: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Workflow export object, bare workflow state, or JSON string containing either form.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: 'Destination folder path; omit for the workspace root.',
+      },
+      name: { kind: 'string', describe: 'Override for the imported workflow name.' },
+      description: { kind: 'string', describe: 'Override for the imported workflow description.' },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      bindings: {
+        kind: 'array',
+        describe: 'Resolved and unresolved source occurrences with their destination selections.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+    },
+  },
+  previewWorkspaceFork: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/preview',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Preview Workspace Fork',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'Display name of the workflow or workspace.' },
+      copy: {
+        kind: 'object',
+        describe:
+          'Explicit resource selections to copy into the new fork; omitted resource kinds are not copied.',
+      },
+    },
+  },
+  previewWorkspacePull: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/pull/preview',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Preview Workspace Pull',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      copyResources: {
+        kind: 'object',
+        describe: 'Explicit source resources to copy before syncing the workflows.',
+      },
+      dropReferences: {
+        kind: 'array',
+        describe:
+          'Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped.',
+      },
+      triggerMappings: {
+        kind: 'array',
+        describe:
+          'Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected.',
+      },
+    },
+  },
+  previewWorkspacePush: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/push/preview',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Preview Workspace Push',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      copyResources: {
+        kind: 'object',
+        describe: 'Explicit source resources to copy before syncing the workflows.',
+      },
+      dropReferences: {
+        kind: 'array',
+        describe:
+          'Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped.',
+      },
+      triggerMappings: {
+        kind: 'array',
+        describe:
+          'Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected.',
+      },
+    },
+  },
+  pullWorkspace: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/pull',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Pull Workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      copyResources: {
+        kind: 'object',
+        describe: 'Explicit source resources to copy before syncing the workflows.',
+      },
+      dropReferences: {
+        kind: 'array',
+        describe:
+          'Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped.',
+      },
+      triggerMappings: {
+        kind: 'array',
+        describe:
+          'Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected.',
+      },
+      requestId: {
+        kind: 'string',
+        required: true,
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+      previewFingerprint: {
+        kind: 'string',
+        required: true,
+        describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
+      confirm: {
+        kind: 'boolean',
+        required: true,
+        describe: 'Explicit acknowledgement that sync replaces target workflows.',
+      },
+    },
+  },
+  pushWorkspace: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/push',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Push Workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      copyResources: {
+        kind: 'object',
+        describe: 'Explicit source resources to copy before syncing the workflows.',
+      },
+      dropReferences: {
+        kind: 'array',
+        describe:
+          'Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped.',
+      },
+      triggerMappings: {
+        kind: 'array',
+        describe:
+          'Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected.',
+      },
+      requestId: {
+        kind: 'string',
+        required: true,
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+      previewFingerprint: {
+        kind: 'string',
+        required: true,
+        describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
+      confirm: {
+        kind: 'boolean',
+        required: true,
+        describe: 'Explicit acknowledgement that sync replaces target workflows.',
+      },
+    },
+  },
   queryRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
@@ -13202,7 +20265,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'A single `{ field, op, value }` condition or a recursive `all`/`any` group; either form is normalized to a grouped predicate after validation. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
       limit: {
@@ -13230,7 +20293,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'A single `{ field, op, value }` condition or a recursive `all`/`any` group; either form is normalized to a grouped predicate after validation. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
     },
   },
@@ -13238,7 +20301,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/files/[fileId]/text',
     pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
+    pathParamDocs: {
+      fileId:
+        'File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload.',
+    },
     responseMode: 'json',
     summary: 'Read File Text',
     query: {
@@ -13250,7 +20316,33 @@ export const V2_OPERATIONS = {
       },
       offset: {
         kind: 'integer',
-        describe: 'First line to return, 1-based. Absent starts at the first line.',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
+      },
+      limit: {
+        kind: 'integer',
+        describe: 'How many lines to return from `offset`. Absent reads to the end.',
+      },
+    },
+  },
+  readFileVersionText: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]/text',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Read File Version Text',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      maxBytes: {
+        kind: 'integer',
+        describe:
+          'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
+      },
+      offset: {
+        kind: 'integer',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
@@ -13270,7 +20362,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -13286,7 +20379,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -13302,7 +20396,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -13318,9 +20413,35 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
+  },
+  removeOrganizationMember: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId: 'User identifier of the organization member.',
+    },
+    responseMode: 'json',
+    summary: 'Remove Organization Member',
+    workspaceKeyUnsupported: true,
+  },
+  removePermissionGroupMember: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]',
+    pathParams: ['organizationId', 'groupId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+      userId: 'User identifier of the member to remove.',
+    },
+    responseMode: 'json',
+    summary: 'Remove Permission Group Member',
+    workspaceKeyUnsupported: true,
   },
   renameFile: {
     method: 'PATCH',
@@ -13341,7 +20462,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Create or Replace Workflow Chat Deployment',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       identifier: {
         kind: 'string',
@@ -13367,7 +20488,7 @@ export const V2_OPERATIONS = {
       password: {
         kind: 'string',
         describe:
-          'Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back.',
+          'Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.',
       },
       allowedEmails: {
         kind: 'array',
@@ -13397,12 +20518,12 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Replace Workflow State',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       dryRun: {
         kind: 'boolean',
         describe:
-          'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.',
+          'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',
       },
     },
     body: {
@@ -13419,6 +20540,89 @@ export const V2_OPERATIONS = {
       variables: {
         kind: 'object',
         describe: 'Replacement variable set. Omit to leave the stored variables untouched.',
+      },
+    },
+  },
+  resendOrganizationInvitation: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]/resend',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Resend Organization Invitation',
+    workspaceKeyUnsupported: true,
+  },
+  resolveOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Resolve Organization Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      action: {
+        kind: 'enum',
+        required: true,
+        values: ['apply', 'decline'] as const,
+        describe:
+          'apply: Apply the reviewed change to the governing group or member credit cap. decline: Decline the request without changing permissions or credit limits.',
+      },
+      expectedFingerprint: {
+        kind: 'string',
+        describe:
+          'Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict. Available when action is apply. Required when action is apply.',
+      },
+      newLimitCredits: {
+        kind: 'integer',
+        describe:
+          'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply.',
+      },
+      reason: {
+        kind: 'string',
+        describe:
+          'Required explanation for declining this request. Available when action is decline. Required when action is decline.',
+      },
+    },
+    bodyDiscriminator: {
+      field: 'action',
+      variants: {
+        apply: {
+          action: {
+            kind: 'string',
+            required: true,
+            describe: 'Apply the reviewed change to the governing group or member credit cap.',
+          },
+          expectedFingerprint: {
+            kind: 'string',
+            required: true,
+            describe:
+              'Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict.',
+          },
+          newLimitCredits: {
+            kind: 'integer',
+            describe:
+              'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests.',
+          },
+        },
+        decline: {
+          action: {
+            kind: 'string',
+            required: true,
+            describe: 'Decline the request without changing permissions or credit limits.',
+          },
+          reason: {
+            kind: 'string',
+            required: true,
+            describe: 'Required explanation for declining this request.',
+          },
+        },
       },
     },
   },
@@ -13529,6 +20733,27 @@ export const V2_OPERATIONS = {
       input: { kind: 'unknown', describe: 'Input supplied to the paused workflow block.' },
     },
   },
+  revertFileVersion: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/versions/[version]/revert',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Revert File Version',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      expectedCurrentVersion: {
+        kind: 'integer',
+        describe:
+          'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
+      },
+    },
+  },
   revertWorkflowVersion: {
     method: 'POST',
     path: '/api/v2/workflows/[workflowId]/versions/[version]/revert',
@@ -13539,7 +20764,19 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Revert Workflow To Version',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
+  },
+  revokeOrganizationInvitation: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Revoke Organization Invitation',
+    workspaceKeyUnsupported: true,
   },
   revokeSkillEditor: {
     method: 'DELETE',
@@ -13551,7 +20788,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Revoke Skill Editor',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       email: {
@@ -13568,11 +20805,27 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Rollback Workflow',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       version: {
         kind: 'integer',
         describe: 'Deployment version to reactivate. Omit to select the previous active version.',
+      },
+    },
+  },
+  rollbackWorkspaceFork: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/rollback',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Rollback Workspace Fork',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
       },
     },
   },
@@ -13663,12 +20916,12 @@ export const V2_OPERATIONS = {
         kind: 'number',
         default: 10,
         describe:
-          'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.',
+          'Maximum number of search results to return. Must be a whole number between 1 and 100.',
       },
       tagFilters: {
         kind: 'array',
         describe:
-          'Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{knowledgeBaseId}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.',
+          'Up to 10 filters combined with AND; repeating a tag narrows results. To express OR, run separate searches. Every tag must exist with the same slot and field type in each selected knowledge base or the request is rejected. List valid names with the knowledge-base tag-list operation.',
       },
       searchMode: {
         kind: 'enum',
@@ -13707,7 +20960,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
     },
@@ -13719,7 +20972,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { name: 'Secret to create or replace.' },
     responseMode: 'json',
     summary: 'Set Secret',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13761,7 +21014,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Sync Knowledge Connector',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13800,7 +21053,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Undeploy Workflow',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
   },
   undeployWorkflowMcpTool: {
     method: 'DELETE',
@@ -13812,7 +21065,23 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Unpublish Workflow MCP Tool',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
+  },
+  unlinkWorkspaceFork: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/unlink',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Unlink Workspace Fork',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+    },
   },
   unzipFile: {
     method: 'POST',
@@ -13832,7 +21101,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { credentialId: 'Credential to update.' },
     responseMode: 'json',
     summary: 'Update Credential',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -13852,6 +21121,12 @@ export const V2_OPERATIONS = {
       },
       apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
       domain: { kind: 'string', describe: 'Provider account domain.' },
+      atlassianProduct: {
+        kind: 'enum',
+        values: ['jira', 'confluence'] as const,
+        describe:
+          'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.',
+      },
       signingSecret: { kind: 'string', describe: 'Write-only webhook signing secret.' },
       botToken: { kind: 'string', describe: 'Write-only bot token.' },
       clientId: { kind: 'string', describe: 'OAuth client identifier.' },
@@ -13903,6 +21178,11 @@ export const V2_OPERATIONS = {
         default: 'utf-8',
         describe: 'Encoding of the content field.',
       },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+      },
     },
   },
   updateKnowledgeBase: {
@@ -13935,7 +21215,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Chunk',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13963,7 +21243,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Knowledge Connector',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -13996,7 +21276,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Knowledge Connector Documents',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -14026,7 +21306,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Document',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -14072,7 +21352,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Tag',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -14106,8 +21386,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['streamable-http'] as const,
         default: 'streamable-http',
-        describe:
-          'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.',
+        describe: 'Transport protocol. Defaults to `streamable-http` on creation.',
       },
       url: {
         kind: 'string',
@@ -14128,19 +21407,17 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
-        describe:
-          'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.',
+        describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
-        describe: 'Number of retries per request. Applied server-side as 3 when omitted on create.',
+        describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
         kind: 'boolean',
         default: true,
-        describe:
-          'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.',
+        describe: "Whether workflows can use the server's tools. Defaults to true on creation.",
       },
       oauthClientId: {
         kind: 'string',
@@ -14151,6 +21428,100 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.',
+      },
+    },
+  },
+  updateOrganizationAccessRequestSettings: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/access-requests/settings',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Update Organization Access Request Settings',
+    workspaceKeyUnsupported: true,
+    body: {
+      allowRequests: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Allow new requests and approvals. Disabling requests preserves history and still allows cancellation and decline.',
+      },
+    },
+  },
+  updateOrganizationMember: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId: 'User identifier of the organization member.',
+    },
+    responseMode: 'json',
+    summary: 'Update Organization Member',
+    workspaceKeyUnsupported: true,
+    body: {
+      role: {
+        kind: 'enum',
+        required: true,
+        values: ['member', 'admin'] as const,
+        describe: 'New organization role. Ownership transfers use a separate operation.',
+      },
+    },
+  },
+  updateOrganizationMemberUsageLimit: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]/usage-limit',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId:
+        'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
+    },
+    responseMode: 'json',
+    summary: 'Update Organization Member Credit Limit',
+    workspaceKeyUnsupported: true,
+    body: {
+      creditLimit: {
+        kind: 'integer',
+        nullable: true,
+        required: true,
+        describe:
+          'Credit cap for this person. Send null to clear the cap or 0 to prevent further credit-consuming usage. Organization limits still apply.',
+      },
+    },
+  },
+  updatePermissionGroup: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Permission Group',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'Group name, unique within the organization.' },
+      description: {
+        kind: 'string',
+        describe:
+          'Group description. Null or an empty string clears it; omission leaves it unchanged.',
+      },
+      config: {
+        kind: 'object',
+        describe:
+          'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.',
+      },
+      isDefault: {
+        kind: 'boolean',
+        describe:
+          'Whether the group is the organization default. Only one group can be the default.',
+      },
+      workspaceIds: {
+        kind: 'array',
+        describe:
+          'Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.',
       },
     },
   },
@@ -14167,7 +21538,7 @@ export const V2_OPERATIONS = {
         kind: 'unknown',
         required: true,
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       data: {
         kind: 'object',
@@ -14175,6 +21546,40 @@ export const V2_OPERATIONS = {
         describe: 'Row-data patch applied to every matching row.',
       },
       limit: { kind: 'integer', describe: 'Maximum matching rows to update.' },
+    },
+  },
+  updateSandbox: {
+    method: 'PATCH',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Update Sandbox',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+      name: {
+        kind: 'string',
+        describe: 'New display name, unique within the workspace; 1 to 64 characters.',
+      },
+      language: {
+        kind: 'enum',
+        values: ['javascript', 'python'] as const,
+        describe:
+          'Replacement dependency ecosystem. The whole spec is revalidated against it, so a Python dependency list does not survive a switch to JavaScript.',
+      },
+      dependencies: {
+        kind: 'array',
+        describe: 'Replacement package list; replaces the whole list.',
+      },
+      cliTools: {
+        kind: 'array',
+        describe: 'Replacement managed CLI list; replaces the whole list.',
+      },
+      systemPackages: {
+        kind: 'array',
+        describe: 'Replacement Debian package list; replaces the whole list.',
+      },
     },
   },
   updateSkill: {
@@ -14187,7 +21592,7 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Update Skill',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       name: { kind: 'string', describe: 'New kebab-case skill name.' },
@@ -14327,7 +21732,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
     summary: 'Update Workflow MCP Server',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'Server display name, shown to connecting MCP clients.' },
       description: { kind: 'string', describe: 'New server description, or null to clear it.' },
@@ -14344,7 +21749,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Update Workflow Public API Access',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       isPublicApi: {
         kind: 'boolean',
@@ -14372,6 +21777,55 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  updateWorkspaceForkExclusions: {
+    method: 'PUT',
+    path: '/api/v2/workspaces/[workspaceId]/fork/exclusions',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Update Workspace Fork Exclusions',
+    workspaceKeyUnsupported: true,
+    body: {
+      workflowIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Workflow identifiers in the current workspace.',
+      },
+      forkSyncExcluded: {
+        kind: 'boolean',
+        required: true,
+        describe: 'Whether the named workflows should be skipped as sync sources and targets.',
+      },
+    },
+  },
+  updateWorkspaceForkMappings: {
+    method: 'PUT',
+    path: '/api/v2/workspaces/[workspaceId]/fork/mappings',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Update Workspace Fork Mappings',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      direction: {
+        kind: 'enum',
+        required: true,
+        values: ['push', 'pull'] as const,
+        describe:
+          'Push means current to other; pull means other to current, independent of parent/child orientation.',
+      },
+      mappings: {
+        kind: 'array',
+        required: true,
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+    },
+  },
   uploadKnowledgeDocument: {
     method: 'POST',
     path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
@@ -14394,7 +21848,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Enable or Disable File Share',
-    personalKeyOnly: true,
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       isActive: {
@@ -14412,7 +21866,7 @@ export const V2_OPERATIONS = {
       password: {
         kind: 'string',
         describe:
-          'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.',
+          'Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.',
       },
       allowedEmails: {
         kind: 'array',

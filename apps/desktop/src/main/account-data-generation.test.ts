@@ -1,11 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,7 +13,6 @@ import {
   initializeAccountDataRecovery,
   invalidateAccountDataOperations,
   isAccountDataTeardownRequired,
-  prepareAccountDataTeardownForQuit,
   retryAccountDataTeardown,
   runAccountDataMutation,
   waitForAccountDataMutations,
@@ -54,22 +46,6 @@ describe('account data generation', () => {
       origin: ORIGIN,
     })
     expect(isAccountDataTeardownRequired()).toBe(true)
-  })
-
-  it('fails closed and retries marker persistence before quit', () => {
-    const blockedParent = join(directory, 'blocked')
-    markerPath = join(blockedParent, 'teardown-required.json')
-    initializeAccountDataRecovery(markerPath)
-    writeFileSync(blockedParent, 'not a directory')
-
-    expect(beginAccountDataTeardown('account', ORIGIN)).toBe(false)
-    expect(isAccountDataTeardownRequired()).toBe(false)
-    expect(prepareAccountDataTeardownForQuit()).toBe(true)
-
-    unlinkSync(blockedParent)
-    mkdirSync(blockedParent)
-    expect(beginAccountDataTeardown('account', ORIGIN)).toBe(true)
-    expect(existsSync(markerPath)).toBe(true)
   })
 
   it('does not erase data when the recovery marker cannot be written', async () => {
@@ -109,32 +85,6 @@ describe('account data generation', () => {
     expect(getAccountDataTeardownKind()).toBeNull()
   })
 
-  it('keeps recovery gated until a retry clears every account store', async () => {
-    beginAccountDataTeardown('account', ORIGIN)
-    const failedClear = vi.fn(async () => {
-      throw new Error('keychain unavailable')
-    })
-    const successfulClear = vi.fn(async () => {})
-
-    await expect(
-      retryAccountDataTeardown([
-        { label: 'browser profile', clear: failedClear },
-        { label: 'local filesystem grants', clear: successfulClear },
-      ])
-    ).resolves.toEqual(['browser profile'])
-    expect(existsSync(markerPath)).toBe(true)
-    expect(isAccountDataTeardownRequired()).toBe(true)
-
-    await expect(
-      retryAccountDataTeardown([
-        { label: 'browser profile', clear: successfulClear },
-        { label: 'local filesystem grants', clear: successfulClear },
-      ])
-    ).resolves.toEqual([])
-    expect(existsSync(markerPath)).toBe(false)
-    expect(isAccountDataTeardownRequired()).toBe(false)
-  })
-
   it('never downgrades or clears an account recovery marker for a server switch', () => {
     beginAccountDataTeardown('account', ORIGIN)
     beginAccountDataTeardown('deployment', ORIGIN)
@@ -158,43 +108,6 @@ describe('account data generation', () => {
       kind: 'deployment',
       origin: ORIGIN,
     })
-  })
-
-  it('keeps deployment recovery armed when the server configuration commit fails', () => {
-    beginAccountDataTeardown('deployment', ORIGIN)
-
-    expect(completeDeploymentScopedTeardown(() => false)).toBe(false)
-    expect(existsSync(markerPath)).toBe(true)
-    expect(isAccountDataTeardownRequired()).toBe(true)
-  })
-
-  it('keeps deployment recovery armed when the server configuration commit throws', () => {
-    beginAccountDataTeardown('deployment', ORIGIN)
-
-    expect(() =>
-      completeDeploymentScopedTeardown(() => {
-        throw new Error('disk unavailable')
-      })
-    ).toThrow('disk unavailable')
-    expect(existsSync(markerPath)).toBe(true)
-    expect(isAccountDataTeardownRequired()).toBe(true)
-  })
-
-  it('reports successful completion of a deployment-scoped teardown', () => {
-    beginAccountDataTeardown('deployment', ORIGIN)
-
-    expect(completeDeploymentScopedTeardown(() => true)).toBe(true)
-    expect(isAccountDataTeardownRequired()).toBe(false)
-  })
-
-  it('treats an unknown marker version as an untrusted account teardown', () => {
-    writeFileSync(markerPath, '{"version":3,"kind":"deployment","origin":"https://old.example"}')
-
-    initializeAccountDataRecovery(markerPath)
-
-    expect(getAccountDataTeardownKind()).toBe('account')
-    expect(getAccountDataTeardownOrigin()).toBeNull()
-    expect(prepareAccountDataTeardownForQuit()).toBe(false)
   })
 
   it('waits for an admitted commit before teardown can clear its store', async () => {

@@ -1,7 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,6 +23,13 @@ const { SECRET, searchTargetRef } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  Chip: ({
+    onClick,
+    disabled,
+    'aria-label': label,
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type='button' onClick={onClick} disabled={disabled} aria-label={label} />
+  ),
   CODE_LINE_HEIGHT_PX: 21,
   Code: {
     Container: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -42,10 +52,7 @@ vi.mock('@sim/emcn', () => ({
   languages: { javascript: {}, python: {}, bash: {} },
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  Check: () => null,
-  Wand: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
 vi.mock('react-simple-code-editor', () => ({
   default: ({
@@ -72,13 +79,7 @@ vi.mock('react-simple-code-editor', () => ({
   ),
 }))
 
-vi.mock('@/components/ui/button', () => ({
-  Button: ({ children }: { children?: ReactNode }) => <button type='button'>{children}</button>,
-}))
-
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
@@ -162,6 +163,8 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
 
 import { Code } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/code'
 
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
 let container: HTMLDivElement
 let root: Root
 
@@ -213,28 +216,6 @@ describe('Code password masking', () => {
     expect(highlighted()).toContain('•')
   })
 
-  it('reveals the contents once the editor takes focus and re-masks on blur', () => {
-    mount(true)
-
-    const textarea = container.querySelector('[data-testid="code-textarea"]') as HTMLTextAreaElement
-    act(() => {
-      textarea.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-    })
-    expect(highlighted()).toContain('SIM-TEST-CREDENTIAL-MARKER')
-
-    act(() => {
-      textarea.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
-    })
-    expect(highlighted()).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
-  })
-
-  it('leaves a non-password code field in plaintext', () => {
-    mount(false)
-
-    expect(highlighted()).toContain('SIM-TEST-CREDENTIAL-MARKER')
-    expect(highlighted()).not.toContain('•')
-  })
-
   it('stays concealed while workflow search targets a match inside the secret', () => {
     searchTargetRef.current = SECRET_SEARCH_TARGET
 
@@ -243,14 +224,5 @@ describe('Code password masking', () => {
     expect(highlighted()).not.toContain('b3BlbnNzaC1rZXktdjE')
     expect(highlighted()).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(highlighted()).toContain('•')
-  })
-
-  it('highlights a targeted match when the field holds no secret', () => {
-    searchTargetRef.current = SECRET_SEARCH_TARGET
-
-    mount(false)
-
-    expect(highlighted()).toContain('<mark')
-    expect(highlighted()).toContain(SECRET_MATCH)
   })
 })

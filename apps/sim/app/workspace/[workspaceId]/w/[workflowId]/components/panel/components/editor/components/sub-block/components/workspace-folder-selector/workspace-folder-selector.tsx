@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipCombobox } from '@sim/emcn'
+import { Combobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { parseFolderPath } from '@/lib/folders/paths'
@@ -58,7 +58,7 @@ export function WorkspaceFolderSelector({
   }, [folders, isPlaceholderData, required, subBlock.multiSelect, subBlock.placeholder])
 
   return (
-    <ChipCombobox
+    <Combobox
       options={options}
       value={subBlock.multiSelect ? undefined : selected}
       onChange={(value) => {

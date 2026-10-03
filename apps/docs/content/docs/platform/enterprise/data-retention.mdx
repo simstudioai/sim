@@ -18,7 +18,7 @@ Both are configured once at the **organization level** and apply to every worksp
 
 ## Setup
 
-Go to **Settings → Enterprise → Data Retention** in your workspace.
+Go to **Settings → Organization → Data retention** in your workspace.
 
 <Image src="/static/enterprise/data-retention.png" alt="Data Retention settings showing the Retention policies list with the Organization default row and its summary of retention periods and PII stages" width={900} height={537} />
 
@@ -71,6 +71,12 @@ Controls how long **Chat data** is kept, including:
 - Run checkpoints and async tool calls
 - Inbox tasks
 
+### Previous file versions
+
+Every change to a file's content keeps the previous content as a version you can read or revert to through the API, CLI, or MCP server. This setting controls how long a version is kept after a newer one replaces it. The newest ten versions of each file are always kept, whatever their age.
+
+Without a setting, previous versions are kept until a file reaches 500 of them. The setting isn't on the settings page yet: set `fileVersionRetentionHours` through the data retention API, either for the organization or in a workspace override.
+
 Each setting is independent. You can configure a short log retention period alongside a long soft deletion cleanup period, or any combination that fits your compliance requirements.
 
 ---
@@ -97,12 +103,12 @@ The **Workflow input** and **Block outputs** stages alter what the workflow comp
 
 For each stage, choose the **entity types** to redact from the searchable grid. They are grouped as:
 
-- **Common** — person name, email, phone, credit card, IP address, URL, IBAN, crypto wallet, medical license, VIN
+- **Common** — person name, email, phone, credit card, IP address, location, date or time, URL, IBAN, crypto wallet, nationality/religious/political group, medical license, VIN
 - **United States** — SSN, passport, driver's license, bank account, ITIN
 - **United Kingdom** — NHS number, National Insurance number
-- **Other regions** — Singapore, Australian, and Indian identifiers
+- **Other regions** — Spanish (NIF, NIE), Italian (fiscal code, driver's licence, VAT code, passport, identity card), Polish (PESEL), Singaporean (NRIC/FIN, UEN), Australian (ABN, ACN, TFN, Medicare), Indian (PAN, Aadhaar, vehicle registration, voter ID, passport), and Finnish (personal identity code) identifiers
 
-The **Block outputs** stage is restricted to regex- and checksum-based recognizers, so it can run in-flight over large payloads without a performance penalty. Types that need name-model detection — person name, location, date or time — are not offered for that stage.
+The **Block outputs** stage is restricted to regex- and checksum-based recognizers, to support in-flight masking without name-model detection. Types that need name-model detection — person name, location, date or time, and nationality/religious/political group — are not offered for that stage.
 
 Detection is language-aware: pick the **language** whose recognizers should apply. English, Spanish, Italian, Polish, and Finnish are supported, and the grid filters to the identifiers available for the selected language.
 
@@ -167,7 +173,7 @@ By default, retention settings are unconfigured — no data is automatically del
   },
   {
     question: "What is the maximum retention period?",
-    answer: "5 years."
+    answer: "5 years, or Forever — the same option list applies to all three settings."
   }
 ]} />
 
@@ -182,7 +188,31 @@ NEXT_PUBLIC_DATA_RETENTION_ENABLED=true
 DATA_RETENTION_ENABLED=true
 ```
 
-Once enabled, retention settings are configurable through **Settings → Enterprise → Data Retention** the same way as Sim Cloud.
+Once enabled, retention settings are configurable through **Settings → Organization → Data retention** the same way as Sim Cloud.
+
+### Scheduling the deletion pass
+
+`DATA_RETENTION_ENABLED` permits deletion; it does not perform it. Deletion runs when a scheduled request reaches one of four endpoints, each authenticated with a bearer token equal to `CRON_SECRET`:
+
+| Category | Endpoint |
+|----------|----------|
+| Execution and job logs | `GET /api/logs/cleanup` |
+| Soft-deleted resources | `GET /api/cron/cleanup-soft-deletes` |
+| Chats and Chat runs | `GET /api/cron/cleanup-tasks` |
+| Previous file versions | `GET /api/cron/cleanup-file-versions` |
+
+<Callout type="warn">
+Neither shipped deployment schedules these four endpoints — not the Helm chart, not Docker Compose's `cron` service. An operator who sets `DATA_RETENTION_ENABLED=true` alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
+</Callout>
+
+```bash
+# Use the value already configured as CRON_SECRET on the app — a token
+# generated here and not installed there returns 401.
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://sim.example.com/api/logs/cleanup
+```
+
+Each call fans the work out as background jobs. Trigger.dev is not required: when it is not configured the dispatcher runs the cleanup chunks inline instead of enqueuing them, so deletion completes on a default self-host.
 
 ### PII redaction
 
@@ -190,7 +220,14 @@ PII redaction runs against a standalone [Presidio](https://microsoft.github.io/p
 
 ```bash
 # The Presidio service exposing /analyze and /anonymize
-PII_URL=http://localhost:5001
+# Helm — setting pii.enabled wires this for you, and a manual value is then
+# ignored. Set it by hand only for an external Presidio with pii.enabled:
+# false. The bundled Service is <release>-sim-pii, or <release>-pii when the
+# release name already contains "sim".
+PII_URL=http://<service>.<namespace>.svc.cluster.local:5001
+# Docker Compose — no shipped file defines a PII service. Add one to the
+# same project, then use its service name.
+# PII_URL=http://pii:5001
 ```
 
-All PII stages are configurable under **Settings → Enterprise → Data Retention**.
+All PII stages are configurable under **Settings → Organization → Data retention**.

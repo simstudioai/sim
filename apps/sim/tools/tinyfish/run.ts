@@ -1,5 +1,6 @@
 import { tinyfishAgentHosting } from '@/tools/tinyfish/hosting'
 import {
+  PROFILE_HINT_OUTPUT_PROPERTIES,
   RUN_ERROR_OUTPUT_PROPERTIES,
   SCHEMA_VALIDATION_OUTPUT_PROPERTIES,
   type TinyFishRawRun,
@@ -9,6 +10,7 @@ import {
 import {
   AUTOMATION_TOOL_PARAMS,
   buildAutomationBody,
+  mapProfileHint,
   mapRunError,
   mapSchemaValidation,
   selectAutomationModelInput,
@@ -62,6 +64,7 @@ export const runTool: ToolConfig<TinyFishRunParams, TinyFishRunResponse> = {
         result: data.result ?? null,
         schemaValidation: mapSchemaValidation(data.schema_validation),
         error: mapRunError(data.error),
+        profileHint: mapProfileHint(data.profile_hint),
       },
       error: data.error?.message ?? undefined,
     }
@@ -98,6 +101,14 @@ export const runTool: ToolConfig<TinyFishRunParams, TinyFishRunResponse> = {
         'Why the run failed, null when it succeeded. Branch on category to decide whether to retry',
       optional: true,
       properties: RUN_ERROR_OUTPUT_PROPERTIES,
+    },
+    profileHint: {
+      type: 'object',
+      description:
+        'Present when TinyFish believes a Browser Context Profile would fix this failed run, such as one that stopped at a login wall',
+      optional: true,
+      nullable: true,
+      properties: PROFILE_HINT_OUTPUT_PROPERTIES,
     },
   },
 }

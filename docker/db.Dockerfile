@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Alpine Linux with Bun
 # ========================================
-FROM oven/bun:1.3.14-alpine AS base
+FROM oven/bun:1.4.2-alpine AS base
 
 # ========================================
 # Dependencies Stage: Install Dependencies
@@ -11,6 +11,7 @@ WORKDIR /app
 
 # Copy only package files needed for migrations (these change less frequently)
 COPY package.json bun.lock turbo.json ./
+COPY patches ./patches
 RUN mkdir -p packages/db packages/logger packages/tsconfig packages/utils
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/logger/package.json ./packages/logger/package.json

@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabDeleteUserTool: ToolConfig<GitLabDeleteUserParams, GitLabDeleteUserResponse> = {
   id: 'gitlab_delete_user',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Delete User',
   description:
     'Delete a GitLab user. Requires an administrator token with admin_mode on the instance.',

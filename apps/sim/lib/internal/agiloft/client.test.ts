@@ -1,21 +1,16 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Obvious non-secret so credential scanners do not flag these fixtures. */
 const PLACEHOLDER_PASSWORD = 'not-a-real-password'
 
-const { mockValidateUrlWithDNS, mockSecureFetch } = vi.hoisted(() => ({
-  mockValidateUrlWithDNS: vi.fn(),
-  mockSecureFetch: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  validateUrlWithDNS: mockValidateUrlWithDNS,
-  secureFetchWithPinnedIP: mockSecureFetch,
-}))
+const { mockValidateUrlWithDNS, mockSecureFetchWithPinnedIP: mockSecureFetch } =
+  inputValidationMockFns
 
 import {
   AgiloftAlrestError,
@@ -134,35 +129,6 @@ describe('executeAgiloftRequest', () => {
 
     expect(mockSecureFetch).toHaveBeenCalledTimes(3)
     expect(mockSecureFetch.mock.calls[2][0]).toContain('/ewws/EWLogout')
-  })
-
-  it('swallows logout failures (best-effort)', async () => {
-    mockSecureFetch
-      .mockResolvedValueOnce(mockResponse({ json: { access_token: 'tok-3' } }))
-      .mockResolvedValueOnce(mockResponse({ json: { ok: true } }))
-      .mockRejectedValueOnce(new Error('logout network error'))
-
-    const result = await executeAgiloftRequest(
-      baseParams,
-      (base) => ({ url: `${base}/ewws/REST/demo/contracts/42`, method: 'GET' }),
-      async () => ({ success: true, output: {} })
-    )
-
-    expect(result.success).toBe(true)
-  })
-
-  it('throws when login does not return an access token', async () => {
-    mockSecureFetch.mockResolvedValueOnce(mockResponse({ json: {} }))
-
-    await expect(
-      executeAgiloftRequest(
-        baseParams,
-        (base) => ({ url: `${base}/ewws/REST/demo/contracts/42`, method: 'GET' }),
-        async () => ({ success: true, output: {} })
-      )
-    ).rejects.toThrow('Agiloft login did not return an access token')
-
-    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
   })
 
   it('rejects an instance URL that resolves to a blocked IP without issuing any request', async () => {

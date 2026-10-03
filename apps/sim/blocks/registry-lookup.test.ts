@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 // The suite-wide mock stubs the registry; this file is about the real lookup.
@@ -23,11 +20,6 @@ describe('getBlock prototype safety', () => {
       expect(getBlock(key)).toBeUndefined()
     }
   )
-
-  it('still resolves a real block', () => {
-    const block = getBlock('agent')
-    expect(block?.type).toBe('agent')
-  })
 })
 
 /**

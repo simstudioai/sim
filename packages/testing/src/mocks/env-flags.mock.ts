@@ -7,7 +7,7 @@ import { vi } from 'vitest'
  * `isEmailPasswordEnabled`, and `isChatEnabled` are true — the last because it
  * is an opt-out flag, on unless `NEXT_PUBLIC_CHAT_DISABLED` is set.
  */
-export interface EnvFlagsMockState {
+interface EnvFlagsMockState {
   isProd: boolean
   isDev: boolean
   isTest: boolean
@@ -35,6 +35,7 @@ export interface EnvFlagsMockState {
   isInboxEnabled: boolean
   isSandboxDeploymentEntitled: boolean
   isSandboxesEnabled: boolean
+  isScimEnabled: boolean
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
   isCustomBlocksEnabled: boolean
@@ -80,15 +81,18 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isTriggerDevEnabled: false,
   isEnterpriseEnabled: false,
   isSsoEnabled: false,
+  /** OAuth-aware route behavior is available unless a suite overrides it. */
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
+  /** Live Search is the default Sim Search backend; indexed search is dormant. */
   // True with billing off and no flags set — these carry a legacy default of
   // `true` so upgrades do not remove a feature. See
   // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
   isInboxEnabled: true,
   isSandboxDeploymentEntitled: false,
   isSandboxesEnabled: false,
+  isScimEnabled: false,
   isWhitelabelingEnabled: true,
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,

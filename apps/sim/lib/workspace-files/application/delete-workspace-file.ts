@@ -24,7 +24,6 @@ export interface DeleteWorkspaceFileResult {
 }
 
 async function executeDeleteWorkspaceFile({
-  principal,
   context,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.delete,

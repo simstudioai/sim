@@ -111,11 +111,13 @@ services:
       timeout: 5s
       retries: 5
 
+  # Not published to the host: the other services reach it over the Compose
+  # network as db:5432. A host `ports:` mapping binds every interface, and the
+  # password below defaults to a well-known value. For host access use
+  # `docker compose exec db psql -U postgres simstudio`.
   db:
     image: pgvector/pgvector:pg17
     restart: always
-    ports:
-      - '${POSTGRES_PORT:-5432}:5432'
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
