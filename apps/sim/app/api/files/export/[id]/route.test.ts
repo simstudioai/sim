@@ -6,10 +6,7 @@ import {
   filesAuthorizationMockFns,
 } from '@sim/testing/mocks/files-authorization.mock'
 import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
-import {
-  posthogServerMock,
-  posthogServerMockFns,
-} from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import {
   uploadsMetadataMock,
