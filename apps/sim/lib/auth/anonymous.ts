@@ -9,6 +9,19 @@ const logger = createLogger('AnonymousAuth')
 
 let anonymousUserEnsured = false
 
+function isMissingTableError(error: unknown): boolean {
+  if (error && typeof error === 'object') {
+    const code = (error as Record<string, unknown>).code
+    if (code === '42P01') return true
+    const cause = (error as Record<string, unknown>).cause
+    if (cause && typeof cause === 'object') {
+      const innerCode = (cause as Record<string, unknown>).code
+      if (innerCode === '42P01') return true
+    }
+  }
+  return false
+}
+
 /**
  * Ensures the anonymous user and their stats record exist in the database.
  * Called when DISABLE_AUTH is enabled to ensure DB operations work.
@@ -47,6 +60,11 @@ export async function ensureAnonymousUserExists(): Promise<void> {
 
     anonymousUserEnsured = true
   } catch (error) {
+    if (isMissingTableError(error)) {
+      throw new Error(
+        'Database tables not found. Run database migrations before starting the app: bun run db:migrate'
+      )
+    }
     if (
       error instanceof Error &&
       (error.message.includes('unique') || error.message.includes('duplicate'))
