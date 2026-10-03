@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import * as nodeModule from 'node:module'
 import { join } from 'node:path'
 import type { ReactNode } from 'react'
 import {
@@ -39,7 +39,8 @@ interface PdfFont {
   glyphs: GlyphFont
 }
 
-const require = createRequire(import.meta.url)
+/** A runtime anchor preserves Node filesystem paths instead of bundler module IDs. */
+const require = nodeModule.createRequire(join(process.cwd(), 'package.json'))
 
 /**
  * Ensure a DOM exists for the TipTap Markdown parser used by this PDF-only server module. The
