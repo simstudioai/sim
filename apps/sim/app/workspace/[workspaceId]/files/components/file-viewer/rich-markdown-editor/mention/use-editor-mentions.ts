@@ -3,7 +3,7 @@ import type { Editor } from '@tiptap/react'
 import { useMarkdownMentions } from './use-markdown-mentions'
 
 interface UseEditorMentionsOptions {
-  /** Whether a chip can Cmd/Ctrl-click to its resource. On for the file viewer, off in modal fields. */
+  /** Whether a chip can navigate to its resource. On for the file viewer, off in modal fields. */
   navigable?: boolean
   /** Force the `@` insertion menu off even with a workspace; existing tags still render. */
   disableTagging?: boolean

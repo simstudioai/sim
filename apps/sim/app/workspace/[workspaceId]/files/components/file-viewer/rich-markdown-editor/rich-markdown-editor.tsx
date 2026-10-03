@@ -182,6 +182,7 @@ function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholder
       },
     },
   })
+  useEditorMentions(editor, workspaceId, { navigable: true, disableTagging: true })
   const buildSelectionContext = useCallback(
     () => buildEditorSelectionContext(editor, { id: file.id, name: file.name }),
     [editor, file.id, file.name]
