@@ -33,7 +33,7 @@ import type {
   TerminalToolResponse,
 } from '@sim/terminal-protocol'
 
-export const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
+const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
 
 /** Boolean results preserve compatibility with older installed desktop shells. */
 export type TerminalPasteResult = boolean | 'too-large'
@@ -305,7 +305,7 @@ export interface SimDesktopBrowserAgentApi {
   onScopeSuspended(callback: (scopeId: string) => void): () => void
 }
 
-export type BrowserDownloadState = 'progressing' | 'completed' | 'interrupted' | 'cancelled'
+type BrowserDownloadState = 'progressing' | 'completed' | 'interrupted' | 'cancelled'
 
 /** Safe renderer metadata for a native browser download; host paths never cross the bridge. */
 export interface BrowserDownloadInfo {
@@ -409,7 +409,7 @@ export interface BrowserSiteInfo {
   importedAt?: string
 }
 
-export interface SimDesktopBrowserImportApi {
+interface SimDesktopBrowserImportApi {
   /** Chrome profiles detected on this device; empty when none are readable. */
   listChromeProfiles(): Promise<BrowserImportProfile[]>
   /**
@@ -507,7 +507,7 @@ export interface BrowserFillAvailability {
  * management calls require the Sim app origin, filling additionally requires
  * a real user gesture, and no browser tool maps to these channels.
  */
-export interface SimDesktopBrowserCredentialsApi {
+interface SimDesktopBrowserCredentialsApi {
   /** False when OS-backed encryption is unavailable and passwords are disabled. */
   isAvailable(): Promise<boolean>
   /** Saved credentials, without passwords. */
@@ -575,7 +575,7 @@ export interface LocalFilesystemEntry {
   modifiedAt?: string
 }
 
-export interface LocalFilesystemStat {
+interface LocalFilesystemStat {
   name: string
   uri: string
   kind: LocalFilesystemEntryKind
@@ -583,7 +583,7 @@ export interface LocalFilesystemStat {
   modifiedAt: string
 }
 
-export interface LocalFilesystemReadResult {
+interface LocalFilesystemReadResult {
   uri: string
   content: string
   startLine: number
@@ -785,7 +785,7 @@ export const TERMINAL_DARK_THEME = {
   brightWhite: '#f0f6fc',
 } as const satisfies TerminalThemePalette
 
-export type TerminalThemeSource = 'terminal' | 'iterm2'
+type TerminalThemeSource = 'terminal' | 'iterm2'
 
 export interface TerminalSelectedProfile {
   /** Stable source profile id used to restore this selection. */
@@ -928,7 +928,7 @@ export function resolveDesktopZoom(
   return Math.min(bounds.max, Math.max(bounds.min, next))
 }
 
-export const DESKTOP_APPEARANCE_THEMES = ['app', 'light', 'dark'] as const
+const DESKTOP_APPEARANCE_THEMES = ['app', 'light', 'dark'] as const
 
 export type DesktopAppearanceTheme = (typeof DESKTOP_APPEARANCE_THEMES)[number]
 
@@ -957,7 +957,7 @@ export interface DesktopNotificationPayload {
 }
 
 /** Device-level settings owned by the desktop shell. */
-export interface SimDesktopSettingsApi {
+interface SimDesktopSettingsApi {
   getPreferences(): Promise<DesktopPreferences>
   setPreference<K extends DesktopPreferenceKey>(
     key: K,
@@ -981,7 +981,7 @@ export interface SimDesktopSettingsApi {
   setTerminalDefaultZoom(zoom: DesktopZoomPercent): Promise<DesktopPreferences>
 }
 
-export interface SimDesktopTerminalThemesApi {
+interface SimDesktopTerminalThemesApi {
   listProfiles(): Promise<TerminalThemeProfile[]>
   selectProfile(profileId: string): Promise<DesktopPreferences | null>
 }
@@ -991,13 +991,7 @@ export interface SimDesktopTerminalThemesApi {
  * automatic downloads are disabled or the shell requires a manual installer;
  * self-updating shells with automatic downloads enabled move to `downloading`.
  */
-export type DesktopUpdateStatus =
-  | 'idle'
-  | 'checking'
-  | 'available'
-  | 'downloading'
-  | 'ready'
-  | 'error'
+type DesktopUpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
 
 export interface DesktopUpdateState {
   status: DesktopUpdateStatus
@@ -1014,7 +1008,7 @@ export interface DesktopUpdateState {
 }
 
 /** The shell updater surface. */
-export interface SimDesktopUpdatesApi {
+interface SimDesktopUpdatesApi {
   getState(): Promise<DesktopUpdateState>
   /**
    * Advances the pipeline: checks for an update, downloads an available
@@ -1067,7 +1061,7 @@ export type DesktopServerChangeResult =
  * to must stay reachable when that server cannot be reached at all, and must
  * never be drivable by a page the current server serves.
  */
-export interface SimDesktopServerApi {
+interface SimDesktopServerApi {
   /** Opens the shell's native server-selection window. */
   open(): void
   getConfiguration(): Promise<DesktopServerConfiguration>
@@ -1132,5 +1126,4 @@ export {
   DESKTOP_TITLE_BAR_ATTRIBUTE,
   type DesktopTitleBarMode,
   observeDesktopTitleBar,
-  supportsDesktopTitleBar,
 } from './title-bar'

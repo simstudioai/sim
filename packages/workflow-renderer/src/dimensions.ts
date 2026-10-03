@@ -52,11 +52,11 @@ export const BLOCK_DIMENSIONS = {
  * host, the border SVG viewBox (`preserveAspectRatio='none'`, so a mismatch
  * paints the outline stretched), and autolayout all resolve through them.
  */
-export const NOTE_BLOCK_MIN_HEIGHT =
+const NOTE_BLOCK_MIN_HEIGHT =
   BLOCK_DIMENSIONS.HEADER_HEIGHT +
   BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING +
   BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
-export const NOTE_BLOCK_MAX_HEIGHT =
+const NOTE_BLOCK_MAX_HEIGHT =
   BLOCK_DIMENSIONS.HEADER_HEIGHT + BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT
 
 /** Clamps a note's total height to the bounds the card itself honours. */

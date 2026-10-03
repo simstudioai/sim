@@ -81,7 +81,7 @@ interface WorkflowCursorSourceHandle extends WorkflowBorderCursorHandle {
 }
 
 /** Resolves a moving branch-card swell to the nearest visible branch row. */
-export function getNearestBranchCursorHandleId(
+function getNearestBranchCursorHandleId(
   rows: BranchCursorRow[],
   cursorY: number,
   firstRowY: number,
@@ -163,10 +163,10 @@ const invisibleHandleSize = (
 }
 
 /** Error is the only persisted source that leaves from a vertical card edge. */
-export const ERROR_SOURCE_HANDLE_POSITION = Position.Bottom
+const ERROR_SOURCE_HANDLE_POSITION = Position.Bottom
 
 /** Keeps the Error hit target centered on the painted bottom-right knob. */
-export const getErrorSourceHandleStyle = (): CSSProperties => ({
+const getErrorSourceHandleStyle = (): CSSProperties => ({
   right: 'auto',
   top: 'auto',
   bottom: -HANDLE_OUTSET_PX,
@@ -177,7 +177,7 @@ export const getErrorSourceHandleStyle = (): CSSProperties => ({
 })
 
 /** Builds the fixed Error knob painted into the card's bottom edge. */
-export const getErrorBorderPort = (color?: string): WorkflowBorderPort => ({
+const getErrorBorderPort = (color?: string): WorkflowBorderPort => ({
   id: 'error',
   side: 'bottom',
   position: { fromEnd: HANDLE_POSITIONS.ERROR_RIGHT_OFFSET },

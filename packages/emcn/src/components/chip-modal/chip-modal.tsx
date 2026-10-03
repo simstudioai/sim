@@ -190,7 +190,7 @@ function handleChipModalEnter(event: React.KeyboardEvent<HTMLDivElement>): void 
   action.click()
 }
 
-export interface ChipModalProps {
+interface ChipModalProps {
   /** Controlled open state. */
   open: boolean
   /** Open-state change handler. */
@@ -298,7 +298,7 @@ function ChipModal({
 
 ChipModal.displayName = 'ChipModal'
 
-export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Optional leading icon. Pass `null`/omit for a title-only header. */
   icon?: React.ComponentType<{ className?: string }> | null
   /** Invoked when the trailing close button is activated. Always rendered. */
@@ -362,7 +362,7 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
 ChipModalHeader.displayName = 'ChipModalHeader'
 
 /** Tab entry for {@link ChipModalTabs}. */
-export interface ChipModalTab {
+interface ChipModalTab {
   /** Stable value used to track the active tab. */
   value: string
   /** Visible tab label. */
@@ -371,7 +371,7 @@ export interface ChipModalTab {
   icon?: React.ComponentType<{ className?: string }>
 }
 
-export interface ChipModalTabsProps {
+interface ChipModalTabsProps {
   /** Tab definitions in display order. */
   tabs: ReadonlyArray<ChipModalTab>
   /** Currently-active tab value. */
@@ -433,7 +433,7 @@ ChipModalTabs.displayName = 'ChipModalTabs'
  * content exceeds the viewport cap (`max-h-[84vh]` on `ModalContent`), so
  * header and footer stay pinned.
  */
-export interface ChipModalBodyProps extends React.HTMLAttributes<HTMLDivElement> {
+interface ChipModalBodyProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Removes the field gutter and scrolling chrome for one edge-to-edge surface. */
   fullBleed?: boolean
 }
@@ -455,70 +455,12 @@ const ChipModalBody = React.forwardRef<HTMLDivElement, ChipModalBodyProps>(
 
 ChipModalBody.displayName = 'ChipModalBody'
 
-export interface ChipModalPromptBodyProps extends React.HTMLAttributes<HTMLDivElement> {
-  /**
-   * Minimum body height in pixels, so the prompt surface presents as an open
-   * canvas rather than collapsing to a single line.
-   * @default 140
-   */
-  minHeight?: number
-}
-
-/**
- * Body variant whose ENTIRE content is a single borderless multi-line text
- * surface — an Attio-style prompt modal. Compose it exactly like
- * {@link ChipModalBody} (same header above, same footer below); only the body
- * differs: instead of labeled `ChipModalField` rows, the one child is a
- * full-bleed prompt editor (canonically the home `PromptEditor`, which brings
- * `@`-mention and `/`-skill chips, caret-anchored menus, and the overlay chip
- * rendering of the chat input).
- *
- * Gutter math: the editor's mirror field carries its own `px-1 py-1` text
- * padding, so this container pads `px-3 pt-3 pb-3.5` — text lands at the same
- * effective `px-4 pt-4 pb-4.5` as `ChipModalBody` + `ChipModalField`, aligned
- * with the `px-4` header/footer. The first child (the editor) is stretched so
- * the whole body acts as one clickable text surface; any trailing sibling
- * (e.g. a `ChipModalError`) keeps its natural height.
- *
- * @example
- * ```tsx
- * const editor = usePromptEditor({ workspaceId })
- * <ChipModal open={open} onOpenChange={setOpen} srTitle='New task'>
- *   <ChipModalHeader icon={Calendar} onClose={close}>New task</ChipModalHeader>
- *   <ChipModalPromptBody>
- *     <PromptEditor editor={editor} placeholder='Describe the task...' autoFocus />
- *   </ChipModalPromptBody>
- *   <ChipModalFooter
- *     onCancel={close}
- *     primaryAction={{ label: 'Create', onClick: create, disabled: !editor.value.trim() }}
- *   />
- * </ChipModal>
- * ```
- */
-const ChipModalPromptBody = React.forwardRef<HTMLDivElement, ChipModalPromptBodyProps>(
-  ({ className, style, minHeight = 140, children, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'flex flex-1 flex-col overflow-y-auto px-3 pt-3 pb-3.5 [&>:first-child]:flex-1',
-        className
-      )}
-      style={{ ...style, minHeight }}
-      {...props}
-    >
-      {children}
-    </div>
-  )
-)
-
-ChipModalPromptBody.displayName = 'ChipModalPromptBody'
-
 /**
  * Option entry for the `dropdown` branch of {@link ChipModalField}. Aliases the
  * canonical {@link ChipDropdownOption} so the modal dropdown stays in lockstep
  * with `ChipDropdown` (gains the optional leading `icon`).
  */
-export type ChipModalDropdownOption = ChipDropdownOption
+type ChipModalDropdownOption = ChipDropdownOption
 
 /**
  * Props shared by every {@link ChipModalField} branch.
@@ -710,7 +652,7 @@ interface ChipModalFileFieldProps extends ChipModalFieldBaseProps {
  * `variant` is not forwarded: the field always uses the tall `block` chip
  * surface so it stacks as a peer with `textarea` fields.
  */
-export interface ChipModalEmailsFieldProps
+interface ChipModalEmailsFieldProps
   extends ChipModalFieldBaseProps,
     Omit<ChipEmailsInputProps, 'variant' | 'id'> {
   type: 'emails'
@@ -753,7 +695,7 @@ interface ChipModalCustomFieldProps extends ChipModalFieldBaseProps {
   children: React.ReactNode | ((aria: ChipModalFieldAria) => React.ReactNode)
 }
 
-export type ChipModalFieldProps =
+type ChipModalFieldProps =
   | ChipModalInputFieldProps
   | ChipModalEmailFieldProps
   | ChipModalTextareaFieldProps
@@ -1235,15 +1177,15 @@ export type ChipModalFooterAction = ChipModalFooterActionBase &
  * margin. The primary action stays declarative by design; only
  * `secondaryActions` accepts custom controls.
  */
-export interface ChipModalFooterCustomAction {
+interface ChipModalFooterCustomAction {
   /** Chip-chrome control rendered verbatim in the slot. */
   custom: React.ReactNode
 }
 
 /** One entry of the footer's left-docked `secondaryActions` cluster. */
-export type ChipModalFooterSlotAction = ChipModalFooterAction | ChipModalFooterCustomAction
+type ChipModalFooterSlotAction = ChipModalFooterAction | ChipModalFooterCustomAction
 
-export type ChipModalFooterDefaultAction = 'primary' | 'dismiss' | 'none'
+type ChipModalFooterDefaultAction = 'primary' | 'dismiss' | 'none'
 
 interface ChipModalFooterCommonProps {
   /** Label for the dismiss action, such as Cancel, Later, or Stay. */
@@ -1307,7 +1249,7 @@ type ChipModalFooterCancelProps =
       hideCancel: true
     }
 
-export type ChipModalFooterProps = ChipModalFooterCommonProps &
+type ChipModalFooterProps = ChipModalFooterCommonProps &
   ChipModalFooterCancelProps &
   (
     | {
@@ -1459,7 +1401,7 @@ ChipModalFooter.displayName = 'ChipModalFooter'
  * while the async action runs and the primitive disables BOTH buttons (so the
  * dismiss can't be clicked mid-mutation) and swaps in `pendingLabel`.
  */
-export interface ChipConfirmAction {
+interface ChipConfirmAction {
   /** Resting button label (e.g. `'Delete'`). */
   label: string
   /** Invoked when the user confirms. */
@@ -1525,9 +1467,9 @@ export type ChipConfirmTextSegment =
  * single-style sentences, or an ordered run of {@link ChipConfirmTextSegment}s
  * when parts need emphasis or error coloring.
  */
-export type ChipConfirmText = string | readonly ChipConfirmTextSegment[]
+type ChipConfirmText = string | readonly ChipConfirmTextSegment[]
 
-export type ChipConfirmDefaultAction = 'confirm' | 'dismiss' | 'none'
+type ChipConfirmDefaultAction = 'confirm' | 'dismiss' | 'none'
 
 /** True when `text` resolves to at least one non-empty run. */
 function hasChipConfirmText(text: ChipConfirmText | undefined): text is ChipConfirmText {
@@ -1568,7 +1510,7 @@ function renderChipConfirmText(text: ChipConfirmText): React.ReactNode {
   })
 }
 
-export interface ChipConfirmModalProps {
+interface ChipConfirmModalProps {
   /** Controlled open state. */
   open: boolean
   /**
@@ -1765,7 +1707,7 @@ function ChipConfirmModal({
 
 ChipConfirmModal.displayName = 'ChipConfirmModal'
 
-export interface ChipModalErrorProps extends React.HTMLAttributes<HTMLParagraphElement> {
+interface ChipModalErrorProps extends React.HTMLAttributes<HTMLParagraphElement> {
   /** Error message. When falsy the component renders nothing. */
   children?: React.ReactNode
 }
@@ -1809,6 +1751,5 @@ export {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  ChipModalPromptBody,
   ChipModalTabs,
 }

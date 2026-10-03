@@ -25,25 +25,6 @@ import { truncate } from '@sim/utils/string'
 export const TERMINAL_TOOL_NAME = 'terminal'
 
 /**
- * Names this surface used to expose, one tool per operation. Kept so rows in
- * conversations recorded before the consolidation still render with a real
- * title instead of a humanized tool name.
- */
-export const LEGACY_TERMINAL_TOOL_NAMES = [
-  'terminal_run',
-  'terminal_input',
-  'terminal_read',
-  'terminal_kill',
-  'terminal_cwd',
-  'terminal_list',
-  'terminal_new',
-  'terminal_switch',
-  'terminal_close',
-] as const
-
-export type LegacyTerminalToolName = (typeof LEGACY_TERMINAL_TOOL_NAMES)[number]
-
-/**
  * What one `terminal` call does.
  *
  * The first group acts on a shell — or, when that shell has tmux attached, on
@@ -52,7 +33,7 @@ export type LegacyTerminalToolName = (typeof LEGACY_TERMINAL_TOOL_NAMES)[number]
  * inspects them rather than Sim mirroring them into the tab strip. `handoff`
  * gives the terminal to the user and waits.
  */
-export const TERMINAL_OPERATIONS = [
+const TERMINAL_OPERATIONS = [
   'run',
   'read',
   'input',
@@ -128,7 +109,7 @@ export const PROMPT_IDLE_MS = 2_500
 export const MAX_INPUT_KEYS = 20
 
 /** Control keys the agent may send to a running foreground process. */
-export const TERMINAL_CONTROL_KEYS = [
+const TERMINAL_CONTROL_KEYS = [
   'ctrl-c',
   'ctrl-d',
   'ctrl-z',
@@ -149,7 +130,7 @@ export function isTerminalControlKey(value: unknown): value is TerminalControlKe
   return typeof value === 'string' && TERMINAL_CONTROL_KEY_SET.has(value)
 }
 
-export type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL'
+type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL'
 
 /**
  * Arguments for every operation, flattened into one object.
@@ -197,17 +178,12 @@ export interface TerminalToolArgs {
   reason?: string
 }
 
-export interface TerminalToolCall {
-  operation: TerminalOperation
-  args?: TerminalToolArgs
-}
-
 /**
  * How a `terminal_run` ended. Only `completed` means the command is finished
  * and the terminal is free; in every other case it is still running and still
  * holds the foreground.
  */
-export type TerminalRunStatus =
+type TerminalRunStatus =
   /** Exited on its own. `exitCode` is set. */
   | 'completed'
   /**
@@ -474,12 +450,6 @@ export type TerminalErrorCode =
 export interface TerminalStartOptions {
   cols: number
   rows: number
-}
-
-/** One batch of PTY bytes, tagged with the terminal that produced it. */
-export interface TerminalOutputEvent {
-  terminalId: string
-  data: string
 }
 
 /**

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { CHART_PADDING, type ChartPadding } from '@sim/emcn'
 
-export const CHART_TOOLTIP_CLASSES =
+const CHART_TOOLTIP_CLASSES =
   'pointer-events-none absolute rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1.5 text-xs shadow-overlay'
 
 interface PositionChartTooltipArgs {

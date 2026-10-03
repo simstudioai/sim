@@ -155,7 +155,7 @@ interface SubflowStartViewProps {
 }
 
 /** Start control shared by editable and preview subflow containers. */
-export function SubflowStartView({
+function SubflowStartView({
   parentId,
   kind,
   isPreview = false,

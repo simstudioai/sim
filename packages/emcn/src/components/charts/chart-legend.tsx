@@ -3,7 +3,7 @@
 import { Chip, cn } from '@sim/emcn'
 import { cva, type VariantProps } from 'class-variance-authority'
 
-export const chartLegendVariants = cva('flex min-w-0 flex-1 gap-0.5', {
+const chartLegendVariants = cva('flex min-w-0 flex-1 gap-0.5', {
   variants: {
     layout: { column: 'flex-col', row: 'flex-wrap items-center' },
   },

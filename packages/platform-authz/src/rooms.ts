@@ -7,13 +7,13 @@ import {
   resolveEffectiveWorkspacePermission,
 } from './workspace'
 
-export type { PermissionType, RoomRef, RoomType }
+export type { PermissionType, RoomRef }
 
 /**
  * The owning workspace of a room, plus the org that owns that workspace — the
  * exact inputs {@link resolveEffectiveWorkspacePermission} needs.
  */
-export interface RoomWorkspace {
+interface RoomWorkspace {
   workspaceId: string
   workspaceOrganizationId: string | null
 }
@@ -24,7 +24,7 @@ export interface RoomWorkspace {
  * result). One resolver per workspace-scoped {@link RoomType}; this is the single
  * place a new such room type declares its resource→workspace lookup.
  */
-export type RoomWorkspaceResolver = (roomId: string) => Promise<RoomWorkspace | null>
+type RoomWorkspaceResolver = (roomId: string) => Promise<RoomWorkspace | null>
 
 async function resolveWorkspaceRoomWorkspace(workspaceId: string): Promise<RoomWorkspace | null> {
   const [row] = await db

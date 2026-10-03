@@ -38,7 +38,7 @@ export type {
   Variable,
   WorkflowState,
 }
-export { isValidSubflowType, SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
+export { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
 
 export interface WorkflowActions {
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void

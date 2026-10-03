@@ -5515,7 +5515,6 @@
   "apps/sim/stores/workflows/workflow/types.ts#SUBFLOW_TYPES",
   "apps/sim/stores/workflows/workflow/types.ts#Subflow",
   "apps/sim/stores/workflows/workflow/types.ts#WorkflowActions",
-  "apps/sim/stores/workflows/workflow/types.ts#isValidSubflowType",
   "apps/sim/tools/affinity/utils.ts#AFFINITY_MAX_BATCH_FIELD_UPDATES",
   "apps/sim/tools/affinity/utils.ts#parseOptionalJsonArray",
   "apps/sim/tools/arxiv/utils.ts#cleanText",
