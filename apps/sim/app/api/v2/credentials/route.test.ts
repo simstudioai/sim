@@ -231,7 +231,7 @@ describe('POST /api/v2/credentials', () => {
     expect(body).not.toContain('key-canary')
     expect(body).not.toContain('namespace1')
     expect(mocks.create).toHaveBeenCalledWith({
-      principal: auth.principal,
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
       input: expect.objectContaining({
         workspaceId: WORKSPACE_ID,
         providerId: 'oci-object-storage-service-account',
