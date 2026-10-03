@@ -1,0 +1,569 @@
+---
+title: OCI Queue
+description: Manage OCI queues, messages, channels, and work requests
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_queue"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect an OCI API-key service account to manage queues and exchange bounded message batches. Data endpoints are discovered through authenticated GetQueue. Processing uses current receipts for acknowledgement and visibility changes. Receive is one bounded poll; schedule it in a workflow when needed and leave automatic retries disabled for message operations. Queue management returns asynchronous work request IDs. OCI IAM must permit the selected control or message operation and QUEUE_READ for endpoint discovery.
+
+
+
+## Actions
+
+### OCI Queue List Queues
+
+List one page of OCI queues with exact-name and lifecycle filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `compartmentId` | string | No | Compartment OCID. Required to create a queue; optional for API listing. |
+| `displayName` | string | No | Queue display name \(1–255 characters\); list filtering matches exactly. |
+| `id` | string | No | Optional exact queue OCID filter. |
+| `lifecycleState` | string | No | CREATING, UPDATING, ACTIVE, DELETING, DELETED, FAILED, or INACTIVE. |
+| `sortBy` | string | No | Sort by timeCreated or displayName. |
+| `sortOrder` | string | No | ASC or DESC. |
+| `limit` | number | No | Maximum items in this page \(1–1000\); receiving accepts only 1–20. |
+| `page` | string | No | Opaque nextPage token from a previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque token for the next page; absent at the end. |
+| `queues` | array | One page of queue summaries. |
+|   ↳ `id` | string | Queue OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `displayName` | string | Display name. |
+|   ↳ `lifecycleState` | string | Queue lifecycle state. |
+|   ↳ `lifecycleDetails` | string | Lifecycle details. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `timeUpdated` | string | Last update timestamp. |
+|   ↳ `messagesEndpoint` | string | Oracle message endpoint; informational only. |
+|   ↳ `capabilities` | array | Enabled capability names. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced defined tags. |
+|   ↳ `systemTags` | object | System tags. |
+
+### OCI Queue Get Queue
+
+Get queue configuration and its discovered message endpoint.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `etag` | string | ETag for conditional management updates. |
+| `queue` | object | Queue configuration. Capabilities are projected as names. |
+|   ↳ `id` | string | Queue OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `displayName` | string | Display name. |
+|   ↳ `lifecycleState` | string | Queue lifecycle state. |
+|   ↳ `lifecycleDetails` | string | Lifecycle details. |
+|   ↳ `timeCreated` | string | Creation timestamp. |
+|   ↳ `timeUpdated` | string | Last update timestamp. |
+|   ↳ `messagesEndpoint` | string | Oracle message endpoint; informational only. |
+|   ↳ `capabilities` | array | Enabled capability names. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced defined tags. |
+|   ↳ `systemTags` | object | System tags. |
+|   ↳ `retentionInSeconds` | number | Message retention duration. |
+|   ↳ `visibilityInSeconds` | number | Default visibility duration. |
+|   ↳ `timeoutInSeconds` | number | Default polling duration. |
+|   ↳ `deadLetterQueueDeliveryCount` | number | Dead-letter delivery threshold; zero disables it. |
+|   ↳ `channelConsumptionLimit` | number | Channel consumption percentage. |
+|   ↳ `customEncryptionKeyId` | string | Optional KMS key OCID. |
+
+### OCI Queue Create Queue
+
+Request queue creation and return its work request. An explicit retry token enables at most two tokenized attempts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. Required to create a queue; optional for API listing. |
+| `displayName` | string | Yes | Queue display name \(1–255 characters\); list filtering matches exactly. |
+| `retentionInSeconds` | number | No | Message retention: 10–604800 seconds. Creation only. |
+| `visibilityInSeconds` | number | No | Visibility duration: 0–43200 seconds; queue defaults require at least 1. Zero releases a received message. |
+| `timeoutInSeconds` | number | No | Long-poll duration: 0–30 seconds. Zero does not wait. |
+| `deadLetterQueueDeliveryCount` | number | No | Delivery attempts before dead-lettering: 1–20; 0 disables dead-lettering. |
+| `channelConsumptionLimit` | number | No | Channel consumption limit percentage: 1–100. |
+| `customEncryptionKeyId` | string | No | Optional KMS key OCID. An empty string removes it during update. |
+| `freeformTags` | json | No | Object mapping freeform tag names to string values. |
+| `definedTags` | json | No | Object mapping tag namespaces to their tag-name/value objects. |
+| `retryToken` | string | No | Optional Oracle creation retry token \(1–64 characters\). Enables two tokenized attempts within the deadline. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `workRequestId` | string | Accepted asynchronous work request OCID. |
+
+### OCI Queue Update Queue
+
+Request queue configuration changes and return the work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `displayName` | string | No | Queue display name \(1–255 characters\); list filtering matches exactly. |
+| `visibilityInSeconds` | number | No | Visibility duration: 0–43200 seconds; queue defaults require at least 1. Zero releases a received message. |
+| `timeoutInSeconds` | number | No | Long-poll duration: 0–30 seconds. Zero does not wait. |
+| `deadLetterQueueDeliveryCount` | number | No | Delivery attempts before dead-lettering: 1–20; 0 disables dead-lettering. |
+| `channelConsumptionLimit` | number | No | Channel consumption limit percentage: 1–100. |
+| `customEncryptionKeyId` | string | No | Optional KMS key OCID. An empty string removes it during update. |
+| `freeformTags` | json | No | Object mapping freeform tag names to string values. |
+| `definedTags` | json | No | Object mapping tag namespaces to their tag-name/value objects. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `workRequestId` | string | Accepted asynchronous work request OCID. |
+
+### OCI Queue Delete Queue
+
+Request deletion of a queue and return its work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `workRequestId` | string | Accepted asynchronous work request OCID. |
+
+### OCI Queue Change Queue Compartment
+
+Move a queue to another compartment and return its work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `destinationCompartmentId` | string | Yes | Destination compartment OCID. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `workRequestId` | string | Accepted asynchronous work request OCID. |
+
+### OCI Queue Purge Queue
+
+Purge normal messages, dead-letter messages, or both. Returns asynchronous acceptance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `purgeType` | string | Yes | NORMAL, DLQ, or BOTH. Purging is asynchronous with one OCI client attempt; keep workflow block retries disabled. |
+| `channelIds` | json | No | Optional array of channel IDs to purge; omit for all channels. |
+| `consumerGroupId` | string | No | Optional existing consumer group ID where Oracle supports it. Omit for the primary group. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `workRequestId` | string | Accepted asynchronous work request OCID. |
+
+### OCI Queue Put Messages
+
+Publish one batch of 1–20 messages with one OCI client attempt; keep workflow block retries disabled. Preserve the returned order; Oracle does not document positional correlation or atomicity guarantees.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `messages` | json | Yes | Array of 1–20 \{content, metadata?: \{channelId, customProperties?\}\} messages. UTF-8 content is at most 256 KiB each; serialized batch is at most 512 KiB. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `messages` | array | Published message results in provider order. IDs are lossless decimal strings. |
+|   ↳ `id` | string | Oracle int64 message ID as a decimal string. |
+|   ↳ `expireAfter` | string | Expiration timestamp when returned. |
+
+### OCI Queue Get Messages
+
+Receive one bounded batch of 1–20 messages. This GET changes visibility and delivery counts. The OCI client makes one receive attempt; keep workflow block retries disabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `limit` | number | No | Maximum items in this page \(1–1000\); receiving accepts only 1–20. |
+| `timeoutInSeconds` | number | No | Long-poll duration: 0–30 seconds. Zero does not wait. |
+| `visibilityInSeconds` | number | No | Visibility duration: 0–43200 seconds; queue defaults require at least 1. Zero releases a received message. |
+| `channelFilter` | string | No | Optional literal channel ID filter. Use documented channel values; no wildcard syntax is assumed. |
+| `consumerGroupId` | string | No | Optional existing consumer group ID where Oracle supports it. Omit for the primary group. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `messages` | array | Received messages. Only successful processing should be acknowledged by the current receipt. |
+|   ↳ `id` | string | Oracle int64 message ID as a decimal string. |
+|   ↳ `receipt` | string | Opaque current receipt for acknowledgement and visibility updates. |
+|   ↳ `content` | string | Message content. |
+|   ↳ `deliveryCount` | number | Number of deliveries. |
+|   ↳ `createdAt` | string | Creation timestamp. |
+|   ↳ `visibleAfter` | string | Next visibility timestamp. |
+|   ↳ `expireAfter` | string | Expiration timestamp. |
+|   ↳ `metadata` | object | Channel ID and optional custom properties. |
+|     ↳ `channelId` | string | Message channel ID. |
+|     ↳ `customProperties` | object | Custom string properties. |
+
+### OCI Queue Delete Message
+
+Acknowledge one message using its current receipt, not its message ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `messageReceipt` | string | Yes | Exact current receipt returned by Get Messages. Preserve whitespace and punctuation; do not use the message ID. |
+| `consumerGroupId` | string | No | Optional existing consumer group ID where Oracle supports it. Omit for the primary group. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+
+### OCI Queue Delete Messages
+
+Acknowledge 1–20 messages by receipt and return ordered per-entry outcomes and failure counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `entries` | json | Yes | Array of 1–20 entries: \{receipt\} for deletion or \{receipt, visibilityInSeconds\} for visibility changes. |
+| `consumerGroupId` | string | No | Optional existing consumer group ID where Oracle supports it. Omit for the primary group. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `entries` | array | Acknowledgement outcomes in request order. |
+|   ↳ `index` | number | Zero-based request entry index. |
+|   ↳ `success` | boolean | Whether this entry succeeded. |
+|   ↳ `errorCode` | number | Oracle failure code. |
+|   ↳ `errorMessage` | string | Oracle entry error. |
+| `clientFailures` | number | Number of client failures in this batch. |
+| `serverFailures` | number | Number of server failures in this batch. |
+| `allSucceeded` | boolean | True when both Oracle failure counts are zero. |
+
+### OCI Queue Update Message
+
+Change one received message visibility from now. Zero releases it; the current receipt is required.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `messageReceipt` | string | Yes | Exact current receipt returned by Get Messages. Preserve whitespace and punctuation; do not use the message ID. |
+| `visibilityInSeconds` | number | Yes | Visibility duration: 0–43200 seconds; queue defaults require at least 1. Zero releases a received message. |
+| `consumerGroupId` | string | No | Optional existing consumer group ID where Oracle supports it. Omit for the primary group. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `updatedMessage` | object | Message ID and new visibility timestamp. |
+|   ↳ `id` | string | Lossless decimal message ID. |
+|   ↳ `visibleAfter` | string | New visibility timestamp. |
+
+### OCI Queue Update Messages
+
+Change visibility for 1–20 receipts and return ordered per-entry outcomes, including partial failures.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `entries` | json | Yes | Array of 1–20 entries: \{receipt\} for deletion or \{receipt, visibilityInSeconds\} for visibility changes. |
+| `consumerGroupId` | string | No | Optional existing consumer group ID where Oracle supports it. Omit for the primary group. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `entries` | array | Per-entry outcomes in request order. |
+|   ↳ `index` | number | Zero-based request entry index. |
+|   ↳ `success` | boolean | Whether this entry succeeded. |
+|   ↳ `errorCode` | number | Oracle failure code. |
+|   ↳ `errorMessage` | string | Oracle entry error. |
+|   ↳ `id` | string | Updated message ID as a decimal string. |
+|   ↳ `visibleAfter` | string | New visibility timestamp for successful updates. |
+| `clientFailures` | number | Number of client failures in this batch. |
+| `serverFailures` | number | Number of server failures in this batch. |
+| `allSucceeded` | boolean | True when both Oracle failure counts are zero. |
+
+### OCI Queue Get Statistics
+
+Inspect visible, in-flight, and retained-byte counts for the queue and its dead-letter queue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `channelId` | string | No | Optional channel ID for statistics. |
+| `consumerGroupId` | string | No | Optional existing consumer group ID where Oracle supports it. Omit for the primary group. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `stats` | object | Queue and DLQ visibleMessages, inFlightMessages, and sizeInBytes; optional channel/group scope. |
+|   ↳ `queue` | object | Normal queue statistics. |
+|     ↳ `visibleMessages` | number | Messages available for delivery. |
+|     ↳ `inFlightMessages` | number | Messages currently invisible. |
+|     ↳ `sizeInBytes` | number | Retained message bytes. |
+|   ↳ `dlq` | object | Dead-letter queue statistics. |
+|     ↳ `visibleMessages` | number | Messages available for delivery. |
+|     ↳ `inFlightMessages` | number | Messages currently invisible. |
+|     ↳ `sizeInBytes` | number | Retained message bytes. |
+|   ↳ `channelId` | string | Requested channel scope. |
+|   ↳ `consumerGroupId` | string | Requested consumer group scope. |
+
+### OCI Queue List Channels
+
+List one approximate page of nonempty channels. This operation does not create or delete channels.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `queueId` | string | Yes | Queue OCID. The message endpoint is discovered from authenticated GetQueue. |
+| `channelFilter` | string | No | Optional literal channel ID filter. Use documented channel values; no wildcard syntax is assumed. |
+| `consumerGroupId` | string | No | Optional existing consumer group ID where Oracle supports it. Omit for the primary group. |
+| `limit` | number | No | Maximum items in this page \(1–1000\); receiving accepts only 1–20. |
+| `page` | string | No | Opaque nextPage token from a previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque token for the next page; absent at the end. |
+| `channels` | array | Approximate page of nonempty channel IDs. |
+
+### OCI Queue List Work Requests
+
+List one page of Queue work requests by compartment or work request ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `compartmentId` | string | No | Compartment OCID. Required to create a queue; optional for API listing. |
+| `workRequestId` | string | No | Queue work request OCID. |
+| `limit` | number | No | Maximum items in this page \(1–1000\); receiving accepts only 1–20. |
+| `page` | string | No | Opaque nextPage token from a previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque token for the next page; absent at the end. |
+| `workRequests` | array | One page of asynchronous work requests. |
+|   ↳ `id` | string | Work request OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `operationType` | string | Asynchronous operation type. |
+|   ↳ `status` | string | Observed work request status. |
+|   ↳ `percentComplete` | number | Completion percentage. |
+|   ↳ `timeAccepted` | string | Acceptance timestamp. |
+|   ↳ `timeStarted` | string | Start timestamp. |
+|   ↳ `timeFinished` | string | Finish timestamp. |
+|   ↳ `resources` | array | Affected resources. |
+|     ↳ `actionType` | string | Resource action. |
+|     ↳ `entityType` | string | Resource type. |
+|     ↳ `identifier` | string | Resource identifier. |
+|     ↳ `entityUri` | string | Resource URI. |
+
+### OCI Queue Get Work Request
+
+Inspect the status and resources of an asynchronous Queue work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `workRequestId` | string | Yes | Queue work request OCID. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `retryAfter` | number | Suggested seconds before checking work request status again. |
+| `workRequest` | object | Asynchronous status, completion percentage, timestamps, and affected resources. |
+|   ↳ `id` | string | Work request OCID. |
+|   ↳ `compartmentId` | string | Compartment OCID. |
+|   ↳ `operationType` | string | Asynchronous operation type. |
+|   ↳ `status` | string | Observed work request status. |
+|   ↳ `percentComplete` | number | Completion percentage. |
+|   ↳ `timeAccepted` | string | Acceptance timestamp. |
+|   ↳ `timeStarted` | string | Start timestamp. |
+|   ↳ `timeFinished` | string | Finish timestamp. |
+|   ↳ `resources` | array | Affected resources. |
+|     ↳ `actionType` | string | Resource action. |
+|     ↳ `entityType` | string | Resource type. |
+|     ↳ `identifier` | string | Resource identifier. |
+|     ↳ `entityUri` | string | Resource URI. |
+
+### OCI Queue List Work Request Errors
+
+List one page of errors for a Queue work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `workRequestId` | string | Yes | Queue work request OCID. |
+| `limit` | number | No | Maximum items in this page \(1–1000\); receiving accepts only 1–20. |
+| `page` | string | No | Opaque nextPage token from a previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque token for the next page; absent at the end. |
+| `errors` | array | One page of work request errors. |
+|   ↳ `code` | string | Error code. |
+|   ↳ `message` | string | Error message. |
+|   ↳ `timestamp` | string | Error timestamp. |
+
+### OCI Queue List Work Request Logs
+
+List one page of logs for a Queue work request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `workRequestId` | string | Yes | Queue work request OCID. |
+| `limit` | number | No | Maximum items in this page \(1–1000\); receiving accepts only 1–20. |
+| `page` | string | No | Opaque nextPage token from a previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque token for the next page; absent at the end. |
+| `logs` | array | One page of work request logs. |
+|   ↳ `message` | string | Log message. |
+|   ↳ `timestamp` | string | Log timestamp. |
+
+
