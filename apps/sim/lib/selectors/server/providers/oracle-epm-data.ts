@@ -32,15 +32,27 @@ type OracleEpmDataSelectorKey =
 async function prepareDestination(
   args: ExecuteServerSelectorArgs
 ): Promise<OracleEpmDataAuthParams> {
-  const access = args.credential?.access
-  if (!access?.resolvedCredentialId || access.credentialType !== 'service_account')
-    throw new SelectorConnectionUnavailableError()
-  const resolved = await resolveOAuthAccountId(access.resolvedCredentialId)
-  if (
-    resolved?.credentialType !== 'service_account' ||
-    resolved.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
-  )
-    throw new SelectorConnectionUnavailableError()
+  const credential = args.credential
+  let credentialId: string
+  if (credential?.organization) {
+    if (
+      !credential.suppliedId ||
+      credential.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
+    )
+      throw new SelectorConnectionUnavailableError()
+    credentialId = credential.suppliedId
+  } else {
+    const access = credential?.access
+    if (!access?.resolvedCredentialId || access.credentialType !== 'service_account')
+      throw new SelectorConnectionUnavailableError()
+    const resolved = await resolveOAuthAccountId(access.resolvedCredentialId)
+    if (
+      resolved?.credentialType !== 'service_account' ||
+      resolved.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
+    )
+      throw new SelectorConnectionUnavailableError()
+    credentialId = access.resolvedCredentialId
+  }
   const token = await resolveSelectorCredentialBundle({
     credential: args.credential,
     protectedValues: args.protectedValues,
@@ -53,7 +65,7 @@ async function prepareDestination(
     throw new SelectorConnectionUnavailableError()
   }
   return {
-    oauthCredential: access.resolvedCredentialId,
+    oauthCredential: credentialId,
     accessToken: token.accessToken,
     instanceUrl,
   }
