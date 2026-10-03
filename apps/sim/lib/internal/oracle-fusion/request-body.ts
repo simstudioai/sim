@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 
 const MAX_JSON_NESTING_DEPTH = 100
@@ -168,10 +169,6 @@ function serializeJsonBodyWithinLimit(body: unknown): JsonBudgetState {
   }
 
   return state
-}
-
-function isRecordLike(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function rejectInheritedJsonSerialization(prototype: object | null): void {
