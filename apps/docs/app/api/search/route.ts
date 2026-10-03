@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { db, docsEmbeddings } from '@/lib/db'
@@ -30,7 +31,11 @@ function getSearchLimit(value: unknown): number {
 function getSearchParams(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   return {
-    query: (searchParams.get('query') || searchParams.get('q') || '').slice(0, MAX_QUERY_LENGTH),
+    query: truncateAtCodePoint(
+      searchParams.get('query') || searchParams.get('q') || '',
+      MAX_QUERY_LENGTH,
+      ''
+    ),
     limit: getSearchLimit(searchParams.get('limit')),
   }
 }
